@@ -245,7 +245,9 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             .transpose()?;
         let volume = partial_row.as_ref().unwrap_or(&row);
         let source = |component: usize, point: &[f64]| volume.source(component, point);
-        let coefficient = |test, trial, point: &[f64]| row.diffusion(test, trial, point);
+        let coefficient =
+            |test, trial, axis, point: &[f64]| row.diffusion(test, trial, axis, point);
+        let prescribed = |test, axis, point: &[f64]| row.prescribed_flux(test, axis, point);
         let reaction =
             |test: usize, trial: usize, point: &[f64]| volume.reaction(test, trial, point);
         let boundary_value = |equations: &Self, component, axis, side, point: &[f64]| {
@@ -264,11 +266,17 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         let boundary = |component, axis, side, point: &[f64]| {
             boundary_value(self, component, axis, side, point)
         };
-        let coefficient_partial = |test, trial, point: &[f64]| {
+        let coefficient_partial = |test, trial, axis, point: &[f64]| {
             partial_row
                 .as_ref()
                 .expect("selected partial")
-                .diffusion(test, trial, point)
+                .diffusion(test, trial, axis, point)
+        };
+        let prescribed_partial = |test, axis, point: &[f64]| {
+            partial_row
+                .as_ref()
+                .expect("selected partial")
+                .prescribed_flux(test, axis, point)
         };
         let boundary_partial = |component, axis, side, point: &[f64]| {
             boundary_value(
@@ -279,9 +287,11 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 point,
             )
         };
-        let mut flux = crate::cartesian_elliptic::FvmFlux::new(&coefficient, &boundary);
+        let mut flux =
+            crate::cartesian_elliptic::FvmFlux::new(&coefficient, &prescribed, &boundary);
         if partial.is_some() {
-            flux = flux.with_direction(&coefficient_partial, &boundary_partial);
+            flux =
+                flux.with_direction(&coefficient_partial, &prescribed_partial, &boundary_partial);
         }
         let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
         let facet = if mesh.dimension() == 1 {
@@ -332,7 +342,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             mesh.mesh(),
             row.components(),
             &cell_dofs,
-            row.has_diffusion().then_some(flux),
+            row.has_flux().then_some(flux),
             &reaction,
             &source,
             &cell,

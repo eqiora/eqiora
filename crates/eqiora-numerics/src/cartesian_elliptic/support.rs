@@ -243,6 +243,8 @@ pub(super) struct CartesianFacetPacket<S = f64> {
     pub(super) test: usize,
     pub(super) trial: usize,
     pub(super) transmissibility: S,
+    /// Integrated prescribed flux outward from the first/only incident cell.
+    pub(super) prescribed_flux: S,
     pub(super) kind: CartesianFacetKind<S>,
 }
 
@@ -262,10 +264,12 @@ pub(super) enum CartesianFacetKind<S = f64> {
     },
 }
 
-pub(super) struct CartesianInteriorFlux;
+pub(super) struct CartesianInteriorFlux<S> {
+    pub(super) prescribed_flux: S,
+}
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
-    for CartesianInteriorFlux
+    for CartesianInteriorFlux<S>
 {
     fn evaluate(
         &self,
@@ -281,7 +285,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>>
                 -*transmissibility,
                 *transmissibility,
             ],
-            vec![<S as From<f64>>::from(0.0), <S as From<f64>>::from(0.0)],
+            vec![self.prescribed_flux, -self.prescribed_flux],
         )
     }
 }
@@ -633,7 +637,10 @@ pub(super) fn reconstruct_cell_field_from_boundary_values(
                     let cell_value = cell_values.get(cell).copied().ok_or_else(|| {
                         invalid("Cartesian natural reconstruction cell is unavailable")
                     })?;
-                    traces.push(cell_value + flux_integral / facet.transmissibility);
+                    traces.push(
+                        cell_value
+                            + (flux_integral - facet.prescribed_flux) / facet.transmissibility,
+                    );
                 }
             }
             if traces.is_empty() {

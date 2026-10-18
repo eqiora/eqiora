@@ -172,6 +172,18 @@ impl<S: Coefficient> Context<'_, S> {
                 terms: columns
                     .iter()
                     .enumerate()
+                    // Each physical row owns only the trial coordinates present
+                    // in its exact scalar IR. Keep global column ordinals for
+                    // projection, without inventing off-axis zero couplings.
+                    .filter(|(_, column)| {
+                        [column.real, column.imaginary]
+                            .into_iter()
+                            .flatten()
+                            .any(|index| {
+                                rows.iter()
+                                    .any(|row| row.symbols().contains(&selected[index]))
+                            })
+                    })
                     .map(|(index, column)| (column.field, column.component, data(Some(index))))
                     .collect(),
             });

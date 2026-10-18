@@ -91,54 +91,78 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
 
 
 @pytest.mark.parametrize("faer", [False, True])
-def test_scalar_affine_flux_preserves_natural_trace_and_total_products(faer):
+@pytest.mark.parametrize("tpfa", [False, True])
+@pytest.mark.parametrize("dimension", [1, 2])
+def test_scalar_affine_flux_preserves_natural_trace_and_total_products(faer, tpfa, dimension):
     graph = q.geometry.GeometryGraph()
-    interval = graph.interval(bounds=(0., 2.))
-    geometry = graph.build(interval, named_topology={
-        "body": interval.region, "left": interval.boundaries[0],
-        "right": interval.boundaries[1],
+    shape_geometry = (graph.interval(bounds=(0., 2.)) if dimension == 1
+                      else graph.rectangle(x_bounds=(0., 2.), y_bounds=(0., 3.)))
+    sides = ("left", "right") if dimension == 1 else ("left", "right", "bottom", "top")
+    geometry = graph.build(shape_geometry, named_topology={
+        "body": shape_geometry.region,
+        **dict(zip(sides, shape_geometry.boundaries, strict=True)),
     })
     body = geometry.selection("body")
-    model = q.compile(source="""
-    public component AffineFlux(support body:volume(ambient_dimension=1),
+    profile = "1+coordinate(0)/1[m]" + ("+2*coordinate(1)/1[m]" if dimension == 2 else "")
+    flux = "math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g"
+    extra_supports = ("support bottom:boundary(parent=body), support top:boundary(parent=body),"
+                      if dimension == 2 else "")
+    extra_data = ("parameter e1:vector<1,2>=tensor_value(frame=body,components=[0,1]);"
+                 if dimension == 2 else "")
+    extra_flux = "+2*coordinate(1)*e1" if dimension == 2 else ""
+    extra_boundaries = (f"""
+        relation bottom_value on bottom {{trace(u)=p*({profile});}}
+        relation top_flux on top {{normal({flux})=
+            (2*math.complex(4,3)*p+2*p*math.conj(p)+6*p)/1[m];}}
+    """ if dimension == 2 else "")
+    model = q.compile(source=f"""
+    public component AffineFlux(support body:volume(ambient_dimension={dimension}),
         support left:boundary(parent=body), support right:boundary(parent=body),
-        parameter p:complex<1>) {
-        parameter e:vector<1,1>=tensor_value(frame=body,components=[1]);
-        variable g:vector<complex<1/m>,1> on body in h1;
-        relation drift on body {g=p*coordinate(0)/1[m^2]*e;}
+        {extra_supports} parameter p:complex<1>) {{
+        parameter e:vector<1,{dimension}>=tensor_value(frame=body,components={"[1]" if dimension == 1 else "[1,0]"});
+        {extra_data}
+        variable g:vector<complex<1/m>,{dimension}> on body in h1;
+        relation drift on body {{g=p*(coordinate(0)*e{extra_flux})/1[m^2];}}
         variable u:complex<1> on body in smooth;
-        relation balance on body {
-            -div(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)=-p/1[m^2];
-        }
-        relation left_value on left {trace(u)=p;}
-        relation right_flux on right {
-            normal(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)
-                =(math.complex(4,3)*p+p*math.conj(p)+2*p)/1[m];
-        }
-    }
+        relation balance on body {{-div({flux})=-{1 if dimension == 1 else 3}*p/1[m^2];}}
+        relation left_value on left {{trace(u)=p*({profile});}}
+        relation right_flux on right {{normal({flux})=
+            (math.complex(4,3)*p+p*math.conj(p)+2*p)/1[m];}}
+        {extra_boundaries}
+    }}
     """, entry="AffineFlux", geometry=geometry, bindings={
-        "body": body, "left": (geometry.selection("left"), body),
-        "right": (geometry.selection("right"), body), "p": 2+3j,
+        "body": body, **{side: (geometry.selection(side), body) for side in sides}, "p": 2+3j,
     })
+    counts = (2,) if dimension == 1 else (2, 3)
     mesh = q.meshing.generate(q.meshing.resolve(
-        geometry, q.meshing.CartesianMesher(cells=(2,))))
-    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
+        geometry, q.meshing.CartesianMesher(cells=counts)))
+    # The free 2D Q1 stiffness is L=Sx⊗My+Mx⊗Sy; TPFA uses cell differences.
+    # A=L⊗K, with adjacent real/imaginary coordinates at each coefficient.
+    # With r_t=d-A*v and r_a=w-A^T*lambda, the pairing defect is
+    # r_a^T*v-lambda^T*r_t. These small rational matrices give
+    # ||w||*||v||+||lambda||*||d|| < 3000 at all three Parameter points,
+    # for both meshes/methods. Request 1e-14 for a first-order residual
+    # budget below 3e-11, leaving rounding margin inside the fixed 2e-10 oracle.
+    plan = q.resolve(model, mesh=mesh, spatial=q.fvm.CellCenteredTpfa() if tpfa else q.fem.Q1(), solve=q.solve.Linear(
         algorithm=q.solve.LinearSolver.SparseLu if faer else q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
         reduction=q.solve.Reduction.Fast if faer else q.solve.Reduction.Reproducible,
         provider=q.solve.SolverProvider.faer() if faer else q.solve.SolverProvider.reference(),
-        relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+        relative_tolerance=1e-14, absolute_tolerance=1e-14, maximum_iterations=100))
     plan = q.Plan.from_bytes(plan.to_bytes())
     result = q.run(plan)
     assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
     program = q.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("p").id),),
                              outputs=(plan.fields[0],))
-    # The exact solution u=p*(1+x) is in Q1 on the non-unit interval.
-    # Its derivatives are independent of the residual/trace differentiation:
-    # du=(1+x) dp; under the real complex pairing, dp*=sum((1+x) w).
-    shape = np.array([1., 2., 3.])
+    # u=p*(1+x+2y), with y omitted in 1D; g=p*(x,2y).
+    # The Cartesian coefficient inventory uses its last axis fastest.
+    # This affine solution and its cell averages are exact for both methods.
+    # Its real adjoint is sum((1+x+2y)*w), independently of residual AD.
+    axes = [np.arange(count if tpfa else count+1)+(0.5 if tpfa else 0.) for count in counts]
+    points = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1).reshape(-1, dimension)
+    shape = 1+points @ np.arange(1, dimension+1)
     direction = 2-1j
-    weights = np.array([1-2j, -3+1j, 2+4j])
+    weights = np.arange(1, shape.size+1)+1j*np.arange(shape.size, 0, -1)
     for p in (2+3j, 0j, -1+4j):
         point = program.evaluate((p,))
         np.testing.assert_allclose(point.primal().output[0], shape*p, rtol=0, atol=2e-10)

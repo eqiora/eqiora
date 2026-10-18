@@ -443,8 +443,10 @@ where
                     let rows = [cell_dofs[left][facet.test], cell_dofs[right][facet.test]];
                     let left = cell_dofs[left][facet.trial];
                     let right = cell_dofs[right][facet.trial];
-                    let local = CartesianInteriorFlux
-                        .evaluate(&facet.transmissibility, facet_quadrature)?;
+                    let local = CartesianInteriorFlux {
+                        prescribed_flux: facet.prescribed_flux,
+                    }
+                    .evaluate(&facet.transmissibility, facet_quadrature)?;
                     let map = AssemblyMap::new(
                         rows.into_iter().map(Some).collect(),
                         vec![LocalUnknown::Free(left), LocalUnknown::Free(right)],

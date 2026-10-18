@@ -365,7 +365,8 @@ pub(super) fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                     &mesh,
                     1,
                     Some(crate::cartesian_elliptic::FvmFlux::new(
-                        &|_, _, x: &[f64]| Ok(coefficient(x)),
+                        &|_, _, _, x: &[f64]| Ok(coefficient(x)),
+                        &|_, _, _: &[f64]| Ok(0.),
                         &|_, axis, side, x: &[f64]| Ok(boundary(axis, side, x)),
                     )),
                     &|_, _, _| Ok(0.),
