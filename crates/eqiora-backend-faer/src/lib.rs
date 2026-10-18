@@ -187,7 +187,7 @@ impl LinearSolverBackend for FaerLinearSolver {
             LinearSolver::BiConjugateGradientStabilized => {
                 solve_bicgstab(self.provider(), problem, plan, inverse_diagonal)
             }
-            LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(self.provider(), problem, plan),
+            LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(problem, plan),
         }
     }
 }

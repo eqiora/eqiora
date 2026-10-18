@@ -137,9 +137,10 @@ impl SolverPlan {
     /// full-H projection at the smaller of this value and the operator
     /// dimension. Other providers interpret this common bound independently.
     ///
-    /// Sparse LU retains this field as part of the common plan identity,
-    /// ignores it as a factorization control, and reports at most one completed
-    /// factor-and-solve attempt.
+    /// Faer sparse LU factors once and bounds the total backsolves by this
+    /// value: one original solve, then residual corrections with the same factors
+    /// when needed. Reports count those backsolves; an accepted initial guess
+    /// reports zero. The bound does not control factorization work.
     #[must_use]
     pub const fn maximum_iterations(self) -> NonZeroUsize {
         self.maximum_iterations
