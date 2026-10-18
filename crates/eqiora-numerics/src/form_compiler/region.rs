@@ -25,6 +25,7 @@ pub(crate) use conservative::ConservativeSystem;
 mod boundary_integral;
 mod prepared_facet;
 pub(crate) use prepared_facet::PreparedRegionFacet;
+pub(crate) mod coordinates;
 mod evaluate;
 pub(super) mod integration;
 mod orientation;
@@ -67,7 +68,7 @@ struct Row<S: Coefficient> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Term<S: Coefficient> {
+pub(crate) struct Term<S: Coefficient> {
     trial: RawId,
     derivative: bool,
     pairing: Pairing,

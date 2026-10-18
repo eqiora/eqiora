@@ -75,21 +75,17 @@ impl<A: DifferentiationScalar, S: DifferentiationScalar> StaticRegionSystem<A, S
                 Ok((residual, lift))
             }
             StaticAssembly::FiniteVolume => {
-                let physical_values = S::from_coordinates(values)?;
-                let (_, residual) = equations.with_tpfa_work(
+                let (_, residual) = equations.with_tpfa_work::<S::Projection, _>(
                     resources,
                     &self.mapping,
                     LinearOperatorProperties::General,
                     Some(&partial),
                     |plan, work| {
                         let target = plan.target_id(0).expect("TPFA target");
-                        evaluate_affine_work(plan, target, work, &physical_values)
+                        evaluate_affine_work(plan, target, work, values)
                     },
                 )?;
-                Ok((
-                    coordinates(residual).collect(),
-                    vec![0.; self.mapping.full_count() * S::WIDTH],
-                ))
+                Ok((residual, vec![0.; self.mapping.full_count() * S::WIDTH]))
             }
         }
     }

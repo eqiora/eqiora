@@ -76,6 +76,43 @@ fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() 
 }
 
 #[test]
+fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
+    for conjugated in [false, true] {
+        let source = if conjugated {
+            HELMHOLTZ.replace("q*u", "q*math.conj(u)")
+        } else {
+            HELMHOLTZ.to_owned()
+        };
+        let (program, ids) = fixture(&source);
+        let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
+        let native = form.conservative_system().unwrap();
+        assert_eq!(native.reaction(0, 0, &[2.]).is_err(), conjugated);
+        let row = native.project::<super::super::coordinates::Real>().unwrap();
+        assert_eq!(row.components(), 2);
+        assert_eq!(row.fields().collect::<Vec<_>>(), vec![(ids["u"], 1)]);
+        // Multiplication by 6+6i sends (x,y) to (6x-6y,6x+6y).
+        // (3-i)conj(x+iy) sends (x,y) to (3x-y,-x-3y).
+        let reaction = if conjugated {
+            [[3., -1.], [-1., -3.]]
+        } else {
+            [[3., 1.], [-1., 3.]]
+        };
+        for x in [0., 2., 6.] {
+            for i in 0..2 {
+                assert_eq!(row.source(i, &[x]).unwrap(), [1., 3.][i]);
+                for j in 0..2 {
+                    assert_eq!(
+                        row.diffusion(i, j, &[x]).unwrap(),
+                        [[6., -6.], [6., 6.]][i][j]
+                    );
+                    assert_eq!(row.reaction(i, j, &[x]).unwrap(), reaction[i][j]);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();

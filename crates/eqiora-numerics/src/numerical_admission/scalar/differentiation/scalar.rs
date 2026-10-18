@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub(in crate::numerical_admission) trait DifferentiationScalar:
     Coefficient + Send + Sync
 {
+    type Projection: crate::form_compiler::region::coordinates::Projection<Self, Scalar = f64>;
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
     fn real_system(
@@ -40,6 +41,7 @@ pub(super) fn coordinates<S: DifferentiationScalar>(
 }
 
 impl DifferentiationScalar for f64 {
+    type Projection = crate::form_compiler::region::coordinates::Native;
     const WIDTH: usize = 1;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
         Ok(values.to_vec())
@@ -116,6 +118,7 @@ impl DifferentiationScalar for f64 {
 }
 
 impl DifferentiationScalar for Complex64 {
+    type Projection = crate::form_compiler::region::coordinates::Real;
     const WIDTH: usize = 2;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
         let (pairs, remainder) = values.as_chunks::<2>();
@@ -151,7 +154,6 @@ impl DifferentiationScalar for Complex64 {
             admission.resources(),
             &admission.discretizations,
             &admission.system_scaling,
-            admission.operator_properties,
         )
     }
     fn parameter_residual(

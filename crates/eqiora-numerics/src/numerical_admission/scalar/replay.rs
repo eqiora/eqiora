@@ -71,7 +71,6 @@ impl CommonSpatialPlan {
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
-                    admission.operator_properties,
                 )?;
                 match system {
                     regions::StaticSpatialSystem::Real(system) => {
