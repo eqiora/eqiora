@@ -114,17 +114,24 @@ fn complex_finalization_recomputes_both_residual_channels_and_rhs_norm() {
 
 #[test]
 fn complex_norm_keeps_all_components_across_the_fixed_partial_boundary() {
-    // 1025 complex values cross the 1024-scalar fixed partial boundary.
+    // 1025 complex values cross multiple 1024-real-coordinate partial boundaries.
     // Each contributes 3²+4²=25; imaginary terms must never cancel real terms.
     assert_eq!(
         FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &vec![C::new(3., 4.); 1025])
             .unwrap(),
         (1025.0_f64 * 25.0).sqrt()
     );
+    // The magnitude of one purely imaginary finite value is its absolute
+    // value; squaring that coordinate must not introduce overflow.
+    assert_eq!(
+        FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[C::new(0., f64::MAX)]).unwrap(),
+        f64::MAX
+    );
     for value in [
         C::new(0., f64::NAN),
         C::new(0., f64::INFINITY),
-        C::new(0., f64::MAX),
+        // sqrt(2) * MAX is outside binary64's finite range.
+        C::new(f64::MAX, f64::MAX),
     ] {
         assert_eq!(
             FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[value])
