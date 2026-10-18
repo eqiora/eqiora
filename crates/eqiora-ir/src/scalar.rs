@@ -11,17 +11,22 @@ mod slot_pencil;
 use instruction::{Instruction, ValueId};
 mod activity;
 mod batch;
+mod binary_scale;
 mod complex_quotient;
+mod differential;
 #[cfg(test)]
 mod enum_tests;
 mod linearization;
 mod map_evaluation;
+mod quotient;
+const MAX_COMPONENT_PRODUCTS: usize = 1_000_000;
 mod mixed;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;
 mod real_math;
 mod sampled_linearization;
+mod slot_differential;
 mod slot_guards;
 mod typed;
 mod typed_linearization;
@@ -96,12 +101,23 @@ impl ScalarInputSlot {
 /// cannot expose a fabricated Parameter identity.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarInputOperatorIr {
+    primal_checks: Vec<ValueId>,
     slots: Vec<ScalarInputSlot>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,
 }
 
 impl ScalarInputOperatorIr {
+    // Derivatives retain their original demanded domains, including when their
+    // value no longer depends on an operand. These are execution roots only.
+    fn evaluation_roots(&self) -> Vec<ValueId> {
+        self.primal_checks
+            .iter()
+            .chain(&self.roots)
+            .copied()
+            .collect()
+    }
+
     pub(crate) fn linearize(
         &self,
         inputs: &[f64],
@@ -154,9 +170,12 @@ impl ScalarInputOperatorIr {
             let point = self.typed_point(inputs)?;
             return self
                 .typed_instructions()
-                .evaluate(&self.roots, &mut |slot| point.get(slot.0 as usize).cloned())?
+                .evaluate(&self.evaluation_roots(), &mut |slot| {
+                    point.get(slot.0 as usize).cloned()
+                })?
                 .0
                 .into_iter()
+                .skip(self.primal_checks.len())
                 .map(|value| {
                     value
                         .real_scalar_value()
@@ -176,6 +195,7 @@ impl ScalarInputOperatorIr {
 pub(crate) struct ScalarInputValueId(ValueId);
 
 pub(crate) struct ScalarInputIrBuilder {
+    primal_checks: Vec<ValueId>,
     slots: Vec<ScalarInputSlot>,
     slot_indices: HashMap<ScalarInputSlot, SymbolSlot>,
     instructions: Vec<Instruction>,
@@ -184,6 +204,7 @@ pub(crate) struct ScalarInputIrBuilder {
 impl ScalarInputIrBuilder {
     pub(crate) fn new() -> Self {
         Self {
+            primal_checks: Vec::new(),
             slots: Vec::new(),
             slot_indices: HashMap::new(),
             instructions: Vec::new(),
@@ -367,6 +388,7 @@ impl ScalarInputIrBuilder {
             ));
         }
         Ok(ScalarInputOperatorIr {
+            primal_checks: self.primal_checks,
             slots: self.slots,
             instructions: self.instructions,
             roots,

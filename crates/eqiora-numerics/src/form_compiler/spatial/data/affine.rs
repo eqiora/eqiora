@@ -31,7 +31,7 @@ pub(super) struct AffineData<S: Coefficient> {
     row: Arc<Row<S>>,
     column: Option<usize>,
     input_imaginary: Option<bool>,
-    tangent: Option<Vec<Input<S>>>,
+    tangent: Option<Vec<Option<Input<S>>>>,
 }
 
 impl<S: Coefficient> Context<'_, S> {
@@ -180,8 +180,19 @@ impl<S: Coefficient> Context<'_, S> {
                             .into_iter()
                             .flatten()
                             .any(|index| {
-                                rows.iter()
-                                    .any(|row| row.symbols().contains(&selected[index]))
+                                rows.iter().any(|row| {
+                                    row.symbols().contains(&selected[index])
+                                        && row
+                                            .constant_coordinate_jacobian(std::slice::from_ref(
+                                                &selected[index],
+                                            ))
+                                            .map_or(true, |jacobian| {
+                                                jacobian
+                                                    .coefficients()
+                                                    .iter()
+                                                    .any(|value| *value != 0.)
+                                            })
+                                })
                             })
                     })
                     .map(|(index, column)| (column.field, column.component, data(Some(index))))
@@ -212,7 +223,8 @@ impl<S: Coefficient> AffineData<S> {
                 return Ok(false);
             }
             if let Some(values) = &self.tangent
-                && !values[index].constant_in_direction(coordinate, direction)?
+                && let Some(input) = &values[index]
+                && !input.constant_in_direction(coordinate, direction)?
             {
                 return Ok(false);
             }
@@ -248,7 +260,12 @@ impl<S: Coefficient> AffineData<S> {
                     inputs
                         .iter()
                         .zip(&self.row.bindings)
-                        .map(|(input, (coordinate, _))| input.bind(coordinate, point))
+                        .map(|(input, (coordinate, _))| {
+                            input
+                                .as_ref()
+                                .map(|input| input.bind(coordinate, point))
+                                .transpose()
+                        })
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
@@ -272,7 +289,13 @@ impl<S: Coefficient> AffineData<S> {
                 self.row
                     .bindings
                     .iter()
-                    .map(|(coordinate, input)| input.derivative(coordinate, direction, dimension))
+                    .map(|(coordinate, input)| {
+                        if input.constant_in_direction(coordinate, direction)? {
+                            Ok(None)
+                        } else {
+                            input.derivative(coordinate, direction, dimension).map(Some)
+                        }
+                    })
                     .collect::<Result<_, _>>()?,
             ),
         })
@@ -294,7 +317,9 @@ impl<S: Coefficient> AffineData<S> {
                 .zip(tangent)
                 .map(|((coordinate, value), input)| {
                     input
-                        .evaluate(point)
+                        .as_ref()
+                        .map(|input| input.evaluate(point))
+                        .transpose()
                         .map(|tangent| (coordinate.clone(), *value, tangent))
                 })
                 .collect::<Result<Vec<_>, _>>()?;

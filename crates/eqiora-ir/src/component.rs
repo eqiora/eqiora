@@ -103,7 +103,8 @@ impl ComponentScalarRow {
 
     /// Bind an affine row and its directional coefficient/offset derivative.
     /// Selected coordinates stay symbolic; every other coordinate supplies its
-    /// value and tangent. The same structural affine arithmetic propagates both,
+    /// value and optional tangent. `None` holds that input fixed; `Some(0.)`
+    /// remains active and must have a defined derivative. The same arithmetic propagates both,
     /// without finite differences or probing selected coordinates.
     ///
     /// # Errors
@@ -112,7 +113,7 @@ impl ComponentScalarRow {
     pub fn bind_affine_direction(
         &self,
         selected: &[ScalarSymbolCoordinate],
-        bindings: &[(ScalarSymbolCoordinate, f64, f64)],
+        bindings: &[(ScalarSymbolCoordinate, f64, Option<f64>)],
     ) -> Result<
         (
             crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,

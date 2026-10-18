@@ -54,7 +54,14 @@ impl AffineValue {
         let value = self.value / other.value;
         Self {
             value,
-            tangent: self.direction(other, |a, b| a / other.value - value * (b / other.value)),
+            tangent: differential::quotient_direction(
+                &mut differential::Numerical,
+                self.value,
+                other.value,
+                self.tangent,
+                other.tangent,
+            )
+            .expect("numerical quotient arithmetic is infallible"),
         }
     }
 

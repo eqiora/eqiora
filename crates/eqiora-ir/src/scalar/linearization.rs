@@ -108,6 +108,14 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         accumulate(&mut adjoints, operand, contribution, index)?;
                     }
                 }
+                Instruction::QuotientJet { start, len } => {
+                    let operands = quotient::numerical_operands(start, len, &values[..index])?;
+                    for operand in operands.iter().filter(|id| self.active[id.0 as usize]) {
+                        let contribution = operands
+                            .first(&values, |id| Ok(if id == operand { cotangent } else { 0. }))?;
+                        accumulate(&mut adjoints, operand, contribution, index)?;
+                    }
+                }
                 Instruction::MapInvariant {
                     start,
                     extent,
@@ -165,14 +173,25 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     )?;
                 }
                 Instruction::Div(left, right) => {
+                    let numerator = read(&values, left, index)?;
                     let denominator = read(&values, right, index)?;
-                    accumulate(&mut adjoints, left, cotangent / denominator, index)?;
-                    accumulate(
-                        &mut adjoints,
-                        right,
-                        -cotangent * read(&values, left, index)? / denominator.powi(2),
-                        index,
-                    )?;
+                    for (operand, da, db) in [
+                        (left, Some(cotangent), None),
+                        (right, None, Some(cotangent)),
+                    ]
+                    .into_iter()
+                    .filter(|(operand, _, _)| self.active[operand.0 as usize])
+                    {
+                        let contribution = differential::quotient_direction(
+                            &mut differential::Numerical,
+                            numerator,
+                            denominator,
+                            da,
+                            db,
+                        )?
+                        .expect("one quotient direction is present");
+                        accumulate(&mut adjoints, operand, contribution, index)?;
+                    }
                 }
                 Instruction::Math(function, value) => {
                     accumulate(
@@ -297,6 +316,10 @@ impl ScalarLinearization<'_> {
                     operands,
                     imaginary,
                 } => complex_quotient::jvp(operands, values, &tangents, index, imaginary)?,
+                Instruction::QuotientJet { start, len } => {
+                    quotient::numerical_operands(start, len, &values[..index])?
+                        .first(values, |id| read(&tangents, id, index))?
+                }
                 Instruction::MapInvariant {
                     start,
                     extent,
@@ -326,27 +349,24 @@ impl ScalarLinearization<'_> {
                     read(values, value, index)?,
                     read(&tangents, value, index)?,
                 )?,
-                Instruction::Neg(value) => -read(&tangents, value, index)?,
-                Instruction::Add(left, right) => {
-                    read(&tangents, left, index)? + read(&tangents, right, index)?
-                }
-                Instruction::Sub(left, right) => {
-                    read(&tangents, left, index)? - read(&tangents, right, index)?
-                }
-                Instruction::Mul(left, right) => {
-                    read(&tangents, left, index)? * read(values, right, index)?
-                        + read(values, left, index)? * read(&tangents, right, index)?
-                }
-                Instruction::Div(left, right) => {
-                    let denominator = read(values, right, index)?;
-                    (read(&tangents, left, index)? * denominator
-                        - read(values, left, index)? * read(&tangents, right, index)?)
-                        / denominator.powi(2)
-                }
-                Instruction::PowI(base, exponent) => {
-                    powi_derivative(read(values, base, index)?, exponent)
-                        * read(&tangents, base, index)?
-                }
+                Instruction::Neg(_)
+                | Instruction::Add(..)
+                | Instruction::Sub(..)
+                | Instruction::Mul(..)
+                | Instruction::Div(..)
+                | Instruction::PowI(..) => differential::apply(
+                    &mut differential::Numerical,
+                    *instruction,
+                    |id| read(values, id, index),
+                    |id| {
+                        if self.active[id.0 as usize] {
+                            read(&tangents, id, index).map(Some)
+                        } else {
+                            Ok(None)
+                        }
+                    },
+                )?
+                .unwrap_or(0.),
             };
             if let Some((left, right)) = mixed {
                 tangent += super::mixed::curvature(*instruction, values, left, right, index, maps)?;

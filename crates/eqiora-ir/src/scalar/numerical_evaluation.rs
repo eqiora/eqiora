@@ -42,6 +42,11 @@ pub(super) fn evaluate_instructions(
                 operands,
                 imaginary,
             } => complex_quotient::evaluate(operands, &values, index)?[usize::from(imaginary)],
+            Instruction::QuotientJet { start, len } => {
+                let operands = quotient::operands(start, len, &instructions[..index])?;
+                let (a, b) = operands.values(|id| read(&values, id, index))?;
+                quotient::jet(&a, &b)?
+            }
             Instruction::MapInvariant {
                 start,
                 extent,

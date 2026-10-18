@@ -214,7 +214,13 @@ impl typed::TypedInstructions<'_> {
             } else {
                 let at = |id: ValueId| dependencies[id.0 as usize];
                 match *node {
-                    Instruction::MapInvariant { .. } | Instruction::ComplexDiv { .. } => {
+                    Instruction::ComplexDiv { operands, .. } => operands.into_iter().any(at),
+                    Instruction::QuotientJet { start, len } => {
+                        quotient::operands(start, len, &self.instructions[..index])?
+                            .iter()
+                            .any(at)
+                    }
+                    Instruction::MapInvariant { .. } => {
                         return Err(ir_builder_error(
                             "numerical maps require component execution",
                         ));
@@ -315,6 +321,10 @@ impl typed::TypedInstructions<'_> {
                 | Instruction::Sub(a, b)
                 | Instruction::Mul(a, b)
                 | Instruction::Div(a, b) => pending.extend([a, b]),
+                Instruction::ComplexDiv { operands, .. } => pending.extend(operands),
+                Instruction::QuotientJet { start, len } => pending.extend(
+                    quotient::operands(start, len, &self.instructions[..id.0 as usize])?.iter(),
+                ),
                 Instruction::Constant(_) | Instruction::Read(_) => {}
                 _ => {
                     return Err(ir_builder_error(
@@ -353,6 +363,18 @@ impl typed::TypedInstructions<'_> {
                 Instruction::Sub(a, b) => Instruction::Sub(at(a), at(b)),
                 Instruction::Mul(a, b) => Instruction::Mul(at(a), at(b)),
                 Instruction::Div(a, b) => Instruction::Div(at(a), at(b)),
+                Instruction::ComplexDiv {
+                    operands,
+                    imaginary,
+                } => Instruction::ComplexDiv {
+                    operands: operands.map(at),
+                    imaginary,
+                },
+                Instruction::QuotientJet { start, len } => {
+                    let operands = quotient::operands(start, len, &self.instructions[..index])?;
+                    let (a, b) = operands.values(|id| Ok(at(id)))?;
+                    quotient::gather(&mut instructions, &a, &b)?
+                }
                 Instruction::Read(_) | Instruction::Constant(_) => node,
                 _ => return Err(ir_builder_error("active scalar instruction is unsupported")),
             };

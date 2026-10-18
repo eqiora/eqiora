@@ -118,6 +118,33 @@ pub(super) fn evaluate(
             }
             output
         }
+        Instruction::QuotientJet { start, len } => {
+            let operands = quotient::numerical_operands(start, len, values)?;
+            let mut powers = Vec::new();
+            for id in operands.a.iter().flatten() {
+                powers.extend(at(*id)?.0.keys().cloned());
+            }
+            powers.sort();
+            powers.dedup();
+            let denominator = operands
+                .b
+                .iter()
+                .map(|id| id.map(|id| values[id.0 as usize]))
+                .collect::<Vec<_>>();
+            let mut output = Polynomial(BTreeMap::new());
+            for power in powers {
+                let numerator = operands
+                    .a
+                    .iter()
+                    .map(|id| {
+                        id.map(|id| at(id).map(|p| p.0.get(&power).copied().unwrap_or(0.)))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                output.insert(power, quotient::jet(&numerator, &denominator)?, budget)?;
+            }
+            output
+        }
         Instruction::PowI(a, exponent) if exponent > 0 => {
             let mut power = exponent as u32;
             let mut base = at(a)?.clone();

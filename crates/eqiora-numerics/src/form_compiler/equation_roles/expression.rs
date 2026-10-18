@@ -99,14 +99,19 @@ pub(super) fn principal(
                 {
                     trials.insert(field);
                 }
-                if let Some(field) = field(dag, *value) {
+                if let Some(fields) = coefficient_dependencies(dag, *value) {
+                    // A pointwise composition inside a gradient retains its
+                    // unknown operands' differential role. Its affinity and
+                    // exact component action belong to the shared lowerer.
+                    let unknowns = fields.difference(coefficients).copied();
                     if in_divergence {
-                        trials.insert(field);
+                        trials.extend(unknowns);
                     } else {
-                        multipliers.insert(field);
+                        multipliers.extend(unknowns);
                     }
+                } else {
+                    pending.push((*value, in_divergence));
                 }
-                pending.push((*value, in_divergence));
             }
             ExprNode::IsotropicLift(value) => {
                 if in_divergence && let Some(field) = field(dag, *value) {

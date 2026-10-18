@@ -102,3 +102,72 @@ fn coefficient_partials_distinguish_frozen_inputs_from_zero_tangents() {
         }
     }
 }
+
+#[test]
+fn affine_coefficient_partials_preserve_frozen_domains_and_active_zero_tangents() {
+    for expression in ["math.sqrt(q)+p*x/1[m]", "math.sqrt(p*p)+q*x/1[m]"] {
+        let source = format!(
+            "model Activity() {{
+            domain body=box(0,1); coordinate x:m on body from body[0];
+            parameter p:1=0; parameter q:1=0; variable u:1 on body;
+            relation r on body {{ u=({expression})*u; }}
+        }}"
+        );
+        let (transaction, model, symbols) = compile("affine-activity.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let owner = symbols.get("r").unwrap();
+        let parameter = symbols.get("p").unwrap();
+        let typed = crate::form_compiler::scalar::typed_relation(&program, owner).unwrap();
+        let dag = typed.expression();
+        let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
+            panic!("equation")
+        };
+        let known = BTreeMap::new();
+        let context = Context::<f64> {
+            program: &program,
+            dag,
+            owner,
+            dimension: 1,
+            coefficients: &known,
+            time_s: None,
+        };
+        let rows = context.affine_components(*rhs, 0).unwrap().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].terms.len(), 1);
+        let data = &rows[0].terms[0].2;
+        assert_eq!(data.evaluate(&[0.5]).unwrap(), 0.);
+        let direction = |coordinate: &ScalarSymbolCoordinate| {
+            f64::from(
+                matches!(coordinate.symbol(), SymbolRef::Parameter(id) if id.erase()==parameter),
+            )
+        };
+        let partial = data.derivative(&direction, 1).unwrap();
+        if expression.starts_with("math.sqrt(q)") {
+            assert_eq!(partial.evaluate(&[0.5]).unwrap(), 0.5);
+            let parameters = [
+                parameter.downcast().unwrap(),
+                symbols.get("q").unwrap().downcast().unwrap(),
+            ];
+            for q in [0., 4., -1.] {
+                let rebound = partial
+                    .bind_parameter_point(
+                        &ParameterPoint::bind(&program, &parameters, &[2., q]).unwrap(),
+                    )
+                    .unwrap();
+                if q < 0. {
+                    assert!(rebound.evaluate(&[0.5]).is_err());
+                } else {
+                    assert_eq!(rebound.evaluate(&[0.5]).unwrap(), 0.5);
+                }
+            }
+        } else {
+            // At p=0 the inner derivative is numerically zero, but p is active.
+            assert!(partial.evaluate(&[0.5]).is_err());
+        }
+    }
+}

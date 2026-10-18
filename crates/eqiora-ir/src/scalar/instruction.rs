@@ -48,6 +48,10 @@ pub(super) enum Instruction {
         imaginary: bool,
     },
     PowI(ValueId, i32),
+    QuotientJet {
+        start: ValueId,
+        len: u32,
+    },
     // Contiguous row-major numerical operands; None selects the determinant.
     MapInvariant {
         start: ValueId,
@@ -103,7 +107,7 @@ impl Instruction {
                 operands: operands.map(at),
                 imaginary,
             },
-            Self::MapInvariant { .. } => return None,
+            Self::MapInvariant { .. } | Self::QuotientJet { .. } => return None,
             Self::Quotient(a, b) => Self::Quotient(at(a), at(b)),
             Self::Remainder(a, b) => Self::Remainder(at(a), at(b)),
             Self::And(a, b) => Self::And(at(a), at(b)),

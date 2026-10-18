@@ -14,6 +14,33 @@ impl ScalarInputOperatorIr {
                 ));
             }
         }
+        // Retained primal checks can read a coordinate absent from every
+        // output. Prove that independence before analyzing affine coefficients:
+        // a variable coefficient in a primal-only expression is not an output
+        // coupling. Evaluation still owns all original domain obligations.
+        let bindings = self
+            .slots
+            .iter()
+            .map(|slot| {
+                columns
+                    .get(slot.source())
+                    .map_or(InputBinding::Frozen, |&column| {
+                        InputBinding::Unknown(column)
+                    })
+            })
+            .collect::<Vec<_>>();
+        let active = activity::numerical_activity(&self.instructions, &bindings)?;
+        if self
+            .roots
+            .iter()
+            .all(|root| active.get(root.0 as usize).is_some_and(|active| !active))
+        {
+            return Ok(ConstantSymbolJacobian {
+                rows: self.roots.len(),
+                columns: selected.len(),
+                coefficients: vec![0.; self.roots.len() * selected.len()],
+            });
+        }
         let summaries =
             affine_analysis::summarize(&self.instructions, &[], selected.len(), |slot, index| {
                 let source = self
@@ -67,7 +94,7 @@ impl ScalarInputOperatorIr {
     pub(crate) fn bind_affine_direction(
         &self,
         selected: &[ScalarSymbolCoordinate],
-        bindings: &[(ScalarSymbolCoordinate, f64, f64)],
+        bindings: &[(ScalarSymbolCoordinate, f64, Option<f64>)],
     ) -> Result<
         (
             BoundAffineScalarIr<ScalarSymbolCoordinate>,
@@ -82,7 +109,7 @@ impl ScalarInputOperatorIr {
                     c.clone(),
                     AffineValue {
                         value: *value,
-                        tangent: Some(*tangent),
+                        tangent: *tangent,
                     },
                 )
             })

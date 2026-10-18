@@ -46,13 +46,20 @@ pub(super) fn curvature(
         | Instruction::Add(_, _)
         | Instruction::Sub(_, _) => 0.,
         Instruction::Mul(a, b) => l(a)? * r(b)? + r(a)? * l(b)?,
-        Instruction::Div(a, b) => {
-            let denominator = read(values, b, index)?;
-            let quotient = read(values, a, index)? / denominator;
-            let dl = (l(a)? - quotient * l(b)?) / denominator;
-            let dr = (r(a)? - quotient * r(b)?) / denominator;
-            -(dl * r(b)? + dr * l(b)?) / denominator
-        }
+        Instruction::Div(a, b) => quotient::jet(
+            &[
+                Some(read(values, a, index)?),
+                Some(l(a)?),
+                Some(r(a)?),
+                None,
+            ],
+            &[
+                Some(read(values, b, index)?),
+                Some(l(b)?),
+                Some(r(b)?),
+                None,
+            ],
+        )?,
         Instruction::PowI(a, power) => {
             let value = read(values, a, index)?;
             let derivative = match power {
@@ -70,6 +77,10 @@ pub(super) fn curvature(
             operands,
             imaginary,
         } => complex_quotient::curvature(operands, values, left, right, index, imaginary)?,
+        Instruction::QuotientJet { start, len } => {
+            quotient::numerical_operands(start, len, &values[..index])?
+                .second(values, left, right)?
+        }
         Instruction::MapInvariant {
             start,
             extent,

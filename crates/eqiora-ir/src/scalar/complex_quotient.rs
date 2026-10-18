@@ -2,6 +2,8 @@
 //!
 //! No squared physical denominator or overflowing reciprocal is required.
 
+use super::binary_scale::{exponent, scale};
+
 pub(super) fn quotient(numerator: [f64; 2], denominator: [f64; 2]) -> [f64; 2] {
     let a = numerator[0].abs().max(numerator[1].abs());
     let b = denominator[0].abs().max(denominator[1].abs());
@@ -35,6 +37,33 @@ pub(super) fn evaluate(
             super::read(values, d, index)?,
         ],
     ))
+}
+
+/// Typed demand uses the same scaled numerical quotient, with exact paired units.
+pub(super) fn typed(
+    operands: [&eqiora_core::ValueLiteral; 4],
+    imaginary: bool,
+    instruction: usize,
+) -> Result<eqiora_core::ValueLiteral, super::Diagnostic> {
+    let real = |index: usize| {
+        operands[index].real_scalar_value().ok_or_else(|| {
+            super::ir_builder_error("complex quotient requires real component coordinates")
+        })
+    };
+    let [a, b, c, d] = [real(0)?, real(1)?, real(2)?, real(3)?];
+    if a.dim() != b.dim() || c.dim() != d.dim() {
+        return Err(super::ir_builder_error(
+            "complex quotient coordinate units differ",
+        ));
+    }
+    let dimension = a
+        .dim()
+        .div(c.dim())
+        .ok_or_else(|| super::ir_builder_error("complex quotient dimension overflow"))?;
+    let value = quotient([a.value(), b.value()], [c.value(), d.value()])[usize::from(imaginary)];
+    super::require_finite_value(value, "complex quotient", instruction)?;
+    eqiora_core::ValueLiteral::try_from(eqiora_core::DynQuantity::new(value, dimension))
+        .map_err(|error| super::ir_builder_error(error.to_string()))
 }
 
 // Differentiate the quotient action directly. Forming 1/b first can overflow
@@ -77,13 +106,44 @@ pub(super) fn direction(
     numerator_tangent: [f64; 2],
     denominator_tangent: [f64; 2],
 ) -> [f64; 2] {
-    let da = quotient(numerator_tangent, denominator);
-    let db = quotient(denominator_tangent, denominator);
-    let q = quotient(numerator, denominator);
-    [
-        da[0] - (q[0] * db[0] - q[1] * db[1]),
-        da[1] - (q[0] * db[1] + q[1] * db[0]),
-    ]
+    direction_in(
+        &mut super::differential::Numerical,
+        numerator,
+        denominator,
+        Some(numerator_tangent),
+        Some(denominator_tangent),
+    )
+    .expect("numerical arithmetic is infallible")
+    .expect("numerical directions are present")
+}
+
+/// The robust quotient differential has one owner for evaluation and SSA emission.
+pub(super) fn direction_in<A: super::differential::Arithmetic>(
+    algebra: &mut A,
+    numerator: [A::Value; 2],
+    denominator: [A::Value; 2],
+    numerator_tangent: Option<[A::Value; 2]>,
+    denominator_tangent: Option<[A::Value; 2]>,
+) -> Result<Option<[A::Value; 2]>, super::Diagnostic> {
+    let da = numerator_tangent
+        .map(|d| algebra.complex_quotient(d, denominator))
+        .transpose()?;
+    let Some(db) = denominator_tangent else {
+        return Ok(da);
+    };
+    let db = algebra.complex_quotient(db, denominator)?;
+    let q = algebra.complex_quotient(numerator, denominator)?;
+    let rr = algebra.mul(q[0], db[0])?;
+    let ii = algebra.mul(q[1], db[1])?;
+    let real = algebra.sub(rr, ii)?;
+    let ri = algebra.mul(q[0], db[1])?;
+    let ir = algebra.mul(q[1], db[0])?;
+    let imaginary = algebra.add(ri, ir)?;
+    Ok(Some(if let Some(da) = da {
+        [algebra.sub(da[0], real)?, algebra.sub(da[1], imaginary)?]
+    } else {
+        [algebra.neg(real)?, algebra.neg(imaginary)?]
+    }))
 }
 
 // For q=a/b, mixed curvature is -(q_left*b_right+q_right*b_left)/b.
@@ -177,31 +237,6 @@ pub(super) fn affine(
         .map(|(&a, &b)| super::AffineValue::complex_quotient([a, b], [br, bi])[component])
         .collect();
     AffineSummary::finite(constant, coefficients, index)
-}
-
-fn exponent(value: f64) -> i32 {
-    if value == 0. {
-        return 0;
-    }
-    let bits = value.to_bits();
-    let stored = ((bits >> 52) & 0x7ff) as i32;
-    if stored == 0 {
-        // A subnormal is its integer significand times 2^-1074.
-        63 - bits.leading_zeros() as i32 - 1074
-    } else {
-        stored - 1023
-    }
-}
-
-fn scale(mut value: f64, mut exponent: i32) -> f64 {
-    // Every factor is normal and exactly represented. Applying bounded chunks
-    // avoids first constructing 2^1074 or 2^-2097 as an f64.
-    while exponent != 0 {
-        let part = exponent.clamp(-512, 512);
-        value *= 2_f64.powi(part);
-        exponent -= part;
-    }
-    value
 }
 
 #[cfg(test)]
