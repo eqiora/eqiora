@@ -164,7 +164,7 @@ impl ReplicatedLinearExecution for RecordingExecution {
     }
 
     fn require_reduction(&self, policy: ReductionPolicy) -> Result<(), Diagnostic> {
-        SERIAL_LINEAR_EXECUTION.require_reduction(policy)
+        <_ as ReplicatedLinearExecution<f64>>::require_reduction(&SERIAL_LINEAR_EXECUTION, policy)
     }
 
     fn apply(

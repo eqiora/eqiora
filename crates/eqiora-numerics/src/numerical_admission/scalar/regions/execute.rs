@@ -3,9 +3,7 @@ use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topology};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableSpatialEquations<S>
-{
+impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn finalize_static(
         &self,
         workers: NonZeroUsize,
@@ -320,7 +318,7 @@ pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient> {
     FiniteVolume,
 }
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
+impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
     pub(super) fn new(
         mapping: RegionDofMap<S>,
         core: crate::finalized_spatial::FinalizedLinearCore<S>,

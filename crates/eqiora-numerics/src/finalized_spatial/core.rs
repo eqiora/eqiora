@@ -7,9 +7,9 @@ use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{
     CanonicalCsrSystemView, ExecutionTopology, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
+    SERIAL_LINEAR_EXECUTION, SolverPlan,
 };
-use num_complex::{Complex64, ComplexFloat};
+use num_complex::ComplexFloat;
 
 use crate::discrete_block::{BlockMaterialization, DiscreteBlockSystem};
 
@@ -28,7 +28,7 @@ pub(crate) struct FinalizedLinearCore<S> {
     block_materialization: Option<BlockMaterialization>,
 }
 
-impl<S: ResidualScalar> FinalizedLinearCore<S> {
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
     pub(crate) fn new(
         solver: SolverPlan,
         vector_layout: VectorLayoutKind,
@@ -119,8 +119,10 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
     }
 
     fn residual_target(&self) -> Result<f64, Diagnostic> {
-        let rhs_squared = S::squared_norm(self.canonical_system.right_hand_side())?;
-        self.solver.residual_target(rhs_squared.sqrt())
+        self.solver.residual_target(FixedOrderInnerProduct::norm(
+            &SERIAL_LINEAR_EXECUTION,
+            self.canonical_system.right_hand_side(),
+        )?)
     }
 
     /// True residual of any algebraic point, including an unsolved initial guess.
@@ -138,7 +140,7 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
         {
             *value = *rhs - *value;
         }
-        Ok(S::squared_norm(&residual)?.sqrt())
+        FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residual)
     }
 
     /// Reauthenticate supplied coordinates without a solver or producer report.
@@ -172,29 +174,6 @@ impl FinalizedLinearCore<f64> {
         self.block_materialization =
             Some(block_system.bind_materialization(&self.canonical_system, assembly_report)?);
         Ok(self)
-    }
-}
-
-/// Scalar-specific coordinate projection into the existing fixed-order real
-/// reduction. The rest of spatial reacceptance has one implementation.
-pub(crate) trait ResidualScalar: Scalar + ComplexFloat<Real = f64> + Sync {
-    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic>;
-}
-
-impl ResidualScalar for f64 {
-    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic> {
-        SERIAL_LINEAR_EXECUTION.inner_product(FixedOrderInnerProduct::new(values, values)?)
-    }
-}
-
-impl ResidualScalar for Complex64 {
-    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic> {
-        let length = values.len().checked_mul(2).ok_or_else(allocation_error)?;
-        let mut coordinates = fallible_residual::<f64>(length)?;
-        for (pair, value) in coordinates.as_chunks_mut::<2>().0.iter_mut().zip(values) {
-            *pair = [value.re, value.im];
-        }
-        f64::squared_norm(&coordinates)
     }
 }
 

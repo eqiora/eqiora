@@ -3,7 +3,7 @@ mod elasticity;
 mod scalar;
 mod stokes;
 
-pub(crate) use core::{FinalizedLinearCore, ResidualScalar};
+pub(crate) use core::FinalizedLinearCore;
 pub use elasticity::{
     FinalizedConformingIsotropicElasticityCartesianPair2dProblem,
     FinalizedIsotropicElasticityCartesian2dProblem,

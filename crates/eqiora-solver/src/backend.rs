@@ -395,7 +395,10 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
         &self,
         problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
-    ) -> Result<LinearSolution<S>, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic>
+    where
+        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+    {
         self.solve_with_execution(problem, plan, &SERIAL_LINEAR_EXECUTION)
     }
 
@@ -412,7 +415,7 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
         &self,
         problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
-        execution: &dyn ReplicatedLinearExecution,
+        execution: &dyn ReplicatedLinearExecution<S>,
     ) -> Result<LinearSolution<S>, Diagnostic>;
 }
 

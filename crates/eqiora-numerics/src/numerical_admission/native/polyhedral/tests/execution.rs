@@ -2,7 +2,7 @@ use super::*;
 use crate::spatial_expression::Coefficient;
 use num_complex::Complex64 as C;
 
-fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
+fn execute<S: Coefficient + Send + Sync>(
     complex: bool,
     face: bool,
     backend: &dyn LinearSolverBackend<S>,

@@ -131,7 +131,7 @@ fn solve_minimum_residual(
         let column = iteration - 1;
         let current_basis = &krylov_basis[column];
         execution.apply(problem.operator(), current_basis, &mut applied)?;
-        operator_scale = operator_scale.max(norm(execution, &applied)?);
+        operator_scale = operator_scale.max(FixedOrderInnerProduct::norm(execution, &applied)?);
 
         // Full two-pass modified Gram-Schmidt retains every finite-precision
         // projection coefficient. For an asserted symmetric operator this
@@ -148,7 +148,7 @@ fn solve_minimum_residual(
             }
         }
         require_finite(&applied, "MINRES reorthogonalized Krylov image")?;
-        let next_beta = norm(execution, &applied)?;
+        let next_beta = FixedOrderInnerProduct::norm(execution, &applied)?;
         let closure_tolerance = (dimension as f64) * f64::EPSILON * operator_scale;
         let space_closed = iteration == dimension || next_beta <= closure_tolerance;
         rotated_hessenberg[column + 1][column] = if space_closed { 0.0 } else { next_beta };
@@ -303,7 +303,7 @@ fn solve_preconditioned_conjugate_gradient(
             residual[index] -= step * applied[index];
         }
         require_finite(&solution, "conjugate-gradient solution")?;
-        reported_residual_norm = norm(execution, &residual)?;
+        reported_residual_norm = FixedOrderInnerProduct::norm(execution, &residual)?;
         if reported_residual_norm <= target {
             let true_residual_norm =
                 true_residual_norm(execution, problem, &solution, &mut applied)?;
@@ -420,7 +420,7 @@ fn true_residual_norm(
     for (value, right) in applied.iter_mut().zip(problem.right_hand_side()) {
         *value = right - *value;
     }
-    norm(execution, applied)
+    FixedOrderInnerProduct::norm(execution, applied)
 }
 
 fn dot(
@@ -429,10 +429,6 @@ fn dot(
     right: &[f64],
 ) -> Result<f64, Diagnostic> {
     execution.inner_product(FixedOrderInnerProduct::new(left, right)?)
-}
-
-fn norm(execution: &dyn ReplicatedLinearExecution, values: &[f64]) -> Result<f64, Diagnostic> {
-    Ok(dot(execution, values, values)?.sqrt())
 }
 
 fn require_finite(values: &[f64], name: &str) -> Result<(), Diagnostic> {

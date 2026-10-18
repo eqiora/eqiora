@@ -2,7 +2,7 @@ use super::*;
 use eqiora_solver::{CsrStorage, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER};
 use std::num::NonZeroUsize;
 
-type C = Complex64;
+use num_complex::Complex64 as C;
 
 struct ScalarSystem {
     a: [C; 1],
@@ -114,11 +114,12 @@ fn complex_finalization_recomputes_both_residual_channels_and_rhs_norm() {
 
 #[test]
 fn complex_norm_keeps_all_components_across_the_fixed_partial_boundary() {
-    // 513 complex values cross the 1024-real-component partial boundary.
+    // 1025 complex values cross the 1024-scalar fixed partial boundary.
     // Each contributes 3²+4²=25; imaginary terms must never cancel real terms.
     assert_eq!(
-        C::squared_norm(&vec![C::new(3., 4.); 513]).unwrap(),
-        513. * 25.
+        FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &vec![C::new(3., 4.); 1025])
+            .unwrap(),
+        (1025.0_f64 * 25.0).sqrt()
     );
     for value in [
         C::new(0., f64::NAN),
@@ -126,7 +127,9 @@ fn complex_norm_keeps_all_components_across_the_fixed_partial_boundary() {
         C::new(0., f64::MAX),
     ] {
         assert_eq!(
-            C::squared_norm(&[value]).unwrap_err().code(),
+            FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[value])
+                .unwrap_err()
+                .code(),
             codes::NUMERICAL_SOLVE_FAILED
         );
     }

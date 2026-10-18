@@ -51,7 +51,12 @@ pub(super) fn accepted_initial(
         .map_or_else(|| vec![0.0; problem.operator().columns()], <[f64]>::to_vec);
     let mut residual = vec![0.0; problem.operator().rows()];
     let norm = residual_norm(problem, &initial, &mut residual)?;
-    if norm > plan.residual_target(fixed_norm(problem.right_hand_side())?)? {
+    if norm
+        > plan.residual_target(FixedOrderInnerProduct::norm(
+            &SERIAL_LINEAR_EXECUTION,
+            problem.right_hand_side(),
+        )?)?
+    {
         return Ok(None);
     }
     accept_linear_solution(
@@ -77,7 +82,10 @@ pub(super) fn solve_factored(
     let orientation = problem.operator().orientation();
     let mut values =
         solve_factored_oriented(symbolic, numeric, problem.right_hand_side(), orientation)?;
-    let target = plan.residual_target(fixed_norm(problem.right_hand_side())?)?;
+    let target = plan.residual_target(FixedOrderInnerProduct::norm(
+        &SERIAL_LINEAR_EXECUTION,
+        problem.right_hand_side(),
+    )?)?;
     let mut residual = vec![0.0; problem.operator().rows()];
     let mut norm = residual_norm(problem, &values, &mut residual)?;
     let mut iterations = 1;
@@ -115,13 +123,7 @@ fn residual_norm(
     for (applied, right_hand_side) in residual.iter_mut().zip(problem.right_hand_side()) {
         *applied = right_hand_side - *applied;
     }
-    fixed_norm(residual)
-}
-
-fn fixed_norm(values: &[f64]) -> Result<f64, Diagnostic> {
-    let squared =
-        SERIAL_LINEAR_EXECUTION.inner_product(FixedOrderInnerProduct::new(values, values)?)?;
-    Ok(squared.sqrt())
+    FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, residual)
 }
 
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {

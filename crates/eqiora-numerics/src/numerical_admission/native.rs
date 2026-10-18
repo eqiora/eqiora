@@ -205,7 +205,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
         &self,
         problem: &eqiora_solver::LinearProblem<'_, S>,
         plan: SolverPlan,
-        execution: &dyn eqiora_solver::ReplicatedLinearExecution,
+        execution: &dyn eqiora_solver::ReplicatedLinearExecution<S>,
     ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
         if plan != self.plan {
             return Err(invalid("execution changed the admitted exact solver plan"));

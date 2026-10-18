@@ -31,9 +31,9 @@ pub(super) fn initial_residual(
         .collect::<Vec<_>>();
     require_finite(&residual, "initial residual")?;
 
-    let right_hand_side_norm = norm(execution, problem.right_hand_side())?;
+    let right_hand_side_norm = FixedOrderInnerProduct::norm(execution, problem.right_hand_side())?;
     let target = plan.residual_target(right_hand_side_norm)?;
-    let initial_residual_norm = norm(execution, &residual)?;
+    let initial_residual_norm = FixedOrderInnerProduct::norm(execution, &residual)?;
     let accepted_report = if initial_residual_norm <= target {
         Some(SolveReport::accepted(
             provider,

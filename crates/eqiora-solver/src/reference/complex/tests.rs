@@ -69,7 +69,7 @@ fn real_block_actions_equal_the_independent_complex_products_in_each_orientation
 #[derive(Debug)]
 struct UnadmittedExecution;
 
-impl ReplicatedLinearExecution for UnadmittedExecution {
+impl ReplicatedLinearExecution<Complex64> for UnadmittedExecution {
     fn provider(&self) -> crate::ExecutionProvider {
         crate::ExecutionProvider::new(crate::ExecutionId::new("test.unadmitted"), "1", &[])
     }
@@ -81,13 +81,16 @@ impl ReplicatedLinearExecution for UnadmittedExecution {
     }
     fn apply(
         &self,
-        _: &dyn LinearOperator<Scalar = f64>,
-        _: &[f64],
-        _: &mut [f64],
+        _: &dyn LinearOperator<Scalar = Complex64>,
+        _: &[Complex64],
+        _: &mut [Complex64],
     ) -> Result<(), Diagnostic> {
         panic!("must reject before numerical work")
     }
-    fn inner_product(&self, _: FixedOrderInnerProduct<'_>) -> Result<f64, Diagnostic> {
+    fn inner_product(
+        &self,
+        _: FixedOrderInnerProduct<'_, Complex64>,
+    ) -> Result<Complex64, Diagnostic> {
         panic!("must reject before numerical work")
     }
 }
@@ -164,5 +167,78 @@ fn real_coordinates_preserve_rhs_and_the_adjoint_pairing_without_reusing_source_
                 &[Complex64::new(1., f64::NAN); 2]
             )
             .is_err()
+    );
+}
+
+#[derive(Debug, Default)]
+struct ObservedSerial {
+    actions: std::sync::atomic::AtomicUsize,
+    reductions: std::sync::atomic::AtomicUsize,
+}
+
+impl ReplicatedLinearExecution<Complex64> for ObservedSerial {
+    fn provider(&self) -> crate::ExecutionProvider {
+        SERIAL_LINEAR_EXECUTION.provider()
+    }
+    fn report(&self) -> crate::ExecutionReport {
+        SERIAL_LINEAR_EXECUTION.report()
+    }
+    fn require_reduction(&self, _: ReductionPolicy) -> Result<(), Diagnostic> {
+        Ok(())
+    }
+    fn apply(
+        &self,
+        operator: &dyn LinearOperator<Scalar = Complex64>,
+        input: &[Complex64],
+        output: &mut [Complex64],
+    ) -> Result<(), Diagnostic> {
+        self.actions
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        SERIAL_LINEAR_EXECUTION.apply(operator, input, output)
+    }
+    fn inner_product(
+        &self,
+        action: FixedOrderInnerProduct<'_, Complex64>,
+    ) -> Result<Complex64, Diagnostic> {
+        self.reductions
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        SERIAL_LINEAR_EXECUTION.inner_product(action)
+    }
+}
+
+#[test]
+fn native_complex_iteration_and_acceptance_use_the_admitted_typed_execution() {
+    let source = CanonicalCsrSystemView::new(
+        &ComplexStorage,
+        ComplexStorage.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    let execution = ObservedSerial::default();
+    let solved = ReferenceLinearSolver
+        .solve_with_execution(&source.linear_problem().unwrap(), plan, &execution)
+        .unwrap();
+    for (actual, expected) in solved
+        .values()
+        .iter()
+        .zip([Complex64::new(1.0, 2.0), Complex64::new(-2.0, 1.0)])
+    {
+        assert!((*actual - expected).norm() < 1e-12);
+    }
+    // Acceptance alone applies twice and reduces three norms. The producer
+    // must also use this admitted execution, rather than bypassing its actions.
+    assert!(execution.actions.load(std::sync::atomic::Ordering::Relaxed) > 2);
+    assert!(
+        execution
+            .reductions
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 3
     );
 }
