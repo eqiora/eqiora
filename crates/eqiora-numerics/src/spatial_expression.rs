@@ -10,7 +10,6 @@ mod lowering;
 mod tangent;
 pub(crate) use lowering::{Coefficient, lower};
 use num_complex::ComplexFloat;
-pub(crate) use tangent::sqrt_derivative_root;
 
 // Physical point samplers cannot interpret an abstract product factor's axis
 // as an axis of their ambient point, even when the units happen to agree.

@@ -91,6 +91,17 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     let value = self.lower_shaped_part(operand, component, Real)?;
                     self.builder.unary_math(function, value)?
                 }
+                UnaryMathFunction::Sin
+                | UnaryMathFunction::Cos
+                | UnaryMathFunction::Exp
+                | UnaryMathFunction::Log
+                | UnaryMathFunction::Sqrt => {
+                    let real = self.lower_shaped_part(operand, component, Real)?;
+                    let imaginary = self.lower_shaped_part(operand, component, Imaginary)?;
+                    super::finite::charge_products(self.finite_products, 5)?;
+                    self.builder
+                        .complex_math(function, [real, imaginary], part == Imaginary)?
+                }
                 _ => {
                     return Err(invalid_component_ir(
                         "component scalarization has no admitted analytic-function or magnitude lowering",

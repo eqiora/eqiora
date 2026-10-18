@@ -9,6 +9,7 @@ pub use linearization::ComponentLinearization;
 mod finite;
 #[cfg(test)]
 mod guard_tests;
+mod map_factor;
 mod pullback;
 mod pure;
 mod spatial;
@@ -70,6 +71,22 @@ impl ComponentScalarRow {
     #[must_use]
     pub fn input_slots(&self) -> &[ScalarInputSlot] {
         self.ir.slots()
+    }
+
+    /// Borrow the row's scalar operation structure for algebraic coefficient proofs.
+    /// This does not evaluate inputs or remove the executable row's domain checks.
+    #[must_use]
+    pub fn expression_view(&self) -> crate::ScalarExpressionView<'_> {
+        self.ir.expression_view()
+    }
+
+    /// Conservative polynomial degree in inputs with the supplied degree bounds.
+    /// Input order is [`Self::symbols`]. `None` denotes an unproved degree;
+    /// bound numeric values never erase dependence. This shares the structural
+    /// degree rules used to admit polynomial pencils.
+    #[must_use]
+    pub fn polynomial_degree(&self, inputs: &[Option<usize>]) -> Option<usize> {
+        self.ir.polynomial_degree(inputs)
     }
 
     /// Prove a row Jacobian constant with respect to every other source coordinate.
@@ -225,8 +242,9 @@ impl ComponentScalarization {
     /// separate physical directions, component indices and real/imaginary parts;
     /// the consumer must bind them through its admitted spatial basis. This does
     /// not evaluate a Field gradient from point samples or create shadow Fields.
-    /// Traces and normal contractions require the exact oriented boundary normal
-    /// supplied by the spatial realization; volume consumers pass `None`.
+    /// Traces use the operand reconstructed at the boundary point. Only normal
+    /// contractions require an exact oriented normal from the spatial realization;
+    /// consumers without normal contractions may pass `None`.
     ///
     /// # Errors
     /// Rejects unsupported differential expressions, Field pullbacks without a
@@ -432,6 +450,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         }
         let mapped = match node {
             ExprNode::Pullback { value, at, .. } => self.lower_pullback(value, &at, part)?,
+            ExprNode::CoordinateMapFactor { factor, source, at } => {
+                self.lower_map_factor(factor, &source, &at, node_type.dimension())?
+            }
             ExprNode::FiniteUnary(operation, operand) => {
                 self.lower_finite_unary(operation, operand, component, part)?
             }
@@ -486,7 +507,11 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 self.lower_field_divergence(operand, component, part, node_type.dimension())?
             }
             ExprNode::Trace { value, .. } => {
-                self.boundary_normal()?;
+                if !matches!(self.spatial, SpatialContext::Reconstructed { .. }) {
+                    return Err(invalid_component_ir(
+                        "spatial trace requires a reconstructed boundary value",
+                    ));
+                }
                 self.lower_part(value, component, part)?
             }
             ExprNode::NormalComponent { value, .. } => {

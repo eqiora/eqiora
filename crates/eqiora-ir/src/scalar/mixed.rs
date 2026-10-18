@@ -47,7 +47,7 @@ pub(super) fn curvature(
         | Instruction::Add(_, _)
         | Instruction::Sub(_, _) => Scaled::ZERO,
         Instruction::Mul(a, b) => l(a)? * r(b)? + r(a)? * l(b)?,
-        Instruction::Div(a, b) => quotient::scaled_jet(
+        Instruction::Div(a, b) => coefficient_jet::Shape::SCALAR.scaled_jet(
             &[
                 Some(Scaled::new(read(values, a, index)?)),
                 Some(l(a)?),
@@ -82,8 +82,8 @@ pub(super) fn curvature(
             operands,
             imaginary,
         } => complex_quotient::curvature(operands, values, left, right, index, imaginary)?,
-        Instruction::QuotientJet { start, len } => {
-            quotient::numerical_operands(start, len, &values[..index])?
+        Instruction::CoefficientJet { start, len, shape } => {
+            coefficient_jet::numerical_operands(start, len, shape, &values[..index])?
                 .second(values, left, right)?
         }
         Instruction::MapInvariant {

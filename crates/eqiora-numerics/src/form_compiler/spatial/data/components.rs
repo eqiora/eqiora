@@ -135,14 +135,10 @@ impl<S: Coefficient> Components<S> {
         match &self.storage {
             Storage::Zero => Ok(Data::constant(dimension, <S as From<f64>>::from(0.))),
             Storage::Scalar(data) if parts == 1 => Ok(data.clone()),
-            Storage::Scalar(data) => Ok(Data(Arc::new(Node::Math(
-                if imaginary {
-                    UnaryMathFunction::Imag
-                } else {
-                    UnaryMathFunction::Real
-                },
-                data.clone(),
-            )))),
+            Storage::Scalar(data) => Ok(Data(Arc::new(Node::Part {
+                imaginary,
+                data: data.clone(),
+            }))),
             Storage::Coordinates(coordinates) => coordinates.get(index).cloned().ok_or_else(|| {
                 super::super::invalid("prescribed component lies outside its exact Field")
             }),

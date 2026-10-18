@@ -29,6 +29,7 @@ mod output;
 pub use local_action::LocalLinearActionIr;
 pub use output::DenseOutputLinearization;
 pub use scalar::{
-    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputSlot,
-    ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,
+    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarAlgebraicNode,
+    ScalarExpressionView, ScalarInputSlot, ScalarLinearization, ScalarOperatorIr,
+    SymbolicLinearityFailure,
 };

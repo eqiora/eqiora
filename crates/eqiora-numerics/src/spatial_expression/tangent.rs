@@ -126,7 +126,7 @@ pub(super) fn preceding_power<S: ComplexFloat>(value: S, exponent: i32) -> S {
 }
 
 /// Principal square root at points where its first derivative is defined.
-pub(crate) fn sqrt_derivative_root<S: Scalar + ComplexFloat<Real = f64> + From<f64>>(
+fn sqrt_derivative_root<S: Scalar + ComplexFloat<Real = f64> + From<f64>>(
     value: S,
 ) -> Result<S, Diagnostic> {
     let root = if S::DOMAIN == eqiora_core::ScalarDomain::Real {

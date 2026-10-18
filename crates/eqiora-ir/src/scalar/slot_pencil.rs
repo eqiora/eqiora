@@ -128,117 +128,23 @@ fn require_degrees(
     spectral: &[ScalarSymbolCoordinate],
     maximum_degree: u32,
 ) -> Result<Vec<[u32; 2]>, Diagnostic> {
-    let mut degrees: Vec<[u32; 2]> = Vec::with_capacity(program.instructions.len());
-    for (index, instruction) in program.instructions.iter().copied().enumerate() {
-        let at = |id: ValueId| {
-            degrees
-                .get(id.0 as usize)
-                .copied()
-                .ok_or_else(|| ir_builder_error("invalid pencil SSA operand"))
-        };
-        let nonlinear = || {
-            ir_builder_error(format!(
+    let inputs = program
+        .slots
+        .iter()
+        .map(|slot| {
+            Some([
+                usize::from(selected.contains(slot.source())),
+                usize::from(spectral.contains(slot.source())),
+            ])
+        })
+        .collect::<Vec<_>>();
+    program.polynomial_degrees(&inputs)?.into_iter().enumerate().map(|(index, degree)| {
+        degree.filter(|degree| degree[0] <= 1 && degree[1] <= maximum_degree as usize)
+            .map(|degree| [degree[0] as u32, degree[1] as u32])
+            .ok_or_else(|| ir_builder_error(format!(
                 "pencil requires first mode degree and the admitted spectral degree at instruction {index}"
-            ))
-        };
-        let independent = |degree| {
-            if degree == [0, 0] {
-                Ok(degree)
-            } else {
-                Err(nonlinear())
-            }
-        };
-        let degree = match instruction {
-            Instruction::Constant(_) => [0, 0],
-            Instruction::Read(slot) => {
-                let coordinate = program
-                    .slots
-                    .get(slot.0 as usize)
-                    .ok_or_else(|| ir_builder_error("invalid pencil input slot"))?
-                    .source();
-                [
-                    u32::from(selected.contains(coordinate)),
-                    u32::from(spectral.contains(coordinate)),
-                ]
-            }
-            Instruction::Neg(value) => at(value)?,
-            Instruction::Add(left, right) | Instruction::Sub(left, right) => {
-                let (left, right) = (at(left)?, at(right)?);
-                [left[0].max(right[0]), left[1].max(right[1])]
-            }
-            Instruction::Mul(left, right) => {
-                let (left, right) = (at(left)?, at(right)?);
-                let degree = [
-                    left[0].checked_add(right[0]).ok_or_else(nonlinear)?,
-                    left[1].checked_add(right[1]).ok_or_else(nonlinear)?,
-                ];
-                if degree[0] > 1 || degree[1] > maximum_degree {
-                    return Err(nonlinear());
-                }
-                degree
-            }
-            Instruction::Div(left, right) => {
-                independent(at(right)?)?;
-                at(left)?
-            }
-            Instruction::ComplexDiv {
-                operands: [a, b, c, d],
-                ..
-            } => {
-                independent(at(c)?)?;
-                independent(at(d)?)?;
-                let (a, b) = (at(a)?, at(b)?);
-                [a[0].max(b[0]), a[1].max(b[1])]
-            }
-            Instruction::PowI(_, 0) => [0, 0],
-            Instruction::PowI(value, 1) => at(value)?,
-            Instruction::PowI(value, exponent) if exponent > 1 => {
-                let before = at(value)?;
-                let degree = [
-                    before[0]
-                        .checked_mul(exponent as u32)
-                        .ok_or_else(nonlinear)?,
-                    before[1]
-                        .checked_mul(exponent as u32)
-                        .ok_or_else(nonlinear)?,
-                ];
-                if degree[0] > 1 || degree[1] > maximum_degree {
-                    return Err(nonlinear());
-                }
-                degree
-            }
-            Instruction::PowI(value, _) | Instruction::Math(_, value) => independent(at(value)?)?,
-            Instruction::QuotientJet { start, len } => {
-                let operands = quotient::operands(start, len, &program.instructions[..index])?;
-                for id in operands.b.iter().flatten() {
-                    independent(at(*id)?)?;
-                }
-                let mut degree = [0u32; 2];
-                for id in operands.a.iter().flatten() {
-                    let next = at(*id)?;
-                    degree = [degree[0].max(next[0]), degree[1].max(next[1])];
-                }
-                degree
-            }
-            Instruction::MapInvariant { start, extent, .. } => {
-                let range = map_evaluation::operand_range(start, extent, index)?;
-                for degree in &degrees[range] {
-                    independent(*degree)?;
-                }
-                [0, 0]
-            }
-            _ => {
-                return Err(ir_builder_error(
-                    "instruction is outside the polynomial pencil profile",
-                ));
-            }
-        };
-        if degree[0] > 1 || degree[1] > maximum_degree {
-            return Err(nonlinear());
-        }
-        degrees.push(degree);
-    }
-    Ok(degrees)
+            )))
+    }).collect()
 }
 
 #[cfg(test)]

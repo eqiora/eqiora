@@ -5,7 +5,7 @@ use super::super::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(in crate::scalar) struct AffineValue {
     pub(in crate::scalar) value: f64,
-    pub(in crate::scalar) tangent: Option<f64>,
+    pub(in crate::scalar) tangent: Option<Scaled>,
 }
 
 impl AffineValue {
@@ -17,16 +17,24 @@ impl AffineValue {
     }
 
     pub(in crate::scalar) fn is_finite(self) -> bool {
-        self.value.is_finite() && self.tangent.is_none_or(f64::is_finite)
+        self.value.is_finite() && self.tangent.is_none_or(Scaled::is_finite)
     }
 
     pub(in crate::scalar) fn is_zero(self) -> bool {
-        self.value == 0. && self.tangent.is_none_or(|v| v == 0.)
+        self.value == 0. && self.tangent.is_none_or(Scaled::is_zero)
     }
 
-    fn direction(self, other: Self, evaluate: impl FnOnce(f64, f64) -> f64) -> Option<f64> {
-        (self.tangent.is_some() || other.tangent.is_some())
-            .then(|| evaluate(self.tangent.unwrap_or(0.), other.tangent.unwrap_or(0.)))
+    fn direction(
+        self,
+        other: Self,
+        evaluate: impl FnOnce(Scaled, Scaled) -> Scaled,
+    ) -> Option<Scaled> {
+        (self.tangent.is_some() || other.tangent.is_some()).then(|| {
+            evaluate(
+                self.tangent.unwrap_or(Scaled::ZERO),
+                other.tangent.unwrap_or(Scaled::ZERO),
+            )
+        })
     }
 
     pub(in crate::scalar) fn add(self, other: Self) -> Self {
@@ -58,20 +66,25 @@ impl AffineValue {
                 &mut differential::Numerical,
                 Scaled::new(self.value),
                 Scaled::new(other.value),
-                self.tangent.map(Scaled::new),
-                other.tangent.map(Scaled::new),
+                self.tangent,
+                other.tangent,
             )
-            .expect("numerical quotient arithmetic is infallible")
-            .map(Scaled::value),
+            .expect("numerical quotient arithmetic is infallible"),
         }
     }
 
     pub(in crate::scalar) fn powi(self, exponent: i32) -> Self {
         Self {
             value: self.value.powi(exponent),
-            tangent: self
-                .tangent
-                .map(|t| powi_derivative(self.value, exponent) * t),
+            tangent: self.tangent.map(|t| {
+                differential::power_slope(
+                    &mut differential::Numerical,
+                    Scaled::new(self.value),
+                    exponent,
+                )
+                .expect("numerical arithmetic is infallible")
+                    * t
+            }),
         }
     }
 
@@ -83,7 +96,14 @@ impl AffineValue {
             value: real_math::value(function, self.value)?,
             tangent: self
                 .tangent
-                .map(|t| real_math::action(function, self.value, t))
+                .map(|t| {
+                    real_math::action_in(
+                        &mut differential::Numerical,
+                        function,
+                        Scaled::new(self.value),
+                        t,
+                    )
+                })
                 .transpose()?,
         })
     }
@@ -91,12 +111,15 @@ impl AffineValue {
     pub(in crate::scalar) fn complex_quotient(a: [Self; 2], b: [Self; 2]) -> [Self; 2] {
         let values = complex_quotient::quotient(a.map(|v| v.value), b.map(|v| v.value));
         let direction = a.iter().chain(&b).any(|v| v.tangent.is_some()).then(|| {
-            complex_quotient::direction(
-                a.map(|v| v.value),
-                b.map(|v| v.value),
-                a.map(|v| v.tangent.unwrap_or(0.)),
-                b.map(|v| v.tangent.unwrap_or(0.)),
+            complex_quotient::direction_in(
+                &mut differential::Numerical,
+                a.map(|v| Scaled::new(v.value)),
+                b.map(|v| Scaled::new(v.value)),
+                Some(a.map(|v| v.tangent.unwrap_or(Scaled::ZERO))),
+                Some(b.map(|v| v.tangent.unwrap_or(Scaled::ZERO))),
             )
+            .expect("numerical arithmetic is infallible")
+            .expect("directions present")
         });
         std::array::from_fn(|i| Self {
             value: values[i],
@@ -115,13 +138,12 @@ impl AffineValue {
         let tangent = if values.iter().any(|v| v.tangent.is_some()) {
             Some(
                 map.gradient(output, &|index| {
-                    values[index].tangent.is_some_and(|value| value != 0.)
+                    values[index].tangent.is_some_and(|value| !value.is_zero())
                 })?
                 .iter()
                 .zip(values)
-                .map(|(g, v)| *g * v.tangent.unwrap_or(0.))
-                .sum::<Scaled>()
-                .value(),
+                .map(|(g, v)| *g * v.tangent.unwrap_or(Scaled::ZERO))
+                .sum::<Scaled>(),
             )
         } else {
             None
@@ -134,14 +156,34 @@ impl AffineValue {
 mod tests {
     use super::*;
     #[test]
+    fn affine_inverse_direction_survives_outer_scaling() {
+        for exponent in [-700, -400, 400, 700] {
+            let scale = 2f64.powi(exponent);
+            let diagonal = AffineValue {
+                value: scale,
+                tangent: Some(Scaled::new(1.)),
+            };
+            let zero = AffineValue::constant(0.);
+            // A=pI: s*(A^-1)_00=s/p, with derivative -1/s at p=s.
+            let inverse =
+                AffineValue::map(&[diagonal, zero, zero, diagonal], 2, MapOutput::Inverse(0))
+                    .unwrap();
+            assert!(inverse.is_finite());
+            let result = inverse.scale(scale);
+            assert_eq!(result.value, 1.);
+            assert_eq!(result.tangent.unwrap().value() * scale, -1.);
+        }
+    }
+
+    #[test]
     fn affine_map_coefficients_share_exact_determinant_and_inverse_actions() {
         let values = [(2., 1.), (3., 0.), (5., 0.), (7., 2.)].map(|(value, tangent)| AffineValue {
             value,
-            tangent: Some(tangent),
+            tangent: Some(Scaled::new(tangent)),
         });
         let determinant = AffineValue::map(&values, 2, MapOutput::Determinant).unwrap();
         assert!((determinant.value + 1.).abs() < 1e-13);
-        assert!((determinant.tangent.unwrap() - 11.).abs() < 1e-12);
+        assert!((determinant.tangent.unwrap().value() - 11.).abs() < 1e-12);
         // A^-1=[[-7,3],[5,-2]], d(A^-1)=-A^-1 diag(1,2) A^-1.
         for (i, (value, tangent)) in [(-7., -79.), (3., 33.), (5., 55.), (-2., -23.)]
             .into_iter()
@@ -149,7 +191,7 @@ mod tests {
         {
             let actual = AffineValue::map(&values, 2, MapOutput::Inverse(i as u32)).unwrap();
             assert!((actual.value - value).abs() < 1e-12);
-            assert!((actual.tangent.unwrap() - tangent).abs() < 1e-11);
+            assert!((actual.tangent.unwrap().value() - tangent).abs() < 1e-11);
         }
     }
 }

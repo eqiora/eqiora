@@ -11,8 +11,11 @@ impl ScalarInputIrBuilder {
                 continue;
             }
             let instruction = self.instructions[index];
-            if let Instruction::QuotientJet { start, len } = instruction {
-                for operand in quotient::operands(start, len, &self.instructions[..index])?.iter() {
+            if let Instruction::CoefficientJet { start, len, shape } = instruction {
+                for operand in
+                    coefficient_jet::operands(start, len, shape, &self.instructions[..index])?
+                        .iter()
+                {
                     needed[operand.0 as usize] = true;
                 }
             } else if let Instruction::MapInvariant { start, extent, .. } = instruction {
@@ -146,9 +149,13 @@ impl ScalarInputIrBuilder {
                         .transpose()?
                 }
                 Instruction::Read(slot) => seeds.get(slot.0 as usize).copied().flatten(),
-                Instruction::QuotientJet { start, len } => {
-                    let operands =
-                        quotient::operands(start, len, &self.instructions[..directions.len()])?;
+                Instruction::CoefficientJet { start, len, shape } => {
+                    let operands = coefficient_jet::operands(
+                        start,
+                        len,
+                        shape,
+                        &self.instructions[..directions.len()],
+                    )?;
                     let (mut a, mut b) = operands.values(|id| Ok(ScalarInputValueId(id)))?;
                     let (da, db) = operands.values(|id| Ok(directions[id.0 as usize]))?;
                     let da = da.into_iter().map(Option::flatten).collect::<Vec<_>>();
@@ -158,7 +165,15 @@ impl ScalarInputIrBuilder {
                     } else {
                         a.extend(da);
                         b.extend(db);
-                        Some(self.quotient_jet(&a, &b)?)
+                        if shape != coefficient_jet::Shape::SCALAR {
+                            charge(
+                                a.len()
+                                    .checked_mul(4)
+                                    .and_then(|n| n.checked_add(2))
+                                    .ok_or_else(ir_size_error)?,
+                            )?;
+                        }
+                        Some(self.coefficient_jet(shape, &a, &b)?)
                     }
                 }
                 Instruction::ComplexDiv {

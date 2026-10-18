@@ -48,7 +48,8 @@ pub(super) enum Instruction {
         imaginary: bool,
     },
     PowI(ValueId, i32),
-    QuotientJet {
+    CoefficientJet {
+        shape: super::coefficient_jet::Shape,
         start: ValueId,
         len: u32,
     },
@@ -107,7 +108,7 @@ impl Instruction {
                 operands: operands.map(at),
                 imaginary,
             },
-            Self::MapInvariant { .. } | Self::QuotientJet { .. } => return None,
+            Self::MapInvariant { .. } | Self::CoefficientJet { .. } => return None,
             Self::Quotient(a, b) => Self::Quotient(at(a), at(b)),
             Self::Remainder(a, b) => Self::Remainder(at(a), at(b)),
             Self::And(a, b) => Self::And(at(a), at(b)),

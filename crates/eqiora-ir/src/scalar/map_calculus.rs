@@ -5,6 +5,8 @@ use differential::Arithmetic;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum MapOutput {
     Determinant,
+    VolumeScale,
+    Orientation,
     Inverse(u32),
     // A determinant partial is a polynomial, including at singular matrices.
     // This internal output retains the numerical cofactor rounding convention.
@@ -12,11 +14,21 @@ pub(crate) enum MapOutput {
 }
 
 impl MapOutput {
+    pub(crate) fn coordinate_factor(factor: eqiora_schema::kernel::CoordinateMapFactor) -> Self {
+        use eqiora_schema::kernel::CoordinateMapFactor;
+        match factor {
+            CoordinateMapFactor::SignedJacobian => Self::Determinant,
+            CoordinateMapFactor::VolumeScale => Self::VolumeScale,
+            CoordinateMapFactor::Orientation => Self::Orientation,
+        }
+    }
+
     pub(super) fn dimension_power(self, extent: u32) -> Result<i32, Diagnostic> {
         let n = i32::try_from(extent)
             .map_err(|_| ir_builder_error("finite map dimension exponent overflow"))?;
         Ok(match self {
-            Self::Determinant => n,
+            Self::Determinant | Self::VolumeScale => n,
+            Self::Orientation => 0,
             Self::Inverse(_) => -1,
             Self::Cofactor(_) => n - 1,
         })
@@ -109,10 +121,29 @@ impl ScalarInputIrBuilder {
         charge: &mut impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
         let range = map_evaluation::operand_range(start, extent, directions.len())?;
-        // At most six scalar operations per source entry cover inverse partials,
-        // minor gathers, signs and contraction. Charge before emitting anything,
-        // against the same caller-owned budget as authored finite-map products.
-        charge(range.len().checked_mul(6).ok_or_else(ir_size_error)?)?;
+        if output == MapOutput::Orientation {
+            // directional() retains the demanded primal and its conditioning check.
+            return Ok(None);
+        }
+        if output == MapOutput::VolumeScale {
+            let derivative =
+                self.map_direction(start, extent, MapOutput::Determinant, directions, charge)?;
+            return derivative
+                .map(|derivative| {
+                    let orientation =
+                        self.map_output(ScalarInputValueId(start), extent, MapOutput::Orientation)?;
+                    self.mul(orientation, derivative)
+                })
+                .transpose();
+        }
+        // Charge the retained two-block solve gather (flags and values) or
+        // signed-minor contraction before emission, against the caller's budget.
+        let work = if matches!(output, MapOutput::Inverse(_)) {
+            range.len().checked_mul(8).and_then(|n| n.checked_add(3))
+        } else {
+            range.len().checked_mul(6)
+        };
+        charge(work.ok_or_else(ir_size_error)?)?;
         let n = extent as usize;
         let mut sum = None;
         let mut accumulate = |builder: &mut Self, partial, direction| -> Result<(), Diagnostic> {
@@ -124,31 +155,28 @@ impl ScalarInputIrBuilder {
             Ok(())
         };
         if let MapOutput::Inverse(index) = output {
-            let (r, c) = (index / extent, index % extent);
-            let gradient = inverse_gradient(
-                self,
-                n,
-                |builder, i| {
-                    builder.map_output(
-                        ScalarInputValueId(start),
-                        extent,
-                        MapOutput::Inverse(r * extent + i as u32),
-                    )
-                },
-                |builder, j| {
-                    builder.map_output(
-                        ScalarInputValueId(start),
-                        extent,
-                        MapOutput::Inverse(j as u32 * extent + c),
-                    )
-                },
-                |index| directions[range.start + index].is_some(),
-            )?;
-            for (partial, coordinate) in gradient.into_iter().zip(range) {
-                if let (Some(partial), Some(direction)) = (partial, directions[coordinate]) {
-                    accumulate(self, partial, direction)?;
-                }
+            if directions[range.clone()].iter().all(Option::is_none) {
+                return Ok(None);
             }
+            let shape = coefficient_jet::Shape::Solve {
+                extent,
+                component: index,
+            };
+            shape.admit(2 * range.len())?;
+            let one = self.constant(eqiora_core::DynQuantity::new(
+                1.,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            ))?;
+            let mut a = vec![None; 2 * range.len()];
+            for diagonal in 0..n {
+                a[diagonal * n + diagonal] = Some(one);
+            }
+            let mut b = range
+                .clone()
+                .map(|i| Some(ScalarInputValueId(ValueId(i as u32))))
+                .collect::<Vec<_>>();
+            b.extend_from_slice(&directions[range]);
+            return self.coefficient_jet(shape, &a, &b).map(Some);
         } else {
             let (map_start, size, sign, coordinates) = match output {
                 MapOutput::Determinant => {
@@ -175,7 +203,9 @@ impl ScalarInputIrBuilder {
                     };
                     (minor_start, extent - 1, sign, coordinates)
                 }
-                MapOutput::Inverse(_) => unreachable!(),
+                MapOutput::Inverse(_) | MapOutput::VolumeScale | MapOutput::Orientation => {
+                    unreachable!()
+                }
             };
             for (index, coordinate) in coordinates.into_iter().enumerate() {
                 if let Some(direction) = directions[range.start + coordinate] {
@@ -197,6 +227,75 @@ impl ScalarInputIrBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guarded_unitful_inverse_jet_keeps_projected_forward_reverse_and_mixed_actions() {
+        use eqiora_core::{DimExponents, DynQuantity, Id, ScalarDomain, ValueType};
+        let unitless = DimExponents::DIMENSIONLESS;
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let ty = ValueType::scalar(ScalarDomain::Real, unitless).unwrap();
+        for exponent in [-700, 700] {
+            let scale = 2f64.powi(exponent);
+            let coordinate =
+                ScalarSymbolCoordinate::for_value(SymbolRef::Parameter(Id::new()), &ty)
+                    .unwrap()
+                    .remove(0);
+            let mut builder = ScalarInputIrBuilder::new();
+            let p = builder
+                .input(ScalarInputSlot::new(0, coordinate, unitless))
+                .unwrap();
+            let one = builder.constant(DynQuantity::new(1., unitless)).unwrap();
+            let negative_one = builder.neg(one).unwrap();
+            let factor = builder.constant(DynQuantity::new(scale, length)).unwrap();
+            let zero = builder.constant(DynQuantity::new(0., length)).unwrap();
+            let sum = builder.add(one, p).unwrap();
+            let diagonal = builder.mul(sum, factor).unwrap();
+            let entries = builder
+                .map_entries(&[diagonal, zero, zero, diagonal])
+                .unwrap();
+            let inverse = builder
+                .map_output(entries, 2, MapOutput::Inverse(0))
+                .unwrap();
+            let condition = builder
+                .compare(
+                    eqiora_schema::kernel::ComparisonOp::Greater,
+                    p,
+                    negative_one,
+                )
+                .unwrap();
+            let guarded = builder.require(condition, inverse).unwrap();
+            let derivative = builder
+                .directional(guarded, &[Some(one)], |_| Ok(()))
+                .unwrap()
+                .unwrap();
+            let ir = builder.finish([derivative]).unwrap();
+            // f(p)=1/(s*(1+p)); the emitted root is f'. Its value, first
+            // action and mixed action at zero are -1/s, 2/s and -6/s.
+            assert_eq!(ir.evaluate(&[0.]).unwrap(), [-1. / scale]);
+            let action = ir
+                .linearize(&[0.], &[DifferentiationRole::Unknown])
+                .unwrap();
+            let mut output = [0.];
+            action
+                .jvp(RelationTangent::Unknown(&[1.]), &mut output)
+                .unwrap();
+            assert_eq!(output, [2. / scale]);
+            action
+                .vjp(&[scale], RelationCotangent::Unknown(&mut output))
+                .unwrap();
+            assert_eq!(output, [2.]);
+            action
+                .mixed_jvp(
+                    RelationTangent::Unknown(&[1.]),
+                    RelationTangent::Unknown(&[1.]),
+                    RelationTangent::Unknown(&[0.]),
+                    &mut output,
+                )
+                .unwrap();
+            assert_eq!(output, [-6. / scale]);
+            assert!(ir.evaluate(&[-1.]).is_err());
+        }
+    }
 
     #[test]
     fn emitted_inverse_action_only_evaluates_required_inverse_coordinates() {

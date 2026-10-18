@@ -1,5 +1,6 @@
 """Local finite-map mathematics through installed structured/source authoring."""
 import pytest
+import numpy as np
 
 import eqiora
 
@@ -12,6 +13,54 @@ def _policy():
         reduction=eqiora.solve.Reduction.Fast,
         provider=eqiora.solve.SolverProvider.faer(),
     )
+
+
+@pytest.mark.parametrize("exponent", [-400, -700, 400, 700])
+@pytest.mark.parametrize("method", [eqiora.fem.Q1, eqiora.fvm.CellCenteredTpfa])
+def test_affine_map_coefficients_retain_range_through_spatial_parameter_actions(exponent, method):
+    scale = 2.0 ** exponent
+    graph = eqiora.geometry.GeometryGraph()
+    interval = graph.interval(bounds=(0., 3.))
+    geometry = graph.build(interval, named_topology={
+        "body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1],
+    })
+    body = geometry.selection("body")
+    model = eqiora.compile(source=f"""
+space S=orthonormal(x,y);
+public model ScaledMap(support body:volume(ambient_dimension=1),
+    support left:boundary(parent=body), support right:boundary(parent=body)) {{
+    parameter a:map<m,S,S>=linear_map(S,S,[[{scale!r}[m],0[m]],[0[m],{scale!r}[m]]]);
+    variable h:1 on body in smooth;
+    relation prescribed on body {{h=(1+coordinate(0)/1[m])^2;}}
+    variable u:1 on body in smooth;
+    relation balance on body {{-div(grad(u)+grad(math.sqrt(h)*(matrix_trace(inverse(a))*{scale!r}[m])))=0;}}
+    relation left_value on left {{trace(u)=matrix_trace(inverse(a))*{scale!r}[m];}}
+    relation right_value on right {{trace(u)=4*(matrix_trace(inverse(a))*{scale!r}[m]);}}
+}}
+""", entry="ScaledMap", geometry=geometry, bindings={
+        "body": body, "left": (geometry.selection("left"), body),
+        "right": (geometry.selection("right"), body),
+    })
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+        geometry, eqiora.meshing.CartesianMesher(cells=(3,))))
+    plan = eqiora.resolve(model, mesh=mesh, spatial=method(), solve=_policy())
+    eqiora.run(plan)
+    program = eqiora.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("a").id),),
+                                 outputs=(plan.fields[0],))
+    # On [0,3], sqrt(h)=1+x, so the forcing has zero second derivative.
+    # The boundary values give u=t(1+x), t=s*tr(a^-1). Both discretizations
+    # reproduce this line at their vertices / cell centers. For a=k*s*I,
+    # t=2/k and D_a t[H]=-tr(H)/(k^2*s).
+    response = np.array([1., 2., 3., 4.] if method is eqiora.fem.Q1 else [1.5, 2.5, 3.5])
+    weights = np.arange(1, len(response) + 1) / 4
+    for factor in (1., 2.):
+        a = np.eye(2) * scale * factor
+        point = program.evaluate((a,))
+        expected = 2 * response / factor
+        np.testing.assert_allclose(point.primal().output[0], expected, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.jvp((a,)).tangent[0], -expected, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.vjp((weights,)).input_cotangent[0] * scale * factor**2,
+                                   -np.dot(weights, response) * np.eye(2), rtol=0, atol=2e-10)
 
 
 @pytest.mark.parametrize("exponent", [-400, -700, 400, 700])

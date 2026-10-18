@@ -13,12 +13,9 @@ impl<S: Coefficient> Data<S> {
             } => input.constant_in_direction(coordinate, direction)?,
             Node::Pointwise(data) => data.constant_in_direction(direction)?,
             Node::Affine(data) => data.constant_in_direction(direction)?,
-            Node::MapFactor(data) => data.constant_in_direction(direction)?,
-            Node::Chart(data, _)
-            | Node::Pow(data, _)
-            | Node::Math(_, data)
-            | Node::Cos(data)
-            | Node::SqrtDerivativeRoot(data) => data.constant_in_direction(direction)?,
+            Node::Chart(data, _) | Node::Part { data, .. } => {
+                data.constant_in_direction(direction)?
+            }
             // The original operand remains demanded by evaluate/bind; the value
             // being differentiated here is the retained tangent expression.
             Node::Derivative(_, tangent) => tangent.constant_in_direction(direction)?,

@@ -14,7 +14,6 @@ impl ScalarOperatorIr {
         extent: usize,
         factor: eqiora_schema::kernel::CoordinateMapFactor,
     ) -> Result<f64, Diagnostic> {
-        use eqiora_schema::kernel::CoordinateMapFactor;
         if direction.len() != entries.len() {
             return Err(ir_builder_error(
                 "coordinate-map tangent cardinality differs",
@@ -22,25 +21,15 @@ impl ScalarOperatorIr {
         }
         require_finite(direction, "coordinate-map tangent")?;
         let mut map = MapEvaluation::new(entries, extent)?;
-        if factor != CoordinateMapFactor::SignedJacobian {
-            map.inverse()?;
-        }
-        if factor == CoordinateMapFactor::Orientation {
-            return Ok(0.0);
-        }
-        let sign = if factor == CoordinateMapFactor::VolumeScale {
-            (0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum())
-        } else {
-            1.0
-        };
-        let derivative = sign
-            * map
-                .gradient(MapOutput::Determinant, &|index| direction[index] != 0.)?
-                .iter()
-                .zip(direction)
-                .map(|(gradient, direction)| *gradient * *direction)
-                .sum::<Scaled>()
-                .value();
+        let derivative = map
+            .gradient(MapOutput::coordinate_factor(factor), &|index| {
+                direction[index] != 0.
+            })?
+            .iter()
+            .zip(direction)
+            .map(|(gradient, direction)| *gradient * *direction)
+            .sum::<Scaled>()
+            .value();
         require_finite_value(derivative, "coordinate-map factor derivative", 0)?;
         Ok(derivative)
     }
@@ -56,20 +45,7 @@ impl ScalarOperatorIr {
         extent: usize,
         factor: eqiora_schema::kernel::CoordinateMapFactor,
     ) -> Result<f64, Diagnostic> {
-        use eqiora_schema::kernel::CoordinateMapFactor;
-        let mut map = MapEvaluation::new(entries, extent)?;
-        if factor != CoordinateMapFactor::SignedJacobian {
-            map.inverse()?;
-        }
-        if factor == CoordinateMapFactor::Orientation {
-            return Ok((0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum()));
-        }
-        let determinant = map.value(MapOutput::Determinant)?;
-        Ok(match factor {
-            CoordinateMapFactor::SignedJacobian => determinant,
-            CoordinateMapFactor::VolumeScale => determinant.abs(),
-            CoordinateMapFactor::Orientation => determinant.signum(),
-        })
+        MapEvaluation::new(entries, extent)?.value(MapOutput::coordinate_factor(factor))
     }
 }
 
@@ -292,12 +268,22 @@ impl MapEvaluation {
             return Ok(());
         }
         let n = self.n;
-        let mut inverse = vec![Scaled::ZERO; n * n];
+        let identity = (0..n * n)
+            .map(|index| Scaled::new(f64::from(index / n == index % n)))
+            .collect::<Vec<_>>();
+        self.inverse_values = Some(self.solve_factored(&identity)?);
+        Ok(())
+    }
+
+    fn solve_factored(&self, rhs: &[Scaled]) -> Result<Vec<Scaled>, Diagnostic> {
+        let n = self.n;
+        require_length(rhs, n * n, "finite map solve right-hand side")?;
+        let mut solution = vec![Scaled::ZERO; n * n];
         for column in 0..n {
             let mut x = self
                 .permutation
                 .iter()
-                .map(|&row| Scaled::new(f64::from(row == column)))
+                .map(|&row| rhs[row * n + column])
                 .collect::<Vec<_>>();
             for i in 0..n {
                 for j in 0..i {
@@ -311,14 +297,19 @@ impl MapEvaluation {
                 x[i] = x[i] / self.lu[i * n + i];
             }
             for i in 0..n {
-                inverse[i * n + column] = x[i];
+                solution[i * n + column] = x[i];
             }
         }
-        for &value in &inverse {
-            require_valid_derivative(value, "finite map inverse factorization", 0)?;
+        for &value in &solution {
+            require_valid_derivative(value, "finite map factored solve", 0)?;
         }
-        self.inverse_values = Some(inverse);
-        Ok(())
+        Ok(solution)
+    }
+
+    pub(super) fn solve(&mut self, rhs: &[Scaled]) -> Result<Vec<Scaled>, Diagnostic> {
+        // The same inverse conditioning policy applies to every right-hand side.
+        self.inverse()?;
+        self.solve_factored(rhs)
     }
 
     fn inverse(&mut self) -> Result<&[Scaled], Diagnostic> {
@@ -333,8 +324,18 @@ impl MapEvaluation {
         Ok(inverse)
     }
 
+    fn orientation(&mut self) -> Result<f64, Diagnostic> {
+        self.inverse()?;
+        Ok((0..self.n).fold(self.sign, |sign, k| sign * self.lu[k * self.n + k].signum()))
+    }
+
     pub(super) fn value(&mut self, output: MapOutput) -> Result<f64, Diagnostic> {
         let value = match output {
+            MapOutput::Orientation => self.orientation()?,
+            MapOutput::VolumeScale => {
+                self.orientation()?;
+                self.value(MapOutput::Determinant)?.abs()
+            }
             MapOutput::Determinant => {
                 let value = self.determinant();
                 if value == 0.0 && !self.singular {
@@ -372,6 +373,17 @@ impl MapEvaluation {
     ) -> Result<Vec<Scaled>, Diagnostic> {
         let n = self.n;
         let gradient = match output {
+            MapOutput::Orientation => {
+                self.orientation()?;
+                vec![Scaled::ZERO; n * n]
+            }
+            MapOutput::VolumeScale => {
+                let sign = self.orientation()?;
+                self.gradient(MapOutput::Determinant, required)?
+                    .into_iter()
+                    .map(|partial| sign * partial)
+                    .collect()
+            }
             MapOutput::Inverse(output) => {
                 if output as usize >= n * n {
                     return Err(ir_builder_error("inverse component is outside map"));
@@ -431,7 +443,13 @@ impl MapEvaluation {
         for &value in left.iter().chain(right) {
             require_valid_derivative(value, "finite map direction", 0)?;
         }
-        let value = if let MapOutput::Inverse(output) = output {
+        let value = if output == MapOutput::Orientation {
+            self.orientation()?;
+            Scaled::ZERO
+        } else if output == MapOutput::VolumeScale {
+            let sign = self.orientation()?;
+            sign * self.curvature(MapOutput::Determinant, left, right)?
+        } else if let MapOutput::Inverse(output) = output {
             if output as usize >= n * n {
                 return Err(ir_builder_error("inverse component is outside map"));
             }

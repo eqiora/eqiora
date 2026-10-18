@@ -7,8 +7,8 @@ fn operands(
     mut visit: impl FnMut(ValueId),
 ) -> Result<(), Diagnostic> {
     match instructions[index] {
-        Instruction::QuotientJet { start, len } => {
-            for id in quotient::operands(start, len, &instructions[..index])?.iter() {
+        Instruction::CoefficientJet { start, len, shape } => {
+            for id in coefficient_jet::operands(start, len, shape, &instructions[..index])?.iter() {
                 visit(id);
             }
         }

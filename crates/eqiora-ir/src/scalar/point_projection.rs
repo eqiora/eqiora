@@ -225,7 +225,7 @@ impl ScalarOperatorIr {
             Instruction::Ordinal(a) => builder.ordinal(at(a)),
             Instruction::MapInvariant { .. }
             | Instruction::ComplexDiv { .. }
-            | Instruction::QuotientJet { .. } => Err(ir_builder_error(
+            | Instruction::CoefficientJet { .. } => Err(ir_builder_error(
                 "numerical map admission cannot be projected into Semantic expressions",
             )),
             Instruction::Neg(a) => builder.neg(at(a)),

@@ -130,7 +130,7 @@ impl Arithmetic for Numerical {
         numerator: &[Option<Scaled>],
         denominator: &[Option<Scaled>],
     ) -> Result<Scaled, Diagnostic> {
-        quotient::scaled_jet(numerator, denominator)
+        coefficient_jet::Shape::SCALAR.scaled_jet(numerator, denominator)
     }
     fn math(
         &mut self,
@@ -185,7 +185,7 @@ impl Arithmetic for ScalarInputIrBuilder {
         numerator: &[Option<Self::Value>],
         denominator: &[Option<Self::Value>],
     ) -> Result<Self::Value, Diagnostic> {
-        self.quotient_jet(numerator, denominator)
+        self.coefficient_jet(coefficient_jet::Shape::SCALAR, numerator, denominator)
     }
     fn math(
         &mut self,

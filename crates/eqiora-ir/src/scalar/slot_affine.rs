@@ -88,7 +88,7 @@ impl ScalarInputOperatorIr {
             .map(|(c, v)| (c.clone(), AffineValue::constant(*v)))
             .collect::<Vec<_>>();
         self.bind_affine_values(selected, &bindings)
-            .map(|rows| project(selected, &rows, |v| v.value))
+            .and_then(|rows| project(selected, &rows, |v| v.value))
     }
 
     pub(crate) fn bind_affine_direction(
@@ -109,15 +109,17 @@ impl ScalarInputOperatorIr {
                     c.clone(),
                     AffineValue {
                         value: *value,
-                        tangent: *tangent,
+                        tangent: tangent.map(Scaled::new),
                     },
                 )
             })
             .collect::<Vec<_>>();
         let rows = self.bind_affine_values(selected, &bindings)?;
         Ok((
-            project(selected, &rows, |v| v.value),
-            project(selected, &rows, |v| v.tangent.unwrap_or(0.)),
+            project(selected, &rows, |v| v.value)?,
+            project(selected, &rows, |v| {
+                v.tangent.unwrap_or(Scaled::ZERO).value()
+            })?,
         ))
     }
 
@@ -197,8 +199,8 @@ fn project(
     selected: &[ScalarSymbolCoordinate],
     rows: &[AffineSummary],
     value: impl Fn(AffineValue) -> f64,
-) -> BoundAffineScalarIr<ScalarSymbolCoordinate> {
-    BoundAffineScalarIr {
+) -> Result<BoundAffineScalarIr<ScalarSymbolCoordinate>, Diagnostic> {
+    let result = BoundAffineScalarIr {
         selected_symbols: selected.to_vec(),
         residuals: rows.len(),
         coefficients: rows
@@ -209,5 +211,14 @@ fn project(
             .iter()
             .map(|row| value(row.constant.expect("validated bound offset")))
             .collect(),
+    };
+    for (index, &value) in result
+        .coefficients
+        .iter()
+        .chain(&result.offsets)
+        .enumerate()
+    {
+        require_finite_value(value, "affine output", index)?;
     }
+    Ok(result)
 }

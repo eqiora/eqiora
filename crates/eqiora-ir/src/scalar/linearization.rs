@@ -118,8 +118,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         accumulate(&mut adjoints, operand, contribution, index)?;
                     }
                 }
-                Instruction::QuotientJet { start, len } => {
-                    let operands = quotient::numerical_operands(start, len, &values[..index])?;
+                Instruction::CoefficientJet { start, len, shape } => {
+                    let operands =
+                        coefficient_jet::numerical_operands(start, len, shape, &values[..index])?;
                     for operand in operands.iter().filter(|id| active[id.0 as usize]) {
                         let contribution = operands.first(&values, |id| {
                             Ok(if id == operand {
@@ -359,8 +360,8 @@ impl ScalarLinearization<'_> {
                     operands,
                     imaginary,
                 } => complex_quotient::jvp(operands, values, &tangents, index, imaginary)?,
-                Instruction::QuotientJet { start, len } => {
-                    quotient::numerical_operands(start, len, &values[..index])?
+                Instruction::CoefficientJet { start, len, shape } => {
+                    coefficient_jet::numerical_operands(start, len, shape, &values[..index])?
                         .first(values, |id| read(&tangents, id, index))?
                 }
                 Instruction::MapInvariant {

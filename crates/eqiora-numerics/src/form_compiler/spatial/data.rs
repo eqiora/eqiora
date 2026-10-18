@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::spatial_expression::{self, Coefficient, validate_coordinates as validate_point};
@@ -25,7 +25,6 @@ mod coordinates;
 pub(in crate::form_compiler) use components::Components;
 mod degree;
 mod input;
-mod mapped;
 mod pointwise;
 
 #[derive(Debug, PartialEq)]
@@ -41,17 +40,16 @@ enum Node<S: Coefficient> {
     },
     Pointwise(pointwise::PointwiseData<S>),
     Affine(affine::AffineData<S>),
-    MapFactor(mapped::MapFactorData),
     Chart(Data<S>, super::motion::UniformChart),
     // Retain primal domains and Parameter identities when an input derivative is zero.
     Derivative(Data<S>, Data<S>),
     Add(Data<S>, Data<S>),
     Mul(Data<S>, Data<S>),
     Div(Data<S>, Data<S>),
-    Pow(Data<S>, i32),
-    Math(UnaryMathFunction, Data<S>),
-    Cos(Data<S>),
-    SqrtDerivativeRoot(Data<S>),
+    Part {
+        imaginary: bool,
+        data: Data<S>,
+    },
 }
 
 impl<S: Coefficient> Data<S> {
@@ -76,16 +74,15 @@ impl<S: Coefficient> Data<S> {
             },
             Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(point)?),
             Node::Affine(data) => Node::Affine(data.bind_parameter_point(point)?),
-            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(point)?),
             Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
             Node::Derivative(primal, tangent) => Node::Derivative(bind(primal)?, bind(tangent)?),
             Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),
             Node::Mul(a, b) => Node::Mul(bind(a)?, bind(b)?),
             Node::Div(a, b) => Node::Div(bind(a)?, bind(b)?),
-            Node::Pow(a, power) => Node::Pow(bind(a)?, *power),
-            Node::Math(function, a) => Node::Math(*function, bind(a)?),
-            Node::Cos(a) => Node::Cos(bind(a)?),
-            Node::SqrtDerivativeRoot(a) => Node::SqrtDerivativeRoot(bind(a)?),
+            Node::Part { imaginary, data } => Node::Part {
+                imaginary: *imaginary,
+                data: bind(data)?,
+            },
         })))
     }
 
@@ -188,17 +185,6 @@ impl<S: Coefficient> Data<S> {
                 data.derivative(&pulled_back, dimension)?
                     .on_uniform_chart(chart)
             }
-            Node::MapFactor(map) => {
-                if !map.constant_in_direction(direction)? {
-                    return Err(super::invalid(
-                        "map coefficient derivatives require the exact coordinate-map action",
-                    ));
-                }
-                Self(Arc::new(Node::Derivative(
-                    self.clone(),
-                    Self::constant(dimension, <S as From<f64>>::from(0.0)),
-                )))
-            }
             Node::Add(a, b) => derivative(a)?.add(derivative(b)?),
             Node::Mul(a, b) => derivative(a)?
                 .multiply(b.clone())
@@ -211,35 +197,10 @@ impl<S: Coefficient> Data<S> {
                         .multiply(Self::constant(dimension, <S as From<f64>>::from(-1.0))),
                 )
                 .divide(b.clone().multiply(b.clone())),
-            Node::Pow(a, exponent) => {
-                if *exponent == 0 {
-                    // Demand the primal too: differentiation must not erase an undefined base.
-                    self.clone()
-                        .multiply(Self::constant(dimension, <S as From<f64>>::from(0.0)))
-                } else {
-                    let previous = match exponent.checked_sub(1) {
-                        Some(power) => Self(Arc::new(Node::Pow(a.clone(), power))),
-                        None => self.clone().divide(a.clone()),
-                    };
-                    Self::constant(dimension, <S as From<f64>>::from(f64::from(*exponent)))
-                        .multiply(previous)
-                        .multiply(derivative(a)?)
-                }
-            }
-            Node::Math(UnaryMathFunction::Sqrt, a) | Node::SqrtDerivativeRoot(a) => derivative(a)?
-                .divide(
-                    Self::constant(dimension, <S as From<f64>>::from(2.0))
-                        .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
-                ),
-            Node::Math(
-                function @ (UnaryMathFunction::Conj
-                | UnaryMathFunction::Real
-                | UnaryMathFunction::Imag),
-                a,
-            ) => Self(Arc::new(Node::Math(*function, derivative(a)?))),
-            Node::Math(UnaryMathFunction::Sin, a) => {
-                Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
-            }
+            Node::Part { imaginary, data } => Self(Arc::new(Node::Part {
+                imaginary: *imaginary,
+                data: derivative(data)?,
+            })),
             Node::Derivative(_, tangent) => {
                 // The marker retains the source domain and input identities; its
                 // numerical value is the tangent, so further derivatives act there.
@@ -248,28 +209,17 @@ impl<S: Coefficient> Data<S> {
                     derivative(tangent)?,
                 )))
             }
-            Node::Cos(a) => Self(Arc::new(Node::Math(UnaryMathFunction::Sin, a.clone())))
-                .multiply(Self::constant(dimension, <S as From<f64>>::from(-1.0)))
-                .multiply(derivative(a)?),
-            Node::Math(_, _) => {
-                return Err(super::invalid(
-                    "coefficient gradient requires an admitted first-derivative rule",
-                ));
-            }
         })
     }
     pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
             Node::Pointwise(data) => data.spatial(),
             Node::Affine(data) => data.spatial(),
-            Node::MapFactor(_) => false,
             Node::Chart(data, _) | Node::Derivative(data, _) => data.spatial(),
             Node::Constant { .. } => false,
             Node::Input { input, .. } => input.spatial(),
             Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => a.spatial() || b.spatial(),
-            Node::Pow(a, _) | Node::Math(_, a) | Node::Cos(a) | Node::SqrtDerivativeRoot(a) => {
-                a.spatial()
-            }
+            Node::Part { data, .. } => data.spatial(),
         }
     }
     pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
@@ -290,7 +240,6 @@ impl<S: Coefficient> Data<S> {
             }
             Node::Pointwise(data) => data.evaluate(point)?,
             Node::Affine(data) => data.evaluate(point)?,
-            Node::MapFactor(map) => <S as From<f64>>::from(map.value()),
             Node::Chart(data, chart) => {
                 if point.len() != 2 {
                     return Err(super::invalid(
@@ -305,21 +254,10 @@ impl<S: Coefficient> Data<S> {
             Node::Add(a, b) => a.evaluate(point)? + b.evaluate(point)?,
             Node::Mul(a, b) => a.evaluate(point)? * b.evaluate(point)?,
             Node::Div(a, b) => a.evaluate(point)? / b.evaluate(point)?,
-            Node::Pow(a, n) => a.evaluate(point)?.powi(*n),
-            Node::Math(UnaryMathFunction::Conj, a) => a.evaluate(point)?.conj(),
-            Node::Math(UnaryMathFunction::Real, a) => {
-                <S as From<f64>>::from(a.evaluate(point)?.re())
+            Node::Part { imaginary, data } => {
+                let value = data.evaluate(point)?;
+                <S as From<f64>>::from(if *imaginary { value.im() } else { value.re() })
             }
-            Node::Math(UnaryMathFunction::Imag, a) => {
-                <S as From<f64>>::from(a.evaluate(point)?.im())
-            }
-            Node::Math(UnaryMathFunction::Sin, a) => a.evaluate(point)?.sin(),
-            Node::Cos(a) => a.evaluate(point)?.cos(),
-            Node::SqrtDerivativeRoot(a) => {
-                spatial_expression::sqrt_derivative_root(a.evaluate(point)?)?
-            }
-            Node::Math(UnaryMathFunction::Sqrt, a) => a.evaluate(point)?.sqrt(),
-            _ => return Err(super::invalid("unsupported coefficient mathematics")),
         };
         if value.is_finite() {
             Ok(value)
@@ -365,14 +303,7 @@ impl<S: Coefficient> Context<'_, S> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
-        let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
-            Some(
-                ExprNode::PureOperatorApplication(_)
-                | ExprNode::FiniteUnary(_, _)
-                | ExprNode::Index { .. }
-                | ExprNode::UnaryMath(UnaryMathFunction::Real | UnaryMathFunction::Imag, _),
-            ) => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,
             Some(ExprNode::Symbol(SymbolRef::Time)) => {
                 let time = self
                     .time_s
@@ -384,9 +315,6 @@ impl<S: Coefficient> Context<'_, S> {
                     })?;
                 Data::constant(self.dimension, <S as From<f64>>::from(time))
             }
-            Some(ExprNode::CoordinateMapFactor { .. }) => Data(Arc::new(Node::MapFactor(
-                mapped::MapFactorData::new(self, id)?,
-            ))),
             Some(ExprNode::Constant(value)) => Data::constant(
                 self.dimension,
                 S::literal(value).ok_or_else(|| {
@@ -433,28 +361,7 @@ impl<S: Coefficient> Context<'_, S> {
                     )
                 })?
                 .scalar(self.dimension)?,
-            Some(ExprNode::Complex { real, imag }) => {
-                let unit = S::imaginary_unit().ok_or_else(|| {
-                    super::invalid(
-                        "complex coefficient construction requires a complex scalar domain",
-                    )
-                })?;
-                data(*real)?.add(data(*imag)?.multiply(Data::constant(self.dimension, unit)))
-            }
-            Some(ExprNode::Neg(a)) => {
-                data(*a)?.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)))
-            }
-            Some(ExprNode::Add(a, b)) => data(*a)?.add(data(*b)?),
-            Some(ExprNode::Sub(a, b)) => data(*a)?.add(
-                data(*b)?.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
-            ),
-            Some(ExprNode::Mul(a, b)) => data(*a)?.multiply(data(*b)?),
-            Some(ExprNode::Div(a, b)) => data(*a)?.divide(data(*b)?),
-            Some(ExprNode::PowI(a, n)) => Data(Arc::new(Node::Pow(data(*a)?, *n))),
-            Some(ExprNode::UnaryMath(function, a)) => {
-                Data(Arc::new(Node::Math(*function, data(*a)?)))
-            }
-            _ => return Err(super::invalid("unsupported linear coefficient expression")),
+            _ => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,
         })
     }
 }

@@ -186,11 +186,16 @@ impl TypedInstructions<'_> {
                         | Instruction::Require { .. } => {
                             unreachable!("logical demand is staged separately")
                         }
-                        Instruction::QuotientJet { start, len } => {
+                        Instruction::CoefficientJet { start, len, shape } => {
                             pending.extend(
-                                quotient::operands(start, len, &self.instructions[..index])?
-                                    .iter()
-                                    .map(Frame::Demand),
+                                coefficient_jet::operands(
+                                    start,
+                                    len,
+                                    shape,
+                                    &self.instructions[..index],
+                                )?
+                                .iter()
+                                .map(Frame::Demand),
                             );
                         }
                         Instruction::ComplexDiv { operands, .. } => {
@@ -244,8 +249,8 @@ impl TypedInstructions<'_> {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
-                    Instruction::QuotientJet { start, len } => quotient::typed(
-                        &quotient::operands(start, len, &self.instructions[..index])?,
+                    Instruction::CoefficientJet { start, len, shape } => coefficient_jet::typed(
+                        &coefficient_jet::operands(start, len, shape, &self.instructions[..index])?,
                         |id| Ok(read(id)?.clone()),
                     )?,
                     Instruction::ComplexDiv {

@@ -7,6 +7,153 @@ use num_complex::Complex64 as C;
 
 mod activity;
 
+fn authored_coefficient<S: Coefficient>(source: &str) -> Data<S> {
+    let (transaction, model, _) = compile("authored-coefficient.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let owner = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Relation(relation) => Some(relation.id().erase()),
+            _ => None,
+        })
+        .unwrap();
+    let typed = crate::form_compiler::scalar::typed_relation(&program, owner).unwrap();
+    let dag = typed.expression();
+    let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
+        panic!("prescribed coefficient equation")
+    };
+    Context {
+        program: &program,
+        dag,
+        owner,
+        dimension: 1,
+        coefficients: &BTreeMap::new(),
+        time_s: None,
+    }
+    .data(*rhs, 0)
+    .unwrap()
+}
+
+fn complex_coefficient(expression: &str) -> Data<C> {
+    authored_coefficient(&format!(
+        r#"model ComplexCoefficient() {{
+        domain body=box(0,4);
+        variable u:complex<1> on body;
+        relation prescribed on body {{ u={expression}; }}
+    }}"#
+    ))
+}
+
+#[test]
+fn authored_coefficient_degree_preserves_parameters_and_divisor_domains() {
+    for (expression, expected) in [
+        ("p*(coordinate(0)/1[m])^8", Some(8)),
+        ("p*(coordinate(0)/1[m])^8/(coordinate(0)/1[m])", None),
+        ("(coordinate(0)/1[m])^(-1)", None),
+        ("math.sin(coordinate(0)/1[m])", None),
+        ("math.sin(p)", Some(0)),
+    ] {
+        // A zero Parameter binding must not erase degree or divisor domains.
+        let data = authored_coefficient::<f64>(&format!(
+            r#"model Degree() {{
+            domain body=box(0,4);
+            parameter p:1=0;
+            variable u:1 on body;
+            relation prescribed on body {{u={expression};}}
+        }}"#
+        ));
+        assert_eq!(data.polynomial_degree(), expected, "{expression}");
+        if expression.contains("^8/") {
+            assert!(data.evaluate(&[0.]).is_err());
+        }
+    }
+}
+
+#[test]
+fn constant_coefficient_values_retain_spatial_primal_domains() {
+    for (expression, invalid) in [
+        ("math.sqrt(coordinate(0)/1[m])^0", -1.),
+        ("((coordinate(0)/1[m])^(-1))^0", 0.),
+    ] {
+        let data = authored_coefficient::<f64>(&format!(
+            r#"model Domain() {{
+            domain body=box(-1,2);
+            variable u:1 on body;
+            relation prescribed on body {{u={expression};}}
+        }}"#
+        ));
+        assert!(data.spatial(), "{expression}");
+        assert_eq!(data.polynomial_degree(), None, "{expression}");
+        assert_eq!(data.evaluate(&[1.]).unwrap(), 1.);
+        assert!(data.evaluate(&[invalid]).is_err(), "{expression}");
+    }
+}
+
+#[test]
+fn composed_coefficient_actions_keep_outer_scales_through_parameter_derivatives() {
+    for exponent in [-700, -400, 400, 700] {
+        let scale = 2f64.powi(exponent);
+        let source = format!(
+            r#"
+            space S=orthonormal(x,y);
+            model Coefficients() {{
+                domain body=box(0,1);
+                parameter a:map<1,S,S>=linear_map(S,S,[[{scale},0],[0,{scale}]]);
+                variable u:1 on body;
+                relation prescribed on body {{u={scale}*matrix_trace(inverse(a));}}
+            }}"#
+        );
+        let (transaction, model, symbols) = compile("coefficient-range.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let owner = symbols.get("prescribed").unwrap();
+        let typed = crate::form_compiler::scalar::typed_relation(&program, owner).unwrap();
+        let dag = typed.expression();
+        let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
+            panic!("prescribed equation")
+        };
+        let context = Context::<f64> {
+            program: &program,
+            dag,
+            owner,
+            dimension: 1,
+            coefficients: &BTreeMap::new(),
+            time_s: None,
+        };
+        let data = context.data(*rhs, 0).unwrap();
+        let selected =
+            |coordinate: &ScalarSymbolCoordinate| f64::from(coordinate.component_index() == [0, 0]);
+        // f(A)=s tr(A^-1). At A=sI, f=2, Df[E00]=-1/s and
+        // D²f[E00,sE00]=2/s. The inner inverse partial 1/s² need not fit.
+        assert_eq!(data.evaluate(&[0.]).unwrap(), 2.);
+        let derivative = data.derivative(&selected, 1).unwrap();
+        assert_eq!(derivative.evaluate(&[0.]).unwrap() * scale, -1.);
+        assert_eq!(
+            derivative
+                .derivative(&|c| scale * selected(c), 1)
+                .unwrap()
+                .evaluate(&[0.])
+                .unwrap()
+                * scale,
+            2.
+        );
+        assert_eq!(data.polynomial_degree(), Some(0));
+        for point in [vec![], vec![0., 0.], vec![f64::NAN], vec![f64::INFINITY]] {
+            assert!(data.evaluate(&point).is_err());
+            assert!(derivative.evaluate(&point).is_err());
+        }
+    }
+}
+
 #[test]
 fn coefficient_identity_preserves_physical_factor_across_boundary_restriction() {
     let source = r#"model Coordinates() {
@@ -171,40 +318,11 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
         .and_then(|index| dag.node_id(index as u32))
         .unwrap();
     let coordinate_data = context.data(coordinate_node, 0).unwrap();
-    // Parameter * coordinate^8 retains degree eight even at a zero Parameter point.
-    let polynomial = Data(Arc::new(Node::Pow(coordinate_data.clone(), 8)))
-        .multiply(parameter_data.clone())
-        .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[0.0]).unwrap())
-        .unwrap();
-    assert_eq!(polynomial.polynomial_degree(), Some(8));
     assert_eq!(
         coordinate_data
             .coordinate_derivative(0, 1)
             .unwrap()
             .polynomial_degree(),
-        Some(0)
-    );
-    // A possible zero divisor prevents cancellation in the quadrature bound.
-    assert_eq!(
-        polynomial
-            .divide(coordinate_data.clone())
-            .polynomial_degree(),
-        None
-    );
-    assert_eq!(
-        Data(Arc::new(Node::Pow(coordinate_data.clone(), -1))).polynomial_degree(),
-        None
-    );
-    assert_eq!(
-        Data(Arc::new(Node::Math(
-            UnaryMathFunction::Sin,
-            coordinate_data
-        )))
-        .polynomial_degree(),
-        None
-    );
-    assert_eq!(
-        Data(Arc::new(Node::Math(UnaryMathFunction::Sin, parameter_data))).polynomial_degree(),
         Some(0)
     );
     assert_eq!(
@@ -230,7 +348,7 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
 }
 
 #[test]
-fn affine_map_data_binds_time_and_preserves_parameter_identity() {
+fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
     // The diagonal 2x2 maps below have condition number <= 3. Allow a
     // 16-epsilon relative roundoff budget for normalization, LU and rescaling;
     // the oracle is the independent product of the two authored scale factors.
@@ -307,16 +425,16 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                 context.data(time, 0).unwrap().evaluate(&[0., 0.]).unwrap(),
                 t
             );
-            let data = context.data(factor, 0);
-            if nonlinear {
-                assert!(data.is_err());
-                continue;
+            let data = context.data(factor, 0).unwrap();
+            assert_eq!(data.spatial(), nonlinear);
+            if !nonlinear {
+                assert_eq!(data.polynomial_degree(), Some(0));
             }
-            let data = data.unwrap();
-            assert!(!data.spatial());
+            // dx/dxi gains 2*xi/1[m] for the quadratic map, at xi=7[m].
+            let spatial_factor = if nonlinear { 14. } else { 1. };
             close(
                 data.evaluate(&[7., -3.]).unwrap(),
-                (1. + 0.5 * t) * (1. + 0.25 * t),
+                spatial_factor * (1. + 0.5 * t) * (1. + 0.25 * t),
             );
             let rebound = data
                 .bind_parameter_point(
@@ -324,8 +442,31 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                 )
                 .unwrap();
             close(
-                rebound.evaluate(&[0., 0.]).unwrap(),
-                (1. + t) * (1. + 0.25 * t),
+                rebound.evaluate(&[7., -3.]).unwrap(),
+                spatial_factor * (1. + t) * (1. + 0.25 * t),
+            );
+            let parameter_direction = |coordinate: &ScalarSymbolCoordinate| {
+                f64::from(coordinate.symbol() == SymbolRef::Parameter(parameter))
+            };
+            close(
+                data.derivative(&parameter_direction, 2)
+                    .unwrap()
+                    .evaluate(&[7., -3.])
+                    .unwrap(),
+                spatial_factor * t * (1. + 0.25 * t),
+            );
+            close(
+                data.coordinate_derivative(0, 2)
+                    .unwrap()
+                    .derivative(&parameter_direction, 2)
+                    .unwrap()
+                    .evaluate(&[7., -3.])
+                    .unwrap(),
+                if nonlinear {
+                    2. * t * (1. + 0.25 * t)
+                } else {
+                    0.
+                },
             );
             assert!(
                 data.bind_parameter_point(&ParameterPoint::default())
@@ -384,6 +525,8 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                     data.bind_parameter_point(
                         &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
                     )
+                    .unwrap()
+                    .evaluate(&[7., -3.])
                     .is_err()
                 );
                 assert!(
@@ -392,9 +535,41 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                         .bind_parameter_point(
                             &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
                         )
+                        .unwrap()
+                        .evaluate(&[7., -3.])
                         .is_err()
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn coordinate_map_factors_compose_with_scalar_coefficient_algebra() {
+    for (factor, expected) in [
+        ("jacobian_determinant", -6.),
+        ("volume_jacobian", 6.),
+        ("map_orientation", -3.),
+    ] {
+        let data = authored_coefficient::<f64>(&format!(
+            r#"model MapCoefficient() {{
+            domain body=box(0,1);
+            coordinate xi:m on body from body[0];
+            coordinate x:m on body from body[0];
+            variable u:1 on body;
+            relation prescribed on body {{u=3*{factor}(from=(xi),at=(x=-2*xi));}}
+        }}"#
+        ));
+        assert_eq!(data.evaluate(&[0.25]).unwrap(), expected);
+        assert_eq!(
+            data.coordinate_derivative(0, 1)
+                .unwrap()
+                .evaluate(&[0.25])
+                .unwrap(),
+            0.
+        );
+        for point in [vec![], vec![0., 0.], vec![f64::NAN]] {
+            assert!(data.evaluate(&point).is_err());
         }
     }
 }
@@ -447,10 +622,11 @@ model ComplexCoefficient() {
         C::new(1.0, -2.0)
     );
     // Shift to 3+4i: sqrt=2+i and (1-2i)/(4+2i)=-i/2.
-    let root_data = Data(Arc::new(Node::Math(
-        UnaryMathFunction::Sqrt,
-        data.clone().add(Data::constant(1, C::new(-4.0, 8.0))),
-    )));
+    let coefficient = "math.conj(amplitude) * math.complex(coordinate(0) / scale, 2)";
+    let root_data = authored_coefficient::<C>(&source.replace(
+        coefficient,
+        &format!("math.sqrt(({coefficient}) + math.complex(-4,8))"),
+    ));
     assert_eq!(root_data.evaluate(&[3.0]).unwrap(), C::new(2.0, 1.0));
     assert!(
         (root_data
@@ -463,10 +639,10 @@ model ComplexCoefficient() {
             < 1e-14
     );
     // Normalize the base to 1. Its derivative is (3-2i)/13.
-    let power = Data(Arc::new(Node::Pow(
-        data.clone().divide(Data::constant(1, C::new(7.0, -4.0))),
-        i32::MIN,
-    )));
+    let power = authored_coefficient::<C>(&source.replace(
+        coefficient,
+        &format!("(({coefficient}) / math.complex(7,-4))^(-2147483648)"),
+    ));
     let expected = C::new(3.0, -2.0) * f64::from(i32::MIN) / 13.0;
     assert!(
         (power
@@ -564,11 +740,8 @@ model ComplexCoefficient() {
 
 #[test]
 fn composed_data_sqrt_derivative_checks_its_domain() {
-    for value in [C::new(-4.0, 0.0), C::new(0.0, 0.0)] {
-        let root = Data(Arc::new(Node::Math(
-            UnaryMathFunction::Sqrt,
-            Data::constant(1, value),
-        )));
+    for value in [-4, 0] {
+        let root = complex_coefficient(&format!("math.sqrt(math.complex({value},0))"));
         assert!(root.evaluate(&[0.0]).is_ok());
         // Both are fixed complex values, independent of the physical coordinate.
         // Their spatial derivative is zero even on the principal branch cut.
@@ -580,10 +753,7 @@ fn composed_data_sqrt_derivative_checks_its_domain() {
             C::new(0., 0.)
         );
     }
-    let root = Data(Arc::new(Node::Math(
-        UnaryMathFunction::Sqrt,
-        Data::constant(1, C::new(3.0, 4.0)),
-    )));
+    let root = complex_coefficient("math.sqrt(math.complex(3,4))");
     assert_eq!(root.evaluate(&[0.0]).unwrap(), C::new(2.0, 1.0));
     assert_eq!(
         root.coordinate_derivative(0, 1)
@@ -596,10 +766,7 @@ fn composed_data_sqrt_derivative_checks_its_domain() {
 
 #[test]
 fn composed_power_derivative_preserves_minimum_integer_exponent() {
-    let power = Data(Arc::new(Node::Pow(
-        Data::constant(1, C::new(1.0, 0.0)),
-        i32::MIN,
-    )));
+    let power = complex_coefficient("math.complex(1,0)^(-2147483648)");
     assert_eq!(power.evaluate(&[0.0]).unwrap(), C::new(1.0, 0.0));
     assert_eq!(
         power
@@ -870,6 +1037,9 @@ fn mixed_scalar_coefficient_partials_preserve_complex_directions_and_domains() {
             ("p^3", 3. * p * p, 6. * p),
             ("1/p", -1. / (p * p), 2. / (p * p * p)),
             ("math.sin(p)", p.cos(), -p.sin()),
+            ("math.cos(p)", -p.sin(), -p.cos()),
+            ("math.exp(p)", p.exp(), p.exp()),
+            ("math.log(p)", 1. / p, -1. / (p * p)),
             ("math.sqrt(p)", 0.5 / p.sqrt(), -0.25 / (p * p.sqrt())),
         ] {
             if complex {
