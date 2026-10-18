@@ -15,7 +15,7 @@ use input::Input;
 type Direction<'a> = &'a dyn Fn(&ScalarSymbolCoordinate) -> f64;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
+pub(crate) struct Data<S: Coefficient>(Arc<Node<S>>);
 
 mod activity;
 pub(in crate::form_compiler) mod affine;

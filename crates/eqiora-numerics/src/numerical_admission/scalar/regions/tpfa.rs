@@ -1,6 +1,7 @@
 //! One assembly owner for TPFA execution and retained-Result checks.
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
+use crate::form_compiler::region::coordinates::{Native, Projection};
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
 use crate::spatial_expression::Coefficient;
 use eqiora_meshing::{MeshEntity, MeshTopology};
@@ -120,8 +121,25 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         )
     }
 
-    pub(in crate::numerical_admission) fn tpfa_boundary(
+    pub(super) fn static_tpfa_mapping(
         &self,
+        resources: &NativeMeshResources,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+    ) -> Result<RegionDofMap<S>, Diagnostic> {
+        if !matches!(scaling, eqiora_realization::SystemScaling::Dimensional)
+            || selected != self.discretizations(Space::cell_constant(), None)?
+        {
+            return Err(invalid(
+                "TPFA requires its exact unconstrained cell-constant Field layout",
+            ));
+        }
+        self.tpfa_mapping(resources)
+    }
+
+    fn tpfa_boundary(
+        &self,
+        field: RawId,
         component: usize,
         axis: usize,
         side: BoundarySide,
@@ -129,7 +147,6 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     ) -> Result<CartesianBoundaryValue<S>, Diagnostic> {
         let region = self.single()?;
         let row = region.form.conservative_system()?;
-        let (field, component) = row.coordinate(component)?;
         let boundary = region
             .cartesian()?
             .boundaries
@@ -180,14 +197,19 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         properties: LinearOperatorProperties,
     ) -> Result<crate::cartesian_elliptic::FinalizedCartesianFvmAssembly<S>, Diagnostic> {
         let mapping = self.tpfa_mapping(resources)?;
-        let (prepared, result) =
-            self.with_tpfa_work(resources, &mapping, properties, None, |plan, work| {
+        let (prepared, result) = self.with_tpfa_work::<Native, _>(
+            resources,
+            &mapping,
+            properties,
+            None,
+            |plan, work| {
                 eqiora_assembly::AssemblyBackend::assemble(&REFERENCE_ASSEMBLY_BACKEND, plan, work)
-            })?;
+            },
+        )?;
         Ok(prepared.finish(result))
     }
 
-    pub(in crate::numerical_admission) fn with_tpfa_work<T>(
+    pub(in crate::numerical_admission) fn with_tpfa_work<P: Projection<S>, T>(
         &self,
         resources: &NativeMeshResources,
         mapping: &RegionDofMap<S>,
@@ -195,30 +217,53 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         partial: Option<&Self>,
         consume: impl FnOnce(
             &eqiora_assembly::AssemblyPlan,
-            &dyn eqiora_assembly::AssemblyWork<S>,
+            &dyn eqiora_assembly::AssemblyWork<P::Scalar>,
         ) -> Result<T, Diagnostic>,
     ) -> Result<
         (
-            crate::cartesian_elliptic::PreparedCartesianFvmAssembly<S>,
+            crate::cartesian_elliptic::PreparedCartesianFvmAssembly<P::Scalar>,
             T,
         ),
         Diagnostic,
-    > {
+    >
+    where
+        P::Scalar: Send + Sync,
+    {
         let NativeMeshResources::Cartesian { mesh, .. } = resources else {
             return Err(invalid("TPFA requires Cartesian resources"));
         };
         let region = self.single()?;
-        let row = region.form.conservative_system()?;
+        let row = region.form.conservative_system()?.project::<P>()?;
         let partial_row = partial
-            .map(|equations| equations.single()?.form.conservative_system())
+            .map(|equations| {
+                equations
+                    .single()?
+                    .form
+                    .conservative_system()?
+                    .project::<P>()
+            })
             .transpose()?;
         let volume = partial_row.as_ref().unwrap_or(&row);
         let source = |component: usize, point: &[f64]| volume.source(component, point);
         let coefficient = |test, trial, point: &[f64]| row.diffusion(test, trial, point);
         let reaction =
             |test: usize, trial: usize, point: &[f64]| volume.reaction(test, trial, point);
-        let boundary =
-            |component, axis, side, point: &[f64]| self.tpfa_boundary(component, axis, side, point);
+        let boundary_value = |equations: &Self, component, axis, side, point: &[f64]| {
+            let (field, physical, part) = row.coordinate(component)?;
+            Ok(
+                match equations.tpfa_boundary(field, physical, axis, side, point)? {
+                    CartesianBoundaryValue::Essential(value) => {
+                        CartesianBoundaryValue::Essential(P::component(value, part))
+                    }
+                    CartesianBoundaryValue::Natural(value) => {
+                        CartesianBoundaryValue::Natural(P::component(value, part))
+                    }
+                },
+            )
+        };
+        let boundary = |component, axis, side, point: &[f64]| {
+            boundary_value(self, component, axis, side, point)
+        };
         let coefficient_partial = |test, trial, point: &[f64]| {
             partial_row
                 .as_ref()
@@ -226,9 +271,13 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 .diffusion(test, trial, point)
         };
         let boundary_partial = |component, axis, side, point: &[f64]| {
-            partial
-                .expect("selected partial")
-                .tpfa_boundary(component, axis, side, point)
+            boundary_value(
+                partial.expect("selected partial"),
+                component,
+                axis,
+                side,
+                point,
+            )
         };
         let mut flux = crate::cartesian_elliptic::FvmFlux::new(&coefficient, &boundary);
         if partial.is_some() {
@@ -249,7 +298,14 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             .map(|cell| {
                 (0..row.components())
                     .map(|component| {
-                        let (field, component) = row.coordinate(component)?;
+                        let (field, component, part) = row.coordinate(component)?;
+                        let width = P::width(
+                            &mapping
+                                .field_layout(field)
+                                .expect("mapped Field")
+                                .1
+                                .value_type,
+                        )?;
                         mapping
                             .free_dof(FieldDof {
                                 field,
@@ -257,6 +313,12 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                 slot: 0,
                                 component,
                             })
+                            // Conservative rows share one physical scalar domain;
+                            // expand storage within each physical coefficient only.
+                            .and_then(|physical| {
+                                physical.index().checked_mul(width)?.checked_add(part)
+                            })
+                            .map(eqiora_assembly::DofId::new)
                             .ok_or_else(|| {
                                 invalid(
                                     "TPFA coordinate is absent from its exact free Field layout",
@@ -291,15 +353,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<super::execute::StaticRegionSystem<S>, Diagnostic> {
-        if !matches!(scaling, eqiora_realization::SystemScaling::Dimensional)
-            || selected != self.discretizations(Space::cell_constant(), None)?
-        {
-            return Err(invalid(
-                "TPFA requires its exact unconstrained cell-constant Field layout",
-            ));
-        }
-        let mapping = self.tpfa_mapping(resources)?;
-        let (prepared, result) = self.with_tpfa_work(
+        let mapping = self.static_tpfa_mapping(resources, selected, scaling)?;
+        let (prepared, result) = self.with_tpfa_work::<Native, _>(
             resources,
             &mapping,
             operator_properties,

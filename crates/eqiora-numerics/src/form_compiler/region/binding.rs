@@ -38,13 +38,8 @@ impl RegionFieldLayout {
     /// Numerical real coordinates per physical basis coefficient, independent
     /// of the Field's component axes and its nodal or moment functionals.
     pub(crate) fn real_scalar_coordinates(&self) -> Result<usize, Diagnostic> {
-        match self.value_type.scalar_domain() {
-            super::ScalarDomain::Real => Ok(1),
-            super::ScalarDomain::Complex => Ok(2),
-            _ => Err(invalid(
-                "spatial scalar coordinates require a real or complex Field",
-            )),
-        }
+        use super::coordinates::{Projection, Real};
+        <Real as Projection<num_complex::Complex64>>::width(&self.value_type)
     }
 }
 

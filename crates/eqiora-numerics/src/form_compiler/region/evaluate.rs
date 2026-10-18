@@ -8,8 +8,7 @@ use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap
 use super::binding::BoundRegionForm;
 use super::invalid;
 
-mod coordinates;
-use coordinates::{Native, Projection, Real};
+use super::coordinates::{Native, Projection, Real};
 
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Validate local inputs without performing quadrature or constructing contributions.
@@ -80,7 +79,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .iter()
             .map(|layout| {
                 let mut field = IntegralField::from(layout);
-                field.scalar_coordinates = P::width(layout)?;
+                field.scalar_coordinates = P::width(&layout.value_type)?;
                 Ok(field)
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;

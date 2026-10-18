@@ -2,7 +2,6 @@
 use super::*;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::region_assembly::mapping::RegionRealCoordinates;
-use crate::region_assembly::mapping::RegionSolveInput;
 use eqiora_solver::CanonicalCsrSystemView;
 use num_complex::Complex64 as C;
 
@@ -24,14 +23,13 @@ impl<P: Coefficient> StaticSpatialSystem<P> {
 pub(in crate::numerical_admission) struct RealStaticAssembly {
     mapping: RegionDofMap<C>,
     canonical: CanonicalCsrSystemView<f64>,
-    full: eqiora_assembly::LinearSystem<f64>,
-    input: RegionSolveInput<C>,
+    assembly: StaticAssembly<f64, C>,
     report: eqiora_assembly::AssemblyReport,
 }
 
 struct ComplexStaticMatrices {
     reduced: CanonicalCsrSystemView<C>,
-    full: eqiora_assembly::LinearSystem<C>,
+    full: Option<eqiora_assembly::LinearSystem<C>>,
 }
 
 impl ExecutableSpatialEquations<C> {
@@ -41,6 +39,35 @@ impl ExecutableSpatialEquations<C> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
     ) -> Result<RealStaticAssembly, Diagnostic> {
+        if selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .any(|field| field.space() == Space::cell_constant())
+        {
+            let mapping = self.static_tpfa_mapping(resources, selected, scaling)?;
+            let properties = self.tpfa_operator_properties(None)?;
+            let (prepared, result) = self
+                .with_tpfa_work::<crate::form_compiler::region::coordinates::Real, _>(
+                    resources,
+                    &mapping,
+                    properties,
+                    None,
+                    |plan, work| {
+                        eqiora_assembly::AssemblyBackend::assemble(
+                            &REFERENCE_ASSEMBLY_BACKEND,
+                            plan,
+                            work,
+                        )
+                    },
+                )?;
+            let assembly = prepared.finish(result);
+            return Ok(RealStaticAssembly {
+                mapping,
+                canonical: assembly.canonical_system()?.as_ref().clone(),
+                report: assembly.assembly_report().clone(),
+                assembly: StaticAssembly::FiniteVolume,
+            });
+        }
         // A real-linear map makes no complex symmetry or definiteness promise.
         let properties = LinearOperatorProperties::General;
         let (mapping, input) = self.static_assembly(resources, selected, scaling, properties)?;
@@ -60,8 +87,7 @@ impl ExecutableSpatialEquations<C> {
         Ok(RealStaticAssembly {
             mapping,
             canonical: system,
-            full,
-            input,
+            assembly: StaticAssembly::FiniteElement(Box::new((full, input))),
             report,
         })
     }
@@ -73,17 +99,7 @@ impl ExecutableSpatialEquations<C> {
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
-        properties: LinearOperatorProperties,
     ) -> Result<StaticSpatialSystem<C>, Diagnostic> {
-        if selected
-            .iter()
-            .flat_map(|domain| domain.field_spaces())
-            .any(|field| field.space() == Space::cell_constant())
-        {
-            return self
-                .finalize_static(workers, solver, resources, selected, scaling, properties)
-                .map(StaticSpatialSystem::Complex);
-        }
         self.assemble_real_static(resources, selected, scaling)?
             .finalize(workers, solver)
     }
@@ -106,9 +122,15 @@ impl RealStaticAssembly {
         let Some(reduced) = self.canonical.complex_coordinate_system()? else {
             return Ok(None);
         };
+        let StaticAssembly::FiniteElement(retained) = &self.assembly else {
+            return Ok(Some(ComplexStaticMatrices {
+                reduced,
+                full: None,
+            }));
+        };
         let full = CanonicalCsrSystemView::new(
-            &self.full,
-            self.full.rhs(),
+            &retained.0,
+            retained.0.rhs(),
             LinearOperatorProperties::General,
         )?;
         let Some(full) = full.complex_coordinate_system()? else {
@@ -123,7 +145,10 @@ impl RealStaticAssembly {
         )?;
         Ok(Some(ComplexStaticMatrices {
             reduced,
-            full: eqiora_assembly::LinearSystem::new(matrix, full.right_hand_side().to_vec())?,
+            full: Some(eqiora_assembly::LinearSystem::new(
+                matrix,
+                full.right_hand_side().to_vec(),
+            )?),
         }))
     }
 
@@ -146,7 +171,7 @@ impl RealStaticAssembly {
             self.mapping,
             finalized(self.canonical, workers, solver),
             self.report,
-            StaticAssembly::FiniteElement(Box::new((self.full, self.input))),
+            self.assembly,
         )
     }
 
@@ -161,7 +186,12 @@ impl RealStaticAssembly {
                     self.mapping,
                     finalized(reduced, workers, solver),
                     self.report,
-                    StaticAssembly::FiniteElement(Box::new((full, self.input))),
+                    match self.assembly {
+                        StaticAssembly::FiniteElement(retained) => StaticAssembly::FiniteElement(
+                            Box::new((full.expect("projected full system"), retained.1)),
+                        ),
+                        StaticAssembly::FiniteVolume => StaticAssembly::FiniteVolume,
+                    },
                 ))
             }
             None => StaticSpatialSystem::Real(self.finalize_real(workers, solver)),

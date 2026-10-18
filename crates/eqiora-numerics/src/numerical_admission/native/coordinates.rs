@@ -35,7 +35,7 @@ impl RecognizedNativeAdmission {
         match (&self.recognized, spatial) {
             (
                 RecognizedNativeModel::ComplexSpatial(equations),
-                NativeSpatialPolicy::FiniteElement(_),
+                NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(None),
             ) => equations
                 .assemble_real_static(&self.resources, &self.discretizations(spatial)?, scaling)?
                 .scalar_domain(),

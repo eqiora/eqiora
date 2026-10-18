@@ -1,52 +1,51 @@
 //! Select numerical scalar coordinates without changing the physical basis.
-use super::super::RegionFieldLayout;
-use super::*;
+use super::{Data, Term, invalid};
+use crate::spatial_expression::Coefficient;
+use eqiora_core::{Diagnostic, ScalarDomain, ValueType};
 use num_complex::Complex64;
 
-pub(super) trait Projection<S: Coefficient> {
+pub(crate) trait Projection<S: Coefficient> {
     type Scalar: Coefficient;
-    fn width(field: &RegionFieldLayout) -> Result<usize, Diagnostic>;
-    fn columns(
-        data: &super::super::Data<S>,
-        dimension: usize,
-        width: usize,
-    ) -> Result<Vec<super::super::Data<S>>, Diagnostic>;
+    fn width(field: &ValueType) -> Result<usize, Diagnostic>;
+    fn columns(data: &Data<S>, dimension: usize, width: usize) -> Result<Vec<Data<S>>, Diagnostic>;
     fn component(value: S, coordinate: usize) -> Self::Scalar;
-    fn validate(term: &super::super::Term<S>, value: S, point: &[f64]) -> Result<(), Diagnostic>;
+    fn validate(term: &Term<S>, value: S, point: &[f64]) -> Result<(), Diagnostic>;
 }
 
-pub(super) struct Native;
+pub(crate) struct Native;
 impl<S: Coefficient> Projection<S> for Native {
     type Scalar = S;
-    fn width(_: &RegionFieldLayout) -> Result<usize, Diagnostic> {
+    fn width(_: &ValueType) -> Result<usize, Diagnostic> {
         Ok(1)
     }
-    fn columns(
-        data: &super::super::Data<S>,
-        _: usize,
-        _: usize,
-    ) -> Result<Vec<super::super::Data<S>>, Diagnostic> {
+    fn columns(data: &Data<S>, _: usize, _: usize) -> Result<Vec<Data<S>>, Diagnostic> {
         Ok(vec![data.clone()])
     }
     fn component(value: S, _: usize) -> S {
         value
     }
-    fn validate(term: &super::super::Term<S>, value: S, _: &[f64]) -> Result<(), Diagnostic> {
+    fn validate(term: &Term<S>, value: S, _: &[f64]) -> Result<(), Diagnostic> {
         term.require_coefficient(value).map(|_| ())
     }
 }
 
-pub(super) struct Real;
+pub(crate) struct Real;
 impl Projection<Complex64> for Real {
     type Scalar = f64;
-    fn width(field: &RegionFieldLayout) -> Result<usize, Diagnostic> {
-        field.real_scalar_coordinates()
+    fn width(field: &ValueType) -> Result<usize, Diagnostic> {
+        match field.scalar_domain() {
+            ScalarDomain::Real => Ok(1),
+            ScalarDomain::Complex => Ok(2),
+            _ => Err(invalid(
+                "spatial scalar coordinates require a real or complex Field",
+            )),
+        }
     }
     fn columns(
-        data: &super::super::Data<Complex64>,
+        data: &Data<Complex64>,
         dimension: usize,
         width: usize,
-    ) -> Result<Vec<super::super::Data<Complex64>>, Diagnostic> {
+    ) -> Result<Vec<Data<Complex64>>, Diagnostic> {
         Ok(data
             .coordinate_images(dimension)?
             .into_iter()
@@ -56,11 +55,7 @@ impl Projection<Complex64> for Real {
     fn component(value: Complex64, coordinate: usize) -> f64 {
         if coordinate == 0 { value.re } else { value.im }
     }
-    fn validate(
-        term: &super::super::Term<Complex64>,
-        value: Complex64,
-        point: &[f64],
-    ) -> Result<(), Diagnostic> {
+    fn validate(term: &Term<Complex64>, value: Complex64, point: &[f64]) -> Result<(), Diagnostic> {
         // Positivity concerns the original constitutive coefficient, never an
         // individual off-diagonal entry of its real-coordinate matrix.
         let candidate = if term.positive_diffusion {

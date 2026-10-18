@@ -5,9 +5,10 @@ import pytest
 import eqiora as q
 
 
+@pytest.mark.parametrize("tpfa", [False, True])
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("faer", [False, True])
-def test_tensor_conjugation_shares_primal_partials_and_observation_products(native, faer):
+def test_tensor_conjugation_shares_primal_partials_and_observation_products(native, faer, tpfa):
     graph = q.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0., 2.), y_bounds=(0., 3.))
     sides = ("left", "right", "bottom", "top")
@@ -38,9 +39,10 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
     # For this unit-cell Q1 mass matrix, ||M^-1||_2 <= 24. With
     # sigma_min(a I+b J) >= sqrt(13)-sqrt(5), the two solve residuals
     # bound coefficient-gradient error by 7.83e4 * relative_tolerance.
+    # TPFA has six unit-area cells, so M=I and the same bound is conservative.
     # Request 1e-15 to leave rounding margin inside the fixed 2e-10 oracle.
     # Budget four recurrences of the 96 real coordinates, including residual corrections.
-    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
+    plan = q.resolve(model, mesh=mesh, spatial=q.fvm.CellCenteredTpfa() if tpfa else q.fem.Q1(), solve=q.solve.Linear(
         algorithm=q.solve.LinearSolver.SparseLu if faer else q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
         reduction=q.solve.Reduction.Fast if faer else q.solve.Reduction.Reproducible,
@@ -54,7 +56,8 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
     dp = np.array([[2+1j, -1+3j], [4-2j, -3-1j]])
     da, db = .5-.25j, -.75+.5j
     w = np.array([[2-1j, -3+2j], [1+4j, -2-3j]])
-    field_w = np.arange(1, 13)[:, None, None]*w
+    count = 6 if tpfa else 12
+    field_w = np.arange(1, count+1)[:, None, None]*w
     # The same immutable Program also crosses the numerical-domain boundary.
     for a, b, parameter in ((2+3j, b, p), (3+2j, b, p+dp),
                             (2+3j, 1-2j if native else 0j, p)):
@@ -68,8 +71,8 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
         dnumerator = da.conjugate()*parameter+a.conjugate()*dp-db*parameter.conj().T-b*dp.conj().T
         du = (dnumerator*denominator-numerator*ddenominator)/denominator**2
         point = program.evaluate((a, b, parameter))
-        expected = (6*u+parameter, np.broadcast_to(u, (12, 2, 2)))
-        tangent = (6*du+dp, np.broadcast_to(du, (12, 2, 2)))
+        expected = (6*u+parameter, np.broadcast_to(u, (count, 2, 2)))
+        tangent = (6*du+dp, np.broadcast_to(du, (count, 2, 2)))
         for actual, wanted in zip(point.primal().output, expected, strict=True):
             assert actual.shape == wanted.shape
             np.testing.assert_allclose(actual, wanted, rtol=0, atol=2e-10)
