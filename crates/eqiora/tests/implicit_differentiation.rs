@@ -147,3 +147,22 @@ fn objective_gradient(parameters: [f64; 2]) -> [f64; 2] {
         (objective(plus) - objective(minus)) / (2.0 * step)
     })
 }
+
+#[test]
+fn primal_acceptance_preserves_tiny_and_large_residuals() {
+    // R(w) = w has a regular identity Jacobian. Its residual at (3s,4s)
+    // has norm exactly 5s, independently of the differentiation implementation.
+    let mut expression = ExprDagBuilder::new();
+    let first = expression.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let second = expression.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let ir = ScalarOperatorIr::lower(&expression.finish([first, second]).unwrap()).unwrap();
+    for scale in [f64::from_bits(16), 2_f64.powi(-700), 1., 2_f64.powi(700)] {
+        let point = [3. * scale, 4. * scale];
+        let linearized = ir
+            .linearize(&point, &[DifferentiationRole::Unknown; 2])
+            .unwrap();
+        assert!(AcceptedLinearization::new(&linearized, 4. * scale).is_err());
+        let accepted = AcceptedLinearization::new(&linearized, 5. * scale).unwrap();
+        assert_eq!(accepted.primal_residual_norm(), 5. * scale);
+    }
+}
