@@ -1,3 +1,4 @@
+mod maps;
 use super::*;
 use eqiora_core::{DimExponents, Id, ScalarDomain, ValueFrame, ValueShape, entity::kinds};
 use eqiora_schema::kernel::{

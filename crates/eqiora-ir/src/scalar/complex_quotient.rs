@@ -1,24 +1,15 @@
-//! Scale each operand by a power of two before forming a complex quotient.
-//!
-//! No squared physical denominator or overflowing reciprocal is required.
+//! Complex quotients share retained binary exponents with scalar derivatives.
+//! The squared norm stays scaled until the requested output is materialized.
 
-use super::binary_scale::{exponent, scale};
+use super::Scaled;
 
 pub(super) fn quotient(numerator: [f64; 2], denominator: [f64; 2]) -> [f64; 2] {
-    let a = numerator[0].abs().max(numerator[1].abs());
-    let b = denominator[0].abs().max(denominator[1].abs());
-    if !a.is_finite() || !b.is_finite() || b == 0. {
-        return [f64::NAN; 2];
-    }
-    let ae = exponent(a);
-    let be = exponent(b);
-    let [ar, ai] = numerator.map(|value| scale(value, -ae));
-    let [br, bi] = denominator.map(|value| scale(value, -be));
+    scaled_quotient(numerator.map(Scaled::new), denominator.map(Scaled::new)).map(Scaled::value)
+}
+
+pub(super) fn scaled_quotient([ar, ai]: [Scaled; 2], [br, bi]: [Scaled; 2]) -> [Scaled; 2] {
     let norm = br * br + bi * bi;
-    [
-        scale((ar * br + ai * bi) / norm, ae - be),
-        scale((ai * br - ar * bi) / norm, ae - be),
-    ]
+    [(ar * br + ai * bi) / norm, (ai * br - ar * bi) / norm]
 }
 
 pub(super) fn evaluate(
@@ -71,18 +62,18 @@ pub(super) fn typed(
 pub(super) fn jvp(
     operands: [super::ValueId; 4],
     values: &[f64],
-    tangents: &[f64],
+    tangents: &[Scaled],
     index: usize,
     imaginary: bool,
-) -> Result<f64, super::Diagnostic> {
+) -> Result<Scaled, super::Diagnostic> {
     let [a, b, c, d] = operands;
     let denominator = [
-        super::read(values, c, index)?,
-        super::read(values, d, index)?,
+        Scaled::new(super::read(values, c, index)?),
+        Scaled::new(super::read(values, d, index)?),
     ];
     let numerator = [
-        super::read(values, a, index)?,
-        super::read(values, b, index)?,
+        Scaled::new(super::read(values, a, index)?),
+        Scaled::new(super::read(values, b, index)?),
     ];
     let numerator_tangent = [
         super::read(tangents, a, index)?,
@@ -92,12 +83,14 @@ pub(super) fn jvp(
         super::read(tangents, c, index)?,
         super::read(tangents, d, index)?,
     ];
-    Ok(direction(
+    Ok(direction_in(
+        &mut super::differential::Numerical,
         numerator,
         denominator,
-        numerator_tangent,
-        denominator_tangent,
-    )[usize::from(imaginary)])
+        Some(numerator_tangent),
+        Some(denominator_tangent),
+    )?
+    .expect("directions present")[usize::from(imaginary)])
 }
 
 pub(super) fn direction(
@@ -108,13 +101,14 @@ pub(super) fn direction(
 ) -> [f64; 2] {
     direction_in(
         &mut super::differential::Numerical,
-        numerator,
-        denominator,
-        Some(numerator_tangent),
-        Some(denominator_tangent),
+        numerator.map(Scaled::new),
+        denominator.map(Scaled::new),
+        Some(numerator_tangent.map(Scaled::new)),
+        Some(denominator_tangent.map(Scaled::new)),
     )
     .expect("numerical arithmetic is infallible")
     .expect("numerical directions are present")
+    .map(Scaled::value)
 }
 
 /// The robust quotient differential has one owner for evaluation and SSA emission.
@@ -151,22 +145,22 @@ pub(super) fn direction_in<A: super::differential::Arithmetic>(
 pub(super) fn curvature(
     operands: [super::ValueId; 4],
     values: &[f64],
-    left: &[f64],
-    right: &[f64],
+    left: &[Scaled],
+    right: &[Scaled],
     index: usize,
     imaginary: bool,
-) -> Result<f64, super::Diagnostic> {
+) -> Result<Scaled, super::Diagnostic> {
     let denominator = [
-        super::read(values, operands[2], index)?,
-        super::read(values, operands[3], index)?,
+        Scaled::new(super::read(values, operands[2], index)?),
+        Scaled::new(super::read(values, operands[3], index)?),
     ];
-    let direction = |tangent: &[f64]| -> Result<([f64; 2], [f64; 2]), super::Diagnostic> {
+    let direction = |tangent: &[Scaled]| -> Result<([Scaled; 2], [Scaled; 2]), super::Diagnostic> {
         Ok((
             [
                 jvp(operands, values, tangent, index, false)?,
                 jvp(operands, values, tangent, index, true)?,
             ],
-            quotient(
+            scaled_quotient(
                 [
                     super::read(tangent, operands[2], index)?,
                     super::read(tangent, operands[3], index)?,
@@ -189,15 +183,25 @@ pub(super) fn vjp(
     values: &[f64],
     index: usize,
     imaginary: bool,
-    seed: f64,
-) -> Result<[f64; 4], super::Diagnostic> {
+    seed: Scaled,
+) -> Result<[Scaled; 4], super::Diagnostic> {
     let denominator = [
-        super::read(values, operands[2], index)?,
-        -super::read(values, operands[3], index)?,
+        Scaled::new(super::read(values, operands[2], index)?),
+        -Scaled::new(super::read(values, operands[3], index)?),
     ];
-    let weight = if imaginary { [0., seed] } else { [seed, 0.] };
-    let a = quotient(weight, denominator);
-    let q = evaluate(operands, values, index)?;
+    let weight = if imaginary {
+        [Scaled::ZERO, seed]
+    } else {
+        [seed, Scaled::ZERO]
+    };
+    let a = scaled_quotient(weight, denominator);
+    let q = scaled_quotient(
+        [
+            Scaled::new(super::read(values, operands[0], index)?),
+            Scaled::new(super::read(values, operands[1], index)?),
+        ],
+        [denominator[0], -denominator[1]],
+    );
     // Euclidean pairing on real/imaginary coordinates: a*=w/conj(b),
     // b*=-conj(a/b) a*.
     Ok([
@@ -242,6 +246,23 @@ pub(super) fn affine(
 #[cfg(test)]
 mod tests {
     use super::quotient;
+
+    #[test]
+    fn numerical_quotient_retains_ieee_zero_signs_on_the_negative_real_axis() {
+        // The real-coordinate formula gives -1-i0 for (1+i0)/(-1+i0),
+        // and -1+i0 for (1-i0)/(-1-i0). atan2 distinguishes these sides.
+        // This is numerical arithmetic; ValueLiteral separately canonicalizes
+        // stored zeros and its contract is unchanged.
+        for zero in [0.0_f64, -0.0] {
+            let [real, imaginary] = quotient([1., zero], [-1., zero]);
+            assert_eq!(real, -1.);
+            assert_eq!(imaginary.to_bits(), (-zero).to_bits());
+            assert_eq!(
+                imaginary.atan2(real),
+                (-zero).signum() * std::f64::consts::PI
+            );
+        }
+    }
 
     #[test]
     fn quotient_preserves_finite_results_across_normal_and_subnormal_scales() {

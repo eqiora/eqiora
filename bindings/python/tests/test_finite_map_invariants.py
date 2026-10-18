@@ -14,6 +14,91 @@ def _policy():
     )
 
 
+@pytest.mark.parametrize("exponent", [-400, -700, 400, 700])
+def test_weighted_inverse_actions_keep_range_through_the_complete_parameter_chain(exponent):
+    scale = 2.0 ** exponent
+    model = eqiora.compile(source=f"""
+space S=orthonormal(x,y);
+model M() {{
+    parameter p:1=0;
+    parameter e:coordinates<1,S>=coordinates(S,[1,0]);
+    parameter a:map<1,S,S>=linear_map(S,S,[[{scale!r},0],[0,{scale!r}]]);
+    variable z:1;
+    relation pin {{z=0;}}
+    observable output:1=pair(adjoint(e),apply(inverse((1+p)*a),e));
+}}
+""")
+    plan = eqiora.resolve(model, solve=_policy())
+    result = eqiora.run(plan, state=eqiora.State.initial(plan))
+    assert result.observe(model.observable("output")).value == 1.0 / scale
+    program = eqiora.diff.compile(
+        plan, inputs=(model.parameter("p"),), outputs=(model.observable("output"),)
+    )
+    # y=1/(s*(1+p)), y'=-1/(s*(1+p)^2); all expected powers are exact.
+    for parameter in (0.0, 1.0):
+        point = program.evaluate((parameter,))
+        expected = (1.0 / scale) / (1.0 + parameter)
+        derivative = -expected / (1.0 + parameter)
+        assert point.primal().output[0].item() == expected
+        assert point.jvp((1.0,)).tangent[0].item() == derivative
+        assert point.vjp((1.0,)).input_cotangent[0].item() == derivative
+    with pytest.raises(eqiora.ValidationError, match="singular"):
+        program.evaluate((-1.0,))
+
+
+def test_small_triangular_inverse_component_survives_physical_rescaling():
+    s, t = 2.0 ** -500, 2.0 ** -1050
+    model = eqiora.compile(source=f"""
+space S=orthonormal(x,y,z);
+model M() {{
+    parameter a:map<1,S,S>=linear_map(S,S,[[{s!r},{t!r},0],[0,{s!r},{t!r}],[0,0,{s!r}]]);
+    variable z:1;
+    relation pin {{z=0;}}
+    observable output:map<1,S,S>=inverse(a);
+}}
+""")
+    plan = eqiora.resolve(model, solve=_policy())
+    result = eqiora.run(plan, state=eqiora.State.initial(plan))
+    # For N01=N12=1, N³=0: (sI+tN)^-1=I/s-tN/s²+t²N²/s³.
+    assert result.observe(model.observable("output")).value[0][2] == 2.0 ** -600
+
+
+@pytest.mark.parametrize("exponent", [-400, -700])
+@pytest.mark.parametrize("inline_projection", [False, True])
+@pytest.mark.parametrize("inline_direction", [False, True])
+def test_inverse_projection_avoids_unrequested_unrepresentable_partials(
+    exponent, inline_projection, inline_direction
+):
+    scale = 2.0 ** exponent
+    vector = "coordinates(S,[1[1],0[1]])" if inline_projection else "e"
+    direction = "linear_map(S,S,[[1,0],[0,0]])" if inline_direction else "h"
+    model = eqiora.compile(source=f"""
+space S=orthonormal(x,y);
+model M() {{
+    parameter p:1=0;
+    parameter e:coordinates<1,S>=coordinates(S,[1,0]);
+    parameter a:map<1,S,S>=linear_map(S,S,[[0,{scale!r}],[{scale!r},0]]);
+    parameter h:map<1,S,S>=linear_map(S,S,[[1,0],[0,0]]);
+    variable z:1;
+    relation pin {{z=0;}}
+    observable output:1=p+pair(adjoint({vector}),apply(inverse(a+p*{direction}),{vector}));
+}}
+""")
+    plan = eqiora.resolve(model, solve=_policy())
+    result = eqiora.run(plan, state=eqiora.State.initial(plan))
+    assert result.observe(model.observable("output")).value == 0.0
+    program = eqiora.diff.compile(
+        plan, inputs=(model.parameter("p"),), outputs=(model.observable("output"),)
+    )
+    # A=[[p,s],[s,0]] has inverse [[0,1/s],[1/s,-p/s²]]. Therefore
+    # y=p+e^T inverse(A)e=p and dy/dp=1, even if 1/s² does not fit f64.
+    for parameter in (0.0, scale):
+        point = program.evaluate((parameter,))
+        assert point.primal().output[0].item() == parameter
+        assert point.jvp((1.0,)).tangent[0].item() == 1.0
+        assert point.vjp((1.0,)).input_cotangent[0].item() == 1.0
+
+
 @pytest.mark.parametrize("n", [2, 6, 9])
 def test_inverse_identity_and_invariants_share_the_ordinary_lifecycle(n):
     q = eqiora.lang
@@ -82,3 +167,89 @@ model M() {{
 """)
     with pytest.raises(eqiora.ValidationError, match=reason):
         eqiora.resolve(model, solve=_policy())
+
+
+@pytest.mark.parametrize("inverse", [False, True])
+@pytest.mark.parametrize("tpfa", [False, True])
+@pytest.mark.parametrize("varying", [False, True])
+def test_unitful_map_coefficients_compose_with_guarded_spatial_derivatives(inverse, tpfa, varying):
+    import numpy as np
+
+    graph = eqiora.geometry.GeometryGraph()
+    interval = graph.interval(bounds=(0., 3.))
+    geometry = graph.build(interval, named_topology={
+        "body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1],
+    })
+    body = geometry.selection("body")
+    scale = "matrix_trace(inverse(a))*1[m]" if inverse else "determinant(a)/1[m^2]"
+    coefficient = scale
+    profile = ""
+    if varying:
+        # Both profiles give scale(b(x))=(1+x)*scale(a), through different
+        # finite-map operations: row scaling for det, scalar division for inv.
+        expression = "a/(1+coordinate(0)/1[m])" if inverse else (
+            "compose(identity(S)+(coordinate(0)/1[m])*linear_map(S,S,[[1,0],[0,0]]),a)")
+        profile = f"""
+        variable b:map<m,S,S> on body in smooth;
+        relation matrix_profile on body {{b={expression};}}
+        """
+        coefficient = scale.replace("(a)", "(b)")
+    flux = f"grad(u)+grad(math.sqrt(h)*({coefficient}))"
+    model = eqiora.compile(source=f"""
+    space S=orthonormal(x,y);
+    public model GuardedMap(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body), support right:boundary(parent=body)) {{
+        parameter a:map<m,S,S>=linear_map(S,S,[[2[m],1[m]],[3[m],4[m]]]);
+        {profile}
+        variable h:1 on body in smooth;
+        relation prescribed on body {{h=(1+coordinate(0)/1[m])^2;}}
+        variable u:1 on body in smooth;
+        relation balance on body {{-div({flux})=0;}}
+        relation left_value on left {{trace(u)={scale};}}
+        relation right_value on right {{trace(u)=4*({scale});}}
+    }}
+    """, entry="GuardedMap", geometry=geometry, bindings={
+        "body": body, "left": (geometry.selection("left"), body),
+        "right": (geometry.selection("right"), body),
+    })
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+        geometry, eqiora.meshing.CartesianMesher(cells=(3,))))
+    plan = eqiora.resolve(model, mesh=mesh,
+        spatial=eqiora.fvm.CellCenteredTpfa() if tpfa else eqiora.fem.Q1(), solve=_policy())
+    plan = eqiora.Plan.from_bytes(plan.to_bytes())
+    result = eqiora.run(plan)
+    assert eqiora.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
+    program = eqiora.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("a").id),),
+                                  outputs=(plan.fields[0],))
+    # For constant map coefficients, h=(1+x)^2 gives grad(sqrt(h))=1;
+    # u=t*(1+x) solves the balance with endpoint values t and 4*t, t=scale(a).
+    # Prescribing u avoids assuming sqrt(h) has a boundary trace from smooth h alone.
+    response = 1+np.arange(3 if tpfa else 4)+(0.5 if tpfa else 0.)
+    if varying:
+        # Now f=sqrt(h)*scale(b)=t*(1+x)^2, with flux u'+f'.
+        # Q1 gives exact nodal values of u=t*(1+4*x-x^2).
+        # TPFA: C=2*u0=u1-u0+4*t=u2-u1+6*t=16*t-2*u2,
+        # hence C=6*t and cell values [3,5,5]*t. The half-cell
+        # boundary closure has its ordinary quadratic discretization error.
+        response = np.array([3., 5., 5.]) if tpfa else np.array([1., 4., 5., 4.])
+    direction = np.array([[1., 2.], [-1., 3.]])
+    weights = np.arange(1, len(response)+1)/4
+    points = [np.array([[2., 1.], [3., 4.]]), np.array([[3., 1.], [2., 2.]])]
+    if not inverse:
+        points.append(np.array([[1., 2.], [2., 4.]]))
+    for matrix in points:
+        a, b, c, d = matrix.ravel()
+        det = a*d-b*c
+        cofactor = np.array([[d, -c], [-b, a]])
+        value = (a+d)/det if inverse else det
+        # Differentiate the explicit 2x2 polynomial/rational expression.
+        derivative = np.eye(2)/det-(a+d)*cofactor/det**2 if inverse else cofactor
+        point = program.evaluate((matrix,))
+        np.testing.assert_allclose(point.primal().output[0], response*value, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.jvp((direction,)).tangent[0],
+                                   response*np.sum(derivative*direction), rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.vjp((weights,)).input_cotangent[0],
+                                   np.dot(weights, response)*derivative, rtol=0, atol=2e-10)
+    if inverse:
+        with pytest.raises(eqiora.ValidationError, match="singular|unresolved"):
+            program.evaluate((np.array([[1., 2.], [2., 4.]]),))

@@ -56,12 +56,13 @@ impl AffineValue {
             value,
             tangent: differential::quotient_direction(
                 &mut differential::Numerical,
-                self.value,
-                other.value,
-                self.tangent,
-                other.tangent,
+                Scaled::new(self.value),
+                Scaled::new(other.value),
+                self.tangent.map(Scaled::new),
+                other.tangent.map(Scaled::new),
             )
-            .expect("numerical quotient arithmetic is infallible"),
+            .expect("numerical quotient arithmetic is infallible")
+            .map(Scaled::value),
         }
     }
 
@@ -106,18 +107,21 @@ impl AffineValue {
     pub(in crate::scalar) fn map(
         values: &[Self],
         extent: usize,
-        component: Option<u32>,
+        output: MapOutput,
     ) -> Result<Self, Diagnostic> {
         let entries = values.iter().map(|v| v.value).collect::<Vec<_>>();
         let mut map = map_evaluation::MapEvaluation::new(&entries, extent)?;
-        let value = map.value(component)?;
+        let value = map.value(output)?;
         let tangent = if values.iter().any(|v| v.tangent.is_some()) {
             Some(
-                map.gradient(component)?
-                    .iter()
-                    .zip(values)
-                    .map(|(g, v)| g * v.tangent.unwrap_or(0.))
-                    .sum(),
+                map.gradient(output, &|index| {
+                    values[index].tangent.is_some_and(|value| value != 0.)
+                })?
+                .iter()
+                .zip(values)
+                .map(|(g, v)| *g * v.tangent.unwrap_or(0.))
+                .sum::<Scaled>()
+                .value(),
             )
         } else {
             None
@@ -135,7 +139,7 @@ mod tests {
             value,
             tangent: Some(tangent),
         });
-        let determinant = AffineValue::map(&values, 2, None).unwrap();
+        let determinant = AffineValue::map(&values, 2, MapOutput::Determinant).unwrap();
         assert!((determinant.value + 1.).abs() < 1e-13);
         assert!((determinant.tangent.unwrap() - 11.).abs() < 1e-12);
         // A^-1=[[-7,3],[5,-2]], d(A^-1)=-A^-1 diag(1,2) A^-1.
@@ -143,7 +147,7 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            let actual = AffineValue::map(&values, 2, Some(i as u32)).unwrap();
+            let actual = AffineValue::map(&values, 2, MapOutput::Inverse(i as u32)).unwrap();
             assert!((actual.value - value).abs() < 1e-12);
             assert!((actual.tangent.unwrap() - tangent).abs() < 1e-11);
         }

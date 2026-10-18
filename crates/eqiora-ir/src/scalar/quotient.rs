@@ -5,10 +5,8 @@
 //! repeated directions therefore retain the ordinary mixed-derivative factors.
 use super::*;
 mod affine;
-mod scaled;
 mod typed;
 pub(super) use affine::evaluate as affine;
-use scaled::Scaled;
 pub(super) use typed::evaluate as typed;
 
 fn admit(n: usize) -> Result<(), Diagnostic> {
@@ -25,31 +23,32 @@ fn admit(n: usize) -> Result<(), Diagnostic> {
 }
 
 pub(super) fn jet(a: &[Option<f64>], b: &[Option<f64>]) -> Result<f64, Diagnostic> {
+    let a = a.iter().map(|v| v.map(Scaled::new)).collect::<Vec<_>>();
+    let b = b.iter().map(|v| v.map(Scaled::new)).collect::<Vec<_>>();
+    scaled_jet(&a, &b).map(Scaled::value)
+}
+
+pub(super) fn scaled_jet(a: &[Option<Scaled>], b: &[Option<Scaled>]) -> Result<Scaled, Diagnostic> {
     admit(a.len())?;
     require_length(b, a.len(), "quotient coefficient denominator")?;
     let base = b[0].ok_or_else(|| ir_builder_error("quotient requires a base denominator"))?;
-    if base == 0.
+    if base.is_zero()
         || !base.is_finite()
         || a.iter().chain(b).flatten().any(|value| !value.is_finite())
     {
-        return Ok(f64::NAN);
+        return Ok(Scaled::new(f64::NAN));
     }
-    let b = b
-        .iter()
-        .map(|value| value.map_or(Scaled::ZERO, Scaled::new))
-        .collect::<Vec<_>>();
     let mut q = Vec::with_capacity(a.len());
     for mask in 0..a.len() {
-        let mut value = a[mask].map_or(Scaled::ZERO, Scaled::new);
+        let mut value = a[mask].unwrap_or(Scaled::ZERO);
         let mut subset = mask;
         while subset != 0 {
-            value = value.sub(b[subset].mul(q[mask ^ subset]));
+            value = value.sub(b[subset].unwrap_or(Scaled::ZERO).mul(q[mask ^ subset]));
             subset = (subset - 1) & mask;
         }
-        q.push(value.div(b[0]));
+        q.push(value.div(base));
     }
-    let value = q.last().expect("nonempty coefficients").value();
-    Ok(value)
+    Ok(*q.last().expect("nonempty coefficients"))
 }
 
 /// A missing coefficient is structural zero. It keeps its absence through
@@ -130,22 +129,22 @@ impl Operands {
     pub(super) fn first(
         &self,
         values: &[f64],
-        mut direction: impl FnMut(ValueId) -> Result<f64, Diagnostic>,
-    ) -> Result<f64, Diagnostic> {
-        let (mut a, mut b) = self.values(|id| read(values, id, values.len()))?;
+        mut direction: impl FnMut(ValueId) -> Result<Scaled, Diagnostic>,
+    ) -> Result<Scaled, Diagnostic> {
+        let (mut a, mut b) = self.values(|id| read(values, id, values.len()).map(Scaled::new))?;
         let (da, db) = self.values(&mut direction)?;
         a.extend(da);
         b.extend(db);
-        jet(&a, &b)
+        scaled_jet(&a, &b)
     }
 
     pub(super) fn second(
         &self,
         values: &[f64],
-        left: &[f64],
-        right: &[f64],
-    ) -> Result<f64, Diagnostic> {
-        let (mut a, mut b) = self.values(|id| read(values, id, values.len()))?;
+        left: &[Scaled],
+        right: &[Scaled],
+    ) -> Result<Scaled, Diagnostic> {
+        let (mut a, mut b) = self.values(|id| read(values, id, values.len()).map(Scaled::new))?;
         for direction in [left, right] {
             let (da, db) = self.values(|id| read(direction, id, direction.len()))?;
             a.extend(da);
@@ -153,7 +152,7 @@ impl Operands {
         }
         a.extend(std::iter::repeat_n(None, self.a.len()));
         b.extend(std::iter::repeat_n(None, self.b.len()));
-        jet(&a, &b)
+        scaled_jet(&a, &b)
     }
 }
 

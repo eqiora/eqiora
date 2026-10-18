@@ -100,6 +100,7 @@ impl TypedInstructions<'_> {
             Branch(ValueId),
         }
         let mut component_work = 0usize;
+        let mut maps = map_evaluation::MapCache::default();
         let mut values: Vec<Option<ValueLiteral>> = vec![None; self.instructions.len()];
         for &root in roots {
             let mut pending = vec![Frame::Demand(root)];
@@ -195,10 +196,12 @@ impl TypedInstructions<'_> {
                         Instruction::ComplexDiv { operands, .. } => {
                             pending.extend(operands.into_iter().rev().map(Frame::Demand));
                         }
-                        Instruction::MapInvariant { .. } => {
-                            return Err(ir_builder_error(
-                                "numerical maps require component execution",
-                            ));
+                        Instruction::MapInvariant { start, extent, .. } => {
+                            pending.extend(
+                                map_evaluation::operand_range(start, extent, index)?
+                                    .rev()
+                                    .map(|operand| Frame::Demand(ValueId(operand as u32))),
+                            );
                         }
                         Instruction::Constant(_)
                         | Instruction::TypedConstant(_)
@@ -253,11 +256,11 @@ impl TypedInstructions<'_> {
                         imaginary,
                         index,
                     )?,
-                    Instruction::MapInvariant { .. } => {
-                        return Err(ir_builder_error(
-                            "numerical map admission requires component execution",
-                        ));
-                    }
+                    Instruction::MapInvariant {
+                        start,
+                        extent,
+                        output,
+                    } => maps.typed(start, extent, output, &values, index)?,
                     Instruction::Select {
                         condition,
                         then_value,

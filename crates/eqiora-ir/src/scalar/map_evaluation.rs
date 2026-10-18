@@ -35,11 +35,12 @@ impl ScalarOperatorIr {
         };
         let derivative = sign
             * map
-                .gradient(None)?
+                .gradient(MapOutput::Determinant, &|index| direction[index] != 0.)?
                 .iter()
                 .zip(direction)
-                .map(|(gradient, direction)| gradient * direction)
-                .sum::<f64>();
+                .map(|(gradient, direction)| *gradient * *direction)
+                .sum::<Scaled>()
+                .value();
         require_finite_value(derivative, "coordinate-map factor derivative", 0)?;
         Ok(derivative)
     }
@@ -63,7 +64,7 @@ impl ScalarOperatorIr {
         if factor == CoordinateMapFactor::Orientation {
             return Ok((0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum()));
         }
-        let determinant = map.value(None)?;
+        let determinant = map.value(MapOutput::Determinant)?;
         Ok(match factor {
             CoordinateMapFactor::SignedJacobian => determinant,
             CoordinateMapFactor::VolumeScale => determinant.abs(),
@@ -89,9 +90,48 @@ pub(super) fn operand_range(
     Ok(start..limit)
 }
 
+/// Gather scalar coordinates without changing units or signed zero. Both initial
+/// lowering and active-program projection use this contiguous operand convention.
+pub(super) fn gather_entries(
+    instructions: &mut Vec<Instruction>,
+    entries: impl ExactSizeIterator<Item = ValueId> + Clone,
+) -> Result<ValueId, Diagnostic> {
+    let end = instructions.len();
+    let limit = end
+        .checked_add(entries.len())
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(ir_size_error)?;
+    u32::try_from(limit).map_err(|_| ir_size_error())?;
+    if entries.clone().any(|entry| entry.0 as usize >= end) {
+        return Err(ir_builder_error(
+            "map gather requires prior scalar operands",
+        ));
+    }
+    let one = ValueId(end as u32);
+    instructions.push(Instruction::Constant(eqiora_core::DynQuantity::new(
+        1.,
+        eqiora_core::DimExponents::DIMENSIONLESS,
+    )));
+    let start = ValueId(one.0 + 1);
+    instructions.extend(entries.map(|entry| Instruction::Mul(entry, one)));
+    Ok(start)
+}
+
 #[derive(Default)]
 pub(super) struct MapCache(HashMap<(u32, u32), MapEvaluation>);
 impl MapCache {
+    fn cached(
+        &mut self,
+        start: ValueId,
+        extent: u32,
+        build: impl FnOnce() -> Result<MapEvaluation, Diagnostic>,
+    ) -> Result<&mut MapEvaluation, Diagnostic> {
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.0.entry((start.0, extent)) {
+            entry.insert(build()?);
+        }
+        Ok(self.0.get_mut(&(start.0, extent)).expect("inserted map"))
+    }
+
     pub(super) fn get(
         &mut self,
         start: ValueId,
@@ -99,27 +139,71 @@ impl MapCache {
         values: &[f64],
     ) -> Result<&mut MapEvaluation, Diagnostic> {
         let range = operand_range(start, extent, values.len())?;
-        if let std::collections::hash_map::Entry::Vacant(entry) = self.0.entry((start.0, extent)) {
-            entry.insert(MapEvaluation::new(&values[range], extent as usize)?);
-        }
-        Ok(self.0.get_mut(&(start.0, extent)).expect("inserted map"))
+        self.cached(start, extent, || {
+            MapEvaluation::new(&values[range], extent as usize)
+        })
+    }
+
+    /// Typed demand shares factorization, admission and values across every
+    /// component of the same map at this point, just as numerical execution does.
+    pub(super) fn typed(
+        &mut self,
+        start: ValueId,
+        extent: u32,
+        output: MapOutput,
+        values: &[Option<eqiora_core::ValueLiteral>],
+        end: usize,
+    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+        let range = operand_range(start, extent, end)?;
+        let read = |index: usize| {
+            values
+                .get(index)
+                .and_then(Option::as_ref)
+                .and_then(eqiora_core::ValueLiteral::real_scalar_value)
+                .ok_or_else(|| {
+                    ir_builder_error("finite map operands require demanded real scalar coordinates")
+                })
+        };
+        let dimension = read(range.start)?.dim();
+        let map = self.cached(start, extent, || {
+            let entries = range.map(read).collect::<Result<Vec<_>, _>>()?;
+            if entries.iter().any(|value| value.dim() != dimension) {
+                return Err(ir_builder_error("finite map coefficient units differ"));
+            }
+            MapEvaluation::new(
+                &entries
+                    .iter()
+                    .map(|value| value.value())
+                    .collect::<Vec<_>>(),
+                extent as usize,
+            )
+        })?;
+        let power = output.dimension_power(extent)?;
+        let dimension = dimension
+            .pow(power, 1)
+            .ok_or_else(|| ir_builder_error("finite map dimension overflow"))?;
+        eqiora_core::ValueLiteral::try_from(eqiora_core::DynQuantity::new(
+            map.value(output)?,
+            dimension,
+        ))
+        .map_err(|error| ir_builder_error(error.to_string()))
     }
 }
 
 pub(super) struct MapEvaluation {
-    entries: Vec<f64>,
-    lu: Vec<f64>,
+    entries: Vec<Scaled>,
+    lu: Vec<Scaled>,
     permutation: Vec<usize>,
     n: usize,
-    scale: f64,
-    norm: f64,
+    norm: Scaled,
     sign: f64,
     singular: bool,
-    normalized_inverse: Option<Vec<f64>>,
+    inverse_values: Option<Vec<Scaled>>,
+    cofactors: Vec<Option<Scaled>>,
 }
 
 impl MapEvaluation {
-    pub(super) fn new(entries: &[f64], n: usize) -> Result<Self, Diagnostic> {
+    pub(super) fn new<T: Copy + Into<Scaled>>(entries: &[T], n: usize) -> Result<Self, Diagnostic> {
         if n == 0 || n.checked_mul(n) != Some(entries.len()) {
             return Err(ir_builder_error(
                 "finite map extent does not match operands",
@@ -133,29 +217,25 @@ impl MapEvaluation {
                 "finite map factorization exceeds one million component products",
             ));
         }
-        require_finite(entries, "finite map operands")?;
-        let scale = entries.iter().fold(0.0_f64, |s, x| s.max(x.abs()));
-        let scale = if scale == 0.0 { 1.0 } else { scale };
-        let mut lu = entries.iter().map(|x| x / scale).collect::<Vec<_>>();
-        if entries
+        let entries = entries
             .iter()
-            .zip(&lu)
-            .any(|(input, scaled)| *input != 0.0 && *scaled == 0.0)
-        {
-            return Err(Diagnostic::error(
-                codes::NONFINITE_EVALUATION,
-                "finite map normalization underflows binary64; numerical zero is not evidence of singularity",
+            .map(|&value| value.into())
+            .collect::<Vec<_>>();
+        if entries.iter().any(|value| !value.is_finite()) {
+            return Err(invalid_linearization(
+                "finite map operands must contain only finite values",
             ));
         }
+        let mut lu = entries.clone();
         let norm = infinity_norm(&lu, n);
         let mut permutation = (0..n).collect::<Vec<_>>();
         let mut sign = 1.0;
         let mut singular = false;
         for k in 0..n {
             let pivot = (k..n)
-                .max_by(|&a, &b| lu[a * n + k].abs().total_cmp(&lu[b * n + k].abs()))
+                .max_by(|&a, &b| lu[a * n + k].abs_cmp(lu[b * n + k]))
                 .expect("nonempty pivot column");
-            if lu[pivot * n + k] == 0.0 {
+            if lu[pivot * n + k].is_zero() {
                 singular = true;
                 break;
             }
@@ -167,40 +247,39 @@ impl MapEvaluation {
                 sign = -sign;
             }
             for i in k + 1..n {
-                lu[i * n + k] /= lu[k * n + k];
+                lu[i * n + k] = lu[i * n + k] / lu[k * n + k];
                 for j in k + 1..n {
-                    lu[i * n + j] -= lu[i * n + k] * lu[k * n + j];
+                    lu[i * n + j] = lu[i * n + j] - lu[i * n + k] * lu[k * n + j];
                 }
             }
         }
-        require_finite(&lu, "finite map factorization")?;
+        for &value in &lu {
+            require_valid_derivative(value, "finite map factorization", 0)?;
+        }
         Ok(Self {
-            entries: entries.to_vec(),
+            entries,
             lu,
             permutation,
             n,
-            scale,
             norm,
             sign,
             singular,
-            normalized_inverse: None,
+            inverse_values: None,
+            cofactors: vec![None; n * n],
         })
     }
 
     fn determinant(&self) -> f64 {
+        self.determinant_scaled().value()
+    }
+
+    fn determinant_scaled(&self) -> Scaled {
         if self.singular {
-            return 0.0;
+            return Scaled::ZERO;
         }
-        // Combine exponents before materializing the result, so intermediate
-        // products do not overflow solely because of coefficient units.
-        let mut sign = self.sign;
-        let mut logarithm = 0.0;
-        for k in 0..self.n {
-            let pivot = self.lu[k * self.n + k];
-            sign *= pivot.signum();
-            logarithm += pivot.abs().ln() + self.scale.ln();
-        }
-        sign * logarithm.exp()
+        (0..self.n).fold(Scaled::new(self.sign), |value, k| {
+            value * self.lu[k * self.n + k]
+        })
     }
 
     fn factor_inverse(&mut self) -> Result<(), Diagnostic> {
@@ -209,43 +288,43 @@ impl MapEvaluation {
                 "finite map inverse is singular or numerically unresolved",
             ));
         }
-        if self.normalized_inverse.is_some() {
+        if self.inverse_values.is_some() {
             return Ok(());
         }
         let n = self.n;
-        let mut inverse = vec![0.0; n * n];
+        let mut inverse = vec![Scaled::ZERO; n * n];
         for column in 0..n {
             let mut x = self
                 .permutation
                 .iter()
-                .map(|&row| f64::from(row == column))
+                .map(|&row| Scaled::new(f64::from(row == column)))
                 .collect::<Vec<_>>();
             for i in 0..n {
                 for j in 0..i {
-                    x[i] -= self.lu[i * n + j] * x[j];
+                    x[i] = x[i] - self.lu[i * n + j] * x[j];
                 }
             }
             for i in (0..n).rev() {
                 for j in i + 1..n {
-                    x[i] -= self.lu[i * n + j] * x[j];
+                    x[i] = x[i] - self.lu[i * n + j] * x[j];
                 }
-                x[i] /= self.lu[i * n + i];
+                x[i] = x[i] / self.lu[i * n + i];
             }
             for i in 0..n {
                 inverse[i * n + column] = x[i];
             }
         }
-        self.normalized_inverse = Some(inverse);
+        for &value in &inverse {
+            require_valid_derivative(value, "finite map inverse factorization", 0)?;
+        }
+        self.inverse_values = Some(inverse);
         Ok(())
     }
 
-    fn inverse(&mut self) -> Result<&[f64], Diagnostic> {
+    fn inverse(&mut self) -> Result<&[Scaled], Diagnostic> {
         self.factor_inverse()?;
-        let inverse = self
-            .normalized_inverse
-            .as_deref()
-            .expect("factored inverse");
-        let reciprocal = (1.0 / self.norm) / infinity_norm(inverse, self.n);
+        let inverse = self.inverse_values.as_deref().expect("factored inverse");
+        let reciprocal = ((1.0 / self.norm) / infinity_norm(inverse, self.n)).value();
         if !reciprocal.is_finite() || reciprocal <= 64.0 * f64::EPSILON {
             return Err(ir_builder_error(
                 "finite map inverse is numerically ill-conditioned: reciprocal infinity-norm estimate must exceed 64 binary64 epsilons",
@@ -254,10 +333,9 @@ impl MapEvaluation {
         Ok(inverse)
     }
 
-    pub(super) fn value(&mut self, component: Option<u32>) -> Result<f64, Diagnostic> {
-        let scale = self.scale;
-        let value = match component {
-            None => {
+    pub(super) fn value(&mut self, output: MapOutput) -> Result<f64, Diagnostic> {
+        let value = match output {
+            MapOutput::Determinant => {
                 let value = self.determinant();
                 if value == 0.0 && !self.singular {
                     return Err(Diagnostic::error(
@@ -267,82 +345,134 @@ impl MapEvaluation {
                 }
                 value
             }
-            Some(index) => {
-                *self
-                    .inverse()?
-                    .get(index as usize)
-                    .ok_or_else(|| ir_builder_error("inverse component is outside map"))?
-                    / scale
-            }
+            MapOutput::Inverse(index) => self
+                .inverse()?
+                .get(index as usize)
+                .ok_or_else(|| ir_builder_error("inverse component is outside map"))?
+                .value(),
+            MapOutput::Cofactor(index) => self.cofactor(index)?.value(),
         };
         require_finite_value(value, "finite map", 0)?;
         Ok(value)
     }
 
-    pub(super) fn gradient(&mut self, component: Option<u32>) -> Result<Vec<f64>, Diagnostic> {
+    fn minor(&self, index: u32) -> Result<(f64, Vec<usize>, Self), Diagnostic> {
+        let (sign, coordinates) = map_calculus::minor_coordinates(self.n, index)?;
+        let entries = coordinates
+            .iter()
+            .map(|&index| self.entries[index])
+            .collect::<Vec<_>>();
+        Ok((sign, coordinates, Self::new(&entries, self.n - 1)?))
+    }
+
+    pub(super) fn gradient(
+        &mut self,
+        output: MapOutput,
+        required: &dyn Fn(usize) -> bool,
+    ) -> Result<Vec<Scaled>, Diagnostic> {
         let n = self.n;
-        let scale = self.scale;
-        let mut gradient = vec![0.0; n * n];
-        if let Some(output) = component {
-            if output as usize >= n * n {
-                return Err(ir_builder_error("inverse component is outside map"));
-            }
-            let (r, c) = (output as usize / n, output as usize % n);
-            let inverse = self.inverse()?;
-            for i in 0..n {
-                for j in 0..n {
-                    gradient[i * n + j] =
-                        -(inverse[r * n + i] / scale) * (inverse[j * n + c] / scale);
+        let gradient = match output {
+            MapOutput::Inverse(output) => {
+                if output as usize >= n * n {
+                    return Err(ir_builder_error("inverse component is outside map"));
                 }
+                let (r, c) = (output as usize / n, output as usize % n);
+                let inverse = self.inverse()?;
+                map_calculus::inverse_gradient(
+                    &mut differential::Numerical,
+                    n,
+                    |_, i| Ok(inverse[r * n + i]),
+                    |_, j| Ok(inverse[j * n + c]),
+                    required,
+                )?
+                .into_iter()
+                .map(|value| value.unwrap_or(Scaled::ZERO))
+                .collect()
             }
-        } else {
-            gradient = self.determinant_gradient()?;
+            MapOutput::Determinant => (0..n * n)
+                .map(|index| {
+                    if required(index) {
+                        self.cofactor(index as u32)
+                    } else {
+                        Ok(Scaled::ZERO)
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            MapOutput::Cofactor(index) => {
+                let mut gradient = vec![Scaled::ZERO; n * n];
+                if n == 1 {
+                    map_calculus::minor_coordinates(n, index)?;
+                } else {
+                    let (sign, coordinates, mut minor) = self.minor(index)?;
+                    let partials = minor.gradient(MapOutput::Determinant, &|local| {
+                        required(coordinates[local])
+                    })?;
+                    for (coordinate, partial) in coordinates.into_iter().zip(partials) {
+                        gradient[coordinate] = sign * partial;
+                    }
+                }
+                gradient
+            }
+        };
+        for &value in &gradient {
+            require_valid_derivative(value, "finite map derivative", 0)?;
         }
-        require_finite(&gradient, "finite map derivative")?;
         Ok(gradient)
     }
     pub(super) fn curvature(
         &mut self,
-        component: Option<u32>,
-        left: &[f64],
-        right: &[f64],
-    ) -> Result<f64, Diagnostic> {
+        output: MapOutput,
+        left: &[Scaled],
+        right: &[Scaled],
+    ) -> Result<Scaled, Diagnostic> {
         let n = self.n;
         require_length(left, n * n, "finite map first direction")?;
         require_length(right, n * n, "finite map second direction")?;
-        require_finite(left, "finite map first direction")?;
-        require_finite(right, "finite map second direction")?;
-        let value = if let Some(output) = component {
+        for &value in left.iter().chain(right) {
+            require_valid_derivative(value, "finite map direction", 0)?;
+        }
+        let value = if let MapOutput::Inverse(output) = output {
             if output as usize >= n * n {
                 return Err(ir_builder_error("inverse component is outside map"));
             }
-            let scale = self.scale;
-            let inverse = self
-                .inverse()?
-                .iter()
-                .map(|value| value / scale)
-                .collect::<Vec<_>>();
+            let inverse = self.inverse()?.to_vec();
             let (r, c) = (output as usize / n, output as usize % n);
             // D²(A^-1)[H,K] = B H B K B + B K B H B, B=A^-1.
             // Only the requested row/column is contracted; no Hessian tensor.
-            let product = |h: &[f64], k: &[f64]| {
+            let product = |h: &[Scaled], k: &[Scaled]| {
                 let kb = (0..n)
                     .map(|i| {
                         (0..n)
                             .map(|j| k[i * n + j] * inverse[j * n + c])
-                            .sum::<f64>()
+                            .sum::<Scaled>()
                     })
                     .collect::<Vec<_>>();
                 let bkb = (0..n)
-                    .map(|i| (0..n).map(|j| inverse[i * n + j] * kb[j]).sum::<f64>())
+                    .map(|i| (0..n).map(|j| inverse[i * n + j] * kb[j]).sum::<Scaled>())
                     .collect::<Vec<_>>();
                 (0..n)
                     .map(|i| {
-                        inverse[r * n + i] * (0..n).map(|j| h[i * n + j] * bkb[j]).sum::<f64>()
+                        inverse[r * n + i] * (0..n).map(|j| h[i * n + j] * bkb[j]).sum::<Scaled>()
                     })
-                    .sum::<f64>()
+                    .sum::<Scaled>()
             };
             product(left, right) + product(right, left)
+        } else if let MapOutput::Cofactor(index) = output {
+            if n == 1 {
+                map_calculus::minor_coordinates(n, index)?;
+                Scaled::ZERO
+            } else {
+                let (sign, coordinates, mut minor) = self.minor(index)?;
+                let left = coordinates
+                    .iter()
+                    .map(|&index| left[index])
+                    .collect::<Vec<_>>();
+                let right = coordinates
+                    .iter()
+                    .map(|&index| right[index])
+                    .collect::<Vec<_>>();
+                sign * minor.curvature(MapOutput::Determinant, &left, &right)?
+            }
         } else {
             // Multilinearity in rows is valid at singular matrices too. A
             // determinant derivative must not acquire inverse admission.
@@ -354,50 +484,47 @@ impl MapEvaluation {
                     "determinant mixed derivative exceeds one million component products",
                 ));
             }
-            let mut sum = 0.;
+            let mut sum = Scaled::ZERO;
             for i in 0..n {
                 for j in 0..n {
                     if i == j {
                         continue;
                     }
                     let mut entries = self.entries.clone();
-                    entries[i * n..(i + 1) * n].copy_from_slice(&left[i * n..(i + 1) * n]);
-                    entries[j * n..(j + 1) * n].copy_from_slice(&right[j * n..(j + 1) * n]);
-                    sum += Self::new(&entries, n)?.value(None)?;
+                    for (row, direction) in [(i, left), (j, right)] {
+                        let range = row * n..(row + 1) * n;
+                        entries[range.clone()].copy_from_slice(&direction[range]);
+                    }
+                    sum += Self::new(&entries, n)?.determinant_scaled();
                 }
             }
             sum
         };
-        require_finite_value(value, "finite map mixed derivative", 0)?;
+        require_valid_derivative(value, "finite map mixed derivative", 0)?;
         Ok(value)
     }
 
-    fn determinant_gradient(&mut self) -> Result<Vec<f64>, Diagnostic> {
+    fn cofactor(&mut self, index: u32) -> Result<Scaled, Diagnostic> {
         let n = self.n;
-        let mut gradient = vec![0.0; n * n];
-        let determinant = self.determinant();
-        if !self.singular && determinant != 0.0 {
-            self.factor_inverse()?;
-            let inverse = self
-                .normalized_inverse
-                .as_deref()
-                .expect("factored inverse");
-            for i in 0..n {
-                for j in 0..n {
-                    gradient[i * n + j] = (determinant / self.scale) * inverse[j * n + i];
-                }
-            }
-            // A representable cofactor can be lost when det/scale underflows
-            // before multiplication by a large inverse entry. Re-evaluate with
-            // minors rather than accepting that intermediate zero.
-            if gradient.iter().enumerate().all(|(index, value)| {
-                value.is_finite() && (*value != 0.0 || inverse[(index % n) * n + index / n] == 0.0)
-            }) {
-                return Ok(gradient);
-            }
+        let cached = self
+            .cofactors
+            .get(index as usize)
+            .ok_or_else(|| ir_builder_error("cofactor component is outside map"))?;
+        if let Some(value) = *cached {
+            return Ok(value);
         }
-        // The determinant is differentiable even when the inverse is undefined
-        // or unrepresentable. Cofactors do not impose inverse admission on it.
+        let determinant = self.determinant_scaled();
+        if !self.singular {
+            self.factor_inverse()?;
+            let inverse = self.inverse_values.as_deref().expect("factored inverse");
+            let transposed = (index as usize % n) * n + index as usize / n;
+            let value = determinant * inverse[transposed];
+            require_valid_derivative(value, "finite map cofactor", 0)?;
+            self.cofactors[index as usize] = Some(value);
+            return Ok(value);
+        }
+        // Cofactors are polynomials even at singular maps. Keep the existing
+        // aggregate work bound, but evaluate only the requested coordinate.
         if n.checked_pow(5)
             .and_then(|work| work.checked_mul(2))
             .is_none_or(|work| work > MAX_COMPONENT_PRODUCTS)
@@ -406,116 +533,28 @@ impl MapEvaluation {
                 "determinant derivative exceeds one million component products",
             ));
         }
-        for i in 0..n {
-            for j in 0..n {
-                let mut minor = Vec::new();
-                for r in 0..n {
-                    for c in 0..n {
-                        if r != i && c != j {
-                            minor.push(self.entries[r * n + c]);
-                        }
-                    }
-                }
-                let value = if n == 1 {
-                    1.0
-                } else {
-                    Self::new(&minor, n - 1)?.determinant()
-                };
-                gradient[i * n + j] = if (i + j) % 2 == 0 { value } else { -value };
-            }
-        }
-        Ok(gradient)
+        let value = if n == 1 {
+            Scaled::new(1.)
+        } else {
+            let (sign, _, minor) = self.minor(index)?;
+            sign * minor.determinant_scaled()
+        };
+        require_valid_derivative(value, "finite map cofactor", 0)?;
+        self.cofactors[index as usize] = Some(value);
+        Ok(value)
     }
 }
 
-fn infinity_norm(entries: &[f64], n: usize) -> f64 {
+fn infinity_norm(entries: &[Scaled], n: usize) -> Scaled {
     entries
         .chunks_exact(n)
-        .map(|row| row.iter().map(|x| x.abs()).sum::<f64>())
-        .fold(0.0, f64::max)
+        .map(|row| row.iter().map(|x| x.abs()).sum::<Scaled>())
+        .max_by(|a, b| a.abs_cmp(*b))
+        .unwrap_or(Scaled::ZERO)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn orientation_does_not_require_a_representable_volume_factor() {
-        use eqiora_schema::kernel::CoordinateMapFactor::{Orientation, VolumeScale};
-        for n in [2, 6, 9, 16] {
-            let mut entries = vec![0.0; n * n];
-            for i in 0..n {
-                entries[i * n + i] = 1e-200;
-            }
-            entries[0] = -1e-200;
-            assert_eq!(
-                ScalarOperatorIr::coordinate_map_factor(&entries, n, Orientation).unwrap(),
-                -1.0
-            );
-            assert!(
-                ScalarOperatorIr::coordinate_map_factor(&entries, n, VolumeScale)
-                    .unwrap_err()
-                    .message()
-                    .contains("underflows")
-            );
-        }
-    }
-
-    #[test]
-    fn normalization_cannot_turn_nonzero_coefficients_into_singular_success() {
-        // The diagonal product is near one, despite the >binary64 dynamic range.
-        let error = match MapEvaluation::new(&[1e308, 0.0, 0.0, 1e-308], 2) {
-            Err(error) => error,
-            Ok(_) => panic!("normalization must preserve nonzero operands or reject"),
-        };
-        assert!(
-            error
-                .message()
-                .contains("normalization underflows binary64")
-        );
-    }
-
-    #[test]
-    fn determinant_cofactors_survive_intermediate_underflow() {
-        let mut map =
-            MapEvaluation::new(&[1e-200, 0.0, 0.0, 0.0, 1e-200, 0.0, 0.0, 0.0, 1e100], 3).unwrap();
-        let gradient = map.gradient(None).unwrap();
-        // Independently, diagonal cofactors are products of the other entries:
-        // 1e-100, 1e-100, 1e-400 (the last is unrepresentable in binary64).
-        for index in [0, 4] {
-            assert!((gradient[index] / 1e-100 - 1.0).abs() < 1e-12);
-        }
-        for index in [1, 2, 3, 5, 6, 7, 8] {
-            assert_eq!(gradient[index], 0.0);
-        }
-    }
-
-    #[test]
-    fn factorization_work_budget_precedes_arithmetic_and_has_an_admitted_neighbor() {
-        // The reference work bound is 2*n^3, not a mathematical extent rule:
-        // 2*79^3=986078 <=1e6, while 2*80^3=1024000 >1e6.
-        let n = 79;
-        let identity = (0..n * n)
-            .map(|i| f64::from(i / n == i % n))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            MapEvaluation::new(&identity, n)
-                .unwrap()
-                .value(None)
-                .unwrap(),
-            1.0
-        );
-        let error = match MapEvaluation::new(&vec![f64::NAN; 80 * 80], 80) {
-            Err(error) => error,
-            Ok(_) => panic!("work budget must reject before numerical work"),
-        };
-        assert!(
-            error
-                .message()
-                .contains("factorization exceeds one million component products")
-        );
-    }
-}
+mod tests;
 
 #[cfg(test)]
 mod factor_rate_tests {

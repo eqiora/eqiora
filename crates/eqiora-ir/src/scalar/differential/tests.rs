@@ -1,6 +1,12 @@
 use super::*;
 use eqiora_core::{DimExponents, DynQuantity, Id, ScalarDomain, ValueType};
 
+fn reject_finite_map_work(_: usize) -> Result<(), Diagnostic> {
+    Err(ir_builder_error(
+        "quotient tests do not contain finite maps",
+    ))
+}
+
 #[test]
 fn emitted_quotient_retains_affine_and_polynomial_coefficient_bindings() {
     let dimension = DimExponents::DIMENSIONLESS;
@@ -34,7 +40,7 @@ fn emitted_quotient_retains_affine_and_polynomial_coefficient_bindings() {
             .constant(DynQuantity::new(scale, dimension))
             .unwrap();
         let derivative = builder
-            .directional(root, &[None, None, Some(step)])
+            .directional(root, &[None, None, Some(step)], reject_finite_map_work)
             .unwrap()
             .unwrap();
         let ir = builder.finish([derivative]).unwrap();
@@ -98,9 +104,16 @@ fn quotient_actions_preserve_unbalanced_scales_and_cancellation() {
             0.,
         ),
     ] {
-        let actual = quotient_direction(&mut Numerical, a, b, Some(da), Some(db))
-            .unwrap()
-            .unwrap();
+        let actual = quotient_direction(
+            &mut Numerical,
+            Scaled::new(a),
+            Scaled::new(b),
+            Some(Scaled::new(da)),
+            Some(Scaled::new(db)),
+        )
+        .unwrap()
+        .unwrap()
+        .value();
         assert_eq!(actual, expected, "point ({a}, {b}), direction ({da}, {db})");
     }
 }
@@ -142,7 +155,7 @@ fn guarded_unitful_quotient_coefficients_keep_forward_reverse_and_mixed_actions(
             .constant(DynQuantity::new(2. * scale, time.div(length).unwrap()))
             .unwrap();
         let derivative = builder
-            .directional(root, &[Some(da), Some(db)])
+            .directional(root, &[Some(da), Some(db)], reject_finite_map_work)
             .unwrap()
             .unwrap();
         let ir = builder.finish([derivative]).unwrap();
@@ -274,8 +287,14 @@ fn emitted_and_affine_quotient_actions_use_the_same_range_safe_rule() {
             .constant(DynQuantity::new(2. * scale, dimension))
             .unwrap();
         let seeds = [Some(da), Some(db)];
-        let first = builder.directional(root, &seeds).unwrap().unwrap();
-        let second = builder.directional(first, &seeds).unwrap().unwrap();
+        let first = builder
+            .directional(root, &seeds, reject_finite_map_work)
+            .unwrap()
+            .unwrap();
+        let second = builder
+            .directional(first, &seeds, reject_finite_map_work)
+            .unwrap()
+            .unwrap();
         let ir = builder.finish([root, first, second]).unwrap();
         // f(x)=(1+x)/(1+2x) has f(0)=1, f'(0)=-1, f''(0)=4.
         assert_eq!(ir.evaluate(&[scale, scale]).unwrap(), [1., -1., 4.]);

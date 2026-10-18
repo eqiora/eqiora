@@ -21,10 +21,11 @@ impl ScalarLinearization<'_> {
     ) -> Result<(), Diagnostic> {
         require_length(output, self.residual_dimension(), "mixed residual tangent")?;
         let values = evaluate_instructions(&self.instructions, &self.inputs)?;
+        let active = self.derivative_demand(&values)?;
         let mut maps = map_evaluation::MapCache::default();
-        let left = self.forward(first, &values, &mut maps, None)?;
-        let right = self.forward(second, &values, &mut maps, None)?;
-        let mixed = self.forward(mixed, &values, &mut maps, Some((&left, &right)))?;
+        let left = self.forward(first, &values, &active, &mut maps, None)?;
+        let right = self.forward(second, &values, &active, &mut maps, None)?;
+        let mixed = self.forward(mixed, &values, &active, &mut maps, Some((&left, &right)))?;
         write_roots(&self.roots, &mixed, output)
     }
 }
@@ -32,11 +33,11 @@ impl ScalarLinearization<'_> {
 pub(super) fn curvature(
     instruction: Instruction,
     values: &[f64],
-    left: &[f64],
-    right: &[f64],
+    left: &[Scaled],
+    right: &[Scaled],
     index: usize,
     maps: &mut map_evaluation::MapCache,
-) -> Result<f64, Diagnostic> {
+) -> Result<Scaled, Diagnostic> {
     let l = |id| read(left, id, index);
     let r = |id| read(right, id, index);
     Ok(match instruction {
@@ -44,17 +45,17 @@ pub(super) fn curvature(
         | Instruction::Read(_)
         | Instruction::Neg(_)
         | Instruction::Add(_, _)
-        | Instruction::Sub(_, _) => 0.,
+        | Instruction::Sub(_, _) => Scaled::ZERO,
         Instruction::Mul(a, b) => l(a)? * r(b)? + r(a)? * l(b)?,
-        Instruction::Div(a, b) => quotient::jet(
+        Instruction::Div(a, b) => quotient::scaled_jet(
             &[
-                Some(read(values, a, index)?),
+                Some(Scaled::new(read(values, a, index)?)),
                 Some(l(a)?),
                 Some(r(a)?),
                 None,
             ],
             &[
-                Some(read(values, b, index)?),
+                Some(Scaled::new(read(values, b, index)?)),
                 Some(l(b)?),
                 Some(r(b)?),
                 None,
@@ -63,10 +64,14 @@ pub(super) fn curvature(
         Instruction::PowI(a, power) => {
             let value = read(values, a, index)?;
             let derivative = match power {
-                0 | 1 => 0.,
-                2 => 2.,
-                n if value == 0. && n > 2 => 0.,
-                n => powi_derivative(value, n) * (f64::from(n) - 1.) / value,
+                0 | 1 => Scaled::ZERO,
+                2 => Scaled::new(2.),
+                n if value == 0. && n > 2 => Scaled::ZERO,
+                n => {
+                    differential::power_slope(&mut differential::Numerical, Scaled::new(value), n)?
+                        * (f64::from(n) - 1.)
+                        / value
+                }
             };
             derivative * l(a)? * r(a)?
         }
@@ -84,11 +89,11 @@ pub(super) fn curvature(
         Instruction::MapInvariant {
             start,
             extent,
-            component,
+            output,
         } => {
             let range = map_evaluation::operand_range(start, extent, index)?;
             maps.get(start, extent, &values[..index])?.curvature(
-                component,
+                output,
                 &left[range.clone()],
                 &right[range],
             )?

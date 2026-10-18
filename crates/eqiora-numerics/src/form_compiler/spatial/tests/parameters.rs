@@ -152,3 +152,66 @@ fn typed_parameter_points_rebind_each_real_channel() {
 fn typed_parameter_points_rebind_each_complex_channel_and_phase() {
     check::<Complex64>(true);
 }
+
+#[test]
+fn guarded_unitful_map_coefficients_reach_the_shared_volume_action() {
+    for (inverse, scale, value) in [
+        (false, "determinant(a)/1[m^2]", 5.),
+        (true, "matrix_trace(inverse(a))*1[m]", 6. / 5.),
+    ] {
+        for varying in [false, true] {
+            let coefficient = if varying {
+                scale.replace("(a)", "(b)")
+            } else {
+                scale.into()
+            };
+            let profile = if varying {
+                let expression = if inverse {
+                    "a/(1+coordinate(0)/1[m])"
+                } else {
+                    "compose(identity(S)+(coordinate(0)/1[m])*linear_map(S,S,[[1,0],[0,0]]),a)"
+                };
+                format!(
+                    "variable b:map<m,S,S> on body in smooth; relation profile on body {{b={expression};}}"
+                )
+            } else {
+                String::new()
+            };
+            let source = format!(
+                "space S=orthonormal(x,y);
+                model GuardedMap() {{
+                    domain body=box(0,2);
+                    domain left=boundary(body,axis=0,side=lower);
+                    domain right=boundary(body,axis=0,side=upper);
+                    parameter a:map<m,S,S>=linear_map(S,S,[[2[m],1[m]],[3[m],4[m]]]);
+                    {profile}
+                    variable h:1 on body in smooth;
+                    relation prescribed on body {{h=(1+coordinate(0)/1[m])^2;}}
+                    variable u:1 on body in smooth;
+                    relation balance on body {{-div(grad(u)+grad(math.sqrt(h)*({coefficient})))=0;}}
+                    relation left_value on left {{trace(u)={scale};}}
+                    relation right_value on right {{trace(u)=3*({scale});}}
+                }}"
+            );
+            let form = derive(&source).unwrap();
+            let local = form
+                .volume()
+                .unwrap()
+                .prepare_cell(
+                    &geometry(),
+                    &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
+                )
+                .and_then(|cell| cell.evaluate(&BTreeMap::new()))
+                .unwrap();
+            // Q1 gradients on [0,2] are -1/2,+1/2. With t=scale(a),
+            // f=t*(1+x) gives load [t,-t]; f=t*(1+x)^2 gives [4t,-4t].
+            for (actual, expected) in local.matrix().iter().zip([0.5, -0.5, -0.5, 0.5]) {
+                close(*actual, expected);
+            }
+            let load = if varying { 4. * value } else { value };
+            for (actual, expected) in local.rhs().iter().zip([load, -load]) {
+                close(*actual, expected);
+            }
+        }
+    }
+}

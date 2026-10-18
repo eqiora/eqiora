@@ -31,9 +31,11 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             "residual tangent",
         )?;
         let values = evaluate_instructions(&self.instructions, &self.inputs)?;
+        let active = self.derivative_demand(&values)?;
         let tangents = self.forward(
             tangent,
             &values,
+            &active,
             &mut map_evaluation::MapCache::default(),
             None,
         )?;
@@ -66,14 +68,22 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         require_finite(residual_cotangent, "residual cotangent")?;
 
         let values = evaluate_instructions(&self.instructions, &self.inputs)?;
-        let mut adjoints = vec![0.0; self.instructions.len()];
+        let active = self.derivative_demand(&values)?;
+        let mut adjoints = vec![Scaled::ZERO; self.instructions.len()];
+        let mut unknown_sums = vec![Scaled::ZERO; self.unknown_dimension];
+        let mut parameter_sums = vec![Scaled::ZERO; self.parameter_dimension];
         let mut maps = map_evaluation::MapCache::default();
         for (root, seed) in self.roots.iter().zip(residual_cotangent) {
-            accumulate(&mut adjoints, *root, *seed, self.instructions.len())?;
+            accumulate(
+                &mut adjoints,
+                *root,
+                Scaled::new(*seed),
+                self.instructions.len(),
+            )?;
         }
 
         for (index, instruction) in self.instructions.iter().enumerate().rev() {
-            if !self.active[index] {
+            if !active[index] {
                 continue;
             }
             let cotangent = adjoints[index];
@@ -110,21 +120,28 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                 }
                 Instruction::QuotientJet { start, len } => {
                     let operands = quotient::numerical_operands(start, len, &values[..index])?;
-                    for operand in operands.iter().filter(|id| self.active[id.0 as usize]) {
-                        let contribution = operands
-                            .first(&values, |id| Ok(if id == operand { cotangent } else { 0. }))?;
+                    for operand in operands.iter().filter(|id| active[id.0 as usize]) {
+                        let contribution = operands.first(&values, |id| {
+                            Ok(if id == operand {
+                                cotangent
+                            } else {
+                                Scaled::ZERO
+                            })
+                        })?;
                         accumulate(&mut adjoints, operand, contribution, index)?;
                     }
                 }
                 Instruction::MapInvariant {
                     start,
                     extent,
-                    component,
+                    output,
                 } => {
+                    let range = map_evaluation::operand_range(start, extent, index)?;
                     let gradient = maps
                         .get(start, extent, &values[..index])?
-                        .gradient(component)?;
-                    let range = map_evaluation::operand_range(start, extent, index)?;
+                        .gradient(output, &|coordinate| {
+                            active[range.start + coordinate] && !cotangent.is_zero()
+                        })?;
                     for (coordinate, g) in range.zip(gradient) {
                         accumulate(
                             &mut adjoints,
@@ -136,13 +153,23 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                 }
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
                     InputBinding::Unknown(coordinate) => {
-                        if let Some(values) = unknown_cotangent.as_deref_mut() {
-                            accumulate_coordinate(values, coordinate, cotangent, "unknown VJP")?;
+                        if unknown_cotangent.is_some() {
+                            accumulate_coordinate(
+                                &mut unknown_sums,
+                                coordinate,
+                                cotangent,
+                                "unknown VJP",
+                            )?;
                         }
                     }
                     InputBinding::Parameter(coordinate) => {
-                        if let Some(values) = parameter_cotangent.as_deref_mut() {
-                            accumulate_coordinate(values, coordinate, cotangent, "parameter VJP")?;
+                        if parameter_cotangent.is_some() {
+                            accumulate_coordinate(
+                                &mut parameter_sums,
+                                coordinate,
+                                cotangent,
+                                "parameter VJP",
+                            )?;
                         }
                     }
                     InputBinding::Frozen => {}
@@ -173,14 +200,14 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     )?;
                 }
                 Instruction::Div(left, right) => {
-                    let numerator = read(&values, left, index)?;
-                    let denominator = read(&values, right, index)?;
+                    let numerator = Scaled::new(read(&values, left, index)?);
+                    let denominator = Scaled::new(read(&values, right, index)?);
                     for (operand, da, db) in [
                         (left, Some(cotangent), None),
                         (right, None, Some(cotangent)),
                     ]
                     .into_iter()
-                    .filter(|(operand, _, _)| self.active[operand.0 as usize])
+                    .filter(|(operand, _, _)| active[operand.0 as usize])
                     {
                         let contribution = differential::quotient_direction(
                             &mut differential::Numerical,
@@ -197,7 +224,12 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     accumulate(
                         &mut adjoints,
                         value,
-                        real_math::action(function, read(&values, value, index)?, cotangent)?,
+                        real_math::action_in(
+                            &mut differential::Numerical,
+                            function,
+                            Scaled::new(read(&values, value, index)?),
+                            cotangent,
+                        )?,
                         index,
                     )?;
                 }
@@ -206,18 +238,28 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         accumulate(
                             &mut adjoints,
                             base,
-                            cotangent * powi_derivative(read(&values, base, index)?, exponent),
+                            cotangent
+                                * differential::power_slope(
+                                    &mut differential::Numerical,
+                                    Scaled::new(read(&values, base, index)?),
+                                    exponent,
+                                )?,
                             index,
                         )?;
                     }
                 }
             }
         }
-        if let Some(unknown) = unknown_cotangent.as_deref() {
-            require_finite(unknown, "unknown VJP")?;
-        }
-        if let Some(parameter) = parameter_cotangent.as_deref() {
-            require_finite(parameter, "parameter VJP")?;
+        for (destination, sums) in [
+            (unknown_cotangent, unknown_sums),
+            (parameter_cotangent, parameter_sums),
+        ] {
+            if let Some(destination) = destination {
+                for (output, value) in destination.iter_mut().zip(sums) {
+                    *output = value.value();
+                }
+                require_finite(destination, "VJP output")?;
+            }
         }
         Ok(())
     }
@@ -268,9 +310,10 @@ impl ScalarLinearization<'_> {
         &self,
         tangent: RelationTangent<'_, f64>,
         values: &[f64],
+        active: &[bool],
         maps: &mut map_evaluation::MapCache,
-        mixed: Option<(&[f64], &[f64])>,
-    ) -> Result<Vec<f64>, Diagnostic> {
+        mixed: Option<(&[Scaled], &[Scaled])>,
+    ) -> Result<Vec<Scaled>, Diagnostic> {
         let (unknown_tangent, parameter_tangent) = match tangent {
             RelationTangent::Unknown(unknown) => (Some(unknown), None),
             RelationTangent::Parameter(parameter) => (None, Some(parameter)),
@@ -287,8 +330,8 @@ impl ScalarLinearization<'_> {
 
         let mut tangents = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().enumerate() {
-            if !self.active[index] {
-                tangents.push(0.);
+            if !active[index] {
+                tangents.push(Scaled::ZERO);
                 continue;
             }
             let mut tangent = match *instruction {
@@ -311,7 +354,7 @@ impl ScalarLinearization<'_> {
                         "discrete operations cannot be differentiated",
                     ));
                 }
-                Instruction::Constant(_) => 0.0,
+                Instruction::Constant(_) => Scaled::ZERO,
                 Instruction::ComplexDiv {
                     operands,
                     imaginary,
@@ -323,30 +366,31 @@ impl ScalarLinearization<'_> {
                 Instruction::MapInvariant {
                     start,
                     extent,
-                    component,
+                    output,
                 } => {
+                    let range = map_evaluation::operand_range(start, extent, index)?;
                     let gradient = maps
                         .get(start, extent, &values[..index])?
-                        .gradient(component)?;
-                    let range = map_evaluation::operand_range(start, extent, index)?;
+                        .gradient(output, &|coordinate| {
+                            !tangents[range.start + coordinate].is_zero()
+                        })?;
                     gradient
                         .iter()
                         .zip(&tangents[range])
-                        .map(|(g, h)| g * h)
+                        .map(|(g, h)| *g * *h)
                         .sum()
                 }
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
-                    InputBinding::Unknown(coordinate) => {
-                        unknown_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Parameter(coordinate) => {
-                        parameter_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Frozen => 0.0,
+                    InputBinding::Unknown(coordinate) => unknown_tangent
+                        .map_or(Scaled::ZERO, |values| Scaled::new(values[coordinate])),
+                    InputBinding::Parameter(coordinate) => parameter_tangent
+                        .map_or(Scaled::ZERO, |values| Scaled::new(values[coordinate])),
+                    InputBinding::Frozen => Scaled::ZERO,
                 },
-                Instruction::Math(function, value) => real_math::action(
+                Instruction::Math(function, value) => real_math::action_in(
+                    &mut differential::Numerical,
                     function,
-                    read(values, value, index)?,
+                    Scaled::new(read(values, value, index)?),
                     read(&tangents, value, index)?,
                 )?,
                 Instruction::Neg(_)
@@ -357,21 +401,21 @@ impl ScalarLinearization<'_> {
                 | Instruction::PowI(..) => differential::apply(
                     &mut differential::Numerical,
                     *instruction,
-                    |id| read(values, id, index),
+                    |id| read(values, id, index).map(Scaled::new),
                     |id| {
-                        if self.active[id.0 as usize] {
+                        if active[id.0 as usize] {
                             read(&tangents, id, index).map(Some)
                         } else {
                             Ok(None)
                         }
                     },
                 )?
-                .unwrap_or(0.),
+                .unwrap_or(Scaled::ZERO),
             };
             if let Some((left, right)) = mixed {
                 tangent += super::mixed::curvature(*instruction, values, left, right, index, maps)?;
             }
-            require_finite_value(tangent, "JVP", index)?;
+            require_valid_derivative(tangent, "JVP", index)?;
             tangents.push(tangent);
         }
         Ok(tangents)

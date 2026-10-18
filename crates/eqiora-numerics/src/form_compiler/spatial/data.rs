@@ -369,6 +369,7 @@ impl<S: Coefficient> Context<'_, S> {
         Ok(match self.dag.node(id) {
             Some(
                 ExprNode::PureOperatorApplication(_)
+                | ExprNode::FiniteUnary(_, _)
                 | ExprNode::Index { .. }
                 | ExprNode::UnaryMath(UnaryMathFunction::Real | UnaryMathFunction::Imag, _),
             ) => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,

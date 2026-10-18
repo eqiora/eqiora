@@ -1,5 +1,6 @@
 //! Explicit finite algebra lowers into the existing real-coordinate scalar SSA.
 use super::*;
+use crate::scalar::{MAX_COMPONENT_PRODUCTS, MapOutput};
 use eqiora_schema::kernel::{FiniteBinaryOperation, FiniteUnaryOperation};
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -62,15 +63,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         part: ScalarPart,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         if operation == FiniteBinaryOperation::TensorProduct {
-            *self.finite_products = self
-                .finite_products
-                .checked_add(1)
-                .filter(|work| *work <= 1_000_000)
-                .ok_or_else(|| {
-                    invalid_component_ir(
-                        "finite scalarization exceeds one million component products",
-                    )
-                })?;
+            charge_products(self.finite_products, 1)?;
             let right_type = &self.node_types[right.index() as usize].value_type;
             let (a, b) = if let Some((source, target)) = right_type.map_bases() {
                 (
@@ -101,13 +94,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 .expect("typed finite pairing")
                 .extent()
         };
-        *self.finite_products = self
-            .finite_products
-            .checked_add(inner as usize)
-            .filter(|work| *work <= 1_000_000)
-            .ok_or_else(|| {
-                invalid_component_ir("finite scalarization exceeds one million component products")
-            })?;
+        charge_products(self.finite_products, inner as usize)?;
         let mut result = None;
         for k in 0..inner {
             let (a, b) = match operation {
@@ -150,13 +137,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         let work = (n as usize)
             .checked_pow(2)
             .ok_or_else(|| invalid_component_ir("finite map operand work exceeds usize"))?;
-        *self.finite_products = self
-            .finite_products
-            .checked_add(work)
-            .filter(|work| *work <= 1_000_000)
-            .ok_or_else(|| {
-                invalid_component_ir("finite scalarization exceeds one million component products")
-            })?;
+        charge_products(self.finite_products, work)?;
         let start = if let Some(start) = self.map_entries.get(&operand) {
             *start
         } else {
@@ -170,8 +151,36 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             self.map_entries.insert(operand, start);
             start
         };
-        let output =
-            (operation == FiniteUnaryOperation::Inverse).then(|| component[0] * n + component[1]);
-        self.builder.map_invariant(start, n, output)
+        let output = if operation == FiniteUnaryOperation::Inverse {
+            MapOutput::Inverse(component[0] * n + component[1])
+        } else {
+            MapOutput::Determinant
+        };
+        self.builder.map_output(start, n, output)
+    }
+}
+
+/// One cumulative scalarization budget for authored and derived finite actions.
+pub(super) fn charge_products(total: &mut usize, work: usize) -> Result<(), Diagnostic> {
+    *total = total
+        .checked_add(work)
+        .filter(|work| *work <= MAX_COMPONENT_PRODUCTS)
+        .ok_or_else(|| {
+            invalid_component_ir("finite scalarization exceeds one million component products")
+        })?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    #[test]
+    fn finite_action_work_is_cumulative_and_checked() {
+        let mut work = 999_999;
+        charge_products(&mut work, 1).unwrap();
+        assert_eq!(work, 1_000_000);
+        assert!(charge_products(&mut work, 1).is_err());
+        assert_eq!(work, 1_000_000);
+        assert!(charge_products(&mut work, usize::MAX).is_err());
     }
 }

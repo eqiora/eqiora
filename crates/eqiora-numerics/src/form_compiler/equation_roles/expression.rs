@@ -52,9 +52,10 @@ pub(in crate::form_compiler) fn coefficient_dependencies(
             | ExprNode::Symbol(SymbolRef::Parameter(_))
             | ExprNode::Symbol(SymbolRef::Coordinate { .. })
             | ExprNode::Symbol(SymbolRef::Time) => {}
-            ExprNode::Neg(value) | ExprNode::PowI(value, _) | ExprNode::UnaryMath(_, value) => {
-                pending.push(*value)
-            }
+            ExprNode::Neg(value)
+            | ExprNode::PowI(value, _)
+            | ExprNode::UnaryMath(_, value)
+            | ExprNode::FiniteUnary(_, value) => pending.push(*value),
             ExprNode::Complex {
                 real: left,
                 imag: right,
@@ -62,7 +63,8 @@ pub(in crate::form_compiler) fn coefficient_dependencies(
             | ExprNode::Add(left, right)
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
-            | ExprNode::Div(left, right) => pending.extend([*left, *right]),
+            | ExprNode::Div(left, right)
+            | ExprNode::FiniteBinary(_, left, right) => pending.extend([*left, *right]),
             ExprNode::PureOperatorApplication(application) => {
                 pending.extend(application.arguments())
             }
@@ -182,7 +184,8 @@ pub(super) fn principal(
             ExprNode::Neg(value)
             | ExprNode::PowI(value, _)
             | ExprNode::UnaryMath(_, value)
-            | ExprNode::SymmetricPart(value) => pending.push((*value, in_divergence)),
+            | ExprNode::SymmetricPart(value)
+            | ExprNode::FiniteUnary(_, value) => pending.push((*value, in_divergence)),
             ExprNode::Complex {
                 real: left,
                 imag: right,
@@ -190,7 +193,8 @@ pub(super) fn principal(
             | ExprNode::Add(left, right)
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
-            | ExprNode::Div(left, right) => {
+            | ExprNode::Div(left, right)
+            | ExprNode::FiniteBinary(_, left, right) => {
                 pending.extend([(*left, in_divergence), (*right, in_divergence)])
             }
             ExprNode::Constant(_)
