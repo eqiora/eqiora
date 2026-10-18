@@ -310,12 +310,15 @@ impl<const D: usize> FinalizedState<D> {
         {
             *value -= rhs;
         }
-        let residual_norm = norm(&reduced_residual);
+        let residual_norm = norm(&reduced_residual)?;
+        let algebraic_norm = norm(&algebraic_values)?;
+        let roundoff = 4096.0 * f64::EPSILON;
+        // Scale before summing so large finite norms cannot inflate the bound to infinity.
         let residual_tolerance = residual_target
-            + 4096.0
-                * f64::EPSILON
-                * (1.0 + norm(&algebraic_values) + norm(canonical_system.right_hand_side()));
-        if !residual_norm.is_finite() || residual_norm > residual_tolerance {
+            + roundoff
+            + roundoff * algebraic_norm
+            + roundoff * norm(canonical_system.right_hand_side())?;
+        if !residual_tolerance.is_finite() || residual_norm > residual_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI reapplied CSR residual {residual_norm:e} exceeds {residual_tolerance:e}"
             )));
@@ -332,7 +335,7 @@ impl<const D: usize> FinalizedState<D> {
                 .into_iter()
                 .map(|dof| full_residual[dof])
                 .collect::<Vec<_>>(),
-        );
+        )?;
         if continuity_residual_norm > residual_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI incompressibility residual {continuity_residual_norm:e} exceeds {residual_tolerance:e}"
@@ -355,7 +358,7 @@ impl<const D: usize> FinalizedState<D> {
             * f64::EPSILON
             * self.config.scale().length()
             * (state_coordinates as f64).sqrt();
-        if kinematic_residual_norm > kinematic_tolerance {
+        if !kinematic_tolerance.is_finite() || kinematic_residual_norm > kinematic_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI kinematic residual {kinematic_residual_norm:e} exceeds {kinematic_tolerance:e}"
             )));
@@ -418,19 +421,19 @@ impl<const D: usize> FinalizedState<D> {
                 ));
             }
         }
-        let interface_action_imbalance_norm = interface_actions
-            .iter()
-            .flat_map(|action| action.imbalance())
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
+        let interface_action_imbalance_norm = norm(
+            &interface_actions
+                .iter()
+                .flat_map(|action| action.imbalance())
+                .collect::<Vec<_>>(),
+        )?;
         let interface_tolerance = residual_target * dimensionless_to_action
             + 8192.0
                 * f64::EPSILON
                 * self.config.scale().action()
                 * (1.0 + D as f64 * interface_actions.len() as f64).sqrt();
         if interface_actions.is_empty()
-            || !interface_action_imbalance_norm.is_finite()
+            || !interface_tolerance.is_finite()
             || interface_action_imbalance_norm > interface_tolerance
         {
             return Err(invalid(format!(
@@ -450,7 +453,7 @@ impl<const D: usize> FinalizedState<D> {
         let energy_tolerance = self.config.time_step()
             * self.config.scale().power()
             * residual_target
-            * (1.0 + norm(&algebraic_values))
+            * (1.0 + algebraic_norm)
             + 65_536.0
                 * f64::EPSILON
                 * self.config.scale().energy()
@@ -460,7 +463,7 @@ impl<const D: usize> FinalizedState<D> {
                         + energy.previous_elastic.abs()
                         + energy.next_elastic.abs())
                         / self.config.scale().energy());
-        if energy.defect.abs() > energy_tolerance {
+        if !energy_tolerance.is_finite() || energy.defect.abs() > energy_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI energy defect {:e} exceeds {:e}",
                 energy.defect, energy_tolerance

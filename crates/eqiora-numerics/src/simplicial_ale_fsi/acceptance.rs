@@ -10,13 +10,15 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 
-use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput};
+use super::api::{
+    AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput, interface_action_norm,
+};
 use super::assembly::{
     PreparedAleFsiAction, PreparedAleFsiStructure, StepAssembly,
     assemble_step_linearization_with_structure,
 };
 use super::contract::{AleFsiState, AleFsiStepPlan};
-use super::{P1HarmonicMeshMotionAction, invalid};
+use super::{P1HarmonicMeshMotionAction, finite_norm, invalid};
 use crate::discrete_space::DiscreteSpace;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
@@ -62,9 +64,11 @@ fn accept_independent<const D: usize>(
         "ALE FSI weak incompressibility residual",
     )?;
     let algebraic_scale = finite_norm(independent.algebraic_values(), "ALE FSI accepted point")?;
+    let roundoff = 8_192.0 * f64::EPSILON;
+    // Scale each finite norm before adding: their unscaled sum can overflow.
     let dimensionless_tolerance =
-        residual_target + 8_192.0 * f64::EPSILON * (1.0 + algebraic_scale + final_residual_norm);
-    if continuity_residual_norm > dimensionless_tolerance {
+        residual_target + roundoff + roundoff * algebraic_scale + roundoff * final_residual_norm;
+    if !dimensionless_tolerance.is_finite() || continuity_residual_norm > dimensionless_tolerance {
         return Err(invalid(format!(
             "ALE FSI incompressibility residual {continuity_residual_norm:e} exceeds {dimensionless_tolerance:e}"
         )));
@@ -95,7 +99,7 @@ fn accept_independent<const D: usize>(
                 })
                 .sum::<usize>() as f64)
             .sqrt();
-    if !kinematic_residual_norm.is_finite() || kinematic_residual_norm > kinematic_tolerance {
+    if !kinematic_tolerance.is_finite() || kinematic_residual_norm > kinematic_tolerance {
         return Err(invalid(format!(
             "ALE FSI solid kinematic residual {kinematic_residual_norm:e} exceeds {kinematic_tolerance:e}"
         )));
@@ -115,12 +119,7 @@ fn accept_independent<const D: usize>(
         .downcast()
         .expect("exact velocity Field");
     let current_velocity = current.physical_state().vector_vertices(fluid_velocity)?;
-    let interface_action_imbalance_norm = interface_actions
-        .iter()
-        .flat_map(|action| action.imbalance())
-        .map(|value| value * value)
-        .sum::<f64>()
-        .sqrt();
+    let interface_action_imbalance_norm = interface_action_norm(&interface_actions)?;
     let interface_power_imbalance = interface_actions
         .iter()
         .try_fold(0.0, |sum, action| -> Result<f64, Diagnostic> {
@@ -146,14 +145,14 @@ fn accept_independent<const D: usize>(
     let interface_power_tolerance = interface_action_tolerance * maximum_interface_velocity
         + 16_384.0 * f64::EPSILON * power_scale;
     if interface_actions.is_empty()
-        || !interface_action_imbalance_norm.is_finite()
+        || !interface_action_tolerance.is_finite()
         || interface_action_imbalance_norm > interface_action_tolerance
     {
         return Err(invalid(format!(
             "ALE FSI interface action imbalance {interface_action_imbalance_norm:e} exceeds {interface_action_tolerance:e}"
         )));
     }
-    if !interface_power_imbalance.is_finite()
+    if !interface_power_tolerance.is_finite()
         || interface_power_imbalance > interface_power_tolerance
     {
         return Err(invalid(format!(
@@ -272,8 +271,8 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     )?;
     let mut probed_moving_fluid_cell_count = 0_usize;
     let mut gcl_active_moving_fluid_cell_count = 0_usize;
-    let mut residual_squared = 0.0;
-    let mut omitted_squared = 0.0;
+    let mut residual_values = Vec::new();
+    let mut omitted_values = Vec::new();
 
     let fluid_velocity = layout
         .velocity_field(harmonic_domain.erase())?
@@ -325,10 +324,10 @@ fn compatible_constant_free_stream_probe<const D: usize>(
         let residual = action.residual(&history, &point)?;
         for component in 0..D {
             let value = residual[velocity.range.start + (D + 1) * D + component];
-            residual_squared += value * value;
+            residual_values.push(value);
         }
         for value in &residual[pressure.range.clone()] {
-            residual_squared += value * value;
+            residual_values.push(*value);
         }
 
         let divergence = cell_geometry.current_velocity_divergence();
@@ -353,17 +352,12 @@ fn compatible_constant_free_stream_probe<const D: usize>(
                     * divergence
                     * component
                     * bubble_integral;
-                omitted_squared += omitted * omitted;
+                omitted_values.push(omitted);
             }
         }
     }
-    let residual_norm = residual_squared.sqrt();
-    let omitted_gcl_witness_norm = omitted_squared.sqrt();
-    if !residual_norm.is_finite() || !omitted_gcl_witness_norm.is_finite() {
-        return Err(invalid(
-            "constant-free-stream probe produced non-finite residual or omitted-GCL evidence",
-        ));
-    }
+    let residual_norm = finite_norm(&residual_values, "ALE FSI constant-free-stream residual")?;
+    let omitted_gcl_witness_norm = finite_norm(&omitted_values, "ALE FSI omitted-GCL witness")?;
     Ok(ConstantFreeStreamProbe {
         probed_moving_fluid_cell_count,
         gcl_active_moving_fluid_cell_count,
@@ -389,19 +383,19 @@ fn require_same_accepted_point<const D: usize>(
             "independent ALE FSI reassembly changed residual shape",
         ));
     }
-    let difference = converged
+    let differences = converged
         .residual()
         .iter()
         .zip(independent.residual())
-        .map(|(left, right)| (left - right).powi(2))
-        .sum::<f64>()
-        .sqrt();
+        .map(|(left, right)| left - right)
+        .collect::<Vec<_>>();
+    let difference = finite_norm(&differences, "ALE FSI reassembly residual difference")?;
     let scale = finite_norm(converged.residual(), "converged ALE FSI residual")?.max(finite_norm(
         independent.residual(),
         "independently reassembled ALE FSI residual",
     )?);
     let tolerance = 4_096.0 * f64::EPSILON * (1.0 + scale);
-    if !difference.is_finite() || difference > tolerance {
+    if difference > tolerance {
         return Err(invalid(format!(
             "independent ALE FSI reassembly residual difference {difference:e} exceeds {tolerance:e}"
         )));
@@ -485,7 +479,7 @@ fn solid_kinematic_residual_norm<const D: usize>(
     current: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
 ) -> Result<f64, Diagnostic> {
-    let mut squared = 0.0;
+    let mut residual = Vec::new();
     for &(domain, displacement) in motion.policy().drivers() {
         let velocity = layout
             .state_rate(displacement.erase())?
@@ -502,20 +496,11 @@ fn solid_kinematic_residual_norm<const D: usize>(
                 let value = current_displacement[vertex][component]
                     - previous_displacement[vertex][component]
                     - plan.time_step() * current_velocity[vertex][component];
-                squared += value * value;
+                residual.push(value);
             }
         }
     }
-    Ok(squared.sqrt())
-}
-
-fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
-    let value = values.iter().map(|value| value * value).sum::<f64>().sqrt();
-    if value.is_finite() {
-        Ok(value)
-    } else {
-        Err(invalid(format!("{name} must be finite")))
-    }
+    finite_norm(&residual, "ALE FSI solid kinematic residual")
 }
 
 #[cfg(test)]

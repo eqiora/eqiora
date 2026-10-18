@@ -148,15 +148,15 @@ fn tetrahedral_acceptance_probes_every_component_and_fail_closed() {
     assert!(probe.probed_moving_fluid_cell_count > 0);
     assert!(probe.gcl_active_moving_fluid_cell_count > 0);
     assert!(probe.omitted_gcl_witness_norm > 0.0);
-    assert_eq!(
+    assert_norm_of_reference_components(
         probe.omitted_gcl_witness_norm,
-        expected_omitted_gcl_witness(
+        &expected_omitted_gcl_components(
             &fixture.partition,
             &fixture.motion,
             assembled.geometry_action(),
             &fixture.plan,
             &quadrature,
-        )
+        ),
     );
     assert!(
         probe.residual_norm <= 65_536.0 * f64::EPSILON * (1.0 + probe.omitted_gcl_witness_norm)
@@ -275,13 +275,36 @@ fn interface_fluid_cell(fixture: &Fixture3d) -> (eqiora_meshing::CellId, Vec<Mes
         .expect("the bounded tetrahedral fixture has one fluid interface cell")
 }
 
-fn expected_omitted_gcl_witness(
+fn assert_norm_of_reference_components(actual: f64, components: &[f64]) {
+    use num_rational::BigRational;
+    use num_traits::Signed;
+
+    // Sum the independently derived force coordinates exactly. A Euclidean
+    // magnitude has no claim to the bits of one unscaled floating reduction.
+    let squared: BigRational = components
+        .iter()
+        .map(|value| {
+            let exact = BigRational::from_float(*value).unwrap();
+            &exact * &exact
+        })
+        .sum();
+    let actual = BigRational::from_float(actual).unwrap();
+    // This fixture has normal, finite intermediates. Eight operations per
+    // component conservatively cover division, square, summation, sqrt,
+    // rescaling and the relative error of the squared returned norm.
+    let accumulated = BigRational::from_integer((8 * (components.len() + 1)).into())
+        * BigRational::from_float(f64::EPSILON).unwrap();
+    let bound = &accumulated / (BigRational::from_integer(1.into()) - &accumulated);
+    assert!((&actual * &actual - &squared).abs() <= bound * squared);
+}
+
+fn expected_omitted_gcl_components(
     partition: &FixedReferenceFsiPartition<3>,
     motion: &P1HarmonicMeshMotionAction<3>,
     geometry: &FixedTopologyGeometryAction<3>,
     plan: &AleFsiStepPlan<3>,
     quadrature: &QuadratureRule,
-) -> f64 {
+) -> Vec<f64> {
     let bubble_space = DiscreteSpace::new(
         eqiora_realization::Space::simplex_p1_bubble(),
         eqiora_meshing::ReferenceCell::simplex(3).unwrap(),
@@ -290,7 +313,7 @@ fn expected_omitted_gcl_witness(
     let momentum_row_scale = plan.scale().velocity() / plan.scale().power();
     let constant: [f64; 3] =
         std::array::from_fn(|axis| plan.scale().velocity() * (-0.5_f64).powi(axis as i32));
-    let mut squared = 0.0;
+    let mut components = Vec::new();
     for cell in partition
         .domain_cells(motion.policy().harmonic_domains()[0])
         .unwrap()
@@ -324,10 +347,10 @@ fn expected_omitted_gcl_witness(
                 * divergence
                 * component
                 * bubble_integral;
-            squared += omitted * omitted;
+            components.push(omitted);
         }
     }
-    squared.sqrt()
+    components
 }
 
 fn fixture_3d() -> Fixture3d {

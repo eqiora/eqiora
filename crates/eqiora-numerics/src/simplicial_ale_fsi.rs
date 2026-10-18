@@ -32,3 +32,8 @@ use eqiora_core::diagnostic::codes;
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
 }
+
+fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
+    eqiora_solver::FixedOrderInnerProduct::norm(&eqiora_solver::SERIAL_LINEAR_EXECUTION, values)
+        .map_err(|error| invalid(format!("{name}: {}", error.message())))
+}

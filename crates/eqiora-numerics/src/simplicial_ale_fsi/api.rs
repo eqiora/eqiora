@@ -11,7 +11,7 @@ use eqiora_meshing::FixedTopologyGeometryAction;
 use eqiora_meshing::VertexId;
 use eqiora_solver::{ExecutionTopology, SolveReport};
 
-use super::{AleFsiState, AleFsiStepPlan, invalid};
+use super::{AleFsiState, AleFsiStepPlan, finite_norm, invalid};
 
 /// Independently recovered fluid and solid actions on one interface vertex.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -70,13 +70,11 @@ impl<const D: usize> AleFsiInterfaceAction<D> {
     }
 
     /// Euclidean magnitude of [`Self::imbalance`].
-    #[must_use]
-    pub fn imbalance_norm(self) -> f64 {
-        self.imbalance()
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt()
+    ///
+    /// # Errors
+    /// Returns `EQ0801` when the summed action or its norm exceeds the finite range.
+    pub fn imbalance_norm(self) -> Result<f64, Diagnostic> {
+        finite_norm(&self.imbalance(), "ALE FSI interface action imbalance")
     }
 
     /// Fluid-side power at one finite shared physical interface velocity.
@@ -111,6 +109,18 @@ impl<const D: usize> AleFsiInterfaceAction<D> {
             ))
         }
     }
+}
+
+pub(super) fn interface_action_norm<const D: usize>(
+    actions: &[AleFsiInterfaceAction<D>],
+) -> Result<f64, Diagnostic> {
+    finite_norm(
+        &actions
+            .iter()
+            .flat_map(|action| action.imbalance())
+            .collect::<Vec<_>>(),
+        "ALE FSI interface action imbalance",
+    )
 }
 
 /// Named internal measurements submitted to the acceptance boundary.
@@ -250,13 +260,7 @@ impl<const D: usize> AleFsiStepEvidence<D> {
         }
         validate_interface_order(&input.interface_actions)?;
 
-        let interface_action_imbalance_norm = input
-            .interface_actions
-            .iter()
-            .flat_map(|action| action.imbalance())
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
+        let interface_action_imbalance_norm = interface_action_norm(&input.interface_actions)?;
         let signed_power_imbalance = input.interface_actions.iter().try_fold(
             0.0,
             |sum, action| -> Result<f64, Diagnostic> {
@@ -291,7 +295,7 @@ impl<const D: usize> AleFsiStepEvidence<D> {
             },
         )?;
         let interface_power_imbalance = signed_power_imbalance.abs();
-        if !interface_action_imbalance_norm.is_finite() || !interface_power_imbalance.is_finite() {
+        if !interface_power_imbalance.is_finite() {
             return Err(invalid(
                 "fixed-topology ALE FSI interface balance evidence must be finite",
             ));
