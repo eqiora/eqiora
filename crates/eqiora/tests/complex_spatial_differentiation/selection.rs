@@ -154,7 +154,8 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
                                 &selected,
                                 None,
                                 &invalid,
-                                &std::collections::HashMap::new()
+                                &std::collections::HashMap::new(),
+                                &REFERENCE_LINEAR_SOLVER
                             )
                             .is_err()
                     );

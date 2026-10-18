@@ -23,14 +23,15 @@ impl CommonSpatialPlan {
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+        backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .solve(),
+                .solve(backend),
             RecognizedNativeModel::ComplexSpatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .solve(),
+                .solve(backend),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
             )),
@@ -89,11 +90,6 @@ impl CommonSpatialPlan {
         if self.admission.temporal.is_some() {
             return Err(invalid(
                 "stationary Parameter differentiation requires a static Plan",
-            ));
-        }
-        if self.solver_provider() != REFERENCE_LINEAR_SOLVER.provider() {
-            return Err(invalid(
-                "selected-Parameter differentiation requires the reference solver provider",
             ));
         }
         self.reauthenticate_portable_realization()?;
@@ -177,8 +173,11 @@ struct PreparedPoint<'a, S: DifferentiationScalar> {
 }
 
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
-    fn solve(self) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (values, primal) = S::solve(self.plan, &self.equations, &self.system.core)?;
+    fn solve(
+        self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        let (values, primal) = S::solve(self.plan, &self.equations, &self.system.core, backend)?;
         let target = match &primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
             Primal::Affine(report) => report.residual_target(),

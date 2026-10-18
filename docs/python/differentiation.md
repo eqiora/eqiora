@@ -110,7 +110,11 @@ Their results use output and input leaves respectively. Complex covectors pair a
 Dense map projections and residual/unknown partial actions still use real coordinates.
 
 Static spatial differentiation uses Cartesian Q1 FEM or unconstrained TPFA FVM,
-dimensional system scaling and the serial reference solver. Select an ordered
+dimensional system scaling and the Plan's exact host-serial solver policy. Real
+problems support reference iterative solvers and Faer `SparseLu` with `Fast`
+reduction. Complex execution requires the selected provider's typed complex
+implementation; the reference provider supplies that implementation. Primal,
+JVP and VJP retain the selected provider and its controls. Select an ordered
 tuple of complete Fields and reduced Observables. Selecting a subset retains the
 complete coupled state and residual in both JVP and VJP; output leaves follow the
 requested order. Real and complex components retain their mathematical shape; for example,

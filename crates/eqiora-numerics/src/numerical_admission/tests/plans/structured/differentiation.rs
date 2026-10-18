@@ -115,6 +115,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
                 Some(&values),
                 &outputs,
                 &std::collections::HashMap::new(),
+                &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
         let linearization = point.linearization();
@@ -310,7 +311,13 @@ fn coefficient_load_and_trace_partials_obey_the_same_discrete_balance() {
                 .map(|(field, _)| field.erase())
                 .collect::<Vec<_>>();
             let point = plan
-                .differentiate(&selected, None, &outputs, &std::collections::HashMap::new())
+                .differentiate(
+                    &selected,
+                    None,
+                    &outputs,
+                    &std::collections::HashMap::new(),
+                    &REFERENCE_LINEAR_SOLVER,
+                )
                 .unwrap();
             let linear = point.linearization();
             let relation = linear.relation();
