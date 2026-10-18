@@ -1,5 +1,6 @@
 //! Nonholomorphic residual and prescribed trace share one Parameter derivative.
 use super::*;
+use eqiora_core::ScalarDomain;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation, RelationTangent};
 use eqiora_schema::kernel::KernelNode;
 use std::collections::HashMap;
@@ -27,6 +28,7 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
             CommonSpatialPolicy::CellCenteredTpfa,
         ],
         false,
+        ScalarDomain::Real,
     );
 }
 
@@ -52,10 +54,48 @@ fn conjugated_gradient_and_prescribed_flux_retain_natural_trace_derivatives() {
         }
       }
     "#;
-    check_derivatives(source, &[CommonSpatialPolicy::Q1], true);
+    check_derivatives(source, &[CommonSpatialPolicy::Q1], true, ScalarDomain::Real);
 }
 
-fn check_derivatives(source: &str, methods: &[CommonSpatialPolicy], right_natural: bool) {
+#[test]
+fn scalar_diffusion_orientation_ignores_transport_and_prescribed_flux() {
+    // All forms admit u=p*(1+x): u''=0, (u/m)'=p/m^2,
+    // and (p*x/m^2)'=p/m^2. Reversing a whole equation preserves its solution.
+    for equation in [
+        "-div(grad(u)-e*u/1[m])=p/1[m^2]",
+        "-div(grad(u))+div(e*u/1[m])=p/1[m^2]",
+        "div(e*u/1[m])-div(grad(u))=p/1[m^2]",
+        "div(grad(u))-div(e*u/1[m])=-p/1[m^2]",
+        "-div(grad(u))+div(p*coordinate(0)*e/1[m^2])=p/1[m^2]",
+    ] {
+        let source = format!(
+            r#"
+          public component Conjugated(support body:volume(ambient_dimension=1),
+            support left:boundary(parent=body), support right:boundary(parent=body),
+            parameter p:complex<1>) {{
+            parameter e:vector<1,1>=tensor_value(frame=body,components=[1]);
+            variable u:complex<1> on body in smooth;
+            relation balance on body {{{equation};}}
+            relation left_value on left {{trace(u)=p;}}
+            relation right_value on right {{trace(u)=2*p;}}
+          }}
+        "#
+        );
+        check_derivatives(
+            &source,
+            &[CommonSpatialPolicy::Q1],
+            false,
+            ScalarDomain::Complex,
+        );
+    }
+}
+
+fn check_derivatives(
+    source: &str,
+    methods: &[CommonSpatialPolicy],
+    right_natural: bool,
+    nonzero_state_domain: ScalarDomain,
+) {
     let geometry = cartesian_interval();
     let body = geometry.entity_set("body").unwrap();
     let model = compile_typed_model(
@@ -163,7 +203,7 @@ fn check_derivatives(source: &str, methods: &[CommonSpatialPolicy], right_natura
                 if point == [0., 0.] {
                     eqiora_core::ScalarDomain::Complex
                 } else {
-                    eqiora_core::ScalarDomain::Real
+                    nonzero_state_domain
                 }
             );
             let relation = linear.relation();

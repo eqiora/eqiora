@@ -231,7 +231,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             let physical_balance = matches!(program.node(*relation),
                 Some(KernelNode::Relation(definition))
                     if matches!(definition.meaning(), RelationMeaning::Conservation(_)));
-            if !physical_balance && context.diffusion_orientation(root, 0)? == Some(1) {
+            if !physical_balance && context.diffusion_orientation(root, *field, 0)? == Some(1) {
                 row = row.scale(Data::constant(dimension, <S as From<f64>>::from(-1.0)))?;
             }
             if row.diffusion.len() != 1
