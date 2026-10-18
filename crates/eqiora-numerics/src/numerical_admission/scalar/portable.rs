@@ -93,12 +93,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
-        lowered
-            .fields()
-            .first()
-            .ok_or_else(|| invalid("scalar Plan has no unknown Fields"))?
-            .1
-            .scalar_domain(),
+        admission.linear.scalar_domain,
         ScalarType::F64,
         admission.operator_properties,
     )?;

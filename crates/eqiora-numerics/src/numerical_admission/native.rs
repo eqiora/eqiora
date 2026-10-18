@@ -36,6 +36,7 @@ impl NativeSpatialPolicy {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct NativeLinearPolicy {
+    pub(super) scalar_domain: eqiora_core::ScalarDomain,
     pub(super) solver: SolverPlan,
     pub(super) provider: SolverProvider,
     pub(super) capabilities: SolverCapabilities,
@@ -50,7 +51,7 @@ pub(super) struct NativeLinearPolicy {
 }
 
 impl NativeLinearPolicy {
-    pub(super) fn exact<S>(
+    pub(super) fn exact<S: eqiora_core::Scalar>(
         solver: SolverPlan,
         backend: &dyn LinearSolverBackend<S>,
     ) -> Result<Self, Diagnostic> {
@@ -65,6 +66,7 @@ impl NativeLinearPolicy {
         provider.validate()?;
         SERIAL_EXECUTION_PROVIDER.validate()?;
         Ok(Self {
+            scalar_domain: S::DOMAIN,
             solver,
             provider,
             capabilities: backend.capabilities(),
@@ -108,7 +110,10 @@ impl NativeLinearPolicy {
         backend: &'a dyn LinearSolverBackend<S>,
         structure: Option<&eqiora_solver::AlgebraicStructure>,
     ) -> Result<ProfileCheckedBackend<'a, S>, Diagnostic> {
-        if backend.provider() != self.provider || backend.capabilities() != self.capabilities {
+        if S::DOMAIN != self.scalar_domain
+            || backend.provider() != self.provider
+            || backend.capabilities() != self.capabilities
+        {
             return Err(invalid(
                 "execution backend differs from admitted exact provider or capabilities",
             ));
@@ -562,36 +567,14 @@ impl RecognizedNativeAdmission {
                 "congruence scaling requires the common finite-element path",
             ));
         }
+        validate_resources(&spatial, &self.resources)?;
         let operator_properties = self.operator_properties(&spatial)?;
         require_policy_compatibility(
             operator_properties,
             &linear,
-            if matches!(self.recognized, RecognizedNativeModel::ComplexSpatial(_)) {
-                eqiora_core::ScalarDomain::Complex
-            } else {
-                eqiora_core::ScalarDomain::Real
-            },
+            self.linear_scalar_domain(&spatial, &system_scaling)?,
         )?;
-        validate_resources(&spatial, &self.resources)?;
-        let discretizations = match (&self.recognized, &spatial) {
-            (
-                RecognizedNativeModel::Spatial(equations),
-                NativeSpatialPolicy::FiniteElement(request),
-            ) => equations.resolve_discretizations(request, &self.model)?,
-            (
-                RecognizedNativeModel::ComplexSpatial(equations),
-                NativeSpatialPolicy::FiniteElement(request),
-            ) => equations.resolve_discretizations(request, &self.model)?,
-            (
-                RecognizedNativeModel::Spatial(equations),
-                NativeSpatialPolicy::ScalarTpfa(constraint),
-            ) => equations.discretizations(Space::cell_constant(), *constraint)?,
-            (
-                RecognizedNativeModel::ComplexSpatial(equations),
-                NativeSpatialPolicy::ScalarTpfa(constraint),
-            ) => equations.discretizations(Space::cell_constant(), *constraint)?,
-            _ => Vec::new(),
-        };
+        let discretizations = self.discretizations(&spatial)?;
         if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
             match &self.recognized {
                 RecognizedNativeModel::Spatial(equations) => equations.validate_discretizations(
@@ -938,3 +921,5 @@ pub(super) use resources::{
 
 #[cfg(test)]
 mod complex_profile;
+
+mod coordinates;

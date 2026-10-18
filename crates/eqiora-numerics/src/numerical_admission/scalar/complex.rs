@@ -110,21 +110,26 @@ impl NativeNumericalAdmission {
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         let structure = equations.algebraic_structure(None)?;
-        let checked = self
-            .linear
-            .checked_complex_backend(backend, Some(&structure))?;
-        let output = equations
-            .finalize_static(
-                self.linear.workers,
-                (LinearSolveRequest::new(&checked, self.linear.solver)).plan(),
-                self.resources(),
-                &self.discretizations,
-                &self.system_scaling,
-                self.operator_properties,
-            )
-            .and_then(|system| {
-                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)
-            })?;
+        let system = equations.finalize_complex_static(
+            self.linear.workers,
+            self.linear.solver,
+            self.resources(),
+            &self.discretizations,
+            &self.system_scaling,
+            self.operator_properties,
+        )?;
+        let output = match system {
+            regions::ComplexSpatialSystem::Real(system) => {
+                let checked = self.linear.checked_backend(backend, Some(&structure))?;
+                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)?
+            }
+            regions::ComplexSpatialSystem::Complex(system) => {
+                let checked = self
+                    .linear
+                    .checked_complex_backend(backend, Some(&structure))?;
+                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)?
+            }
+        };
         Ok(CommonLinearRunOutput {
             fields: output
                 .fields

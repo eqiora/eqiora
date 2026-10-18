@@ -20,6 +20,7 @@ pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 mod activity;
 pub(in crate::form_compiler) mod affine;
 mod components;
+mod coordinates;
 pub(in crate::form_compiler) use components::Components;
 mod degree;
 mod input;

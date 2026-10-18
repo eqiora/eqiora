@@ -49,7 +49,7 @@ pub(super) fn energy_balance<const D: usize>(
             .mapping()
             .field_layout(field)
             .expect("validated kinetic Field");
-        let basis = crate::form_compiler::region::basis(
+        let basis = crate::discrete_space::DiscreteSpace::new(
             field_layout.space,
             eqiora_meshing::ReferenceCell::simplex(D)?,
         )?;
@@ -94,7 +94,7 @@ pub(super) fn energy_balance<const D: usize>(
             .mapping()
             .field_layout(rate)
             .expect("validated state-rate Field");
-        let basis = crate::form_compiler::region::basis(
+        let basis = crate::discrete_space::DiscreteSpace::new(
             field_layout.space,
             eqiora_meshing::ReferenceCell::simplex(D)?,
         )?;

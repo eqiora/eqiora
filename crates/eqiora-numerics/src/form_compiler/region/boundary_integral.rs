@@ -46,7 +46,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "moment spaces require tangential/normal trace admission before natural facet assembly",
             ));
         }
-        let space = super::binding::basis(layout.space, self.reference)?;
+        let space = crate::discrete_space::DiscreteSpace::new(layout.space, self.reference)?;
         let topology = ReferenceTopology::new(self.reference)?;
         let expected = topology
             .entity(dimension - 1, incidence.local_ordinal)

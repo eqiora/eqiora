@@ -1,5 +1,6 @@
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
+use crate::region_assembly::mapping::RegionAlgebraicCoordinates;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topology};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 
@@ -299,31 +300,36 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
 }
 
 mod moments;
+mod real;
+pub(in crate::numerical_admission) use real::ComplexSpatialSystem;
 
 /// Static execution and artifact replay share this exact assembled problem.
-pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
-    pub(in crate::numerical_admission) mapping: RegionDofMap<S>,
+pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient, P: Coefficient = S> {
+    pub(in crate::numerical_admission) mapping: RegionDofMap<P>,
     pub(in crate::numerical_admission) core: crate::finalized_spatial::FinalizedLinearCore<S>,
     assembly_report: eqiora_assembly::AssemblyReport,
-    pub(in crate::numerical_admission) assembly: StaticAssembly<S>,
+    pub(in crate::numerical_admission) assembly: StaticAssembly<S, P>,
 }
 
-pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient> {
+pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient, P: Coefficient = S> {
     FiniteElement(
         Box<(
             eqiora_assembly::LinearSystem<S>,
-            crate::region_assembly::mapping::RegionSolveInput<S>,
+            crate::region_assembly::mapping::RegionSolveInput<P>,
         )>,
     ),
     FiniteVolume,
 }
 
-impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
+impl<S: Coefficient + Send + Sync, P: Coefficient + Send + Sync> StaticRegionSystem<S, P>
+where
+    RegionDofMap<P>: RegionAlgebraicCoordinates<S, P>,
+{
     pub(super) fn new(
-        mapping: RegionDofMap<S>,
+        mapping: RegionDofMap<P>,
         core: crate::finalized_spatial::FinalizedLinearCore<S>,
         assembly_report: eqiora_assembly::AssemblyReport,
-        assembly: StaticAssembly<S>,
+        assembly: StaticAssembly<S, P>,
     ) -> Self {
         Self {
             mapping,
@@ -336,14 +342,14 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
     pub(in crate::numerical_admission) fn solve(
         self,
         request: LinearSolveRequest<'_, S>,
-        initial: Option<&BTreeMap<RawId, Vec<S>>>,
-    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        initial: Option<&BTreeMap<RawId, Vec<P>>>,
+    ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
         // Ordinary execution needs only the canonical solve and recovery map.
         drop(self.assembly);
         let initial = initial
             .map(|values| {
                 let fields = self.mapping.physical_fields_from_coefficients(values)?;
-                self.mapping.validated_algebraic_point(&fields)
+                self.mapping.validated_coordinates(&fields)
             })
             .transpose()?;
         let mut problem = self.core.linear_problem()?;
@@ -353,16 +359,9 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
         let solution = request.solve(&problem)?;
         self.core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        let ids = self
-            .mapping
-            .keys()
-            .map(|key| key.field)
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
         let fields = self
             .mapping
-            .recover(&values, &ids)?
+            .recover_coordinates(&values)?
             .into_iter()
             .map(|(field, recovered)| {
                 (
@@ -383,15 +382,15 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
 
     pub(in crate::numerical_admission) fn validate_initial_residual(
         &self,
-        initial: Option<&BTreeMap<RawId, Vec<S>>>,
+        initial: Option<&BTreeMap<RawId, Vec<P>>>,
         reported: f64,
     ) -> Result<(), Diagnostic> {
         let reduced = match initial {
             Some(values) => {
                 let fields = self.mapping.physical_fields_from_coefficients(values)?;
-                self.mapping.validated_algebraic_point(&fields)?
+                self.mapping.validated_coordinates(&fields)?
             }
-            None => vec![S::zero(); self.mapping.free_count()],
+            None => vec![S::zero(); self.core.canonical_csr_system_view().rows()],
         };
         if self.core.residual_norm(&reduced)? != reported {
             return Err(invalid(
@@ -403,10 +402,10 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
 
     pub(in crate::numerical_admission) fn validate_coefficients(
         &self,
-        values: &BTreeMap<RawId, Vec<S>>,
+        values: &BTreeMap<RawId, Vec<P>>,
     ) -> Result<(), Diagnostic> {
         let fields = self.mapping.physical_fields_from_coefficients(values)?;
-        let reduced = self.mapping.validated_algebraic_point(&fields)?;
+        let reduced = self.mapping.validated_coordinates(&fields)?;
         self.core.validate_coefficients(&reduced)?;
         Ok(())
     }

@@ -90,7 +90,7 @@ const TRANSIENT_REALIZATION_REVISION: u64 = 166;
 const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
 const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
-const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
+const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v2\0";
 /// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {

@@ -326,7 +326,8 @@ pub(crate) fn require_policy_compatibility(
     linear: &NativeLinearPolicy,
     scalar_domain: eqiora_core::ScalarDomain,
 ) -> Result<(), Diagnostic> {
-    if !linear.planning_audit_is_coherent()
+    if linear.scalar_domain != scalar_domain
+        || !linear.planning_audit_is_coherent()
         || linear.execution != SERIAL_EXECUTION_PROVIDER
         || linear.workers != NonZeroUsize::MIN
     {

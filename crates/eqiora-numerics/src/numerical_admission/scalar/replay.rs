@@ -65,16 +65,24 @@ impl CommonSpatialPlan {
                         ))
                     })
                     .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-                equations
-                    .finalize_static(
-                        admission.linear.workers,
-                        admission.linear.solver,
-                        admission.resources(),
-                        &admission.discretizations,
-                        &admission.system_scaling,
-                        admission.operator_properties,
-                    )?
-                    .validate_coefficients(&values)
+                let system = equations.finalize_complex_static(
+                    admission.linear.workers,
+                    admission.linear.solver,
+                    admission.resources(),
+                    &admission.discretizations,
+                    &admission.system_scaling,
+                    admission.operator_properties,
+                )?;
+                match system {
+                    regions::ComplexSpatialSystem::Real(system) => {
+                        system.validate_coefficients(&values)?;
+                        system.validate_initial_residual(None, initial_residual_norm)
+                    }
+                    regions::ComplexSpatialSystem::Complex(system) => {
+                        system.validate_coefficients(&values)?;
+                        system.validate_initial_residual(None, initial_residual_norm)
+                    }
+                }
             }
             _ => Err(invalid(
                 "static linear Result requires its exact admitted spatial equations",

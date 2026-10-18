@@ -6,6 +6,7 @@ use super::*;
 pub(super) fn validate<S: Coefficient>(
     form: &CompiledRegionForm<S>,
     fields: &[RegionFieldLayout],
+    states: &BTreeMap<RawId, RegionFieldLayout>,
     time: Option<&RegionTimeBinding>,
 ) -> Result<(), Diagnostic> {
     let moment = |family| {
@@ -14,9 +15,6 @@ pub(super) fn validate<S: Coefficient>(
             SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
         )
     };
-    if !fields.iter().any(|field| moment(field.space.family())) {
-        return Ok(());
-    }
     if fields.iter().any(|field| {
         moment(field.space.family()) && !spatial_vector(&field.value_type, form.dimension)
     }) {
@@ -27,7 +25,9 @@ pub(super) fn validate<S: Coefficient>(
     // Existing history and nonlinear trace evaluators are componentwise nodal.
     // Do not admit moment coordinates into those paths until they consume the
     // same oriented coefficient interpretation as the static linear operator.
-    if time.is_some() || form.rows.iter().any(|row| !row.dyadics.is_empty()) {
+    if fields.iter().any(|field| moment(field.space.family()))
+        && (time.is_some() || form.rows.iter().any(|row| !row.dyadics.is_empty()))
+    {
         return Err(invalid(
             "moment bindings currently require static linear region forms",
         ));
@@ -36,6 +36,7 @@ pub(super) fn validate<S: Coefficient>(
         fields
             .iter()
             .find(|field| field.field == id)
+            .or_else(|| states.get(&id))
             .map(|field| field.space.family())
             .ok_or_else(|| invalid("differential pairing requires an exact bound Field"))
     };
@@ -49,6 +50,13 @@ pub(super) fn validate<S: Coefficient>(
     let divergence = |family| gradient(family) || family == SpaceFamily::TetrahedralFace;
     for row in &form.rows {
         let test = family(row.tested)?;
+        for term in &row.dyadics {
+            if !gradient(test) || !gradient(family(term.field)?) {
+                return Err(invalid(
+                    "dyadic flux requires gradient-conforming test and trial Spaces",
+                ));
+            }
+        }
         for term in &row.terms {
             let trial = family(term.trial)?;
             let accepted = match term.pairing {

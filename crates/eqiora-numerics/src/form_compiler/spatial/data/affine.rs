@@ -30,6 +30,7 @@ struct Row<S: Coefficient> {
 pub(super) struct AffineData<S: Coefficient> {
     row: Arc<Row<S>>,
     column: Option<usize>,
+    input_imaginary: Option<bool>,
     tangent: Option<Vec<Input<S>>>,
 }
 
@@ -162,6 +163,7 @@ impl<S: Coefficient> Context<'_, S> {
                 Data(Arc::new(Node::Affine(AffineData {
                     row: Arc::clone(&row),
                     column,
+                    input_imaginary: None,
                     tangent: None,
                 })))
             };
@@ -179,6 +181,16 @@ impl<S: Coefficient> Context<'_, S> {
 }
 
 impl<S: Coefficient> AffineData<S> {
+    /// Images of the retained trial's real and imaginary coordinate directions.
+    /// Offsets are values, not actions on a trial coordinate.
+    pub(super) fn coordinate_images(&self) -> Option<[Self; 2]> {
+        self.column?;
+        Some([false, true].map(|imaginary| Self {
+            input_imaginary: Some(imaginary),
+            ..self.clone()
+        }))
+    }
+
     pub(super) fn constant_in_direction(
         &self,
         direction: Direction<'_>,
@@ -216,6 +228,7 @@ impl<S: Coefficient> AffineData<S> {
         Ok(Self {
             row: Arc::new(row),
             column: self.column,
+            input_imaginary: self.input_imaginary,
             tangent: self
                 .tangent
                 .as_ref()
@@ -242,6 +255,7 @@ impl<S: Coefficient> AffineData<S> {
         Ok(Self {
             row: Arc::clone(&self.row),
             column: self.column,
+            input_imaginary: self.input_imaginary,
             tangent: Some(
                 self.row
                     .bindings
@@ -311,7 +325,10 @@ impl<S: Coefficient> AffineData<S> {
                            index: Option<usize>| {
             index.map_or(0., |index| row.coefficients()[index])
         };
-        if let Some(imaginary) = imaginary {
+        if self.column.is_some()
+            && self.input_imaginary.is_none()
+            && let Some(imaginary) = imaginary
+        {
             for column in &self.row.columns {
                 if coefficient(real, column.imaginary) != -coefficient(imaginary, column.real)
                     || coefficient(imaginary, column.imaginary) != coefficient(real, column.real)
@@ -324,7 +341,14 @@ impl<S: Coefficient> AffineData<S> {
         }
         let project =
             |row: &eqiora_ir::BoundAffineScalarIr<ScalarSymbolCoordinate>| match self.column {
-                Some(column) => coefficient(row, self.row.columns[column].real),
+                Some(column) => coefficient(
+                    row,
+                    if self.input_imaginary == Some(true) {
+                        self.row.columns[column].imaginary
+                    } else {
+                        self.row.columns[column].real
+                    },
+                ),
                 None => row.offsets()[0],
             };
         let mut result = <S as From<f64>>::from(project(real));

@@ -8,6 +8,9 @@ use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap
 use super::binding::BoundRegionForm;
 use super::invalid;
 
+mod coordinates;
+use coordinates::{Native, Projection, Real};
+
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Validate local inputs without performing quadrature or constructing contributions.
     pub(crate) fn validate_cell(
@@ -62,12 +65,25 @@ impl<S: Coefficient> BoundRegionForm<S> {
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
     ) -> Result<super::integration::IntegralActions<S>, Diagnostic> {
+        self.prepare_projected_actions::<Native>(geometry, direction, quadrature)
+    }
+
+    fn prepare_projected_actions<P: Projection<S>>(
+        &self,
+        geometry: &AffineGeometryMap,
+        direction: Option<&AffineGeometryLinearization>,
+        quadrature: &QuadratureRule,
+    ) -> Result<super::integration::IntegralActions<P::Scalar>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = self
             .fields
             .iter()
-            .map(IntegralField::from)
-            .collect::<Vec<_>>();
+            .map(|layout| {
+                let mut field = IntegralField::from(layout);
+                field.scalar_coordinates = P::width(layout)?;
+                Ok(field)
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let indices = self
             .fields
             .iter()
@@ -87,15 +103,24 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     (None, true) => self.time_step().expect("bound derivative step").recip(),
                     (None, false) => 1.,
                 };
-                integrals.push(super::integration::IntegralTerm {
-                    test_coordinate: 0,
-                    trial_coordinate: 0,
-                    row: row_index,
-                    column,
-                    pairing: term.pairing,
-                    trial_scale: factor * self.fields[column].scale,
-                });
-                data.push((row_index, term));
+                let columns = P::columns(
+                    &term.coefficient,
+                    self.form.dimension,
+                    fields[column].scalar_coordinates,
+                )?;
+                for (trial_coordinate, source) in columns.into_iter().enumerate() {
+                    for test_coordinate in 0..fields[row_index].scalar_coordinates {
+                        integrals.push(super::integration::IntegralTerm {
+                            row: row_index,
+                            column,
+                            pairing: term.pairing,
+                            trial_scale: factor * self.fields[column].scale,
+                            test_coordinate,
+                            trial_coordinate,
+                        });
+                        data.push((row_index, term, source.clone(), test_coordinate));
+                    }
+                }
             }
         }
         super::integration::integrate_with_geometry_direction(
@@ -119,6 +144,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 let mut components = forcing.iter_mut();
                 let mut flux_offset = 0;
                 for (index, row) in self.form.rows.iter().enumerate() {
+                    let width = fields[index].scalar_coordinates;
                     for flux in &row.flux {
                         let Some((datum, entries)) =
                             flux.prescribed_components(self.form.dimension, row.forcing.len())?
@@ -128,37 +154,61 @@ impl<S: Coefficient> BoundRegionForm<S> {
                         let (value, tangent) = evaluate_data(datum, point, point_direction)?;
                         let scale = <S as From<f64>>::from(self.row_multipliers[index]);
                         for entry in entries {
-                            flux_load[flux_offset + entry] += scale * value;
-                            if let Some(output) = flux_tangents.get_mut(flux_offset + entry) {
-                                *output += scale * tangent;
+                            for coordinate in 0..width {
+                                let slot = flux_offset + entry * width + coordinate;
+                                flux_load[slot] += P::component(scale * value, coordinate);
+                                if let Some(output) = flux_tangents.get_mut(slot) {
+                                    *output += P::component(scale * tangent, coordinate);
+                                }
                             }
                         }
                     }
-                    flux_offset += row.forcing.len() * self.form.dimension;
+                    flux_offset += row.forcing.len() * self.form.dimension * width;
                     for component in &row.forcing {
                         let (value, tangent) = evaluate_data(component, point, point_direction)?;
                         let scale = <S as From<f64>>::from(self.row_multipliers[index]);
-                        *components.next().expect("exact row component inventory") = scale * value;
-                        if let Some(output) = component_tangents.next() {
-                            *output = scale * tangent;
+                        for coordinate in 0..width {
+                            *components.next().expect("exact row component inventory") =
+                                P::component(scale * value, coordinate);
+                            if let Some(output) = component_tangents.next() {
+                                *output = P::component(scale * tangent, coordinate);
+                            }
                         }
                     }
                 }
-                for (index, (coefficient, (row, term))) in
+                for (index, (coefficient, (row, term, source, coordinate))) in
                     coefficients.iter_mut().zip(&data).enumerate()
                 {
-                    let (value, tangent) =
-                        evaluate_data(&term.coefficient, point, point_direction)?;
-                    let value = term.require_coefficient(value)?;
+                    let (value, tangent) = evaluate_data(source, point, point_direction)?;
+                    P::validate(term, value, point)?;
                     let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
-                    *coefficient = scale * value;
+                    *coefficient = P::component(scale * value, *coordinate);
                     if let Some(output) = coefficient_tangents.get_mut(index) {
-                        *output = scale * tangent;
+                        *output = P::component(scale * tangent, *coordinate);
                     }
                 }
                 Ok(())
             },
         )
+    }
+}
+
+impl BoundRegionForm<num_complex::Complex64> {
+    /// Integrate the full real-linear action while retaining physical component
+    /// pairings and the exact nodal or moment basis. Numbering is Field-major,
+    /// basis-major, real/imaginary-coordinate-minor.
+    pub(crate) fn prepare_real_affine_actions(
+        &self,
+        geometry: &AffineGeometryMap,
+        direction: Option<&AffineGeometryLinearization>,
+        quadrature: &QuadratureRule,
+    ) -> Result<super::integration::IntegralActions<f64>, Diagnostic> {
+        if self.time.is_some() || !self.previous.is_empty() || self.form.is_nonlinear() {
+            return Err(invalid(
+                "real-coordinate local preparation requires static affine actions",
+            ));
+        }
+        self.prepare_projected_actions::<Real>(geometry, direction, quadrature)
     }
 }
 

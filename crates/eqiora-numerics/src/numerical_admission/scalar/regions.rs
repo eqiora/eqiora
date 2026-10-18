@@ -528,6 +528,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 mod discretizations;
 mod execute;
 mod partials;
+pub(in crate::numerical_admission) use execute::ComplexSpatialSystem;
 pub(in crate::numerical_admission) use execute::StaticRegionSystem;
 mod tpfa;
 
