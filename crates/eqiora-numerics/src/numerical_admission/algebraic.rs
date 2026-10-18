@@ -12,7 +12,7 @@ use crate::physical_network::{
 use eqiora_core::{Id, entity::kinds};
 use eqiora_schema::kernel::{KernelNode, SymbolRef};
 use eqiora_sem::PhysicalUnknown;
-use eqiora_solver::{FixedOrderInnerProduct, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION};
+use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
 use problem::AlgebraicProblem;
 
 /// One exact finite algebraic Model and its explicit numerical realization.

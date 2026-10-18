@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, Scalar};
+use eqiora_core::{Diagnostic, Scalar, ScalarDomain};
 use num_complex::ComplexFloat;
 
 use crate::{ExecutionId, ExecutionProvider, ExecutionReport, LinearOperator, ReductionPolicy};
@@ -16,10 +16,12 @@ use crate::{ExecutionId, ExecutionProvider, ExecutionReport, LinearOperator, Red
 pub struct FixedOrderInnerProduct<'a, S = f64> {
     left: &'a [S],
     right: &'a [S],
+    norm_scale: Option<f64>,
 }
 
 impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
-    /// Logical element count in each reproducible partial, independent of scheduling.
+    /// Logical element count per inner-product partial, independent of scheduling.
+    /// Norms count real coordinates, so complex norms use half as many elements.
     /// Serial and parallel executions use these same partials and final fold.
     pub const CHUNK_LENGTH: usize = 1_024;
 
@@ -35,13 +37,25 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
                 right.len()
             )));
         }
-        Ok(Self { left, right })
+        Ok(Self {
+            left,
+            right,
+            norm_scale: None,
+        })
     }
 
     /// Number of fixed logical partials.
     #[must_use]
     pub fn partial_count(self) -> usize {
-        self.left.len().div_ceil(Self::CHUNK_LENGTH)
+        self.left.len().div_ceil(self.chunk_length())
+    }
+
+    fn chunk_length(self) -> usize {
+        if self.norm_scale.is_some() && S::DOMAIN == ScalarDomain::Complex {
+            Self::CHUNK_LENGTH / 2
+        } else {
+            Self::CHUNK_LENGTH
+        }
     }
 
     /// Evaluate one logical partial in its fixed local order.
@@ -55,13 +69,25 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
                 self.partial_count()
             )));
         }
-        let start = index * Self::CHUNK_LENGTH;
-        let end = (start + Self::CHUNK_LENGTH).min(self.left.len());
+        let start = index * self.chunk_length();
+        let end = (start + self.chunk_length()).min(self.left.len());
         self.left[start..end]
             .iter()
             .zip(&self.right[start..end])
             .try_fold(S::zero(), |sum, (left, right)| {
-                let next = sum + left.conj() * *right;
+                let next = match self.norm_scale {
+                    Some(scale) => {
+                        // Scale real components directly: complex division by a
+                        // tiny real denominator can itself square that denominator.
+                        let real = left.re() / scale;
+                        let imaginary = left.im() / scale;
+                        // Match adjacent real/imaginary coordinates exactly,
+                        // including chunk boundaries; do not group each pair first.
+                        S::from((sum.re() + real * real) + imaginary * imaginary)
+                            .expect("binary64 real component")
+                    }
+                    None => sum + left.conj() * *right,
+                };
                 (next.re().is_finite() && next.im().is_finite())
                     .then_some(next)
                     .ok_or_else(|| solve_failed("linear reduction overflowed"))
@@ -90,21 +116,76 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
 
     /// Evaluate a Euclidean norm using the execution's fixed-order inner-product action.
     ///
-    /// The norm and finite-real check remain owned here, independently of the adapter.
+    /// Components are scaled before squaring, using the same indexed reduction
+    /// for every execution. No temporary scaled vector is allocated. Ordinary inner
+    /// products retain their original arithmetic. The norm and finite-real check
+    /// remain owned here, independently of the adapter. Complex values use the
+    /// exact order of their adjacent real/imaginary coordinates, including partial
+    /// boundaries, so coordinate conversion preserves the norm bit for bit.
     ///
     /// # Errors
-    /// Rejects non-finite, nonreal, or negative squared norms from the execution.
+    /// Rejects non-finite inputs, non-finite/nonreal/negative scaled squared norms
+    /// from the execution, or a norm outside the binary64 range.
     pub fn norm(
         execution: &dyn ReplicatedLinearExecution<S>,
         values: &[S],
     ) -> Result<f64, Diagnostic> {
-        let squared = execution.inner_product(FixedOrderInnerProduct::new(values, values)?)?;
+        let (action, scale) = Self::norm_action(values)?;
+        Self::finish_norm(execution.inner_product(action)?, scale)
+    }
+
+    /// Evaluate the same serial Euclidean norm with admitted partial buffers.
+    ///
+    /// This allocates no workspace and shares the exact scaled action and final
+    /// arithmetic with [`Self::norm`]. Receipt replay can therefore remain
+    /// independent of a producer without duplicating its norm formula.
+    ///
+    /// # Errors
+    /// Returns the errors of [`Self::norm`], or rejects a partial count different
+    /// from the real-coordinate count divided by [`Self::CHUNK_LENGTH`] (rounded
+    /// up) before writing the buffer. Each complex value has two real coordinates.
+    pub fn norm_with_partials(values: &[S], partials: &mut [S]) -> Result<f64, Diagnostic> {
+        let (action, scale) = Self::norm_action(values)?;
+        if partials.len() != action.partial_count() {
+            return Err(solve_failed(
+                "Euclidean norm partial workspace has the wrong shape",
+            ));
+        }
+        for (index, partial) in partials.iter_mut().enumerate() {
+            *partial = action.evaluate_partial(index)?;
+        }
+        Self::finish_norm(action.finish(partials)?, scale)
+    }
+
+    fn norm_action(values: &[S]) -> Result<(FixedOrderInnerProduct<'_, S>, f64), Diagnostic> {
+        let scale = values.iter().try_fold(0_f64, |scale, value| {
+            if !value.is_finite() {
+                return Err(solve_failed("Euclidean norm input must be finite"));
+            }
+            Ok(scale.max(value.re().abs()).max(value.im().abs()))
+        })?;
+        let scale = if scale == 0.0 { 1.0 } else { scale };
+        Ok((
+            FixedOrderInnerProduct {
+                left: values,
+                right: values,
+                norm_scale: Some(scale),
+            },
+            scale,
+        ))
+    }
+
+    fn finish_norm(squared: S, scale: f64) -> Result<f64, Diagnostic> {
         if !squared.re().is_finite() || squared.im() != 0.0 || squared.re() < 0.0 {
             return Err(solve_failed(
                 "squared Euclidean norm must be finite, real, and nonnegative",
             ));
         }
-        Ok(squared.re().sqrt())
+        let norm = squared.re().sqrt() * scale;
+        if !norm.is_finite() {
+            return Err(solve_failed("Euclidean norm exceeds the binary64 range"));
+        }
+        Ok(norm)
     }
 
     fn evaluate_serial(self) -> Result<S, Diagnostic> {
@@ -217,6 +298,155 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn norm_is_identical_in_complex_and_real_coordinates() {
+        use num_complex::Complex64 as C;
+        // Coordinate conversion is an exact Euclidean isometry. Exercise both
+        // local summation and partial boundaries with unequal components.
+        for count in [2, 511, 512, 513, 1025] {
+            let complex = (0..count)
+                .map(|i| C::new(1., if i % 2 == 0 { 1. } else { 3. }))
+                .collect::<Vec<_>>();
+            let real = complex
+                .iter()
+                .flat_map(|z| [z.re, z.im])
+                .collect::<Vec<_>>();
+            let expected = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &real).unwrap();
+            assert_eq!(
+                FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &complex)
+                    .unwrap()
+                    .to_bits(),
+                expected.to_bits(),
+                "{count} complex coordinates",
+            );
+            let mut partials = vec![C::new(0., 0.); real.len().div_ceil(1024)];
+            assert_eq!(
+                FixedOrderInnerProduct::norm_with_partials(&complex, &mut partials)
+                    .unwrap()
+                    .to_bits(),
+                expected.to_bits(),
+            );
+        }
+    }
+
+    #[test]
+    fn norm_preserves_dyadic_scales_and_complex_components() {
+        use num_complex::Complex64 as C;
+        // The 3-4-5 triangle is exact at every selected binary scale.
+        for scale in [
+            f64::from_bits(16), // 2^-1070, represented without an intermediate reciprocal.
+            2_f64.powi(-700),
+            1.,
+            2_f64.powi(700),
+            2_f64.powi(1020),
+        ] {
+            let real = [3. * scale, 4. * scale];
+            let complex = [C::new(3. * scale, 4. * scale)];
+            assert_eq!(
+                FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &real).unwrap(),
+                5. * scale,
+            );
+            assert_eq!(
+                FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &complex).unwrap(),
+                5. * scale,
+            );
+            assert_eq!(
+                FixedOrderInnerProduct::norm_with_partials(&real, &mut [0.]).unwrap(),
+                5. * scale,
+            );
+            assert_eq!(
+                FixedOrderInnerProduct::norm_with_partials(&complex, &mut [C::new(0., 0.)])
+                    .unwrap(),
+                5. * scale,
+            );
+        }
+        let mut wrong_shape = [7., 9.];
+        assert!(FixedOrderInnerProduct::norm_with_partials(&[3., 4.], &mut wrong_shape).is_err());
+        assert_eq!(wrong_shape, [7., 9.]);
+        assert_eq!(
+            FixedOrderInnerProduct::<f64>::norm_with_partials(&[], &mut []).unwrap(),
+            0.
+        );
+        let smallest = f64::from_bits(1);
+        assert_eq!(
+            FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[smallest]).unwrap(),
+            smallest,
+        );
+        assert_eq!(
+            FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[f64::MAX]).unwrap(),
+            f64::MAX,
+        );
+        assert!(FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[f64::MAX; 2]).is_err());
+        for invalid in [f64::INFINITY, f64::NAN] {
+            assert!(FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[invalid]).is_err());
+            assert!(
+                FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &[C::new(0., invalid)],)
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn acceptance_distinguishes_zero_from_tiny_real_and_complex_solutions() {
+        use crate::{
+            ConvergenceReason, LinearOperatorProperties, LinearProblem, LinearSolver,
+            REFERENCE_SOLVER_PROVIDER, SolverPlan, accept_linear_solution,
+        };
+        use num_complex::Complex64 as C;
+        use std::{marker::PhantomData, num::NonZeroUsize};
+
+        #[derive(Debug)]
+        struct Identity<S>(PhantomData<S>);
+        impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearOperator for Identity<S> {
+            type Scalar = S;
+            fn rows(&self) -> usize {
+                1
+            }
+            fn columns(&self) -> usize {
+                1
+            }
+            fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
+                output.copy_from_slice(input);
+                Ok(())
+            }
+        }
+
+        fn check<S: Scalar + ComplexFloat<Real = f64> + Sync>(rhs: S, norm: f64) {
+            let operator = Identity::<S>(PhantomData);
+            let right = [rhs];
+            let problem =
+                LinearProblem::new(&operator, &right, LinearOperatorProperties::General).unwrap();
+            let plan = SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                2_f64.powi(-20),
+                0.,
+                NonZeroUsize::MIN,
+            )
+            .unwrap();
+            let accept = |value| {
+                accept_linear_solution(
+                    &problem,
+                    plan,
+                    REFERENCE_SOLVER_PROVIDER,
+                    ConvergenceReason::ResidualToleranceSatisfied,
+                    1,
+                    0.,
+                    vec![value],
+                )
+            };
+            assert!(accept(S::zero()).is_err());
+            let solved = accept(rhs).unwrap();
+            assert_eq!(solved.report().initial_residual_norm(), norm);
+            assert_eq!(solved.report().residual_target(), norm * 2_f64.powi(-20));
+            assert_eq!(solved.report().true_residual_norm(), 0.);
+        }
+        for exponent in [-700, 0, 700] {
+            let scale = 2_f64.powi(exponent);
+            check(scale, scale);
+            check(C::new(3. * scale, 4. * scale), 5. * scale);
+        }
+    }
 
     #[test]
     fn fixed_order_inner_product_has_an_explicit_expression_tree() {

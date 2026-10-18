@@ -4,7 +4,7 @@ use eqiora_core::{ScalarDomain, diagnostic::codes};
 use eqiora_ir::ComponentScalarization;
 use eqiora_solver::{
     CanonicalCsrSystemView, FixedOrderInnerProduct, LinearOperatorProperties,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION,
+    SERIAL_LINEAR_EXECUTION,
 };
 
 impl FiniteConstraintProblem {
@@ -208,17 +208,7 @@ pub(super) fn assess_original(
             });
         }
     }
-    let norm = if problem.is_nonlinear() {
-        // Finite normalized rows must not disappear or overflow merely because
-        // their squares are outside binary64. Fixed row order remains deterministic.
-        residuals
-            .iter()
-            .fold(0.0_f64, |norm, value| norm.hypot(*value))
-    } else {
-        SERIAL_LINEAR_EXECUTION
-            .inner_product(FixedOrderInnerProduct::new(&residuals, &residuals)?)?
-            .sqrt()
-    };
+    let norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residuals)?;
     if !norm.is_finite() || norm > target {
         return Err(failed(
             "original Model equality residual exceeds the explicit SolverPlan target",
@@ -267,12 +257,9 @@ pub(super) fn validate_values(
     }
     let canonical = branch_system(problem, mask)?;
     let rhs = canonical.right_hand_side();
-    let rhs_norm = SERIAL_LINEAR_EXECUTION
-        .inner_product(FixedOrderInnerProduct::new(rhs, rhs)?)?
-        .sqrt();
+    let rhs_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, rhs)?;
     let target = plan.residual_target(rhs_norm)?;
-    let mut assessment = original_assessment(problem, values, target)?;
-    let mut residual_square = assessment.equality_residual_norm.powi(2);
+    let (mut assessment, mut residuals) = assess_original(problem, values, target)?;
     let mut pair = 0;
     for measurement in &assessment.measurements {
         if measurement.activity == ConstraintActivity::Inequality {
@@ -283,10 +270,10 @@ pub(super) fn validate_values(
         } else {
             measurement.right.value()
         };
-        residual_square += zero * zero;
+        residuals.push(zero);
         pair += 1;
     }
-    if !residual_square.is_finite() || residual_square.sqrt() > target {
+    if FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residuals)? > target {
         return Err(failed(
             "original selected active-set zero operands exceed independently derived SolverPlan target",
         ));

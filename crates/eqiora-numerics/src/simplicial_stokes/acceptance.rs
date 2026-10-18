@@ -4,6 +4,7 @@ use eqiora_meshing::{
     AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
     SimplicialMesh,
 };
+use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
 
 use super::layout::MixedLayout;
 use super::{
@@ -146,21 +147,20 @@ pub(crate) fn require_weak_incompressibility_from_gauge_weights(
             "MINI Stokes acceptance data differs from the exact full layout",
         ));
     }
-    let mut squared_norm = 0.0;
-    let mut squared_gauge_norm = 0.0;
-    for (&row, &gauge_weight) in pressure_rows.iter().zip(gauge_weights) {
-        let multiplier = gauge_multiplier.unwrap_or(0.0);
-        let continuity_residual = residual[row] - gauge_weight * multiplier;
-        squared_norm += continuity_residual * continuity_residual;
-        squared_gauge_norm += gauge_weight * gauge_weight;
-    }
-    let norm = squared_norm.sqrt();
-    let gauge_norm = squared_gauge_norm.sqrt();
     let multiplier = gauge_multiplier.unwrap_or(0.0);
+    let continuity = pressure_rows
+        .iter()
+        .zip(gauge_weights)
+        .map(|(&row, &weight)| residual[row] - weight * multiplier)
+        .collect::<Vec<_>>();
+    let norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &continuity)
+        .map_err(|error| invalid(error.message()))?;
+    let gauge_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, gauge_weights)
+        .map_err(|error| invalid(error.message()))?;
     let roundoff =
         4096.0 * f64::EPSILON * (1.0 + norm + multiplier.abs() * gauge_norm + residual_target);
     let tolerance = residual_target + multiplier.abs() * gauge_norm + roundoff;
-    if !norm.is_finite() || norm > tolerance {
+    if norm > tolerance {
         return Err(invalid(format!(
             "MINI Stokes weak continuity residual {norm:e} exceeds the accepted bound {tolerance:e}"
         )));
@@ -324,5 +324,28 @@ impl CompensatedSum {
 
     fn total(&self) -> f64 {
         self.sum + self.correction
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_weak_incompressibility_from_gauge_weights;
+
+    #[test]
+    fn weak_continuity_rejects_a_violation_with_a_large_finite_gauge_weight() {
+        // With a zero multiplier the gauge contributes nothing. The unit
+        // residual must exceed 4096*EPSILON*(1 + 1), regardless of its weight.
+        let check = |residual| {
+            require_weak_incompressibility_from_gauge_weights(
+                &[residual],
+                1,
+                &[0],
+                &[2.0_f64.powi(700)],
+                Some(0.0),
+                0.0,
+            )
+        };
+        assert_eq!(check(0.0).unwrap(), 0.0);
+        assert!(check(1.0).is_err());
     }
 }

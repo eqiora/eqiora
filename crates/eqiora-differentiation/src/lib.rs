@@ -11,8 +11,9 @@ use eqiora_ir::{
     RelationTangent,
 };
 use eqiora_solver::{
-    CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
-    LinearProblem, LinearSolution, LinearSolveRequest, Oriented, OrientedLinearOperator,
+    CanonicalCsrSystemView, FixedOrderInnerProduct, LinearOperator, LinearOperatorOrientation,
+    LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolveRequest, Oriented,
+    OrientedLinearOperator, SERIAL_LINEAR_EXECUTION,
 };
 
 /// A linearization whose primal residual has been independently accepted.
@@ -147,7 +148,7 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> AcceptedLinearization<'a, R> {
         }
         let mut residual = vec![0.0; relation.residual_dimension()];
         relation.primal(&mut residual)?;
-        let primal_residual_norm = euclidean_norm(&residual)?;
+        let primal_residual_norm = linearization_residual_norm(&residual)?;
         if primal_residual_norm > residual_tolerance {
             return Err(invalid_linearization(format!(
                 "primal residual {primal_residual_norm:e} exceeds linearization tolerance {residual_tolerance:e}"
@@ -588,7 +589,7 @@ fn replay_state_solution<R: LinearizedRelation<f64> + ?Sized>(
     for (applied, right_hand_side) in applied.iter_mut().zip(right_hand_side) {
         *applied = right_hand_side - *applied;
     }
-    let replay_residual = euclidean_norm(&applied)?;
+    let replay_residual = linearization_residual_norm(&applied)?;
     if replay_residual > solution.report().residual_target() {
         return Err(invalid_linearization(format!(
             "relation {orientation:?} replay residual {replay_residual:e} exceeds solve target {:e}",
@@ -856,14 +857,9 @@ fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
     Ok(())
 }
 
-fn euclidean_norm(values: &[f64]) -> Result<f64, Diagnostic> {
-    let squared = values.iter().try_fold(0.0, |sum, value| {
-        let next = sum + value * value;
-        next.is_finite()
-            .then_some(next)
-            .ok_or_else(|| invalid_linearization("linearization residual norm overflowed"))
-    })?;
-    Ok(squared.sqrt())
+fn linearization_residual_norm(values: &[f64]) -> Result<f64, Diagnostic> {
+    FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, values)
+        .map_err(|error| invalid_linearization(error.message()))
 }
 
 fn invalid_linearization(message: impl Into<String>) -> Diagnostic {

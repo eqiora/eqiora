@@ -10,7 +10,7 @@ use eqiora_schema::kernel::SymbolRef;
 use eqiora_sem::{ComposedResidualSystem, KernelProgram, PhysicalUnknown};
 use eqiora_solver::{
     CanonicalCsrSystemView, CsrStorage, FixedOrderInnerProduct, LinearOperatorProperties,
-    LinearSolveRequest, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolveReport,
+    LinearSolveRequest, SERIAL_LINEAR_EXECUTION, SolveReport,
 };
 
 /// One canonical flat scalar physical subsystem admitted as `A w = b`.
@@ -235,12 +235,8 @@ pub fn solve_scalar_physical_affine(
         .with_initial_guess(initial_guess)?;
     let accepted = solver.solve(&linear_problem)?;
     let reference_residuals = problem.reference_residuals(accepted.values())?;
-    let reference_residual_norm = SERIAL_LINEAR_EXECUTION
-        .inner_product(FixedOrderInnerProduct::new(
-            &reference_residuals,
-            &reference_residuals,
-        )?)?
-        .sqrt();
+    let reference_residual_norm =
+        FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &reference_residuals)?;
     if !reference_residual_norm.is_finite()
         || reference_residual_norm > accepted.report().residual_target()
     {

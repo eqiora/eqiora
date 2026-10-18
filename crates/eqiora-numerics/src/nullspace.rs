@@ -3,8 +3,8 @@
 use eqiora_core::{Diagnostic, diagnostic::codes};
 
 use eqiora_solver::{
-    CanonicalCsrSystemView, CsrStorage, LinearOperator, LinearOperatorProperties,
-    LinearSolveRequest, SolveReport,
+    CanonicalCsrSystemView, CsrStorage, FixedOrderInnerProduct, LinearOperator,
+    LinearOperatorProperties, LinearSolveRequest, SERIAL_LINEAR_EXECUTION, SolveReport,
 };
 
 /// Numerical representation of a declared one-dimensional gauge freedom.
@@ -184,10 +184,16 @@ pub(crate) fn assess_canonical_with_nullspace(
     for (value, rhs) in residual.iter_mut().zip(system.right_hand_side()) {
         *value -= rhs;
     }
-    let original_residual_norm = norm(&residual)?;
-    let load_norm = norm(system.right_hand_side())?;
+    let original_residual_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residual)?;
+    let load_norm =
+        FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, system.right_hand_side())?;
     let original_target = plan.residual_target(load_norm)?;
-    let bordered_target = plan.residual_target(load_norm.hypot(constraint.value))?;
+    let mut bordered_load = system.right_hand_side().to_vec();
+    bordered_load.push(constraint.value);
+    let bordered_target = plan.residual_target(FixedOrderInnerProduct::norm(
+        &SERIAL_LINEAR_EXECUTION,
+        &bordered_load,
+    )?)?;
     let (reference, _) = dot_roundoff(&constraint.weights, values)?;
     let gauge_residual = reference - constraint.value;
     for (value, weight) in residual.iter_mut().zip(&constraint.weights) {
@@ -196,7 +202,7 @@ pub(crate) fn assess_canonical_with_nullspace(
     residual.push(gauge_residual);
     if !gauge_residual.is_finite()
         || original_residual_norm > original_target
-        || norm(&residual)? > bordered_target
+        || FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residual)? > bordered_target
     {
         return Err(invalid(
             "constrained solution fails the original equation or explicit reference",
@@ -253,16 +259,6 @@ fn dot_roundoff(left: &[f64], right: &[f64]) -> Result<(f64, f64), Diagnostic> {
         ));
     }
     Ok((sum, bound))
-}
-
-fn norm(values: &[f64]) -> Result<f64, Diagnostic> {
-    let value = values
-        .iter()
-        .fold(0.0_f64, |norm, value| norm.hypot(*value));
-    if !value.is_finite() {
-        return Err(invalid("non-finite original residual norm"));
-    }
-    Ok(value)
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {

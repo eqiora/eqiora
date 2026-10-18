@@ -14,8 +14,8 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    CanonicalCsrSystemView, ExecutionTopology, LinearOperator, LinearOperatorProperties,
-    LinearSolution, LinearSolverBackend,
+    CanonicalCsrSystemView, ExecutionTopology, FixedOrderInnerProduct, LinearOperator,
+    LinearOperatorProperties, LinearSolution, LinearSolverBackend, SERIAL_LINEAR_EXECUTION,
 };
 
 use super::admission::{require_exact_realization, time_dimension, validate_previous};
@@ -307,11 +307,8 @@ pub(super) fn finish_step(
     {
         *value -= right;
     }
-    let replayed_residual_norm = residual
-        .iter()
-        .map(|value| value * value)
-        .sum::<f64>()
-        .sqrt();
+    let replayed_residual_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residual)
+        .map_err(|error| invalid_numerics(error.message()))?;
     if !replayed_residual_norm.is_finite()
         || replayed_residual_norm > solve_report.residual_target()
     {

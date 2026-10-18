@@ -663,6 +663,16 @@ mod tests {
             let pool = CpuThreadPool::new(workers).unwrap();
             let execution = RayonLinearExecution { pool: &pool };
             assert_eq!(execution.inner_product(action).unwrap(), serial);
+            for scale in [f64::from_bits(1), 2_f64.powi(-700), 1., 2_f64.powi(700)] {
+                // sqrt(4096 * scale^2) = 64 * scale, across four partials.
+                let values = vec![scale; 4096];
+                let norm = FixedOrderInnerProduct::norm(&execution, &values).unwrap();
+                assert_eq!(norm, 64. * scale);
+                assert_eq!(
+                    norm,
+                    FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &values).unwrap(),
+                );
+            }
             assert_eq!(
                 execution.report(),
                 ExecutionReport::host(RAYON_EXECUTION, workers)
