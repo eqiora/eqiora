@@ -1,3 +1,5 @@
+#[path = "complex_spatial_differentiation/observables.rs"]
+mod observables;
 #[path = "complex_spatial_differentiation/selection.rs"]
 mod selection;
 mod support;
@@ -206,6 +208,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
             plan.clone(),
             &inputs,
             &[output],
+            Default::default(),
             None,
             &REFERENCE_LINEAR_SOLVER,
         )
@@ -304,7 +307,8 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                         &selected,
                         Some(&input.fixture_coordinates()),
                         &[output_id],
-                        &candidate[..candidate.len() - 1],
+                        &std::collections::HashMap::new(),
+                        &candidate[..candidate.len() - 1]
                     )
                     .is_err(),
                 "incomplete complex coordinate pairs must reject"
@@ -317,6 +321,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                         &selected,
                         Some(&input.fixture_coordinates()),
                         &[output_id],
+                        &std::collections::HashMap::new(),
                         &candidate
                     )
                     .is_err()

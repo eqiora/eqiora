@@ -2,11 +2,8 @@
 use super::*;
 use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
-#[derive(Debug, Clone, PartialEq)]
-enum Output {
-    Field(FieldCoefficientLinearization),
-    Dense(DenseOutputLinearization),
-}
+mod output;
+pub(super) use output::Output;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
@@ -110,24 +107,24 @@ pub struct CommonDifferentiationLinearization {
 }
 
 impl CommonDifferentiationLinearization {
-    /// Assembled Field coefficient output, when this linearization retains one.
+    /// Complete coefficient projection when every selected output is a Field.
     /// This describes the mathematical action independently of execution receipts.
     #[must_use]
     pub const fn field_output(&self) -> Option<&FieldCoefficientLinearization> {
         match &self.output {
             Output::Field(output) => Some(output),
-            Output::Dense(_) => None,
+            Output::Dense(_) | Output::Sequence { .. } => None,
         }
     }
 
     pub(super) fn from_spatial(
         relation: AssembledLinearizedRelation,
-        output: FieldCoefficientLinearization,
+        output: Output,
         residual_target: f64,
     ) -> Self {
         Self {
             relation,
-            output: Output::Field(output),
+            output,
             residual_target,
             initial_residual_norm: None,
         }
@@ -156,10 +153,7 @@ impl CommonDifferentiationLinearization {
     /// Complete selected output coordinates at this point.
     #[must_use]
     pub fn output_values(&self) -> &[f64] {
-        match &self.output {
-            Output::Field(output) => output.values(),
-            Output::Dense(output) => output.values(),
-        }
+        self.output.values()
     }
 
     /// Threshold derived from the original equations and the Plan's controls.
@@ -183,16 +177,10 @@ impl LinearizedOutput<f64> for CommonDifferentiationLinearization {
         self.relation.parameter_dimension()
     }
     fn output_dimension(&self) -> usize {
-        match &self.output {
-            Output::Field(output) => output.output_dimension(),
-            Output::Dense(output) => output.output_dimension(),
-        }
+        self.output.output_dimension()
     }
     fn primal(&self, values: &mut [f64]) -> Result<(), Diagnostic> {
-        match &self.output {
-            Output::Field(output) => output.primal(values),
-            Output::Dense(output) => output.primal(values),
-        }
+        self.output.primal(values)
     }
     fn jvp(
         &self,
@@ -200,10 +188,7 @@ impl LinearizedOutput<f64> for CommonDifferentiationLinearization {
         parameter: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        match &self.output {
-            Output::Field(value) => value.jvp(unknown, parameter, output),
-            Output::Dense(value) => value.jvp(unknown, parameter, output),
-        }
+        self.output.jvp(unknown, parameter, output)
     }
     fn vjp(
         &self,
@@ -211,9 +196,6 @@ impl LinearizedOutput<f64> for CommonDifferentiationLinearization {
         unknown: &mut [f64],
         parameter: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        match &self.output {
-            Output::Field(value) => value.vjp(output, unknown, parameter),
-            Output::Dense(value) => value.vjp(output, unknown, parameter),
-        }
+        self.output.vjp(output, unknown, parameter)
     }
 }

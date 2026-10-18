@@ -15,8 +15,10 @@ use eqiora_sem::KernelProgram;
 use super::{invalid, occurrence::Occurrence, spatial, tangent::StateDerivative};
 
 mod factors;
+mod partials;
 mod point;
 mod probability;
+use partials::PartialContext;
 use point::Point;
 
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
@@ -29,7 +31,37 @@ pub(super) fn evaluate(
     tangent: Option<&StateDerivative<'_>>,
     coordinates: Option<&[DynQuantity]>,
 ) -> Result<Evaluation, Diagnostic> {
-    let finite_fields = match (occurrence.plan().as_algebraic(), occurrence.finite_values()) {
+    Ok(evaluate_with_partials(
+        occurrence,
+        program,
+        &[observable],
+        quadratures,
+        tangent,
+        coordinates,
+        None,
+    )?
+    .0
+    .pop()
+    .expect("one selected Observable"))
+}
+
+pub(super) type PartialRows = Vec<Vec<super::partials::Covector>>;
+
+pub(super) fn evaluate_with_partials(
+    occurrence: &Occurrence<'_>,
+    program: &KernelProgram,
+    observables: &[Id<kinds::Observable>],
+    quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    tangent: Option<&StateDerivative<'_>>,
+    coordinates: Option<&[DynQuantity]>,
+    parameters: Option<&[eqiora_ir::ScalarSymbolCoordinate]>,
+) -> Result<(Vec<Evaluation>, Option<PartialRows>), Diagnostic> {
+    if tangent.is_some() && parameters.is_some() {
+        return Err(invalid(
+            "select either State variation or spatial point partials",
+        ));
+    }
+    let finite_fields = match (occurrence.algebraic_plan(), occurrence.finite_values()) {
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
         _ => HashMap::new(),
     };
@@ -39,19 +71,39 @@ pub(super) fn evaluate(
         program,
         quadratures,
         tangent,
+        partials: parameters.map(PartialContext::new),
         finite_fields,
         accepted: HashMap::new(),
         used_rules: HashSet::new(),
         remaining: &remaining,
     };
-    let point = context.output_point(observable, coordinates)?;
-    let value = context.evaluate(observable, &point, None, 0)?;
+    let values = observables
+        .iter()
+        .map(|&observable| {
+            let point = context.output_point(observable, coordinates)?;
+            context.evaluate(observable, &point, None, 0)
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
     if context.used_rules.len() != quadratures.len() {
         return Err(invalid(
             "Observable quadrature contains an unused integration Domain",
         ));
     }
-    Ok(value)
+    let partials =
+        context
+            .partials
+            .map(|partials| {
+                observables
+                    .iter()
+                    .map(|id| {
+                        partials.accepted.get(id).cloned().ok_or_else(|| {
+                            invalid("selected Observable has no spatial point partials")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?;
+    Ok((values, partials))
 }
 
 struct Context<'a> {
@@ -59,6 +111,7 @@ struct Context<'a> {
     program: &'a KernelProgram,
     quadratures: &'a HashMap<Id<kinds::Domain>, QuadratureRule>,
     tangent: Option<&'a StateDerivative<'a>>,
+    partials: Option<PartialContext<'a>>,
     finite_fields: HashMap<Id<kinds::Field>, ValueLiteral>,
     accepted: HashMap<Id<kinds::Observable>, Evaluation>,
     used_rules: HashSet<Id<kinds::Domain>>,
@@ -103,7 +156,7 @@ impl Context<'_> {
         if matches!(
             definition.reduction(),
             ObservableReduction::ProbabilityMoment { .. }
-        ) && self.tangent.is_some()
+        ) && (self.tangent.is_some() || self.partials.is_some())
         {
             return Err(invalid(
                 "probability moment derivatives require separately admitted differentiation assumptions",
@@ -124,6 +177,11 @@ impl Context<'_> {
                 .evaluate_continuous_moment(definition, *domain, *measure, moment, point, depth);
         }
         if selected.is_none() && self.factor_supported(definition) {
+            if self.partials.is_some() {
+                return Err(invalid(
+                    "coordinate-factor partials require an admitted spatial reconstruction",
+                ));
+            }
             return self.evaluate_factors(definition, point, depth);
         }
         if matches!(
@@ -150,7 +208,7 @@ impl Context<'_> {
                     .nodes()
                     .iter()
                     .any(|node| matches!(node, ExprNode::Evaluate { .. }));
-            if pointwise && self.tangent.is_some() {
+            if pointwise && (self.tangent.is_some() || self.partials.is_some()) {
                 return Err(invalid(
                     "point observation State tangents require an admitted reconstruction derivative",
                 ));
@@ -164,6 +222,14 @@ impl Context<'_> {
                 .tangent
                 .map(|_| self.finite_derivative(definition))
                 .transpose()?;
+            let partials = self
+                .partials
+                .as_ref()
+                .map(|_| self.finite_partials(definition))
+                .transpose()?;
+            if let (Some(context), Some(rows)) = (&mut self.partials, partials) {
+                context.accepted.insert(id, rows);
+            }
             let evaluation = (value, derivative);
             if self.program.observable_output_support(id)?.is_none() {
                 self.accepted.insert(id, evaluation.clone());
@@ -198,6 +264,19 @@ impl Context<'_> {
                         .next()
                         .expect("failed typing has diagnostic")
                 })?;
+                let mut partials = self
+                    .partials
+                    .as_ref()
+                    .map(|context| {
+                        Ok::<_, Diagnostic>(spatial::IntegralPartials {
+                            parameters: context.parameters,
+                            rows: vec![
+                                super::partials::Covector::zero(context.parameters.len());
+                                super::projection::coordinate_count(definition.value_type())?
+                            ],
+                        })
+                    })
+                    .transpose()?;
                 let value = spatial::integrate(
                     self.occurrence,
                     self.program,
@@ -205,7 +284,7 @@ impl Context<'_> {
                     &typed,
                     domain,
                     rule,
-                    None,
+                    partials.as_mut().map(spatial::Derivative::Partials),
                 )?;
                 let derivative = self
                     .tangent
@@ -217,10 +296,17 @@ impl Context<'_> {
                             &typed,
                             domain,
                             rule,
-                            Some(tangent),
+                            Some(spatial::Derivative::State(tangent)),
                         )
                     })
                     .transpose()?;
+                if let Some(partials) = partials {
+                    self.partials
+                        .as_mut()
+                        .expect("requested partials")
+                        .accepted
+                        .insert(id, partials.rows);
+                }
                 (value, derivative)
             }
         };
@@ -273,7 +359,7 @@ impl Context<'_> {
     fn resolve(&self, symbol: SymbolRef) -> Option<ValueLiteral> {
         match symbol {
             SymbolRef::Observable(id) => self.accepted.get(&id).map(|(value, _)| value.clone()),
-            SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),
+            SymbolRef::Parameter(id) => self.occurrence.parameter(self.program, id).cloned(),
             SymbolRef::Time => ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
@@ -285,7 +371,7 @@ impl Context<'_> {
             .ok(),
             SymbolRef::Field(id) => self.finite_fields.get(&id).cloned(),
             _ => {
-                let plan = self.occurrence.plan().as_algebraic()?;
+                let plan = self.occurrence.algebraic_plan()?;
                 let values = self.occurrence.finite_values()?;
                 let index = plan
                     .symbols()

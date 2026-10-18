@@ -761,6 +761,7 @@ mod execution;
 mod formulation;
 mod mesh_artifact;
 mod native;
+mod observation;
 mod plan_artifact;
 mod resolve;
 mod resolved;

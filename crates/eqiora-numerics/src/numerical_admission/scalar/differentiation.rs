@@ -1,29 +1,35 @@
 //! Execution and differentiated replay consume one exact assembled spatial system.
-use super::super::differentiation::Primal;
+use super::super::differentiation::{Output, Primal};
 use super::regions::{ExecutableSpatialEquations, StaticRegionSystem};
 use super::*;
 use crate::finalized_spatial::{FinalizedLinearCore, ResidualScalar};
 use crate::spatial_expression::Coefficient;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::ScalarSymbolCoordinate;
+use eqiora_meshing::QuadratureRule;
+use std::collections::HashMap;
+mod outputs;
 mod scalar;
 use scalar::{DifferentiationScalar, coordinates};
 
 impl CommonSpatialPlan {
     /// Accept a complete typed Parameter point through this Plan's Mesh and policies.
     /// Omitted values select the canonical Model point; unselected Parameters stay fixed.
+    /// Ordered outputs may mix complete Fields and reduced Observables. Spatial
+    /// integrals require explicit rules for their exact integration Domains.
     pub fn differentiate(
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_differentiation(equations, selected, values, outputs)?
+                .prepare_differentiation(equations, selected, values, outputs, quadratures)?
                 .solve(),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_differentiation(equations, selected, values, outputs)?
+                .prepare_differentiation(equations, selected, values, outputs, quadratures)?
                 .solve(),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
@@ -38,14 +44,15 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_differentiation(equations, selected, values, outputs)?
+                .prepare_differentiation(equations, selected, values, outputs, quadratures)?
                 .accept_candidate(candidate),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_differentiation(equations, selected, values, outputs)?
+                .prepare_differentiation(equations, selected, values, outputs, quadratures)?
                 .accept_candidate(candidate),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
@@ -59,6 +66,7 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     ) -> Result<PreparedPoint<'_, S>, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
@@ -113,10 +121,40 @@ impl CommonSpatialPlan {
             &self.admission.system_scaling,
             self.admission.operator_properties,
         )?;
+        let unique = outputs
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        if outputs.is_empty() || unique.len() != outputs.len() {
+            return Err(invalid(
+                "spatial outputs require nonempty distinct selections",
+            ));
+        }
+        let mut selected_fields = Vec::new();
+        for &output in outputs {
+            if self.fields().any(|(field, _)| field.erase() == output) {
+                selected_fields.push(output);
+            } else if !matches!(
+                self.kernel().node(output),
+                Some(eqiora_schema::kernel::KernelNode::Observable(_))
+            ) {
+                return Err(invalid(
+                    "spatial output is not an exact Plan Field or Model Observable",
+                ));
+            }
+        }
+        let keys = if selected_fields.is_empty() {
+            Vec::new()
+        } else {
+            system.mapping.selected_field_keys(&selected_fields)?
+        };
         Ok(PreparedPoint {
             plan: self,
             equations,
-            keys: system.mapping.selected_field_keys(outputs)?,
+            keys,
+            point,
+            outputs: outputs.to_vec(),
+            quadratures: quadratures.clone(),
             system,
             design,
             values,
@@ -133,6 +171,9 @@ struct PreparedPoint<'a, S: DifferentiationScalar> {
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
     keys: Vec<crate::region_assembly::mapping::FieldDof>,
+    point: crate::parameter_point::ParameterPoint,
+    outputs: Vec<eqiora_core::RawId>,
+    quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
 }
 
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
@@ -180,6 +221,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         let keys = &self.keys;
         let count = self.coordinates.len();
         let state_coordinates = coordinates(values.iter().copied()).collect::<Vec<_>>();
+        let mut observations = self.observation_partials(&full, state_coordinates.len())?;
         let output_count = keys
             .len()
             .checked_mul(S::WIDTH)
@@ -207,32 +249,18 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             for (row, value) in coordinates(partial).enumerate() {
                 residual[row * count + column] = value;
             }
+            let lift = coordinates(lift).collect::<Vec<_>>();
             for (row, key) in keys.iter().enumerate() {
-                let value = lift[mapping.global_dof(*key).expect("mapped Field DOF")];
-                for (part, value) in coordinates([value]).enumerate() {
-                    direct[(row * S::WIDTH + part) * count + column] = value;
+                let global = mapping.global_dof(*key).expect("mapped Field DOF") * S::WIDTH;
+                for part in 0..S::WIDTH {
+                    direct[(row * S::WIDTH + part) * count + column] = lift[global + part];
                 }
             }
+            for observation in &mut observations {
+                observation.add_lift(column, count, &lift)?;
+            }
         }
-        let output = FieldCoefficientLinearization::new(
-            coordinates(
-                keys.iter()
-                    .map(|key| full[mapping.global_dof(*key).expect("mapped Field DOF")]),
-            )
-            .collect(),
-            state_coordinates.len(),
-            count,
-            keys.iter()
-                .flat_map(|key| {
-                    (0..S::WIDTH).map(move |part| {
-                        mapping
-                            .free_dof(*key)
-                            .map(|dof| dof.index() * S::WIDTH + part)
-                    })
-                })
-                .collect(),
-            direct,
-        )?;
+        let output = self.selected_output(&full, state_coordinates.len(), direct, observations)?;
         let relation = AssembledLinearizedRelation::from_shared_canonical(
             S::real_system(&self.system.core)?,
             state_coordinates,

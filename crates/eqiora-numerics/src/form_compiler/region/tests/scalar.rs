@@ -47,10 +47,13 @@ fn potential_gradient_preserves_chain_rules_and_primal_domains() {
     }
     assert!(derive(&potential_source("math.sqrt(-a)")).is_err());
     let constant_root = derive(&potential_source("math.sqrt(a-a)")).unwrap();
-    assert!(
+    // a is held fixed under spatial variation: this potential is identically
+    // zero as a function of the physical coordinates, so its gradient is zero.
+    assert_eq!(
         constant_root.rows[0].forcing[0]
             .evaluate(&[0.25, 0.5])
-            .is_err()
+            .unwrap(),
+        0.
     );
     // The derivative 2*x is finite here, but the demanded potential x^2 is not.
     let overflowing = derive(&potential_source("(coordinate(0)/length)^2")).unwrap();

@@ -73,6 +73,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         }
 
         for (index, instruction) in self.instructions.iter().enumerate().rev() {
+            if !self.active[index] {
+                continue;
+            }
             let cotangent = adjoints[index];
             match *instruction {
                 Instruction::Select { .. }
@@ -227,12 +230,14 @@ impl<'a> ScalarLinearization<'a> {
                 }
                 DifferentiationRole::Frozen => InputBinding::Frozen,
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let active = activity::numerical_activity(instructions, &bindings)?;
         Ok(Self {
             instructions: std::borrow::Cow::Borrowed(instructions),
             roots: std::borrow::Cow::Borrowed(roots),
             inputs: inputs.to_vec(),
             bindings,
+            active,
             unknown_dimension,
             parameter_dimension,
         })
@@ -263,6 +268,10 @@ impl ScalarLinearization<'_> {
 
         let mut tangents = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().enumerate() {
+            if !self.active[index] {
+                tangents.push(0.);
+                continue;
+            }
             let mut tangent = match *instruction {
                 Instruction::Select { .. }
                 | Instruction::Require { .. }

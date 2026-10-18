@@ -110,10 +110,10 @@ Their results use output and input leaves respectively. Complex covectors pair a
 Dense map projections and residual/unknown partial actions still use real coordinates.
 
 Static spatial differentiation uses Cartesian Q1 FEM or unconstrained TPFA FVM,
-ordered complete Field outputs, dimensional system scaling and the serial reference
-solver. Selecting a subset of coupled Fields retains the complete state and residual
-in both JVP and VJP; output leaves follow the requested Field order. Real and complex
-components retain their mathematical shape; for example,
+dimensional system scaling and the serial reference solver. Select an ordered
+tuple of complete Fields and reduced Observables. Selecting a subset retains the
+complete coupled state and residual in both JVP and VJP; output leaves follow the
+requested order. Real and complex components retain their mathematical shape; for example,
 a two-channel complex Field has output shape `(coefficient_count, 2)` and dtype
 `complex128`. Complex-linear state equations may depend nonholomorphically on
 Parameters, such as a conjugated diffusion coefficient. The primal uses the
@@ -122,8 +122,32 @@ Mixed spatial/Parameter coefficient derivatives are supported for admitted
 scalar arithmetic and pointwise component expressions. Their shared component IR
 evaluates two input directions, including mixed derivatives of those inputs.
 Affine-map coefficient composition and arbitrary-order derivatives remain outside
-this path. Conjugated state equations, transient Plans and general reduced spatial
-objectives remain unimplemented.
+this path. Conjugated state equations and transient Plans remain unimplemented.
+
+Spatial integral outputs require explicit quadrature, including integrals used
+by a composed Observable:
+
+```python
+program = eqiora.diff.compile(
+    plan, inputs=(model.parameter("p"),),
+    outputs=(model.observable("loss"), plan.fields[0]), quadrature_points=2,
+)
+```
+
+The generated points and weights belong to the immutable Program identity.
+Primal values, output partials, total JVP/VJP and saved evaluation replay use the
+same rules. Derivatives include direct Parameter dependence and prescribed
+boundary values as well as the implicit change in the solved Field. The point
+count specifies a numerical rule, not an accuracy guarantee. Smooth reduced
+outputs are supported within the admitted static Cartesian solve; continuous
+point outputs and general spatial objective differentiation remain outside this
+path.
+
+Unselected Parameters and prescribed values independent of the selected inputs
+remain fixed. For example, `sqrt(q) + p*x` with fixed `q=0` has derivative `x`
+with respect to `p`. Fixed operands still require valid primal values. Activity
+follows source dependencies, so a zero numerical tangent does not make an input
+fixed: `sqrt(p*p)` at `p=0` still rejects differentiation.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).

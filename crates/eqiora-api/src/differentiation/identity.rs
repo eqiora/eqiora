@@ -1,6 +1,8 @@
 //! Static meaning of a differentiable Program, independent of primal execution.
 
 use super::*;
+use eqiora_meshing::QuadratureRule;
+use std::collections::HashMap;
 
 mod artifact;
 
@@ -11,6 +13,7 @@ pub struct DifferentiableProgramIdentity {
     pub(super) plan_identity: String,
     pub(super) inputs: Arc<[DifferentiableValueSignature]>,
     pub(super) outputs: Arc<[DifferentiableValueSignature]>,
+    pub(super) quadratures: Arc<HashMap<Id<kinds::Domain>, QuadratureRule>>,
     pub(super) initial_state_identity: Option<String>,
     pub(super) scalar_type: ScalarType,
     pub(super) solver: SolverPlan,
@@ -39,6 +42,12 @@ impl DifferentiableProgramIdentity {
     #[must_use]
     pub fn outputs(&self) -> &[DifferentiableValueSignature] {
         &self.outputs
+    }
+
+    /// Explicit rules for the exact selected observation measures.
+    #[must_use]
+    pub fn observation_quadratures(&self) -> &HashMap<Id<kinds::Domain>, QuadratureRule> {
+        &self.quadratures
     }
 
     /// Exact finite seed bound by this Program; absent for spatial linear execution.
@@ -79,6 +88,7 @@ impl DifferentiableProgramIdentity {
         plan: &ResolvedCommonPlan,
         inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
         outputs: &[ModelEntityRef],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         initial: Option<&CommonAlgebraicState>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if inputs.is_empty() {
@@ -116,15 +126,30 @@ impl DifferentiableProgramIdentity {
         let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
         match plan {
-            ResolvedCommonPlan::Spatial(plan)
-                if initial.is_some()
-                    || outputs.iter().any(|output| {
-                        !plan.fields().any(|(field, _)| field.erase() == *output)
-                    }) =>
-            {
-                return Err(single(invalid(
-                    "spatial differentiation requires exact Plan Fields and no finite seed",
-                )));
+            ResolvedCommonPlan::Spatial(spatial) => {
+                if initial.is_some() {
+                    return Err(single(invalid(
+                        "spatial differentiation requires no finite seed",
+                    )));
+                }
+                for output in &outputs {
+                    if let Some(observable) = output.downcast::<kinds::Observable>() {
+                        if spatial
+                            .kernel()
+                            .observable_output_support(observable)
+                            .map_err(single)?
+                            .is_some()
+                        {
+                            return Err(single(invalid(
+                                "spatial differentiation requires reduced Observable outputs",
+                            )));
+                        }
+                    } else if !spatial.fields().any(|(field, _)| field.erase() == *output) {
+                        return Err(single(invalid(
+                            "spatial differentiation requires exact Plan Fields or Model Observables",
+                        )));
+                    }
+                }
             }
             ResolvedCommonPlan::Algebraic(plan) => {
                 if initial.is_some_and(|state| state.plan_identity() != plan.identity()) {
@@ -140,6 +165,18 @@ impl DifferentiableProgramIdentity {
             }
             _ => {}
         }
+        let observables = outputs
+            .iter()
+            .filter_map(|id| id.downcast::<kinds::Observable>())
+            .collect::<Vec<_>>();
+        if plan.as_spatial().is_some() {
+            plan.validate_observation_quadratures(&observables, quadratures)
+                .map_err(single)?;
+        } else if !quadratures.is_empty() {
+            return Err(single(invalid(
+                "finite differentiation does not use spatial observation quadrature",
+            )));
+        }
         let (input_signatures, output_signatures) =
             signature::build(plan, &model, &selected, &outputs).map_err(single)?;
         Ok(Self {
@@ -147,6 +184,7 @@ impl DifferentiableProgramIdentity {
             plan_identity: plan.identity().to_owned(),
             inputs: input_signatures.into(),
             outputs: output_signatures.into(),
+            quadratures: Arc::new(quadratures.clone()),
             initial_state_identity: initial.map(|state| state.identity().to_owned()),
             scalar_type: ScalarType::F64,
             solver: plan

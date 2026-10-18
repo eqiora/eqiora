@@ -108,7 +108,10 @@ fn planar_storage_observations_select_exact_sparse_outputs() {
                             time,
                         )
                     } else {
-                        let rules = result.observation_quadratures(definition.id(), 2).unwrap();
+                        let rules = result
+                            .plan()
+                            .observation_quadratures(&[definition.id()], 2)
+                            .unwrap();
                         let expected = if unit == length {
                             8.
                         } else if unit
@@ -236,7 +239,7 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
         };
         let dense = run(vec![1, 2, 3, 4]);
         let sparse = run(vec![1, 3]);
-        let rules = dense.observation_quadratures(amount, 2).unwrap();
+        let rules = dense.plan().observation_quadratures(&[amount], 2).unwrap();
         let rule = crate::TimeObservationInterpolation::EndpointLinear;
         // The constant-in-space solution u=t is exact under backward Euler.
         // Integrating the piecewise-linear Observable t^2 at h=1/4 gives

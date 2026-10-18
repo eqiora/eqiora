@@ -444,7 +444,10 @@ fn moving_storage_observations_require_the_accepted_map() {
     };
     let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, outputs).unwrap();
     let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
-    let rules = result.observation_quadratures(observable, 2).unwrap();
+    let rules = result
+        .plan()
+        .observation_quadratures(&[observable], 2)
+        .unwrap();
     assert!(
         result
             .trajectory()

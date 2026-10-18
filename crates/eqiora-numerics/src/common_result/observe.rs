@@ -1,4 +1,4 @@
-//! Result-owned derived values and explicitly requested spatial quadrature.
+//! Derived values and partials share exact occurrences and explicit spatial quadrature.
 
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
@@ -11,12 +11,45 @@ use super::{CommonResult, CommonResultPayload, invalid};
 mod composite;
 mod csv;
 mod occurrence;
+mod partials;
+pub(crate) use partials::Covector;
 mod projection;
 use occurrence::Occurrence;
 mod spatial;
 mod stokes;
 mod tangent;
 pub use tangent::CommonObservableStateTangent;
+
+pub(crate) struct SpatialPointOutputs {
+    pub(crate) values: Vec<ValueLiteral>,
+    pub(crate) partials: Option<Vec<Vec<Covector>>>,
+}
+
+/// Evaluate borrowed coefficients at an already validated Parameter point.
+/// The caller owns original-equation acceptance; this creates no execution provenance.
+pub(crate) fn spatial_point_outputs<'a>(
+    plan: &'a crate::CommonSpatialPlan,
+    parameters: &'a crate::parameter_point::ParameterPoint,
+    fields: impl IntoIterator<Item = (Id<kinds::Field>, &'a [f64])>,
+    observables: &[Id<kinds::Observable>],
+    quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    selected: Option<&[eqiora_ir::ScalarSymbolCoordinate]>,
+) -> Result<SpatialPointOutputs, Diagnostic> {
+    let occurrence = Occurrence::from_point(plan, Some(parameters), fields)?;
+    let (values, partials) = composite::evaluate_with_partials(
+        &occurrence,
+        plan.kernel(),
+        observables,
+        quadratures,
+        None,
+        None,
+        selected,
+    )?;
+    Ok(SpatialPointOutputs {
+        values: values.into_iter().map(|(value, _)| value).collect(),
+        partials,
+    })
+}
 
 /// Accepted derived value retaining the exact result and numerical integration rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -109,97 +142,6 @@ impl CommonResult {
 }
 
 impl CommonResult {
-    /// Select explicit quadrature for every spatial measure consumed by an Observable.
-    ///
-    /// Coordinate factors use tensor-product Gauss rules. Physical measures use
-    /// the exact admitted Mesh family, including simplex Duffy rules. The caller
-    /// chooses the points per axis; no scientific accuracy is inferred from this
-    /// count. Explicit callers may instead supply their own admitted rules.
-    /// # Errors
-    /// Rejects missing Observables, finite outputs without an integration measure,
-    /// unavailable supports and invalid quadrature orders.
-    pub fn observation_quadratures(
-        &self,
-        observable: Id<kinds::Observable>,
-        points_per_axis: usize,
-    ) -> Result<HashMap<Id<kinds::Domain>, QuadratureRule>, Diagnostic> {
-        use eqiora_schema::kernel::typing::SpatialSupport;
-        use eqiora_schema::kernel::{
-            ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef,
-        };
-        let program = self.observation_program()?;
-        let mut pending = vec![observable];
-        let mut visited = std::collections::HashSet::new();
-        let mut measures = HashMap::new();
-        while let Some(id) = pending.pop() {
-            if !visited.insert(id) {
-                continue;
-            }
-            let Some(KernelNode::Observable(definition)) = program.node(id.erase()) else {
-                return Err(invalid("Observable is outside this exact Result Model"));
-            };
-            if let ObservableReduction::SpatialIntegral {
-                domain, measure, ..
-            } = definition.reduction()
-            {
-                measures.insert(domain, measure);
-            }
-            if let ObservableReduction::ProbabilityMoment { distribution, .. } =
-                definition.reduction()
-                && let Some(KernelNode::Relation(law)) = program.node(distribution.erase())
-                && let eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
-                    domain,
-                    measure,
-                    ..
-                } = law.meaning()
-            {
-                measures.insert(*domain, *measure);
-            }
-            pending.extend(
-                definition
-                    .expression()
-                    .nodes()
-                    .iter()
-                    .filter_map(|node| match node {
-                        ExprNode::Symbol(SymbolRef::Observable(dependency)) => Some(*dependency),
-                        _ => None,
-                    }),
-            );
-        }
-        if measures.is_empty() {
-            return Err(invalid(
-                "finite Observable does not accept spatial quadrature",
-            ));
-        }
-        let only_boundaries = measures
-            .values()
-            .all(|measure| *measure == ObservableMeasure::Boundary);
-        measures
-            .keys()
-            .map(|domain| {
-                let support = program
-                    .spatial_support(*domain)
-                    .ok_or_else(|| invalid("Observable measure Domain is unavailable"))?;
-                let dimension = support.intrinsic_dimensions();
-                let rule = if dimension == 0 {
-                    if points_per_axis != 1 && only_boundaries {
-                        return Err(invalid("point measure requires quadrature_points=1"));
-                    }
-                    QuadratureRule::point()
-                } else if !matches!(support, SpatialSupport::Coordinates { .. })
-                    && self
-                        .plan()
-                        .authenticated_mesh()
-                        .is_some_and(|mesh| mesh.simplicial_mesh().is_some())
-                {
-                    eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points_per_axis)?
-                } else {
-                    QuadratureRule::tensor_product_gauss_legendre(dimension, points_per_axis)?
-                };
-                Ok((*domain, rule))
-            })
-            .collect()
-    }
     /// Evaluate a typed Model Observable against this exact accepted Result.
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
@@ -239,7 +181,7 @@ impl CommonResult {
                 self, observable, value, index, state, "value",
             ));
         }
-        let program = self.observation_program()?;
+        let program = self.plan().observation_program()?;
         let occurrence = Occurrence::new(self, output_index)?;
         let (value, _) =
             composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
@@ -267,7 +209,7 @@ impl CommonResult {
                 "Observable Model differs from the exact accepted Result Model",
             ));
         }
-        let program = self.observation_program()?;
+        let program = self.plan().observation_program()?;
         let support = program
             .observable_output_support(observable)?
             .ok_or_else(|| invalid("lumped Observable does not have output coordinates"))?;
@@ -286,25 +228,6 @@ impl CommonResult {
         observation.output = occurrence.output();
         observation.point = Some((domain, coordinates.to_vec()));
         Ok(observation)
-    }
-}
-
-impl CommonResult {
-    /// Admitted Model program for this Result's observation context, including Geometry.
-    /// Values, tangent evaluation and quadrature selection share this support authority.
-    fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-        if let Some(plan) = self.plan().as_spatial() {
-            Ok(plan.kernel().clone())
-        } else if let Some(plan) = self.plan().as_algebraic() {
-            Ok(plan.kernel().clone())
-        } else {
-            self.plan().model_artifact().to_program().map_err(|errors| {
-                errors
-                    .into_iter()
-                    .next()
-                    .expect("failed replay has diagnostic")
-            })
-        }
     }
 }
 

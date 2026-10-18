@@ -1,10 +1,10 @@
 //! Borrow one exact accepted occurrence without manufacturing another Result.
 use std::collections::HashMap;
 
-use eqiora_core::{Diagnostic, Id, entity::kinds};
+use eqiora_core::{Diagnostic, Id, ValueLiteral, entity::kinds};
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
-use crate::{CommonState, ResolvedCommonPlan};
+use crate::{CommonAlgebraicPlan, CommonSpatialPlan, CommonState, ResolvedCommonPlan};
 
 #[derive(Clone, Copy)]
 pub(super) struct FieldCoefficients<'a> {
@@ -14,7 +14,11 @@ pub(super) struct FieldCoefficients<'a> {
 
 enum Source<'a> {
     Result(&'a CommonResult),
-    State(&'a ResolvedCommonPlan, &'a CommonState),
+    Spatial {
+        plan: &'a CommonSpatialPlan,
+        state: Option<&'a CommonState>,
+        parameters: Option<&'a crate::parameter_point::ParameterPoint>,
+    },
 }
 
 pub(super) struct Occurrence<'a> {
@@ -24,6 +28,54 @@ pub(super) struct Occurrence<'a> {
 }
 
 impl<'a> Occurrence<'a> {
+    pub(super) fn from_point(
+        plan: &'a CommonSpatialPlan,
+        parameters: Option<&'a crate::parameter_point::ParameterPoint>,
+        fields: impl IntoIterator<Item = (Id<kinds::Field>, &'a [f64])>,
+    ) -> Result<Self, Diagnostic> {
+        plan.require_fixed_observation_geometry()?;
+        let mut coefficients = HashMap::new();
+        for (field, values) in fields {
+            let value_type = plan
+                .fields()
+                .find(|(candidate, _)| *candidate == field)
+                .map(|(_, ty)| ty)
+                .ok_or_else(|| invalid("observation point Field is outside the exact Plan"))?;
+            let (_, layouts) = super::super::linear::field_layout(plan, field)?;
+            let width = if value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex {
+                2usize
+            } else {
+                1usize
+            };
+            let count = layouts.iter().try_fold(0usize, |total, (_, shape)| {
+                shape
+                    .iter()
+                    .try_fold(width, |count, extent| count.checked_mul(*extent))
+                    .and_then(|count| total.checked_add(count))
+            });
+            if count != Some(values.len())
+                || values.iter().any(|value| !value.is_finite())
+                || coefficients.insert(field, values).is_some()
+            {
+                return Err(invalid(
+                    "observation point requires complete distinct finite Field coefficients",
+                ));
+            }
+        }
+        if coefficients.len() != plan.fields().len() {
+            return Err(invalid("observation point omits an exact Plan Field"));
+        }
+        Ok(Self {
+            source: Source::Spatial {
+                plan,
+                state: None,
+                parameters,
+            },
+            output_index: None,
+            fields: coefficients,
+        })
+    }
+
     pub(super) fn new(
         result: &'a CommonResult,
         output_index: Option<usize>,
@@ -61,58 +113,73 @@ impl<'a> Occurrence<'a> {
         let spatial = plan.as_spatial().ok_or_else(|| {
             invalid("output observation requires the common spatial Field realization")
         })?;
-        spatial.require_fixed_observation_geometry()?;
         let fields = spatial
             .state_fields(state)?
-            .map(|(field, _, _, values)| (field, values))
-            .collect();
-        Ok(Self {
-            source: Source::State(plan, state),
-            output_index: None,
-            fields,
-        })
+            .map(|(field, _, _, values)| (field, values));
+        let mut occurrence = Self::from_point(spatial, None, fields)?;
+        if let Source::Spatial {
+            state: accepted, ..
+        } = &mut occurrence.source
+        {
+            *accepted = Some(state);
+        }
+        Ok(occurrence)
     }
 
-    pub(super) fn plan(&self) -> &ResolvedCommonPlan {
+    pub(super) fn spatial_plan(&self) -> Option<&CommonSpatialPlan> {
         match self.source {
-            Source::Result(result) => result.plan(),
-            Source::State(plan, _) => plan,
+            Source::Result(result) => result.plan().as_spatial(),
+            Source::Spatial { plan, .. } => Some(plan),
+        }
+    }
+
+    pub(super) fn algebraic_plan(&self) -> Option<&CommonAlgebraicPlan> {
+        match self.source {
+            Source::Result(result) => result.plan().as_algebraic(),
+            Source::Spatial { .. } => None,
+        }
+    }
+
+    pub(super) fn authenticated_mesh(&self) -> Option<crate::AuthenticatedCommonMesh> {
+        match self.source {
+            Source::Result(result) => result.plan().authenticated_mesh(),
+            Source::Spatial { plan, .. } => Some(plan.authenticated_mesh()),
         }
     }
 
     pub(super) fn finite_values(&self) -> Option<&[f64]> {
         match self.source {
             Source::Result(result) => result.finite_values(),
-            Source::State(..) => None,
+            Source::Spatial { .. } => None,
         }
     }
 
     pub(super) fn time_s(&self) -> Option<f64> {
         match self.source {
-            Source::State(_, state) => state.time_s(),
+            Source::Spatial { state, .. } => state.and_then(CommonState::time_s),
             Source::Result(_) => None,
         }
     }
 
     pub(super) fn output(&self) -> Option<(usize, f64, String)> {
         match self.source {
-            Source::State(_, state) => self
+            Source::Spatial {
+                state: Some(state), ..
+            } => self
                 .output_index
                 .zip(state.time_s())
                 .map(|(index, time)| (index, time, state.identity().to_owned())),
-            Source::Result(_) => None,
+            Source::Result(_) | Source::Spatial { state: None, .. } => None,
         }
     }
 
     pub(super) fn field(&self, id: Id<kinds::Field>) -> Result<FieldCoefficients<'_>, Diagnostic> {
-        if let Source::State(..) = self.source {
+        if matches!(self.source, Source::Spatial { .. }) {
             let values = self.fields.get(&id).ok_or_else(|| {
-                invalid("Observable required Field is absent from the accepted State")
+                invalid("Observable required Field is absent from the accepted spatial point")
             })?;
             let (_, layouts) = super::super::linear::field_layout(
-                self.plan()
-                    .as_spatial()
-                    .expect("admitted spatial occurrence"),
+                self.spatial_plan().expect("admitted spatial occurrence"),
                 id,
             )?;
             let [(association, _)] = layouts.as_slice() else {
@@ -143,5 +210,21 @@ impl<'a> Occurrence<'a> {
             association: block.association,
             values: &block.values,
         })
+    }
+
+    pub(super) fn parameter_point(&self) -> Option<&crate::parameter_point::ParameterPoint> {
+        match self.source {
+            Source::Spatial { parameters, .. } => parameters,
+            Source::Result(_) => None,
+        }
+    }
+
+    pub(super) fn parameter<'p>(
+        &'p self,
+        program: &'p eqiora_sem::KernelProgram,
+        id: Id<kinds::Parameter>,
+    ) -> Option<&'p ValueLiteral> {
+        self.parameter_point()
+            .map_or_else(|| program.typed_value(id.erase()), |point| point.get(id))
     }
 }

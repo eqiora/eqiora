@@ -50,6 +50,7 @@ fn program(a: u32) -> DifferentiableProgram {
             document.field_ref("x").unwrap().erase(),
             document.observable_ref("y").unwrap().erase(),
         ],
+        Default::default(),
         None,
         &FaerLinearSolver,
     )

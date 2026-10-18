@@ -91,6 +91,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
             &inputs,
             &[output.erase()],
+            Default::default(),
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
@@ -120,6 +121,7 @@ fn equal_coefficient_counts_do_not_alias_distinct_meshes() {
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
             &[document.parameter_ref("source_scale").unwrap()],
             &[output.erase()],
+            Default::default(),
             None,
             &REFERENCE_LINEAR_SOLVER,
         )
@@ -166,6 +168,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &[diffusion],
         &[output.erase()],
+        Default::default(),
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -223,6 +226,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan.clone())),
         &inputs,
         &[output.erase()],
+        Default::default(),
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -528,6 +532,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
         &[output.erase()],
+        Default::default(),
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -552,6 +557,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(foreign_plan.clone())),
             &inputs,
             &[output.erase()],
+            Default::default(),
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
@@ -563,6 +569,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(foreign_plan)),
             &foreign_inputs,
             &[output.erase()],
+            Default::default(),
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )

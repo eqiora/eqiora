@@ -3,7 +3,7 @@ use super::super::projection::{coordinate_count, from_coordinates};
 use super::*;
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{BasisTabulation, DiscreteSpace};
-use crate::field_sampling::interpolate_nodal_components;
+use crate::field_sampling::CoefficientStencil;
 use eqiora_core::ValueType;
 use eqiora_sem::EvaluationPoint;
 
@@ -35,51 +35,21 @@ pub(super) fn nodal_field(
         .iter()
         .map(|vertex| vertex.index())
         .collect::<Vec<_>>();
-    let value =
-        interpolate_nodal_components(owned, block.values, coordinates, &indices, basis.values())?;
-    let [first, second] = directions.map(|values| {
-        values.map_or_else(
-            || Ok(vec![0.0; coordinates]),
-            |values| {
-                interpolate_nodal_components(owned, values, coordinates, &indices, basis.values())
-            },
-        )
-    });
-    let direction = [first?, second?];
-    let mut gradient_tangent = [
-        vec![0.0; coordinates * dimension],
-        vec![0.0; coordinates * dimension],
-    ];
-    let mut gradient = vec![0.0; coordinates * dimension];
-    for (local, vertex) in vertices.iter().enumerate() {
-        let owned_index = owned
-            .binary_search(&vertex.index())
-            .map_err(|_| invalid("point lies outside the exact Field cell closure"))?;
-        let derivative = physical_gradient(
-            basis.gradient(local).expect("nodal basis gradient exists"),
-            inverse,
-            dimension,
-        );
-        for component in 0..coordinates {
-            let index = owned_index * coordinates + component;
-            let coefficient = block.values[index];
-            for (axis, derivative) in derivative.iter().enumerate() {
-                gradient[component * dimension + axis] += coefficient * derivative;
-            }
-            for (order, values) in directions.iter().enumerate() {
-                let delta = values.map_or(0.0, |values| values[index]);
-                for (axis, derivative) in derivative.iter().enumerate() {
-                    gradient_tangent[order][component * dimension + axis] += delta * derivative;
-                }
-            }
-        }
-    }
-    Ok(PointField {
-        value: from_coordinates(value_type, &value)?,
-        gradient,
-        tangent: direction,
-        gradient_tangent,
-    })
+    let gradients = (0..vertices.len())
+        .map(|local| {
+            physical_gradient(
+                basis.gradient(local).expect("nodal basis gradient exists"),
+                inverse,
+                dimension,
+            )
+        })
+        .collect();
+    reconstructed_field(
+        value_type,
+        block,
+        directions,
+        CoefficientStencil::new(owned, coordinates, &indices, basis.values(), gradients)?,
+    )
 }
 
 pub(super) fn cell_field(
@@ -91,28 +61,46 @@ pub(super) fn cell_field(
     directions: [Option<&[f64]>; 2],
 ) -> Result<PointField, Diagnostic> {
     let count = coordinate_count(value_type)?;
-    if block.association != CommonFieldAssociation::Cell
-        || block.values.len() != owned.len() * count
-        || directions
-            .iter()
-            .flatten()
-            .any(|values| values.len() != block.values.len())
-    {
+    if block.association != CommonFieldAssociation::Cell {
         return Err(invalid(
-            "cell-constant observation requires complete cell coordinates",
+            "cell-constant observation requires cell coefficients",
         ));
     }
-    let index = owned
-        .binary_search(&cell.index())
-        .map_err(|_| invalid("point lies outside the exact Field cell support"))?;
-    let range = index * count..(index + 1) * count;
+    reconstructed_field(
+        value_type,
+        block,
+        directions,
+        CoefficientStencil::new(
+            owned,
+            count,
+            &[cell.index()],
+            &[1.],
+            vec![vec![0.; dimension]],
+        )?,
+    )
+}
+
+fn reconstructed_field(
+    value_type: &ValueType,
+    block: FieldCoefficients<'_>,
+    directions: [Option<&[f64]>; 2],
+    stencil: CoefficientStencil,
+) -> Result<PointField, Diagnostic> {
+    let (value, gradient) = stencil.sample(block.values)?;
+    let [first, second] = directions.map(|direction| {
+        direction.map_or_else(
+            || Ok((vec![0.; value.len()], vec![0.; gradient.len()])),
+            |direction| stencil.sample(direction),
+        )
+    });
+    let (first, first_gradient) = first?;
+    let (second, second_gradient) = second?;
     Ok(PointField {
-        value: from_coordinates(value_type, &block.values[range.clone()])?,
-        gradient: vec![0.; count * dimension],
-        tangent: directions.map(|values| {
-            values.map_or_else(|| vec![0.; count], |values| values[range.clone()].to_vec())
-        }),
-        gradient_tangent: [vec![0.; count * dimension], vec![0.; count * dimension]],
+        value: from_coordinates(value_type, &value)?,
+        gradient,
+        tangent: [first, second],
+        gradient_tangent: [first_gradient, second_gradient],
+        reconstruction: Some(stencil),
     })
 }
 
@@ -137,7 +125,7 @@ pub(in crate::common_result::observe) fn sample(
                 .map_err(|error| invalid(error.to_string()));
         }
     }
-    if let Some(owner) = result.plan().authenticated_mesh()
+    if let Some(owner) = result.authenticated_mesh()
         && let Some(mesh) = owner.simplicial_mesh()
     {
         return sample_simplicial(result, field, point, mesh.mesh());
@@ -157,8 +145,7 @@ fn point_source<'a>(
     Diagnostic,
 > {
     let plan = result
-        .plan()
-        .as_spatial()
+        .spatial_plan()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted spatial Plan"))?;
     let value_type = plan
         .fields()
@@ -269,7 +256,6 @@ fn reconstruct(
         && plan.field_space(field)?
             != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN))
         || result
-            .plan()
             .authenticated_mesh()
             .and_then(|owner| owner.cartesian_mesh().cloned())
             .is_none()
@@ -286,7 +272,6 @@ fn reconstruct(
     }
     let (_, owned) = plan.field_support(field.erase())?;
     let owner = result
-        .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("point Field has no authenticated Mesh"))?;
     let artifact = owner

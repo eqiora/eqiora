@@ -190,6 +190,7 @@ fn differentiated_complex_primal_uses_the_same_typed_backend() {
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         backend,
     )

@@ -1,5 +1,7 @@
 //! Common Plan dispatch and immutable evaluation acceptance.
 use super::*;
+use eqiora_meshing::QuadratureRule;
+use std::collections::HashMap;
 
 impl DifferentiableProgram {
     pub(crate) const fn plan(&self) -> &ResolvedCommonPlan {
@@ -16,7 +18,8 @@ impl DifferentiableProgram {
     /// Finite nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or
     /// instantaneous real/complex Observables, in component real/imaginary order.
-    /// Static spatial Plans select ordered complete real/complex Fields and require no seed.
+    /// Static spatial Plans select complete Fields and reduced Observables, with
+    /// explicit quadrature for spatial integrals and no finite seed.
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.
@@ -24,11 +27,17 @@ impl DifferentiableProgram {
         plan: ResolvedCommonPlan,
         inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
         outputs: &[ModelEntityRef],
+        quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
         initial: Option<CommonAlgebraicState>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let identity =
-            DifferentiableProgramIdentity::from_plan(&plan, inputs, outputs, initial.as_ref())?;
+        let identity = DifferentiableProgramIdentity::from_plan(
+            &plan,
+            inputs,
+            outputs,
+            &quadratures,
+            initial.as_ref(),
+        )?;
         if plan.linear_solver_provider() != Some(backend.provider()) {
             return Err(single(invalid(
                 "differentiable backend must match the exact Plan provider",
@@ -44,8 +53,16 @@ impl DifferentiableProgram {
             .iter()
             .map(|value| value.entity())
             .collect::<Vec<_>>();
-        let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
-            .map_err(single)?;
+        let native = accept_plan_point(
+            &plan,
+            initial.as_ref(),
+            &selected,
+            None,
+            &outputs,
+            identity.observation_quadratures(),
+            backend,
+        )
+        .map_err(single)?;
         let default =
             DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
         Ok(Self {
@@ -110,6 +127,7 @@ impl DifferentiableProgram {
                 .iter()
                 .map(DifferentiableValueSignature::entity)
                 .collect::<Vec<_>>(),
+            self.identity.observation_quadratures(),
             self.backend,
         )
         .map_err(single)?;
@@ -188,10 +206,13 @@ fn accept_plan_point(
     selected: &[Id<kinds::Parameter>],
     values: Option<&[f64]>,
     outputs: &[RawId],
+    quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(selected, values, outputs),
+        ResolvedCommonPlan::Spatial(plan) => {
+            plan.differentiate(selected, values, outputs, quadratures)
+        }
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;
             let initial = match initial {

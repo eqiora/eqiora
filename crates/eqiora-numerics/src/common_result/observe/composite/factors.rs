@@ -241,7 +241,7 @@ impl Context<'_> {
                 selected.ok_or_else(|| invalid("factor input has no exact point context"))?;
             let symbol = match input {
                 eqiora_sem::EvaluationInput::Value(SymbolRef::Field(field))
-                    if self.occurrence.plan().as_spatial().is_some() =>
+                    if self.occurrence.spatial_plan().is_some() =>
                 {
                     return spatial::sample(self.occurrence, field, selected);
                 }

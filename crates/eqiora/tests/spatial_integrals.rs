@@ -128,6 +128,23 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
     let area = eqiora::meshing::simplex_duffy_gauss_legendre(2, 2).unwrap();
     for permuted in [false, true] {
         let plan = resolve(&model, &geometry, permuted, [4. / 3., 1.]);
+        // Numerical observation meaning is available before a Result exists.
+        // Shared dependencies use one rule per exact measure, including both
+        // triangular volume and line facets in a single output selection.
+        let selections = [
+            observable("net_flux"),
+            observable("diagonal_temperature"),
+            observable("volume_temperature"),
+        ];
+        assert_eq!(
+            plan.observation_quadratures(&selections, 2).unwrap(),
+            HashMap::from([
+                (domain("base"), line.clone()),
+                (domain("diagonal"), line.clone()),
+                (domain("left"), line.clone()),
+                (domain("body"), area.clone()),
+            ])
+        );
         let result = plan
             .as_spatial()
             .unwrap()
@@ -149,7 +166,10 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
             ] {
                 let rules = HashMap::from([(domain(support), rule.clone())]);
                 assert_eq!(
-                    result.observation_quadratures(observable(name), 2).unwrap(),
+                    result
+                        .plan()
+                        .observation_quadratures(&[observable(name)], 2)
+                        .unwrap(),
                     rules
                 );
                 let sample = result

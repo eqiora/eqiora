@@ -29,6 +29,7 @@ def compile(
     inputs: Sequence[ParameterRef],
     outputs: Sequence[FieldRef | ObservableRef],
     state: State | None = None,
+    quadrature_points: int | None = None,
 ) -> DifferentiableProgram:
     """Compile a differentiable program over an ordered set of parameters.
 

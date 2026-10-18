@@ -27,6 +27,17 @@ pub(super) struct PointField {
     gradient: Vec<f64>,
     tangent: [Vec<f64>; 2],
     gradient_tangent: [Vec<f64>; 2],
+    reconstruction: Option<crate::field_sampling::CoefficientStencil>,
+}
+
+pub(super) struct IntegralPartials<'a> {
+    pub(super) parameters: &'a [eqiora_ir::ScalarSymbolCoordinate],
+    pub(super) rows: Vec<super::partials::Covector>,
+}
+
+pub(super) enum Derivative<'a, 'state> {
+    State(&'a StateDerivative<'state>),
+    Partials(&'a mut IntegralPartials<'state>),
 }
 
 pub(super) fn integrate(
@@ -36,19 +47,22 @@ pub(super) fn integrate(
     typed: &TypedResidual<RawId>,
     domain: Id<kinds::Domain>,
     quadrature: &QuadratureRule,
-    tangent: Option<&StateDerivative<'_>>,
+    derivative: Option<Derivative<'_, '_>>,
 ) -> Result<ValueLiteral, Diagnostic> {
     let plan = result
-        .plan()
-        .as_spatial()
+        .spatial_plan()
         .ok_or_else(|| invalid("spatial Observable requires an admitted spatial Plan"))?;
     let owner = result
-        .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("spatial Observable Result has no authenticated mesh"))?;
     let physical_interface = matches!(program.node(domain.erase()),
         Some(eqiora_schema::kernel::KernelNode::Domain(definition))
         if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. }));
+    let (tangent, partials) = match derivative {
+        None => (None, None),
+        Some(Derivative::State(tangent)) => (Some(tangent), None),
+        Some(Derivative::Partials(partials)) => (None, Some(partials)),
+    };
     let integrand = Integrand {
         result,
         program,
@@ -56,6 +70,7 @@ pub(super) fn integrate(
         typed,
         quadrature,
         tangent,
+        partials,
     };
     if let Some(artifact) = owner.cartesian_mesh() {
         let mesh = artifact.mesh();
@@ -95,6 +110,7 @@ struct Integrand<'a, 'state> {
     typed: &'a TypedResidual<RawId>,
     quadrature: &'a QuadratureRule,
     tangent: Option<&'a StateDerivative<'state>>,
+    partials: Option<&'a mut IntegralPartials<'state>>,
 }
 
 impl Integrand<'_, '_> {
@@ -111,8 +127,9 @@ impl Integrand<'_, '_> {
             typed,
             quadrature,
             tangent,
+            mut partials,
         } = self;
-        let plan = result.plan().as_spatial().expect("admitted spatial Plan");
+        let plan = result.spatial_plan().expect("admitted spatial Plan");
         let requested: BTreeSet<_> = typed
             .expression()
             .nodes()
@@ -147,9 +164,17 @@ impl Integrand<'_, '_> {
             .iter()
             .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        let prescribed = crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
-            program, &requested, dimension,
-        )?;
+        let mut prescribed =
+            crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
+                program, &requested, dimension,
+            )?;
+        if let Some(point) = result.parameter_point() {
+            prescribed.bind_parameter_point(point)?;
+        }
+        let prescribed_partials = partials
+            .as_ref()
+            .map(|partials| prescribed.parameter_partials(partials.parameters, dimension))
+            .transpose()?;
         let local_variation = match tangent {
             Some(StateDerivative::Second { wrt, .. }) => Some(
                 eqiora_compiler::AuthoredFormExpressionV1::derive_spatial_variation(
@@ -312,6 +337,7 @@ impl Integrand<'_, '_> {
                         PointField {
                             value,
                             gradient,
+                            reconstruction: None,
                             tangent: [vec![0.0; count], vec![0.0; count]],
                             gradient_tangent: [
                                 vec![0.0; count * dimension],
@@ -320,6 +346,16 @@ impl Integrand<'_, '_> {
                         },
                     );
                 })?;
+                if let Some(partials) = partials.as_deref_mut() {
+                    projection.pullback(
+                        result,
+                        &coordinates,
+                        &fields,
+                        prescribed_partials.as_ref().expect("selected partials"),
+                        point.weight * measure,
+                        partials,
+                    )?;
+                }
                 let value = if let Some(local) = &local_variation {
                     if total.len() != 1
                         || fields.values().any(|field| {
@@ -332,7 +368,7 @@ impl Integrand<'_, '_> {
                             "structured second State variations require component variation lowering",
                         ));
                     }
-                    vec![variation::evaluate(local, program, &coordinates, &fields)?]
+                    vec![variation::evaluate(local, result, &coordinates, &fields)?]
                 } else {
                     projection.evaluate(result, &coordinates, &fields, tangent.is_some())?
                 };

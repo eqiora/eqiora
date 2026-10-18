@@ -13,7 +13,136 @@ struct PrescribedField {
     gradient: Vec<Data<f64>>,
 }
 
+/// Derive once per selected Parameter, then reuse at every quadrature point.
+pub(crate) struct PrescribedFieldPartials<'a> {
+    source: &'a PrescribedFieldData,
+    parameters: &'a [eqiora_ir::ScalarSymbolCoordinate],
+    dimension: usize,
+    derivatives: Vec<PrescribedFieldData>,
+}
+
+impl PrescribedFieldPartials<'_> {
+    /// Activity follows source identities, never a sampled zero derivative.
+    pub(crate) fn active(
+        &self,
+        field: RawId,
+        component: usize,
+        axis: Option<usize>,
+    ) -> Result<bool, Diagnostic> {
+        let data = self
+            .source
+            .coordinate(field, component, axis, self.dimension)?;
+        for parameter in self.parameters {
+            if !data.constant_in_direction(&|coordinate| f64::from(coordinate == parameter))? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub(crate) fn pullback(
+        &self,
+        point: &[f64],
+        field: RawId,
+        component: usize,
+        axis: Option<usize>,
+        weight: f64,
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if output.len() != self.derivatives.len() {
+            return Err(invalid(
+                "prescribed Field partial has inconsistent Parameters",
+            ));
+        }
+        for (partial, output) in self.derivatives.iter().zip(output) {
+            let data = partial.coordinate(field, component, axis, self.dimension)?;
+            *output += weight * data.evaluate(point)?;
+            if !output.is_finite() {
+                return Err(invalid("prescribed Field pullback is non-finite"));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl PrescribedFieldData {
+    fn coordinate(
+        &self,
+        field: RawId,
+        component: usize,
+        axis: Option<usize>,
+        dimension: usize,
+    ) -> Result<&Data<f64>, Diagnostic> {
+        let field = self
+            .fields
+            .get(&field)
+            .ok_or_else(|| invalid("prescribed Field partial is outside the observation"))?;
+        match axis {
+            None => field.data.get(component),
+            Some(axis) if axis < dimension => field.gradient.get(component * dimension + axis),
+            _ => None,
+        }
+        .ok_or_else(|| invalid("prescribed Field partial coordinate is unavailable"))
+    }
+
+    pub(crate) fn parameter_partials<'a>(
+        &'a self,
+        parameters: &'a [eqiora_ir::ScalarSymbolCoordinate],
+        dimension: usize,
+    ) -> Result<PrescribedFieldPartials<'a>, Diagnostic> {
+        let derivatives = parameters
+            .iter()
+            .map(|parameter| {
+                self.fields
+                    .iter()
+                    .map(|(&id, field)| {
+                        let differentiate = |data: &Data<f64>| {
+                            data.derivative(
+                                &|coordinate| f64::from(coordinate == parameter),
+                                dimension,
+                            )
+                        };
+                        Ok((
+                            id,
+                            PrescribedField {
+                                value_type: field.value_type.clone(),
+                                data: field
+                                    .data
+                                    .iter()
+                                    .map(differentiate)
+                                    .collect::<Result<_, _>>()?,
+                                gradient: field
+                                    .gradient
+                                    .iter()
+                                    .map(differentiate)
+                                    .collect::<Result<_, _>>()?,
+                            },
+                        ))
+                    })
+                    .collect::<Result<_, Diagnostic>>()
+                    .map(|fields| Self { fields })
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(PrescribedFieldPartials {
+            source: self,
+            parameters,
+            dimension,
+            derivatives,
+        })
+    }
+
+    pub(crate) fn bind_parameter_point(
+        &mut self,
+        point: &crate::parameter_point::ParameterPoint,
+    ) -> Result<(), Diagnostic> {
+        for field in self.fields.values_mut() {
+            for value in field.data.iter_mut().chain(&mut field.gradient) {
+                *value = value.bind_parameter_point(point)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn derive(
         program: &KernelProgram,
         requested: &BTreeSet<RawId>,

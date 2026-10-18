@@ -5,6 +5,8 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
 use num_complex::Complex64 as C;
 
+mod activity;
+
 #[test]
 fn coefficient_identity_preserves_physical_factor_across_boundary_restriction() {
     let source = r#"model Coordinates() {
@@ -568,11 +570,14 @@ fn composed_data_sqrt_derivative_checks_its_domain() {
             Data::constant(1, value),
         )));
         assert!(root.evaluate(&[0.0]).is_ok());
-        assert!(
+        // Both are fixed complex values, independent of the physical coordinate.
+        // Their spatial derivative is zero even on the principal branch cut.
+        assert_eq!(
             root.coordinate_derivative(0, 1)
                 .unwrap()
                 .evaluate(&[0.0])
-                .is_err()
+                .unwrap(),
+            C::new(0., 0.)
         );
     }
     let root = Data(Arc::new(Node::Math(

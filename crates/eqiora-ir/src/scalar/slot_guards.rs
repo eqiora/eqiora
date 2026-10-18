@@ -50,6 +50,7 @@ impl ScalarInputOperatorIr {
         let ScalarLinearization {
             inputs,
             bindings,
+            active,
             unknown_dimension,
             parameter_dimension,
             ..
@@ -59,6 +60,7 @@ impl ScalarInputOperatorIr {
             roots: std::borrow::Cow::Owned(roots),
             inputs,
             bindings,
+            active,
             unknown_dimension,
             parameter_dimension,
         })

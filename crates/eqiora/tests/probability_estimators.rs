@@ -69,6 +69,7 @@ fn compile_fixture(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &inputs,
         &outputs,
+        Default::default(),
         None,
         &FaerLinearSolver,
     )

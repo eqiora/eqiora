@@ -824,22 +824,20 @@ fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
 }
 
 fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCommonMesh> {
-    match plan {
+    let admission = match plan {
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Time(_) => None,
-        ResolvedCommonPlan::Spatial(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources().clone(),
-            model_geometries: plan.admission.model_geometries().to_vec(),
-        }),
-        ResolvedCommonPlan::SteadyStokes(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources().clone(),
-            model_geometries: plan.admission.model_geometries().to_vec(),
-        }),
-        ResolvedCommonPlan::TransientFlow(plan) => Some(AuthenticatedCommonMesh {
-            resources: plan.admission.resources().clone(),
-            model_geometries: plan.admission.model_geometries().to_vec(),
-        }),
+        | ResolvedCommonPlan::Time(_) => return None,
+        ResolvedCommonPlan::Spatial(plan) => &plan.admission,
+        ResolvedCommonPlan::SteadyStokes(plan) => &plan.admission,
+        ResolvedCommonPlan::TransientFlow(plan) => &plan.admission,
+    };
+    Some(admission.authenticated_mesh())
+}
+
+impl CommonSpatialPlan {
+    pub(crate) fn authenticated_mesh(&self) -> AuthenticatedCommonMesh {
+        self.admission.authenticated_mesh()
     }
 }
 
