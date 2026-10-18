@@ -39,15 +39,30 @@ where
             .ok_or_else(|| invalid("Cartesian facet adjacency is unavailable"))?;
         let mut point = vec![0.; dimension];
         geometry.map_point(&vec![0.; facet_dimension], &mut point)?;
+        let prescribed = |data: FluxData<'_, S>, normal: f64| -> Result<Vec<S>, Diagnostic> {
+            (0..components)
+                .map(|component| {
+                    integrate_boundary_flux(&geometry, quadrature, &|point| {
+                        (data.prescribed)(component, normal_axis, point)
+                            .map(|value| value * <S as From<f64>>::from(normal))
+                    })
+                })
+                .collect()
+        };
         match cells.as_slice() {
             [left, right] => {
                 let left = left.entity.index();
                 let right = right.entity.index();
                 let distance = (centers[right][normal_axis] - centers[left][normal_axis]).abs();
                 require_positive_distance(distance)?;
-                for test in 0..components {
+                let offsets = prescribed(
+                    flux.selected(),
+                    (centers[right][normal_axis] - centers[left][normal_axis]).signum(),
+                )?;
+                for (test, &offset) in offsets.iter().enumerate() {
                     for trial in 0..components {
-                        let coefficient = (flux.selected().coefficient)(test, trial, &point)?;
+                        let coefficient =
+                            (flux.selected().coefficient)(test, trial, normal_axis, &point)?;
                         let transmissibility = facet_transmissibility(
                             &geometry,
                             distance,
@@ -63,6 +78,7 @@ where
                             test,
                             trial,
                             transmissibility,
+                            prescribed_flux: if test == trial { offset } else { S::zero() },
                             kind: CartesianFacetKind::Interior { left, right },
                         });
                     }
@@ -83,7 +99,7 @@ where
                                         facet_transmissibility(
                                             &geometry,
                                             distance,
-                                            (data.coefficient)(test, trial, &point)?,
+                                            (data.coefficient)(test, trial, normal_axis, &point)?,
                                             quadrature,
                                             if test == trial {
                                                 properties
@@ -108,6 +124,16 @@ where
                         )?)),
                     }).collect()
                     };
+                let normal = match side {
+                    BoundarySide::Lower => -1.0,
+                    BoundarySide::Upper => 1.0,
+                };
+                let offsets = prescribed(flux.value, normal)?;
+                let partial_offsets = flux
+                    .direction
+                    .map(|direction| prescribed(direction, normal))
+                    .transpose()?;
+                let selected_offsets = partial_offsets.as_ref().unwrap_or(&offsets);
                 let matrix = coefficients(flux.value, properties)?;
                 let data = values(flux.value)?;
                 let direction = flux
@@ -122,7 +148,17 @@ where
                 let (effective, rhs) = boundary::response(
                     &matrix,
                     &data,
-                    direction.as_ref().map(|(a, b)| (a, b.as_slice())),
+                    &offsets,
+                    direction.as_ref().map(|(a, b)| {
+                        (
+                            a,
+                            b.as_slice(),
+                            partial_offsets
+                                .as_ref()
+                                .expect("selected direction")
+                                .as_slice(),
+                        )
+                    }),
                 )?;
                 let selected = direction.as_ref().map_or(&matrix, |(matrix, _)| matrix);
                 for test in 0..components {
@@ -131,6 +167,11 @@ where
                             test,
                             trial,
                             transmissibility: selected[test][trial],
+                            prescribed_flux: if test == trial {
+                                selected_offsets[test]
+                            } else {
+                                S::zero()
+                            },
                             kind: CartesianFacetKind::Boundary {
                                 axis,
                                 side,

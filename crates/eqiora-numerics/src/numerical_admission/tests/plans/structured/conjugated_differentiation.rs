@@ -54,7 +54,15 @@ fn conjugated_gradient_and_prescribed_flux_retain_natural_trace_derivatives() {
         }
       }
     "#;
-    check_derivatives(source, &[CommonSpatialPolicy::Q1], true, ScalarDomain::Real);
+    check_derivatives(
+        source,
+        &[
+            CommonSpatialPolicy::Q1,
+            CommonSpatialPolicy::CellCenteredTpfa,
+        ],
+        true,
+        ScalarDomain::Real,
+    );
 }
 
 #[test]

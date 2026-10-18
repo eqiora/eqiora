@@ -43,8 +43,15 @@ fn check<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f
         CartesianBoundaryValue::Natural(partials[1]),
         CartesianBoundaryValue::Natural(partials[2]),
     ];
-    let (a, b) = response(&matrix, &data, None).unwrap();
-    let (da, db) = response(&matrix, &data, Some((&derivative, &direction))).unwrap();
+    let prescribed = vec![S::zero(); data.len()];
+    let (a, b) = response(&matrix, &data, &prescribed, None).unwrap();
+    let (da, db) = response(
+        &matrix,
+        &data,
+        &prescribed,
+        Some((&derivative, &direction, &prescribed)),
+    )
+    .unwrap();
     for (actual, expected) in [a[0][0], da[0][0], b[0], db[0]].into_iter().zip(expected) {
         assert!((actual - expected).abs() < 1e-12);
     }
@@ -67,12 +74,12 @@ fn singular_coupled_boundary_rejects_but_unused_natural_trace_is_not_inverted() 
         CartesianBoundaryValue::Natural(0.),
     ];
     assert!(
-        response(&vec![vec![2., 1.], vec![0., 0.]], &data, None)
+        response(&vec![vec![2., 1.], vec![0., 0.]], &data, &[0.; 2], None)
             .unwrap_err()
             .message()
             .contains("singular")
     );
-    let (matrix, rhs) = response(&vec![vec![2., 0.], vec![0., 0.]], &data, None).unwrap();
+    let (matrix, rhs) = response(&vec![vec![2., 0.], vec![0., 0.]], &data, &[0.; 2], None).unwrap();
     assert_eq!(matrix, vec![vec![2., 0.], vec![0., 0.]]);
     assert_eq!(rhs, vec![14., 0.]);
     let bad = [
@@ -80,7 +87,7 @@ fn singular_coupled_boundary_rejects_but_unused_natural_trace_is_not_inverted() 
         CartesianBoundaryValue::Natural(0.),
     ];
     assert!(
-        response(&matrix, &data, Some((&matrix, &bad)))
+        response(&matrix, &data, &[0.; 2], Some((&matrix, &bad, &[0.; 2])))
             .unwrap_err()
             .message()
             .contains("boundary kind")

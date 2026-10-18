@@ -62,7 +62,7 @@ fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() 
     let row = form.conservative_system().unwrap();
     assert_eq!(row.fields().collect::<Vec<_>>(), vec![(ids["u"], 1)]);
     for x in [0., 2., 6.] {
-        complex_close(row.diffusion(0, 0, &[x]).unwrap(), C::new(6., 6.));
+        complex_close(row.diffusion(0, 0, 0, &[x]).unwrap(), C::new(6., 6.));
         complex_close(row.reaction(0, 0, &[x]).unwrap(), C::new(3., -1.));
         complex_close(row.source(0, &[x]).unwrap(), C::new(1., 3.));
     }
@@ -102,7 +102,7 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
                 assert_eq!(row.source(i, &[x]).unwrap(), [1., 3.][i]);
                 for j in 0..2 {
                     assert_eq!(
-                        row.diffusion(i, j, &[x]).unwrap(),
+                        row.diffusion(i, j, 0, &[x]).unwrap(),
                         [[6., -6.], [6., 6.]][i][j]
                     );
                     assert_eq!(row.reaction(i, j, &[x]).unwrap(), reaction[i][j]);
@@ -265,4 +265,33 @@ fn complex_region_assembly_eliminates_fixed_phase_without_conjugating_trial() {
     assert_eq!(system.matrix().values().len(), 1);
     complex_close(system.matrix().values()[0], C::new(7., -1.));
     complex_close(system.rhs()[0], C::new(-3., 7.));
+}
+
+#[test]
+fn conservative_conjugated_gradient_keeps_spatial_axes_and_prescribed_flux() {
+    let source = HELMHOLTZ.replace("box(0, 6)", "box(0, 2, 0, 3)")
+        .replace("variable u:", "parameter g:vector<complex<m>,2>=tensor_value(frame=body,components=[math.complex(1[m],2[m]),math.complex(3[m],4[m])]); variable u:")
+        .replace("a*grad(u)", "a*grad(u)+1[m^2]*math.conj(grad(u))+g");
+    let (program, ids) = fixture(&source);
+    let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 2).unwrap();
+    let row = form
+        .conservative_system()
+        .unwrap()
+        .project::<super::super::coordinates::Real>()
+        .unwrap();
+    assert!(!row.has_positive_diffusion());
+    for axis in 0..2 {
+        for i in 0..2 {
+            for j in 0..2 {
+                assert_eq!(
+                    row.diffusion(i, j, axis, &[1., 2.]).unwrap(),
+                    [[7., -6.], [6., 5.]][i][j]
+                );
+            }
+            assert_eq!(
+                row.prescribed_flux(i, axis, &[1., 2.]).unwrap(),
+                [[1., 2.], [3., 4.]][axis][i]
+            );
+        }
+    }
 }

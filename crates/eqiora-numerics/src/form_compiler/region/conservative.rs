@@ -42,28 +42,51 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                                 row.forcing.len() != trial.forcing.len()
                             }
                             Pairing::Components {
-                                test: BasisComponent::Value(test),
-                                trial: BasisComponent::Value(component),
-                            } => test >= row.forcing.len() || component >= trial.forcing.len(),
+                                test,
+                                trial: component,
+                            } => match (test, component) {
+                                (BasisComponent::Value(test), BasisComponent::Value(component)) => {
+                                    test >= row.forcing.len() || component >= trial.forcing.len()
+                                }
+                                (
+                                    BasisComponent::Gradient {
+                                        component: test,
+                                        axis,
+                                    },
+                                    BasisComponent::Gradient {
+                                        component,
+                                        axis: trial_axis,
+                                    },
+                                ) => {
+                                    test >= row.forcing.len()
+                                        || component >= trial.forcing.len()
+                                        || axis >= self.dimension
+                                        || trial_axis != axis
+                                }
+                                _ => true,
+                            },
                             _ => true,
                         }
                 })
             {
                 return Err(invalid(
-                    "conservative assembly requires steady isotropic-diffusion/component-reaction blocks in their exact coefficient domain",
+                    "conservative assembly requires steady axis-aligned-diffusion/component-reaction blocks in their exact coefficient domain",
                 ));
             }
             let gradients = row
                 .terms
                 .iter()
-                .filter(|term| term.pairing == Pairing::Gradient);
+                .filter(|term| gradient_pairing(term.pairing));
             if !gradients.eq(row.flux.iter().filter_map(|flux| match flux {
                 flux::FluxTerm::Trial(term) => Some(term),
                 flux::FluxTerm::Isotropic(_) | flux::FluxTerm::Prescribed { .. } => None,
             })) || row.flux.iter().any(|flux| {
-                !matches!(flux, flux::FluxTerm::Trial(term) if term.pairing == Pairing::Gradient)
+                matches!(flux, flux::FluxTerm::Trial(term) if !gradient_pairing(term.pairing))
             }) {
-                return Err(invalid("conservative assembly requires its complete isotropic gradient flux"));
+                return Err(invalid("conservative assembly requires its complete axis-aligned gradient flux"));
+            }
+            for flux in &row.flux {
+                flux.prescribed_components(self.dimension, row.forcing.len())?;
             }
         }
         ConservativeSystem::new(rows, self.dimension)
@@ -111,12 +134,8 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
         self.coordinates.len()
     }
 
-    pub(crate) fn has_diffusion(&self) -> bool {
-        self.rows.values().any(|row| {
-            row.terms
-                .iter()
-                .any(|term| term.pairing == Pairing::Gradient)
-        })
+    pub(crate) fn has_flux(&self) -> bool {
+        self.rows.values().any(|row| !row.flux.is_empty())
     }
 
     pub(crate) fn has_reaction(&self) -> bool {
@@ -140,12 +159,14 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
             let gradients = row
                 .terms
                 .iter()
-                .filter(|term| term.pairing == Pairing::Gradient)
+                .filter(|term| gradient_pairing(term.pairing))
                 .collect::<Vec<_>>();
             !gradients.is_empty()
-                && gradients
-                    .iter()
-                    .all(|term| term.trial == row.tested && term.positive_diffusion)
+                && gradients.iter().all(|term| {
+                    term.pairing == Pairing::Gradient
+                        && term.trial == row.tested
+                        && term.positive_diffusion
+                })
         })
     }
 
@@ -153,14 +174,57 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
         &self,
         test: usize,
         trial: usize,
+        axis: usize,
         point: &[f64],
     ) -> Result<P::Scalar, Diagnostic> {
+        if axis >= self.dimension {
+            return Err(invalid("conservative normal axis is out of bounds"));
+        }
         self.coefficient(
             test,
             trial,
-            |pairing, test, trial| test == trial && pairing == Pairing::Gradient,
+            |pairing, test, trial| {
+                (test == trial && pairing == Pairing::Gradient)
+                    || pairing
+                        == Pairing::Components {
+                            test: BasisComponent::Gradient {
+                                component: test,
+                                axis,
+                            },
+                            trial: BasisComponent::Gradient {
+                                component: trial,
+                                axis,
+                            },
+                        }
+            },
             point,
         )
+    }
+
+    pub(crate) fn prescribed_flux(
+        &self,
+        test: usize,
+        axis: usize,
+        point: &[f64],
+    ) -> Result<P::Scalar, Diagnostic> {
+        if axis >= self.dimension {
+            return Err(invalid("conservative normal axis is out of bounds"));
+        }
+        let (field, component, part) = self.coordinate(test)?;
+        let row = self.rows[&field];
+        let mut value = <P::Scalar as From<f64>>::from(0.0);
+        for flux in &row.flux {
+            if let Some((data, mut coordinates)) =
+                flux.prescribed_components(self.dimension, row.forcing.len())?
+                && coordinates.any(|coordinate| coordinate == component * self.dimension + axis)
+            {
+                value += P::component(data.evaluate(point)?, part);
+            }
+        }
+        if !value.is_finite() {
+            return Err(invalid("conservative prescribed flux sum is non-finite"));
+        }
+        Ok(value)
     }
 
     pub(crate) fn reaction(
@@ -217,4 +281,15 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
         }
         Ok(value)
     }
+}
+
+fn gradient_pairing(pairing: Pairing) -> bool {
+    matches!(
+        pairing,
+        Pairing::Gradient
+            | Pairing::Components {
+                test: BasisComponent::Gradient { .. },
+                trial: BasisComponent::Gradient { .. },
+            }
+    )
 }

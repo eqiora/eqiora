@@ -1,3 +1,4 @@
+mod affine_flux;
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 
 use super::*;
@@ -26,7 +27,8 @@ fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux()
                 &mesh,
                 1,
                 Some(crate::cartesian_elliptic::FvmFlux::new(
-                    &|_, _, _: &[f64]| Ok(C::new(2., 3.)),
+                    &|_, _, _, _: &[f64]| Ok(C::new(2., 3.)),
+                    &|_, _, _: &[f64]| Ok(C::new(0., 0.)),
                     &|_, axis, side, x: &[f64]| boundary(axis, side, x),
                 )),
                 &|_, _, _| Ok(C::new(3., -2.)),
@@ -86,9 +88,11 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
 
     let transmissibility = C::new(2., -3.);
     let values = [C::new(4., 1.), C::new(1., -2.)];
-    let interior = CartesianInteriorFlux
-        .evaluate(&transmissibility, &QuadratureRule::point())
-        .unwrap();
+    let interior = CartesianInteriorFlux {
+        prescribed_flux: C::new(0., 0.),
+    }
+    .evaluate(&transmissibility, &QuadratureRule::point())
+    .unwrap();
     let action = |local: &LocalContribution<C>, row| {
         local.entry(row, 0).unwrap() * values[0] + local.entry(row, 1).unwrap() * values[1]
     };
@@ -98,6 +102,7 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
     let (matrix, load) = boundary::response(
         &vec![vec![transmissibility]],
         &[CartesianBoundaryValue::Essential(values[1])],
+        &[C::new(0., 0.)],
         None,
     )
     .unwrap();
@@ -163,7 +168,8 @@ fn coupled_volume_case<S>(
         &mesh,
         2,
         Some(crate::cartesian_elliptic::FvmFlux::new(
-            &|test: usize, trial: usize, _: &[f64]| Ok(diffusion[test][trial]),
+            &|test: usize, trial: usize, _, _: &[f64]| Ok(diffusion[test][trial]),
+            &|_, _, _: &[f64]| Ok(S::zero()),
             &|component, _, _, x: &[f64]| {
                 Ok(CartesianBoundaryValue::Essential(exact(component, x[0])))
             },
@@ -240,11 +246,18 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
             &mesh,
             1,
             Some(crate::cartesian_elliptic::FvmFlux::new(
-                &|_, _, _: &[f64]| {
+                &|_, _, _, _: &[f64]| {
                     if failure == 0 {
                         Err(invalid("diffusion evaluation failed"))
                     } else {
                         Ok(1.)
+                    }
+                },
+                &|_, _, _: &[f64]| {
+                    if failure == 4 {
+                        Err(invalid("prescribed flux evaluation failed"))
+                    } else {
+                        Ok(0.)
                     }
                 },
                 &|_, _, _, _: &[f64]| {
@@ -275,9 +288,15 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
             LinearOperatorProperties::General,
         )
     };
-    for (index, owner) in ["diffusion", "reaction", "source", "boundary"]
-        .iter()
-        .enumerate()
+    for (index, owner) in [
+        "diffusion",
+        "reaction",
+        "source",
+        "boundary",
+        "prescribed flux",
+    ]
+    .iter()
+    .enumerate()
     {
         assert!(
             problem(index)
@@ -300,7 +319,8 @@ fn solve(
         &mesh,
         1,
         Some(crate::cartesian_elliptic::FvmFlux::new(
-            &|_, _, _: &[f64]| Ok(1.),
+            &|_, _, _, _: &[f64]| Ok(1.),
+            &|_, _, _: &[f64]| Ok(0.),
             &|_, _, side, _: &[f64]| {
                 Ok(CartesianBoundaryValue::Natural(match side {
                     BoundarySide::Lower => fluxes[0],

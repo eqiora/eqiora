@@ -2,11 +2,13 @@
 use super::*;
 
 type Matrix<S> = Vec<Vec<S>>;
+type Direction<'a, S> = (&'a Matrix<S>, &'a [CartesianBoundaryValue<S>], &'a [S]);
 
 pub(super) fn response<S>(
     matrix: &Matrix<S>,
     data: &[CartesianBoundaryValue<S>],
-    direction: Option<(&Matrix<S>, &[CartesianBoundaryValue<S>])>,
+    prescribed_flux: &[S],
+    direction: Option<Direction<'_, S>>,
 ) -> Result<(Matrix<S>, Vec<S>), Diagnostic>
 where
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64>,
@@ -27,31 +29,39 @@ where
             }
             CartesianBoundaryValue::Natural(value) => {
                 natural.push(i);
-                *value
+                *value - prescribed_flux[i]
             }
         };
-        if let Some((_, partial)) = direction {
+        // Natural data already specify the complete outward flux. Essential
+        // rows retain g before the same Schur elimination adds K*grad(u).
+        let (selected, offset) = direction
+            .map_or((datum, prescribed_flux[i]), |(_, partial, offset)| {
+                (&partial[i], offset[i])
+            });
+        rhs[i] = match selected {
+            CartesianBoundaryValue::Essential(_) => offset,
+            CartesianBoundaryValue::Natural(value) => *value,
+        };
+        if let Some((_, partial, offset)) = direction {
             partials[i] = match (datum, partial[i]) {
                 (
                     CartesianBoundaryValue::Essential(_),
                     CartesianBoundaryValue::Essential(value),
-                )
-                | (CartesianBoundaryValue::Natural(_), CartesianBoundaryValue::Natural(value)) => {
-                    value
+                ) => value,
+                (CartesianBoundaryValue::Natural(_), CartesianBoundaryValue::Natural(value)) => {
+                    value - offset[i]
                 }
                 _ => return Err(invalid("Parameter partial changed the TPFA boundary kind")),
             };
         }
-        if !values[i].is_finite() || !partials[i].is_finite() {
+        if !values[i].is_finite()
+            || !partials[i].is_finite()
+            || !prescribed_flux[i].is_finite()
+            || !offset.is_finite()
+            || !rhs[i].is_finite()
+        {
             return Err(invalid("Cartesian boundary returned a non-finite value"));
         }
-    }
-    for &i in &natural {
-        rhs[i] = if direction.is_some() {
-            partials[i]
-        } else {
-            values[i]
-        };
     }
     // Natural rows prescribe their complete flux. No inverse is needed when
     // every row is natural; singular pure-Neumann closure remains a global question.
@@ -65,7 +75,7 @@ where
     let needs_elimination = essential.iter().any(|&i| {
         natural
             .iter()
-            .any(|&j| matrix[i][j] != zero || direction.is_some_and(|(dm, _)| dm[i][j] != zero))
+            .any(|&j| matrix[i][j] != zero || direction.is_some_and(|(dm, _, _)| dm[i][j] != zero))
     });
     let factor = needs_elimination
         .then(|| NaturalBlock::new(transpose))
@@ -77,7 +87,7 @@ where
     for &i in &essential {
         // P*T_NN=T_DN. Ordinary transpose, never a conjugate transpose.
         let p = solve(natural.iter().map(|&j| matrix[i][j]).collect())?;
-        let dp = if let Some((dm, _)) = direction {
+        let dp = if let Some((dm, _, _)) = direction {
             solve(
                 natural
                     .iter()
@@ -99,7 +109,7 @@ where
                     .iter()
                     .enumerate()
                     .fold(zero, |sum, (k, &row)| sum + p[k] * matrix[row][j]);
-            let derivative = direction.map_or(zero, |(dm, _)| {
+            let derivative = direction.map_or(zero, |(dm, _, _)| {
                 dm[i][j]
                     - natural.iter().enumerate().fold(zero, |sum, (k, &row)| {
                         sum + dp[k] * matrix[row][j] + p[k] * dm[row][j]
