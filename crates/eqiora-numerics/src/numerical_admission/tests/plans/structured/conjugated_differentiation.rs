@@ -6,8 +6,6 @@ use std::collections::HashMap;
 
 #[test]
 fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
-    let geometry = cartesian_interval();
-    let body = geometry.entity_set("body").unwrap();
     let source = r#"
       public component Conjugated(support body:volume(ambient_dimension=1),
         support left:boundary(parent=body), support right:boundary(parent=body),
@@ -22,6 +20,44 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
         relation right_value on right {trace(u)=2*p;}
       }
     "#;
+    check_derivatives(
+        source,
+        &[
+            CommonSpatialPolicy::Q1,
+            CommonSpatialPolicy::CellCenteredTpfa,
+        ],
+        false,
+    );
+}
+
+#[test]
+fn conjugated_gradient_and_prescribed_flux_retain_natural_trace_derivatives() {
+    // u=p*(1+x), q=(4+3i)*grad(u)+p*conj(grad(u))+p*x*e.
+    // Thus -div(q)=-p and q(1)=(4+3i)*p+p*conj(p)+p.
+    let source = r#"
+      public component Conjugated(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body), support right:boundary(parent=body),
+        parameter p:complex<1>) {
+        parameter e:vector<1,1>=tensor_value(frame=body,components=[1]);
+        variable g:vector<complex<1/m>,1> on body in h1;
+        relation drift on body {g=p*coordinate(0)/1[m^2]*e;}
+        variable u:complex<1> on body in smooth;
+        relation balance on body {
+          -div(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)=-p/1[m^2];
+        }
+        relation left_value on left {trace(u)=p;}
+        relation right_value on right {
+          normal(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)
+            =(math.complex(4,3)*p+p*math.conj(p)+p)/1[m];
+        }
+      }
+    "#;
+    check_derivatives(source, &[CommonSpatialPolicy::Q1], true);
+}
+
+fn check_derivatives(source: &str, methods: &[CommonSpatialPolicy], right_natural: bool) {
+    let geometry = cartesian_interval();
+    let body = geometry.entity_set("body").unwrap();
     let model = compile_typed_model(
         "conjugated-boundary.eqi",
         source,
@@ -53,10 +89,7 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
             .unwrap(),
         )],
     );
-    for spatial in [
-        CommonSpatialPolicy::Q1,
-        CommonSpatialPolicy::CellCenteredTpfa,
-    ] {
+    for &spatial in methods {
         let cells = spatial == CommonSpatialPolicy::CellCenteredTpfa;
         let locations = if cells {
             vec![0.125, 0.375, 0.625, 0.875]
@@ -66,7 +99,7 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
         let free = locations
             .iter()
             .copied()
-            .filter(|x| cells || (*x > 0. && *x < 1.))
+            .filter(|x| cells || (*x > 0. && (right_natural || *x < 1.)))
             .collect::<Vec<_>>();
         let resolved = ResolvedCommonPlan::resolve(
             &model,
@@ -100,7 +133,11 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
             .program()
             .nodes()
             .find_map(|node| match node {
-                KernelNode::Parameter(value) => Some(value.id()),
+                KernelNode::Parameter(value)
+                    if value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex =>
+                {
+                    Some(value.id())
+                }
                 _ => None,
             })
             .unwrap();

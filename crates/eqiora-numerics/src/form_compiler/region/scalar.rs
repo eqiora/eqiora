@@ -30,7 +30,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     derivative: false,
                     pairing: Pairing::Gradient,
                     coefficient: row.diffusion,
-                    positive_diffusion: S::DOMAIN == ScalarDomain::Real,
+                    positive_diffusion: false,
                 }];
                 terms.extend(
                     row.transport
@@ -62,7 +62,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     coefficient,
                     positive_diffusion: false,
                 }));
-                Row {
+                let mut row = Row {
                     relation: row.relation,
                     tested: row.field,
                     value_type: row.residual_type,
@@ -70,7 +70,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     terms,
                     dyadics: Vec::new(),
                     forcing: vec![row.forcing],
-                }
+                };
+                row.require_positive_scalar_diffusion();
+                row
             })
             .collect();
         let form = Self {
@@ -186,18 +188,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         for row in &mut bound.rows {
-            for flux in &mut row.flux {
-                flux.map_data(map)?;
-            }
-            for component in &mut row.forcing {
-                *component = map(component)?;
-            }
-            for term in &mut row.dyadics {
-                term.coefficient = map(&term.coefficient)?;
-            }
-            for term in &mut row.terms {
-                term.coefficient = map(&term.coefficient)?;
-            }
+            row.map_data(map)?;
         }
         Ok(bound)
     }
@@ -233,5 +224,26 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut partial = self.clone();
         partial.form = self.form.parameter_partial(coordinate)?;
         Ok(partial)
+    }
+}
+
+impl<S: Coefficient> Row<S> {
+    pub(super) fn map_data(
+        &mut self,
+        map: &impl Fn(&Data<S>) -> Result<Data<S>, Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        for flux in &mut self.flux {
+            flux.map_data(map)?;
+        }
+        for component in &mut self.forcing {
+            *component = map(component)?;
+        }
+        for term in &mut self.dyadics {
+            term.coefficient = map(&term.coefficient)?;
+        }
+        for term in &mut self.terms {
+            term.coefficient = map(&term.coefficient)?;
+        }
+        Ok(())
     }
 }
