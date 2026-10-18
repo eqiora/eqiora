@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, Scalar};
+use eqiora_core::{Diagnostic, Scalar, ScalarDomain};
 use num_complex::ComplexFloat;
 
 use crate::{ExecutionId, ExecutionProvider, ExecutionReport, LinearOperator, ReductionPolicy};
@@ -20,7 +20,8 @@ pub struct FixedOrderInnerProduct<'a, S = f64> {
 }
 
 impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
-    /// Logical element count in each reproducible partial, independent of scheduling.
+    /// Logical element count per inner-product partial, independent of scheduling.
+    /// Norms count real coordinates, so complex norms use half as many elements.
     /// Serial and parallel executions use these same partials and final fold.
     pub const CHUNK_LENGTH: usize = 1_024;
 
@@ -46,7 +47,15 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
     /// Number of fixed logical partials.
     #[must_use]
     pub fn partial_count(self) -> usize {
-        self.left.len().div_ceil(Self::CHUNK_LENGTH)
+        self.left.len().div_ceil(self.chunk_length())
+    }
+
+    fn chunk_length(self) -> usize {
+        if self.norm_scale.is_some() && S::DOMAIN == ScalarDomain::Complex {
+            Self::CHUNK_LENGTH / 2
+        } else {
+            Self::CHUNK_LENGTH
+        }
     }
 
     /// Evaluate one logical partial in its fixed local order.
@@ -60,24 +69,25 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
                 self.partial_count()
             )));
         }
-        let start = index * Self::CHUNK_LENGTH;
-        let end = (start + Self::CHUNK_LENGTH).min(self.left.len());
+        let start = index * self.chunk_length();
+        let end = (start + self.chunk_length()).min(self.left.len());
         self.left[start..end]
             .iter()
             .zip(&self.right[start..end])
             .try_fold(S::zero(), |sum, (left, right)| {
-                let product = match self.norm_scale {
+                let next = match self.norm_scale {
                     Some(scale) => {
                         // Scale real components directly: complex division by a
                         // tiny real denominator can itself square that denominator.
                         let real = left.re() / scale;
                         let imaginary = left.im() / scale;
-                        S::from(real * real + imaginary * imaginary)
+                        // Match adjacent real/imaginary coordinates exactly,
+                        // including chunk boundaries; do not group each pair first.
+                        S::from((sum.re() + real * real) + imaginary * imaginary)
                             .expect("binary64 real component")
                     }
-                    None => left.conj() * *right,
+                    None => sum + left.conj() * *right,
                 };
-                let next = sum + product;
                 (next.re().is_finite() && next.im().is_finite())
                     .then_some(next)
                     .ok_or_else(|| solve_failed("linear reduction overflowed"))
@@ -109,7 +119,9 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
     /// Components are scaled before squaring, using the same indexed reduction
     /// for every execution. No temporary scaled vector is allocated. Ordinary inner
     /// products retain their original arithmetic. The norm and finite-real check
-    /// remain owned here, independently of the adapter.
+    /// remain owned here, independently of the adapter. Complex values use the
+    /// exact order of their adjacent real/imaginary coordinates, including partial
+    /// boundaries, so coordinate conversion preserves the norm bit for bit.
     ///
     /// # Errors
     /// Rejects non-finite inputs, non-finite/nonreal/negative scaled squared norms
@@ -130,7 +142,8 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
     ///
     /// # Errors
     /// Returns the errors of [`Self::norm`], or rejects a partial count different
-    /// from `values.len().div_ceil(Self::CHUNK_LENGTH)` before writing the buffer.
+    /// from the real-coordinate count divided by [`Self::CHUNK_LENGTH`] (rounded
+    /// up) before writing the buffer. Each complex value has two real coordinates.
     pub fn norm_with_partials(values: &[S], partials: &mut [S]) -> Result<f64, Diagnostic> {
         let (action, scale) = Self::norm_action(values)?;
         if partials.len() != action.partial_count() {
@@ -285,6 +298,37 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn norm_is_identical_in_complex_and_real_coordinates() {
+        use num_complex::Complex64 as C;
+        // Coordinate conversion is an exact Euclidean isometry. Exercise both
+        // local summation and partial boundaries with unequal components.
+        for count in [2, 511, 512, 513, 1025] {
+            let complex = (0..count)
+                .map(|i| C::new(1., if i % 2 == 0 { 1. } else { 3. }))
+                .collect::<Vec<_>>();
+            let real = complex
+                .iter()
+                .flat_map(|z| [z.re, z.im])
+                .collect::<Vec<_>>();
+            let expected = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &real).unwrap();
+            assert_eq!(
+                FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &complex)
+                    .unwrap()
+                    .to_bits(),
+                expected.to_bits(),
+                "{count} complex coordinates",
+            );
+            let mut partials = vec![C::new(0., 0.); real.len().div_ceil(1024)];
+            assert_eq!(
+                FixedOrderInnerProduct::norm_with_partials(&complex, &mut partials)
+                    .unwrap()
+                    .to_bits(),
+                expected.to_bits(),
+            );
+        }
+    }
 
     #[test]
     fn norm_preserves_dyadic_scales_and_complex_components() {

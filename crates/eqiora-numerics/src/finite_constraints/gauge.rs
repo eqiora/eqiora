@@ -222,14 +222,10 @@ impl FiniteConstraintProblem {
         };
         let mut weights = vec![0.; n];
         weights[coordinate] = 1.;
-        use eqiora_solver::{
-            FixedOrderInnerProduct, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION,
-        };
+        use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
         let mut load = system.right_hand_side().to_vec();
         load.push(value);
-        let bordered_load_norm = SERIAL_LINEAR_EXECUTION
-            .inner_product(FixedOrderInnerProduct::new(&load, &load)?)?
-            .sqrt();
+        let bordered_load_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &load)?;
         Ok(FiniteGauge {
             bordered_load_norm,
             system,

@@ -240,18 +240,14 @@ impl AlgebraicProblem {
                     ));
                 }
                 let rhs = problem.canonical_system().right_hand_side();
-                let rhs_norm = SERIAL_LINEAR_EXECUTION
-                    .inner_product(FixedOrderInnerProduct::new(rhs, rhs)?)?
-                    .sqrt();
+                let rhs_norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, rhs)?;
                 if plan.residual_target(rhs_norm)?.to_bits() != target.to_bits() {
                     return Err(invalid(
                         "finite Result target differs from exact original right-hand side",
                     ));
                 }
                 let residuals = problem.reference_residuals(values)?;
-                let norm = SERIAL_LINEAR_EXECUTION
-                    .inner_product(FixedOrderInnerProduct::new(&residuals, &residuals)?)?
-                    .sqrt();
+                let norm = FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, &residuals)?;
                 if !norm.is_finite() || norm > target {
                     return Err(invalid(
                         "finite Result original semantic residual exceeds acceptance target",

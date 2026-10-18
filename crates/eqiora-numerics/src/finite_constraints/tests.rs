@@ -412,3 +412,33 @@ fn original_operand_evaluation_binds_relation_field_types_and_parameter_values()
         .unwrap_err();
     assert!(error.to_string().contains("exact retained Relation"));
 }
+
+#[test]
+fn tiny_active_set_violation_cannot_disappear_when_squared() {
+    // Exact balance 2*g-f=0 is satisfied, but the selected branch g=0 is not.
+    // Both operands fit their declared physical bounds; the tighter branch
+    // residual target must still reject the nonzero gap.
+    let scale = 2_f64.powi(-700);
+    let fixture = fixture(0., false);
+    let problem =
+        lower_finite_constraints(&fixture.kernel, Some(&enforcement(&fixture)), false).unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        0.,
+        scale / 4.,
+        NonZeroUsize::new(8).unwrap(),
+    )
+    .unwrap();
+    let error = problem
+        .validate_values(&values(&problem, &fixture, scale, 2. * scale), plan, 0)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("selected active-set zero operands"),
+        "{error}"
+    );
+    problem
+        .validate_values(&values(&problem, &fixture, 0., 0.), plan, 0)
+        .unwrap();
+}
