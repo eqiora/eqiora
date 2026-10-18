@@ -136,12 +136,19 @@ def test_scalar_affine_flux_preserves_natural_trace_and_total_products(faer, tpf
     counts = (2,) if dimension == 1 else (2, 3)
     mesh = q.meshing.generate(q.meshing.resolve(
         geometry, q.meshing.CartesianMesher(cells=counts)))
+    # The free 2D Q1 stiffness is L=Sx⊗My+Mx⊗Sy; TPFA uses cell differences.
+    # A=L⊗K, with adjacent real/imaginary coordinates at each coefficient.
+    # With r_t=d-A*v and r_a=w-A^T*lambda, the pairing defect is
+    # r_a^T*v-lambda^T*r_t. These small rational matrices give
+    # ||w||*||v||+||lambda||*||d|| < 3000 at all three Parameter points,
+    # for both meshes/methods. Request 1e-14 for a first-order residual
+    # budget below 3e-11, leaving rounding margin inside the fixed 2e-10 oracle.
     plan = q.resolve(model, mesh=mesh, spatial=q.fvm.CellCenteredTpfa() if tpfa else q.fem.Q1(), solve=q.solve.Linear(
         algorithm=q.solve.LinearSolver.SparseLu if faer else q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
         reduction=q.solve.Reduction.Fast if faer else q.solve.Reduction.Reproducible,
         provider=q.solve.SolverProvider.faer() if faer else q.solve.SolverProvider.reference(),
-        relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+        relative_tolerance=1e-14, absolute_tolerance=1e-14, maximum_iterations=100))
     plan = q.Plan.from_bytes(plan.to_bytes())
     result = q.run(plan)
     assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
