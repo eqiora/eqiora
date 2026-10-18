@@ -718,36 +718,19 @@ impl<'system> AdmittedExecution<'system> {
         {
             *residual = right - applied;
         }
-        let action = FixedOrderInnerProduct::new(&self.residual, &self.residual)?;
-        if action.partial_count() != self.partials.len() {
-            return Err(invalid(
-                "admitted verifier partial count changed after system capture",
-            ));
-        }
-        for (index, partial) in self.partials.iter_mut().enumerate() {
-            *partial = action.evaluate_partial(index)?;
-        }
-        let true_residual = action.finish(&self.partials)?.sqrt();
+        let true_residual =
+            FixedOrderInnerProduct::norm_with_partials(&self.residual, &mut self.partials)?;
         if true_residual.to_bits() != report.true_residual_norm().to_bits() {
             return Err(invalid(format!(
                 "independent host residual {true_residual:e} contradicts reported residual {:e}",
                 report.true_residual_norm()
             )));
         }
-        let right_hand_side = self.system.right_hand_side();
-        let right_norm_action = FixedOrderInnerProduct::new(right_hand_side, right_hand_side)?;
-        if right_norm_action.partial_count() != self.partials.len() {
-            return Err(invalid(
-                "admitted right-hand-side reduction shape changed after system capture",
-            ));
-        }
-        for (index, partial) in self.partials.iter_mut().enumerate() {
-            *partial = right_norm_action.evaluate_partial(index)?;
-        }
-        let residual_target = self
-            .binding
-            .solver_plan()
-            .residual_target(right_norm_action.finish(&self.partials)?.sqrt())?;
+        let right_norm = FixedOrderInnerProduct::norm_with_partials(
+            self.system.right_hand_side(),
+            &mut self.partials,
+        )?;
+        let residual_target = self.binding.solver_plan().residual_target(right_norm)?;
         if residual_target.to_bits() != report.residual_target().to_bits() {
             return Err(invalid(format!(
                 "independent host residual target {residual_target:e} contradicts reported target {:e}",
