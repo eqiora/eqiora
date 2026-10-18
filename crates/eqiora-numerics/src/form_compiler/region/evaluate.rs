@@ -1,3 +1,4 @@
+use crate::form_compiler::region::integration::IntegralField;
 use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 
@@ -65,7 +66,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let fields = self
             .fields
             .iter()
-            .map(|layout| (layout.space, layout.components))
+            .map(IntegralField::from)
             .collect::<Vec<_>>();
         let indices = self
             .fields
@@ -87,6 +88,8 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     (None, false) => 1.,
                 };
                 integrals.push(super::integration::IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row: row_index,
                     column,
                     pairing: term.pairing,

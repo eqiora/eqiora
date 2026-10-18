@@ -1,6 +1,7 @@
 use super::*;
 use num_complex::Complex64 as C;
 
+mod coordinates;
 mod geometry;
 mod global;
 
@@ -21,6 +22,8 @@ fn vector_local<S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + S
     let terms = pairings
         .iter()
         .map(|&pairing| IntegralTerm {
+            test_coordinate: 0,
+            trial_coordinate: 0,
             row: 0,
             column: 0,
             pairing,
@@ -29,7 +32,11 @@ fn vector_local<S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + S
         .collect::<Vec<_>>();
     integrate(
         reference,
-        &[(space, 3)],
+        &[IntegralField {
+            space,
+            components: 3,
+            scalar_coordinates: 1,
+        }],
         &terms,
         &geometry,
         &rule,
@@ -185,8 +192,14 @@ fn local_vector_shape_and_pairing_reject_before_coefficient_evaluation() {
         assert!(
             integrate::<f64>(
                 reference,
-                &[(space, components)],
+                &[IntegralField {
+                    space,
+                    components,
+                    scalar_coordinates: 1
+                }],
                 &[IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row: 0,
                     column: 0,
                     pairing,
@@ -208,15 +221,23 @@ fn complex_diffusion_mass_and_load_share_real_basis_quadrature() {
     let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
     let local = integrate(
         reference,
-        &[(Space::continuous_lagrange(std::num::NonZeroU16::MIN), 1)],
+        &[IntegralField {
+            space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            components: 1,
+            scalar_coordinates: 1,
+        }],
         &[
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 0,
                 pairing: Pairing::Gradient,
                 trial_scale: 1.0,
             },
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 0,
                 pairing: Pairing::Value,

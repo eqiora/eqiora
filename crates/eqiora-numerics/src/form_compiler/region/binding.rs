@@ -34,6 +34,16 @@ pub(crate) struct RegionFieldLayout {
     pub(crate) scale: f64,
 }
 
+impl From<&RegionFieldLayout> for super::integration::IntegralField {
+    fn from(layout: &RegionFieldLayout) -> Self {
+        Self {
+            space: layout.space,
+            components: layout.components,
+            scalar_coordinates: 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct BoundRegionForm<S: Coefficient> {
     pub(super) form: CompiledRegionForm<S>,

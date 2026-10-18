@@ -1,5 +1,6 @@
 //! Equation-derived nonlinear flux actions, independent of physical field names.
 
+use crate::form_compiler::region::integration::IntegralField;
 use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
@@ -67,7 +68,7 @@ impl BoundRegionForm<f64> {
             &self
                 .fields
                 .iter()
-                .map(|layout| (layout.space, layout.components))
+                .map(IntegralField::from)
                 .collect::<Vec<_>>(),
             &[],
             geometry,
