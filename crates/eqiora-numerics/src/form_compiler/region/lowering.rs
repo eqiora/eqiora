@@ -281,7 +281,12 @@ fn expression<S: Coefficient>(
             });
             Ok(())
         }
-        ExprNode::Gradient(value) if matches!(position, Position::Flux) => {
+        ExprNode::Gradient(value)
+            if matches!(position, Position::Flux)
+                && matches!(context.dag.node(*value),
+                    Some(ExprNode::Symbol(SymbolRef::Field(field)))
+                        if !context.coefficients.contains_key(&field.erase())) =>
+        {
             trial(context, *value, coefficient, row, Pairing::Gradient)
         }
         ExprNode::SymmetricPart(value) if matches!(position, Position::Flux) => {

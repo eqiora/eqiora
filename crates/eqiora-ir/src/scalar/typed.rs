@@ -185,7 +185,17 @@ impl TypedInstructions<'_> {
                         | Instruction::Require { .. } => {
                             unreachable!("logical demand is staged separately")
                         }
-                        Instruction::MapInvariant { .. } | Instruction::ComplexDiv { .. } => {
+                        Instruction::QuotientJet { start, len } => {
+                            pending.extend(
+                                quotient::operands(start, len, &self.instructions[..index])?
+                                    .iter()
+                                    .map(Frame::Demand),
+                            );
+                        }
+                        Instruction::ComplexDiv { operands, .. } => {
+                            pending.extend(operands.into_iter().rev().map(Frame::Demand));
+                        }
+                        Instruction::MapInvariant { .. } => {
                             return Err(ir_builder_error(
                                 "numerical maps require component execution",
                             ));
@@ -231,7 +241,19 @@ impl TypedInstructions<'_> {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
-                    Instruction::MapInvariant { .. } | Instruction::ComplexDiv { .. } => {
+                    Instruction::QuotientJet { start, len } => quotient::typed(
+                        &quotient::operands(start, len, &self.instructions[..index])?,
+                        |id| Ok(read(id)?.clone()),
+                    )?,
+                    Instruction::ComplexDiv {
+                        operands: [a, b, c, d],
+                        imaginary,
+                    } => complex_quotient::typed(
+                        [read(a)?, read(b)?, read(c)?, read(d)?],
+                        imaginary,
+                        index,
+                    )?,
+                    Instruction::MapInvariant { .. } => {
                         return Err(ir_builder_error(
                             "numerical map admission requires component execution",
                         ));

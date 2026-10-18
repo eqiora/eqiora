@@ -40,11 +40,15 @@ impl ScalarInputOperatorIr {
         }
         let point = self.typed_point(inputs)?;
         let program = self.typed_instructions();
-        let (_, trace) =
-            program.evaluate(&self.roots, &mut |slot| point.get(slot.0 as usize).cloned())?;
+        let evaluation_roots = self.evaluation_roots();
+        let (_, trace) = program.evaluate(&evaluation_roots, &mut |slot| {
+            point.get(slot.0 as usize).cloned()
+        })?;
         let dependencies = program.active_input_dependencies(&trace, roles)?;
         program.require_regular_active_trace(&trace, &dependencies)?;
-        let (instructions, roots) = program.active_program(&self.roots, &trace, &dependencies)?;
+        let (instructions, roots) =
+            program.active_program(&evaluation_roots, &trace, &dependencies)?;
+        let roots = roots[self.primal_checks.len()..].to_vec();
         let bound =
             ScalarLinearization::bind(&instructions, &roots, self.slots.len(), inputs, roles)?;
         let ScalarLinearization {

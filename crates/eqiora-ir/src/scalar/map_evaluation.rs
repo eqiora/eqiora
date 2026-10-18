@@ -2,8 +2,6 @@
 //! Sizes come from typed operands; resource admission belongs to scalarization.
 use super::*;
 
-const MAX_COMPONENT_PRODUCTS: usize = 1_000_000;
-
 impl ScalarOperatorIr {
     /// Apply one row-major entry tangent to the existing differential-factor calculus.
     /// Entries and tangents use coherent units; the typed map owns their dimensions.

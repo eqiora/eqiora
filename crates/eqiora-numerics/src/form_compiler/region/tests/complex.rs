@@ -22,9 +22,9 @@ fn fixture(source: &str) -> (KernelProgram, BTreeMap<String, RawId>) {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let ids = ["body", "wall", "balance", "law", "a", "q", "f", "u"]
-        .into_iter()
-        .map(|name| (name.to_owned(), symbols.get(name).unwrap()))
+    let ids = symbols
+        .iter()
+        .map(|(name, id)| (name.to_owned(), id))
         .collect();
     (program, ids)
 }
@@ -375,6 +375,49 @@ fn conservative_conjugated_gradient_keeps_spatial_axes_and_prescribed_flux() {
                 row.prescribed_flux(i, axis, &[1., 2.]).unwrap(),
                 [[1., 2.], [3., 4.]][axis][i]
             );
+        }
+    }
+}
+
+#[test]
+fn composed_tensor_gradient_keeps_transposition_inside_the_physical_components() {
+    let source = r#"
+model TensorGradient() {
+    domain body = box(0, 2, 0, 3);
+    variable u:tensor<complex<1>,2,2> on body in smooth;
+    relation balance on body {
+        -div(math.complex(4,3)*grad(u)
+            +math.complex(2,3)*grad(transpose(math.conj(u))))=0;
+    }
+}
+"#;
+    let (program, ids) = fixture(source);
+    let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 2).unwrap();
+    let row = form
+        .conservative_system()
+        .unwrap()
+        .project::<super::super::coordinates::Real>()
+        .unwrap();
+    // (4+3i)*U+(2+3i)*conj(U)^T, with each tensor entry's real and
+    // imaginary coordinates adjacent. Transposition exchanges 01 and 10;
+    // neither spatial derivative axis participates in that permutation.
+    let expected = [
+        [6., 0., 0., 0., 0., 0., 0., 0.],
+        [6., 2., 0., 0., 0., 0., 0., 0.],
+        [0., 0., 4., -3., 2., 3., 0., 0.],
+        [0., 0., 3., 4., 3., -2., 0., 0.],
+        [0., 0., 2., 3., 4., -3., 0., 0.],
+        [0., 0., 3., -2., 3., 4., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 6., 0.],
+        [0., 0., 0., 0., 0., 0., 6., 2.],
+    ];
+    assert_eq!(row.components(), 8);
+    assert!(!row.has_positive_diffusion());
+    for axis in 0..2 {
+        for (test, values) in expected.iter().enumerate() {
+            for (trial, value) in values.iter().enumerate() {
+                assert_eq!(row.diffusion(test, trial, axis, &[1., 2.]).unwrap(), *value);
+            }
         }
     }
 }

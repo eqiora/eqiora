@@ -71,6 +71,10 @@ fn cross_diffusion_roles_follow_the_unique_whole_domain_assignment() {
         .replace("-div(grad(b))", "-div(grad(b) + grad(c))");
     let roles = derive(&source).unwrap();
     assert_eq!(signature(&roles), signature(&derive(THREE).unwrap()));
+    let composed = source
+        .replace("grad(a) + grad(b)", "grad(a+b)")
+        .replace("grad(b) + grad(c)", "grad(b+c)");
+    assert_eq!(signature(&roles), signature(&derive(&composed).unwrap()));
     let reordered = source
         .replace("first", "zeta")
         .replace("third", "alpha")

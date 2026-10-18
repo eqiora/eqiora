@@ -33,7 +33,7 @@ fn affine_direction_differentiates_coefficients_and_offsets_in_one_proof() {
         .remove(0);
     for x in [0., 0.5, 2.] {
         let (primal, tangent) = lowered.rows()[0]
-            .bind_affine_direction(&selected, &[(p.clone(), x, -3.)])
+            .bind_affine_direction(&selected, &[(p.clone(), x, Some(-3.))])
             .unwrap();
         assert_eq!(primal.coefficients(), &[x * x + x.sin()]);
         assert_eq!(primal.offsets(), &[x * x * x]);
@@ -43,14 +43,14 @@ fn affine_direction_differentiates_coefficients_and_offsets_in_one_proof() {
         // a nonlinear unknown dependence cannot disappear from the derivative.
         assert!(
             lowered.rows()[1]
-                .bind_affine_direction(&selected, &[(p.clone(), x, -3.)])
+                .bind_affine_direction(&selected, &[(p.clone(), x, Some(-3.))])
                 .is_err()
         );
     }
     for bindings in [
-        vec![(p.clone(), 1., f64::NAN)],
-        vec![(p.clone(), 1., 2.), (p.clone(), 1., 2.)],
-        vec![(selected[0].clone(), 1., 2.)],
+        vec![(p.clone(), 1., Some(f64::NAN))],
+        vec![(p.clone(), 1., Some(2.)), (p.clone(), 1., Some(2.))],
+        vec![(selected[0].clone(), 1., Some(2.))],
     ] {
         assert!(
             lowered.rows()[0]
@@ -85,7 +85,7 @@ fn affine_complex_division_retains_all_real_coordinate_directions() {
         let (_, tangent) = row
             .bind_affine_direction(
                 &selected,
-                &[(p[0].clone(), 1., 2.), (p[1].clone(), 1., -1.)],
+                &[(p[0].clone(), 1., Some(2.)), (p[1].clone(), 1., Some(-1.))],
             )
             .unwrap();
         assert_eq!(tangent.coefficients(), expected);
@@ -127,18 +127,27 @@ fn affine_directions_preserve_primal_domains_and_reject_singular_derivatives() {
         .remove(0);
     for row in &lowered.rows()[..2] {
         assert!(row.bind_affine(&selected, &[(p.clone(), 0.)]).is_ok());
+        let (_, tangent) = row
+            .bind_affine_direction(&selected, &[(p.clone(), 0., None)])
+            .unwrap();
+        assert_eq!(tangent.coefficients(), &[0.]);
+        assert_eq!(tangent.offsets(), &[0.]);
+        assert!(
+            row.bind_affine_direction(&selected, &[(p.clone(), -1., None)])
+                .is_err()
+        );
         for direction in [0., 1.] {
             assert!(
-                row.bind_affine_direction(&selected, &[(p.clone(), 0., direction)])
+                row.bind_affine_direction(&selected, &[(p.clone(), 0., Some(direction))])
                     .is_err()
             );
         }
         assert!(
-            row.bind_affine_direction(&selected, &[(p.clone(), -1., 1.)])
+            row.bind_affine_direction(&selected, &[(p.clone(), -1., Some(1.))])
                 .is_err()
         );
         assert!(
-            row.bind_affine_direction(&selected, &[(p.clone(), 4., 1.)])
+            row.bind_affine_direction(&selected, &[(p.clone(), 4., Some(1.))])
                 .is_ok()
         );
     }
@@ -150,7 +159,79 @@ fn affine_directions_preserve_primal_domains_and_reject_singular_derivatives() {
     );
     assert!(
         lowered.rows()[2]
-            .bind_affine_direction(&selected, &[(p, 0., 1.)])
+            .bind_affine_direction(&selected, &[(p, 0., Some(1.))])
             .is_err()
     );
+}
+
+#[test]
+fn retained_primal_dependencies_do_not_invent_gradient_value_columns() {
+    let field = SymbolRef::Field(Id::<kinds::Field>::new());
+    let parameter = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let support = eqiora_schema::kernel::typing::SpatialSupport::Volume {
+        domain: (),
+        dimensions: 1,
+    };
+    let mut dag = ExprDagBuilder::new();
+    let u = dag.symbol(field).unwrap();
+    let p = dag.symbol(parameter).unwrap();
+    let sqrt = dag.unary_math(UnaryMathFunction::Sqrt, p).unwrap();
+    let product = dag.mul(sqrt, u).unwrap();
+    let gradient = dag.gradient(product).unwrap();
+    let typed = TypedResidual::infer(
+        dag.finish([gradient]).unwrap(),
+        Some(support.clone()),
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |symbol| {
+            Ok::<_, ()>(ExpressionType::new(
+                ty.clone(),
+                (symbol == field).then(|| support.clone()),
+            ))
+        },
+    )
+    .unwrap();
+    let lowered =
+        ComponentScalarization::lower_spatial_selected(&typed, &[gradient], None).unwrap();
+    let row = &lowered.rows()[0];
+    let value = ScalarSymbolCoordinate::for_value(field, &ty).unwrap();
+    // d_x(sqrt(p)*u) = sqrt(p)*d_x(u), with p fixed in space.
+    // The retained primal sqrt(p)*u has a variable coefficient in u, but
+    // the derivative result has exactly zero coefficient in that value slot.
+    assert_eq!(
+        row.constant_coordinate_jacobian(&value)
+            .unwrap()
+            .coefficients(),
+        &[0.]
+    );
+    let gradient = row
+        .symbols()
+        .iter()
+        .find(|c| c.symbol() == field && c.spatial_derivative_axes() == [0])
+        .unwrap();
+    assert!(
+        row.constant_coordinate_jacobian(std::slice::from_ref(gradient))
+            .is_err()
+    );
+    for p in [0., 4., -1.] {
+        let values = row
+            .symbols()
+            .iter()
+            .map(|c| {
+                if c.symbol() == parameter {
+                    p
+                } else if c.spatial_derivative_axes().is_empty() {
+                    3.
+                } else {
+                    2.
+                }
+            })
+            .collect::<Vec<_>>();
+        if p < 0. {
+            assert!(row.evaluate(&values).is_err());
+        } else {
+            assert_eq!(row.evaluate(&values).unwrap(), 2. * p.sqrt());
+        }
+    }
 }

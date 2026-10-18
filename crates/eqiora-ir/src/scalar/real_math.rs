@@ -33,24 +33,41 @@ pub(super) fn action(
     value: f64,
     direction: f64,
 ) -> Result<f64, Diagnostic> {
+    action_in(&mut differential::Numerical, function, value, direction)
+}
+
+pub(super) fn action_in<A: differential::Arithmetic>(
+    algebra: &mut A,
+    function: UnaryMathFunction,
+    value: A::Value,
+    direction: A::Value,
+) -> Result<A::Value, Diagnostic> {
     use UnaryMathFunction::*;
-    Ok(match function {
-        Sin => direction * value.cos(),
-        Cos => -direction * value.sin(),
-        Exp => direction * value.exp(),
-        Log if value > 0.0 => direction / value,
-        Sqrt if value > 0.0 => direction / (2.0 * value.sqrt()),
+    match function {
+        Sin | Cos | Exp => {
+            let (function, direction) = if function == Cos {
+                (Sin, algebra.neg(direction)?)
+            } else {
+                (if function == Sin { Cos } else { Exp }, direction)
+            };
+            let value = algebra.math(function, value)?;
+            algebra.mul(direction, value)
+        }
+        Log => {
+            let value = algebra.positive(value)?;
+            algebra.div(direction, value)
+        }
         Sqrt => {
-            return Err(ir_builder_error(
-                "square-root derivative is undefined at zero",
-            ));
+            let value = algebra.positive(value)?;
+            let root = algebra.math(Sqrt, value)?;
+            let two = algebra.constant(2.)?;
+            let denominator = algebra.mul(two, root)?;
+            algebra.div(direction, denominator)
         }
-        _ => {
-            return Err(ir_builder_error(
-                "unadmitted real scalar mathematical derivative",
-            ));
-        }
-    })
+        _ => Err(ir_builder_error(
+            "unadmitted real scalar mathematical derivative",
+        )),
+    }
 }
 
 /// Curvature in two independently supplied argument directions.

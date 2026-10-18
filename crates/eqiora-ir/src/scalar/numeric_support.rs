@@ -79,8 +79,8 @@ pub(super) fn accumulate_coordinate(
     Ok(())
 }
 
-pub(super) fn require_length(
-    values: &[f64],
+pub(super) fn require_length<T>(
+    values: &[T],
     expected: usize,
     name: &str,
 ) -> Result<(), Diagnostic> {
@@ -121,11 +121,8 @@ pub(super) fn require_finite_value(
 }
 
 pub(super) fn powi_derivative(base: f64, exponent: i32) -> f64 {
-    match exponent {
-        0 => 0.0,
-        i32::MIN => f64::from(exponent) * base.powi(exponent) / base,
-        _ => f64::from(exponent) * base.powi(exponent - 1),
-    }
+    differential::power_slope(&mut differential::Numerical, base, exponent)
+        .expect("numerical arithmetic is infallible")
 }
 
 pub(super) fn invalid_value_index(id: ValueId, instruction: usize) -> Diagnostic {

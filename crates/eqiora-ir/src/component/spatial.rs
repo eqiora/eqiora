@@ -41,16 +41,69 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 _ => break,
             }
         }
-        let Some(ExprNode::Symbol(symbol @ SymbolRef::Field(_))) = self.expression.node(operand)
-        else {
-            return Err(invalid_component_ir(
-                "retained spatial derivative requires an exact Field operand",
-            ));
-        };
         let ty = &self.node_types[operand.index() as usize];
         validate_component(ty.shape(), component)?;
         axes.reverse();
-        self.input(*symbol, ty.shape(), dimension, component, part, &axes)
+        if let Some(ExprNode::Symbol(symbol @ SymbolRef::Field(_))) = self.expression.node(operand)
+        {
+            return self.input(*symbol, ty.shape(), dimension, component, part, &axes);
+        }
+        let mut dimension = ty.dimension();
+        let mut value = self.lower_part(operand, component, part)?;
+        for axis in axes {
+            dimension = spatial_derivative_dimension(dimension)?;
+            value = self.lower_spatial_partial(value, axis, dimension)?;
+        }
+        Ok(value)
+    }
+
+    fn lower_spatial_partial(
+        &mut self,
+        value: ScalarInputValueId,
+        axis: usize,
+        dimension: eqiora_core::DimExponents,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        let inputs = self.builder.directional_inputs(value)?;
+        let mut seeds = vec![None; self.inputs.len()];
+        for slot in inputs {
+            let coordinate = slot.source();
+            let seed = match coordinate.symbol {
+                symbol @ SymbolRef::Field(_) => {
+                    let shape = self.symbol_shapes[&symbol].clone();
+                    let axes = coordinate
+                        .spatial_derivative_axes
+                        .iter()
+                        .copied()
+                        .chain([axis])
+                        .collect::<Vec<_>>();
+                    Some(self.input(
+                        symbol,
+                        &shape,
+                        spatial_derivative_dimension(slot.dimension())?,
+                        &coordinate.component_index,
+                        coordinate.part,
+                        &axes,
+                    )?)
+                }
+                SymbolRef::Coordinate {
+                    axis: source_axis, ..
+                } if source_axis == axis => Some(self.builder.constant(DynQuantity::new(
+                    1.,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                ))?),
+                SymbolRef::Parameter(_) | SymbolRef::Coordinate { .. } => None,
+                _ => {
+                    return Err(invalid_component_ir(
+                        "spatial derivative requires a reconstructed Field, coordinate, or Parameter",
+                    ));
+                }
+            };
+            seeds[slot.ordinal() as usize] = seed;
+        }
+        match self.builder.directional(value, &seeds)? {
+            Some(value) => Ok(value),
+            None => self.builder.constant(DynQuantity::new(0., dimension)),
+        }
     }
 
     pub(super) fn lower_field_divergence(
@@ -65,13 +118,6 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 "spatial Field pullback requires an admitted point reconstruction",
             ));
         }
-        let Some(ExprNode::Symbol(symbol @ SymbolRef::Field(_))) = self.expression.node(operand)
-        else {
-            return Err(invalid_component_ir(
-                "retained divergence requires an exact Field operand",
-            ));
-        };
-        let symbol = *symbol;
         let shape = self.node_types[operand.index() as usize].shape().clone();
         let extent = shape
             .extents()
@@ -82,7 +128,14 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         for axis in 0..extent {
             let indices = component.iter().copied().chain([axis]).collect::<Vec<_>>();
             validate_component(&shape, &indices)?;
-            let term = self.input(symbol, &shape, dimension, &indices, part, &[axis as usize])?;
+            let term = if let Some(ExprNode::Symbol(symbol @ SymbolRef::Field(_))) =
+                self.expression.node(operand)
+            {
+                self.input(*symbol, &shape, dimension, &indices, part, &[axis as usize])?
+            } else {
+                let value = self.lower_part(operand, &indices, part)?;
+                self.lower_spatial_partial(value, axis as usize, dimension)?
+            };
             sum = Some(match sum {
                 None => term,
                 Some(sum) => self.builder.add(sum, term)?,
@@ -140,6 +193,16 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         }
         sum.ok_or_else(|| invalid_component_ir("normal contraction has no physical directions"))
     }
+}
+
+fn spatial_derivative_dimension(
+    dimension: eqiora_core::DimExponents,
+) -> Result<eqiora_core::DimExponents, Diagnostic> {
+    let length =
+        eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension");
+    dimension
+        .div(length)
+        .ok_or_else(|| invalid_component_ir("spatial derivative dimension overflow"))
 }
 
 #[cfg(test)]

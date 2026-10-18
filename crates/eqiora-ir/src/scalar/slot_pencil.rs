@@ -208,6 +208,18 @@ fn require_degrees(
                 degree
             }
             Instruction::PowI(value, _) | Instruction::Math(_, value) => independent(at(value)?)?,
+            Instruction::QuotientJet { start, len } => {
+                let operands = quotient::operands(start, len, &program.instructions[..index])?;
+                for id in operands.b.iter().flatten() {
+                    independent(at(*id)?)?;
+                }
+                let mut degree = [0u32; 2];
+                for id in operands.a.iter().flatten() {
+                    let next = at(*id)?;
+                    degree = [degree[0].max(next[0]), degree[1].max(next[1])];
+                }
+                degree
+            }
             Instruction::MapInvariant { start, extent, .. } => {
                 let range = map_evaluation::operand_range(start, extent, index)?;
                 for degree in &degrees[range] {
@@ -259,6 +271,7 @@ mod tests {
             .collect();
         (
             ScalarInputOperatorIr {
+                primal_checks: Vec::new(),
                 slots,
                 instructions,
                 roots: roots.iter().copied().map(ValueId).collect(),

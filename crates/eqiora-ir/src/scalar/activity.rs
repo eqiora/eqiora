@@ -14,6 +14,11 @@ pub(super) fn numerical_activity(
                 })?,
                 InputBinding::Frozen
             ),
+            Instruction::QuotientJet { start, len } => {
+                quotient::operands(start, len, &instructions[..index])?
+                    .iter()
+                    .any(|id| active[id.0 as usize])
+            }
             Instruction::MapInvariant { start, extent, .. } => active
                 [map_evaluation::operand_range(start, extent, index)?]
             .iter()
