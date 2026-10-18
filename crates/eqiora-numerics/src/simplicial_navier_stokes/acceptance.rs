@@ -9,7 +9,7 @@ use super::assembly::StepAssembly;
 use super::element::{
     evaluate_velocity, integrate_convective_evidence, local_velocity_coefficients,
 };
-use super::{invalid, solve_failed};
+use super::{invalid, norm, solve_failed};
 use crate::simplicial_stokes::acceptance::{
     require_weak_incompressibility_from_gauge_weights, require_zero_gauge_multiplier,
 };
@@ -96,11 +96,7 @@ fn initial_weak_continuity_norm(
             }
         }
     }
-    Ok(residual
-        .iter()
-        .map(|value| value * value)
-        .sum::<f64>()
-        .sqrt())
+    norm(&residual)
 }
 
 pub(super) fn accept_step(
@@ -119,7 +115,7 @@ pub(super) fn accept_step(
     Diagnostic,
 > {
     let final_residual_norm = assembly.residual_norm()?;
-    let momentum_residual_norm = assembly.momentum_residual_norm();
+    let momentum_residual_norm = assembly.momentum_residual_norm()?;
     if !final_residual_norm.is_finite() || final_residual_norm > newton.residual_target {
         return Err(solve_failed(format!(
             "accepted nonlinear residual {final_residual_norm:e} exceeds target {:e}",

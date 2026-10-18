@@ -30,7 +30,7 @@ pub(super) fn packet_evaluations() -> [usize; 3] {
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::layout::FlowLayout;
-use super::{COMPONENTS, DIMENSION, invalid};
+use super::{COMPONENTS, DIMENSION, invalid, norm};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
@@ -63,21 +63,17 @@ pub(super) struct StepAssembly {
 
 impl StepAssembly {
     pub(super) fn residual_norm(&self) -> Result<f64, Diagnostic> {
-        Ok(self
-            .residual
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt())
+        norm(&self.residual)
     }
 
-    pub(super) fn momentum_residual_norm(&self) -> f64 {
-        self.layout
+    pub(super) fn momentum_residual_norm(&self) -> Result<f64, Diagnostic> {
+        let momentum = self
+            .layout
             .velocity_rows()
             .iter()
-            .map(|dof| self.residual[dof.index()].powi(2))
-            .sum::<f64>()
-            .sqrt()
+            .map(|dof| self.residual[dof.index()])
+            .collect::<Vec<_>>();
+        norm(&momentum)
     }
 
     pub(super) fn materialize_acceptance_data(&self) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {

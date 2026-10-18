@@ -40,3 +40,8 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 fn solve_failed(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }
+
+fn norm(values: &[f64]) -> Result<f64, Diagnostic> {
+    eqiora_solver::FixedOrderInnerProduct::norm(&eqiora_solver::SERIAL_LINEAR_EXECUTION, values)
+        .map_err(|error| invalid(error.message()))
+}

@@ -12,7 +12,7 @@ use super::assembly::{
     PreparedStepStructure, assemble_step_linearization_prepared, assemble_step_residual_prepared,
     initial_point_prepared, prepare_step_structure,
 };
-use super::{COMPONENTS, DIMENSION, invalid};
+use super::{COMPONENTS, DIMENSION, invalid, norm};
 use crate::nonlinear_execution::{NewtonTrial, solve_damped_newton};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
 use crate::step_count::NonZeroStepCount;
@@ -209,11 +209,7 @@ fn solve_one_step(
             let residual =
                 assemble_step_residual_prepared(mesh, prepared, previous, candidate, plan.clone())?;
             Ok(Some(NewtonTrial {
-                residual_norm: residual
-                    .iter()
-                    .map(|value| value * value)
-                    .sum::<f64>()
-                    .sqrt(),
+                residual_norm: norm(&residual)?,
                 linearization: None,
             }))
         },

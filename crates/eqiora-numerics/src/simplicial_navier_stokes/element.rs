@@ -127,35 +127,28 @@ pub(super) fn integrate_convective_evidence(
         .flatten()
         .copied()
         .collect::<Vec<_>>();
-    let residual_squared = skew_global.iter().map(|value| value * value).sum::<f64>();
+    let skew_residual_norm = super::norm(&skew_global)?;
     let energy = skew_global
         .iter()
         .zip(coefficients)
         .map(|(residual, coefficient)| residual * coefficient)
         .sum::<f64>();
-    let mut defect_squared = 0.0;
-    let mut identity_error_squared = 0.0;
-    for ((skew, conservative), expected) in skew_global
-        .iter()
-        .zip(conservative_global)
-        .zip(expected_defect_global)
+    let mut defect = conservative_global;
+    let mut identity_error = expected_defect_global;
+    for ((skew, defect), identity_error) in
+        skew_global.iter().zip(&mut defect).zip(&mut identity_error)
     {
-        let defect = skew - conservative;
-        defect_squared += defect * defect;
-        identity_error_squared += (defect - expected).powi(2);
+        *defect = skew - *defect;
+        *identity_error = *defect - *identity_error;
     }
-    if !residual_squared.is_finite()
-        || !energy.is_finite()
-        || !defect_squared.is_finite()
-        || !identity_error_squared.is_finite()
-    {
+    if !energy.is_finite() {
         return Err(invalid("convective evidence is non-finite"));
     }
     Ok(ConvectiveRealizationEvidence {
-        skew_residual_norm: residual_squared.sqrt(),
+        skew_residual_norm,
         skew_power: energy,
-        conservative_defect_norm: defect_squared.sqrt(),
-        defect_identity_error: identity_error_squared.sqrt(),
+        conservative_defect_norm: super::norm(&defect)?,
+        defect_identity_error: super::norm(&identity_error)?,
     })
 }
 
