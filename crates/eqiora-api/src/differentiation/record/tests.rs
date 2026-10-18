@@ -18,6 +18,17 @@ fn fixture(
     let document = ModelDocument::compile("record.eqi", &format!(
         "model Record() {{parameter p:1=4; variable w:1; relation balance {{{equation};}} observable output:1=w+p;}}"
     )).unwrap();
+    fixture_for_document(document, nonlinear)
+}
+
+fn fixture_for_document(
+    document: ModelDocument,
+    nonlinear: bool,
+) -> (
+    DifferentiableProgram,
+    ResolvedCommonPlan,
+    Option<CommonAlgebraicState>,
+) {
     let model = eqiora_artifact::ModelEnvelope::from_program(document.program()).unwrap();
     let solver = SolverPlan::new(
         LinearSolver::SparseLu,
@@ -218,4 +229,38 @@ fn evaluation_record_preserves_signed_zero_input_bits() {
         (-0_f64).to_bits()
     );
     assert_eq!(reopened, record);
+}
+
+#[test]
+fn evaluation_records_rederive_each_parameter_points_numerical_domain() {
+    // For z=x+iy, z+p*conj(z)=1+2i gives x=1/(1+p), y=2/(1-p).
+    for canonical in [0., 3.] {
+        let document = ModelDocument::compile("point-domain.eqi", &format!(
+            "model Record(){{parameter p:1={canonical};variable z:complex<1>;relation balance{{z+p*math.conj(z)=math.complex(1,2);}} observable output:complex<1>=z;}}"
+        )).unwrap();
+        let (program, plan, initial) = fixture_for_document(document, false);
+        for p in [0., 3.] {
+            let point =
+                DifferentiableValues::from_coordinates(program.identity.inputs.clone(), vec![p])
+                    .unwrap();
+            let live = program.evaluate(&point).unwrap();
+            let record = live.record().unwrap();
+            let bytes = record.to_bytes().unwrap();
+            drop(live);
+            let reopened =
+                RecordedDifferentiableEvaluation::from_bytes(&bytes, &plan, initial.as_ref())
+                    .unwrap();
+            assert_eq!(reopened, record);
+            assert_eq!(reopened.to_bytes().unwrap(), bytes);
+            for (actual, expected) in reopened
+                .result()
+                .output()
+                .coordinates()
+                .iter()
+                .zip([1. / (1. + p), 2. / (1. - p)])
+            {
+                assert!((actual - expected).abs() < 1e-12);
+            }
+        }
+    }
 }

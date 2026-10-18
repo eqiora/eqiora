@@ -6,6 +6,7 @@ use crate::finite_constraints::FiniteConstraintProblem;
 use eqiora_core::{Id, RawId, ScalarDomain, entity::kinds};
 use eqiora_ir::DenseOutputLinearization;
 use eqiora_schema::kernel::{ExprDag, ExprDagBuilder, ObservableReduction};
+use eqiora_solver::CanonicalCsrSystemView;
 
 impl CommonAlgebraicPlan {
     /// Accept one exact Parameter point from this Plan's finite seed and selected outputs.
@@ -27,6 +28,7 @@ impl CommonAlgebraicPlan {
         }
         let prepared = self.prepare_differentiation(initial, selected, values, outputs)?;
         let problem = &prepared.problem;
+        let linear = &prepared.linear;
         let (point, primal, reported_acceptance) = if let Some(nonlinear) = self.nonlinear {
             let checked = self.linear.checked_backend(backend, None)?;
             let solution = problem.solve_at_point(
@@ -44,25 +46,26 @@ impl CommonAlgebraicPlan {
                 Some((solution.initial_residual_norm, solution.assessment)),
             )
         } else {
-            let (point, report) = if let Some(system) = &prepared.complex_system {
-                let complex = self.linear.checked_complex_backend(backend, None)?;
-                let solution = LinearSolveRequest::new(&complex, self.linear.solver)
-                    .solve(&system.linear_problem()?)?;
-                (
-                    solution
-                        .values()
-                        .iter()
-                        .flat_map(|z| [z.re, z.im])
-                        .collect::<Vec<_>>(),
-                    solution.report().clone(),
-                )
-            } else {
-                let checked = self.linear.checked_backend(backend, None)?;
-                let solution = crate::finite_constraints::solve_finite_constraints(
-                    problem,
-                    LinearSolveRequest::new(&checked, self.linear.solver),
-                )?;
-                (solution.values().to_vec(), solution.report().clone())
+            let (point, report) = match prepared.system.as_ref().expect("affine point system") {
+                PointSystem::Complex(system) => {
+                    let checked = linear.checked_complex_backend(backend, None)?;
+                    let solution = LinearSolveRequest::new(&checked, linear.solver)
+                        .solve(&system.linear_problem()?)?;
+                    (
+                        solution
+                            .values()
+                            .iter()
+                            .flat_map(|z| [z.re, z.im])
+                            .collect(),
+                        solution.report().clone(),
+                    )
+                }
+                PointSystem::Real(system) => {
+                    let checked = linear.checked_backend(backend, None)?;
+                    LinearSolveRequest::new(&checked, linear.solver)
+                        .solve(&system.linear_problem()?)?
+                        .into_parts()
+                }
             };
             (point, Primal::Affine(report), None)
         };
@@ -193,16 +196,22 @@ impl CommonAlgebraicPlan {
             expressions.push(expression);
         }
         let problem = base.at_parameters(selected, &selected_values)?;
-        let complex_system = if self.complex_system.is_some() {
-            Some(problem.complex_linear_system()?.ok_or_else(|| {
-                invalid("finite Parameter point changed its admitted complex execution profile")
-            })?)
-        } else {
+        let system = if self.nonlinear.is_some() {
             None
+        } else if let Some(system) = problem.complex_linear_system()? {
+            Some(PointSystem::Complex(system))
+        } else {
+            Some(PointSystem::Real(problem.linear_system()?))
+        };
+        let linear = match &system {
+            Some(PointSystem::Real(system)) => self.linear.at_parameter_problem(system, None)?,
+            Some(PointSystem::Complex(system)) => self.linear.at_parameter_problem(system, None)?,
+            None => self.linear.clone(),
         };
         Ok(PreparedPoint {
             problem,
-            complex_system,
+            system,
+            linear,
             design_coordinates,
             selected_values,
             expressions,
@@ -210,9 +219,15 @@ impl CommonAlgebraicPlan {
     }
 }
 
+enum PointSystem {
+    Real(CanonicalCsrSystemView),
+    Complex(CanonicalCsrSystemView<num_complex::Complex64>),
+}
+
 struct PreparedPoint {
     problem: FiniteConstraintProblem,
-    complex_system: Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>,
+    system: Option<PointSystem>,
+    linear: NativeLinearPolicy,
     design_coordinates: Vec<SpatialDesignCoordinate>,
     selected_values: Vec<f64>,
     expressions: Vec<ExprDag>,
@@ -259,7 +274,7 @@ impl PreparedPoint {
         Ok((
             CommonDifferentiationLinearization::from_finite(
                 relation,
-                if self.complex_system.is_some() {
+                if matches!(self.system, Some(PointSystem::Complex(_))) {
                     ScalarDomain::Complex
                 } else {
                     ScalarDomain::Real

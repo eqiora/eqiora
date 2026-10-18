@@ -24,6 +24,7 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
     ) -> Result<Vec<f64>, Diagnostic>;
     fn solve<P: Coefficient + Send + Sync>(
         plan: &CommonSpatialPlan,
+        linear: &NativeLinearPolicy,
         equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
@@ -87,11 +88,11 @@ impl DifferentiationScalar for f64 {
     }
     fn solve<P: Coefficient + Send + Sync>(
         plan: &CommonSpatialPlan,
+        linear: &NativeLinearPolicy,
         equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {
-        let linear = &plan.admission.linear;
         let structure = equations.algebraic_structure(None)?;
         let checked = linear.checked_backend(backend, Some(&structure))?;
         let executor = HostExecutorDescriptor::new(
@@ -173,16 +174,14 @@ impl DifferentiationScalar for Complex64 {
         )
     }
     fn solve<P: Coefficient + Send + Sync>(
-        plan: &CommonSpatialPlan,
+        _plan: &CommonSpatialPlan,
+        linear: &NativeLinearPolicy,
         equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {
         let structure = equations.algebraic_structure(None)?;
-        let checked = plan
-            .admission
-            .linear
-            .checked_complex_backend(backend, Some(&structure))?;
+        let checked = linear.checked_complex_backend(backend, Some(&structure))?;
         let solution =
             LinearSolveRequest::new(&checked, core.solver_plan()).solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;

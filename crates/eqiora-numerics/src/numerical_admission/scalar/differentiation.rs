@@ -112,6 +112,17 @@ impl CommonSpatialPlan {
             region.form = region.form.bind_parameter_point(&point)?;
         }
         let system = S::finalize(self, &equations)?;
+        let structure = equations.algebraic_structure(None)?;
+        let linear = match &system {
+            StaticSpatialSystem::Real(system) => self
+                .admission
+                .linear
+                .at_parameter_problem(system.core.canonical_csr_system_view(), Some(&structure))?,
+            StaticSpatialSystem::Complex(system) => self
+                .admission
+                .linear
+                .at_parameter_problem(system.core.canonical_csr_system_view(), Some(&structure))?,
+        };
         let unique = outputs
             .iter()
             .copied()
@@ -147,6 +158,7 @@ impl CommonSpatialPlan {
             outputs: outputs.to_vec(),
             quadratures: quadratures.clone(),
             system,
+            linear,
             design,
             values,
             coordinates: crate::parameter_point::coordinates(self.kernel(), selected)?,
@@ -158,6 +170,7 @@ struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
     equations: ExecutableSpatialEquations<S>,
     system: StaticSpatialSystem<S>,
+    linear: NativeLinearPolicy,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
@@ -183,7 +196,13 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         system: &StaticRegionSystem<A, S>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (values, primal) = A::solve(self.plan, &self.equations, &system.core, backend)?;
+        let (values, primal) = A::solve(
+            self.plan,
+            &self.linear,
+            &self.equations,
+            &system.core,
+            backend,
+        )?;
         let target = match &primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
             Primal::Affine(report) => report.residual_target(),

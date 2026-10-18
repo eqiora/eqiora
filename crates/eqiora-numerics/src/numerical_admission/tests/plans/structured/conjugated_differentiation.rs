@@ -15,8 +15,8 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
         variable u:complex<1> on body in h1;
         relation balance on body {
           -div(math.complex(2,3)*grad(u))+
-          (math.complex(3,-2)*u+math.complex(1,2)*math.conj(u)
-          -(math.complex(3,-2)*p+math.complex(1,2)*math.conj(p))*(1+coordinate(0)/1[m]))/1[m^2]=0;
+          (math.complex(3,-2)*u+p*math.conj(u)
+          -(math.complex(3,-2)*p+p*math.conj(p))*(1+coordinate(0)/1[m]))/1[m^2]=0;
         }
         relation left_value on left {trace(u)=p;}
         relation right_value on right {trace(u)=2*p;}
@@ -85,7 +85,7 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
         .collect::<Vec<_>>();
     // The exact affine solution is u=p*(1+x), so both real input directions
     // have independent analytic tangents, including their nonzero traces.
-    for point in [[2., 3.], [-1., 4.]] {
+    for point in [[2., 3.], [0., 0.], [-1., 4.]] {
         let accepted = plan
             .differentiate(
                 &[parameter],
@@ -98,7 +98,11 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
         let linear = accepted.linearization();
         assert_eq!(
             linear.state_scalar_domain(),
-            eqiora_core::ScalarDomain::Real
+            if point == [0., 0.] {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            }
         );
         let relation = linear.relation();
         assert_eq!(relation.unknown_dimension(), 6);

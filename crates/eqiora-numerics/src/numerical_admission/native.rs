@@ -143,9 +143,9 @@ impl NativeLinearPolicy {
                 "complex execution differs from admitted exact provider or capabilities",
             ));
         }
-        if self.planning_objective.is_some() {
+        if !self.planning_audit_is_coherent() {
             return Err(invalid(
-                "complex execution requires an exact complex solver policy",
+                "complex execution requires a coherent solver planning audit",
             ));
         }
         self.checked_backend(complex, structure)
@@ -901,6 +901,7 @@ impl NativeNumericalAdmission {
 }
 
 mod identity;
+mod parameter_point;
 pub(super) mod polyhedral;
 mod recognition;
 mod refinement;

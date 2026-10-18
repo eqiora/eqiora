@@ -1380,36 +1380,104 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
 }
 
 #[test]
-fn supplied_candidate_preserves_the_admitted_complex_execution_profile() {
-    // At p=0 the Plan admits the complex-linear action z -> z. At p=3,
-    // z + 3 conj(z) is real-linear, even though z=1/4 solves its equation.
-    let (document, plan, _) = solve(
-        "model Profile(){parameter p:1=0;variable z:complex<1>;relation r{z+p*math.conj(z)=math.complex(1,0);}}",
-    );
-    let initial = plan.initial_state(&[]).unwrap();
-    let inputs = [document.parameter_ref("p").unwrap().id()];
-    let outputs = [document.field_ref("z").unwrap().id().erase()];
-    let valid = plan
-        .validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., 0.])
-        .unwrap();
-    assert_eq!(valid.output_values(), &[1., 0.]);
-    assert_eq!(valid.state_scalar_domain(), eqiora::ScalarDomain::Complex);
-    let live_error = plan
-        .differentiate(
-            &initial,
-            &inputs,
-            Some(&[3.]),
-            &outputs,
-            &REFERENCE_LINEAR_SOLVER,
-        )
-        .unwrap_err();
-    assert!(
-        live_error
-            .message()
-            .contains("changed its admitted complex execution profile")
-    );
-    let error = plan
-        .validate_differentiated_values(&initial, &inputs, Some(&[3.]), &outputs, &[0.25, 0.])
-        .unwrap_err();
-    assert_eq!(error.message(), live_error.message());
+fn parameter_points_rederive_the_actual_domain_without_changing_solver_controls() {
+    use eqiora::differentiation::{
+        AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
+    };
+    use eqiora::solver::{LinearOperatorProperties, LinearSolveRequest};
+    // Independently, (1+p)x=1 and (1-p)y=2 for z=x+iy.
+    // Start once from each domain, including the Reference iterative path.
+    for (canonical, reference) in [(0., true), (3., false)] {
+        let source = format!(
+            "model Profile(){{parameter p:1={canonical};variable z:complex<1>;relation r{{z+p*math.conj(z)=math.complex(1,2);}}}}"
+        );
+        let (document, plan, _) = solve_with(&source, reference);
+        let backend: &dyn LinearSolverBackend = if reference {
+            &REFERENCE_LINEAR_SOLVER
+        } else {
+            &FaerLinearSolver
+        };
+        let initial = plan.initial_state(&[]).unwrap();
+        let inputs = [document.parameter_ref("p").unwrap().id()];
+        let outputs = [document.field_ref("z").unwrap().id().erase()];
+        for p in [0_f64, 3., 0.] {
+            let expected = [1. / (1. + p), 2. / (1. - p)];
+            let derivative = [-1. / (1. + p).powi(2), 2. / (1. - p).powi(2)];
+            let point = plan
+                .differentiate(&initial, &inputs, Some(&[p]), &outputs, backend)
+                .unwrap();
+            let linear = point.linearization();
+            let domain = if p == 0. {
+                eqiora::ScalarDomain::Complex
+            } else {
+                eqiora::ScalarDomain::Real
+            };
+            assert_eq!(linear.state_scalar_domain(), domain);
+            for (actual, expected) in linear.output_values().iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-12);
+            }
+            let replay = plan
+                .validate_differentiated_values(&initial, &inputs, Some(&[p]), &outputs, &expected)
+                .unwrap();
+            assert_eq!(replay.state_scalar_domain(), domain);
+            let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+                linear.relation(),
+                linear,
+                linear.relation().state_jacobian(),
+                domain,
+                linear.residual_target(),
+            )
+            .unwrap();
+            let solve = LinearSolveRequest::new(backend, plan.linear());
+            let forward = forward_output_sensitivity(
+                &accepted,
+                &[1.],
+                LinearOperatorProperties::General,
+                solve,
+            )
+            .unwrap();
+            for (actual, expected) in forward.output_tangent().iter().zip(derivative) {
+                assert!((actual - expected).abs() < 1e-12);
+            }
+            let reverse = adjoint_output_gradient(
+                &accepted,
+                &[3., -2.],
+                LinearOperatorProperties::General,
+                solve,
+            )
+            .unwrap();
+            assert!(
+                (reverse.gradient()[0] - (3. * derivative[0] - 2. * derivative[1])).abs() < 1e-12
+            );
+            assert_eq!(
+                reverse.adjoint().report().solver_provider(),
+                backend.provider()
+            );
+            assert!(
+                plan.validate_differentiated_values(
+                    &initial,
+                    &inputs,
+                    Some(&[p]),
+                    &outputs,
+                    &[expected[0], -expected[1]]
+                )
+                .is_err()
+            );
+        }
+        // The crossing permits a different representation, not a singular state.
+        assert!(
+            plan.differentiate(&initial, &inputs, Some(&[1.]), &outputs, backend)
+                .is_err()
+        );
+        assert!(
+            plan.validate_differentiated_values(
+                &initial,
+                &inputs,
+                Some(&[1.]),
+                &outputs,
+                &[0.5, 0.]
+            )
+            .is_err()
+        );
+    }
 }

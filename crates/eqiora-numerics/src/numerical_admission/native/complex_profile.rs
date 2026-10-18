@@ -148,7 +148,71 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
 }
 
 #[test]
-fn complex_profile_retains_exact_structure_and_rejects_automatic_ranking() {
+fn parameter_policy_rebinds_only_after_actual_system_and_capability_checks() {
+    let original = policy();
+    let system = CanonicalCsrSystemView::new(
+        &ScalarSystem,
+        ScalarSystem.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let coordinates = system
+        .real_coordinate_system(
+            eqiora_solver::LinearOperatorOrientation::Normal,
+            system.right_hand_side(),
+        )
+        .unwrap();
+    let real = original.at_parameter_problem(&coordinates, None).unwrap();
+    assert_eq!(real.scalar_domain, eqiora_core::ScalarDomain::Real);
+    assert_eq!(real.solver, original.solver);
+    assert_eq!(real.provider, original.provider);
+    assert_eq!(real.capabilities, original.capabilities);
+    real.checked_backend::<f64>(&REFERENCE_LINEAR_SOLVER, None)
+        .unwrap();
+    // Ordinary execution still rejects a mismatched numerical domain.
+    assert!(
+        original
+            .checked_backend::<f64>(&REFERENCE_LINEAR_SOLVER, None)
+            .is_err()
+    );
+    let complex = real.at_parameter_problem(&system, None).unwrap();
+    assert_eq!(complex, original);
+    let checked = complex
+        .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
+        .unwrap();
+    let solved = checked
+        .solve(&system.linear_problem().unwrap(), complex.solver)
+        .unwrap();
+    assert!((solved.values()[0] - C::new(2., 1.)).norm() < 1e-12);
+
+    let mut unavailable = real.clone();
+    unavailable.capabilities = SolverCapabilities::exact([eqiora_solver::SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
+        algorithm: real.solver.algorithm(),
+        operator_properties: LinearOperatorProperties::General,
+        preconditioner: real.solver.preconditioner(),
+        reduction: real.solver.reduction(),
+        scalar_type: ScalarType::F64,
+    }])
+    .unwrap();
+    assert!(unavailable.at_parameter_problem(&system, None).is_err());
+    let mut wrong_profile = real;
+    wrong_profile.planning_profile = Some(HostSerialSolverProfile::canonical_csr(
+        LinearOperatorProperties::Hermitian,
+        None,
+        None,
+    ));
+    assert!(
+        wrong_profile
+            .at_parameter_problem(&system, None)
+            .unwrap_err()
+            .message()
+            .contains("profile.operator-properties-mismatch")
+    );
+}
+
+#[test]
+fn complex_profile_retains_exact_structure_and_rejects_incoherent_planning() {
     let structure = eqiora_solver::AlgebraicStructure::new([eqiora_core::Id::new()], []).unwrap();
     let foreign = eqiora_solver::AlgebraicStructure::new([eqiora_core::Id::new()], []).unwrap();
     let mut policy = policy();
@@ -180,7 +244,7 @@ fn complex_profile_retains_exact_structure_and_rejects_automatic_ranking() {
             .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))
             .unwrap_err()
             .message()
-            .contains("exact complex solver policy")
+            .contains("coherent solver planning audit")
     );
 }
 

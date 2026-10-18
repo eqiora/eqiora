@@ -55,7 +55,9 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
     da, db = .5-.25j, -.75+.5j
     w = np.array([[2-1j, -3+2j], [1+4j, -2-3j]])
     field_w = np.arange(1, 13)[:, None, None]*w
-    for a, parameter in ((2+3j, p), (3+2j, p+dp)):
+    # The same immutable Program also crosses the numerical-domain boundary.
+    for a, b, parameter in ((2+3j, b, p), (3+2j, b, p+dp),
+                            (2+3j, 1-2j if native else 0j, p)):
         # J(U)=conj(U)^T is an involution. Multiplying by conj(a)-b*J
         # gives U=(conj(a)*P-b*J(P))/(|a|^2-|b|^2).
         denominator = (a.conjugate()*a-b.conjugate()*b).real
