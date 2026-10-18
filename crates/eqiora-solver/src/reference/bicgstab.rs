@@ -1,14 +1,14 @@
-//! Deterministic right-preconditioned BiCGSTAB reference iteration.
+//! One real/complex right-preconditioned BiCGSTAB recurrence and residual policy.
 
 use super::correction::SolutionCorrection;
 use super::*;
 
-pub(super) fn solve_preconditioned_bicgstab(
+pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     provider: SolverProvider,
-    problem: &LinearProblem<'_>,
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-    execution: &dyn ReplicatedLinearExecution,
-) -> Result<LinearSolution, Diagnostic> {
+    execution: &dyn ReplicatedLinearExecution<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     let InitialResidual {
         mut solution,
         mut applied,
@@ -46,22 +46,22 @@ pub(super) fn solve_preconditioned_bicgstab(
         DiagonalRequirement::FiniteNonzero,
     )?;
     let mut recurrence = Recurrence::new(&residual);
-    let mut preconditioned_direction = vec![0.0; dimension];
-    let mut intermediate_residual = vec![0.0; dimension];
-    let mut preconditioned_intermediate = vec![0.0; dimension];
-    let mut intermediate_image = vec![0.0; dimension];
+    let mut preconditioned_direction = vec![S::zero(); dimension];
+    let mut intermediate_residual = vec![S::zero(); dimension];
+    let mut preconditioned_intermediate = vec![S::zero(); dimension];
+    let mut intermediate_image = vec![S::zero(); dimension];
     let mut reported_residual_norm = initial_residual_norm;
 
     for iteration in 1..=plan.maximum_iterations().get() {
         let mut shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
-        if shadow_product == 0.0 {
+        if shadow_product == S::zero() {
             // Orthogonality to the old shadow is not singularity of the operator.
             // Restart the recurrence at the current residual; acceptance still
             // requires the independently reapplied true residual below.
             recurrence.reset(&residual);
             shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
         }
-        if shadow_product == 0.0 {
+        if shadow_product == S::zero() {
             return Err(solve_failed(
                 "BiCGSTAB shadow-residual product broke down before convergence",
             ));
@@ -89,7 +89,7 @@ pub(super) fn solve_preconditioned_bicgstab(
             &recurrence.shadow_residual,
             &recurrence.direction_image,
         )?;
-        if alpha_denominator == 0.0 {
+        if alpha_denominator == S::zero() {
             if !fresh {
                 recurrence.reset(&residual);
                 continue;
@@ -114,7 +114,8 @@ pub(super) fn solve_preconditioned_bicgstab(
             FixedOrderInnerProduct::norm(execution, &intermediate_residual)?;
         if intermediate_residual_norm <= recurrence_target {
             for index in 0..dimension {
-                solution[index] += recurrence.alpha * preconditioned_direction[index];
+                solution[index] =
+                    solution[index] + recurrence.alpha * preconditioned_direction[index];
             }
             require_finite(&solution, "BiCGSTAB solution")?;
             let true_residual_norm = true_residual_norm(
@@ -153,7 +154,7 @@ pub(super) fn solve_preconditioned_bicgstab(
         )?;
         require_finite(&intermediate_image, "BiCGSTAB stabilization image")?;
         let stabilization_denominator = dot(execution, &intermediate_image, &intermediate_image)?;
-        if stabilization_denominator == 0.0 {
+        if stabilization_denominator == S::zero() {
             return Err(solve_failed(
                 "BiCGSTAB stabilization denominator broke down before convergence",
             ));
@@ -166,8 +167,9 @@ pub(super) fn solve_preconditioned_bicgstab(
             ));
         }
         for index in 0..dimension {
-            solution[index] += recurrence.alpha * preconditioned_direction[index]
-                + recurrence.omega * preconditioned_intermediate[index];
+            solution[index] = solution[index]
+                + (recurrence.alpha * preconditioned_direction[index]
+                    + recurrence.omega * preconditioned_intermediate[index]);
             residual[index] =
                 intermediate_residual[index] - recurrence.omega * intermediate_image[index];
         }
@@ -194,7 +196,7 @@ pub(super) fn solve_preconditioned_bicgstab(
             reported_residual_norm = true_residual_norm;
             continue;
         }
-        if recurrence.omega == 0.0 {
+        if recurrence.omega == S::zero() {
             return Err(solve_failed(
                 "BiCGSTAB stabilization coefficient broke down before convergence",
             ));
@@ -222,40 +224,36 @@ pub(super) fn solve_preconditioned_bicgstab(
     )))
 }
 
-struct Recurrence {
-    shadow_residual: Vec<f64>,
-    direction: Vec<f64>,
-    direction_image: Vec<f64>,
-    previous_shadow_product: f64,
-    alpha: f64,
-    omega: f64,
+struct Recurrence<S> {
+    shadow_residual: Vec<S>,
+    direction: Vec<S>,
+    direction_image: Vec<S>,
+    previous_shadow_product: S,
+    alpha: S,
+    omega: S,
     fresh_start: bool,
 }
 
-impl Recurrence {
-    fn new(initial_residual: &[f64]) -> Self {
+impl<S: Scalar + ComplexFloat<Real = f64>> Recurrence<S> {
+    fn new(initial_residual: &[S]) -> Self {
         Self {
             shadow_residual: initial_residual.to_vec(),
-            direction: vec![0.0; initial_residual.len()],
-            direction_image: vec![0.0; initial_residual.len()],
-            previous_shadow_product: 1.0,
-            alpha: 1.0,
-            omega: 1.0,
+            direction: vec![S::zero(); initial_residual.len()],
+            direction_image: vec![S::zero(); initial_residual.len()],
+            previous_shadow_product: S::one(),
+            alpha: S::one(),
+            omega: S::one(),
             fresh_start: true,
         }
     }
 
-    fn prepare_direction(
-        &mut self,
-        shadow_product: f64,
-        residual: &[f64],
-    ) -> Result<(), Diagnostic> {
+    fn prepare_direction(&mut self, shadow_product: S, residual: &[S]) -> Result<(), Diagnostic> {
         if self.fresh_start {
             self.direction.copy_from_slice(residual);
             self.fresh_start = false;
             return Ok(());
         }
-        if self.omega == 0.0 {
+        if self.omega == S::zero() {
             return Err(solve_failed(
                 "BiCGSTAB stabilization coefficient broke down before convergence",
             ));
@@ -272,22 +270,22 @@ impl Recurrence {
             .zip(&self.direction_image)
             .zip(residual)
         {
-            *direction = residual + beta * (*direction - self.omega * direction_image);
+            *direction = *residual + beta * (*direction - self.omega * *direction_image);
         }
         require_finite(&self.direction, "BiCGSTAB direction")
     }
 
-    fn restart(&mut self, true_residual: &[f64], residual: &mut [f64]) {
+    fn restart(&mut self, true_residual: &[S], residual: &mut [S]) {
         residual.copy_from_slice(true_residual);
         self.reset(residual);
     }
 
-    fn reset(&mut self, residual: &[f64]) {
+    fn reset(&mut self, residual: &[S]) {
         self.shadow_residual.copy_from_slice(residual);
         self.fresh_start = true;
-        self.previous_shadow_product = 1.0;
-        self.alpha = 1.0;
-        self.omega = 1.0;
+        self.previous_shadow_product = S::one();
+        self.alpha = S::one();
+        self.omega = S::one();
     }
 }
 

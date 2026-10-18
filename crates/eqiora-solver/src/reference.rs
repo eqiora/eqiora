@@ -5,8 +5,9 @@ mod initial_residual;
 
 use initial_residual::{InitialResidual, initial_residual};
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
+use num_complex::ComplexFloat;
 
 use crate::{
     ConvergenceReason, DiagonalAvailability, FixedOrderInnerProduct, LinearProblem, LinearSolution,
@@ -362,23 +363,25 @@ enum DiagonalRequirement {
     FiniteNonzero,
 }
 
-fn build_inverse_diagonal(
-    problem: &LinearProblem<'_>,
+fn build_inverse_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    problem: &LinearProblem<'_, S>,
     policy: PreconditionerPolicy,
     requirement: DiagonalRequirement,
-) -> Result<Option<Vec<f64>>, Diagnostic> {
+) -> Result<Option<Vec<S>>, Diagnostic> {
     if policy == PreconditionerPolicy::Identity {
         return Ok(None);
     }
-    let mut diagonal = vec![0.0; problem.operator().rows()];
+    let mut diagonal = vec![S::zero(); problem.operator().rows()];
     if problem.operator().diagonal(&mut diagonal)? == DiagonalAvailability::Unavailable {
         return Err(invalid_realization(
             "Jacobi preconditioning requires an available operator diagonal",
         ));
     }
     let invalid = diagonal.iter().any(|value| match requirement {
-        DiagonalRequirement::FinitePositive => !value.is_finite() || *value <= 0.0,
-        DiagonalRequirement::FiniteNonzero => !value.is_finite() || *value == 0.0,
+        DiagonalRequirement::FinitePositive => {
+            !value.is_finite() || value.im() != 0.0 || value.re() <= 0.0
+        }
+        DiagonalRequirement::FiniteNonzero => !value.is_finite() || *value == S::zero(),
     });
     if invalid {
         let message = match requirement {
@@ -393,45 +396,45 @@ fn build_inverse_diagonal(
     }
     let inverse = diagonal
         .into_iter()
-        .map(|value| 1.0 / value)
+        .map(|value| S::one() / value)
         .collect::<Vec<_>>();
     require_finite(&inverse, "Jacobi inverse diagonal")?;
     Ok(Some(inverse))
 }
 
-fn apply_preconditioner(inverse: &Option<Vec<f64>>, residual: &[f64], output: &mut [f64]) {
+fn apply_preconditioner<S: Scalar>(inverse: &Option<Vec<S>>, residual: &[S], output: &mut [S]) {
     match inverse {
         Some(inverse) => {
             for ((output, residual), inverse) in output.iter_mut().zip(residual).zip(inverse) {
-                *output = residual * inverse;
+                *output = *residual * *inverse;
             }
         }
         None => output.copy_from_slice(residual),
     }
 }
 
-fn true_residual_norm(
-    execution: &dyn ReplicatedLinearExecution,
-    problem: &LinearProblem<'_>,
-    solution: &[f64],
-    applied: &mut [f64],
+fn true_residual_norm<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    execution: &dyn ReplicatedLinearExecution<S>,
+    problem: &LinearProblem<'_, S>,
+    solution: &[S],
+    applied: &mut [S],
 ) -> Result<f64, Diagnostic> {
     execution.apply(problem.operator(), solution, applied)?;
     for (value, right) in applied.iter_mut().zip(problem.right_hand_side()) {
-        *value = right - *value;
+        *value = *right - *value;
     }
     FixedOrderInnerProduct::norm(execution, applied)
 }
 
-fn dot(
-    execution: &dyn ReplicatedLinearExecution,
-    left: &[f64],
-    right: &[f64],
-) -> Result<f64, Diagnostic> {
+fn dot<S: Scalar + ComplexFloat<Real = f64>>(
+    execution: &dyn ReplicatedLinearExecution<S>,
+    left: &[S],
+    right: &[S],
+) -> Result<S, Diagnostic> {
     execution.inner_product(FixedOrderInnerProduct::new(left, right)?)
 }
 
-fn require_finite(values: &[f64], name: &str) -> Result<(), Diagnostic> {
+fn require_finite<S: ComplexFloat>(values: &[S], name: &str) -> Result<(), Diagnostic> {
     if values.iter().any(|value| !value.is_finite()) {
         Err(solve_failed(format!("{name} contains a non-finite value")))
     } else {

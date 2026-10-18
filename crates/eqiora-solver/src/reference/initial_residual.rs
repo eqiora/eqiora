@@ -1,33 +1,33 @@
-//! Shared initial residual and zero-iteration acceptance for real reference Krylov methods.
+//! Shared initial residual and zero-iteration acceptance for reference Krylov methods.
 
 use super::*;
 
-pub(super) struct InitialResidual {
-    pub solution: Vec<f64>,
-    pub applied: Vec<f64>,
-    pub residual: Vec<f64>,
+pub(super) struct InitialResidual<S> {
+    pub solution: Vec<S>,
+    pub applied: Vec<S>,
+    pub residual: Vec<S>,
     pub initial_residual_norm: f64,
     pub target: f64,
     pub accepted_report: Option<SolveReport>,
 }
 
-pub(super) fn initial_residual(
+pub(super) fn initial_residual<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     provider: SolverProvider,
-    problem: &LinearProblem<'_>,
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-    execution: &dyn ReplicatedLinearExecution,
-) -> Result<InitialResidual, Diagnostic> {
+    execution: &dyn ReplicatedLinearExecution<S>,
+) -> Result<InitialResidual<S>, Diagnostic> {
     let dimension = problem.operator().columns();
     let solution = problem
         .initial_guess()
-        .map_or_else(|| vec![0.0; dimension], <[f64]>::to_vec);
-    let mut applied = vec![0.0; dimension];
+        .map_or_else(|| vec![S::zero(); dimension], <[S]>::to_vec);
+    let mut applied = vec![S::zero(); dimension];
     execution.apply(problem.operator(), &solution, &mut applied)?;
     let residual = problem
         .right_hand_side()
         .iter()
         .zip(&applied)
-        .map(|(right, applied)| right - applied)
+        .map(|(right, applied)| *right - *applied)
         .collect::<Vec<_>>();
     require_finite(&residual, "initial residual")?;
 
