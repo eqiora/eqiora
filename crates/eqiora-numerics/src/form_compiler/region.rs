@@ -43,7 +43,7 @@ pub(crate) use prepared::PreparedRegionCell;
 mod tests;
 
 pub(crate) use binding::{
-    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, basis, state_layout,
+    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, state_layout,
     state_layouts,
 };
 

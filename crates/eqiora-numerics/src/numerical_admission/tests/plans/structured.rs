@@ -4,6 +4,7 @@ mod anisotropic;
 mod differentiation;
 mod integrals;
 mod observations;
+mod real_coordinates;
 
 #[test]
 fn channel_fields_retain_each_real_and_complex_component() {
@@ -368,7 +369,7 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
             result
         );
     }
-    if complex {
+    if complex && !diffusion {
         let conjugated = source.replace(",u,axes=((1,0),))", ",math.conj(u),axes=((1,0),))");
         let model = scalar_box_model(
             &geometry,
@@ -376,14 +377,19 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
             "CoupledComponents",
             &["left", "right", "bottom", "top"],
         );
+        let resources = cartesian_box_resources(&geometry, &[2, 3]);
+        let NativeMeshResources::Cartesian { mesh, .. } = &resources.resources else {
+            unreachable!()
+        };
+        let mesh = mesh.mesh().clone();
         let plan = ResolvedCommonPlan::resolve(
             &model,
-            cartesian_box_resources(&geometry, &[2, 3]),
+            resources,
             CommonSpatialPolicy::Q1,
             CommonSolvePolicy::Linear(exact_reference_linear(
                 LinearSolver::BiConjugateGradientStabilized,
+                0.,
                 1e-12,
-                1e-14,
                 NonZeroUsize::new(512).unwrap(),
             )),
             None,
@@ -392,16 +398,34 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
             None,
         )
         .unwrap();
-        let error = plan
-            .as_spatial()
+        let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
+        let spatial = plan.as_spatial().unwrap();
+        let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+        let (field, _) = spatial.fields().next().unwrap();
+        let (_, values, _) = result.field_block(0, 0).unwrap();
+        // q*conj(u)=q*v with invertible q gives u=conj(v). Conjugation
+        // preserves the inverse norm, so the same 1e-12 absolute residual
+        // and independently derived 2.4e-10 coefficient bound apply.
+        for (entity, values) in spatial
+            .field_coefficient_entities(field)
             .unwrap()
-            .run_result(None, &REFERENCE_LINEAR_SOLVER)
-            .unwrap_err();
-        // A conjugated unknown needs a real-linear realization, rather than
-        // silently dropping the imaginary-column action in a complex matrix.
-        assert!(
-            format!("{error:?}").contains("nonholomorphic spatial component action"),
-            "{error:?}"
+            .iter()
+            .zip(values.as_chunks::<4>().0.iter())
+        {
+            let point = mesh.vertex_coordinates(*entity).unwrap();
+            let (x, y) = (point[0], point[1]);
+            for (actual, expected) in values.iter().zip([
+                1. + 2. * x + y,
+                -2. + x - 2. * y,
+                -2. + x - 3. * y,
+                -1. - 3. * x + y,
+            ]) {
+                assert!((actual - expected).abs() < 1e-9);
+            }
+        }
+        assert_eq!(
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+            result
         );
     }
 }

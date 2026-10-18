@@ -42,6 +42,14 @@ pub(crate) fn policy_identity(
     nonlinear: Option<NonlinearSolvePlan>,
 ) -> String {
     let mut bytes = Vec::new();
+    push_framed(
+        &mut bytes,
+        match linear.scalar_domain {
+            eqiora_core::ScalarDomain::Real => b"real",
+            eqiora_core::ScalarDomain::Complex => b"complex",
+            _ => unreachable!("native linear policies use floating-point scalars"),
+        },
+    );
     match spatial {
         NativeSpatialPolicy::CoordinateCellConstant => {
             bytes.extend_from_slice(b"coordinate-cell-average-gauss2")

@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueType};
-use eqiora_meshing::{ReferenceCell, ReferenceCellFamily};
-use eqiora_realization::{BackwardEulerStateBinding, Space, SpaceFamily};
+use eqiora_meshing::ReferenceCell;
+use eqiora_realization::{BackwardEulerStateBinding, Space};
 
 use crate::discrete_space::DiscreteSpace;
 
@@ -32,6 +32,20 @@ pub(crate) struct RegionFieldLayout {
     pub(crate) range: Range<usize>,
     pub(crate) components: usize,
     pub(crate) scale: f64,
+}
+
+impl RegionFieldLayout {
+    /// Numerical real coordinates per physical basis coefficient, independent
+    /// of the Field's component axes and its nodal or moment functionals.
+    pub(crate) fn real_scalar_coordinates(&self) -> Result<usize, Diagnostic> {
+        match self.value_type.scalar_domain() {
+            super::ScalarDomain::Real => Ok(1),
+            super::ScalarDomain::Complex => Ok(2),
+            _ => Err(invalid(
+                "spatial scalar coordinates require a real or complex Field",
+            )),
+        }
+    }
 }
 
 impl From<&RegionFieldLayout> for super::integration::IntegralField {
@@ -92,7 +106,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             let value_type = &self.roles.fields[&row.tested].1;
             positive_scale(binding.scale, value_type, binding.space)?;
             let count = components(value_type, self.dimension)?;
-            let local = basis(binding.space, reference)?.field_dof_count(count)?;
+            let local = DiscreteSpace::new(binding.space, reference)?.field_dof_count(count)?;
             let end = offset
                 .checked_add(local)
                 .ok_or_else(|| invalid("region local DOF count overflow"))?;
@@ -130,8 +144,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
             multipliers.push(multiplier.value());
         }
-        super::compatibility::validate(self, &layouts, time)?;
         let (eliminations, states) = state_layouts(&self.roles, &layouts, time)?;
+        super::compatibility::validate(self, &layouts, &states, time)?;
         let mut previous = BTreeMap::new();
         for term in self.rows.iter().flat_map(|row| &row.terms) {
             if let Some(state) = states.get(&term.trial) {
@@ -247,37 +261,6 @@ fn positive_scale(
         ));
     }
     Ok(())
-}
-
-pub(crate) fn basis(space: Space, reference: ReferenceCell) -> Result<DiscreteSpace, Diagnostic> {
-    match (space.family(), reference.family()) {
-        (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Simplex)
-            if order.get() == 1 =>
-        {
-            DiscreteSpace::new(
-                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                reference,
-            )
-        }
-        (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Hypercube)
-            if order.get() == 1 =>
-        {
-            DiscreteSpace::new(
-                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                reference,
-            )
-        }
-        (SpaceFamily::SimplexP1Bubble, ReferenceCellFamily::Simplex) => {
-            DiscreteSpace::new(Space::simplex_p1_bubble(), reference)
-        }
-        (
-            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace,
-            ReferenceCellFamily::Simplex,
-        ) => DiscreteSpace::new(space, reference),
-        _ => Err(invalid(
-            "region form requires P1, Q1, simplex P1-bubble or tetrahedral moment bases",
-        )),
-    }
 }
 
 #[allow(clippy::type_complexity)]

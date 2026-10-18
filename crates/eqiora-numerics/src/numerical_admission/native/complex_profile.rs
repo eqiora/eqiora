@@ -61,6 +61,16 @@ fn policy() -> NativeLinearPolicy {
 #[test]
 fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
     let mut policy = policy();
+    assert!(
+        policy
+            .checked_backend::<f64>(&REFERENCE_LINEAR_SOLVER, None)
+            .is_err()
+    );
+    let real = NativeLinearPolicy::exact::<f64>(policy.solver, &REFERENCE_LINEAR_SOLVER).unwrap();
+    assert!(
+        real.checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
+            .is_err()
+    );
     policy.planning_profile = Some(HostSerialSolverProfile::general_canonical_csr());
     let checked = policy
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)

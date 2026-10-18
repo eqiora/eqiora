@@ -2,9 +2,8 @@
 //! This is an equivalence check, never an inferred symmetry or definiteness claim.
 use super::*;
 use eqiora_ir::ComponentScalarization;
-use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties};
+use eqiora_solver::CanonicalCsrSystemView;
 use num_complex::Complex64;
-use std::collections::BTreeMap;
 
 impl FiniteConstraintProblem {
     pub(crate) fn complex_linear_system(
@@ -43,68 +42,6 @@ impl FiniteConstraintProblem {
                 }
             }
         }
-        let real = solve::branch_system(self, 0)?;
-        let mut storage = ComplexStorage {
-            offsets: vec![0],
-            columns: Vec::new(),
-            values: Vec::new(),
-            rhs: real
-                .right_hand_side()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| Complex64::new(pair[0], pair[1]))
-                .collect(),
-        };
-        for row in (0..real.rows()).step_by(2) {
-            let mut blocks = BTreeMap::<usize, [f64; 4]>::new();
-            for part in 0..2 {
-                for entry in real.row_offsets()[row + part]..real.row_offsets()[row + part + 1] {
-                    let column = real.column_indices()[entry];
-                    blocks.entry(column / 2).or_default()[2 * part + column % 2] =
-                        real.values()[entry];
-                }
-            }
-            for (column, [rr, ri, ir, ii]) in blocks {
-                if rr != ii || ri != -ir {
-                    return Ok(None);
-                }
-                storage.columns.push(column);
-                storage.values.push(Complex64::new(rr, ir));
-            }
-            storage.offsets.push(storage.values.len());
-        }
-        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
-            .map(Some)
-    }
-}
-
-struct ComplexStorage {
-    offsets: Vec<usize>,
-    columns: Vec<usize>,
-    values: Vec<Complex64>,
-    rhs: Vec<Complex64>,
-}
-impl CsrStorage<Complex64> for ComplexStorage {
-    fn rows(&self) -> usize {
-        self.rhs.len()
-    }
-    fn columns(&self) -> usize {
-        self.rhs.len()
-    }
-    fn row_offsets(&self) -> &[usize] {
-        &self.offsets
-    }
-    fn column_indices(&self) -> &[usize] {
-        &self.columns
-    }
-    fn values(&self) -> &[Complex64] {
-        &self.values
-    }
-}
-
-impl ComplexStorage {
-    pub(crate) fn rhs(&self) -> &[Complex64] {
-        &self.rhs
+        solve::branch_system(self, 0)?.complex_coordinate_system()
     }
 }

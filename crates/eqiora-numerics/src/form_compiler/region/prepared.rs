@@ -7,8 +7,9 @@ use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap, QuadratureRule};
 
-use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, basis, invalid};
+use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, invalid};
 use crate::affine_fem::physical_gradient;
+use crate::discrete_space::DiscreteSpace;
 use crate::spatial_expression::Coefficient;
 
 mod ale;
@@ -150,7 +151,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             let spaces = self
                 .fields
                 .iter()
-                .map(|field| basis(field.space, self.reference))
+                .map(|field| DiscreteSpace::new(field.space, self.reference))
                 .collect::<Result<Vec<_>, _>>()?;
             let inverse = geometry.inverse_jacobian()?;
             let inverse_tangent = directions

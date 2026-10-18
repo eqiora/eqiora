@@ -245,23 +245,29 @@ impl ResolvedCommonPlan {
                 }
                 let properties = recognized.operator_properties(&spatial)?;
                 let structure = equations.algebraic_structure(None)?;
-                let mut linear = super::solver_planning::resolve_complex_linear(
-                    request,
-                    properties,
-                    stokes_backend,
-                )?;
+                let domain = recognized.linear_scalar_domain(&spatial, &system_scaling)?;
+                let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
+                    super::solver_planning::resolve_complex_linear(
+                        request,
+                        properties,
+                        stokes_backend,
+                    )?
+                } else {
+                    super::solver_planning::resolve_linear(
+                        request,
+                        properties,
+                        None,
+                        None,
+                        Some(structure.clone()),
+                        stokes_backend,
+                    )?
+                };
                 let profile =
                     eqiora_solver::HostSerialSolverProfile::canonical_csr(properties, None, None)
                         .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
-                let admission = recognized.complete(
-                    spatial,
-                    linear,
-                    None,
-                    None,
-                    eqiora_realization::SystemScaling::Dimensional,
-                )?;
+                let admission = recognized.complete(spatial, linear, None, None, system_scaling)?;
                 CommonSpatialPlan::from_complex_admission(
                     model,
                     admission,

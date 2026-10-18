@@ -1,5 +1,6 @@
 //! Prepared parent-cell trace actions, shared by affine and Newton assembly.
-use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, basis, invalid};
+use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, invalid};
+use crate::discrete_space::DiscreteSpace;
 use crate::spatial_expression::Coefficient;
 use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId};
@@ -129,7 +130,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 facet.reference_cell(),
             )?
         } else {
-            basis(
+            DiscreteSpace::new(
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                 facet.reference_cell(),
             )?
@@ -137,7 +138,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let spaces = self
             .fields
             .iter()
-            .map(|layout| basis(layout.space, self.reference))
+            .map(|layout| DiscreteSpace::new(layout.space, self.reference))
             .collect::<Result<Vec<_>, _>>()?;
         for sample in rule.points() {
             let facet_table = facet_space.tabulate(&sample.coordinates)?;
@@ -288,5 +289,38 @@ impl PreparedRegionFacet<f64> {
             return Err(invalid("nonlinear natural facet action is non-finite"));
         }
         Ok(action)
+    }
+}
+
+impl PreparedRegionFacet<num_complex::Complex64> {
+    /// A prescribed natural load is a physical value, not a trial action.
+    /// Project its scalar parts without introducing a second trace integrator.
+    pub(crate) fn real_coordinate_load(&self) -> Result<LocalContribution<f64>, Diagnostic> {
+        if !self.samples.is_empty()
+            || self
+                .affine
+                .matrix()
+                .iter()
+                .any(|value| *value != num_complex::Complex64::new(0., 0.))
+        {
+            return Err(invalid(
+                "real-coordinate facet projection requires a prescribed affine load",
+            ));
+        }
+        let mut rhs = Vec::new();
+        for field in &self.fields {
+            let width = field.real_scalar_coordinates()?;
+            for value in &self.affine.rhs()[field.range.clone()] {
+                if width == 1 && value.im != 0. {
+                    return Err(invalid("a real Field load has an imaginary component"));
+                }
+                rhs.extend([value.re, value.im].into_iter().take(width));
+            }
+        }
+        let entries = rhs
+            .len()
+            .checked_mul(rhs.len())
+            .ok_or_else(|| invalid("real-coordinate facet matrix dimensions overflow"))?;
+        LocalContribution::new(rhs.len(), rhs.len(), vec![0.; entries], rhs)
     }
 }

@@ -61,7 +61,7 @@ pub(super) fn sample_fields(
                 "balance sampling requires scalar nodal bases with physical component replicas",
             ));
         }
-        let basis = super::super::basis(layout.space, form.reference)?;
+        let basis = crate::discrete_space::DiscreteSpace::new(layout.space, form.reference)?;
         let table = basis.tabulate(reference_point)?;
         let gradients = (0..table.values().len())
             .map(|node| {
