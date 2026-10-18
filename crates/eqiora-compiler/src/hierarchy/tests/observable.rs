@@ -192,3 +192,39 @@ fn full_vector_integral_reference_retains_its_frame_without_an_output_support() 
         "model VectorIntegral() { domain body=box(0,1,0,1); variable f:vector<K,2> on body; relation r on body {f=f;} observable flux:vector<K*m^2,2>=integral(f,measure(body)); observable total:vector<K*m^4,2>=integral(flux,measure(body)); }",
     );
 }
+
+#[test]
+fn uniform_spatial_observable_signatures_are_checked_against_expression_frames() {
+    let body = "parameter p:tensor<complex<1>,2,2>=tensor_value(frame=body,components=[[1,2],[3,5]]); variable u:tensor<complex<1>,2,2> on body; relation r on body {u=p;} observable integrated:tensor<complex<m^2>,2,2>=integral(u,measure(body)); observable total:tensor<complex<m^2>,2,2>=integrated+p*1[m^2]; observable twice:tensor<complex<m^2>,2,2>=2*total; observable direct:tensor<complex<1>,2,2>=p;";
+    let model = format!("model T() {{domain body=box(0,2,0,3); {body}}}");
+    let unused = format!(
+        "component Unused(support body:volume(ambient_dimension=2)) {{{body}}} model Main() {{variable anchor:1; relation r {{anchor=0;}}}}"
+    );
+    for source in [model, unused] {
+        observables(&source);
+        for invalid in [
+            source.replace(
+                "total:tensor<complex<m^2>,2,2>",
+                "total:tensor<complex<m^2>,3,3>",
+            ),
+            source.replace(
+                "twice:tensor<complex<m^2>,2,2>",
+                "twice:tensor<complex<m^2>,2,3>",
+            ),
+            source.replace(
+                "direct:tensor<complex<1>,2,2>=p",
+                "direct:tensor<complex<1>,2,2>=1",
+            ),
+            source.replace(
+                "direct:tensor<complex<1>,2,2>",
+                "direct:array<array<complex<1>,2>,2>",
+            ),
+            source.replace(
+                "total:tensor<complex<m^2>,2,2>",
+                "total:tensor<complex<m>,2,2>",
+            ),
+        ] {
+            assert!(crate::compile("wrong-frame.eqi", &invalid).is_err());
+        }
+    }
+}

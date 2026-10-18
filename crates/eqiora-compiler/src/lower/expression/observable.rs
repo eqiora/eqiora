@@ -136,7 +136,7 @@ pub(in crate::lower) fn lower_observable(
                 .then(|| support.clone())
                 .flatten()
         });
-    let value_type = crate::value_types::lower_value_type(
+    let value_type = crate::value_types::lower_observable_type(
         file,
         value_type,
         output.as_ref().or(support.as_ref()),
@@ -301,7 +301,7 @@ pub(super) fn reference_type(
                 .then(|| measure_support.clone())
                 .flatten()
         });
-    let value_type = crate::value_types::lower_value_type(
+    let value_type = crate::value_types::lower_observable_type(
         file,
         value_type,
         support.as_ref().or(measure_support.as_ref()),

@@ -28,7 +28,8 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
                         [math.complex(-2,4),math.complex(5,3)]]);
         variable u:tensor<complex<1>,2,2> on body in h1;
         relation balance on body {{a*u+b*transpose(math.conj(u))=p;}}
-        observable total:tensor<complex<m^2>,2,2>=integral(u,measure(body))+p*1[m^2];
+        observable integrated:tensor<complex<m^2>,2,2>=integral(u,measure(body));
+        observable total:tensor<complex<m^2>,2,2>=integrated+p*1[m^2];
     }}""", entry="Tensor", geometry=geometry, bindings={
         "body": body, **{side: (geometry.selection(side), body) for side in sides},
     })
