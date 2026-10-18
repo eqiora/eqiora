@@ -37,7 +37,7 @@ const SPARSE_LU_CONTRACT_SHA256: &str =
     "666309634cca3d6be5d16d8e90e6ad01d0b92694cbb70fd03acce38ef8e98780";
 
 #[test]
-fn faer_sparse_lu_source_keeps_serial_and_residual_handoffs() {
+fn faer_sparse_lu_source_keeps_explicit_serial_handoffs() {
     let source = format!(
         "{}\n{}",
         include_str!("../../eqiora-backend-faer/src/sparse_lu.rs"),
@@ -68,13 +68,6 @@ fn faer_sparse_lu_source_keeps_serial_and_residual_handoffs() {
     ));
     assert!(normalized_source.contains(
         "LuRef::new_unchecked(&symbolic.factor, &numeric.factor).solve_in_place_with_conj( Conj::No, output.as_mut(), parallelism, MemStack::new(&mut buffer), );"
-    ));
-    assert!(
-        normalized_source
-            .contains("let reported_residual_norm = fixed_residual_norm(problem, &values)?;")
-    );
-    assert!(normalized_source.contains(
-        "ConvergenceReason::ResidualToleranceSatisfied, 1, reported_residual_norm, values,"
     ));
 }
 

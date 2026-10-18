@@ -1,15 +1,14 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearProblem, LinearSolution,
-    PreparedLinearSolver, PreparedLinearStructureIdentity, SolverPlan, accept_linear_solution,
+    LinearOperatorOrientation, LinearProblem, LinearSolution, PreparedLinearSolver,
+    PreparedLinearStructureIdentity, SolverPlan,
 };
 
 use crate::FAER_SOLVER_PROVIDER;
-use crate::sparse_lu::{fixed_norm, fixed_residual_norm};
+use crate::sparse_lu::{accepted_initial, solve_factored};
 use crate::sparse_lu_factor::{
     SparseLuNumericFactor, SparseLuSymbolicFactor, factor_numeric, factor_symbolic,
-    solve_factored_oriented,
 };
 
 #[derive(Debug)]
@@ -64,23 +63,8 @@ impl FaerPreparedSparseLu {
             ));
         }
 
-        let initial = problem
-            .initial_guess()
-            .map_or_else(|| vec![0.0; system.columns()], <[f64]>::to_vec);
-        let initial_residual_norm = fixed_residual_norm(problem, &initial)?;
-        let residual_target = self
-            .plan
-            .residual_target(fixed_norm(problem.right_hand_side())?)?;
-        if initial_residual_norm <= residual_target {
-            return accept_linear_solution(
-                problem,
-                self.plan,
-                FAER_SOLVER_PROVIDER,
-                ConvergenceReason::InitialResidualSatisfied,
-                0,
-                initial_residual_norm,
-                initial,
-            );
+        if let Some(initial) = accepted_initial(problem, self.plan)? {
+            return Ok(initial);
         }
 
         let same_symbolic = self.ready.as_ref().is_some_and(|ready| {
@@ -133,22 +117,7 @@ impl FaerPreparedSparseLu {
                 .expect("same coefficient identity retains a factor")
                 .numeric
         });
-        let values = solve_factored_oriented(
-            symbolic,
-            numeric,
-            problem.right_hand_side(),
-            LinearOperatorOrientation::Normal,
-        )?;
-        let reported_residual_norm = fixed_residual_norm(problem, &values)?;
-        let accepted = accept_linear_solution(
-            problem,
-            self.plan,
-            FAER_SOLVER_PROVIDER,
-            ConvergenceReason::ResidualToleranceSatisfied,
-            1,
-            reported_residual_norm,
-            values,
-        )?;
+        let accepted = solve_factored(problem, self.plan, symbolic, numeric)?;
 
         match (candidate_symbolic, candidate_numeric) {
             (Some(symbolic), Some(numeric)) => {
