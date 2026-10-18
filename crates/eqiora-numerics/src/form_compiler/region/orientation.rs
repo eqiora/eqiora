@@ -1,4 +1,6 @@
 use super::*;
+use crate::form_compiler::bilinear::BasisComponent;
+use eqiora_schema::kernel::{ExprId, ExprNode};
 
 impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn has_zero_multiplier_block(&self) -> bool {
@@ -138,5 +140,93 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
         }
         Some(signs)
+    }
+}
+
+impl<S: Coefficient> Context<'_, S> {
+    pub(in crate::form_compiler) fn diffusion_orientation(
+        &self,
+        id: ExprId,
+        depth: usize,
+    ) -> Result<Option<i8>, Diagnostic> {
+        if depth > 128 {
+            return Err(super::invalid("linear expression nesting exceeds 128"));
+        }
+        let orientation = |id| self.diffusion_orientation(id, depth + 1);
+        let merge = |left: Option<i8>, right: Option<i8>| match (left, right) {
+            (Some(a), Some(b)) if a != b => Err(super::invalid(
+                "linear diffusion terms have conflicting additive orientations",
+            )),
+            (Some(a), _) | (_, Some(a)) => Ok(Some(a)),
+            _ => Ok(None),
+        };
+        match self.dag.node(id) {
+            Some(ExprNode::Divergence(_)) => Ok(Some(1)),
+            Some(ExprNode::PureOperatorApplication(_))
+                if self.dimension == 2
+                    && super::super::planar_curl::gradient(self.dag, id).is_some() =>
+            {
+                Ok(Some(-1))
+            }
+            Some(ExprNode::Neg(a)) => Ok(orientation(*a)?.map(|sign| -sign)),
+            Some(ExprNode::Add(a, b)) => merge(orientation(*a)?, orientation(*b)?),
+            Some(ExprNode::Sub(a, b)) => {
+                merge(orientation(*a)?, orientation(*b)?.map(|sign| -sign))
+            }
+            Some(ExprNode::Mul(a, b)) if self.data(*a, depth + 1).is_ok() => orientation(*b),
+            Some(ExprNode::Mul(a, b)) if self.data(*b, depth + 1).is_ok() => orientation(*a),
+            Some(ExprNode::Div(a, _)) => orientation(*a),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl<S: Coefficient> Row<S> {
+    pub(super) fn orient_scalar_diffusion(
+        &mut self,
+        context: &Context<'_, S>,
+        root: ExprId,
+    ) -> Result<(), Diagnostic> {
+        // A scalar multiplier constraint such as div(velocity)=0 has no
+        // principal gradient of its own Field and must retain its authored sign.
+        if self.value_type.shape().is_scalar()
+            && self.terms.iter().any(|term| {
+                term.trial == self.tested
+                    && matches!(
+                        term.pairing,
+                        Pairing::Gradient
+                            | Pairing::Components {
+                                test: BasisComponent::Gradient { .. },
+                                trial: BasisComponent::Gradient { .. },
+                            }
+                    )
+            })
+            && context.diffusion_orientation(root, 0)? == Some(1)
+        {
+            self.map_data(&|value| {
+                Ok(value.clone().multiply(Data::constant(
+                    context.dimension,
+                    <S as From<f64>>::from(-1.0),
+                )))
+            })?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn require_positive_scalar_diffusion(&mut self) {
+        if S::DOMAIN == ScalarDomain::Real && self.value_type.shape().is_scalar() {
+            for term in self
+                .terms
+                .iter_mut()
+                .chain(self.flux.iter_mut().filter_map(|flux| match flux {
+                    flux::FluxTerm::Trial(term) => Some(term),
+                    _ => None,
+                }))
+            {
+                if term.trial == self.tested && term.pairing == Pairing::Gradient {
+                    term.positive_diffusion = true;
+                }
+            }
+        }
     }
 }

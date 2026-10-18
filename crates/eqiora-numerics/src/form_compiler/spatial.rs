@@ -173,18 +173,28 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             .keys()
             .map(|field| (*field, roles.fields[field].1.clone()))
             .collect::<Vec<_>>();
-        let scalar_profile = kinematics.is_empty()
+        // Formal conservation storage and moving charts still need their explicit
+        // balance pullback. Ordinary equations, including scalar equations, lower
+        // through the same component-aware Region form.
+        let scalar_balance = (motion.is_some()
+            || residuals.values().any(|relation| {
+                matches!(program.node(*relation),
+                Some(KernelNode::Relation(definition))
+                    if matches!(definition.meaning(), RelationMeaning::Conservation(_)))
+            }))
+            && kinematics.is_empty()
             && fields
                 .iter()
                 .all(|(_, value_type)| value_type.shape().is_scalar());
-        if scalar_profile {
+        if scalar_balance {
             for (_, value_type) in &fields {
                 require_scalar::<S>(value_type)?;
             }
         }
-        let coefficients = coefficients_at_time(program, dimension, &roles, time_s)?;
+        let coefficients = scalar_balance
+            .then(|| coefficients_at_time::<S>(program, dimension, &roles, time_s))
+            .transpose()?;
         let mut rows = Vec::new();
-        let mut storage = BTreeMap::new();
         let mut residual_types = Vec::new();
         for (field, relation) in &residuals {
             let typed = typed_relation(program, *relation)?;
@@ -195,7 +205,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 .value_type
                 .clone();
             residual_types.push(value_type.clone());
-            if !scalar_profile {
+            if !scalar_balance {
                 continue;
             }
             require_scalar::<S>(&value_type)?;
@@ -205,7 +215,9 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 dag: typed.expression(),
                 owner: *relation,
                 dimension,
-                coefficients: &coefficients,
+                coefficients: coefficients
+                    .as_ref()
+                    .expect("balance lowering coefficients"),
             };
             let mut row = match program.node(*relation) {
                 Some(KernelNode::Relation(definition)) => match definition.meaning() {
@@ -244,17 +256,9 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 motion.bind_transport(&context, *field, &mut row, chart, previous)?;
                 row = row.on_uniform_chart(chart)?;
             }
-            if !row.storage.is_empty() {
-                if row.storage.len() != 1 || !row.storage.contains_key(field) {
-                    return Err(invalid(
-                        "scalar Backward Euler requires each row to store its exact Field",
-                    ));
-                }
-                storage.insert(*field, row.storage[field].clone());
-            }
             rows.push(row);
         }
-        let (volume, initial) = if scalar_profile {
+        let volume = if scalar_balance {
             let volume_rows = residuals
                 .iter()
                 .zip(rows)
@@ -277,45 +281,31 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                     },
                 )
                 .collect();
-            let initial_coefficients =
-                coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
-            let initial = temporal::initial_values(
-                program,
-                domain,
-                dimension,
-                &storage,
-                &initial_coefficients,
-                &fields.iter().map(|(field, _)| *field).collect(),
-                time_s.map(|_| 0.0),
-            )?;
-            let volume =
-                CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?;
-            (volume, initial)
+            CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?
         } else {
-            let volume = CompiledRegionForm::<S>::derive(program, domain, dimension)?;
             if motion.is_some() {
                 return Err(invalid(
                     "moving vector storage requires explicit geometric history",
                 ));
             }
-            storage = volume.stored_fields()?;
-            let initial_coefficients =
-                coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
-            let initial = temporal::initial_values(
-                program,
-                domain,
-                dimension,
-                &storage,
-                &initial_coefficients,
-                &fields
-                    .iter()
-                    .map(|(field, _)| *field)
-                    .chain(kinematics.iter().map(|(pair, _)| pair.state().erase()))
-                    .collect(),
-                time_s.map(|_| 0.0),
-            )?;
-            (volume, initial)
+            CompiledRegionForm::<S>::derive_at_time(program, domain, dimension, time_s)?
         };
+        let storage = volume.stored_fields()?;
+        let initial_coefficients =
+            coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
+        let initial = temporal::initial_values(
+            program,
+            domain,
+            dimension,
+            &storage,
+            &initial_coefficients,
+            &fields
+                .iter()
+                .map(|(field, _)| *field)
+                .chain(kinematics.iter().map(|(pair, _)| pair.state().erase()))
+                .collect(),
+            time_s.map(|_| 0.0),
+        )?;
         if motion.is_some() && storage.len() != fields.len() {
             return Err(invalid(
                 "moving algebraic constraints require explicit geometric State acceptance",

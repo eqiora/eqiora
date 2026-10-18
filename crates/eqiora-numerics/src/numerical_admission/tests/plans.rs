@@ -1254,7 +1254,7 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
     assert!(
         error
             .message()
-            .contains("unknown-dependent diffusion coefficient")
+            .contains("nonlinear unknown-dependent coefficients")
     );
     assert!(!error.message().contains("native capability"));
 

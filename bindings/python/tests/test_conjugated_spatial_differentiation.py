@@ -88,3 +88,63 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
         lhs = sum(np.vdot(weight, value).real for weight, value in zip((w, field_w), tangent, strict=True))
         rhs = sum(np.vdot(weight, value).real for weight, value in zip(reverse, (da, db, dp), strict=True))
         assert lhs == pytest.approx(rhs, rel=0, abs=2e-10)
+
+
+@pytest.mark.parametrize("faer", [False, True])
+def test_scalar_affine_flux_preserves_natural_trace_and_total_products(faer):
+    graph = q.geometry.GeometryGraph()
+    interval = graph.interval(bounds=(0., 2.))
+    geometry = graph.build(interval, named_topology={
+        "body": interval.region, "left": interval.boundaries[0],
+        "right": interval.boundaries[1],
+    })
+    body = geometry.selection("body")
+    model = q.compile(source="""
+    public component AffineFlux(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body), support right:boundary(parent=body),
+        parameter p:complex<1>) {
+        parameter e:vector<1,1>=tensor_value(frame=body,components=[1]);
+        variable g:vector<complex<1/m>,1> on body in h1;
+        relation drift on body {g=p*coordinate(0)/1[m^2]*e;}
+        variable u:complex<1> on body in smooth;
+        relation balance on body {
+            -div(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)=-p/1[m^2];
+        }
+        relation left_value on left {trace(u)=p;}
+        relation right_flux on right {
+            normal(math.complex(4,3)*grad(u)+p*math.conj(grad(u))+g)
+                =(math.complex(4,3)*p+p*math.conj(p)+2*p)/1[m];
+        }
+    }
+    """, entry="AffineFlux", geometry=geometry, bindings={
+        "body": body, "left": (geometry.selection("left"), body),
+        "right": (geometry.selection("right"), body), "p": 2+3j,
+    })
+    mesh = q.meshing.generate(q.meshing.resolve(
+        geometry, q.meshing.CartesianMesher(cells=(2,))))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
+        algorithm=q.solve.LinearSolver.SparseLu if faer else q.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=q.solve.Preconditioner.Identity,
+        reduction=q.solve.Reduction.Fast if faer else q.solve.Reduction.Reproducible,
+        provider=q.solve.SolverProvider.faer() if faer else q.solve.SolverProvider.reference(),
+        relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    result = q.run(plan)
+    assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
+    program = q.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("p").id),),
+                             outputs=(plan.fields[0],))
+    # The exact solution u=p*(1+x) is in Q1 on the non-unit interval.
+    # Its derivatives are independent of the residual/trace differentiation:
+    # du=(1+x) dp; under the real complex pairing, dp*=sum((1+x) w).
+    shape = np.array([1., 2., 3.])
+    direction = 2-1j
+    weights = np.array([1-2j, -3+1j, 2+4j])
+    for p in (2+3j, 0j, -1+4j):
+        point = program.evaluate((p,))
+        np.testing.assert_allclose(point.primal().output[0], shape*p, rtol=0, atol=2e-10)
+        tangent = point.jvp((direction,)).tangent[0]
+        np.testing.assert_allclose(tangent, shape*direction, rtol=0, atol=2e-10)
+        reverse = point.vjp((weights,)).input_cotangent[0]
+        np.testing.assert_allclose(reverse, np.sum(shape*weights), rtol=0, atol=2e-10)
+        assert np.vdot(weights, tangent).real == pytest.approx(
+            np.vdot(reverse, direction).real, rel=0, abs=2e-10)

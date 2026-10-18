@@ -95,11 +95,21 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         domain: RawId,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
+        Self::derive_at_time(program, domain, dimension, None)
+    }
+
+    pub(in crate::form_compiler) fn derive_at_time(
+        program: &KernelProgram,
+        domain: RawId,
+        dimension: usize,
+        time_s: Option<f64>,
+    ) -> Result<Self, Diagnostic> {
         if !(1..=3).contains(&dimension) {
             return Err(invalid("region dimension must be one through three"));
         }
         let roles = EquationRoles::derive(program, [domain])?;
-        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
+        let coefficients =
+            super::spatial::coefficients_at_time(program, dimension, &roles, time_s)?;
         for (field, (_, value_type)) in &roles.fields {
             if !coefficients.contains_key(field)
                 && value_type.scalar_domain() == ScalarDomain::Complex
@@ -140,7 +150,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 ));
             }
             let context = Context {
-                time_s: None,
+                time_s,
                 program,
                 dag: typed.expression(),
                 owner: *relation,
@@ -166,6 +176,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 &mut row,
                 0,
             )?;
+            row.orient_scalar_diffusion(&context, root)?;
+            row.require_positive_scalar_diffusion();
             for term in &mut row.dyadics {
                 let field = roles
                     .fields

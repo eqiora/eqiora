@@ -85,6 +85,18 @@ fn expression<S: Coefficient>(
                 recurse(*b, coefficient.multiply(data), row)
             } else if let Ok(data) = context.data(*b, depth + 1) {
                 recurse(*a, coefficient.multiply(data), row)
+            } else if matches!(position, Position::Strong | Position::Flux)
+                && (context.components(*a, depth + 1).is_ok()
+                    || context.components(*b, depth + 1).is_ok())
+            {
+                components::lower(
+                    context,
+                    id,
+                    coefficient,
+                    row,
+                    matches!(position, Position::Flux),
+                    depth + 1,
+                )
             } else {
                 Err(invalid(
                     "region product has nonlinear unknown-dependent coefficients",
@@ -171,7 +183,9 @@ fn expression<S: Coefficient>(
                     "spatial multiplier outside divergence requires product-rule lowering",
                 ));
             }
-            if let Some(ExprNode::Symbol(SymbolRef::Field(field))) = context.dag.node(*value) {
+            if let Some(ExprNode::Symbol(SymbolRef::Field(field))) = context.dag.node(*value)
+                && !context.coefficients.contains_key(&field.erase())
+            {
                 row.terms.push(Term {
                     positive_diffusion: false,
                     trial: field.erase(),
