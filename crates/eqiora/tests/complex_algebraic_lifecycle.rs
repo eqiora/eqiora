@@ -400,6 +400,10 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         }
     };
     close(point.linearization().output_values(), &[1., -6., 40.]);
+    assert_eq!(
+        point.linearization().state_scalar_domain(),
+        eqiora::ScalarDomain::Real
+    );
     let validated = plan
         .validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., -6.])
         .unwrap();
@@ -418,6 +422,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         point.linearization().relation(),
         point.linearization(),
         point.linearization().relation().state_jacobian(),
+        point.linearization().state_scalar_domain(),
         point.linearization().residual_target(),
     )
     .unwrap();
@@ -1388,6 +1393,7 @@ fn supplied_candidate_preserves_the_admitted_complex_execution_profile() {
         .validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., 0.])
         .unwrap();
     assert_eq!(valid.output_values(), &[1., 0.]);
+    assert_eq!(valid.state_scalar_domain(), eqiora::ScalarDomain::Complex);
     let live_error = plan
         .differentiate(
             &initial,

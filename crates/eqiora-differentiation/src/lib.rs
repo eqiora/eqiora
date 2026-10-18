@@ -36,7 +36,7 @@ pub struct AcceptedOutputLinearization<
 > {
     relation: AcceptedLinearization<'a, R>,
     output: &'a O,
-    state_jacobian: Option<&'a CanonicalCsrSystemView>,
+    state_jacobian: Option<(&'a CanonicalCsrSystemView, eqiora_core::ScalarDomain)>,
 }
 
 impl<'a, R, O> AcceptedOutputLinearization<'a, R, O>
@@ -76,6 +76,10 @@ where
     /// The borrowed source carries its primal right-hand side unchanged.
     /// Forward and adjoint analysis supply their separately derived right-hand
     /// sides and independently replay the solved action through the relation.
+    /// The numerical scalar domain belongs to the state system: complex-linear
+    /// systems retain typed complex production while all derivatives remain in
+    /// real coordinates. A declared complex system must match exact paired CSR
+    /// blocks; nonholomorphic state actions use the real numerical domain.
     /// Checking that they belong to the same Model, Realization, and accepted
     /// point is left to the provenance layer.
     ///
@@ -87,6 +91,7 @@ where
         relation: &'a R,
         output: &'a O,
         state_jacobian: &'a CanonicalCsrSystemView,
+        state_scalar_domain: eqiora_core::ScalarDomain,
         residual_tolerance: f64,
     ) -> Result<Self, Diagnostic> {
         let mut accepted = Self::new(relation, output, residual_tolerance)?;
@@ -101,7 +106,17 @@ where
                 relation.unknown_dimension(),
             )));
         }
-        accepted.state_jacobian = Some(state_jacobian);
+        if !matches!(
+            state_scalar_domain,
+            eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+        ) || state_scalar_domain == eqiora_core::ScalarDomain::Complex
+            && state_jacobian.complex_coordinate_system()?.is_none()
+        {
+            return Err(invalid_linearization(
+                "state numerical domain does not match its exact coordinate action",
+            ));
+        }
+        accepted.state_jacobian = Some((state_jacobian, state_scalar_domain));
         Ok(accepted)
     }
 
@@ -280,7 +295,7 @@ fn forward_sensitivity_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
     parameter_tangent: &[f64],
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
-    state_jacobian: Option<&CanonicalCsrSystemView>,
+    state_jacobian: Option<(&CanonicalCsrSystemView, eqiora_core::ScalarDomain)>,
 ) -> Result<LinearSolution, Diagnostic> {
     let relation = linearization.relation();
     if parameter_tangent.len() != relation.parameter_dimension()
@@ -297,11 +312,12 @@ fn forward_sensitivity_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
     for value in &mut right_hand_side {
         *value = -*value;
     }
-    if let Some(state_jacobian) = state_jacobian {
+    if let Some((state_jacobian, state_scalar_domain)) = state_jacobian {
         require_canonical_properties(state_jacobian, properties)?;
-        let solution = solver.solve_canonical_oriented(
+        let solution = solver.solve_real_coordinates(
             state_jacobian,
             &right_hand_side,
+            state_scalar_domain,
             LinearOperatorOrientation::Normal,
         )?;
         replay_state_solution(
@@ -434,7 +450,7 @@ fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
     objective_parameter_cotangent: &[f64],
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
-    state_jacobian: Option<&CanonicalCsrSystemView>,
+    state_jacobian: Option<(&CanonicalCsrSystemView, eqiora_core::ScalarDomain)>,
 ) -> Result<AdjointGradient, Diagnostic> {
     let relation = linearization.relation();
     if objective_parameter_cotangent.len() != relation.parameter_dimension()
@@ -447,17 +463,18 @@ fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
             relation.parameter_dimension()
         )));
     }
-    let adjoint = if let Some(state_jacobian) = state_jacobian {
+    let adjoint = if let Some((state_jacobian, state_scalar_domain)) = state_jacobian {
         require_canonical_properties(state_jacobian, properties)?;
-        let solution = solver.solve_canonical_oriented(
+        let solution = solver.solve_real_coordinates(
             state_jacobian,
             objective_unknown_cotangent,
-            LinearOperatorOrientation::Transposed,
+            state_scalar_domain,
+            LinearOperatorOrientation::ConjugateTransposed,
         )?;
         replay_state_solution(
             relation,
             objective_unknown_cotangent,
-            LinearOperatorOrientation::Transposed,
+            LinearOperatorOrientation::ConjugateTransposed,
             &solution,
         )?;
         solution
@@ -465,7 +482,7 @@ fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
         let state_jacobian = StateJacobian::new(relation);
         let transposed = Oriented::new(
             &state_jacobian,
-            eqiora_solver::LinearOperatorOrientation::Transposed,
+            eqiora_solver::LinearOperatorOrientation::ConjugateTransposed,
         )?;
         let problem = LinearProblem::new(&transposed, objective_unknown_cotangent, properties)?;
         solver.solve(&problem)?
@@ -474,7 +491,7 @@ fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
     let parameter_jacobian = ParameterJacobian::new(relation);
     let parameter_transposed = Oriented::new(
         &parameter_jacobian,
-        eqiora_solver::LinearOperatorOrientation::Transposed,
+        eqiora_solver::LinearOperatorOrientation::ConjugateTransposed,
     )?;
     let mut indirect = vec![0.0; relation.parameter_dimension()];
     parameter_transposed.apply(adjoint.values(), &mut indirect)?;

@@ -259,6 +259,11 @@ impl PreparedPoint {
         Ok((
             CommonDifferentiationLinearization::from_finite(
                 relation,
+                if self.complex_system.is_some() {
+                    ScalarDomain::Complex
+                } else {
+                    ScalarDomain::Real
+                },
                 output,
                 assessment.residual_target(),
                 initial_residual_norm,

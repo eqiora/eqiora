@@ -259,6 +259,7 @@ impl Acceptance {
             relation,
             linearization,
             relation.state_jacobian(),
+            linearization.state_scalar_domain(),
             linearization.residual_target(),
         )?;
         Ok(Self {

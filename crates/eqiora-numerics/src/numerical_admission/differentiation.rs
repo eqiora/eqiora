@@ -101,6 +101,7 @@ impl CommonDifferentiationPoint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonDifferentiationLinearization {
     relation: AssembledLinearizedRelation,
+    state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
     residual_target: f64,
     initial_residual_norm: Option<f64>,
@@ -119,11 +120,13 @@ impl CommonDifferentiationLinearization {
 
     pub(super) fn from_spatial(
         relation: AssembledLinearizedRelation,
+        state_scalar_domain: eqiora_core::ScalarDomain,
         output: Output,
         residual_target: f64,
     ) -> Self {
         Self {
             relation,
+            state_scalar_domain,
             output,
             residual_target,
             initial_residual_norm: None,
@@ -132,12 +135,14 @@ impl CommonDifferentiationLinearization {
 
     pub(super) fn from_finite(
         relation: AssembledLinearizedRelation,
+        state_scalar_domain: eqiora_core::ScalarDomain,
         output: DenseOutputLinearization,
         residual_target: f64,
         initial_residual_norm: Option<f64>,
     ) -> Self {
         Self {
             relation,
+            state_scalar_domain,
             output: Output::Dense(output),
             residual_target,
             initial_residual_norm,
@@ -148,6 +153,13 @@ impl CommonDifferentiationLinearization {
     #[must_use]
     pub fn relation(&self) -> &AssembledLinearizedRelation {
         &self.relation
+    }
+
+    /// Numerical scalar domain retained from this point's state system.
+    /// Tangents, Parameters and outputs still use their full real coordinates.
+    #[must_use]
+    pub const fn state_scalar_domain(&self) -> eqiora_core::ScalarDomain {
+        self.state_scalar_domain
     }
 
     /// Complete selected output coordinates at this point.

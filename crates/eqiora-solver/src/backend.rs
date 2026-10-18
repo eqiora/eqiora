@@ -11,6 +11,8 @@ use crate::{
     SolverProvider,
 };
 
+mod coordinates;
+
 /// One exact numerical-policy tuple implemented by a solver adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SolverCapability {

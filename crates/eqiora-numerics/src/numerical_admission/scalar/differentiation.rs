@@ -286,7 +286,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             residual,
         )?;
         Ok(CommonDifferentiationLinearization::from_spatial(
-            relation, output, target,
+            relation,
+            A::DOMAIN,
+            output,
+            target,
         ))
     }
 }

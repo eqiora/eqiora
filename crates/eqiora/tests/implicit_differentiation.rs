@@ -62,7 +62,7 @@ fn converged_implicit_relation_supports_forward_and_adjoint_sensitivity() {
     .unwrap();
     assert_eq!(
         adjoint.adjoint().report().orientation(),
-        LinearOperatorOrientation::Transposed
+        LinearOperatorOrientation::ConjugateTransposed
     );
     assert!((adjoint.adjoint().values()[0] - 0.7).abs() < 1.0e-13);
     assert!((adjoint.adjoint().values()[1] + 0.9).abs() < 1.0e-13);

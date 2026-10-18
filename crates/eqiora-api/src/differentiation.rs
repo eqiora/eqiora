@@ -229,6 +229,7 @@ impl DifferentiableEvaluation {
             self.native.linearization().relation(),
             self.native.linearization(),
             self.native.linearization().relation().state_jacobian(),
+            self.native.linearization().state_scalar_domain(),
             self.acceptance.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
@@ -275,6 +276,7 @@ impl DifferentiableEvaluation {
             self.native.linearization().relation(),
             self.native.linearization(),
             self.native.linearization().relation().state_jacobian(),
+            self.native.linearization().state_scalar_domain(),
             self.acceptance.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(

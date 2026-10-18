@@ -35,12 +35,17 @@ def test_tensor_conjugation_shares_primal_partials_and_observation_products(nati
     })
     mesh = q.meshing.generate(q.meshing.resolve(
         geometry, q.meshing.CartesianMesher(cells=(2, 3))))
+    # For this unit-cell Q1 mass matrix, ||M^-1||_2 <= 24. With
+    # sigma_min(a I+b J) >= sqrt(13)-sqrt(5), the two solve residuals
+    # bound coefficient-gradient error by 7.83e4 * relative_tolerance.
+    # Request 1e-15 to leave rounding margin inside the fixed 2e-10 oracle.
+    # Budget four recurrences of the 96 real coordinates, including residual corrections.
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
         algorithm=q.solve.LinearSolver.SparseLu if faer else q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
         reduction=q.solve.Reduction.Fast if faer else q.solve.Reduction.Reproducible,
         provider=q.solve.SolverProvider.faer() if faer else q.solve.SolverProvider.reference(),
-        relative_tolerance=1e-12, absolute_tolerance=1e-12, maximum_iterations=100))
+        relative_tolerance=1e-15, absolute_tolerance=1e-15, maximum_iterations=384))
     plan = q.Plan.from_bytes(plan.to_bytes())
     inputs = tuple(plan.model.parameter(model.parameter(name).id) for name in ("a", "b", "p"))
     total = plan.model.observable(model.observable("total").id)

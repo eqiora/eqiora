@@ -96,6 +96,10 @@ fn conjugated_unknown_derivatives_retain_parameter_load_and_boundary_lifts() {
             )
             .unwrap();
         let linear = accepted.linearization();
+        assert_eq!(
+            linear.state_scalar_domain(),
+            eqiora_core::ScalarDomain::Real
+        );
         let relation = linear.relation();
         assert_eq!(relation.unknown_dimension(), 6);
         for (node, pair) in linear.output_values().as_chunks::<2>().0.iter().enumerate() {
