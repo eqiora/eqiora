@@ -1,3 +1,4 @@
+use crate::form_compiler::region::integration::IntegralField;
 use crate::parameter_point::ParameterPoint;
 mod moments;
 mod parameters;
@@ -522,15 +523,23 @@ model Wave() {
     let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
     let local = integrate(
         reference,
-        &[(Space::continuous_lagrange(std::num::NonZeroU16::MIN), 1)],
+        &[IntegralField {
+            space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            components: 1,
+            scalar_coordinates: 1,
+        }],
         &[
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 0,
                 pairing: Pairing::Gradient,
                 trial_scale: 1.0,
             },
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 0,
                 pairing: Pairing::Value,

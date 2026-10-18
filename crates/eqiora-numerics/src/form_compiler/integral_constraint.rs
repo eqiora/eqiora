@@ -1,5 +1,6 @@
 //! Method-owned scalar integral constraints through the common quadrature owner.
 
+use crate::form_compiler::region::integration::IntegralField;
 use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
@@ -18,15 +19,30 @@ pub(crate) fn zero_integral_constraint(
 ) -> Result<LocalContribution<f64>, Diagnostic> {
     integrate(
         geometry.reference_cell(),
-        &[(space, 1), (Space::cell_constant(), 1)],
+        &[
+            IntegralField {
+                space,
+                components: 1,
+                scalar_coordinates: 1,
+            },
+            IntegralField {
+                space: Space::cell_constant(),
+                components: 1,
+                scalar_coordinates: 1,
+            },
+        ],
         &[
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 1,
                 pairing: Pairing::Value,
                 trial_scale: 1.0,
             },
             IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 1,
                 column: 0,
                 pairing: Pairing::Value,

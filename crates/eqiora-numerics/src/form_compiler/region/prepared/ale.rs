@@ -1,7 +1,9 @@
 //! Apply an endpoint skew/GCL numerical pullback to an authored transport row.
 use super::*;
 use crate::form_compiler::bilinear::Pairing;
-use crate::form_compiler::region::integration::{IntegralTerm, integrate_with_geometry_direction};
+use crate::form_compiler::region::integration::{
+    IntegralField, IntegralTerm, integrate_with_geometry_direction,
+};
 use eqiora_meshing::FixedTopologyGeometryAction;
 
 impl BoundRegionForm<f64> {
@@ -38,7 +40,7 @@ impl BoundRegionForm<f64> {
         let fields = self
             .fields
             .iter()
-            .map(|field| (field.space, field.components))
+            .map(IntegralField::from)
             .collect::<Vec<_>>();
         let inverse = map.inverse_jacobian()?;
         let inverse = inverse.as_slice();
@@ -101,6 +103,8 @@ impl BoundRegionForm<f64> {
             }
             let mut terms = (0..D)
                 .map(|axis| IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row,
                     column: row,
                     pairing: Pairing::SkewGradient(axis),
@@ -108,6 +112,8 @@ impl BoundRegionForm<f64> {
                 })
                 .collect::<Vec<_>>();
             terms.push(IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row,
                 column: row,
                 pairing: Pairing::Value,

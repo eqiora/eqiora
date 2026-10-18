@@ -42,8 +42,14 @@ fn dilation_differentiates_nodal_and_piola_mass_and_stiffness() {
             // contributes s^-1. Edge/face moment values contribute s^-1/s^-2.
             let (primal, tangent) = integrate_with_geometry_direction(
                 map.reference_cell(),
-                &[(space, components)],
+                &[IntegralField {
+                    space,
+                    components,
+                    scalar_coordinates: 1,
+                }],
                 &[IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row: 0,
                     column: 0,
                     pairing,
@@ -82,8 +88,14 @@ fn translated_coordinate_data_has_exact_p1_mass_and_load_derivatives() {
     let rule = eqiora_meshing::simplex_duffy_gauss_legendre(3, 3).unwrap();
     let (_, tangent) = integrate_with_geometry_direction(
         map.reference_cell(),
-        &[(Space::continuous_lagrange(NonZeroU16::MIN), 1)],
+        &[IntegralField {
+            space: Space::continuous_lagrange(NonZeroU16::MIN),
+            components: 1,
+            scalar_coordinates: 1,
+        }],
         &[IntegralTerm {
+            test_coordinate: 0,
+            trial_coordinate: 0,
             row: 0,
             column: 0,
             pairing: Pairing::Value,

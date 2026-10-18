@@ -115,12 +115,16 @@ fn assemble<S: Coefficient + Send + Sync>(
         let terms = if space == Space::tetrahedral_edge() {
             vec![
                 IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row: 0,
                     column: 0,
                     pairing: Pairing::Gradient,
                     trial_scale: 2.0,
                 },
                 IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row: 0,
                     column: 0,
                     pairing: Pairing::SymmetricGradient,
@@ -129,6 +133,8 @@ fn assemble<S: Coefficient + Send + Sync>(
             ]
         } else {
             vec![IntegralTerm {
+                test_coordinate: 0,
+                trial_coordinate: 0,
                 row: 0,
                 column: 0,
                 pairing: Pairing::Value,
@@ -137,7 +143,11 @@ fn assemble<S: Coefficient + Send + Sync>(
         };
         let local = integrate(
             reference,
-            &[(space, 3)],
+            &[IntegralField {
+                space,
+                components: 3,
+                scalar_coordinates: 1,
+            }],
             &terms,
             &geometry,
             &rule,

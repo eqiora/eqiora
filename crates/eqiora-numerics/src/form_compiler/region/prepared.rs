@@ -1,5 +1,6 @@
 //! Immutable local actions for one exact form, geometry and quadrature binding.
 
+use crate::form_compiler::region::integration::IntegralField;
 use std::collections::BTreeMap;
 
 use eqiora_assembly::LocalContribution;
@@ -283,7 +284,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let fields = self
             .fields
             .iter()
-            .map(|field| (field.space, field.components))
+            .map(IntegralField::from)
             .collect::<Vec<_>>();
         let mut integrals = Vec::new();
         let mut data = Vec::new();
@@ -310,6 +311,8 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 }
                 column = Some(index);
                 integrals.push(super::integration::IntegralTerm {
+                    test_coordinate: 0,
+                    trial_coordinate: 0,
                     row,
                     column: index,
                     pairing: term.pairing,
