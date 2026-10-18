@@ -355,7 +355,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
             .derivative_solve()
             .expect("VJP has one transposed derivative solve")
             .orientation(),
-        LinearOperatorOrientation::Transposed
+        LinearOperatorOrientation::ConjugateTransposed
     );
     let finite_gradient = std::array::from_fn::<_, 3, _>(|parameter| {
         let mut basis = [0.0; 3];

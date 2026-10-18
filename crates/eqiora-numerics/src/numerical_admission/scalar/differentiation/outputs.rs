@@ -52,7 +52,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             }
             return Ok(Vec::new());
         }
-        let mapping = &self.system.mapping;
+        let mapping = self.system.mapping();
         let fields = self
             .plan
             .fields()
@@ -143,7 +143,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         direct: Vec<f64>,
         observations: Vec<ObservationPartials>,
     ) -> Result<Output, Diagnostic> {
-        let mapping = &self.system.mapping;
+        let mapping = self.system.mapping();
         let columns = self.coordinates.len();
         let field_output = |keys: &[crate::region_assembly::mapping::FieldDof],
                             direct: Vec<f64>| {

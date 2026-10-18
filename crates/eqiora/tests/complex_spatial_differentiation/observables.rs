@@ -144,10 +144,15 @@ fn check_spatial_observables(
                 let linearization = native.linearization();
                 let (primal, derivative) = expected(&direction);
                 near(linearization.output_values(), &primal);
+                assert_eq!(
+                    linearization.state_scalar_domain(),
+                    eqiora::ScalarDomain::Complex
+                );
                 let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
                     linearization.relation(),
                     linearization,
                     linearization.relation().state_jacobian(),
+                    linearization.state_scalar_domain(),
                     linearization.residual_target(),
                 )
                 .unwrap();

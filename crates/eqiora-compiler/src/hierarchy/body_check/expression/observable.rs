@@ -128,7 +128,7 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
         declaration.value_type(),
         &scope.static_values,
     )?;
-    let expected = crate::value_types::lower_value_type(
+    let expected = crate::value_types::lower_observable_type(
         scope.file,
         &syntax,
         output.as_ref().or(support.as_ref()),
@@ -255,7 +255,7 @@ pub(super) fn reference_type(
         declaration.value_type(),
         &scope.static_values,
     )?;
-    let value_type = crate::value_types::lower_value_type(
+    let value_type = crate::value_types::lower_observable_type(
         scope.file,
         &syntax,
         support.as_ref().or(measure.as_ref()),

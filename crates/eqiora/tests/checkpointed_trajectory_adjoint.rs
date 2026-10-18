@@ -182,12 +182,9 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     assert_close(adjoint.initial_state_cotangent()[1], expected[1], 3.0e-8);
     assert_close(adjoint.parameter_gradient()[0], expected[2], 3.0e-8);
     assert_eq!(adjoint.step_adjoints().len(), STEP_COUNT);
-    assert!(
-        adjoint
-            .step_adjoints()
-            .iter()
-            .all(|step| { step.report().orientation() == LinearOperatorOrientation::Transposed })
-    );
+    assert!(adjoint.step_adjoints().iter().all(|step| {
+        step.report().orientation() == LinearOperatorOrientation::ConjugateTransposed
+    }));
 
     let mut drifted = checkpoint.state().to_vec();
     drifted[0] += 1.0e-4;

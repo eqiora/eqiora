@@ -242,3 +242,114 @@ fn native_complex_iteration_and_acceptance_use_the_admitted_typed_execution() {
             > 3
     );
 }
+
+#[derive(Debug)]
+struct TypedCoordinatesOnly {
+    foreign_identity: bool,
+}
+
+impl LinearSolverBackend<f64> for TypedCoordinatesOnly {
+    fn provider(&self) -> crate::SolverProvider {
+        if self.foreign_identity {
+            crate::SolverProvider::new(
+                crate::BackendId::new("test.foreign-coordinate-provider"),
+                "1",
+                &[],
+            )
+        } else {
+            <ReferenceLinearSolver as LinearSolverBackend<f64>>::provider(&ReferenceLinearSolver)
+        }
+    }
+    fn capabilities(&self) -> crate::SolverCapabilities {
+        crate::SolverCapabilities::reference()
+    }
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<Complex64>> {
+        Some(&ReferenceLinearSolver)
+    }
+    fn solve_with_execution(
+        &self,
+        _: &LinearProblem<'_, f64>,
+        _: SolverPlan,
+        _: &dyn ReplicatedLinearExecution<f64>,
+    ) -> Result<LinearSolution<f64>, Diagnostic> {
+        panic!("an admitted complex state must use the complex producer")
+    }
+}
+
+#[test]
+fn typed_coordinate_solves_preserve_complex_forward_and_adjoint_producers() {
+    let source = CanonicalCsrSystemView::new(
+        &ComplexStorage,
+        ComplexStorage.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let coordinates = source
+        .real_coordinate_system(LinearOperatorOrientation::Normal, source.right_hand_side())
+        .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    let backend = TypedCoordinatesOnly {
+        foreign_identity: false,
+    };
+    let request = LinearSolveRequest::new(&backend, plan);
+    // Independently expanded A*x and A^H*x for x=(1+2i,-2+i).
+    for (orientation, rhs) in [
+        (LinearOperatorOrientation::Normal, [-5., 5., -13., 9.]),
+        (
+            LinearOperatorOrientation::ConjugateTransposed,
+            [6., 7., -7., 6.],
+        ),
+    ] {
+        let solution = request
+            .solve_real_coordinates(
+                &coordinates,
+                &rhs,
+                eqiora_core::ScalarDomain::Complex,
+                orientation,
+            )
+            .unwrap();
+        assert_eq!(solution.report().orientation(), orientation);
+        assert_eq!(solution.report().solver_provider(), backend.provider());
+        for (actual, expected) in solution.values().iter().zip([1., 2., -2., 1.]) {
+            assert!((actual - expected).abs() < 2e-10);
+        }
+    }
+    assert!(
+        request
+            .solve_real_coordinates(
+                &coordinates,
+                &[6., 7., -7., 6.],
+                eqiora_core::ScalarDomain::Complex,
+                LinearOperatorOrientation::Transposed,
+            )
+            .is_err()
+    );
+    assert!(
+        request
+            .solve_real_coordinates(
+                &coordinates,
+                &[1., 2., 3.],
+                eqiora_core::ScalarDomain::Complex,
+                LinearOperatorOrientation::Normal,
+            )
+            .is_err()
+    );
+    let foreign = TypedCoordinatesOnly {
+        foreign_identity: true,
+    };
+    let error = LinearSolveRequest::new(&foreign, plan)
+        .solve_real_coordinates(
+            &coordinates,
+            &[-5., 5., -13., 9.],
+            eqiora_core::ScalarDomain::Complex,
+            LinearOperatorOrientation::Normal,
+        )
+        .unwrap_err();
+    assert!(error.message().contains("different provider"));
+}

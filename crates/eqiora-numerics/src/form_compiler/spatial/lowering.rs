@@ -233,9 +233,26 @@ impl<S: Coefficient> Context<'_, S> {
                 Ok(terms)
             }
             Some(ExprNode::Divergence(flux)) => self.flux_terms(*flux, depth + 1),
-            _ => Err(super::invalid(
-                "unsupported or nonlinear scalar equation operator",
-            )),
+            _ => {
+                // Scalar pointwise maps use the same retained component IR as
+                // arrays and tensors, including real-linear complex actions.
+                let components = self.affine_components(id, depth + 1)?.ok_or_else(|| {
+                    super::invalid("unsupported or nonlinear scalar equation operator")
+                })?;
+                let [component]: [_; 1] = components.try_into().map_err(|_| {
+                    super::invalid("scalar reaction requires exactly one physical component")
+                })?;
+                let mut row = Terms::data(component.offset);
+                for (field, component, coefficient) in component.terms {
+                    if component != crate::form_compiler::bilinear::BasisComponent::Value(0) {
+                        return Err(super::invalid(
+                            "scalar reaction requires value trial coordinates",
+                        ));
+                    }
+                    row.reaction.insert(field, coefficient);
+                }
+                Ok(row)
+            }
         }
     }
 

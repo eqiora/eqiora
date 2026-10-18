@@ -130,7 +130,7 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     .unwrap();
     assert_eq!(
         adjoint.adjoint().report().orientation(),
-        LinearOperatorOrientation::Transposed
+        LinearOperatorOrientation::ConjugateTransposed
     );
     let finite_gradient = finite_objective_gradient([1.0, 1.0], 1.0);
     for (actual, expected) in adjoint.gradient().iter().zip(finite_gradient) {

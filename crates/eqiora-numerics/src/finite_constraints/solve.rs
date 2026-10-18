@@ -7,6 +7,19 @@ use eqiora_solver::{
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION,
 };
 
+impl FiniteConstraintProblem {
+    /// The sole affine branch for unconstrained differentiated points. Active
+    /// sets and Newton steps keep their existing branch/iteration owners.
+    pub(crate) fn linear_system(&self) -> Result<CanonicalCsrSystemView, Diagnostic> {
+        if self.is_nonlinear() || self.enforcement.is_some() {
+            return Err(invalid(
+                "a single affine system requires unconstrained linear Relations",
+            ));
+        }
+        branch_system(self, 0)
+    }
+}
+
 /// Enumerate the declared bounded affine active sets and accept the first feasible branch.
 /// Each accepted candidate is checked against original Model operands independently of CSR.
 ///

@@ -42,6 +42,6 @@ impl FiniteConstraintProblem {
                 }
             }
         }
-        solve::branch_system(self, 0)?.complex_coordinate_system()
+        self.linear_system()?.complex_coordinate_system()
     }
 }

@@ -5,33 +5,8 @@ import pytest
 
 import eqiora
 from _signature_bindings import support_bindings
+from _differentiation_contract import POISSON, DLPackProducer, check_complete_field_actions
 
-
-POISSON = """
-public component PythonDifferentiatedPoisson(
-  support square: volume(ambient_dimension = 2),
-  support x_lower: boundary(parent = square),
-  support x_upper: boundary(parent = square),
-  support y_lower: boundary(parent = square),
-  support y_upper: boundary(parent = square),
-  parameter diffusion: 1,
-  parameter wave_number: 1 / m,
-  parameter source_scale: 1 / m ^ 2,
-  parameter boundary_offset: 1
-) {
-
-  variable potential: 1 on square in h1;
-  relation balance on square {
-    -div(diffusion * grad(potential))
-      - source_scale * math.sin(wave_number * coordinate(0))
-        * math.sin(wave_number * coordinate(1)) = 0;
-  }
-  relation x_lower_value on x_lower { trace(potential) - boundary_offset = 0; }
-  relation x_upper_value on x_upper { trace(potential) - boundary_offset = 0; }
-  relation y_lower_value on y_lower { trace(potential) - boundary_offset = 0; }
-  relation y_upper_value on y_upper { trace(potential) - boundary_offset = 0; }
-}
-"""
 
 ELASTICITY = """
 public component MixedBoundaryElasticity(
@@ -207,22 +182,6 @@ def elasticity_model_and_plan(*, mu=2.0, lambda_=3.0):
     return model, plan
 
 
-class DLPackProducer:
-    def __init__(self, values: np.ndarray, *, device: tuple[int, int] = (1, 0)):
-        self.values = values
-        self.device = device
-        self.device_queries = 0
-        self.exports: list[dict[str, object]] = []
-
-    def __dlpack_device__(self) -> tuple[int, int]:
-        self.device_queries += 1
-        return self.device
-
-    def __dlpack__(self, **kwargs):
-        self.exports.append(dict(kwargs))
-        return self.values.__dlpack__(**kwargs)
-
-
 @pytest.mark.parametrize(
     "method",
     [
@@ -231,64 +190,7 @@ class DLPackProducer:
     ],
 )
 def test_public_diff_module_exposes_paired_complete_field_actions(method) -> None:
-    model, plan = model_and_plan(method)
-    inputs = (
-        model.parameter("source_scale"),
-        model.parameter("diffusion"),
-        model.parameter("boundary_offset"),
-    )
-    program = eqiora.diff.compile(
-        plan,
-        inputs=inputs,
-        outputs=(plan.capability.fields[0],),
-    )
-
-    direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
-    primal = program.primal()
-    jvp = program.jvp(tuple(direction))
-    cotangent = np.ones(program.outputs[0].shape, dtype=np.float64)
-    vjp = program.vjp((cotangent,))
-
-    assert isinstance(program, eqiora.DifferentiableProgram)
-    assert isinstance(primal.output, tuple)
-    assert isinstance(primal.output[0], np.ndarray)
-    assert primal.output[0].shape == program.outputs[0].shape
-    np.testing.assert_array_equal(jvp.output[0], primal.output[0])
-    np.testing.assert_array_equal(vjp.output[0], primal.output[0])
-    np.testing.assert_allclose(
-        np.dot(jvp.tangent[0], cotangent),
-        np.dot(direction, vjp.input_cotangent),
-        rtol=2.0e-10,
-        atol=2.0e-11,
-    )
-    assert primal.evidence.linearization_state == eqiora.LinearizationState.Established
-    assert primal.evidence.derivative_solve is None
-    assert jvp.evidence.primal_solve.orientation == "normal"
-    assert jvp.evidence.derivative_solve.orientation == "normal"
-    assert vjp.evidence.derivative_solve.orientation == "transposed"
-    assert [leaf.id for leaf in program.inputs] == [reference.id for reference in inputs]
-
-    point = np.array([17.0, 1.2, 0.1], dtype=np.float64)
-    evaluation = program.evaluate(tuple(point[i:i+1].reshape(()) for i in range(len(point))))
-    point[:] = -1.0
-    assert isinstance(evaluation, eqiora.DifferentiableEvaluation)
-    np.testing.assert_array_equal(
-        evaluation.point,
-        np.array([17.0, 1.2, 0.1], dtype=np.float64),
-    )
-    assert all(not leaf.flags.writeable for leaf in evaluation.point)
-    evaluated_jvp = evaluation.jvp(tuple(direction))
-    evaluated_vjp = evaluation.vjp((cotangent,))
-    np.testing.assert_array_equal(
-        evaluated_jvp.output[0],
-        evaluation.primal().output[0],
-    )
-    np.testing.assert_allclose(
-        np.dot(evaluated_jvp.tangent[0], cotangent),
-        np.dot(direction, evaluated_vjp.input_cotangent),
-        rtol=2.0e-10,
-        atol=2.0e-11,
-    )
+    check_complete_field_actions(method)
 
 
 def test_diff_input_admission_is_explicit_and_model_bound() -> None:
@@ -496,7 +398,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
         np.testing.assert_allclose(reverse.input_cotangent, [reduced], rtol=0, atol=1e-12)
         assert reverse.evidence.implementation == eqiora.DerivativeImplementation.OperatorIr
         assert reverse.evidence.initial_state_identity == seed.digest
-        assert reverse.evidence.derivative_solve.orientation == "transposed"
+        assert reverse.evidence.derivative_solve.orientation == "conjugate-transposed"
         with pytest.raises(BufferError, match="shape"):
             point.residual_jvp(np.array([], dtype=np.float64), one)
     np.testing.assert_array_equal(default.vjp((1.0,)).input_cotangent, [1.25])

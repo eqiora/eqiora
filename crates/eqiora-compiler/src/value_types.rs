@@ -39,6 +39,41 @@ pub(crate) fn lower_value_type<I>(
     syntax: &ValueTypeSyntax,
     support: Option<&SpatialSupport<I>>,
 ) -> Result<ValueType, Diagnostic> {
+    lower_type(
+        file,
+        syntax,
+        support.map_or(FrameContext::Missing, |support| {
+            FrameContext::Support(support.ambient_dimensions())
+        }),
+    )
+}
+
+/// An Observable signature describes a result, not a value constructor or a
+/// Field location. Its spatial axes must subsequently match its typed expression.
+/// In particular, a reduction retains a Cartesian frame after removing support.
+pub(crate) fn lower_observable_type<I>(
+    file: &str,
+    syntax: &ValueTypeSyntax,
+    support: Option<&SpatialSupport<I>>,
+) -> Result<ValueType, Diagnostic> {
+    let frame = support.map_or(FrameContext::Result, |support| {
+        FrameContext::Support(support.ambient_dimensions())
+    });
+    lower_type(file, syntax, frame)
+}
+
+#[derive(Clone, Copy)]
+enum FrameContext {
+    Missing,
+    Support(Option<usize>),
+    Result,
+}
+
+fn lower_type(
+    file: &str,
+    syntax: &ValueTypeSyntax,
+    frame: FrameContext,
+) -> Result<ValueType, Diagnostic> {
     let invalid =
         |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, syntax.range(), message);
     match syntax.kind() {
@@ -73,15 +108,15 @@ pub(crate) fn lower_value_type<I>(
         }
         ValueTypeSyntaxKind::Array { element, extent } => {
             let extent = crate::hierarchy::closed_index(extent)?;
-            lower_value_type(file, element, support)?
+            lower_type(file, element, frame)?
                 .array(extent)
                 .map_err(|error| invalid(error.to_string()))
         }
         ValueTypeSyntaxKind::Vector { scalar, extent } => {
-            spatial_type(file, syntax, scalar, &[*extent], support)
+            spatial_type(file, syntax, scalar, &[*extent], frame)
         }
         ValueTypeSyntaxKind::Tensor { scalar, extents } => {
-            spatial_type(file, syntax, scalar, extents, support)
+            spatial_type(file, syntax, scalar, extents, frame)
         }
     }
 }
@@ -99,29 +134,34 @@ pub(crate) fn component_dimension(
     }
 }
 
-fn spatial_type<I>(
+fn spatial_type(
     file: &str,
     syntax: &ValueTypeSyntax,
     scalar: &ValueTypeSyntax,
     extents: &[u32],
-    support: Option<&SpatialSupport<I>>,
+    frame: FrameContext,
 ) -> Result<ValueType, Diagnostic> {
     let invalid =
         |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, syntax.range(), message);
-    let support = support.ok_or_else(|| {
-        invalid("spatial value type requires an exact support to determine its frame".into())
-    })?;
-    let dimension = support
-        .ambient_dimensions()
-        .and_then(|dimension| u32::try_from(dimension).ok())
-        .filter(|n| *n > 0)
-        .ok_or_else(|| invalid("support has no valid ambient spatial dimension".into()))?;
+    let dimension = match frame {
+        FrameContext::Missing => {
+            return Err(invalid(
+                "spatial value type requires an exact support to determine its frame".into(),
+            ));
+        }
+        FrameContext::Support(dimension) => {
+            dimension.and_then(|dimension| u32::try_from(dimension).ok())
+        }
+        FrameContext::Result => extents.first().copied(),
+    }
+    .filter(|n| *n > 0)
+    .ok_or_else(|| invalid("spatial frame has no valid ambient spatial dimension".into()))?;
     if extents.iter().any(|extent| *extent != dimension) {
         return Err(invalid(format!(
-            "spatial type extents must match support ambient dimension {dimension}",
+            "spatial type extents must match ambient dimension {dimension}",
         )));
     }
-    let scalar = lower_value_type(file, scalar, Some(support))?;
+    let scalar = lower_type(file, scalar, frame)?;
     let shape =
         ValueShape::new(extents.iter().copied()).map_err(|error| invalid(error.to_string()))?;
     ValueType::shaped(

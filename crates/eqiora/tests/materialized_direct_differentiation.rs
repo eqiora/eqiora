@@ -53,9 +53,20 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
         &relation,
         &output,
         relation.state_jacobian(),
+        eqiora::ScalarDomain::Real,
         fixture.absolute_tolerance,
     )
     .unwrap();
+    assert!(
+        AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+            &relation,
+            &output,
+            relation.state_jacobian(),
+            eqiora::ScalarDomain::Complex,
+            fixture.absolute_tolerance,
+        )
+        .is_err()
+    );
     let solver = LinearSolveRequest::new(&FaerLinearSolver, fixture.plan);
 
     let forward =
@@ -83,7 +94,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
             .unwrap();
     assert_eq!(
         adjoint.adjoint().report().orientation(),
-        LinearOperatorOrientation::Transposed
+        LinearOperatorOrientation::ConjugateTransposed
     );
     assert_eq!(adjoint.adjoint().report().completed_iterations(), 1);
     assert_eq!(
@@ -146,7 +157,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
     assert!(
         wrong_transpose
             .message()
-            .contains("relation Transposed replay residual")
+            .contains("relation ConjugateTransposed replay residual")
     );
 
     let foreign_source = fixture.foreign_canonical_source();
@@ -166,6 +177,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
         &relation,
         &output,
         &foreign_source,
+        eqiora::ScalarDomain::Real,
         fixture.absolute_tolerance,
     )
     .unwrap();
@@ -332,7 +344,7 @@ impl LinearSolverBackend for TransposeReturnsNormalMutant {
             .expect("the admitted mutant starts from a canonical derivative problem");
         assert_eq!(
             problem.operator().orientation(),
-            LinearOperatorOrientation::Transposed
+            LinearOperatorOrientation::ConjugateTransposed
         );
         assert_eq!(problem.right_hand_side().len(), source.rows());
 
@@ -386,7 +398,7 @@ impl LinearOperator for ReportedTransposeNormalAction<'_> {
     }
 
     fn orientation(&self) -> LinearOperatorOrientation {
-        LinearOperatorOrientation::Transposed
+        LinearOperatorOrientation::ConjugateTransposed
     }
 }
 
@@ -647,7 +659,7 @@ fn transposed_residual_squared(
     let mut applied = vec![0.0; right_hand_side.len()];
     operator
         .apply_oriented(
-            eqiora_solver::LinearOperatorOrientation::Transposed,
+            eqiora_solver::LinearOperatorOrientation::ConjugateTransposed,
             values,
             &mut applied,
         )

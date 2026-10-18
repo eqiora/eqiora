@@ -145,6 +145,28 @@ impl<'a> RegionRealCoordinates<'a> {
         ),
         Diagnostic,
     > {
+        self.with_static_work(mesh, input, |plan, work| {
+            use eqiora_assembly::AssemblyBackend;
+            let (systems, report) = eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND
+                .assemble(plan, work)?
+                .into_parts();
+            let mut systems = systems.into_iter();
+            let reduced = systems.next().expect("validated reduced target");
+            let full = systems.next().expect("validated full target");
+            debug_assert!(systems.next().is_none());
+            Ok((reduced, full, report))
+        })
+    }
+
+    pub(crate) fn with_static_work<'mesh, R>(
+        &self,
+        mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
+        input: &RegionSolveInput<C>,
+        consume: impl FnOnce(
+            &eqiora_assembly::AssemblyPlan,
+            &dyn eqiora_assembly::AssemblyWork<f64>,
+        ) -> Result<R, Diagnostic>,
+    ) -> Result<R, Diagnostic> {
         self.mapping.validate_solve_input(mesh, input)?;
         if !self.mapping.gauges.is_empty() {
             return Err(invalid(
@@ -188,10 +210,7 @@ impl<'a> RegionRealCoordinates<'a> {
             let (globals, signs) = self.cell_coordinates(*index)?;
             packets.push((local.reoriented(&signs, &signs)?, globals));
         }
-        self.constraints.assemble(
-            &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
-            packets.len(),
-            |index| Ok(packets[index].clone()),
-        )
+        self.constraints
+            .with_work(packets.len(), |index| Ok(packets[index].clone()), consume)
     }
 }

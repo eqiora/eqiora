@@ -2,7 +2,8 @@
 
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown, TargetAssemblyMap,
+    AssemblyWork, DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
+    TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -90,6 +91,23 @@ impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
         packet_count: usize,
         contribution: impl Fn(usize) -> Result<(LocalContribution<S>, Vec<usize>), Diagnostic> + Sync,
     ) -> Result<(LinearSystem<S>, LinearSystem<S>, AssemblyReport), Diagnostic> {
+        self.with_work(packet_count, contribution, |plan, work| {
+            let (systems, report) = backend.assemble(plan, work)?.into_parts();
+            let mut systems = systems.into_iter();
+            let reduced = systems.next().expect("validated reduced assembly target");
+            let full = systems.next().expect("validated full assembly target");
+            debug_assert!(systems.next().is_none());
+            Ok((reduced, full, report))
+        })
+    }
+
+    /// Assembly and residual actions share the exact constraint scatter.
+    pub(crate) fn with_work<R>(
+        &self,
+        packet_count: usize,
+        contribution: impl Fn(usize) -> Result<(LocalContribution<S>, Vec<usize>), Diagnostic> + Sync,
+        consume: impl FnOnce(&AssemblyPlan, &dyn AssemblyWork<S>) -> Result<R, Diagnostic>,
+    ) -> Result<R, Diagnostic> {
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(self.free_count)?,
             AssemblyTarget::new(self.fixed_values.len())?,
@@ -106,12 +124,7 @@ impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
                 ],
             )
         });
-        let (systems, report) = backend.assemble(&plan, &work)?.into_parts();
-        let mut systems = systems.into_iter();
-        let reduced = systems.next().expect("validated reduced assembly target");
-        let full = systems.next().expect("validated full assembly target");
-        debug_assert!(systems.next().is_none());
-        Ok((reduced, full, report))
+        consume(&plan, &work)
     }
 
     pub(crate) fn is_free(&self, global: usize) -> Result<bool, Diagnostic> {

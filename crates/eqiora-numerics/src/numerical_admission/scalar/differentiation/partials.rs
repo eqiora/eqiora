@@ -1,20 +1,18 @@
-//! Parameter residuals use the primal basis, quadrature, constraints and assembly kernels.
-use super::execute::{StaticAssembly, StaticRegionSystem};
+//! Parameter residuals retain primal basis, quadrature and the physical boundary lift.
+use super::super::regions::StaticAssembly;
 use super::*;
 use crate::region_assembly::residual::evaluate_affine_work;
-use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_solver::LinearOperator;
 
-impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
-    /// Partial of the reduced residual at fixed free coordinates, and of its lift.
+impl<A: DifferentiationScalar, S: DifferentiationScalar> StaticRegionSystem<A, S> {
     pub(in crate::numerical_admission) fn parameter_partial(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         coordinate: &ScalarSymbolCoordinate,
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
-        values: &[S],
-    ) -> Result<(Vec<S>, Vec<S>), Diagnostic> {
+        values: &[f64],
+    ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
         let mut partial = equations.clone();
         for region in &mut partial.regions {
             region.form = region.form.parameter_partial(coordinate)?;
@@ -56,33 +54,28 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
                 {
                     *quadrature = primal.clone();
                 }
-                let prepared = self.mapping.prepare_assembly(
-                    eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-                    mesh.mesh(),
-                    differentiated.forms,
-                    differentiated.natural,
-                    None,
-                    None,
-                )?;
-                let mut residual = evaluate_affine_work(
-                    &prepared.plan,
-                    prepared.plan.target_id(0).expect("reduced target"),
-                    &prepared.work,
-                    values,
-                )?;
+                // Real projection also admits a conjugate-dependent partial at a
+                // complex-linear primal point (for example b=0 in a*u+b*conj(u)).
+                let mut residual =
+                    S::parameter_residual(&self.mapping, mesh.mesh(), differentiated, values)?;
                 // K_p acts with the primal trace; the retained K supplies K*g_p.
                 let lift = mapping.lift(&vec![S::zero(); mapping.free_count()], false)?;
-                let mut action = vec![S::zero(); self.mapping.full_count()];
-                full.matrix().apply(&lift, &mut action)?;
+                let lift = coordinates(lift).collect::<Vec<_>>();
+                let numerical_lift = A::from_coordinates(&lift)?;
+                let mut action = vec![A::zero(); full.matrix().rows()];
+                full.matrix().apply(&numerical_lift, &mut action)?;
+                let physical_action =
+                    S::from_coordinates(&coordinates(action).collect::<Vec<_>>())?;
                 for (value, action) in residual
                     .iter_mut()
-                    .zip(self.mapping.restrict_action(&action)?)
+                    .zip(coordinates(self.mapping.restrict_action(&physical_action)?))
                 {
                     *value += action;
                 }
                 Ok((residual, lift))
             }
             StaticAssembly::FiniteVolume => {
+                let physical_values = S::from_coordinates(values)?;
                 let (_, residual) = equations.with_tpfa_work(
                     resources,
                     &self.mapping,
@@ -90,10 +83,13 @@ impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
                     Some(&partial),
                     |plan, work| {
                         let target = plan.target_id(0).expect("TPFA target");
-                        evaluate_affine_work(plan, target, work, values)
+                        evaluate_affine_work(plan, target, work, &physical_values)
                     },
                 )?;
-                Ok((residual, vec![S::zero(); self.mapping.full_count()]))
+                Ok((
+                    coordinates(residual).collect(),
+                    vec![0.; self.mapping.full_count() * S::WIDTH],
+                ))
             }
         }
     }

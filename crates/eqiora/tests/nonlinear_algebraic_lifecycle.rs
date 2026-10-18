@@ -213,6 +213,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             point.linearization().relation(),
             point.linearization(),
             point.linearization().relation().state_jacobian(),
+            point.linearization().state_scalar_domain(),
             point.linearization().residual_target(),
         )
         .unwrap();
