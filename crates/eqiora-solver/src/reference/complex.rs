@@ -1,4 +1,3 @@
-mod bicgstab;
 mod hpd;
 
 use eqiora_core::Diagnostic;
@@ -49,46 +48,43 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         if problem.properties() == LinearOperatorProperties::HermitianPositiveDefinite {
             hpd::require_positive_pivots(source)?;
         }
-        let produced = if plan.algorithm() == crate::LinearSolver::BiConjugateGradientStabilized {
-            bicgstab::solve(problem, plan, execution)?
-        } else {
-            let block = source.real_coordinate_system(
-                problem.operator().orientation(),
-                problem.right_hand_side(),
-            )?;
-            let mut block_problem = block.linear_problem()?;
-            let initial = problem.initial_guess().map(pack);
-            if let Some(initial) = &initial {
-                block_problem = block_problem.with_initial_guess(initial)?;
-            }
-            let real = <Self as LinearSolverBackend<f64>>::solve_with_execution(
-                self,
-                &block_problem,
+        if plan.algorithm() == crate::LinearSolver::BiConjugateGradientStabilized {
+            return super::bicgstab::solve_preconditioned_bicgstab(
+                self.provider(),
+                problem,
                 plan,
-                &SERIAL_LINEAR_EXECUTION,
-            )?;
-            bicgstab::Produced {
-                values: real
-                    .values()
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| Complex64::new(pair[0], pair[1]))
-                    .collect(),
-                reason: real.report().reason(),
-                iterations: real.report().completed_iterations(),
-                residual: real.report().reported_residual_norm(),
-            }
-        };
+                execution,
+            );
+        }
+        let block = source
+            .real_coordinate_system(problem.operator().orientation(), problem.right_hand_side())?;
+        let mut block_problem = block.linear_problem()?;
+        let initial = problem.initial_guess().map(pack);
+        if let Some(initial) = &initial {
+            block_problem = block_problem.with_initial_guess(initial)?;
+        }
+        let real = <Self as LinearSolverBackend<f64>>::solve_with_execution(
+            self,
+            &block_problem,
+            plan,
+            &SERIAL_LINEAR_EXECUTION,
+        )?;
+        let values = real
+            .values()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| Complex64::new(pair[0], pair[1]))
+            .collect();
         // Verify the original typed action, not the numerical lowering.
         accept_linear_solution_with_execution(
             problem,
             plan,
             self.provider(),
-            produced.reason,
-            produced.iterations,
-            produced.residual,
-            produced.values,
+            real.report().reason(),
+            real.report().completed_iterations(),
+            real.report().reported_residual_norm(),
+            values,
             execution,
         )
     }

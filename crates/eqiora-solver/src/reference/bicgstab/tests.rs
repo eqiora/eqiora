@@ -59,7 +59,12 @@ where
         1.try_into().unwrap(),
     )
     .unwrap();
-    assert!(REFERENCE_LINEAR_SOLVER.solve(&problem, limited).is_err());
+    let error = REFERENCE_LINEAR_SOLVER
+        .solve(&problem, limited)
+        .unwrap_err();
+    assert!(error.message().contains("reported residual"));
+    assert!(error.message().contains("true residual"));
+    assert!(error.message().contains("target"));
 }
 
 #[test]
