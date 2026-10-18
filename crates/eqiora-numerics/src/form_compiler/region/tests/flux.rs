@@ -5,6 +5,8 @@ use eqiora_schema::kernel::ExprNode;
 fn boundary_flux_restricts_physical_coordinates_without_changing_parameter_identity() {
     for (coefficient, admitted) in [
         ("1+k*coordinate(0)", true),
+        ("1+2*k*coordinate(0)-k*coordinate(0)", true),
+        ("1+(2*k-k)*coordinate(0)", true),
         ("1+k*coordinate(1)", false),
         ("1+other*coordinate(0)", false),
         ("1-k*coordinate(0)", false),

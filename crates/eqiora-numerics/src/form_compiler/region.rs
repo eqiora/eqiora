@@ -77,6 +77,17 @@ pub(crate) struct Term<S: Coefficient> {
 }
 
 impl<S: Coefficient> Term<S> {
+    fn add_coefficient(&mut self, other: &Self) -> bool {
+        if self.trial != other.trial
+            || self.derivative != other.derivative
+            || self.pairing != other.pairing
+        {
+            return false;
+        }
+        self.coefficient = self.coefficient.clone().add(other.coefficient.clone());
+        true
+    }
+
     fn require_coefficient(&self, value: S) -> Result<S, Diagnostic> {
         if !value.is_finite()
             || (self.positive_diffusion && (value.im() != 0.0 || value.re() <= 0.0))
@@ -176,7 +187,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 &mut row,
                 0,
             )?;
-            row.orient_scalar_diffusion(&context, root)?;
+            row.collect_coefficients();
+            row.orient_scalar_diffusion(dimension)?;
             row.require_positive_scalar_diffusion();
             for term in &mut row.dyadics {
                 let field = roles

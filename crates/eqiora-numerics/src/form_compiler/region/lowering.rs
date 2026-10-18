@@ -46,6 +46,7 @@ pub(super) fn boundary_flux<S: Coefficient>(
             "explicit nonlinear boundary flux laws are not yet admitted",
         ));
     }
+    boundary.collect_coefficients();
     Ok(boundary.flux)
 }
 

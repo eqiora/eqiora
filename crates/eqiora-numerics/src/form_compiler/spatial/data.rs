@@ -19,6 +19,7 @@ pub(crate) struct Data<S: Coefficient>(Arc<Node<S>>);
 
 mod activity;
 pub(in crate::form_compiler) mod affine;
+mod coefficient;
 mod components;
 mod coordinates;
 pub(in crate::form_compiler) use components::Components;
@@ -86,76 +87,6 @@ impl<S: Coefficient> Data<S> {
             Node::Cos(a) => Node::Cos(bind(a)?),
             Node::SqrtDerivativeRoot(a) => Node::SqrtDerivativeRoot(bind(a)?),
         })))
-    }
-
-    /// Compare symbolic coefficient products without sampling or erasing Parameters.
-    pub(in crate::form_compiler) fn same_coefficient(&self, other: &Self) -> bool {
-        fn product<'a, S: Coefficient>(
-            data: &'a Data<S>,
-            scale: &mut S,
-            factors: &mut Vec<&'a Data<S>>,
-        ) {
-            match data.0.as_ref() {
-                Node::Mul(a, b) => {
-                    product(a, scale, factors);
-                    product(b, scale, factors);
-                }
-                Node::Constant { value, .. } => *scale = *scale * *value,
-                _ => factors.push(data),
-            }
-        }
-        fn factor<S: Coefficient>(a: &Data<S>, b: &Data<S>) -> bool {
-            match (a.0.as_ref(), b.0.as_ref()) {
-                (
-                    Node::Input {
-                        dimension: a,
-                        coordinate: c,
-                        input: e,
-                    },
-                    Node::Input {
-                        dimension: b,
-                        coordinate: d,
-                        input: f,
-                    },
-                ) => a == b && e.same_binding(c, f, d),
-                (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
-                (Node::Affine(a), Node::Affine(b)) => a == b,
-                (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
-                (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
-                (Node::Derivative(a, b), Node::Derivative(c, d)) => {
-                    a.same_coefficient(c) && b.same_coefficient(d)
-                }
-                (Node::Add(a, b), Node::Add(c, d)) => {
-                    (a.same_coefficient(c) && b.same_coefficient(d))
-                        || (a.same_coefficient(d) && b.same_coefficient(c))
-                }
-                (Node::Div(a, b), Node::Div(c, d)) => {
-                    a.same_coefficient(c) && b.same_coefficient(d)
-                }
-                (Node::Pow(a, n), Node::Pow(b, m)) => n == m && a.same_coefficient(b),
-                (Node::Math(f, a), Node::Math(g, b)) => f == g && a.same_coefficient(b),
-                (Node::Cos(a), Node::Cos(b))
-                | (Node::SqrtDerivativeRoot(a), Node::SqrtDerivativeRoot(b)) => {
-                    a.same_coefficient(b)
-                }
-                _ => false,
-            }
-        }
-        let (mut left_scale, mut right_scale) =
-            (<S as From<f64>>::from(1.0), <S as From<f64>>::from(1.0));
-        let (mut left, mut right) = (Vec::new(), Vec::new());
-        product(self, &mut left_scale, &mut left);
-        product(other, &mut right_scale, &mut right);
-        if !left_scale.is_finite() || left_scale != right_scale || left.len() != right.len() {
-            return false;
-        }
-        for candidate in left {
-            let Some(index) = right.iter().position(|other| factor(candidate, other)) else {
-                return false;
-            };
-            right.remove(index);
-        }
-        true
     }
 
     pub(in crate::form_compiler) fn on_uniform_chart(

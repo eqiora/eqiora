@@ -115,15 +115,23 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
         .unwrap();
     assert_eq!(original, reversed);
     let negative = source.replace("2 * grad(f0)", "(-2) * grad(f0)");
-    assert!(
-        derive(&negative)
-            .unwrap()
-            .volume()
-            .unwrap()
-            .prepare_cell(&geometry(), &quadrature)
-            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
-            .is_err()
-    );
+    let negative = derive(&negative)
+        .unwrap()
+        .volume()
+        .unwrap()
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
+        .unwrap();
+    // +div(2 grad(f0)) + 3 f0 - 1 = 0 reverses to
+    // -div(2 grad(f0)) - 3 f0 + 1 = 0. On [0,2], its local
+    // action is [[1,-1],[-1,1]] - [[2,1],[1,2]], with load [-1,-1].
+    // Reversing the principal part alone would solve a different equation.
+    for (actual, expected) in negative.matrix().iter().zip([-1., -2., -2., -1.]) {
+        close(*actual, expected);
+    }
+    for value in negative.rhs() {
+        close(*value, -1.);
+    }
 }
 
 #[test]
