@@ -12,11 +12,6 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         at: &[(ExprId, ExprId)],
         dimension: DimExponents,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        if !self.coordinate_bindings.is_empty() {
-            return Err(invalid_component_ir(
-                "a pulled-back coordinate Jacobian requires differentiation before substitution",
-            ));
-        }
         let extent = u32::try_from(source.len())
             .map_err(|_| invalid_component_ir("coordinate Jacobian extent exceeds u32"))?;
         let work = source

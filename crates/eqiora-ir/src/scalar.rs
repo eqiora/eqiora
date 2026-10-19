@@ -10,6 +10,7 @@ mod lower;
 mod pullback;
 mod regularity;
 mod slot_affine;
+mod slot_composition;
 mod slot_pencil;
 use instruction::{Instruction, ValueId};
 mod activity;

@@ -367,20 +367,7 @@ fn component_single_root<I: Clone + Eq>(
     finite_products: &mut usize,
     spatial: SpatialContext<'_>,
 ) -> Result<(ScalarInputOperatorIr, Vec<ScalarSymbolCoordinate>), Diagnostic> {
-    let mut lowering = ComponentDagLowering {
-        finite_products,
-        expression,
-        node_types,
-        builder: ScalarInputIrBuilder::new(),
-        remapped: HashMap::new(),
-        map_entries: HashMap::new(),
-        inputs: Vec::new(),
-        input_nodes: HashMap::new(),
-        symbol_shapes: HashMap::new(),
-        coordinate_bindings: HashMap::new(),
-        pullback_depth: 0,
-        spatial,
-    };
+    let mut lowering = ComponentDagLowering::new(expression, node_types, finite_products, spatial);
     let root = lowering.lower_part(root, component_index, part)?;
     Ok((lowering.builder.finish([root])?, lowering.inputs))
 }
@@ -406,7 +393,29 @@ struct ComponentDagLowering<'a, I> {
     spatial: SpatialContext<'a>,
 }
 
-impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
+impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
+    fn new(
+        expression: &'a ExprDag,
+        node_types: &'a [ExpressionType<I>],
+        finite_products: &'a mut usize,
+        spatial: SpatialContext<'a>,
+    ) -> Self {
+        Self {
+            finite_products,
+            expression,
+            node_types,
+            builder: ScalarInputIrBuilder::new(),
+            remapped: HashMap::new(),
+            map_entries: HashMap::new(),
+            inputs: Vec::new(),
+            input_nodes: HashMap::new(),
+            symbol_shapes: HashMap::new(),
+            coordinate_bindings: HashMap::new(),
+            pullback_depth: 0,
+            spatial,
+        }
+    }
+
     fn lower_part(
         &mut self,
         value: ExprId,
@@ -450,6 +459,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         }
         let mapped = match node {
             ExprNode::Pullback { value, at, .. } => self.lower_pullback(value, &at, part)?,
+            ExprNode::CoordinateMapFactor { .. } if !self.coordinate_bindings.is_empty() => {
+                self.lower_before_substitution(value, component, part)?
+            }
             ExprNode::CoordinateMapFactor { factor, source, at } => {
                 self.lower_map_factor(factor, &source, &at, node_type.dimension())?
             }

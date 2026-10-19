@@ -7,7 +7,8 @@ import eqiora as q
 @pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
 @pytest.mark.parametrize("multiplier", [1, 2])
 @pytest.mark.parametrize("factor", ["jacobian_determinant", "volume_jacobian", "map_orientation"])
-def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, multiplier, factor):
+@pytest.mark.parametrize("pulled_back", [False, True])
+def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, multiplier, factor, pulled_back):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={
@@ -15,6 +16,9 @@ def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, m
     })
     body = geometry.selection("body")
     coefficient = f"{factor}(from=(xi),at=(x=gain*xi))"
+    if pulled_back:
+        coefficient = (f"pullback({factor}(from=(x),at=(y=x*x/1[m])),"
+                       "from=(xi),at=(x=gain*(1[m]+xi)))")
     if multiplier != 1:
         coefficient = f"{multiplier}*{coefficient}"
     model = q.compile(source=f"""public model MapCoefficient(
@@ -22,6 +26,7 @@ def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, m
         support left:boundary(parent=body), support right:boundary(parent=body)) {{
         coordinate xi:m on body from body[0];
         coordinate x:m on body from body[0];
+        coordinate y:m on body from body[0];
         parameter gain:1=2;
         variable h:1 on body in smooth;
         relation prescribed on body {{h={coefficient};}}
@@ -41,10 +46,15 @@ def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, m
     q.run(plan)
     program = q.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("gain").id),),
                              outputs=(plan.fields[0],))
-    # The harmonic solution is the constant boundary value. J=gain, so its
-    # signed determinant, volume and orientation have independent scalar formulas.
+    # The harmonic solution interpolates the two boundary values. The direct
+    # map has J=gain. The pulled-back map first differentiates x²/L in x,
+    # then substitutes x=gain*(L+xi), giving J=2*gain*(1+xi/L).
+    # Differentiating after substitution would incorrectly introduce another gain.
     count = 4 if method is q.fem.Q1 else 3
     weights = np.arange(1, count + 1) / 4
+    positions = np.linspace(0., 1., 4) if method is q.fem.Q1 else (np.arange(3) + .5) / 3
+    response = (2 * (1 + positions) if pulled_back and factor != "map_orientation"
+                else np.ones(count))
     for gain in (-2., 2.):
         sign = np.sign(gain)
         value, slope = {
@@ -53,10 +63,10 @@ def test_coordinate_map_factors_compose_with_spatial_parameter_actions(method, m
             "map_orientation": (sign, 0.),
         }[factor]
         point = program.evaluate((gain,))
-        np.testing.assert_allclose(point.primal().output[0], multiplier*value, rtol=0, atol=2e-10)
-        np.testing.assert_allclose(point.jvp((1.,)).tangent[0], multiplier*slope, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.primal().output[0], multiplier*value*response, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.jvp((1.,)).tangent[0], multiplier*slope*response, rtol=0, atol=2e-10)
         np.testing.assert_allclose(point.vjp((weights,)).input_cotangent[0],
-                                   multiplier*slope*weights.sum(), rtol=0, atol=2e-10)
+                                   multiplier*slope*np.dot(weights, response), rtol=0, atol=2e-10)
     if factor == "jacobian_determinant":
         np.testing.assert_allclose(program.evaluate((0.,)).primal().output[0], 0., rtol=0, atol=2e-10)
     else:

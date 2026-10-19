@@ -367,54 +367,13 @@ impl typed::TypedInstructions<'_> {
                 mapped[index] = Some(at(value));
                 continue;
             }
-            let node = match node {
-                Instruction::Neg(a) => Instruction::Neg(at(a)),
-                Instruction::PowI(a, n) => Instruction::PowI(at(a), n),
-                Instruction::Math(function, a) => Instruction::Math(function, at(a)),
-                Instruction::Add(a, b) => Instruction::Add(at(a), at(b)),
-                Instruction::Sub(a, b) => Instruction::Sub(at(a), at(b)),
-                Instruction::Mul(a, b) => Instruction::Mul(at(a), at(b)),
-                Instruction::Div(a, b) => Instruction::Div(at(a), at(b)),
-                Instruction::ComplexDiv {
-                    operands,
-                    imaginary,
-                } => Instruction::ComplexDiv {
-                    operands: operands.map(at),
-                    imaginary,
-                },
-                Instruction::CoefficientJet { start, len, shape } => {
-                    let operands =
-                        coefficient_jet::operands(start, len, shape, &self.instructions[..index])?;
-                    let (a, b) = operands.values(|id| Ok(at(id)))?;
-                    coefficient_jet::gather(&mut instructions, &a, &b, shape)?
-                }
-                Instruction::MapInvariant {
-                    start,
-                    extent,
-                    output,
-                } => {
-                    // Frozen values and selected branches can alias or remove
-                    // operands. Gather the mapped entries again; the original
-                    // SSA range is no longer a contiguous numerical map.
-                    let start = if let Some(&mapped_start) = map_entries.get(&(start.0, extent)) {
-                        mapped_start
-                    } else {
-                        let entries = map_evaluation::operand_range(start, extent, index)?
-                            .map(|operand| at(ValueId(operand as u32)));
-                        let mapped_start =
-                            map_evaluation::gather_entries(&mut instructions, entries)?;
-                        map_entries.insert((start.0, extent), mapped_start);
-                        mapped_start
-                    };
-                    Instruction::MapInvariant {
-                        start,
-                        extent,
-                        output,
-                    }
-                }
-                Instruction::Read(_) | Instruction::Constant(_) => node,
-                _ => return Err(ir_builder_error("active scalar instruction is unsupported")),
-            };
+            let node = slot_composition::remap_instruction(
+                self.instructions,
+                index,
+                &mut instructions,
+                &mut map_entries,
+                at,
+            )?;
             mapped[index] = Some(ValueId(instructions.len() as u32));
             instructions.push(node);
         }
