@@ -2,6 +2,49 @@
 use super::*;
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
+    /// Differentiate in the expression's own coordinates, then apply the outer
+    /// coordinate bindings to the resulting value and every retained primal check.
+    pub(super) fn lower_before_substitution(
+        &mut self,
+        value: ExprId,
+        component: &[u32],
+        part: ScalarPart,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        let (operator, shapes) = {
+            let mut local = ComponentDagLowering::new(
+                self.expression,
+                self.node_types,
+                self.finite_products,
+                self.spatial,
+            );
+            let root = local.lower_part(value, component, part)?;
+            (local.builder.finish([root])?, local.symbol_shapes)
+        };
+        let inputs = operator
+            .slots()
+            .iter()
+            .map(|slot| {
+                let coordinate = slot.source();
+                if let Some(&value) = self.coordinate_bindings.get(&coordinate.symbol) {
+                    Ok(value)
+                } else {
+                    self.input(
+                        coordinate.symbol,
+                        &shapes[&coordinate.symbol],
+                        slot.dimension(),
+                        &coordinate.component_index,
+                        coordinate.part,
+                        &coordinate.spatial_derivative_axes,
+                    )
+                }
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let roots = self.builder.compose(&operator, &inputs, |work| {
+            finite::charge_products(self.finite_products, work)
+        })?;
+        Ok(roots[0])
+    }
+
     pub(super) fn lower_pullback(
         &mut self,
         value: ExprId,

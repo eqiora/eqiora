@@ -367,6 +367,75 @@ model Inventory() {
 }
 
 #[test]
+fn pulled_back_coefficients_retain_value_and_map_dependencies() {
+    let source = "model PulledCoefficient() {
+        domain body = box(0, 1);
+        coordinate x:m on body from body[0];
+        variable u:1 on body;
+        variable a:1 on body;
+        variable b:1 on body;
+        variable c:1 on body;
+        relation a_def on body { a = pullback(b,from=(x),at=(x=c*x)); }
+        relation b_def on body { b = 2; }
+        relation c_def on body { c = 3; }
+        relation balance on body { -div(grad(u)) = a/1[m^2]; }
+    }";
+    let roles = derive(source).unwrap();
+    assert_eq!(
+        roles
+            .relations
+            .values()
+            .filter(|role| matches!(role.kind, Role::Coefficient { .. }))
+            .count(),
+        3
+    );
+    // Neither a dependency in the value nor one in the map may disappear
+    // during coefficient discovery and turn a cycle into prescribed data.
+    for cyclic in [
+        source.replace("b = 2", "b = a"),
+        source.replace("c = 3", "c = a"),
+    ] {
+        assert!(derive(&cyclic).is_err());
+    }
+    // An unknown used as the pullback value remains the principal trial.
+    let mapped_trial = source.replace(
+        "-div(grad(u))",
+        "-div(grad(pullback(u,from=(x),at=(x=c*x))))",
+    );
+    let mapped = derive(&mapped_trial).unwrap();
+    let residuals = mapped
+        .relations
+        .values()
+        .filter(|role| matches!(role.kind, Role::Residual { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(residuals.len(), 1);
+    // The balance reads u, a and the map coefficient c, plus the coordinate
+    // Domain. Adding c*x changes this inventory without changing the trial.
+    let dependencies = &residuals[0].dependencies;
+    assert_eq!(
+        dependencies
+            .iter()
+            .filter(|id| mapped.fields.contains_key(id))
+            .count(),
+        3
+    );
+    assert_eq!(dependencies.len(), 4);
+    let coefficients = mapped
+        .relations
+        .values()
+        .filter_map(|role| match role.kind {
+            Role::Coefficient { field } => Some(field),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(coefficients.len(), 3);
+    let Role::Residual { tested } = residuals[0].kind else {
+        unreachable!()
+    };
+    assert!(!coefficients.contains(&tested));
+}
+
+#[test]
 fn pointwise_equation_selects_its_only_unknown_after_coefficient_resolution() {
     let source = "model Algebraic() {
         domain body = box(0, 2, 0, 3);
