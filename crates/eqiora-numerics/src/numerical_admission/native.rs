@@ -449,7 +449,11 @@ impl RecognizedNativeAdmission {
     pub(super) fn operator_properties(
         &self,
         spatial: &NativeSpatialPolicy,
+        nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<LinearOperatorProperties, Diagnostic> {
+        if nonlinear.is_some() {
+            return Ok(LinearOperatorProperties::General);
+        }
         if let NativeSpatialPolicy::ScalarTpfa(constraint) = spatial {
             return match &self.recognized {
                 RecognizedNativeModel::Spatial(equations) => {
@@ -568,7 +572,7 @@ impl RecognizedNativeAdmission {
             ));
         }
         validate_resources(&spatial, &self.resources)?;
-        let operator_properties = self.operator_properties(&spatial)?;
+        let operator_properties = self.operator_properties(&spatial, nonlinear)?;
         require_policy_compatibility(
             operator_properties,
             &linear,

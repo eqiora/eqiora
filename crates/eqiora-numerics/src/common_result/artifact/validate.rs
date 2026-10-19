@@ -21,7 +21,8 @@ pub(super) fn validate_fields(
         ResolvedCommonPlan::Spatial(plan) => {
             fields.len() == plan.fields().len()
                 && plan.fields().all(|(id, value_type)| {
-                    let Ok((space, layouts)) = crate::common_result::linear::field_layout(plan, id)
+                    let Ok((space, layouts)) =
+                        crate::common_result::spatial::field_layout(plan, id)
                     else {
                         return false;
                     };

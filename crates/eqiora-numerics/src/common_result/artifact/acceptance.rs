@@ -4,10 +4,11 @@ use super::*;
 impl WireStaticEvidence {
     pub(super) fn from_acceptance(value: &StaticAcceptedEvidence) -> Result<Self, Diagnostic> {
         Ok(match value {
-            StaticAcceptedEvidence::Linear {
+            StaticAcceptedEvidence::Spatial {
                 nullspace,
                 initial_state,
-            } => Self::Linear {
+                ..
+            } => Self::Spatial {
                 initial_state_base64: initial_state
                     .as_ref()
                     .map(|state| state.to_bytes().map(|bytes| BASE64_STANDARD.encode(bytes)))
@@ -28,7 +29,7 @@ impl WireStaticEvidence {
         plan: &ResolvedCommonPlan,
     ) -> Result<StaticAcceptedEvidence, Diagnostic> {
         let acceptance = match self {
-            Self::Linear {
+            Self::Spatial {
                 nullspace,
                 initial_state_base64,
             } => {
@@ -47,9 +48,10 @@ impl WireStaticEvidence {
                         Ok(state)
                     })
                     .transpose()?;
-                StaticAcceptedEvidence::Linear {
+                StaticAcceptedEvidence::Spatial {
                     nullspace: nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
                     initial_state,
+                    residual: None,
                 }
             }
             Self::SteadyStokes { acceptance } => {
@@ -64,7 +66,7 @@ impl WireStaticEvidence {
             (family, &acceptance),
             (
                 WireResultFamily::Spatial,
-                StaticAcceptedEvidence::Linear { .. }
+                StaticAcceptedEvidence::Spatial { .. }
             ) | (
                 WireResultFamily::SteadyStokes,
                 StaticAcceptedEvidence::SteadyStokes(_)

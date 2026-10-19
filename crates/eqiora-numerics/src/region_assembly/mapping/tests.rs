@@ -1,3 +1,4 @@
+mod nonlinear;
 mod primal_reactions;
 
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -263,7 +264,8 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                     quadrature.clone(),
                 )
             })
-            .collect();
+            .collect::<Vec<_>>();
+        nonlinear::check_stationary(&mesh, &mapping, &forms, count);
         let cells = (0..2 * count)
             .map(|index| RegionAssemblyCell {
                 previous_geometry: None,

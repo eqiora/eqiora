@@ -72,24 +72,28 @@ impl RegionDofMap<f64> {
 }
 
 impl RegionDofMap<f64> {
-    pub(crate) fn validate_nonlinear_step_coefficients<'mesh>(
+    pub(crate) fn validate_nonlinear_coefficients<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<f64>,
         fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
         nonlinear: eqiora_realization::NonlinearSolvePlan,
         iterations: usize,
     ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic> {
         self.validate_solve_input(mesh, input)?;
-        let reduced = self.validated_step_point(input, fields)?;
-        let previous = input.previous.as_ref().expect("validated step history");
-        let seed = self.physical_predictor(previous)?;
+        let reduced = if input.previous.is_some() {
+            self.validated_step_point(input, fields)?
+        } else {
+            self.validated_algebraic_point(fields)?
+        };
+        let seed = self.nonlinear_predictor(input, initial)?;
         let prepared = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
             input.forms.clone(),
             input.natural.clone(),
-            Some(previous),
+            input.previous.as_ref(),
             input.geometry_action.as_deref(),
         )?;
         let target = prepared.plan.target_id(0).expect("reduced target");
@@ -115,7 +119,7 @@ impl RegionDofMap<f64> {
         let residual = norm(&reduced)?;
         if residual > residual_target {
             return Err(invalid(
-                "supplied Region step violates the original nonlinear residual",
+                "supplied Region coefficients violate the original nonlinear residual",
             ));
         }
         let action = prepared.work.linearize(

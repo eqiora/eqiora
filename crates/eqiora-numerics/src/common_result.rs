@@ -10,9 +10,9 @@ use crate::{CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
 pub(crate) mod artifact;
 mod error_estimate;
 pub(crate) mod evidence;
-mod linear;
 mod nullspace;
 pub(crate) mod observe;
+mod spatial;
 pub use observe::{CommonObservableStateTangent, CommonObservation};
 
 use evidence::{CommonAssemblyEvidence, CommonSolveHistory};
@@ -55,9 +55,10 @@ struct SteadyStokesAcceptedEvidence {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticAcceptedEvidence {
-    Linear {
+    Spatial {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
         initial_state: Option<crate::CommonState>,
+        residual: Option<(f64, f64)>,
     },
     SteadyStokes(SteadyStokesAcceptedEvidence),
 }
@@ -65,7 +66,7 @@ enum StaticAcceptedEvidence {
 #[derive(Debug, Clone, PartialEq)]
 struct CommonStaticResultPayload {
     fields: Vec<CommonResultField>,
-    solve: CommonSolveEvidence,
+    solve: CommonSolveHistory,
     assembly: CommonAssemblyEvidence,
     acceptance: StaticAcceptedEvidence,
 }
@@ -118,7 +119,7 @@ impl CommonResult {
     pub fn initial_state(&self) -> Option<CommonInitialState<'_>> {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.acceptance {
-                StaticAcceptedEvidence::Linear { initial_state, .. } => {
+                StaticAcceptedEvidence::Spatial { initial_state, .. } => {
                     initial_state.as_ref().map(CommonInitialState::Spatial)
                 }
                 StaticAcceptedEvidence::SteadyStokes(_) => None,
@@ -276,7 +277,7 @@ impl CommonResult {
             CommonResultFamily::SteadyStokes,
             elapsed_seconds,
             vec![velocity, pressure],
-            solve,
+            CommonSolveHistory::Linear(Box::new(solve)),
             assembly,
             StaticAcceptedEvidence::SteadyStokes(acceptance),
         )
@@ -339,7 +340,7 @@ impl CommonResult {
         family: CommonResultFamily,
         elapsed_seconds: f64,
         fields: Vec<CommonResultField>,
-        solve: CommonSolveEvidence,
+        solve: CommonSolveHistory,
         assembly: CommonAssemblyEvidence,
         acceptance: StaticAcceptedEvidence,
     ) -> Result<Self, Diagnostic> {

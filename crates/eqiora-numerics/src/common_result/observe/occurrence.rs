@@ -41,7 +41,7 @@ impl<'a> Occurrence<'a> {
                 .find(|(candidate, _)| *candidate == field)
                 .map(|(_, ty)| ty)
                 .ok_or_else(|| invalid("observation point Field is outside the exact Plan"))?;
-            let (_, layouts) = super::super::linear::field_layout(plan, field)?;
+            let (_, layouts) = super::super::spatial::field_layout(plan, field)?;
             let width = if value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex {
                 2usize
             } else {
@@ -178,7 +178,7 @@ impl<'a> Occurrence<'a> {
             let values = self.fields.get(&id).ok_or_else(|| {
                 invalid("Observable required Field is absent from the accepted spatial point")
             })?;
-            let (_, layouts) = super::super::linear::field_layout(
+            let (_, layouts) = super::super::spatial::field_layout(
                 self.spatial_plan().expect("admitted spatial occurrence"),
                 id,
             )?;

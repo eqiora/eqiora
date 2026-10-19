@@ -5,7 +5,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Algebraic { nullspace, .. } => nullspace.as_ref(),
             CommonResultPayload::Static(payload) => match &payload.acceptance {
-                StaticAcceptedEvidence::Linear { nullspace, .. } => nullspace.as_ref(),
+                StaticAcceptedEvidence::Spatial { nullspace, .. } => nullspace.as_ref(),
                 _ => None,
             },
             _ => None,

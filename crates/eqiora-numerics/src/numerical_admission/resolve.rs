@@ -134,29 +134,23 @@ impl ResolvedCommonPlan {
                         .flatten();
                     spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
                 }
-                let (formulation_selection, properties) = match spatial {
-                    NativeSpatialPolicy::FiniteElement(_) => (
-                        Some(resolve_formulation_request(
-                            formulation,
-                            equations.finite_element_formulation(),
-                            "linear finite-element form",
-                        )?),
-                        recognized.operator_properties(&spatial)?,
-                    ),
+                let formulation_selection = match spatial {
+                    NativeSpatialPolicy::FiniteElement(_) => Some(resolve_formulation_request(
+                        formulation,
+                        equations.finite_element_formulation(),
+                        "linear finite-element form",
+                    )?),
                     NativeSpatialPolicy::ScalarTpfa(_) => {
                         if authored_formulation.is_some_and(|form| form.interval().is_none()) {
                             return Err(invalid(
                                 "TPFA requires an integral-conservative authored form",
                             ));
                         }
-                        (
-                            Some(resolve_formulation_request(
-                                formulation,
-                                FormulationKind::IntegralConservative,
-                                "scalar-elliptic TPFA",
-                            )?),
-                            recognized.operator_properties(&spatial)?,
-                        )
+                        Some(resolve_formulation_request(
+                            formulation,
+                            FormulationKind::IntegralConservative,
+                            "scalar-elliptic TPFA",
+                        )?)
                     }
                     _ => unreachable!("scalar resolution returns only scalar spatial policies"),
                 };
@@ -173,16 +167,15 @@ impl ResolvedCommonPlan {
                         ));
                     }
                     CommonSolvePolicy::Newton { linear, nonlinear } => {
-                        if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
-                            || temporal.is_none()
-                        {
+                        if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
                             return Err(invalid(
-                                "Region Newton currently requires finite elements and an explicit BackwardEuler state",
+                                "Region Newton currently requires finite elements",
                             ));
                         }
                         (linear, Some(nonlinear))
                     }
                 };
+                let properties = recognized.operator_properties(&spatial, nonlinear)?;
                 let (linear, temporal) = resolve_linear_requirements(
                     CommonSolvePolicy::Linear(linear_request),
                     scaling,
@@ -243,7 +236,7 @@ impl ResolvedCommonPlan {
                         "complex spatial storage has no admitted temporal execution",
                     ));
                 }
-                let properties = recognized.operator_properties(&spatial)?;
+                let properties = recognized.operator_properties(&spatial, None)?;
                 let structure = equations.algebraic_structure(None)?;
                 let domain = recognized.linear_scalar_domain(&spatial, &system_scaling)?;
                 let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
