@@ -331,6 +331,13 @@ impl Context<'_> {
                     self.lower(dag, *value, next)?,
                 ],
             ),
+            ExprNode::ValueOnly { input, value } => call(
+                "value_only",
+                vec![
+                    self.lower(dag, *input, next)?,
+                    self.lower(dag, *value, next)?,
+                ],
+            ),
             ExprNode::Select {
                 condition,
                 then_value,

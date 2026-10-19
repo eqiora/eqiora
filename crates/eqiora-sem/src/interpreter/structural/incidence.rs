@@ -62,7 +62,11 @@ pub(in crate::interpreter) fn variables(
                         .flat_map(|(coordinate, point)| [*coordinate, *point]),
                 );
             }
-            ExprNode::Require { condition, value } => pending.extend([*condition, *value]),
+            ExprNode::Require { condition, value }
+            | ExprNode::ValueOnly {
+                input: condition,
+                value,
+            } => pending.extend([*condition, *value]),
             ExprNode::Select {
                 condition,
                 then_value,

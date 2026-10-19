@@ -63,6 +63,7 @@ pub(super) fn summarize(
     dimension: usize,
     resolve: impl Fn(SymbolSlot, usize) -> Result<AffineSummary, SymbolicLinearityFailure>,
 ) -> Result<Vec<Summary>, SummaryFailure> {
+    let derivative_activity = value_only_activity(instructions, &resolve)?;
     let mut summaries: Vec<Summary> = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().copied().enumerate() {
         if let Some(summary) = branch::summarize(instruction, &summaries, typed_constants, index)? {
@@ -71,6 +72,12 @@ pub(super) fn summarize(
         }
         let at = |id| summaries[summary_index(id, index)?].scalar(index);
         let summary = match instruction {
+            Instruction::ValueOnly { input, value } => {
+                require_inactive_value_only_input(derivative_activity[input.0 as usize]).map_err(
+                    |_| SymbolicLinearityFailure::DerivativeUnavailable { instruction: index },
+                )?;
+                at(value)?.clone()
+            }
             Instruction::Math(function, value) => {
                 let argument = at(value)?;
                 if argument.depends_on_selected() {
@@ -169,4 +176,45 @@ pub(super) fn summarize(
         summaries.push(Summary::Scalar(summary));
     }
     Ok(summaries)
+}
+
+fn value_only_activity(
+    instructions: &[Instruction],
+    resolve: &impl Fn(SymbolSlot, usize) -> Result<AffineSummary, SymbolicLinearityFailure>,
+) -> Result<Vec<bool>, SummaryFailure> {
+    if !instructions
+        .iter()
+        .any(|node| matches!(node, Instruction::ValueOnly { .. }))
+    {
+        return Ok(Vec::new());
+    }
+    let mut bindings = Vec::new();
+    for (index, instruction) in instructions.iter().enumerate() {
+        if let Instruction::Read(slot) = *instruction {
+            let input = resolve(slot, index)?;
+            let active = input.depends_on_selected()
+                || input
+                    .constant
+                    .iter()
+                    .chain(&input.coefficients)
+                    .any(|v| v.tangent.is_some());
+            bindings.resize(
+                bindings.len().max(slot.0 as usize + 1),
+                InputBinding::Frozen,
+            );
+            bindings[slot.0 as usize] = if active {
+                InputBinding::Unknown(0)
+            } else {
+                InputBinding::Frozen
+            };
+        }
+    }
+    // Use original input roles: coefficient arithmetic may cancel or sample to
+    // zero, but neither changes whether a derivative product was requested.
+    activity::numerical_activity(instructions, &bindings).map_err(|diagnostic| {
+        SummaryFailure::Numerical {
+            instruction: 0,
+            diagnostic,
+        }
+    })
 }

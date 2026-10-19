@@ -26,7 +26,7 @@ impl ScalarInputOperatorIr {
             let degree = match instruction {
                 Instruction::Constant(_) => Some([0; N]),
                 Instruction::Read(slot) => inputs[slot.0 as usize],
-                Instruction::Neg(value) => at(value),
+                Instruction::Neg(value) | Instruction::ValueOnly { value, .. } => at(value),
                 Instruction::Add(a, b) | Instruction::Sub(a, b) => combine(at(a), at(b), false),
                 Instruction::Mul(a, b) => combine(at(a), at(b), true),
                 Instruction::Div(a, b) => independent(at(b)).and_then(|_| at(a)),

@@ -135,7 +135,11 @@ pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
             then_value,
             else_value,
         } => vec![*condition, *then_value, *else_value],
-        ExprNode::Require { condition, value } => vec![*condition, *value],
+        ExprNode::Require { condition, value }
+        | ExprNode::ValueOnly {
+            input: condition,
+            value,
+        } => vec![*condition, *value],
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Sample { value, .. }
         | ExprNode::Hold(value)

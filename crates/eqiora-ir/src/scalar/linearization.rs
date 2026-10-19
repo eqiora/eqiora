@@ -89,6 +89,7 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             let cotangent = adjoints[index];
             match *instruction {
                 Instruction::Select { .. }
+                | Instruction::ValueOnly { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
@@ -337,6 +338,7 @@ impl ScalarLinearization<'_> {
             }
             let mut tangent = match *instruction {
                 Instruction::Select { .. }
+                | Instruction::ValueOnly { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)

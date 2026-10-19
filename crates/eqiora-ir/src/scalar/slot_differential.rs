@@ -148,6 +148,12 @@ impl ScalarInputIrBuilder {
                         .map(|direction| self.require(condition, direction))
                         .transpose()?
                 }
+                Instruction::ValueOnly { input, value } => {
+                    require_inactive_value_only_input(active[input.0 as usize])?;
+                    directions[value.0 as usize]
+                        .map(|direction| self.value_only(ScalarInputValueId(input), direction))
+                        .transpose()?
+                }
                 Instruction::Read(slot) => seeds.get(slot.0 as usize).copied().flatten(),
                 Instruction::CoefficientJet { start, len, shape } => {
                     let operands = coefficient_jet::operands(

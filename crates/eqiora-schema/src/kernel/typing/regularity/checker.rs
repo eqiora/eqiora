@@ -63,7 +63,7 @@ impl TraceRegularityChecker {
                     SpatialRegularity::Smooth => CLASSICAL,
                 },
             },
-            ExprNode::Neg(value) => get(*value),
+            ExprNode::Neg(value) | ExprNode::ValueOnly { value, .. } => get(*value),
             ExprNode::Add(left, right) | ExprNode::Sub(left, right) => get(*left) & get(*right),
             ExprNode::Mul(left, right) => {
                 let (a, b) = (get(*left), get(*right));
@@ -200,6 +200,7 @@ impl TraceRegularityChecker {
         if weak_input {
             let admitted = match node {
                 ExprNode::Neg(_)
+                | ExprNode::ValueOnly { .. }
                 | ExprNode::Add(_, _)
                 | ExprNode::Sub(_, _)
                 | ExprNode::Index { .. }

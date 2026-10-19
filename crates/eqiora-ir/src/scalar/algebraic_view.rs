@@ -103,6 +103,14 @@ impl<'a> ScalarExpressionView<'a> {
                 }
                 continue;
             }
+            if let (Instruction::TypedConstant(a), Instruction::TypedConstant(b)) = (left, right) {
+                if self.program.typed_constants[a as usize]
+                    != other.program.typed_constants[b as usize]
+                {
+                    return false;
+                }
+                continue;
+            }
             let (Some((left, a)), Some((right, b))) = (structure(left), structure(right)) else {
                 return false;
             };
@@ -189,5 +197,36 @@ mod tests {
         assert!(!view.same_expression(different_input.expression_view(), same_input));
         assert!(original.evaluate(&[-1.]).is_err());
         assert_eq!(original.evaluate(&[2.]).unwrap(), [2.]);
+    }
+
+    #[test]
+    fn proof_views_compare_boolean_values_instead_of_literal_pool_offsets() {
+        let build = |condition: bool, unused| {
+            let mut builder = ScalarInputIrBuilder::new();
+            if unused {
+                builder.boolean(!condition).unwrap();
+            }
+            let condition = builder.boolean(condition).unwrap();
+            let value = builder
+                .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let root = builder.require(condition, value).unwrap();
+            builder.finish([root]).unwrap()
+        };
+        let original = build(true, false);
+        let renumbered = build(true, true);
+        let invalid = build(false, false);
+        assert!(
+            original
+                .expression_view()
+                .same_expression(renumbered.expression_view(), |_, _| true)
+        );
+        assert!(
+            !original
+                .expression_view()
+                .same_expression(invalid.expression_view(), |_, _| true)
+        );
+        assert_eq!(original.evaluate(&[]).unwrap(), [1.]);
+        assert!(invalid.evaluate(&[]).is_err());
     }
 }

@@ -77,6 +77,8 @@ impl ScalarInputIrBuilder {
         for (index, instruction) in source.instructions.iter().enumerate() {
             let value = if let Instruction::Read(slot) = instruction {
                 inputs[slot.0 as usize]
+            } else if let Instruction::TypedConstant(literal) = instruction {
+                self.typed_constant(source.typed_constants[*literal as usize].clone())?
             } else {
                 let instruction = remap_instruction(
                     &source.instructions,
@@ -96,5 +98,39 @@ impl ScalarInputIrBuilder {
             .iter()
             .map(|id| ScalarInputValueId(mapped[id.0 as usize]))
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{DimExponents, DynQuantity};
+    use eqiora_schema::kernel::UnaryMathFunction;
+
+    #[test]
+    fn composition_relocates_boolean_constants_and_keeps_inactive_domains_lazy() {
+        let mut source = ScalarInputIrBuilder::new();
+        let condition = source.boolean(false).unwrap();
+        let minus_one = source
+            .constant(DynQuantity::new(-1., DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let invalid = source
+            .unary_math(UnaryMathFunction::Sqrt, minus_one)
+            .unwrap();
+        let seven = source
+            .constant(DynQuantity::new(7., DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let root = source.select(condition, invalid, seven).unwrap();
+        let source = source.finish([root]).unwrap();
+        assert_eq!(source.evaluate(&[]).unwrap(), [7.]);
+
+        let mut destination = ScalarInputIrBuilder::new();
+        // Index zero in the destination deliberately has the opposite truth value.
+        let valid = destination.boolean(true).unwrap();
+        let root = destination.compose(&source, &[], |_| Ok(())).unwrap()[0];
+        let root = destination.require(valid, root).unwrap();
+        let program = destination.finish([root]).unwrap();
+        assert_eq!(program.evaluate(&[]).unwrap(), [7.]);
+        assert!(program.linearize(&[], &[]).is_ok());
     }
 }

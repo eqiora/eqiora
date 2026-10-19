@@ -358,3 +358,195 @@ fn guarded_map_domains_keep_singular_determinants_and_reject_invalid_inverses() 
         }
     }
 }
+
+#[test]
+fn pure_guarded_polynomial_retains_values_products_and_validity() {
+    use crate::{CalculusBuilder, CalculusNode, ExactRational, PureValueClass};
+    let unit = DimExponents::DIMENSIONLESS;
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(unit)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let mut c = CalculusBuilder::new([class], class).unwrap();
+    let x = c
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let zero = c
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(0),
+            dimension: unit,
+        })
+        .unwrap();
+    let three = c
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(3),
+            dimension: unit,
+        })
+        .unwrap();
+    let lower = c
+        .push(CalculusNode::Compare(ComparisonOp::GreaterEqual, x, zero))
+        .unwrap();
+    let upper = c
+        .push(CalculusNode::Compare(ComparisonOp::LessEqual, x, three))
+        .unwrap();
+    let valid = c.push(CalculusNode::And(lower, upper)).unwrap();
+    let square = c.push(CalculusNode::Mul(x, x)).unwrap();
+    let value = c.push(CalculusNode::Add(three, square)).unwrap();
+    let root = c
+        .push(CalculusNode::Require {
+            condition: valid,
+            value,
+        })
+        .unwrap();
+    let definition = c.finish(root).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+    let root = b.pure_operator(&definition, [x]).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        b.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::scalar(unit, None)),
+    )
+    .unwrap();
+    let program = ComponentScalarization::lower(&typed).unwrap();
+    assert_eq!(program.evaluate(|_| Some(2.)).unwrap(), [7.]);
+    let linear = program
+        .linearize(|_| Some((2., DifferentiationRole::Parameter)))
+        .unwrap();
+    let mut out = [0.];
+    linear
+        .jvp(RelationTangent::Parameter(&[3.]), &mut out)
+        .unwrap();
+    assert_eq!(out, [12.]);
+    linear
+        .vjp(&[5.], RelationCotangent::Parameter(&mut out))
+        .unwrap();
+    assert_eq!(out, [20.]);
+    // d²(3+x²)[3,5] = 2*3*5, independently of x.
+    program.rows()[0]
+        .linearize(&[2.], &[DifferentiationRole::Parameter])
+        .unwrap()
+        .mixed_jvp(
+            RelationTangent::Parameter(&[3.]),
+            RelationTangent::Parameter(&[5.]),
+            RelationTangent::Parameter(&[0.]),
+            &mut out,
+        )
+        .unwrap();
+    assert_eq!(out, [30.]);
+    for boundary in [0., 3.] {
+        assert!(program.evaluate(|_| Some(boundary)).is_ok());
+        assert!(
+            program
+                .linearize(|_| Some((boundary, DifferentiationRole::Parameter)))
+                .is_err()
+        );
+        assert!(
+            program
+                .linearize(|_| Some((boundary, DifferentiationRole::Frozen)))
+                .is_ok()
+        );
+    }
+    for outside in [-1., 4.] {
+        assert!(program.evaluate(|_| Some(outside)).is_err());
+    }
+}
+
+#[test]
+fn pure_piecewise_math_uses_lazy_boolean_demand_and_active_derivatives() {
+    use crate::{CalculusBuilder, CalculusNode, ExactRational, PureValueClass};
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let unit = DimExponents::DIMENSIONLESS;
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(unit)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let mut c = CalculusBuilder::new([class], class).unwrap();
+    let x = c
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let zero = c
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(0),
+            dimension: unit,
+        })
+        .unwrap();
+    let positive = c
+        .push(CalculusNode::Compare(ComparisonOp::Greater, x, zero))
+        .unwrap();
+    let false_value = c.push(CalculusNode::Boolean(false)).unwrap();
+    let true_value = c.push(CalculusNode::Not(false_value)).unwrap();
+    let condition = c.push(CalculusNode::Or(false_value, positive)).unwrap();
+    let condition = c.push(CalculusNode::And(true_value, condition)).unwrap();
+    let negative = c.push(CalculusNode::Neg(x)).unwrap();
+    let positive_root = c
+        .push(CalculusNode::UnaryMath(UnaryMathFunction::Sqrt, x))
+        .unwrap();
+    let negative_root = c
+        .push(CalculusNode::UnaryMath(UnaryMathFunction::Sqrt, negative))
+        .unwrap();
+    let root = c
+        .push(CalculusNode::Select {
+            condition,
+            then_value: positive_root,
+            else_value: negative_root,
+        })
+        .unwrap();
+    let definition = c.finish(root).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+    let root = b.pure_operator(&definition, [x]).unwrap();
+    let zero = b.constant(DynQuantity::new(0., unit)).unwrap();
+    let condition = b.compare(ComparisonOp::Greater, x, zero).unwrap();
+    let false_value = b
+        .constant(eqiora_core::ValueLiteral::boolean(false))
+        .unwrap();
+    let true_value = b.not(false_value).unwrap();
+    let condition = b.or(false_value, condition).unwrap();
+    let condition = b.require(true_value, condition).unwrap();
+    let condition = b.select(true_value, condition, false_value).unwrap();
+    let positive_root = b.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let negative = b.neg(x).unwrap();
+    let negative_root = b.unary_math(UnaryMathFunction::Sqrt, negative).unwrap();
+    let direct = b.select(condition, positive_root, negative_root).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        b.finish([root, direct]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::scalar(unit, None)),
+    )
+    .unwrap();
+    let program = ComponentScalarization::lower(&typed).unwrap();
+    for (x, slope) in [(4., 0.25), (-4., -0.25)] {
+        // The unselected square root has a negative argument at either point.
+        assert_eq!(program.evaluate(|_| Some(x)).unwrap(), [2., 2.]);
+        let action = program
+            .linearize(|_| Some((x, DifferentiationRole::Parameter)))
+            .unwrap();
+        let mut out = [0.; 2];
+        action
+            .jvp(RelationTangent::Parameter(&[1.]), &mut out)
+            .unwrap();
+        assert_eq!(out, [slope, slope]);
+        let mut cotangent = [0.];
+        action
+            .vjp(&[1., 1.], RelationCotangent::Parameter(&mut cotangent))
+            .unwrap();
+        assert_eq!(cotangent, [2. * slope]);
+    }
+    assert_eq!(program.evaluate(|_| Some(0.)).unwrap(), [0., 0.]);
+    assert!(
+        program
+            .linearize(|_| Some((0., DifferentiationRole::Parameter)))
+            .is_err()
+    );
+}

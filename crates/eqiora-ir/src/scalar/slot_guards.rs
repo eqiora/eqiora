@@ -6,7 +6,7 @@ impl ScalarInputOperatorIr {
     pub(super) fn typed_instructions(&self) -> typed::TypedInstructions<'_> {
         typed::TypedInstructions {
             instructions: &self.instructions,
-            typed_constants: &[],
+            typed_constants: &self.typed_constants,
             array_operands: &[],
             definitions: &[],
         }

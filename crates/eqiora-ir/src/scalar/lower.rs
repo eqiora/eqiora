@@ -161,6 +161,10 @@ impl ScalarOperatorIr {
                     condition: value_id(*condition, &values)?,
                     value: value_id(*value, &values)?,
                 },
+                ExprNode::ValueOnly { input, value } => Instruction::ValueOnly {
+                    input: value_id(*input, &values)?,
+                    value: value_id(*value, &values)?,
+                },
                 ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Abs, value) => {
                     let value = value_id(*value, &values)?;
                     let first = u32::try_from(instructions.len()).map_err(|_| ir_size_error())?;
@@ -243,6 +247,19 @@ impl ScalarOperatorIr {
                 u32::try_from(instructions.len()).map_err(|_| ir_size_error())?,
             ));
             instructions.push(instruction);
+            let id = expression.node_id(index as u32).expect("retained node");
+            if let Some(release) = expression.properties().get(&id)
+                && !release.first_partials()
+                && let ExprNode::PureOperatorApplication(application) = node
+            {
+                for argument in application.arguments() {
+                    let value = values[index];
+                    let input = value_id(*argument, &values)?;
+                    values[index] =
+                        ValueId(u32::try_from(instructions.len()).map_err(|_| ir_size_error())?);
+                    instructions.push(Instruction::ValueOnly { input, value });
+                }
+            }
         }
         let roots = expression
             .roots()

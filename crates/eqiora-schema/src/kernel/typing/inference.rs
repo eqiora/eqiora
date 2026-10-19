@@ -43,6 +43,25 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             condition.require(value)
         }
+        ExprNode::ValueOnly { input, value } => {
+            let Some((input, mut value)) = inferred_binary(inferred, *input, *value) else {
+                return NodeInference::Unavailable;
+            };
+            if input.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                || !input.shape().is_scalar()
+                || value.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                || !value.shape().is_scalar()
+            {
+                return NodeInference::Type(TypeViolation::ScalarDomainMismatch);
+            }
+            match super::support::combine_additive_support(&input.support, &value.support) {
+                Ok(support) => {
+                    value.support = support;
+                    Ok(value)
+                }
+                Err(error) => Err(error),
+            }
+        }
         ExprNode::Select {
             condition,
             then_value,

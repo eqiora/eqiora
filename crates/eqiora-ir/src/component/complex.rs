@@ -37,7 +37,16 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         let ai = self.lower_shaped_part(left, left_component, Imaginary)?;
         let br = self.lower_shaped_part(right, right_component, Real)?;
         let bi = self.lower_shaped_part(right, right_component, Imaginary)?;
-        if part == Real {
+        self.multiply_parts([ar, ai], [br, bi], part)
+    }
+
+    pub(super) fn multiply_parts(
+        &mut self,
+        [ar, ai]: [ScalarInputValueId; 2],
+        [br, bi]: [ScalarInputValueId; 2],
+        part: ScalarPart,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        if part == ScalarPart::Real {
             let real = self.builder.mul(ar, br)?;
             let imaginary = self.builder.mul(ai, bi)?;
             self.builder.sub(real, imaginary)
@@ -46,6 +55,61 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             let second = self.builder.mul(ai, br)?;
             self.builder.add(first, second)
         }
+    }
+
+    pub(super) fn lower_math_parts(
+        &mut self,
+        function: UnaryMathFunction,
+        complex: bool,
+        part: ScalarPart,
+        mut lower: impl FnMut(&mut Self, ScalarPart) -> Result<ScalarInputValueId, Diagnostic>,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        use ScalarPart::{Imaginary, Real};
+        Ok(match function {
+            UnaryMathFunction::Real | UnaryMathFunction::Imag => lower(
+                self,
+                if function == UnaryMathFunction::Real {
+                    Real
+                } else {
+                    Imaginary
+                },
+            )?,
+            UnaryMathFunction::Conj => {
+                let value = lower(self, part)?;
+                if part == Imaginary {
+                    self.builder.neg(value)?
+                } else {
+                    value
+                }
+            }
+            UnaryMathFunction::Abs2 => {
+                let real = lower(self, Real)?;
+                let imaginary = lower(self, Imaginary)?;
+                let real = self.builder.mul(real, real)?;
+                let imaginary = self.builder.mul(imaginary, imaginary)?;
+                self.builder.add(real, imaginary)?
+            }
+            function if !complex => {
+                let value = lower(self, Real)?;
+                self.builder.unary_math(function, value)?
+            }
+            UnaryMathFunction::Sin
+            | UnaryMathFunction::Cos
+            | UnaryMathFunction::Exp
+            | UnaryMathFunction::Log
+            | UnaryMathFunction::Sqrt => {
+                let real = lower(self, Real)?;
+                let imaginary = lower(self, Imaginary)?;
+                super::finite::charge_products(self.finite_products, 5)?;
+                self.builder
+                    .complex_math(function, [real, imaginary], part == Imaginary)?
+            }
+            _ => {
+                return Err(invalid_component_ir(
+                    "component scalarization has no admitted analytic-function or magnitude lowering",
+                ));
+            }
+        })
     }
 
     pub(super) fn lower_complex(
@@ -62,52 +126,11 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             ExprNode::Mul(left, right) if self.is_complex(left) || self.is_complex(right) => {
                 self.lower_product_parts(left, component, right, component, part)?
             }
-            ExprNode::UnaryMath(function, operand) => match function {
-                UnaryMathFunction::Real | UnaryMathFunction::Imag => self.lower_shaped_part(
-                    operand,
-                    component,
-                    if function == UnaryMathFunction::Real {
-                        Real
-                    } else {
-                        Imaginary
-                    },
-                )?,
-                UnaryMathFunction::Conj => {
-                    let value = self.lower_shaped_part(operand, component, part)?;
-                    if part == Imaginary {
-                        self.builder.neg(value)?
-                    } else {
-                        value
-                    }
-                }
-                UnaryMathFunction::Abs2 => {
-                    let real = self.lower_shaped_part(operand, component, Real)?;
-                    let imaginary = self.lower_shaped_part(operand, component, Imaginary)?;
-                    let real = self.builder.mul(real, real)?;
-                    let imaginary = self.builder.mul(imaginary, imaginary)?;
-                    self.builder.add(real, imaginary)?
-                }
-                function if !self.is_complex(operand) => {
-                    let value = self.lower_shaped_part(operand, component, Real)?;
-                    self.builder.unary_math(function, value)?
-                }
-                UnaryMathFunction::Sin
-                | UnaryMathFunction::Cos
-                | UnaryMathFunction::Exp
-                | UnaryMathFunction::Log
-                | UnaryMathFunction::Sqrt => {
-                    let real = self.lower_shaped_part(operand, component, Real)?;
-                    let imaginary = self.lower_shaped_part(operand, component, Imaginary)?;
-                    super::finite::charge_products(self.finite_products, 5)?;
-                    self.builder
-                        .complex_math(function, [real, imaginary], part == Imaginary)?
-                }
-                _ => {
-                    return Err(invalid_component_ir(
-                        "component scalarization has no admitted analytic-function or magnitude lowering",
-                    ));
-                }
-            },
+            ExprNode::UnaryMath(function, operand) => {
+                self.lower_math_parts(function, self.is_complex(operand), part, |this, part| {
+                    this.lower_shaped_part(operand, component, part)
+                })?
+            }
             ExprNode::Div(left, right) if self.is_complex(left) || self.is_complex(right) => {
                 let ar = self.lower_shaped_part(left, component, Real)?;
                 let ai = self.lower_shaped_part(left, component, Imaginary)?;

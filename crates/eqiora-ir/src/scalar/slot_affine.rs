@@ -41,8 +41,11 @@ impl ScalarInputOperatorIr {
                 coefficients: vec![0.; self.roots.len() * selected.len()],
             });
         }
-        let summaries =
-            affine_analysis::summarize(&self.instructions, &[], selected.len(), |slot, index| {
+        let summaries = affine_analysis::summarize(
+            &self.instructions,
+            &self.typed_constants,
+            selected.len(),
+            |slot, index| {
                 let source = self
                     .slots
                     .get(slot.0 as usize)
@@ -53,13 +56,14 @@ impl ScalarInputOperatorIr {
                 } else {
                     AffineSummary::independent(selected.len())
                 })
-            })
-            .map_err(|failure| match failure {
-                affine_analysis::SummaryFailure::Symbolic(failure) => ir_builder_error(format!(
-                    "cannot prove constant component Jacobian: {failure:?}"
-                )),
-                affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
-            })?;
+            },
+        )
+        .map_err(|failure| match failure {
+            affine_analysis::SummaryFailure::Symbolic(failure) => ir_builder_error(format!(
+                "cannot prove constant component Jacobian: {failure:?}"
+            )),
+            affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
+        })?;
         let mut coefficients = Vec::new();
         for root in &self.roots {
             let summary = summaries
@@ -155,8 +159,11 @@ impl ScalarInputOperatorIr {
                 return Err(ir_builder_error("affine input coordinate is unbound"));
             }
         }
-        let summaries =
-            affine_analysis::summarize(&self.instructions, &[], selected.len(), |slot, index| {
+        let summaries = affine_analysis::summarize(
+            &self.instructions,
+            &self.typed_constants,
+            selected.len(),
+            |slot, index| {
                 let coordinate = self
                     .slots
                     .get(slot.0 as usize)
@@ -167,13 +174,14 @@ impl ScalarInputOperatorIr {
                 } else {
                     AffineSummary::bound(constants[coordinate], selected.len())
                 })
-            })
-            .map_err(|error| match error {
-                affine_analysis::SummaryFailure::Symbolic(error) => {
-                    ir_builder_error(format!("component affine proof failed: {error:?}"))
-                }
-                affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
-            })?;
+            },
+        )
+        .map_err(|error| match error {
+            affine_analysis::SummaryFailure::Symbolic(error) => {
+                ir_builder_error(format!("component affine proof failed: {error:?}"))
+            }
+            affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
+        })?;
         self.roots
             .iter()
             .map(|root| {

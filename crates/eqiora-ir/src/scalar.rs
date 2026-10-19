@@ -35,6 +35,7 @@ mod point_components;
 mod point_projection;
 mod real_math;
 mod sampled_linearization;
+mod slot_conditions;
 mod slot_differential;
 mod slot_guards;
 mod typed;
@@ -111,6 +112,7 @@ impl ScalarInputSlot {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarInputOperatorIr {
     primal_checks: Vec<ValueId>,
+    typed_constants: Vec<eqiora_core::ValueLiteral>,
     slots: Vec<ScalarInputSlot>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,
@@ -205,6 +207,7 @@ pub(crate) struct ScalarInputValueId(ValueId);
 
 pub(crate) struct ScalarInputIrBuilder {
     primal_checks: Vec<ValueId>,
+    typed_constants: Vec<eqiora_core::ValueLiteral>,
     slots: Vec<ScalarInputSlot>,
     slot_indices: HashMap<ScalarInputSlot, SymbolSlot>,
     instructions: Vec<Instruction>,
@@ -216,6 +219,7 @@ impl ScalarInputIrBuilder {
     pub(crate) fn new() -> Self {
         Self {
             primal_checks: Vec::new(),
+            typed_constants: Vec::new(),
             slots: Vec::new(),
             slot_indices: HashMap::new(),
             instructions: Vec::new(),
@@ -322,6 +326,17 @@ impl ScalarInputIrBuilder {
         })
     }
 
+    pub(crate) fn value_only(
+        &mut self,
+        input: ScalarInputValueId,
+        value: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.binary(input, value, |input, value| Instruction::ValueOnly {
+            input,
+            value,
+        })
+    }
+
     pub(crate) fn complex_div(
         &mut self,
         operands: [ScalarInputValueId; 4],
@@ -378,6 +393,7 @@ impl ScalarInputIrBuilder {
         }
         Ok(ScalarInputOperatorIr {
             primal_checks: self.primal_checks,
+            typed_constants: self.typed_constants,
             slots: self.slots,
             instructions: self.instructions,
             roots,
@@ -703,6 +719,8 @@ pub enum BoundAffineFailure {
     UnboundSymbol(SymbolRef),
     /// Dependence on a selected symbol is nonlinear.
     Nonlinear { instruction: usize },
+    /// A retained value-only contract forbids a requested derivative product.
+    DerivativeUnavailable { instruction: usize },
     /// Exact affine arithmetic produced NaN or infinity.
     NonFiniteArithmetic { instruction: usize },
     /// The SSA program contains an invalid value reference.
@@ -721,6 +739,9 @@ impl From<SymbolicLinearityFailure> for BoundAffineFailure {
             }
             SymbolicLinearityFailure::NonFiniteCoefficient { instruction } => {
                 Self::NonFiniteArithmetic { instruction }
+            }
+            SymbolicLinearityFailure::DerivativeUnavailable { instruction } => {
+                Self::DerivativeUnavailable { instruction }
             }
             SymbolicLinearityFailure::InvalidProgram { instruction } => {
                 Self::InvalidProgram { instruction }
@@ -774,6 +795,8 @@ pub enum SymbolicLinearityFailure {
     VariableCoefficient { instruction: usize },
     /// Dependence on a selected variable is nonlinear.
     Nonlinear { instruction: usize },
+    /// A retained value-only contract forbids a requested derivative product.
+    DerivativeUnavailable { instruction: usize },
     /// Exact coefficient arithmetic produced a non-finite value.
     NonFiniteCoefficient { instruction: usize },
     /// The SSA program contains an invalid value reference.

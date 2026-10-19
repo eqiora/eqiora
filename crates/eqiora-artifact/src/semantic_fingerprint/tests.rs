@@ -58,15 +58,15 @@ fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
 
 #[test]
 fn expression_arena_allocation_is_alpha_normalized_too() {
-    let first = manually_allocated_expression(false, false);
-    let reversed = manually_allocated_expression(true, false);
+    let first = manually_allocated_expression(false, false, false);
+    let reversed = manually_allocated_expression(true, false, false);
     assert!(StructuralSemanticFingerprint::compare_programs(&first, &reversed).unwrap());
 }
 
 #[test]
 fn model_boundary_membership_is_not_alpha_normalized_away() {
-    let internal = manually_allocated_expression(false, false);
-    let exposed = manually_allocated_expression(false, true);
+    let internal = manually_allocated_expression(false, false, false);
+    let exposed = manually_allocated_expression(false, true, false);
     assert!(!StructuralSemanticFingerprint::compare_programs(&internal, &exposed).unwrap());
 }
 
@@ -145,7 +145,11 @@ fn exact_canonicalization_fails_instead_of_using_occurrence_order() {
     assert!(error.message().contains("search-state limit"));
 }
 
-fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProgram {
+fn manually_allocated_expression(
+    reverse: bool,
+    expose_port: bool,
+    value_only: bool,
+) -> KernelProgram {
     let left = Id::<kinds::Field>::new();
     let right = Id::<kinds::Field>::new();
     let relation = Id::<kinds::Relation>::new();
@@ -163,6 +167,11 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
         (left_value, right_value)
     };
     let root = expression.add(left_value, right_value).unwrap();
+    let root = if value_only {
+        expression.value_only(left_value, root).unwrap()
+    } else {
+        root
+    };
     let zero = expression
         .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
         .unwrap();
@@ -239,4 +248,13 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+}
+
+#[test]
+fn value_only_contract_is_semantic_and_survives_alpha_normalization() {
+    let unrestricted = manually_allocated_expression(false, false, false);
+    let restricted = manually_allocated_expression(false, false, true);
+    let reordered = manually_allocated_expression(true, false, true);
+    assert!(!StructuralSemanticFingerprint::compare_programs(&unrestricted, &restricted).unwrap());
+    assert!(StructuralSemanticFingerprint::compare_programs(&restricted, &reordered).unwrap());
 }

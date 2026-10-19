@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn value_only_wire_retains_the_independent_input_and_rejects_forward_references() {
+    let mut builder = ExprDagBuilder::new();
+    let input = builder
+        .symbol(SymbolRef::Parameter(eqiora_core::Id::new()))
+        .unwrap();
+    let value = builder.powi(input, 2).unwrap();
+    let root = builder.value_only(input, value).unwrap();
+    let expression = builder.finish([root]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    let replay: WireExpression =
+        serde_json::from_slice(&serde_json::to_vec(&wire).unwrap()).unwrap();
+    assert_eq!(replay.decode().unwrap(), expression);
+    let mut malformed = wire;
+    malformed.nodes[2] = WireExpressionNode::ValueOnly { input: 2, value: 1 };
+    assert!(malformed.decode().is_err());
+}
+
+#[test]
 fn boundary_operator_wire_requires_and_retains_each_exact_target() {
     use eqiora_core::Id;
     let first = Id::<kinds::Domain>::new();

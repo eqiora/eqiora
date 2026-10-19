@@ -24,9 +24,7 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use crate::scalar::{
     ScalarInputIrBuilder, ScalarInputOperatorIr, ScalarInputSlot, ScalarInputValueId,
 };
-use crate::{
-    OperatorExpansionExt, PureOperatorDefinition, ScalarCalculusNode, StandardPureOperator,
-};
+use crate::{PureOperatorDefinition, StandardPureOperator};
 
 /// One deterministic scalar residual row lowered from a shaped root.
 #[derive(Debug, Clone, PartialEq)]
@@ -551,10 +549,25 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                     )?
                 }
             }
+            ExprNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let condition = self.lower_condition(condition)?;
+                let then_value = self.lower_shaped_part(then_value, component, part)?;
+                let else_value = self.lower_shaped_part(else_value, component, part)?;
+                self.builder.select(condition, then_value, else_value)?
+            }
             ExprNode::Require { condition, value } => {
                 let condition = self.lower_condition(condition)?;
                 let value = self.lower_shaped_part(value, component, part)?;
                 self.builder.require(condition, value)?
+            }
+            ExprNode::ValueOnly { input, value } => {
+                let input = self.lower_part(input, &[], ScalarPart::Real)?;
+                let value = self.lower_shaped_part(value, component, part)?;
+                self.builder.value_only(input, value)?
             }
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped_part(operand, component, part)?;
@@ -608,13 +621,28 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                             "pure operator application has no exact expression-local definition",
                         )
                     })?;
-                self.lower_pure_definition(
+                let value_only = self
+                    .expression
+                    .properties()
+                    .get(&value)
+                    .is_some_and(|release| !release.first_partials());
+                if value_only {
+                    finite::charge_products(self.finite_products, application.arguments().len())?;
+                }
+                let mut result = self.lower_pure_definition(
                     &definition,
                     application.arguments(),
                     component,
                     node_type,
                     part,
-                )?
+                )?;
+                if value_only {
+                    for argument in application.arguments() {
+                        let input = self.lower_part(*argument, &[], ScalarPart::Real)?;
+                        result = self.builder.value_only(input, result)?;
+                    }
+                }
+                result
             }
             _ => {
                 return Err(invalid_component_ir(
@@ -652,6 +680,33 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 let right = self.lower_part(right, &[], ScalarPart::Real)?;
                 self.builder.compare(op, left, right)?
             }
+            Some(ExprNode::Constant(value)) if value.as_bool().is_some() => self
+                .builder
+                .boolean(value.as_bool().expect("checked Boolean"))?,
+            Some(ExprNode::Select {
+                condition,
+                then_value,
+                else_value,
+            }) => {
+                let condition = self.lower_condition(condition)?;
+                let then_value = self.lower_condition(then_value)?;
+                let else_value = self.lower_condition(else_value)?;
+                self.builder.select(condition, then_value, else_value)?
+            }
+            Some(ExprNode::Require { condition, value }) => {
+                let condition = self.lower_condition(condition)?;
+                let value = self.lower_condition(value)?;
+                self.builder.require(condition, value)?
+            }
+            Some(ExprNode::Not(value)) => {
+                let value = self.lower_condition(value)?;
+                self.builder.not(value)?
+            }
+            Some(ExprNode::Or(left, right)) => {
+                let left = self.lower_condition(left)?;
+                let right = self.lower_condition(right)?;
+                self.builder.or(left, right)?
+            }
             Some(ExprNode::And(left, right)) => {
                 let left = self.lower_condition(left)?;
                 let right = self.lower_condition(right)?;
@@ -659,7 +714,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
             }
             _ => {
                 return Err(invalid_component_ir(
-                    "component domain guards require real scalar comparisons and conjunctions",
+                    "component conditions require Boolean literals, logical operations, or real scalar comparisons",
                 ));
             }
         };
