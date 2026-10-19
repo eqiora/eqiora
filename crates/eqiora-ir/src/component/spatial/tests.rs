@@ -151,6 +151,21 @@ fn partial_divergence_and_oblique_normal_keep_complex_coordinates_and_axes() {
         );
     }
     assert!(ComponentScalarization::lower(&typed).is_err());
+    assert!(ComponentScalarization::lower_selected(&typed, &[trace]).is_err());
+    // A trace restricts the reconstructed value; no oriented contraction occurs.
+    // Its complex vector components must survive without a supplied normal.
+    let traced = ComponentScalarization::lower_spatial_selected(&typed, &[trace], None)
+        .unwrap()
+        .evaluate(|input| {
+            assert_eq!(input.symbol(), field);
+            assert!(input.spatial_derivative_axes().is_empty());
+            Some(
+                [[2., 3.], [5., -7.]][input.component_index()[0] as usize]
+                    [usize::from(input.is_imaginary())],
+            )
+        })
+        .unwrap();
+    assert_eq!(traced, [2., 3., 5., -7.]);
     let lowered = ComponentScalarization::lower_spatial_selected(
         &typed,
         typed.expression().roots(),

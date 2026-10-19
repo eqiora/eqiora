@@ -93,24 +93,6 @@ pub(super) fn jvp(
     .expect("directions present")[usize::from(imaginary)])
 }
 
-pub(super) fn direction(
-    numerator: [f64; 2],
-    denominator: [f64; 2],
-    numerator_tangent: [f64; 2],
-    denominator_tangent: [f64; 2],
-) -> [f64; 2] {
-    direction_in(
-        &mut super::differential::Numerical,
-        numerator.map(Scaled::new),
-        denominator.map(Scaled::new),
-        Some(numerator_tangent.map(Scaled::new)),
-        Some(denominator_tangent.map(Scaled::new)),
-    )
-    .expect("numerical arithmetic is infallible")
-    .expect("numerical directions are present")
-    .map(Scaled::value)
-}
-
 /// The robust quotient differential has one owner for evaluation and SSA emission.
 pub(super) fn direction_in<A: super::differential::Arithmetic>(
     algebra: &mut A,

@@ -433,15 +433,31 @@ fn complex_newton_rejects_singular_zero_residual_and_exhausted_updates() {
         )])
         .unwrap();
     assert!(limited.run_result(&initial, &FaerLinearSolver).is_err());
-    let unsupported = ModelDocument::compile(
-        "branch.eqi",
-        "model M(){variable z:complex<1>;relation r{math.log(z)=0;}}",
-    )
-    .unwrap();
-    let model = ModelEnvelope::from_program(unsupported.program()).unwrap();
-    assert!(
-        CommonAlgebraicPlan::resolve(&model, solve, None, &[], None, &FaerLinearSolver).is_err()
-    );
+}
+
+#[test]
+fn complex_log_newton_solves_off_cut_and_rejects_undefined_initial_differentials() {
+    let (document, plan) = plan("model M(){variable z:complex<1>;relation r{math.log(z)=0;}}");
+    let run = |value| {
+        plan.initial_state(&[seed(
+            &document,
+            &plan,
+            "z",
+            ValueShape::scalar(),
+            vec![value],
+        )])
+        .and_then(|state| plan.run_result(&state, &FaerLinearSolver))
+    };
+    let result = run((1.5, 0.25)).unwrap();
+    // The principal logarithm vanishes only at z=1. With |log(z)|<=1e-12,
+    // |z-1| <= exp(1e-12)-1 < 2e-12, independently of Newton's iterates.
+    let values = result.finite_values().unwrap();
+    assert_eq!(values.len(), 2);
+    assert!((values[0] - 1.).hypot(values[1]) < 2e-12);
+    for value in [(0., 0.), (-1., 0.), (-1., -0.)] {
+        let error = run(value).unwrap_err();
+        assert!(error.message().contains("log"), "{value:?}: {error:?}");
+    }
 }
 
 #[test]

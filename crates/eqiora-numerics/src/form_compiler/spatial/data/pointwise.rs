@@ -9,6 +9,7 @@ use eqiora_ir::{
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct PointwiseData<S: Coefficient> {
     row: ComponentScalarRow,
+    dimension: usize,
     // Entry mask identifies the differentiated directions: value, first,
     // second, mixed. These are derivative axes, never Field component axes.
     inputs: Vec<Vec<Input<S>>>,
@@ -63,6 +64,7 @@ impl<S: Coefficient> PointwiseData<S> {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(Self {
             row: row.clone(),
+            dimension: context.dimension,
             active: vec![false; inputs.len()],
             inputs: vec![inputs],
         })
@@ -81,6 +83,7 @@ impl<S: Coefficient> PointwiseData<S> {
         };
         Ok(Self {
             row: self.row.clone(),
+            dimension: self.dimension,
             active: self.active.clone(),
             inputs: self
                 .inputs
@@ -89,8 +92,33 @@ impl<S: Coefficient> PointwiseData<S> {
                 .collect::<Result<_, _>>()?,
         })
     }
+    pub(super) fn expression_view(&self) -> Option<eqiora_ir::ScalarExpressionView<'_>> {
+        (self.inputs.len() == 1).then(|| self.row.expression_view())
+    }
+    pub(super) fn input(&self, ordinal: usize) -> &Input<S> {
+        &self.inputs[0][ordinal]
+    }
+    pub(super) fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    pub(super) fn polynomial_degree(&self) -> Option<usize> {
+        // Derivative input blocks can have different spatial degrees. Their
+        // maximum gives a conservative bound for every retained direction.
+        let inputs = (0..self.row.symbols().len())
+            .map(|index| {
+                self.inputs.iter().try_fold(0, |degree, block| {
+                    Some(degree.max(block[index].polynomial_degree()?))
+                })
+            })
+            .collect::<Vec<_>>();
+        self.row.polynomial_degree(&inputs)
+    }
     pub(super) fn spatial(&self) -> bool {
-        self.inputs.iter().flatten().any(Input::spatial)
+        // Deriving a uniform Jacobian retains coordinate reads for primal
+        // domain checks. A structural degree-zero proof still establishes that
+        // its value is spatially constant; sampled Parameter values never do.
+        self.inputs.iter().flatten().any(Input::spatial) && self.polynomial_degree() != Some(0)
     }
     pub(super) fn constant_in_direction(
         &self,
@@ -136,11 +164,13 @@ impl<S: Coefficient> PointwiseData<S> {
         }
         Ok(Self {
             row: self.row.clone(),
+            dimension: self.dimension,
             inputs,
             active,
         })
     }
     pub(super) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
+        validate_point(point, self.dimension)?;
         let evaluate = |inputs: &[Input<S>]| {
             inputs
                 .iter()

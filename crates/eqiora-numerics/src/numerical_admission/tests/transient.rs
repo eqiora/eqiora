@@ -196,10 +196,10 @@ public component AffineStorage(
         .unwrap()
         .initial_state(Some(0.0), Vec::new())
         .unwrap_err();
-    assert!(
-        nonfinite
-            .message()
-            .contains("non-finite linear coefficient data")
+    assert_eq!(
+        nonfinite.code(),
+        eqiora_core::diagnostic::codes::NONFINITE_EVALUATION,
+        "{nonfinite}"
     );
 }
 

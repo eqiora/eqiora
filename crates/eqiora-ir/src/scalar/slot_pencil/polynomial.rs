@@ -118,8 +118,8 @@ pub(super) fn evaluate(
             }
             output
         }
-        Instruction::QuotientJet { start, len } => {
-            let operands = quotient::numerical_operands(start, len, values)?;
+        Instruction::CoefficientJet { start, len, shape } => {
+            let operands = coefficient_jet::numerical_operands(start, len, shape, values)?;
             let mut powers = Vec::new();
             for id in operands.a.iter().flatten() {
                 powers.extend(at(*id)?.0.keys().cloned());
@@ -141,7 +141,7 @@ pub(super) fn evaluate(
                             .transpose()
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                output.insert(power, quotient::jet(&numerator, &denominator)?, budget)?;
+                output.insert(power, shape.jet(&numerator, &denominator)?, budget)?;
             }
             output
         }

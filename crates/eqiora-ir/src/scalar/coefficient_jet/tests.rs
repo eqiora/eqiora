@@ -45,11 +45,12 @@ fn quotient_coefficients_match_independent_rational_derivatives_across_scales() 
                 continue;
             }
             let n = 1 << (order + 1);
-            let actual = jet(
-                &a[..n].iter().copied().map(Some).collect::<Vec<_>>(),
-                &b[..n].iter().copied().map(Some).collect::<Vec<_>>(),
-            )
-            .unwrap();
+            let actual = Shape::SCALAR
+                .jet(
+                    &a[..n].iter().copied().map(Some).collect::<Vec<_>>(),
+                    &b[..n].iter().copied().map(Some).collect::<Vec<_>>(),
+                )
+                .unwrap();
             assert!(actual.is_finite());
             let magnitude = terms
                 .iter()
@@ -67,10 +68,24 @@ fn quotient_coefficients_match_independent_rational_derivatives_across_scales() 
 
 #[test]
 fn quotient_work_admission_precedes_gather_and_retains_structural_absence() {
-    assert_eq!(jet(&[Some(2.), None], &[Some(4.), None]).unwrap(), 0.);
-    assert!(jet(&[Some(1.); 3], &[Some(1.); 3]).is_err());
-    assert!(jet(&[Some(1.); 8192], &[Some(1.); 8192]).is_err());
-    assert_eq!(jet(&[Some(1.); 4096], &[Some(1.); 4096]).unwrap(), 0.);
+    assert_eq!(
+        Shape::SCALAR
+            .jet(&[Some(2.), None], &[Some(4.), None])
+            .unwrap(),
+        0.
+    );
+    assert!(Shape::SCALAR.jet(&[Some(1.); 3], &[Some(1.); 3]).is_err());
+    assert!(
+        Shape::SCALAR
+            .jet(&[Some(1.); 8192], &[Some(1.); 8192])
+            .is_err()
+    );
+    assert_eq!(
+        Shape::SCALAR
+            .jet(&[Some(1.); 4096], &[Some(1.); 4096])
+            .unwrap(),
+        0.
+    );
     let mut instructions = vec![Instruction::Constant(eqiora_core::DynQuantity::new(
         1.,
         eqiora_core::DimExponents::DIMENSIONLESS,
@@ -80,7 +95,8 @@ fn quotient_work_admission_precedes_gather_and_retains_structural_absence() {
         gather(
             &mut instructions,
             &[Some(ValueId(0)); 3],
-            &[Some(ValueId(0)); 3]
+            &[Some(ValueId(0)); 3],
+            Shape::SCALAR
         )
         .is_err()
     );

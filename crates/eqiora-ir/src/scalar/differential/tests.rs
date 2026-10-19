@@ -301,17 +301,17 @@ fn emitted_and_affine_quotient_actions_use_the_same_range_safe_rule() {
 
         let numerator = AffineValue {
             value: scale,
-            tangent: Some(scale),
+            tangent: Some(Scaled::new(scale)),
         };
         let denominator = AffineValue {
             value: scale,
-            tangent: Some(2. * scale),
+            tangent: Some(Scaled::new(2. * scale)),
         };
         assert_eq!(
             numerator.divide(denominator),
             AffineValue {
                 value: 1.,
-                tangent: Some(-1.)
+                tangent: Some(Scaled::new(-1.))
             }
         );
         assert_eq!(

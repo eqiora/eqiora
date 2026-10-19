@@ -215,8 +215,8 @@ impl typed::TypedInstructions<'_> {
                 let at = |id: ValueId| dependencies[id.0 as usize];
                 match *node {
                     Instruction::ComplexDiv { operands, .. } => operands.into_iter().any(at),
-                    Instruction::QuotientJet { start, len } => {
-                        quotient::operands(start, len, &self.instructions[..index])?
+                    Instruction::CoefficientJet { start, len, shape } => {
+                        coefficient_jet::operands(start, len, shape, &self.instructions[..index])?
                             .iter()
                             .any(at)
                     }
@@ -321,8 +321,14 @@ impl typed::TypedInstructions<'_> {
                 | Instruction::Mul(a, b)
                 | Instruction::Div(a, b) => pending.extend([a, b]),
                 Instruction::ComplexDiv { operands, .. } => pending.extend(operands),
-                Instruction::QuotientJet { start, len } => pending.extend(
-                    quotient::operands(start, len, &self.instructions[..id.0 as usize])?.iter(),
+                Instruction::CoefficientJet { start, len, shape } => pending.extend(
+                    coefficient_jet::operands(
+                        start,
+                        len,
+                        shape,
+                        &self.instructions[..id.0 as usize],
+                    )?
+                    .iter(),
                 ),
                 Instruction::MapInvariant { start, extent, .. } => {
                     pending.extend(
@@ -376,10 +382,11 @@ impl typed::TypedInstructions<'_> {
                     operands: operands.map(at),
                     imaginary,
                 },
-                Instruction::QuotientJet { start, len } => {
-                    let operands = quotient::operands(start, len, &self.instructions[..index])?;
+                Instruction::CoefficientJet { start, len, shape } => {
+                    let operands =
+                        coefficient_jet::operands(start, len, shape, &self.instructions[..index])?;
                     let (a, b) = operands.values(|id| Ok(at(id)))?;
-                    quotient::gather(&mut instructions, &a, &b)?
+                    coefficient_jet::gather(&mut instructions, &a, &b, shape)?
                 }
                 Instruction::MapInvariant {
                     start,

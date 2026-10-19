@@ -12,11 +12,10 @@ mod scalar;
 
 pub use calculus::{
     CalculusBuilder, CalculusError, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
-    FormalDimensionMonomial, NormalizationProof, NormalizationRuleId, OperatorApplicationProof,
-    OperatorDefinitionDigest, OperatorExpansionExt, PureOperatorApplicationProof,
-    PureOperatorDefinition, PureOperatorError, PureOperatorInstantiation, PureValueClass,
-    ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator, SupportMap,
-    SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
+    NormalizationProof, NormalizationRuleId, OperatorApplicationProof, OperatorDefinitionDigest,
+    OperatorExpansionExt, PureOperatorApplicationProof, PureOperatorDefinition, PureOperatorError,
+    PureValueClass, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator,
+    SupportMap, SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
 };
 pub use component::{
     ComponentLinearization, ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate,
@@ -29,6 +28,7 @@ mod output;
 pub use local_action::LocalLinearActionIr;
 pub use output::DenseOutputLinearization;
 pub use scalar::{
-    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputSlot,
-    ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,
+    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarAlgebraicNode,
+    ScalarExpressionView, ScalarInputSlot, ScalarLinearization, ScalarOperatorIr,
+    SymbolicLinearityFailure,
 };

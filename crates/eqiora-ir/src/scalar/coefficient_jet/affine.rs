@@ -1,17 +1,29 @@
-//! A quotient jet is linear in its numerator coefficients for a fixed denominator.
+//! A solve jet is linear in its right-hand coefficients for a fixed matrix.
 use super::*;
 use affine_analysis::SummaryFailure;
 
-fn value(a: &[Option<AffineValue>], b: &[Option<AffineValue>]) -> Result<AffineValue, Diagnostic> {
-    let (mut av, mut bv) = (
+fn value(
+    shape: Shape,
+    a: &[Option<AffineValue>],
+    b: &[Option<AffineValue>],
+) -> Result<AffineValue, Diagnostic> {
+    let (av, bv) = (
         a.iter().map(|v| v.map(|v| v.value)).collect::<Vec<_>>(),
         b.iter().map(|v| v.map(|v| v.value)).collect::<Vec<_>>(),
     );
-    let value = jet(&av, &bv)?;
+    let value = shape.jet(&av, &bv)?;
     let tangent = if a.iter().chain(b).flatten().any(|v| v.tangent.is_some()) {
+        let mut av = av
+            .into_iter()
+            .map(|v| v.map(Scaled::new))
+            .collect::<Vec<_>>();
+        let mut bv = bv
+            .into_iter()
+            .map(|v| v.map(Scaled::new))
+            .collect::<Vec<_>>();
         av.extend(a.iter().map(|v| v.and_then(|v| v.tangent)));
         bv.extend(b.iter().map(|v| v.and_then(|v| v.tangent)));
-        Some(jet(&av, &bv)?)
+        Some(shape.scaled_jet(&av, &bv)?)
     } else {
         None
     };
@@ -19,6 +31,7 @@ fn value(a: &[Option<AffineValue>], b: &[Option<AffineValue>]) -> Result<AffineV
 }
 
 pub(in crate::scalar) fn evaluate(
+    shape: Shape,
     a: &[Option<AffineSummary>],
     b: &[Option<AffineSummary>],
     dimension: usize,
@@ -47,18 +60,25 @@ pub(in crate::scalar) fn evaluate(
         diagnostic,
     };
     let constant = constants(a)
-        .map(|a| value(&a, &denominator))
+        .map(|a| value(shape, &a, &denominator))
         .transpose()
         .map_err(numerical)?;
-    let coefficients = (0..dimension)
-        .map(|index| {
-            let numerator = a
-                .iter()
-                .map(|value| value.as_ref().map(|v| v.coefficients[index]))
-                .collect::<Vec<_>>();
-            value(&numerator, &denominator)
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(numerical)?;
+    let coefficients = if matches!(shape, Shape::ComplexMath { .. }) {
+        if a.iter().flatten().any(AffineSummary::depends_on_selected) {
+            return Err(SymbolicLinearityFailure::Nonlinear { instruction }.into());
+        }
+        vec![AffineValue::constant(0.); dimension]
+    } else {
+        (0..dimension)
+            .map(|index| {
+                let numerator = a
+                    .iter()
+                    .map(|value| value.as_ref().map(|v| v.coefficients[index]))
+                    .collect::<Vec<_>>();
+                value(shape, &numerator, &denominator)
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(numerical)?
+    };
     Ok(AffineSummary::finite(constant, coefficients, instruction)?)
 }

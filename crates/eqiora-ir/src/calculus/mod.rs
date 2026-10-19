@@ -21,8 +21,7 @@ pub use application::{
 };
 pub use eqiora_schema::kernel::pure_operator::{
     CalculusBuilder, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
-    FormalDimensionMonomial, OperatorDefinitionDigest, PureOperatorDefinition, PureOperatorError,
-    PureOperatorInstantiation, PureValueClass,
+    OperatorDefinitionDigest, PureOperatorDefinition, PureOperatorError, PureValueClass,
 };
 pub use expansion::{OperatorExpansionExt, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 pub use normalization::{NormalizationProof, NormalizationRuleId};

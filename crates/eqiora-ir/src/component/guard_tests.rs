@@ -5,6 +5,93 @@ use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType};
 use eqiora_schema::kernel::{ComparisonOp, ExprDagBuilder, typing::RootContract};
 
 #[test]
+fn guarded_complex_root_keeps_units_and_real_paired_actions() {
+    let symbol = SymbolRef::Parameter(Id::new());
+    let area = DimExponents::from_integers([0, 2, 0, 0, 0, 0, 0]).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let z = builder.symbol(symbol).unwrap();
+    let real = builder
+        .unary_math(eqiora_schema::kernel::UnaryMathFunction::Real, z)
+        .unwrap();
+    let zero = builder.constant(DynQuantity::new(0., area)).unwrap();
+    let positive = builder.compare(ComparisonOp::Greater, real, zero).unwrap();
+    let root = builder
+        .unary_math(eqiora_schema::kernel::UnaryMathFunction::Sqrt, z)
+        .unwrap();
+    let root = builder.require(positive, root).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        builder.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| {
+            Ok::<_, ()>(ExpressionType::new(
+                ValueType::scalar(ScalarDomain::Complex, area).unwrap(),
+                None,
+            ))
+        },
+    )
+    .unwrap();
+    let rows = ComponentScalarization::lower(&typed).unwrap();
+    let action = rows
+        .linearize(|coordinate| {
+            Some((
+                if coordinate.is_imaginary() { 4. } else { 3. },
+                DifferentiationRole::Parameter,
+            ))
+        })
+        .unwrap();
+    let close = |actual: &[f64], expected: &[f64]| {
+        for (a, b) in actual.iter().zip(expected) {
+            assert!((a - b).abs() < 16. * f64::EPSILON);
+        }
+    };
+    let mut output = [0.; 2];
+    action.primal(&mut output).unwrap();
+    close(&output, &[2., 1.]);
+    // sqrt(3+4i)=2+i, f'=(2-i)/10, f''=(-2+11i)/500.
+    action
+        .jvp(RelationTangent::Parameter(&[1., 2.]), &mut output)
+        .unwrap();
+    close(&output, &[0.4, 0.3]);
+    action
+        .vjp(&[2., 3.], RelationCotangent::Parameter(&mut output))
+        .unwrap();
+    close(&output, &[0.1, 0.8]);
+    for (index, row) in rows.rows().iter().enumerate() {
+        let point = row
+            .symbols()
+            .iter()
+            .map(|c| if c.is_imaginary() { 4. } else { 3. })
+            .collect::<Vec<_>>();
+        let action = row
+            .linearize(&point, &vec![DifferentiationRole::Parameter; point.len()])
+            .unwrap();
+        let left = row
+            .symbols()
+            .iter()
+            .map(|c| f64::from(!c.is_imaginary()))
+            .collect::<Vec<_>>();
+        let right = row
+            .symbols()
+            .iter()
+            .map(|c| f64::from(c.is_imaginary()))
+            .collect::<Vec<_>>();
+        let mut mixed = [0.];
+        action
+            .mixed_jvp(
+                RelationTangent::Parameter(&left),
+                RelationTangent::Parameter(&right),
+                RelationTangent::Parameter(&vec![0.; point.len()]),
+                &mut mixed,
+            )
+            .unwrap();
+        close(&mixed, &[[-0.022, -0.004][index]]);
+    }
+    assert!(rows.evaluate(|_| Some(0.)).is_err());
+}
+
+#[test]
 fn guarded_vector_keeps_units_and_rejects_active_boundaries() {
     let x = SymbolRef::Field(Id::new());
     let p = SymbolRef::Parameter(Id::new());

@@ -65,6 +65,9 @@ pub(in crate::form_compiler) fn coefficient_dependencies(
             | ExprNode::Mul(left, right)
             | ExprNode::Div(left, right)
             | ExprNode::FiniteBinary(_, left, right) => pending.extend([*left, *right]),
+            ExprNode::CoordinateMapFactor { at, .. } => {
+                pending.extend(at.iter().map(|(_, mapped)| mapped));
+            }
             ExprNode::PureOperatorApplication(application) => {
                 pending.extend(application.arguments())
             }
@@ -176,6 +179,9 @@ pub(super) fn principal(
                         .iter()
                         .map(|id| (*id, in_divergence)),
                 );
+            }
+            ExprNode::CoordinateMapFactor { at, .. } => {
+                pending.extend(at.iter().map(|(_, mapped)| (*mapped, in_divergence)));
             }
             ExprNode::Array { elements } => {
                 pending.extend(elements.iter().map(|id| (*id, in_divergence)));

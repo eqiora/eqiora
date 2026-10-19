@@ -4,6 +4,108 @@ use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType, entity::kinds};
 use eqiora_schema::kernel::{ExprDagBuilder, UnaryMathFunction, typing::RootContract};
 
 #[test]
+fn affine_directions_retain_range_until_coefficients_and_offsets_are_requested() {
+    for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+        for exponent in [-700, -400, 400, 700] {
+            let scale = 2f64.powi(exponent);
+            let field = SymbolRef::Field(Id::<kinds::Field>::new());
+            let parameter = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+            let ty = ValueType::scalar(domain, DimExponents::DIMENSIONLESS).unwrap();
+            let mut dag = ExprDagBuilder::new();
+            let u = dag.symbol(field).unwrap();
+            let p = dag.symbol(parameter).unwrap();
+            let one = dag
+                .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let factor = dag
+                .constant(DynQuantity::new(scale, DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let reciprocal = dag.div(one, p).unwrap();
+            let coefficient = dag.mul(factor, reciprocal).unwrap();
+            let product = dag.mul(coefficient, u).unwrap();
+            let root = dag.add(product, coefficient).unwrap();
+            let typed = TypedResidual::infer(
+                dag.finish([root, reciprocal]).unwrap(),
+                None,
+                |_| None,
+                RootContract::ComponentwiseResidual,
+                |_| Ok::<_, ()>(ExpressionType::<()>::new(ty.clone(), None)),
+            )
+            .unwrap();
+            let lowered = ComponentScalarization::lower(&typed).unwrap();
+            let selected = ScalarSymbolCoordinate::for_value(field, &ty).unwrap();
+            let bindings = ScalarSymbolCoordinate::for_value(parameter, &ty)
+                .unwrap()
+                .into_iter()
+                .enumerate()
+                .map(|(i, c)| {
+                    (
+                        c,
+                        if i == 0 { scale } else { 0. },
+                        Some(if i == 0 { 1. } else { 0. }),
+                    )
+                })
+                .collect::<Vec<_>>();
+            // f(p,u)=(s/p)(u+1), so at p=s: f=u+1, df/dp=-(u+1)/s.
+            // The intermediate derivative -1/p^2 overflows/underflows at ±700.
+            for (i, row) in lowered.rows()[..selected.len()].iter().enumerate() {
+                let (primal, tangent) = row.bind_affine_direction(&selected, &bindings).unwrap();
+                for j in 0..selected.len() {
+                    assert_eq!(primal.coefficients()[j], if i == j { 1. } else { 0. });
+                    assert_eq!(
+                        tangent.coefficients()[j] * scale,
+                        if i == j { -1. } else { 0. }
+                    );
+                }
+                assert_eq!(primal.offsets(), &[if i == 0 { 1. } else { 0. }]);
+                assert_eq!(tangent.offsets()[0] * scale, if i == 0 { -1. } else { 0. });
+            }
+            if exponent == -700 {
+                // Exposing that intermediate as the requested output must still fail.
+                let error = lowered.rows()[selected.len()]
+                    .bind_affine_direction(&[], &bindings)
+                    .unwrap_err();
+                assert!(error.message().contains("affine output"), "{error:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn affine_power_and_math_composition_retains_intermediate_directions() {
+    for exponent in [-700, 700] {
+        let scale = 2f64.powi(exponent);
+        let parameter = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+        let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+        let mut dag = ExprDagBuilder::new();
+        let p = dag.symbol(parameter).unwrap();
+        let reciprocal = dag.powi(p, -1).unwrap();
+        let log = dag.unary_math(UnaryMathFunction::Log, reciprocal).unwrap();
+        let factor = dag
+            .constant(DynQuantity::new(scale, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let root = dag.mul(factor, log).unwrap();
+        let typed = TypedResidual::infer(
+            dag.finish([root]).unwrap(),
+            None,
+            |_| None,
+            RootContract::ComponentwiseResidual,
+            |_| Ok::<_, ()>(ExpressionType::<()>::new(ty.clone(), None)),
+        )
+        .unwrap();
+        let lowered = ComponentScalarization::lower(&typed).unwrap();
+        let p = ScalarSymbolCoordinate::for_value(parameter, &ty)
+            .unwrap()
+            .remove(0);
+        // f(p)=s log(1/p), f'(s)=-1. The original primal remains finite.
+        let (_, tangent) = lowered.rows()[0]
+            .bind_affine_direction(&[], &[(p, scale, Some(1.))])
+            .unwrap();
+        assert_eq!(tangent.offsets(), &[-1.]);
+    }
+}
+
+#[test]
 fn affine_direction_differentiates_coefficients_and_offsets_in_one_proof() {
     let field = SymbolRef::Field(Id::<kinds::Field>::new());
     let parameter = SymbolRef::Parameter(Id::<kinds::Parameter>::new());

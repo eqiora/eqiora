@@ -91,7 +91,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     1.,
                     eqiora_core::DimExponents::DIMENSIONLESS,
                 ))?),
-                SymbolRef::Parameter(_) | SymbolRef::Coordinate { .. } => None,
+                SymbolRef::Parameter(_) | SymbolRef::Coordinate { .. } | SymbolRef::Time => None,
                 _ => {
                     return Err(invalid_component_ir(
                         "spatial derivative requires a reconstructed Field, coordinate, or Parameter",

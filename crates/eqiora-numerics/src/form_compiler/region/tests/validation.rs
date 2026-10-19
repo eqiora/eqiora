@@ -25,11 +25,11 @@ fn uniform_load_gradients_validate_their_parameter_values_before_erasure() {
             .replace("state v:", "parameter load_scale: kg / (m * s ^ 2) = 1; parameter divisor: 1 = 0; variable load: kg / (m * s ^ 2) on body; state v:")
             .replace("relation balance", &format!("relation load_definition on body {{ load - {expression} = 0; }} relation balance"))
             .replace("isotropic_lift(p)) = 0", "isotropic_lift(p)) - grad(load) = 0");
-        assert!(
-            derive(&source)
-                .unwrap_err()
-                .message()
-                .contains("non-finite")
+        let error = derive(&source).unwrap_err();
+        assert_eq!(
+            error.code(),
+            eqiora_core::diagnostic::codes::NONFINITE_EVALUATION,
+            "{error}"
         );
         let valid = source.replace("divisor: 1 = 0", "divisor: 1 = 4");
         let form = derive(&valid).unwrap();

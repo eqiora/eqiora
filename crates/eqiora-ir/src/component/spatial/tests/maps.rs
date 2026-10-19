@@ -208,3 +208,48 @@ fn spatial_cofactors_keep_the_existing_derivative_underflow_convention() {
     assert!((actual[0] / 1e-300 - 1.).abs() < 1e-12);
     assert!(actual[1..].iter().all(|value| *value == 0.));
 }
+
+#[test]
+fn spatial_inverse_actions_keep_the_same_range_as_numerical_actions() {
+    // A(x,y)=s*(1+x)*I at x=y=0. Its condition number is one.
+    // tr(A^-1)=2/(s*(1+x)), with gradient [-2/s,0] and Hessian
+    // diag(4/s,0). Every requested value is an exact representable power
+    // of two, although the unweighted inverse partial 1/s² need not fit.
+    let mut failures = Vec::new();
+    for exponent in [-400, 400, -700, 700] {
+        let scale = 2f64.powi(exponent);
+        let lowered = program(2, true);
+        let bind = |c: &ScalarSymbolCoordinate| {
+            let component = c.component_index();
+            match c.spatial_derivative_axes() {
+                [] | [0] if component[0] == component[1] => scale,
+                _ => 0.,
+            }
+        };
+        let primal = &lowered.rows()[0];
+        let inputs = primal.symbols().iter().map(bind).collect::<Vec<_>>();
+        let action = primal
+            .linearize(&inputs, &vec![DifferentiationRole::Unknown; inputs.len()])
+            .unwrap();
+        let mut output = [0.];
+        action
+            .jvp(RelationTangent::Unknown(&inputs), &mut output)
+            .unwrap();
+        assert_eq!(output, [-2. / scale]);
+        action
+            .mixed_jvp(
+                RelationTangent::Unknown(&inputs),
+                RelationTangent::Unknown(&inputs),
+                RelationTangent::Unknown(&vec![0.; inputs.len()]),
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(output, [4. / scale]);
+        let expected = [2. / scale, -2. / scale, 0., 4. / scale, 0., 0., 0.];
+        match lowered.evaluate(|coordinate| Some(bind(coordinate))) {
+            Ok(actual) if actual == expected => {}
+            actual => failures.push(format!("s=2^{exponent}: {actual:?}, expected {expected:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

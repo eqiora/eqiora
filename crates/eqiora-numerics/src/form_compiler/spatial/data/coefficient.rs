@@ -5,6 +5,9 @@ use num_rational::BigRational;
 use num_traits::{One, Signed, Zero};
 use std::collections::{HashMap, HashSet};
 
+mod expression;
+use expression::{Algebra, Expression};
+
 type Scale = Complex<BigRational>;
 type Sum<'a, S> = Vec<Product<'a, S>>;
 
@@ -16,14 +19,14 @@ struct Product<'a, S: Coefficient> {
 
 #[derive(Clone)]
 enum Factor<'a, S: Coefficient> {
-    Atom(&'a Data<S>),
+    Atom(Expression<'a, S>),
     Sum(Arc<Sum<'a, S>>),
 }
 
 struct Normalizer<'a, S: Coefficient> {
     budget: u64,
     real_scales: bool,
-    cache: HashMap<usize, Sum<'a, S>>,
+    cache: HashMap<(usize, Option<eqiora_ir::ScalarExpressionView<'a>>), Sum<'a, S>>,
 }
 
 impl<S: Coefficient> Data<S> {
@@ -32,13 +35,7 @@ impl<S: Coefficient> Data<S> {
         if self == other {
             return true;
         }
-        match (
-            Normalizer::new(self, false).sum(self),
-            Normalizer::new(other, false).sum(other),
-        ) {
-            (Some(a), Some(b)) => same_sum(&a, &b),
-            _ => false,
-        }
+        same_expression(Expression::Data(self), Expression::Data(other))
     }
 
     /// Orientation of explicit real scales, with bound inputs kept opaque.
@@ -46,7 +43,7 @@ impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn coefficient_orientation(&self) -> Option<i8> {
         // Complex phases are factors, not ordered scalars. A real row sign
         // applies equally to both retained coordinates of a complex Parameter.
-        let sum = Normalizer::new(self, true).sum(self)?;
+        let sum = Normalizer::new(Expression::Data(self), true).sum(Expression::Data(self))?;
         let mut orientation = 0;
         for term in sum {
             if !term.scale.im.is_zero() {
@@ -63,15 +60,20 @@ impl<S: Coefficient> Data<S> {
 }
 
 impl<'a, S: Coefficient> Normalizer<'a, S> {
-    fn new(root: &'a Data<S>, real_scales: bool) -> Self {
+    fn new(root: Expression<'a, S>, real_scales: bool) -> Self {
         let mut nodes = HashSet::new();
         let mut pending = vec![root];
         while let Some(data) = pending.pop() {
-            if !nodes.insert(Arc::as_ptr(&data.0) as usize) {
+            if !nodes.insert(data.key()) {
                 continue;
             }
-            if let Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) = data.0.as_ref() {
-                pending.extend([a, b]);
+            match data.algebra() {
+                Algebra::Alias(a) | Algebra::Neg(a) => pending.push(a),
+                Algebra::Add(a, b)
+                | Algebra::Sub(a, b)
+                | Algebra::Mul(a, b)
+                | Algebra::Div(a, b) => pending.extend([a, b]),
+                _ => {}
             }
         }
         // A binary64 literal needs at most 1076 numerator/denominator bits.
@@ -84,23 +86,30 @@ impl<'a, S: Coefficient> Normalizer<'a, S> {
         }
     }
 
-    fn sum(&mut self, data: &'a Data<S>) -> Option<Sum<'a, S>> {
-        let key = Arc::as_ptr(&data.0) as usize;
+    fn sum(&mut self, data: Expression<'a, S>) -> Option<Sum<'a, S>> {
+        let key = data.key();
         if let Some(sum) = self.cache.get(&key) {
             return Some(sum.clone());
         }
-        let mut sum = match data.0.as_ref() {
-            Node::Constant { value, .. } if self.real_scales && value.im() != 0.0 => atom(data),
-            Node::Constant { value, .. } => vec![Product {
+        let mut sum = match data.algebra() {
+            Algebra::Constant(value) if self.real_scales && value.im() != 0.0 => atom(data),
+            Algebra::Constant(value) => vec![Product {
                 scale: Scale::new(
                     BigRational::from_float(value.re())?,
                     BigRational::from_float(value.im())?,
                 ),
                 factors: Vec::new(),
             }],
-            Node::Add(a, b) => {
+            Algebra::Alias(a) => self.sum(a)?,
+            Algebra::Neg(a) => scaled(self.sum(a)?, -Scale::one()),
+            Algebra::Add(a, b) | Algebra::Sub(a, b) => {
                 let mut sum = self.sum(a)?;
-                for term in self.sum(b)? {
+                let sign = if matches!(data.algebra(), Algebra::Sub(..)) {
+                    -Scale::one()
+                } else {
+                    Scale::one()
+                };
+                for term in scaled(self.sum(b)?, sign) {
                     if let Some(existing) = sum
                         .iter_mut()
                         .find(|existing| same_factors(&existing.factors, &term.factors))
@@ -112,7 +121,7 @@ impl<'a, S: Coefficient> Normalizer<'a, S> {
                 }
                 sum
             }
-            Node::Mul(a, b) => {
+            Algebra::Mul(a, b) => {
                 let left = self.sum(a)?;
                 let right = self.sum(b)?;
                 if left.is_empty() || right.is_empty() {
@@ -140,7 +149,7 @@ impl<'a, S: Coefficient> Normalizer<'a, S> {
                     vec![left]
                 }
             }
-            Node::Div(a, b) => {
+            Algebra::Div(a, b) => {
                 let denominator = self.sum(b)?;
                 if let Some(scale) = constant(&denominator).filter(|scale| !scale.is_zero()) {
                     scaled(self.sum(a)?, Scale::one() / scale)
@@ -163,7 +172,17 @@ impl<'a, S: Coefficient> Normalizer<'a, S> {
     }
 }
 
-fn atom<S: Coefficient>(data: &Data<S>) -> Sum<'_, S> {
+fn same_expression<S: Coefficient>(a: Expression<'_, S>, b: Expression<'_, S>) -> bool {
+    match (
+        Normalizer::new(a, false).sum(a),
+        Normalizer::new(b, false).sum(b),
+    ) {
+        (Some(a), Some(b)) => same_sum(&a, &b),
+        _ => false,
+    }
+}
+
+fn atom<S: Coefficient>(data: Expression<'_, S>) -> Sum<'_, S> {
     vec![Product {
         scale: Scale::one(),
         factors: vec![(Factor::Atom(data), 1)],
@@ -236,41 +255,29 @@ fn same_factors<S: Coefficient>(
 fn same_factor<S: Coefficient>(a: &Factor<'_, S>, b: &Factor<'_, S>) -> bool {
     match (a, b) {
         (Factor::Sum(a), Factor::Sum(b)) => same_sum(a, b),
-        (Factor::Atom(a), Factor::Atom(b)) => match (a.0.as_ref(), b.0.as_ref()) {
-            (
-                Node::Constant {
-                    dimension: a,
-                    value: c,
-                },
-                Node::Constant {
-                    dimension: b,
-                    value: d,
-                },
-            ) => a == b && c == d,
-            (
-                Node::Input {
-                    dimension: a,
-                    coordinate: c,
-                    input: e,
-                },
-                Node::Input {
-                    dimension: b,
-                    coordinate: d,
-                    input: f,
-                },
-            ) => a == b && e.same_binding(c, f, d),
-            (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
-            (Node::Affine(a), Node::Affine(b)) => a == b,
-            (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
-            (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
-            (Node::Derivative(a, b), Node::Derivative(c, d))
-            | (Node::Div(a, b), Node::Div(c, d)) => a.same_coefficient(c) && b.same_coefficient(d),
-            (Node::Pow(a, n), Node::Pow(b, m)) => n == m && a.same_coefficient(b),
-            (Node::Math(f, a), Node::Math(g, b)) => f == g && a.same_coefficient(b),
-            (Node::Cos(a), Node::Cos(b))
-            | (Node::SqrtDerivativeRoot(a), Node::SqrtDerivativeRoot(b)) => a.same_coefficient(b),
-            _ => false,
-        },
+        (Factor::Atom(a), Factor::Atom(b)) => a.same_atom(*b),
+        _ => false,
+    }
+}
+
+fn same_data_atom<S: Coefficient>(a: &Data<S>, b: &Data<S>) -> bool {
+    match (a.0.as_ref(), b.0.as_ref()) {
+        (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
+        (Node::Affine(a), Node::Affine(b)) => a == b,
+        (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
+        (Node::Derivative(a, b), Node::Derivative(c, d)) => {
+            a.same_coefficient(c) && b.same_coefficient(d)
+        }
+        (
+            Node::Part {
+                imaginary: a,
+                data: x,
+            },
+            Node::Part {
+                imaginary: b,
+                data: y,
+            },
+        ) => a == b && x.same_coefficient(y),
         _ => false,
     }
 }

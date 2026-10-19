@@ -9,16 +9,9 @@ impl<S: Coefficient> Data<S> {
         match self.0.as_ref() {
             Node::Constant { .. } => Some(0),
             Node::Derivative(_, tangent) => tangent.polynomial_degree(),
-            Node::Input { input, .. } => match input {
-                Input::Coordinate { .. } => Some(1),
-                Input::ParameterComponent { .. } => Some(0),
-                Input::Scalar { data, .. } => data.polynomial_degree(),
-            },
-            Node::Chart(data, _)
-            | Node::Math(
-                UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag,
-                data,
-            ) => data.polynomial_degree(),
+            Node::Input { input, .. } => input.polynomial_degree(),
+            Node::Pointwise(data) => data.polynomial_degree(),
+            Node::Chart(data, _) | Node::Part { data, .. } => data.polynomial_degree(),
             Node::Add(a, b) => a
                 .polynomial_degree()
                 .zip(b.polynomial_degree())
@@ -30,17 +23,17 @@ impl<S: Coefficient> Data<S> {
             Node::Div(a, b) => (b.polynomial_degree() == Some(0))
                 .then(|| a.polynomial_degree())
                 .flatten(),
-            Node::Pow(a, n) => match (a.polynomial_degree(), *n) {
-                (_, 0) | (Some(0), _) => Some(0),
-                (Some(degree), n) if n > 0 => Some(degree.saturating_mul(n as usize)),
-                _ => None,
-            },
-            Node::MapFactor(_) => Some(0),
-            Node::Pointwise(_)
-            | Node::Affine(_)
-            | Node::Math(_, _)
-            | Node::Cos(_)
-            | Node::SqrtDerivativeRoot(_) => None,
+            Node::Affine(_) => None,
+        }
+    }
+}
+
+impl<S: Coefficient> Input<S> {
+    pub(super) fn polynomial_degree(&self) -> Option<usize> {
+        match self {
+            Self::Coordinate { .. } => Some(1),
+            Self::ParameterComponent { .. } => Some(0),
+            Self::Scalar { data, .. } => data.polynomial_degree(),
         }
     }
 }

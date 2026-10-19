@@ -119,19 +119,19 @@ pub(super) fn summarize(
                 let [a, b, c, d] = operands;
                 complex_quotient::affine([at(a)?, at(b)?, at(c)?, at(d)?], imaginary, index)?
             }
-            Instruction::QuotientJet { start, len } => {
-                let operands = quotient::operands(start, len, &instructions[..index]).map_err(
-                    |diagnostic| SummaryFailure::Numerical {
+            Instruction::CoefficientJet { start, len, shape } => {
+                let operands = coefficient_jet::operands(start, len, shape, &instructions[..index])
+                    .map_err(|diagnostic| SummaryFailure::Numerical {
                         instruction: index,
                         diagnostic,
-                    },
-                )?;
+                    })?;
                 let collect = |ids: &[Option<ValueId>]| {
                     ids.iter()
                         .map(|id| id.map(|id| at(id).cloned()).transpose())
                         .collect::<Result<Vec<_>, _>>()
                 };
-                quotient::affine(
+                coefficient_jet::affine(
+                    shape,
                     &collect(&operands.a)?,
                     &collect(&operands.b)?,
                     dimension,

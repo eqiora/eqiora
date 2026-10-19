@@ -125,12 +125,6 @@ pub(super) fn require_finite_value(
     }
 }
 
-pub(super) fn powi_derivative(base: f64, exponent: i32) -> f64 {
-    differential::power_slope(&mut differential::Numerical, Scaled::new(base), exponent)
-        .expect("numerical arithmetic is infallible")
-        .value()
-}
-
 pub(super) fn invalid_value_index(id: ValueId, instruction: usize) -> Diagnostic {
     Diagnostic::error(
         codes::INVALID_OPERATOR_IR,
