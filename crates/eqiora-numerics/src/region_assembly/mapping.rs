@@ -33,6 +33,7 @@ pub(crate) use facets::{prepare_interface_facets, prepare_mesh_facet};
 pub(crate) use geometry::RegionDirection;
 mod multiplier_closure;
 mod nonlinear;
+pub(crate) use nonlinear::RegionNonlinearOutput;
 mod reactions;
 mod recovery;
 mod replay;

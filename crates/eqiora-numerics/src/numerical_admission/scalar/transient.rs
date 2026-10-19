@@ -262,33 +262,9 @@ impl CommonSpatialPlan {
             .checked_backend(backend, Some(&structure))?;
         let (mapping, input) = self.scalar_step_assembly(state, next_time_s)?;
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
-        let current_mesh = input
-            .geometry_action
-            .as_ref()
-            .map(|action| action.current_mesh().clone());
-        if let Some(nonlinear) = self.admission.nonlinear {
+        if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
-            let output = match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => mapping.solve_nonlinear(
-                    mesh.mesh(),
-                    input,
-                    &initial,
-                    nonlinear,
-                    self.admission.linear.workers,
-                    request,
-                )?,
-                NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
-                    .solve_nonlinear(
-                        current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
-                        input,
-                        &initial,
-                        nonlinear,
-                        self.admission.linear.workers,
-                        request,
-                    )?,
-                _ => return Err(invalid("Region Newton requires its exact affine Mesh")),
-            };
+            let output = self.solve_region_newton(&mapping, input, &initial, request)?;
             let values = output
                 .fields
                 .into_values()
@@ -302,24 +278,13 @@ impl CommonSpatialPlan {
                 output.solve.residual_norm,
                 output.solve.evidence.residual_target,
             ));
-            accepted.execution = Some(CommonSpatialExecution {
-                solve: crate::common_result::evidence::CommonSolveHistory::Newton {
-                    initial_residual_norm: output.solve.evidence.initial_residual_norm,
-                    iterations: output.solve.evidence.iterations,
-                    linear_solves: output
-                        .solve
-                        .evidence
-                        .linear_solves
-                        .iter()
-                        .map(crate::common_result::evidence::CommonSolveEvidence::from_report)
-                        .collect(),
-                },
-                assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
-                    &output.solve.assembly_report,
-                ),
-            });
+            accepted.execution = Some(super::nonlinear::newton_execution(&output.solve));
             return Ok(accepted);
         }
+        let current_mesh = input
+            .geometry_action
+            .as_ref()
+            .map(|action| action.current_mesh().clone());
         let output = match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?

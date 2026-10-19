@@ -25,7 +25,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v24";
+const SCHEMA: &str = "eqiora.common-result/v25";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -73,7 +73,7 @@ enum WireResultPayload {
     },
     Static {
         fields: Vec<WireField>,
-        solve: Box<WireSolve>,
+        solve: WireSolveHistory,
         assembly: WireAssembly,
         acceptance: Box<WireStaticEvidence>,
     },
@@ -112,7 +112,7 @@ enum WireAssociation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireStaticEvidence {
-    Linear {
+    Spatial {
         nullspace: Option<[f64; 4]>,
         initial_state_base64: Option<String>,
     },
@@ -311,7 +311,7 @@ impl WireResultContent {
                     .iter()
                     .map(WireField::from_field)
                     .collect::<Result<_, _>>()?,
-                solve: Box::new(WireSolve::from_solve(&payload.solve)?),
+                solve: WireSolveHistory::from_evidence(&payload.solve)?,
                 assembly: WireAssembly::from_assembly(&payload.assembly)?,
                 acceptance: Box::new(WireStaticEvidence::from_acceptance(&payload.acceptance)?),
             },
@@ -399,19 +399,19 @@ impl WireResultContent {
                     .map(|field| field.replay(&types))
                     .collect::<Result<Vec<_>, _>>()?;
                 validate_fields(plan, &fields, &types)?;
-                let solve = solve.replay()?;
-                solve.validate_plan(plan)?;
+                let solve = solve.replay_metadata()?;
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
-                let acceptance = acceptance.replay(self.family, plan)?;
-                if let StaticAcceptedEvidence::Linear {
+                let mut acceptance = acceptance.replay(self.family, plan)?;
+                if let StaticAcceptedEvidence::Spatial {
                     nullspace,
                     initial_state,
-                } = &acceptance
+                    residual,
+                } = &mut acceptance
                 {
                     let scalar = plan
                         .as_spatial()
-                        .ok_or_else(|| invalid("linear acceptance requires linear Plan"))?;
+                        .ok_or_else(|| invalid("spatial acceptance requires a spatial Plan"))?;
                     let coefficients = scalar
                         .fields()
                         .map(|(id, _)| {
@@ -429,12 +429,20 @@ impl WireResultContent {
                             )
                         })
                         .collect();
-                    scalar.reaccept_static_coefficients(
+                    *residual = scalar.reaccept_static_execution(
                         &coefficients,
                         nullspace.as_ref(),
                         initial_state.as_ref(),
-                        solve.initial_residual_norm,
+                        &crate::numerical_admission::CommonSpatialExecution {
+                            solve: solve.clone(),
+                            assembly: assembly.clone(),
+                        },
                     )?;
+                } else {
+                    let CommonSolveHistory::Linear(report) = &solve else {
+                        return Err(invalid("steady-Stokes Result requires a linear solve"));
+                    };
+                    report.validate_plan(plan)?;
                 }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,

@@ -5,6 +5,7 @@ mod compatible;
 mod complex;
 mod harmonic;
 pub(super) mod interval;
+mod nonlinear;
 mod reactions;
 mod regions;
 mod replay;
@@ -426,6 +427,9 @@ impl CommonSpatialPlan {
             return Err(invalid(
                 "scalar storage execution requires an exact State and Run schedule",
             ));
+        }
+        if self.admission.nonlinear.is_some() {
+            return self.run_newton_result(initial, backend);
         }
         crate::CommonResult::accept_linear(
             self.clone(),

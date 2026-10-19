@@ -29,16 +29,13 @@ impl RegionDofMap<f64> {
         Ok(free)
     }
 
-    pub(crate) fn solve_nonlinear<'mesh>(
+    /// A Newton seed is independent of time history for stationary equations.
+    /// A transient solve still starts from its exact previous physical Fields.
+    pub(super) fn nonlinear_predictor(
         &self,
-        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<f64>,
+        input: &RegionSolveInput<f64>,
         initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-        nonlinear: NonlinearSolvePlan,
-        workers: NonZeroUsize,
-        request: LinearSolveRequest<'_>,
-    ) -> Result<RegionNonlinearOutput, Diagnostic> {
-        let step = self.validate_solve_input(mesh, &input)?;
+    ) -> Result<Vec<f64>, Diagnostic> {
         if input.operator_properties != LinearOperatorProperties::General {
             return Err(invalid(
                 "nonlinear Region execution requires a general Jacobian",
@@ -53,7 +50,20 @@ impl RegionDofMap<f64> {
                 "transient Newton predictor must use its exact previous physical Fields",
             ));
         }
-        let seed = self.physical_predictor(initial)?;
+        self.physical_predictor(initial)
+    }
+
+    pub(crate) fn solve_nonlinear<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: RegionSolveInput<f64>,
+        initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        nonlinear: NonlinearSolvePlan,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_>,
+    ) -> Result<RegionNonlinearOutput, Diagnostic> {
+        let step = self.validate_solve_input(mesh, &input)?;
+        let seed = self.nonlinear_predictor(&input, initial)?;
         let multipliers = input
             .forms
             .iter()

@@ -14,6 +14,7 @@ use crate::spatial_expression::Coefficient;
 
 pub(crate) mod mapping;
 mod newton;
+pub(crate) use newton::RegionNewtonSolution;
 pub(crate) mod nonlinear;
 mod point;
 mod reactions;

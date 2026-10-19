@@ -113,10 +113,11 @@ impl CommonSpatialPlan {
             ));
         }
         let validate = |mesh: &eqiora_meshing::SimplicialMesh| match self.admission.nonlinear {
-            Some(nonlinear) => mapping.validate_nonlinear_step_coefficients(
+            Some(nonlinear) => mapping.validate_nonlinear_coefficients(
                 mesh,
                 &input,
                 &fields,
+                input.previous.as_ref().expect("validated step history"),
                 nonlinear,
                 nonlinear_iterations.expect("validated history"),
             ),
@@ -126,10 +127,11 @@ impl CommonSpatialPlan {
         };
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => match self.admission.nonlinear {
-                Some(nonlinear) => mapping.validate_nonlinear_step_coefficients(
+                Some(nonlinear) => mapping.validate_nonlinear_coefficients(
                     mesh.mesh(),
                     &input,
                     &fields,
+                    input.previous.as_ref().expect("validated step history"),
                     nonlinear,
                     nonlinear_iterations.expect("validated history"),
                 ),

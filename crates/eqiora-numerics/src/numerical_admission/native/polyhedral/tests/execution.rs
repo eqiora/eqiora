@@ -228,7 +228,7 @@ fn execute<S: Coefficient + Send + Sync>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v24", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v25", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"

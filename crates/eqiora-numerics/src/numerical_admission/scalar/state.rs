@@ -61,12 +61,8 @@ impl CommonSpatialPlan {
                 self.scalar_assembly_at(time)
             }
             (None, None) => {
-                if self.admission.nonlinear.is_some()
-                    || matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_))
-                {
-                    return Err(invalid(
-                        "stationary spatial State requires a linear nodal Plan",
-                    ));
+                if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+                    return Err(invalid("stationary spatial State requires a nodal Plan"));
                 }
                 let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model()
                 else {

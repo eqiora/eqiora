@@ -9,6 +9,7 @@ use super::*;
 impl CommonResult {
     fn solve_history(&self, output_index: Option<usize>) -> Option<&CommonSolveHistory> {
         match (&self.payload, output_index) {
+            (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
             (CommonResultPayload::Algebraic { solve, .. }, None) => Some(solve),
             (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) => Some(
                 &trajectory
@@ -30,11 +31,6 @@ impl CommonResult {
         output_index: Option<usize>,
         iteration: Option<usize>,
     ) -> Option<&CommonSolveEvidence> {
-        if let (CommonResultPayload::Static(payload), None, None) =
-            (&self.payload, output_index, iteration)
-        {
-            return Some(&payload.solve);
-        }
         match (self.solve_history(output_index)?, iteration) {
             (CommonSolveHistory::Linear(solve), None) => Some(solve),
             (CommonSolveHistory::Newton { linear_solves, .. }, Some(index)) => {
@@ -88,6 +84,10 @@ impl CommonResult {
     pub fn nonlinear_true_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
         self.nonlinear_iterations(output_index)?;
         match (&self.payload, output_index) {
+            (CommonResultPayload::Static(payload), None) => match &payload.acceptance {
+                StaticAcceptedEvidence::Spatial { residual, .. } => Some((*residual)?.0),
+                _ => None,
+            },
             (
                 CommonResultPayload::Algebraic {
                     reference_residual_norm,
@@ -107,6 +107,10 @@ impl CommonResult {
     pub fn nonlinear_residual_target(&self, output_index: Option<usize>) -> Option<f64> {
         self.nonlinear_iterations(output_index)?;
         match (&self.payload, output_index) {
+            (CommonResultPayload::Static(payload), None) => match &payload.acceptance {
+                StaticAcceptedEvidence::Spatial { residual, .. } => Some((*residual)?.1),
+                _ => None,
+            },
             (CommonResultPayload::Algebraic { assessment, .. }, None) => {
                 Some(assessment.as_ref()?.residual_target())
             }

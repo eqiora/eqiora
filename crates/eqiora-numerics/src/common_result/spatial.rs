@@ -8,12 +8,40 @@ impl CommonResult {
         elapsed_seconds: f64,
         output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
+        Self::accept_spatial(
+            plan,
+            initial_state,
+            elapsed_seconds,
+            output.fields,
+            crate::numerical_admission::CommonSpatialExecution {
+                solve: CommonSolveHistory::Linear(Box::new(CommonSolveEvidence::from_report(
+                    &output.solve_report,
+                ))),
+                assembly: CommonAssemblyEvidence::from_report(&output.assembly_report),
+            },
+            output.nullspace,
+        )
+    }
+
+    pub(crate) fn accept_spatial(
+        plan: CommonSpatialPlan,
+        initial_state: Option<crate::CommonState>,
+        elapsed_seconds: f64,
+        fields: Vec<(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueType,
+            Vec<f64>,
+            Space,
+        )>,
+        execution: crate::numerical_admission::CommonSpatialExecution,
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
+    ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         if let Some(state) = &initial_state {
             plan.static_initial_fields(state)?;
         }
-        if output.fields.len() != plan.fields().len()
-            || output.fields.iter().zip(plan.fields()).any(
+        if fields.len() != plan.fields().len()
+            || fields.iter().zip(plan.fields()).any(
                 |((actual, value_type, _, actual_space), (expected, expected_type))| {
                     *actual != expected
                         || value_type != expected_type
@@ -27,12 +55,10 @@ impl CommonResult {
                 "scalar output differs from the complete typed Plan Field inventory or coefficient Space",
             ));
         }
-        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
-        let fields = output
-            .fields
-            .into_iter()
+        let result_fields = fields
+            .iter()
             .map(|(field, value_type, values, _)| {
-                let (space, layouts) = field_layout(&plan, field)?;
+                let (space, layouts) = field_layout(&plan, *field)?;
                 let mut remaining = values.as_slice();
                 let mut blocks = Vec::new();
                 let scalar_width: usize =
@@ -60,19 +86,31 @@ impl CommonResult {
                 if !remaining.is_empty() {
                     return Err(invalid("linear Result contains excess coefficient values"));
                 }
-                CommonResultField::new(field.ulid().to_string(), value_type, space, blocks)
+                CommonResultField::new(field.ulid().to_string(), value_type.clone(), space, blocks)
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
+        // Shape and finite-value validation precede equation reacceptance.
+        plan.check_nullspace_evidence(&fields[0].2, nullspace.as_ref())?;
+        let residual = plan.reaccept_static_execution(
+            &fields
+                .iter()
+                .map(|(id, _, values, _)| (id.erase(), values.clone()))
+                .collect(),
+            nullspace.as_ref(),
+            initial_state.as_ref(),
+            &execution,
+        )?;
         Self::finish_static(
             ResolvedCommonPlan::Spatial(Box::new(plan)),
             CommonResultFamily::Spatial,
             elapsed_seconds,
-            fields,
-            CommonSolveEvidence::from_report(&output.solve_report),
-            CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticAcceptedEvidence::Linear {
-                nullspace: output.nullspace,
+            result_fields,
+            execution.solve,
+            execution.assembly,
+            StaticAcceptedEvidence::Spatial {
+                nullspace,
                 initial_state,
+                residual,
             },
         )
     }
