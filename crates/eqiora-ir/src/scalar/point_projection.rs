@@ -245,6 +245,7 @@ impl ScalarOperatorIr {
                 else_value,
             } => builder.select(at(condition), at(then_value), at(else_value)),
             Instruction::Require { condition, value } => builder.require(at(condition), at(value)),
+            Instruction::ValueOnly { input, value } => builder.value_only(at(input), at(value)),
             Instruction::PureOperator {
                 definition,
                 start,

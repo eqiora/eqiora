@@ -51,6 +51,7 @@ enum ExpressionTag {
     Pullback = 48,
     CoordinateMapFactor = 49,
     CoordinateMapFactorAction = 50,
+    ValueOnly = 51,
 }
 
 pub(super) fn encode_expression(
@@ -159,6 +160,13 @@ pub(super) fn encode_expression(
                 encoder,
                 ExpressionTag::Require,
                 *condition,
+                *value,
+                &canonical_index,
+            )?,
+            ExprNode::ValueOnly { input, value } => binary_expr(
+                encoder,
+                ExpressionTag::ValueOnly,
+                *input,
                 *value,
                 &canonical_index,
             )?,
@@ -587,7 +595,11 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
             then_value,
             else_value,
         } => vec![*condition, *then_value, *else_value],
-        ExprNode::Require { condition, value } => vec![*condition, *value],
+        ExprNode::Require { condition, value }
+        | ExprNode::ValueOnly {
+            input: condition,
+            value,
+        } => vec![*condition, *value],
         ExprNode::PureOperatorApplication(application) => application.arguments().to_vec(),
         ExprNode::Constant(_) | ExprNode::Symbol(_) => Vec::new(),
         _ => Vec::new(),

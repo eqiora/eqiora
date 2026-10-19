@@ -239,6 +239,10 @@ impl TypedInstructions<'_> {
                             pending.push(Frame::Demand(b));
                             pending.push(Frame::Demand(a));
                         }
+                        Instruction::ValueOnly { input, value } => {
+                            pending.push(Frame::Demand(value));
+                            pending.push(Frame::Demand(input));
+                        }
                     }
                     continue;
                 }
@@ -249,6 +253,7 @@ impl TypedInstructions<'_> {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
+                    Instruction::ValueOnly { value, .. } => read(value)?.clone(),
                     Instruction::CoefficientJet { start, len, shape } => coefficient_jet::typed(
                         &coefficient_jet::operands(start, len, shape, &self.instructions[..index])?,
                         |id| Ok(read(id)?.clone()),

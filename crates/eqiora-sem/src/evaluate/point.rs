@@ -316,6 +316,7 @@ pub(super) fn require_side_regularity(
     let unsupported = match node {
         ExprNode::Select { .. }
         | ExprNode::Require { .. }
+        | ExprNode::ValueOnly { .. }
         | ExprNode::Compare(..)
         | ExprNode::ToInteger(_)
         | ExprNode::Quotient(..)

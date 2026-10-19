@@ -198,6 +198,10 @@ pub enum ExprNode {
     },
     /// Demand a Boolean domain condition; false rejects before demanding the value.
     Require { condition: ExprId, value: ExprId },
+    /// Retain a value-only contract for one independent real input.
+    /// Primal evaluation demands both operands; derivative products through
+    /// an active input are unavailable, including when its sampled derivative is zero.
+    ValueOnly { input: ExprId, value: ExprId },
     /// Demand the Boolean condition, then only the selected value arm.
     /// Both arms remain statically typed and retain their dependencies.
     Select {
@@ -341,7 +345,11 @@ impl ExprNode {
                 }
                 Ok(())
             }
-            Self::Require { condition, value } => {
+            Self::Require { condition, value }
+            | Self::ValueOnly {
+                input: condition,
+                value,
+            } => {
                 visit(*condition)?;
                 visit(*value)
             }
@@ -582,6 +590,11 @@ impl ExprDagBuilder {
     /// Require a true domain condition before demanding the complete value.
     pub fn require(&mut self, condition: ExprId, value: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Require { condition, value })
+    }
+
+    /// Retain a value-only independent-input contract through expression projection.
+    pub fn value_only(&mut self, input: ExprId, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::ValueOnly { input, value })
     }
 
     /// Select one complete value lazily from a Boolean condition.

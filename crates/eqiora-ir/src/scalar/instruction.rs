@@ -33,6 +33,10 @@ pub(super) enum Instruction {
         condition: ValueId,
         value: ValueId,
     },
+    ValueOnly {
+        input: ValueId,
+        value: ValueId,
+    },
     Math(eqiora_schema::kernel::UnaryMathFunction, ValueId),
     Not(ValueId),
     And(ValueId, ValueId),
@@ -67,6 +71,7 @@ impl Instruction {
             self,
             Self::Select { .. }
                 | Self::Require { .. }
+                | Self::ValueOnly { .. }
                 | Self::PureOperator { .. }
                 | Self::Compare(..)
                 | Self::Not(_)
@@ -125,6 +130,10 @@ impl Instruction {
             },
             Self::Require { condition, value } => Self::Require {
                 condition: at(condition),
+                value: at(value),
+            },
+            Self::ValueOnly { input, value } => Self::ValueOnly {
+                input: at(input),
                 value: at(value),
             },
             Self::Array { .. } | Self::PureOperator { .. } => return None,

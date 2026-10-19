@@ -357,7 +357,8 @@ impl Evaluator<'_, '_> {
                         | ExprNode::Mul(a, b)
                         | ExprNode::Div(a, b)
                         | ExprNode::Quotient(a, b)
-                        | ExprNode::Remainder(a, b) => {
+                        | ExprNode::Remainder(a, b)
+                        | ExprNode::ValueOnly { input: a, value: b } => {
                             pending.push(Frame::Demand(*b));
                             pending.push(Frame::Demand(*a));
                         }
@@ -383,7 +384,9 @@ impl Evaluator<'_, '_> {
                         };
                         operand(&values, *selected, owner)?.clone()
                     }
-                    ExprNode::Require { value, .. } => operand(&values, *value, owner)?.clone(),
+                    ExprNode::Require { value, .. } | ExprNode::ValueOnly { value, .. } => {
+                        operand(&values, *value, owner)?.clone()
+                    }
                     ExprNode::UnaryMath(function, value) => {
                         function.evaluate(operand(&values, *value, owner)?)?
                     }

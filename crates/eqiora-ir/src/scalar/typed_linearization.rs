@@ -168,6 +168,9 @@ impl typed::TypedInstructions<'_> {
                 continue;
             }
             match *node {
+                Instruction::ValueOnly { input, .. } => {
+                    require_inactive_value_only_input(dependencies[input.0 as usize])?;
+                }
                 Instruction::Compare(_, a, b) => {
                     let a = trace[a.0 as usize].as_ref().expect("demanded comparison");
                     let b = trace[b.0 as usize].as_ref().expect("demanded comparison");
@@ -240,6 +243,7 @@ impl typed::TypedInstructions<'_> {
                     | Instruction::And(a, b)
                     | Instruction::Or(a, b) => at(a) || at(b),
                     Instruction::Require { condition, value } => at(condition) || at(value),
+                    Instruction::ValueOnly { input, value } => at(input) || at(value),
                     Instruction::Select {
                         condition,
                         then_value,
@@ -292,7 +296,9 @@ impl typed::TypedInstructions<'_> {
                 } else {
                     else_value
                 }),
-                Instruction::Require { value, .. } => Some(value),
+                Instruction::Require { value, .. } | Instruction::ValueOnly { value, .. } => {
+                    Some(value)
+                }
                 _ => None,
             }
         };

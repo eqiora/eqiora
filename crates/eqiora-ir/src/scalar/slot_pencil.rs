@@ -178,6 +178,7 @@ mod tests {
         (
             ScalarInputOperatorIr {
                 primal_checks: Vec::new(),
+                typed_constants: Vec::new(),
                 slots,
                 instructions,
                 roots: roots.iter().copied().map(ValueId).collect(),
