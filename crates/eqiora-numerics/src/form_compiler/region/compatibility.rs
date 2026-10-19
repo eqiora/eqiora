@@ -26,7 +26,7 @@ pub(super) fn validate<S: Coefficient>(
     // Do not admit moment coordinates into those paths until they consume the
     // same oriented coefficient interpretation as the static linear operator.
     if fields.iter().any(|field| moment(field.space.family()))
-        && (time.is_some() || form.rows.iter().any(|row| !row.dyadics.is_empty()))
+        && (time.is_some() || form.rows.iter().any(|row| row.is_nonlinear()))
     {
         return Err(invalid(
             "moment bindings currently require static linear region forms",
@@ -50,6 +50,18 @@ pub(super) fn validate<S: Coefficient>(
     let divergence = |family| gradient(family) || family == SpaceFamily::TetrahedralFace;
     for row in &form.rows {
         let test = family(row.tested)?;
+        for term in &row.components {
+            if (term.test.requires_gradient() && !gradient(test))
+                || term.value.columns().any(|(field, component)| {
+                    family(field).is_err()
+                        || (component.requires_gradient() && !family(field).is_ok_and(gradient))
+                })
+            {
+                return Err(invalid(
+                    "component differential is incompatible with the bound Space",
+                ));
+            }
+        }
         for term in &row.dyadics {
             if !gradient(test) || !gradient(family(term.field)?) {
                 return Err(invalid(

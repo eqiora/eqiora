@@ -1250,11 +1250,9 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
         None,
     )
     .unwrap_err();
-    assert!(error.message().contains("scalar conservation form"));
     assert!(
-        error
-            .message()
-            .contains("nonlinear unknown-dependent coefficients")
+        error.message().contains("explicit Newton policy"),
+        "{error:?}"
     );
     assert!(!error.message().contains("native capability"));
 

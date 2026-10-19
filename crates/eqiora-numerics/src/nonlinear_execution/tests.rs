@@ -40,7 +40,9 @@ fn solve_scalar(jacobian: f64, rhs: f64) -> Result<(Vec<f64>, SolveReport), Diag
 fn bounded_positive_root_backtracks_and_reuses_only_accepted_linearizations() {
     // x² = 1 on 0 < x < 2 has the independent solution x = 1. The
     // undamped first Newton point from 0.1 is 5.05, outside that domain.
-    for retain_trial_linearization in [false, true] {
+    for (retain_trial_linearization, diagnostic_rejection) in
+        [(false, false), (false, true), (true, false), (true, true)]
+    {
         let linearizations = Cell::new(0);
         let rejections = Cell::new(0);
         let (root, evidence) = solve_damped_newton(
@@ -55,7 +57,14 @@ fn bounded_positive_root_backtracks_and_reuses_only_accepted_linearizations() {
             |point| {
                 if point[0] <= 0.0 || point[0] >= 2.0 {
                     rejections.set(rejections.get() + 1);
-                    return Ok(None);
+                    return if diagnostic_rejection {
+                        Err(Diagnostic::error(
+                            codes::EXPRESSION_DOMAIN_VIOLATION,
+                            "outside 0 < x < 2",
+                        ))
+                    } else {
+                        Ok(None)
+                    };
                 }
                 Ok(Some(NewtonTrial {
                     residual_norm: (point[0] * point[0] - 1.0).abs(),
@@ -98,25 +107,30 @@ fn converged_initial_point_does_not_request_a_correction_or_trial() {
 
 #[test]
 fn execution_errors_propagate_without_becoming_admissibility_rejections() {
-    let trials = Cell::new(0);
-    let error = solve_damped_newton(
-        vec![0.0],
-        policy(5, 8),
-        |point| Ok(point[0]),
-        |_| Ok(1.0),
-        |_, _| solve_scalar(1.0, 1.0),
-        |_| {
-            trials.set(trials.get() + 1);
-            Err(Diagnostic::error(
-                codes::INVALID_DISCRETIZATION,
-                "exact binding changed",
-            ))
-        },
-    )
-    .unwrap_err();
-    assert_eq!(error.code(), codes::INVALID_DISCRETIZATION);
-    assert_eq!(error.message(), "exact binding changed");
-    assert_eq!(trials.get(), 1);
+    for code in [
+        codes::INVALID_DISCRETIZATION,
+        codes::INVALID_OPERATOR_IR,
+        codes::INVALID_LINEARIZATION,
+        codes::NONFINITE_EVALUATION,
+        codes::EXECUTION_CANCELLED,
+    ] {
+        let trials = Cell::new(0);
+        let error = solve_damped_newton(
+            vec![0.0],
+            policy(5, 8),
+            |point| Ok(point[0]),
+            |_| Ok(1.0),
+            |_, _| solve_scalar(1.0, 1.0),
+            |_| {
+                trials.set(trials.get() + 1);
+                Err(Diagnostic::error(code, "exact binding changed"))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), code);
+        assert_eq!(error.message(), "exact binding changed");
+        assert_eq!(trials.get(), 1);
+    }
 }
 
 #[test]
@@ -198,4 +212,64 @@ fn invalid_norms_and_incomplete_corrections_cannot_publish_a_root() {
     )
     .unwrap_err();
     assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
+}
+
+#[test]
+fn expression_domain_errors_are_recoverable_only_during_trials() {
+    for fail_initial in [true, false] {
+        let linearizations = Cell::new(0);
+        let error = solve_damped_newton(
+            vec![0.0],
+            policy(5, 8),
+            |point| {
+                linearizations.set(linearizations.get() + 1);
+                if fail_initial || linearizations.get() > 1 {
+                    Err(Diagnostic::error(
+                        codes::EXPRESSION_DOMAIN_VIOLATION,
+                        "undefined linearization",
+                    ))
+                } else {
+                    Ok(point[0])
+                }
+            },
+            |_| Ok(1.0),
+            |_, _| solve_scalar(1.0, 1.0),
+            |_| {
+                Ok(Some(NewtonTrial {
+                    residual_norm: 0.0,
+                    linearization: None,
+                }))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), codes::EXPRESSION_DOMAIN_VIOLATION);
+        assert_eq!(linearizations.get(), if fail_initial { 1 } else { 2 });
+    }
+}
+
+#[test]
+fn expression_domain_rejections_exhaust_the_halving_bound_without_acceptance() {
+    let trials = Cell::new(0);
+    let linearizations = Cell::new(0);
+    let error = solve_damped_newton(
+        vec![0.0],
+        policy(5, 3),
+        |point| {
+            linearizations.set(linearizations.get() + 1);
+            Ok(point[0])
+        },
+        |_| Ok(1.0),
+        |_, _| solve_scalar(1.0, 1.0),
+        |_| {
+            trials.set(trials.get() + 1);
+            Err(Diagnostic::error(
+                codes::EXPRESSION_DOMAIN_VIOLATION,
+                "no admissible trial",
+            ))
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
+    assert_eq!(trials.get(), 4);
+    assert_eq!(linearizations.get(), 1);
 }

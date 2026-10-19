@@ -185,9 +185,11 @@ fn require_enforces_clamp_domain_without_invalid_math_sentinels() {
         DifferentiationRole::Parameter,
         DifferentiationRole::Parameter,
     ];
-    assert!(
+    assert_eq!(
         ir.evaluate_typed_batch(&[root], &[row(1., 3., 2.)])
-            .is_err()
+            .unwrap_err()
+            .code(),
+        eqiora_core::diagnostic::codes::EXPRESSION_DOMAIN_VIOLATION
     );
     assert_eq!(
         value(

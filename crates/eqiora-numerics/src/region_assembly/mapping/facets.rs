@@ -66,7 +66,7 @@ pub(crate) fn prepare_interface_facets<'mesh, 'form, S: Coefficient + 'form>(
                 .iter()
                 .find(|layout| layout.field == field)
                 .ok_or_else(|| invalid("interface facet has no exact tested Field"))?;
-            if !form.has_nonlinear_flux(field) {
+            if !form.requires_transport_completion(field) {
                 continue;
             }
             for witness in &trace.facets {

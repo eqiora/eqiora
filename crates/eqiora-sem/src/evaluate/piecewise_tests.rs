@@ -34,10 +34,7 @@ fn reference_select_and_require_do_not_evaluate_inactive_domains() {
         .unwrap();
         assert_eq!(values[0].real_scalar_value().unwrap().value(), expected);
     }
-    assert!(
-        evaluate_selected(owner, &dag, &[failed], &mut |_| None)
-            .unwrap_err()
-            .to_string()
-            .contains("domain condition")
-    );
+    let error = evaluate_selected(owner, &dag, &[failed], &mut |_| None).unwrap_err();
+    assert_eq!(error.code(), codes::EXPRESSION_DOMAIN_VIOLATION);
+    assert!(error.message().contains("domain condition"));
 }

@@ -123,7 +123,7 @@ fn fixture(source: &str) -> (KernelProgram, BTreeMap<&'static str, RawId>) {
 }
 
 #[test]
-fn anisotropic_flux_rejects_wrong_axis_contraction_and_nonlinear_gradient() {
+fn anisotropic_flux_rejects_wrong_axes_and_differentiates_nonlinear_gradients() {
     let (prefix, boundary) = SOURCE.split_once("relation law on wall").unwrap();
     let wrong = format!(
         "{prefix}relation law on wall{}",
@@ -171,11 +171,35 @@ fn anisotropic_flux_rejects_wrong_axis_contraction_and_nonlinear_gradient() {
     let reference = ReferenceCell::simplex(2).unwrap();
     let bound = form.bind(reference, &fields, &rows, None).unwrap();
     let map = AffineGeometryMap::new(reference, 2, vec![0., 0.], vec![2., 0., 0., 3.]).unwrap();
-    assert!(
-        bound
-            .prepare_affine_actions(&map, None, &simplex_duffy_gauss_legendre(2, 3).unwrap())
-            .is_err()
-    );
+    let cell = bound
+        .prepare_cell(&map, &simplex_duffy_gauss_legendre(2, 3).unwrap())
+        .unwrap();
+    let action = cell
+        .linearize(&BTreeMap::new(), &[0., 0., 2., 0., 0., 3.])
+        .unwrap();
+    // u=(x,y), so grad(u)grad(u)^T=I on a triangle of area 3.
+    let gradients = [[-0.5, -1. / 3.], [0.5, 0.], [0., 1. / 3.]];
+    let g = [[1., 2.], [3., 5.]];
+    for (a, ga) in gradients.iter().enumerate() {
+        for i in 0..2 {
+            close(
+                action.residual[2 * a + i],
+                3. * (ga[i] + g[i][0] * ga[0] + g[i][1] * ga[1]),
+            );
+            for (b, gb) in gradients.iter().enumerate() {
+                for k in 0..2 {
+                    let expected = 3.
+                        * (if i == k {
+                            ga[0] * gb[0] + ga[1] * gb[1]
+                        } else {
+                            0.
+                        } + ga[k] * gb[i]);
+                    close(action.jacobian[(2 * a + i) * 6 + 2 * b + k], expected);
+                }
+            }
+        }
+    }
+    assert!(cell.evaluate(&BTreeMap::new()).is_err());
 }
 
 #[test]

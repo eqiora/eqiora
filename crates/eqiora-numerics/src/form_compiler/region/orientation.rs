@@ -14,7 +14,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .iter()
                 .filter(|row| multipliers.contains(&row.tested))
                 .all(|row| {
-                    row.dyadics.is_empty()
+                    !row.is_nonlinear()
                         && row
                             .terms
                             .iter()
@@ -29,7 +29,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn volume_test_orientations(
         &self,
     ) -> Option<BTreeMap<RawId, f64>> {
-        if S::DOMAIN != ScalarDomain::Real || self.rows.iter().any(|row| !row.dyadics.is_empty()) {
+        if S::DOMAIN != ScalarDomain::Real || self.rows.iter().any(|row| row.is_nonlinear()) {
             return None;
         }
         let zero = Data::constant(self.dimension, <S as From<f64>>::from(0.0));

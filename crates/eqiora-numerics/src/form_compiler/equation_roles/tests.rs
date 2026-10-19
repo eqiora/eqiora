@@ -266,7 +266,7 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
 }
 
 #[test]
-fn conservative_dyadic_role_uses_definition_identity_not_operator_name() {
+fn flux_roles_follow_operands_independently_of_operator_name_or_formula() {
     let source = include_str!(
         "../../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
     );
@@ -282,11 +282,14 @@ fn conservative_dyadic_role_uses_definition_identity_not_operator_name() {
         "component(left, 0) * component(right, 1)",
         "component(left, 0) * component(right, 1) + component(left, 0) * component(right, 1)",
     );
-    assert!(derive(&wrong_definition).is_err());
+    assert_eq!(
+        signature(&roles),
+        signature(&derive(&wrong_definition).unwrap())
+    );
 }
 
 #[test]
-fn conservative_dyadic_role_rejects_other_trials_and_pointwise_role_keeps_operands() {
+fn flux_and_pointwise_roles_keep_every_exact_operand() {
     use eqiora_core::{Id, entity::kinds};
     use eqiora_schema::kernel::ExprDagBuilder;
     let definition = eqiora_ir::PureOperatorDefinition::dyadic_product().unwrap();
@@ -294,13 +297,8 @@ fn conservative_dyadic_role_rejects_other_trials_and_pointwise_role_keeps_operan
         let mut builder = ExprDagBuilder::new();
         let velocity = Id::<kinds::Field>::new();
         let first = builder.symbol(SymbolRef::Field(velocity)).unwrap();
-        let second = builder
-            .symbol(SymbolRef::Field(if same_trial {
-                velocity
-            } else {
-                Id::new()
-            }))
-            .unwrap();
+        let second_field = if same_trial { velocity } else { Id::new() };
+        let second = builder.symbol(SymbolRef::Field(second_field)).unwrap();
         let product = builder.pure_operator(&definition, [first, second]).unwrap();
         let root = if in_divergence {
             builder.divergence(product).unwrap()
@@ -317,7 +315,13 @@ fn conservative_dyadic_role_rejects_other_trials_and_pointwise_role_keeps_operan
                 (BTreeSet::from([velocity.erase()]), BTreeSet::new())
             );
         } else {
-            assert!(derived.is_err());
+            assert_eq!(
+                derived.unwrap(),
+                (
+                    BTreeSet::from([velocity.erase(), second_field.erase()]),
+                    BTreeSet::new()
+                )
+            );
         }
     }
 }

@@ -31,7 +31,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             if field_type.scalar_domain() != S::DOMAIN
                 || !same_component_type(field_type, &row.value_type)
                 || row.forcing.len() != components(field_type, self.dimension)?
-                || !row.dyadics.is_empty()
+                || row.is_nonlinear()
                 || row.terms.iter().any(|term| {
                     let Some(trial) = rows.get(&term.trial) else {
                         return true;
@@ -79,7 +79,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .filter(|term| gradient_pairing(term.pairing));
             if !gradients.eq(row.flux.iter().filter_map(|flux| match flux {
                 flux::FluxTerm::Trial(term) => Some(term),
-                flux::FluxTerm::Isotropic(_) | flux::FluxTerm::Prescribed { .. } => None,
+                flux::FluxTerm::Component(_)
+                | flux::FluxTerm::Isotropic(_)
+                | flux::FluxTerm::Prescribed { .. } => None,
             })) || row.flux.iter().any(|flux| {
                 matches!(flux, flux::FluxTerm::Trial(term) if !gradient_pairing(term.pairing))
             }) {

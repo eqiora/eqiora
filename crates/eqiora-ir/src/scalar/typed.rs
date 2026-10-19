@@ -147,7 +147,8 @@ impl TypedInstructions<'_> {
                             }
                             Instruction::Require { value, .. } if test => value,
                             _ => {
-                                return Err(ir_builder_error(
+                                return Err(Diagnostic::error(
+                                    codes::EXPRESSION_DOMAIN_VIOLATION,
                                     "required expression domain condition is false",
                                 ));
                             }

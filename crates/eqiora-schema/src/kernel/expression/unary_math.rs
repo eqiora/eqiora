@@ -36,7 +36,12 @@ impl UnaryMathFunction {
             let (re, im) = value.component(0).expect("checked scalar numeric type");
             ValueLiteral::new(result_type, [self.evaluate_component(domain, re, im)?])
         };
-        result.map_err(|_| domain_error("unary mathematics produced a nonfinite result"))
+        result.map_err(|_| {
+            Diagnostic::error(
+                codes::NONFINITE_EVALUATION,
+                "unary mathematics produced a nonfinite result",
+            )
+        })
     }
 
     fn evaluate_component(
@@ -119,7 +124,7 @@ fn complex_sqrt(z: Complex64) -> Complex64 {
 }
 
 fn domain_error(message: &str) -> Diagnostic {
-    Diagnostic::error(codes::NONFINITE_EVALUATION, message)
+    Diagnostic::error(codes::EXPRESSION_DOMAIN_VIOLATION, message)
 }
 
 #[cfg(test)]
@@ -272,7 +277,11 @@ mod tests {
                     .evaluate(&value(domain, unit, input, 0.))
                     .unwrap_err()
                     .code(),
-                codes::NONFINITE_EVALUATION
+                if function == Exp {
+                    codes::NONFINITE_EVALUATION
+                } else {
+                    codes::EXPRESSION_DOMAIN_VIOLATION
+                }
             );
         }
         let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();

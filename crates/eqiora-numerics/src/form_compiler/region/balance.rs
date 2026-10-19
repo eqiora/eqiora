@@ -159,7 +159,7 @@ impl BoundRegionForm<f64> {
                 ));
             }
         }
-        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
+        if self.form.rows.iter().any(|row| row.is_nonlinear()) {
             return Err(invalid("volume balance does not admit nonlinear fluxes"));
         }
         let states = self

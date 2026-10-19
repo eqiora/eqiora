@@ -24,12 +24,28 @@ impl ScalarInputOperatorIr {
                 Some(degree)
             };
             let degree = match instruction {
-                Instruction::Constant(_) => Some([0; N]),
+                Instruction::Constant(_) | Instruction::TypedConstant(_) => Some([0; N]),
                 Instruction::Read(slot) => inputs[slot.0 as usize],
-                Instruction::Neg(value) | Instruction::ValueOnly { value, .. } => at(value),
+                Instruction::Neg(value) => at(value),
                 Instruction::Add(a, b) | Instruction::Sub(a, b) => combine(at(a), at(b), false),
                 Instruction::Mul(a, b) => combine(at(a), at(b), true),
                 Instruction::Div(a, b) => independent(at(b)).and_then(|_| at(a)),
+                Instruction::Compare(_, a, b) | Instruction::And(a, b) | Instruction::Or(a, b) => {
+                    independent(at(a)).and(independent(at(b)))
+                }
+                Instruction::Not(value) => independent(at(value)),
+                // Require restricts the domain, not the value's polynomial.
+                // Its predicate remains in the instruction degrees, so an
+                // affine/constant proof cannot erase a selected primal guard.
+                Instruction::Require { value, .. } | Instruction::ValueOnly { value, .. } => {
+                    at(value)
+                }
+                Instruction::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => independent(at(condition))
+                    .and_then(|_| combine(at(then_value), at(else_value), false)),
                 Instruction::ComplexDiv {
                     operands: [a, b, c, d],
                     ..
@@ -82,6 +98,37 @@ impl ScalarInputOperatorIr {
             degrees.push(degree);
         }
         Ok(degrees)
+    }
+
+    pub(crate) fn affine_in(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+    ) -> Result<bool, Diagnostic> {
+        let mut coordinates = std::collections::HashSet::new();
+        for coordinate in selected {
+            if !coordinates.insert(coordinate) {
+                return Err(ir_builder_error(
+                    "affine classification repeats a selected coordinate",
+                ));
+            }
+        }
+        let inputs = self
+            .slots
+            .iter()
+            .map(|slot| Some([usize::from(coordinates.contains(slot.source()))]))
+            .collect::<Vec<_>>();
+        // Classify every retained instruction, not just the outputs. A zero
+        // power or cancellation must not hide an unknown-dependent domain.
+        let degrees = self.polynomial_degrees(&inputs)?;
+        if self.instructions.iter().any(|instruction| {
+            matches!(instruction,
+            Instruction::ValueOnly { input, .. } if degrees[input.0 as usize] != Some([0]))
+        }) {
+            return Ok(false);
+        }
+        Ok(degrees
+            .iter()
+            .all(|degree| degree.is_some_and(|[degree]| degree <= 1)))
     }
 
     pub(crate) fn polynomial_degree(&self, inputs: &[Option<usize>]) -> Option<usize> {

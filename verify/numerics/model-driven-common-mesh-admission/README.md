@@ -28,7 +28,7 @@ elasticity equilibrium oracles close ordinary execution and replay.
 Renaming a scalar Component, Field, and Relations changes exact Model and Plan
 identity while preserving the admitted formulation, solver requirements, and
 independent solution. A compiler-valid field-dependent constitutive-flux
-mutation fails at the concrete scalar conservation-form check. Replacing one
+mutation requires an explicit Newton policy and rejects a linear-only solve request. Replacing one
 prescribed trace by a prescribed outward flux fails the requested exact
 complete-essential primal form at its boundary-law check.
 

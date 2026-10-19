@@ -143,7 +143,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         if let Some(row) = self
                             .rows
                             .iter()
-                            .find(|row| row.tested == tested && !row.flux.is_empty())
+                            .find(|row| row.tested == tested && row.has_boundary_flux())
                         {
                             operators.push((
                                 leaf,
@@ -154,7 +154,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         }
                     }
                     Some(ExprNode::NormalComponent { .. }) => {
-                        for row in self.rows.iter().filter(|row| !row.flux.is_empty()) {
+                        for row in self.rows.iter().filter(|row| row.has_boundary_flux()) {
                             if self
                                 .require_boundary_flux(
                                     program,

@@ -29,7 +29,7 @@ pub(crate) struct PreparedRegionFacet<S: Coefficient> {
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
-    pub(crate) fn has_nonlinear_flux(&self, field: RawId) -> bool {
+    pub(crate) fn requires_transport_completion(&self, field: RawId) -> bool {
         self.form
             .rows
             .iter()

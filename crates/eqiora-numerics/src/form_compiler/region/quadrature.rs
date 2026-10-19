@@ -84,6 +84,18 @@ impl<S: Coefficient> BoundRegionForm<S> {
             for term in &row.dyadics {
                 include(&term.coefficient, 2 * basis + gradient);
             }
+            for term in &row.components {
+                if let Some(degree) = term.value.polynomial_degree(basis, gradient) {
+                    include(
+                        &term.coefficient,
+                        degree.saturating_add(if term.test.requires_gradient() {
+                            gradient
+                        } else {
+                            basis
+                        }),
+                    );
+                }
+            }
             for flux in &row.flux {
                 if let super::flux::FluxTerm::Isotropic(data)
                 | super::flux::FluxTerm::Prescribed { value: data, .. } = flux

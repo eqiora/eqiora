@@ -34,7 +34,7 @@ impl BoundRegionForm<f64> {
             || field.components != 1
             || field.scale != 1.0
             || self.time.is_some()
-            || !row.dyadics.is_empty()
+            || row.is_nonlinear()
             || values.len() != mesh.vertices().len()
             || values.iter().any(|value| !value.is_finite())
             || row.terms.is_empty()

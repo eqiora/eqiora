@@ -26,7 +26,7 @@ mod scalar;
 mod time_state_coordinate;
 pub use time_state_coordinate::TimeStateCoordinate;
 pub mod value_literal;
-pub mod value_shape;
+mod value_shape;
 pub mod value_type;
 
 pub use diagnostic::{Code, Diagnostic, GraphPath, Severity, Span};

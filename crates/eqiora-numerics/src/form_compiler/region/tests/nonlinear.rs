@@ -384,11 +384,35 @@ fn operator_definition_not_name_controls_nonlinear_admission() {
     let b = evaluate(&renamed);
     assert_eq!(a.residual, b.residual);
     assert_eq!(a.jacobian, b.jacobian);
-    let invalid = TRANSPORT.replace(
+    let doubled = TRANSPORT.replace(
         "component(left, 0) * component(right, 1);",
         "component(left, 0) * component(right, 1) + component(left, 0) * component(right, 1);",
     );
-    assert!(derive(&invalid).is_err());
+    let doubled = evaluate(&bind_unit(&derive(&doubled).unwrap()));
+    // Only transport doubles; the exact density-weighted P1 mass stays 4M.
+    for node in 0..3 {
+        for component in 0..2 {
+            let r = 2 * node + component;
+            let storage = (0..3)
+                .map(|b| 4. * mass(node, b) * point[2 * b + component])
+                .sum::<f64>();
+            close(doubled.residual[r], 2. * a.residual[r] - storage);
+            for b in 0..3 {
+                for k in 0..2 {
+                    let c = 2 * b + k;
+                    close(
+                        doubled.jacobian[r * 6 + c],
+                        2. * a.jacobian[r * 6 + c]
+                            - if component == k {
+                                4. * mass(node, b)
+                            } else {
+                                0.
+                            },
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[test]

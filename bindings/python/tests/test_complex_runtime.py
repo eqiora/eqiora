@@ -91,7 +91,7 @@ def test_observable_domain_errors_do_not_silently_project_or_promote(expression)
         observable output:1={expression};
     }}""")
     _, result = run(model)
-    with pytest.raises(eqiora.ExecutionError, match="EQ0505"):
+    with pytest.raises(eqiora.ExecutionError, match="EQ0507"):
         result.observe(model.observable("output"))
 
 

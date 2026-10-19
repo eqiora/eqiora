@@ -91,5 +91,5 @@ def test_guarded_property_coefficients_preserve_declared_profiles(method, consum
         np.testing.assert_allclose(point.jvp((1.,)).tangent[0], slope*positions, rtol=0, atol=2e-10)
         np.testing.assert_allclose(point.vjp((weights,)).input_cotangent[0],
                                    slope*np.dot(weights, positions), rtol=0, atol=2e-10)
-    with pytest.raises(q.ValidationError, match="required expression domain condition is false"):
+    with pytest.raises(q.ExecutionError, match="required expression domain condition is false"):
         program.evaluate((4.,)).primal()

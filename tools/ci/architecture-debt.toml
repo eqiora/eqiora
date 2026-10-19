@@ -264,7 +264,10 @@ removal = "fold label key and role types only when an existing exact occurrence 
 
 [[public_surface]]
 crate = "eqiora-core"
-ceiling = 119
+ceiling = 118
+# Expression-domain diagnostics distinguish rejected speculative points from
+# malformed expressions and overflow. ValueShape and InvalidValueShape now
+# have only their canonical root routes; the unused public module route is gone.
 # #922: TimeStateCoordinate owns the complete source coordinate shared by time
 # lowering, artifact reconstruction, initialization and tolerance authoring.
 # ScalarDomain/ScalarType now have only their root route (scalar is private),
