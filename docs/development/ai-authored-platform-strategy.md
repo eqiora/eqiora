@@ -1,7 +1,7 @@
 # AI-authored platform strategy
 
 - Status: Accepted
-- Revised: 2026-10-19
+- Revised: 2026-10-20
 - Related: [high-risk and parallel development](vertical-slice-development.md),
   [local verification](local-verification.md), and [roadmap](../roadmap.md)
 
@@ -106,7 +106,9 @@ or extend one authoritative owner in the current change when:
 - a concrete new consumer would otherwise copy the same invariant or work around a
   restriction in its existing owner.
 
-Migrate affected consumers and delete displaced paths together. Do not add another copy with
+Migrate affected consumers and delete displaced paths together. Once the shared responsibility
+is established, consolidate it before adding consumers that would make migration harder; short-term
+delivery speed is not a reason to postpone necessary abstraction. Do not add another copy with
 a promise to unify it later. A system-wide invariant may need one owner from its first use;
 an implementation abstraction needs demonstrated shared behavior and compatible reasons to
 change. Use the smallest existing type, private helper, or shared implementation that satisfies
