@@ -75,12 +75,9 @@ impl Elaborator<'_> {
             if !contract.inputs.is_empty() {
                 continue;
             }
-            let value_type = crate::value_types::lower_value_type::<String>(
-                &contract.file,
-                &contract.value_type,
-                None,
-            )
-            .map_err(|error| vec![error])?;
+            let value_type = contract
+                .result_type::<String>(None)
+                .map_err(|error| vec![error])?;
             values.entry(requirement.name().to_owned()).or_insert(
                 super::super::parameters::SymbolicParameterValue {
                     value: None,

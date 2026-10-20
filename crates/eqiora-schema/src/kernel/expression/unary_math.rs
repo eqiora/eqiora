@@ -5,6 +5,11 @@ use eqiora_core::{Diagnostic, ScalarDomain, ValueLiteral, diagnostic::codes};
 use num_complex::Complex64;
 
 impl UnaryMathFunction {
+    /// Unit restriction shared by concrete and symbolic component typing.
+    pub(crate) const fn requires_dimensionless_input(self) -> bool {
+        matches!(self, Self::Sin | Self::Cos | Self::Exp | Self::Log)
+    }
+
     /// Dimension exponent shared by concrete typing and symbolic formal dimensions.
     /// Dimensionless-input restrictions are checked by the typing owner separately.
     pub(crate) const fn dimension_power(self) -> (i32, i32) {

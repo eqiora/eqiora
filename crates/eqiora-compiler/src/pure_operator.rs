@@ -567,7 +567,7 @@ fn compile_expression(
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 return builder
-                    .apply_scalar(definition, &arguments)
+                    .apply_scalar_inputs(definition, &arguments)
                     .map_err(|error| kernel_error(file, expression.range(), error));
             }
             let args = arguments.positional().ok_or_else(|| {

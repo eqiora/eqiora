@@ -1,11 +1,13 @@
-//! Scalar composition that keeps the authored order of exact arithmetic.
+//! Typed component composition that keeps the authored order of exact arithmetic.
 use super::*;
 
 impl CalculusBuilder {
-    /// Substitute checked scalar argument expressions into a closed scalar definition.
+    /// Substitute checked scalar inputs into a closed component definition.
+    /// A shaped result retains the caller's exact component layout, including axes,
+    /// frame, channel rank and nominal bases; a scalar result is component-independent.
     /// The caller resolves lexical names and rejects recursive definition graphs.
     /// No polynomial normalization or reassociation is performed.
-    pub fn apply_scalar(
+    pub fn apply_scalar_inputs(
         &mut self,
         definition: &PureOperatorDefinition,
         arguments: &[CalculusNodeId],
@@ -13,11 +15,12 @@ impl CalculusBuilder {
         if arguments.len() != definition.formals.len() {
             return Err(PureOperatorError::ArityMismatch);
         }
-        if !definition.result.is_invariant_scalar()
-            || definition
-                .formals
-                .iter()
-                .any(|formal| !formal.is_invariant_scalar())
+        if definition
+            .formals
+            .iter()
+            .any(|formal| !formal.is_invariant_scalar())
+            || (!definition.result.is_invariant_scalar()
+                && !compatible_component_layout(&definition.result, &self.result))
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
@@ -78,12 +81,47 @@ impl CalculusBuilder {
             };
             ids.push(id);
         }
-        let root = ids[definition_index(definition.root, ids.len())?];
-        dimensions::validate_profile(&staged.formals, &staged.result, &staged.nodes)?;
+        let mut root = ids[definition_index(definition.root, ids.len())?];
+        let actual = domains::expression_domain(&staged.formals, &staged.nodes, root)?;
+        let declared = domains::result_domain(definition.result.scalar_domain(), actual)?;
+        if declared == Some(eqiora_core::ScalarDomain::Complex)
+            && actual == Some(eqiora_core::ScalarDomain::Real)
+        {
+            // Inlining must retain the callee's declared real-to-complex embedding.
+            // Imag(real) is positive zero with the same symbolic units. Multiplying
+            // by complex one instead could change the zero's sign and a branch cut.
+            let imag = staged.push(CalculusNode::UnaryMath(
+                super::super::UnaryMathFunction::Imag,
+                root,
+            ))?;
+            root = staged.push(CalculusNode::Complex { real: root, imag })?;
+        }
         derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
         *self = staged;
         Ok(root)
     }
+}
+
+// Physical dimensions and scalar domain belong to the component expression.
+// All other type information must survive an implicit componentwise call.
+fn compatible_component_layout(left: &PureValueClass, right: &PureValueClass) -> bool {
+    let layout = |value: &PureValueClass| {
+        value
+            .clone()
+            .with_dimension(DimExponents::DIMENSIONLESS)
+            .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+    };
+    let (Ok(formal), Ok(actual)) = (layout(left), layout(right)) else {
+        return false;
+    };
+    formal == actual
+        || actual.exact_type().is_some_and(|value_type| {
+            instantiation::validate_argument_class(
+                &formal,
+                &ExpressionType::<()>::new(value_type.clone(), None),
+            )
+            .is_ok()
+        })
 }
 
 impl CalculusNode {
@@ -132,7 +170,60 @@ impl CalculusNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use eqiora_core::ScalarDomain;
+    use eqiora_core::{ScalarDomain, ValueType};
+
+    #[test]
+    fn composition_preserves_complex_return_embedding_with_symbolic_units() {
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        for dimension in [None, Some(length)] {
+            let mut real = PureValueClass::invariant_scalar()
+                .with_scalar_domain(ScalarDomain::Real)
+                .unwrap();
+            if let Some(dimension) = dimension {
+                real = real.with_dimension(dimension);
+            }
+            let complex = real
+                .clone()
+                .with_scalar_domain(ScalarDomain::Complex)
+                .unwrap();
+            let mut callee = CalculusBuilder::new([real.clone()], complex.clone()).unwrap();
+            let root = callee
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let definition = callee.finish(root).unwrap();
+            for (result, admits) in [
+                (complex, true),
+                (PureValueClass::invariant_scalar(), true),
+                (real.clone(), false),
+            ] {
+                let mut caller = CalculusBuilder::new([real.clone()], result).unwrap();
+                let input = caller
+                    .push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: Box::new([]),
+                    })
+                    .unwrap();
+                let root = caller.apply_scalar_inputs(&definition, &[input]).unwrap();
+                let result = caller.finish(root);
+                assert_eq!(result.is_ok(), admits);
+                if let Ok(result) = result {
+                    let instance = result
+                        .instantiate(&[ExpressionType::<()>::new(
+                            ValueType::scalar(ScalarDomain::Real, length).unwrap(),
+                            None,
+                        )])
+                        .unwrap();
+                    assert_eq!(
+                        instance.result_type().value_type,
+                        ValueType::scalar(ScalarDomain::Complex, length).unwrap()
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn differentiated_composition_retains_distinct_local_input_occurrences() {
@@ -164,7 +255,7 @@ mod tests {
                 axes: Box::new([]),
             })
             .unwrap();
-        let applied = caller.apply_scalar(&definition, &[p, p]).unwrap();
+        let applied = caller.apply_scalar_inputs(&definition, &[p, p]).unwrap();
         let CalculusNode::Differentiated { source, wrt, .. } =
             caller.nodes[applied.index() as usize]
         else {
@@ -184,5 +275,87 @@ mod tests {
             CalculusNode::BoundInput(p)
         );
         caller.finish(applied).unwrap();
+    }
+
+    #[test]
+    fn shaped_composition_preserves_axes_frame_channels_and_nominal_bases() {
+        use eqiora_core::{FiniteBasis, Id, ValueShape, ValueType};
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+        let scalar_class = PureValueClass::from_value_type(scalar.clone()).unwrap();
+        let spatial = |extents: [u32; 2]| {
+            ValueType::shaped(
+                ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+                ValueShape::new(extents).unwrap(),
+                ValueFrame::SpatialCartesian,
+            )
+            .unwrap()
+        };
+        let first = FiniteBasis::new(Id::new(), 2).unwrap();
+        let second = FiniteBasis::new(Id::new(), 2).unwrap();
+        let map = |a, b| {
+            ValueType::linear_map(a, b, ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap()
+        };
+        let channels = scalar.clone().array(2).unwrap().array(2).unwrap();
+        let channel_vectors = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap()
+        .array(2)
+        .unwrap();
+        let layouts = [
+            spatial([2, 2]),
+            spatial([3, 3]),
+            channels,
+            channel_vectors,
+            map(first, second),
+            map(second, first),
+        ];
+        for (callee_index, value_type) in layouts.iter().enumerate() {
+            let result = PureValueClass::from_value_type(value_type.clone()).unwrap();
+            let mut callee = CalculusBuilder::new([scalar_class.clone()], result).unwrap();
+            let input = callee
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let delta = callee
+                .push(CalculusNode::KroneckerDelta(
+                    ComponentIndex::Result(0),
+                    ComponentIndex::Result(1),
+                ))
+                .unwrap();
+            let root = callee.push(CalculusNode::Mul(input, delta)).unwrap();
+            let definition = callee.finish(root).unwrap();
+            for (caller_index, layout) in layouts.iter().enumerate() {
+                let result = PureValueClass::from_value_type(
+                    layout
+                        .clone()
+                        .with_scalar_domain(ScalarDomain::Complex)
+                        .unwrap(),
+                )
+                .unwrap();
+                let mut caller = CalculusBuilder::new([scalar_class.clone()], result).unwrap();
+                let input = caller
+                    .push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: Box::new([]),
+                    })
+                    .unwrap();
+                let before = (caller.nodes.clone(), caller.depths.clone());
+                let application = caller.apply_scalar_inputs(&definition, &[input]);
+                if caller_index == callee_index {
+                    caller.finish(application.unwrap()).unwrap();
+                } else {
+                    assert_eq!(application, Err(PureOperatorError::FormalTypeMismatch));
+                    assert_eq!(caller.nodes, before.0);
+                    assert_eq!(caller.depths, before.1);
+                }
+            }
+        }
     }
 }

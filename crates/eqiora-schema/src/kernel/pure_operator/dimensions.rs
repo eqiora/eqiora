@@ -8,37 +8,6 @@ struct Proof {
     dimension: FormalDimensionMonomial,
 }
 
-pub(super) fn validate_profile(
-    formals: &[PureValueClass],
-    result: &PureValueClass,
-    nodes: &[CalculusNode],
-) -> Result<(), PureOperatorError> {
-    if nodes.iter().any(|node| {
-        matches!(
-            node,
-            CalculusNode::Differentiated { .. }
-                | CalculusNode::Require { .. }
-                | CalculusNode::Boolean(_)
-                | CalculusNode::Compare(..)
-                | CalculusNode::Not(_)
-                | CalculusNode::And(..)
-                | CalculusNode::Or(..)
-                | CalculusNode::Select { .. }
-                | CalculusNode::UnaryMath(..)
-                | CalculusNode::Complex { .. }
-        )
-    }) && formals.iter().chain([result]).any(|class| {
-        class.dimension().is_none()
-            || !matches!(
-                class.scalar_domain(),
-                Some(ScalarDomain::Real | ScalarDomain::Complex)
-            )
-    }) {
-        return Err(PureOperatorError::FormalTypeMismatch);
-    }
-    Ok(())
-}
-
 fn dimensionless(count: usize) -> FormalDimensionMonomial {
     FormalDimensionMonomial {
         fixed_dimension: DimExponents::DIMENSIONLESS,
@@ -247,7 +216,9 @@ fn prove(
             CalculusNode::UnaryMath(function, operand) => {
                 let operand = get(*operand)?;
                 let (dimension, free) = normalized(formals, &operand.dimension)?;
-                if free.iter().any(|power| !power.is_zero()) {
+                if function.requires_dimensionless_input()
+                    && free.iter().any(|power| !power.is_zero())
+                {
                     return Err(PureOperatorError::FormalTypeMismatch);
                 }
                 let ty = ExpressionType::<()>::new(

@@ -242,7 +242,7 @@ fn check_partials(
                     .unwrap()
             })
             .collect::<Vec<_>>();
-        let mut partial = calculus.apply_scalar(definition, &formals).unwrap();
+        let mut partial = calculus.apply_scalar_inputs(definition, &formals).unwrap();
         for _ in 0..order {
             partial = calculus.partial(partial, formal).unwrap();
         }

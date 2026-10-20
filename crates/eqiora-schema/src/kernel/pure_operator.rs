@@ -372,7 +372,6 @@ impl CalculusBuilder {
         if self.nodes.get(root_index).is_none() {
             return Err(PureOperatorError::InvalidNode);
         }
-        dimensions::validate_profile(&self.formals, &self.result, &self.nodes)?;
         let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
         validate_result_dimension(&self.formals, &self.result, &dimension)?;
         domains::validate_result(&self.formals, &self.result, &self.nodes, root)?;

@@ -789,13 +789,7 @@ pub fn unary_math<I: Clone>(
     if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::PowerRequiresScalar);
     }
-    if matches!(
-        function,
-        UnaryMathFunction::Sin
-            | UnaryMathFunction::Cos
-            | UnaryMathFunction::Exp
-            | UnaryMathFunction::Log
-    ) && operand.dimension() != DimExponents::DIMENSIONLESS
+    if function.requires_dimensionless_input() && operand.dimension() != DimExponents::DIMENSIONLESS
     {
         return Err(TypeViolation::MathRequiresDimensionlessScalar);
     }

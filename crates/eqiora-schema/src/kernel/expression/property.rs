@@ -64,19 +64,10 @@ impl PropertyMeaning {
     /// Complete mathematical result type, independent of a chosen operating point.
     #[must_use]
     pub fn value_type(&self) -> Option<eqiora_core::ValueType> {
-        match self {
-            Self::Constant(value) => Some(value.value_type().clone()),
-            Self::Analytic(definition) => eqiora_core::ValueType::scalar(
-                definition.result_rule().scalar_domain()?,
-                definition.result_rule().dimension()?,
-            )
-            .ok(),
-            Self::Table(table) => eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                table.value_dimension(),
-            )
-            .ok(),
+        if let Self::Constant(value) = self {
+            return Some(value.value_type().clone());
         }
+        self.definition()?.result_rule().exact_type().cloned()
     }
 }
 
@@ -136,12 +127,7 @@ impl PropertyRelease {
             }
         }
         if let Some(definition) = meaning.definition()
-            && (!definition.result_rule().is_invariant_scalar()
-                || definition.result_rule().dimension().is_none()
-                || !matches!(
-                    definition.result_rule().scalar_domain(),
-                    Some(eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex)
-                )
+            && (definition.result_rule().exact_type().is_none()
                 || definition.formals().iter().any(|formal| {
                     !formal.is_invariant_scalar()
                         || formal.dimension().is_none()
@@ -149,7 +135,7 @@ impl PropertyRelease {
                 }))
         {
             return Err(invalid(
-                "analytic property requires concrete real scalar inputs and real or complex scalar outputs",
+                "analytic property requires concrete real scalar inputs and a concrete real or complex result",
             ));
         }
         match &meaning {
@@ -402,34 +388,7 @@ fn partial_definition(
     let failure = |error: super::super::pure_operator::PureOperatorError| {
         invalid(&format!("property first partial is unavailable: {error}"))
     };
-    let input = definition
-        .formals()
-        .get(usize::from(formal))
-        .ok_or_else(|| invalid("invalid property formal"))?;
-    let dimension = definition
-        .result_rule()
-        .dimension()
-        .and_then(|output| input.dimension().and_then(|input| output.div(input)))
-        .ok_or_else(|| invalid("property partial requires exact input/output dimensions"))?;
-    let mut builder = CalculusBuilder::new(
-        definition.formals().iter().cloned(),
-        definition.result_rule().clone().with_dimension(dimension),
-    )
-    .map_err(failure)?;
-    let arguments = (0..definition.formals().len())
-        .map(|slot| {
-            builder.push(CalculusNode::FormalComponent {
-                formal: u16::try_from(slot).expect("bounded formal count"),
-                axes: Box::new([]),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(failure)?;
-    let root = builder
-        .apply_scalar(definition, &arguments)
-        .map_err(failure)?;
-    let partial = builder.partial(root, formal).map_err(failure)?;
-    builder.finish(partial).map_err(failure)
+    definition.formal_partial(formal).map_err(failure)
 }
 
 fn invalid(message: &str) -> Diagnostic {

@@ -79,6 +79,15 @@ pub(crate) struct Contract {
     pub(crate) branch: Option<String>,
 }
 
+impl Contract {
+    pub(crate) fn result_type<I>(
+        &self,
+        support: Option<&eqiora_schema::kernel::typing::SpatialSupport<I>>,
+    ) -> Result<eqiora_core::ValueType, Diagnostic> {
+        crate::value_types::lower_signature_type(&self.file, &self.value_type, support)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Release {
     pub(crate) visibility: VisibilitySyntax,

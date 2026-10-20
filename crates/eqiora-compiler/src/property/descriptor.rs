@@ -64,13 +64,12 @@ impl crate::AnalyzedResolvedHierarchy {
                 "imported property contract must be public",
             ));
         }
-        let value_type =
-            crate::value_types::lower_value_type::<()>(&contract.file, &contract.value_type, None)?;
+        let value_type = contract.result_type::<()>(None)?;
         let inputs = contract
             .inputs
             .iter()
             .map(|(name, value_type)| {
-                crate::value_types::lower_value_type::<()>(&contract.file, value_type, None)
+                crate::value_types::lower_signature_type::<()>(&contract.file, value_type, None)
                     .map(|value| (name.clone(), value))
             })
             .collect::<Result<Vec<_>, _>>()?;

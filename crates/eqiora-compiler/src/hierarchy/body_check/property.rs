@@ -42,7 +42,8 @@ pub(super) fn bare(
             "property requires its declared named inputs",
         ));
     }
-    crate::value_types::lower_value_type::<String>(&contract.file, &contract.value_type, None)
+    contract
+        .result_type::<String>(None)
         .map(|value_type| ExpressionType::new(value_type, None))
 }
 
@@ -95,10 +96,6 @@ pub(super) fn application(
             support = Some(actual_support);
         }
     }
-    let result = crate::value_types::lower_value_type(
-        &contract.file,
-        &contract.value_type,
-        support.as_ref(),
-    )?;
+    let result = contract.result_type(support.as_ref())?;
     Ok(ExpressionType::new(result, support))
 }

@@ -1,4 +1,4 @@
-# Typed scalar operators
+# Typed operators
 
 `operator` declares a bounded, side-effect-free mathematical definition. Inputs and the
 result carry their types, and calls bind arguments by formal name:
@@ -18,8 +18,9 @@ same complete dimensions. A call uses
 `conductivity(delta_temperature = temperature, k0 = coefficient, a = curvature)`;
 authored named-argument order does not change the formal binding.
 
-Concrete ordinary real scalar signatures coexist with the existing operator-local generic
-`scalar` and `spatial[rank]` classes. Those generic classes remain dimension-polymorphic;
+Concrete signatures retain the complete shared value type: real/complex domain, physical
+dimensions, ordered axes, channel rank, frame and nominal bases. They coexist with the
+operator-local generic `scalar` and `spatial[rank]` classes. Those generic classes remain dimension-polymorphic;
 `scalar` is not a synonym for the dimensionless concrete type `1`. Existing exact tensor
 bodies retain `rational`, `component` and `delta`. The former `pure operator` and `->`
 declaration spellings are not part of the current source surface.
@@ -34,14 +35,15 @@ Powers use positive integer literal exponents up to 255 and share the
 calculus work and depth limits. Zero, negative or computed exponents are outside this
 profile; write the constant `1` for a degree-zero term. This preserves the general value-power
 rule that `0^0` rejects instead of erasing its domain check during polynomial expansion.
-Calls between local scalar operators compose through the existing exact calculus owner. Lexical names and formal bindings are resolved before expansion; cycles, capture,
-unknown or missing arguments, incompatible types and excess work reject locally. Operators
-cannot read hidden evolving state or invoke host callbacks. Cross-package composition inside
-operator definitions and the general analytic/complex catalog remain outside this profile;
+Local calls with scalar formal inputs compose through the existing exact calculus owner,
+including shaped outputs when the caller satisfies the callee's component-layout contract. Lexical names and formal bindings are resolved before expansion; cycles, capture,
+unknown or missing arguments, incompatible types and excess work reject locally. Operators retain declared real-to-complex result embeddings during composition, including physical
+units and the positive-zero imaginary component that selects a complex branch. Operators cannot read hidden evolving state or invoke host callbacks. Cross-package composition inside
+operator definitions, composition with shaped formal inputs and unrestricted analytic functions
+remain outside this profile;
 existing qualified package calls at Model and Component use sites retain their visibility rules.
 
-Definition identity retains exact arithmetic and input/result scalar-domain and dimension
-constraints. The
+Definition identity retains exact arithmetic and complete input/result type constraints. The
 current Model stores the operator definition and application identity. Execution projects an
 admitted scalar application into the ordinary expression graph and uses the existing evaluator;
 proof normalization does not authorize reassociating floating-point operations.
@@ -62,19 +64,28 @@ The [formal partial evidence](../../verify/language/formal-partials/README.md) c
 values and quotient dimensions. General smooth functions, unknown-field coordinate derivatives and solved sensitivities
 remain outside this executable profile.
 
-Python `Module.operator` authors a local concrete scalar definition from typed formal handles
-and a callback invoked once. Its returned handle accepts named arguments. Formal handles
+Python `Module.operator` authors a local typed definition from formal handles and a callback
+invoked once. Type admission uses the shared compiler. `eqiora.lang.component(value, *axes)`
+and `eqiora.lang.delta(left_axis, right_axis)` construct the same component calculus as source.
+Integer axes name coordinates of the current result, not fixed component indices. For example,
+`component(left, 0) * component(right, 1)` defines a dyadic result from two vector formals;
+`delta(0, 1)` selects its diagonal. Axis bounds, shape, frame and nominal basis requirements
+remain compiler checks. Its returned handle accepts named arguments. Formal handles
 cannot escape their scope, and a foreign Module cannot acquire a call merely because every
-argument is a literal. Qualified imported operator calls remain available through source
-compilation rather than a raw qualified-name handle constructor.
+argument is a literal. `ModuleRef.operator(name)` binds an imported public operator to its
+exact provider and preserves named formal order through the same compiler.
 
 ## Guarded scalar profile
 
 Concrete real scalar signatures also admit the [conditional scalar profile](conditionals.md):
 Boolean predicates, lazy value branches, square roots and the bounded nonsmooth math recipes.
-Typed exact constants retain their SI dimensions, including zero thresholds. Generic scalar
-and tensor polynomial definitions retain their existing contract; the guarded profile requires
-concrete dimensions and real scalar formals/results. Guarded definitions share the same retained
+Typed exact constants retain their SI dimensions, including zero thresholds. Each operation
+checks its actual operand constraints through the common component type proof. Unit-preserving
+functions and rational dimension powers can retain symbolic input units; trigonometric,
+exponential and logarithmic functions require provably dimensionless operands.
+The body derives the result's dimensions and domain;
+declared result constraints are checked, while a generic result layout can be fixed by its
+typed caller. Predicates require real numeric operands or Boolean values. Guarded definitions share the same retained
 calculus, composition and execution projection. Polynomial normalization rejects the guarded
 profile instead of treating a branch or domain requirement as an algebraic identity.
 

@@ -138,6 +138,35 @@ def test_operator_composition_accepts_same_source_and_rejects_escaped_formals():
     assert "increment(x = x) * 2" in source.to_eqi()
 
 
+def test_composed_complex_return_preserves_square_root_branch_and_units(tmp_path):
+    source = eqiora.Module("main")
+    area = eqiora.Dimension(length=2)
+    length = eqiora.Dimension(length=1)
+    embed = source.operator("embed", inputs={"x": eqiora.ValueType.real(area)},
+                            result_type=eqiora.ValueType.complex(area), body=lambda x: x)
+    response = source.operator("response", inputs={"x": eqiora.ValueType.real(area)},
+                               result_type=eqiora.ValueType.complex(length),
+                               body=lambda x: q.math.sqrt(embed(x=x)))
+    owner = source.model("Main")
+    tick = owner.clock("tick", period_s=1)
+    value = response(x=q.quantity(-4, eqiora.units.m ** 2))
+    for name, part in [("real", q.math.real), ("imaginary", q.math.imag)]:
+        output = owner.output(name, value_type=eqiora.ValueType.real(length), at=tick)
+        owner.relation(f"calculate_{name}", q.equation(output, part(value)), at=tick)
+    direct = eqiora.compile(source=source, entry="Main")
+    path = tmp_path / "complex-embedding.eqi"
+    source.write_eqi(path)
+    parsed = eqiora.compile(path=path, entry="Main")
+    assert parsed.to_bytes() == direct.to_bytes()
+    assert eqiora.Model.from_bytes(direct.to_bytes()).to_bytes() == direct.to_bytes()
+    for model in [direct, parsed]:
+        session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+        assert session.advance_ticks(1) == 1
+        # Principal sqrt(-4 m² + 0i) = +2i m.
+        assert session.output("real", 0)[1] == pytest.approx(0., abs=1e-14)
+        assert session.output("imaginary", 0)[1] == pytest.approx(2., rel=0, abs=1e-14)
+
+
 def test_failed_operator_callback_does_not_make_formals_portable():
     source = eqiora.Module("main")
     escaped = []
@@ -162,3 +191,11 @@ def test_operator_calls_preserve_existing_node_budget():
         value = value + value
     with pytest.raises(q.ModuleError, match="node limit"):
         operator(x=value, y=value)
+
+
+@pytest.mark.parametrize("axis", (-1, 65536, True, 0.5, "0"))
+def test_component_calculus_axes_reject_non_integer_or_out_of_range_values(axis):
+    with pytest.raises(TypeError, match="result axes"):
+        q.delta(axis, 0)
+    with pytest.raises(TypeError, match="result axes"):
+        q.component(1, axis)

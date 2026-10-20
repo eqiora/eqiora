@@ -36,6 +36,26 @@ equations.
 
 ## API
 
+<a id="api-eqiora-lang-component"></a>
+
+## `component`
+
+Select a formal component by output-axis numbers inside a pure operator.
+
+```python
+def component(value: object, *result_axes: int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-delta"></a>
+
+## `delta`
+
+Kronecker delta between result axes in an operator or analytic property body.
+
+```python
+def delta(left_axis: int, right_axis: int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-matrix_trace"></a>
 
 ## `matrix_trace`

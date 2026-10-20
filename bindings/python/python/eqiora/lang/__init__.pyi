@@ -605,7 +605,7 @@ class Module:
                         doc: str | None = None) -> FieldConnector: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
-        """Declare a real scalar operator by calling ``body`` once with symbolic arguments."""
+        """Declare a typed pure operator by calling ``body`` once with symbolic arguments."""
         ...
     def record(self, name: str, *, members: Mapping[str, ValueType], doc: str | None = None) -> Record:
         """Declare a closed record type with named, typed fields in this Module.
@@ -681,6 +681,20 @@ class Module:
     ) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
+
+def component(value: object, *result_axes: int) -> Expression:
+    """Select a formal component by output-axis numbers inside a pure operator.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::component``.
+    """
+    ...
+
+def delta(left_axis: int, right_axis: int) -> Expression:
+    """Kronecker delta between result axes in an operator or analytic property body.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::delta``.
+    """
+    ...
 
 def transpose(value: object) -> Expression:
     """Transpose (algebraic dual), without complex conjugation.
@@ -1122,6 +1136,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     ...
 
 __all__ = [
+    "component", "delta",
     "matrix_trace", "determinant", "inverse", "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
     "Observable", "variation", "contract", "cross", "curl", "tangential_trace",
     "Inequality", "Complementarity", "inequality", "complementarity",
