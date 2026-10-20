@@ -13,9 +13,12 @@ use crate::discrete_space::DiscreteSpace;
 use crate::spatial_expression::Coefficient;
 
 mod ale;
+mod components;
+use components::Component;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
+    physical: Vec<f64>,
     values: Vec<Vec<f64>>,
     gradients: Vec<Vec<[f64; 3]>>,
     coefficients: Vec<S>,
@@ -37,6 +40,7 @@ pub(crate) struct PreparedRegionCell<S: Coefficient> {
     affine: LocalContribution<S>,
     history: Vec<(RawId, usize, Vec<S>)>,
     dyadics: Vec<Dyadic>,
+    components: Vec<Component<S>>,
     samples: Vec<Sample<S>>,
 }
 
@@ -80,12 +84,17 @@ impl<S: Coefficient> BoundRegionForm<S> {
             ));
         }
         self.validate_geometry(previous_geometry, quadrature)?;
+        if directions.is_some() && self.form.rows.iter().any(|row| !row.components.is_empty()) {
+            return Err(invalid(
+                "nonlinear component geometry actions require their mixed scalar IR products",
+            ));
+        }
         if geometry != previous_geometry
             && (self.previous.is_empty()
                 || !self.eliminations.is_empty()
                 || self.fields.iter().any(|field| field.components != 1)
                 || self.form.rows.iter().any(|row| {
-                    !row.dyadics.is_empty()
+                    row.is_nonlinear()
                         || row.terms.iter().any(|term| {
                             term.derivative
                                 && term.pairing != crate::form_compiler::bilinear::Pairing::Value
@@ -147,7 +156,14 @@ impl<S: Coefficient> BoundRegionForm<S> {
         }
         let mut samples = Vec::new();
         let mut sample_tangents = Vec::new();
-        if !dyadics.is_empty() {
+        let mut components = Vec::new();
+        for (row, source) in self.form.rows.iter().enumerate() {
+            for term in &source.components {
+                components.push(Component::new(row, term, &self.fields, data.len())?);
+                data.push((row, &term.coefficient));
+            }
+        }
+        if !dyadics.is_empty() || !components.is_empty() {
             let spaces = self
                 .fields
                 .iter()
@@ -234,6 +250,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     // Every dyadic contraction has one gradient. Product-rule
                     // samples reuse that contraction, including its state Jacobian.
                     sample_tangents.push(Sample {
+                        physical: physical.clone(),
                         values: values.clone(),
                         gradients: gradients.clone(),
                         coefficients: coefficient_values
@@ -242,12 +259,14 @@ impl<S: Coefficient> BoundRegionForm<S> {
                             .collect(),
                     });
                     sample_tangents.push(Sample {
+                        physical: physical.clone(),
                         values: values.clone(),
                         gradients: mapped_gradients(inverse_tangent),
                         coefficients: coefficients.clone(),
                     });
                 }
                 samples.push(Sample {
+                    physical,
                     values,
                     gradients,
                     coefficients,
@@ -260,6 +279,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             affine,
             history: history_tangent,
             dyadics: dyadics.clone(),
+            components: components.clone(),
             samples: sample_tangents,
         });
         Ok((
@@ -269,6 +289,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 affine,
                 history,
                 dyadics,
+                components,
                 samples,
             },
             tangent,
@@ -403,7 +424,7 @@ impl<S: Coefficient> PreparedRegionCell<S> {
         &self,
         previous: &BTreeMap<RawId, Vec<S>>,
     ) -> Result<LocalContribution<S>, Diagnostic> {
-        if !self.dyadics.is_empty() {
+        if !self.dyadics.is_empty() || !self.components.is_empty() {
             return Err(invalid(
                 "nonlinear region evaluation requires an explicit candidate point",
             ));
@@ -463,6 +484,9 @@ impl PreparedRegionCell<f64> {
         };
         let dimension = self.dimension;
         for sample in &self.samples {
+            for term in &self.components {
+                term.add_action(&self.fields, sample, point, derivative, &mut action)?;
+            }
             for (term, coefficient) in self.dyadics.iter().zip(&sample.coefficients) {
                 let trial = &self.fields[term.column];
                 let test = &self.fields[term.row];

@@ -234,6 +234,7 @@ fn affine_coefficient_directions_cannot_bypass_value_only_contracts() {
         .iter()
         .find(|coordinate| coordinate.symbol() == input)
         .unwrap();
+    assert!(row.affine_in(&selected).unwrap());
     for value in [0., 2.] {
         // x²*y remains affine in y when x is held fixed.
         assert!(
@@ -280,6 +281,7 @@ fn an_affine_material_law_still_requires_derivative_permission() {
             .map(|coordinate| (coordinate.clone(), 3.))
             .collect::<Vec<_>>();
         let permitted = profile == PropertyDerivatives::FirstPartials;
+        assert_eq!(row.affine_in(&selected).unwrap(), permitted);
         assert_eq!(row.bind_affine(&selected, &bindings).is_ok(), permitted);
     }
 }

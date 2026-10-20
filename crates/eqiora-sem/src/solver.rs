@@ -83,7 +83,12 @@ where
             // Both probes read the same trial state; neither commits a step.
             let (perturbed_residuals, signed_step) = match evaluate(1.0) {
                 Ok(result) => (result, step),
-                Err(error) if error.code() == codes::NONFINITE_EVALUATION => {
+                Err(error)
+                    if matches!(
+                        error.code(),
+                        codes::NONFINITE_EVALUATION | codes::EXPRESSION_DOMAIN_VIOLATION
+                    ) =>
+                {
                     (evaluate(-1.0)?, -step)
                 }
                 Err(error) => return Err(error),
@@ -253,13 +258,15 @@ mod tests {
             relative_tolerance: 0.0,
             max_iterations: 8,
         };
-        for target in [1.0, 0.5] {
+        for (target, code) in [
+            (1.0, codes::EXPRESSION_DOMAIN_VIOLATION),
+            (0.5, codes::EXPRESSION_DOMAIN_VIOLATION),
+            (1.0, codes::NONFINITE_EVALUATION),
+            (0.5, codes::NONFINITE_EVALUATION),
+        ] {
             let result = solve_initial(vec![1.0], settings, GraphPath::new(["bounded"]), |x| {
                 if x[0] > 1.0 {
-                    return Err(Diagnostic::error(
-                        codes::NONFINITE_EVALUATION,
-                        "outside domain",
-                    ));
+                    return Err(Diagnostic::error(code, "outside domain"));
                 }
                 Ok(vec![x[0] - target])
             })
@@ -269,7 +276,7 @@ mod tests {
         let error = solve_initial(vec![1.0], settings, GraphPath::new(["singular"]), |x| {
             if x[0] > 1.0 {
                 return Err(Diagnostic::error(
-                    codes::NONFINITE_EVALUATION,
+                    codes::EXPRESSION_DOMAIN_VIOLATION,
                     "outside domain",
                 ));
             }
@@ -289,14 +296,14 @@ mod tests {
         let error = solve_initial(vec![1.0], settings, GraphPath::new(["isolated"]), |x| {
             if x[0] != 1.0 {
                 return Err(Diagnostic::error(
-                    codes::NONFINITE_EVALUATION,
+                    codes::EXPRESSION_DOMAIN_VIOLATION,
                     "isolated point",
                 ));
             }
             Ok(vec![0.0])
         })
         .unwrap_err();
-        assert_eq!(error.code(), codes::NONFINITE_EVALUATION);
+        assert_eq!(error.code(), codes::EXPRESSION_DOMAIN_VIOLATION);
         let mut calls = 0;
         let error = solve_initial(vec![1.0], settings, GraphPath::new(["shape"]), |x| {
             calls += 1;

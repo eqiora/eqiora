@@ -69,6 +69,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     flux,
                     terms,
                     dyadics: Vec::new(),
+                    components: Vec::new(),
                     forcing: vec![row.forcing],
                 };
                 row.require_positive_scalar_diffusion();
@@ -179,7 +180,18 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         &self,
         point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
-        self.map_data(&|value| value.bind_parameter_point(point))
+        let mut bound = self.map_data(&|value| value.bind_parameter_point(point))?;
+        for row in &mut bound.rows {
+            for term in &mut row.components {
+                term.value = std::sync::Arc::new(term.value.bind_parameter_point(point)?);
+            }
+            for flux in &mut row.flux {
+                if let super::flux::FluxTerm::Component(term) = flux {
+                    term.value = std::sync::Arc::new(term.value.bind_parameter_point(point)?);
+                }
+            }
+        }
+        Ok(bound)
     }
 
     pub(super) fn map_data(
@@ -197,6 +209,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
+        if self.rows.iter().any(|row| !row.components.is_empty()) {
+            return Err(invalid(
+                "nonlinear component Parameter actions require their mixed scalar IR products",
+            ));
+        }
         let mut partial = self.map_data(&|value| {
             value.derivative(&|input| f64::from(input == coordinate), self.dimension)
         })?;
@@ -239,6 +256,9 @@ impl<S: Coefficient> Row<S> {
             *component = map(component)?;
         }
         for term in &mut self.dyadics {
+            term.coefficient = map(&term.coefficient)?;
+        }
+        for term in &mut self.components {
             term.coefficient = map(&term.coefficient)?;
         }
         for term in &mut self.terms {

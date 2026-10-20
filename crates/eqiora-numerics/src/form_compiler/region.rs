@@ -63,6 +63,7 @@ struct Row<S: Coefficient> {
     value_type: ValueType,
     terms: Vec<Term<S>>,
     dyadics: Vec<nonlinear::DyadicTerm<S>>,
+    components: Vec<nonlinear::ComponentTerm<S>>,
     flux: Vec<flux::FluxTerm<S>>,
     forcing: Vec<Data<S>>,
 }
@@ -174,6 +175,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 value_type: value_type.clone(),
                 terms: Vec::new(),
                 dyadics: Vec::new(),
+                components: Vec::new(),
                 flux: Vec::new(),
                 forcing: vec![
                     Data::constant(dimension, <S as From<f64>>::from(0.0));
@@ -263,7 +265,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     }
 
     pub(crate) fn is_nonlinear(&self) -> bool {
-        self.rows.iter().any(|row| !row.dyadics.is_empty())
+        self.rows.iter().any(Row::is_nonlinear)
     }
 
     pub(crate) fn rows(&self) -> impl Iterator<Item = (RawId, RawId, &ValueType)> {
@@ -308,6 +310,13 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         if !self.roles.constraints.is_empty() {
             rules.insert(MixedFormulationRule::ContinuityConstraintPairing.id());
         }
+        for term in self.rows.iter().flat_map(|row| &row.components) {
+            rules.insert(if term.test.requires_gradient() {
+                FormulationRule::DivergenceByParts.id()
+            } else {
+                FormulationRule::ValuePairing.id()
+            });
+        }
         rules
     }
 
@@ -318,7 +327,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(crate) fn requires_boundary(&self, field: RawId) -> bool {
         self.rows
             .iter()
-            .any(|row| row.tested == field && (!row.flux.is_empty() || !row.dyadics.is_empty()))
+            .any(|row| row.tested == field && row.has_boundary_flux())
             && !self
                 .constraint_pairs()
                 .any(|(_, multiplier)| multiplier == field)
@@ -328,6 +337,16 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         self.rows
             .iter()
             .map(|row| (row.tested, &self.roles.fields[&row.tested].1))
+    }
+}
+
+impl<S: Coefficient> Row<S> {
+    fn has_boundary_flux(&self) -> bool {
+        !self.flux.is_empty() || !self.dyadics.is_empty()
+    }
+
+    fn is_nonlinear(&self) -> bool {
+        !self.dyadics.is_empty() || !self.components.is_empty()
     }
 }
 

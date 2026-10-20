@@ -197,7 +197,7 @@ fn previous_data_is_exactly_consumed_physical_fields_and_checked_before_evaluati
 }
 
 #[test]
-fn nonlinear_and_coordinate_dependent_outer_multipliers_are_rejected() {
+fn constitutive_unknowns_are_retained_and_coordinate_outer_multipliers_reject() {
     let nonlinear = MIXED
         .replace(
             "parameter density",
@@ -207,12 +207,7 @@ fn nonlinear_and_coordinate_dependent_outer_multipliers_are_rejected() {
             "2 * viscosity * symmetric_part",
             "2 * viscosity * (1 + p / reference) * symmetric_part",
         );
-    assert!(
-        derive(&nonlinear)
-            .unwrap_err()
-            .message()
-            .contains("nonlinear unknown-dependent")
-    );
+    assert!(derive(&nonlinear).unwrap().is_nonlinear());
     let product = MIXED
         .replace(
             "parameter density",
@@ -275,7 +270,7 @@ fn coefficient_chains_and_mixed_rows_ignore_names_and_declaration_order() {
 }
 
 #[test]
-fn pointwise_principal_selection_does_not_admit_nonlinear_reaction() {
+fn pointwise_principal_selection_retains_nonlinear_reaction() {
     let source = "model Algebraic() {
         domain body = box(0, 2, 0, 3);
         variable u: 1 on body;
@@ -283,9 +278,7 @@ fn pointwise_principal_selection_does_not_admit_nonlinear_reaction() {
     }";
     let form = derive(source).unwrap();
     assert!(!form.requires_boundary(form.fields().next().unwrap().0));
-    let error = derive(&source.replace("2*u", "u*u")).unwrap_err();
-    assert!(
-        error.message().contains("nonlinear unknown-dependent"),
-        "{error:?}"
-    );
+    let nonlinear = derive(&source.replace("2*u", "u*u")).unwrap();
+    assert!(nonlinear.is_nonlinear());
+    assert!(!nonlinear.requires_boundary(nonlinear.fields().next().unwrap().0));
 }

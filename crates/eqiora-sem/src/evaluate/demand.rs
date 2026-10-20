@@ -287,7 +287,7 @@ impl Evaluator<'_, '_> {
                             ExprNode::Require { value, .. } if condition => *value,
                             _ => {
                                 return Err(Diagnostic::error(
-                                    codes::NONFINITE_EVALUATION,
+                                    codes::EXPRESSION_DOMAIN_VIOLATION,
                                     "required expression domain condition is false",
                                 ));
                             }

@@ -1,6 +1,7 @@
 //! Distinct transport coefficients prevent missing interface fluxes from cancelling.
 use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
+mod material;
 mod stationary;
 
 fn source(connections: bool, force: f64) -> String {

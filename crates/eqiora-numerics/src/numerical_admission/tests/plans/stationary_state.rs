@@ -1,6 +1,174 @@
 use super::*;
 
 #[test]
+fn stationary_material_flux_matches_nonzero_natural_data_without_double_counting() {
+    let geometry = cartesian_interval();
+    let source = POISSON_INTERVAL
+        .replace("on body in h1", "on body in smooth")
+        .replace(
+            "-div(grad(potential)) - source_scale",
+            "-div((1+potential^2)*grad(potential))+2*(1+coordinate(0)/1[m])/1[m^2]",
+        )
+        .replace(
+            "left { trace(potential) = 0; }",
+            "left { trace(potential) = 1; }",
+        )
+        .replace(
+            "right { trace(potential) = 0; }",
+            "right { normal((1+potential^2)*grad(potential)) = 5[1/m]; }",
+        );
+    let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
+    let plan = ResolvedCommonPlan::resolve(
+        &model,
+        cartesian_box_resources(&geometry, &[2]),
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Newton {
+            linear: exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-13,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+            ),
+            nonlinear: NonlinearSolvePlan::new(0., 1e-11, NonZeroUsize::new(16).unwrap(), 16)
+                .unwrap(),
+        },
+        None,
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
+    let spatial = plan.as_spatial().unwrap();
+    let field = spatial.fields().next().unwrap().0;
+    let initial = spatial
+        .initial_state(
+            None,
+            vec![
+                CommonInitialField::new(
+                    model.digest().unwrap(),
+                    field,
+                    Some(
+                        CommonInitialValues::new(eqiora_core::ValueShape::scalar(), vec![1.; 3])
+                            .unwrap(),
+                    ),
+                    None,
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+    let result = spatial
+        .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    assert!(result.nonlinear_iterations(None).unwrap() > 1);
+    // On [0,1], u=1+x gives q=(1+u²)u', q'=2(1+x), q(1)=5.
+    // Both the volume load and the outward datum are nonzero; adding q again
+    // on the natural facet cannot satisfy these exact nodal values.
+    for (actual, expected) in result
+        .field_block(0, 0)
+        .unwrap()
+        .1
+        .iter()
+        .zip([1., 1.5, 2.])
+    {
+        assert!((actual - expected).abs() < 1e-11, "{actual} != {expected}");
+    }
+    assert_eq!(
+        crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+        result
+    );
+    assert!(
+        crate::CommonResult::from_bytes(
+            &result_replay::reseal_values(&result, 0, &[1., 1.5, 2.25]),
+            &plan,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
+    let geometry = cartesian_interval();
+    for flux in [false, true] {
+        let diffusion = if flux {
+            "-div((1+potential^2)*grad(potential))"
+        } else {
+            "-div(grad(potential))"
+        };
+        let source = POISSON_INTERVAL
+            .replace(
+                "-div(grad(potential)) - source_scale",
+                &format!("{diffusion}+potential^2/1[m^2]-4*source_scale"),
+            )
+            .replace("trace(potential) = 0", "trace(potential) = 2");
+        let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
+        let plan = ResolvedCommonPlan::resolve(
+            &model,
+            cartesian_box_resources(&geometry, &[2]),
+            CommonSpatialPolicy::Q1,
+            CommonSolvePolicy::Newton {
+                linear: exact_reference_linear(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-13,
+                    1e-14,
+                    NonZeroUsize::new(100).unwrap(),
+                ),
+                nonlinear: NonlinearSolvePlan::new(0., 1e-11, NonZeroUsize::new(16).unwrap(), 16)
+                    .unwrap(),
+            },
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
+        let spatial = plan.as_spatial().unwrap();
+        let field = spatial.fields().next().unwrap().0;
+        let initial = spatial
+            .initial_state(
+                None,
+                vec![
+                    CommonInitialField::new(
+                        model.digest().unwrap(),
+                        field,
+                        Some(
+                            CommonInitialValues::new(
+                                eqiora_core::ValueShape::scalar(),
+                                vec![2., 0., 2.],
+                            )
+                            .unwrap(),
+                        ),
+                        None,
+                    )
+                    .unwrap(),
+                ],
+            )
+            .unwrap();
+        let result = spatial
+            .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        assert!(result.nonlinear_iterations(None).unwrap() > 1);
+        // u=2 makes both the complete nonlinear source residual and gradient zero.
+        for value in result.field_block(0, 0).unwrap().1 {
+            assert!((value - 2.).abs() < 1e-11);
+        }
+        assert_eq!(
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+            result
+        );
+        assert!(
+            crate::CommonResult::from_bytes(
+                &result_replay::reseal_values(&result, 0, &[2., 2.25, 2.]),
+                &plan
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn stationary_newton_retains_seed_history_and_replays_original_equations() {
     let geometry = cartesian_interval();
     let model = scalar_box_model(

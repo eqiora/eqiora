@@ -264,7 +264,7 @@ removal = "fold label key and role types only when an existing exact occurrence 
 
 [[public_surface]]
 crate = "eqiora-core"
-ceiling = 119
+ceiling = 118
 # #922: TimeStateCoordinate owns the complete source coordinate shared by time
 # lowering, artifact reconstruction, initialization and tolerance authoring.
 # ScalarDomain/ScalarType now have only their root route (scalar is private),

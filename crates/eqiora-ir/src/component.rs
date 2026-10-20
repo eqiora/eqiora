@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod affine_tests;
+#[cfg(test)]
+mod affinity_tests;
 mod complex;
 mod coordinate;
 use coordinate::ScalarPart;
@@ -85,6 +87,18 @@ impl ComponentScalarRow {
     #[must_use]
     pub fn polynomial_degree(&self, inputs: &[Option<usize>]) -> Option<usize> {
         self.ir.polynomial_degree(inputs)
+    }
+
+    /// Conservatively classify affine dependence on selected coordinates.
+    /// Other inputs remain symbolic coefficients, never sampled values. Guards
+    /// and branch choices must be independent of the selection, and retained
+    /// primal intermediates must also be affine. A false result is not a proof
+    /// of nonlinearity. Ordinary evaluation still checks every demanded domain.
+    ///
+    /// # Errors
+    /// Rejects duplicate selected coordinates or malformed scalar IR.
+    pub fn affine_in(&self, selected: &[ScalarSymbolCoordinate]) -> Result<bool, Diagnostic> {
+        self.ir.affine_in(selected)
     }
 
     /// Prove a row Jacobian constant with respect to every other source coordinate.

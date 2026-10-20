@@ -21,7 +21,9 @@ pub(crate) struct NewtonTrial<L> {
 
 /// The correction solves the caller's exact linearized equation. `trial` returns
 /// `None` only for a recognized point-dependent admissibility failure; ordinary
-/// diagnostics propagate. Physical acceptance remains the caller's obligation.
+/// diagnostics propagate. Expression-domain violations are also rejected trials,
+/// only at this speculative boundary. Initial and accepted linearizations still
+/// propagate every error. Physical acceptance remains the caller's obligation.
 pub(crate) fn solve_damped_newton<L>(
     mut point: Vec<f64>,
     plan: NonlinearSolvePlan,
@@ -87,7 +89,10 @@ pub(crate) fn solve_damped_newton<L>(
             let evaluated = {
                 let _span =
                     eqiora_execution::telemetry_span!(assembly("line_search_trial")).entered();
-                trial(&candidate)?
+                match trial(&candidate) {
+                    Err(error) if error.code() == codes::EXPRESSION_DOMAIN_VIOLATION => None,
+                    evaluated => evaluated?,
+                }
             };
             if let Some(evaluated) = evaluated {
                 let trial_norm = checked_norm(evaluated.residual_norm)?;

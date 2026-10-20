@@ -105,7 +105,7 @@ impl ErrorCategory {
             "EQ0002" => Self::Internal,
             "EQ0901" => Self::Compatibility,
             "EQ0506" => Self::Cancellation,
-            "EQ0501" | "EQ0504" | "EQ0505" | "EQ0802" => Self::Execution,
+            "EQ0501" | "EQ0504" | "EQ0505" | "EQ0507" | "EQ0802" => Self::Execution,
             _ => Self::Validation,
         }
     }
@@ -469,6 +469,7 @@ mod tests {
             ErrorCategory::Capability
         );
         assert_eq!(ErrorCategory::from_code("EQ0504"), ErrorCategory::Execution);
+        assert_eq!(ErrorCategory::from_code("EQ0507"), ErrorCategory::Execution);
         assert_eq!(
             ErrorCategory::from_code("EQ0506"),
             ErrorCategory::Cancellation

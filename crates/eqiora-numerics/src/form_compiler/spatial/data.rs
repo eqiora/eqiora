@@ -24,6 +24,7 @@ mod components;
 mod coordinates;
 pub(in crate::form_compiler) use components::Components;
 mod degree;
+pub(in crate::form_compiler) mod field_components;
 mod input;
 mod pointwise;
 

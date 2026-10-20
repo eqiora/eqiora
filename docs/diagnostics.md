@@ -46,6 +46,7 @@ strings.
 | `EQ0504` | The reference nonlinear solve did not converge or is singular, including deficient continuous equation incidence with the overdetermined/underdetermined equation and unknown blocks |
 | `EQ0505` | Expression or solver evaluation produced a non-finite value |
 | `EQ0506` | Execution was cancelled at a safe point |
+| `EQ0507` | A required expression-domain condition or mathematical domain rule rejects the supplied point; distinct from overflow, malformed expressions and missing inputs |
 | `EQ0601` | Source text contains an invalid token |
 | `EQ0602` | Source text does not satisfy the Eqiora Language grammar |
 | `EQ0603` | A source name or static type cannot be resolved |

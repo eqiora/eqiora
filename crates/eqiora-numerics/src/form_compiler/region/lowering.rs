@@ -32,6 +32,7 @@ pub(super) fn boundary_flux<S: Coefficient>(
     let mut boundary = row.clone();
     boundary.terms.clear();
     boundary.dyadics.clear();
+    boundary.components.clear();
     boundary.flux.clear();
     expression(
         context,
@@ -86,10 +87,7 @@ fn expression<S: Coefficient>(
                 recurse(*b, coefficient.multiply(data), row)
             } else if let Ok(data) = context.data(*b, depth + 1) {
                 recurse(*a, coefficient.multiply(data), row)
-            } else if matches!(position, Position::Strong | Position::Flux)
-                && (context.components(*a, depth + 1).is_ok()
-                    || context.components(*b, depth + 1).is_ok())
-            {
+            } else if matches!(position, Position::Strong | Position::Flux) {
                 components::lower(
                     context,
                     id,
@@ -104,7 +102,24 @@ fn expression<S: Coefficient>(
                 ))
             }
         }
-        ExprNode::Div(a, b) => recurse(*a, coefficient.divide(context.data(*b, depth + 1)?), row),
+        ExprNode::Div(a, b) => {
+            if let Ok(data) = context.data(*b, depth + 1) {
+                recurse(*a, coefficient.divide(data), row)
+            } else if matches!(position, Position::Strong | Position::Flux) {
+                components::lower(
+                    context,
+                    id,
+                    coefficient,
+                    row,
+                    matches!(position, Position::Flux),
+                    depth + 1,
+                )
+            } else {
+                Err(invalid(
+                    "nonlinear divisor requires a pointwise component action",
+                ))
+            }
+        }
         ExprNode::Constant(value) if value.is_zero() => {
             if coefficient.spatial() {
                 return Err(invalid(
@@ -270,9 +285,7 @@ fn expression<S: Coefficient>(
                 }) != field
                 || context.coefficients.contains_key(&field.unwrap())
             {
-                return Err(invalid(
-                    "dyadic flux requires the exact operator and identical trial Fields",
-                ));
+                return components::lower(context, id, coefficient, row, true, depth + 1);
             }
             row.dyadics.push(super::nonlinear::DyadicTerm {
                 field: field.unwrap(),

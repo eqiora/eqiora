@@ -343,17 +343,13 @@ fn nonsymmetric_two_and_three_field_blocks_keep_every_off_diagonal() {
 }
 
 #[test]
-fn nonlinear_coefficients_and_incomplete_boundaries_reject() {
+fn nonlinear_coefficients_retain_complete_boundary_requirements() {
     let valid = source(&[vec![1.0]], false);
     for mutated in [
         valid.replace("2 * grad(f0)", "f0 * grad(f0)"),
         valid.replace("unit * f0", "unit * f0 * f0"),
     ] {
-        let error = derive(&mutated).unwrap_err();
-        assert!(
-            error.message().contains("unknown-dependent") || error.message().contains("nonlinear"),
-            "{error:?}"
-        );
+        assert!(derive(&mutated).unwrap().is_nonlinear());
     }
     assert!(
         derive(&valid.replace("relation right0 on right { trace(f0) = 0; }", ""))

@@ -6,6 +6,29 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::{BoundRegionForm, Data, invalid};
+use crate::form_compiler::bilinear::BasisComponent;
+use crate::form_compiler::spatial::data::field_components::FieldComponent;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct ComponentTerm<S: crate::spatial_expression::Coefficient> {
+    pub test: BasisComponent,
+    pub value: std::sync::Arc<FieldComponent<S>>,
+    pub coefficient: Data<S>,
+}
+
+impl<S: crate::spatial_expression::Coefficient> ComponentTerm<S> {
+    pub(super) fn same_component(&self, other: &Self) -> bool {
+        self.test == other.test && self.value.same_expression(&other.value)
+    }
+
+    pub(super) fn add_coefficient(&mut self, other: &Self) -> bool {
+        if !self.same_component(other) {
+            return false;
+        }
+        self.coefficient = self.coefficient.clone().add(other.coefficient.clone());
+        true
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct DyadicTerm<S: crate::spatial_expression::Coefficient> {

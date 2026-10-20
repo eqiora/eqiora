@@ -89,6 +89,8 @@ pub mod codes {
     pub const NONFINITE_EVALUATION: Code = Code("EQ0505");
     /// Cooperative execution cancellation was accepted at a safe boundary.
     pub const EXECUTION_CANCELLED: Code = Code("EQ0506");
+    /// An expression is undefined at the supplied point under its domain rules.
+    pub const EXPRESSION_DOMAIN_VIOLATION: Code = Code("EQ0507");
     /// Eqiora Language input contains an invalid token.
     pub const INVALID_TOKEN: Code = Code("EQ0601");
     /// Eqiora Language input does not satisfy the source grammar.

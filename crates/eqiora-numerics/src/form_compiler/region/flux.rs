@@ -7,6 +7,7 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum FluxTerm<S: Coefficient> {
     Trial(Term<S>),
+    Component(nonlinear::ComponentTerm<S>),
     // A uniform isotropic tensor has zero volume divergence, but its outward
     // traction is its scalar coefficient times the exact parent normal.
     Isotropic(Data<S>),
@@ -21,6 +22,7 @@ impl<S: Coefficient> FluxTerm<S> {
     fn add_coefficient(&mut self, other: &Self) -> bool {
         let (left, right) = match (self, other) {
             (Self::Trial(a), Self::Trial(b)) => return a.add_coefficient(b),
+            (Self::Component(a), Self::Component(b)) => return a.add_coefficient(b),
             (Self::Isotropic(a), Self::Isotropic(b)) => (a, b),
             (
                 Self::Prescribed {
@@ -49,7 +51,7 @@ impl<S: Coefficient> FluxTerm<S> {
         components: usize,
     ) -> Result<Option<(&Data<S>, impl Iterator<Item = usize>)>, Diagnostic> {
         let (data, start, count, stride) = match self {
-            Self::Trial(_) => return Ok(None),
+            Self::Trial(_) | Self::Component(_) => return Ok(None),
             Self::Isotropic(value) if components == dimension => {
                 (value, 0, dimension, dimension + 1)
             }
@@ -74,6 +76,9 @@ impl<S: Coefficient> FluxTerm<S> {
 
     fn same_coefficient(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Component(a), Self::Component(b)) => {
+                a.same_component(b) && a.coefficient.same_coefficient(&b.coefficient)
+            }
             (Self::Trial(a), Self::Trial(b)) => {
                 a.trial == b.trial
                     && a.derivative == b.derivative
@@ -103,6 +108,7 @@ impl<S: Coefficient> FluxTerm<S> {
     ) -> Result<(), Diagnostic> {
         let coefficient = match self {
             Self::Trial(term) => &mut term.coefficient,
+            Self::Component(term) => &mut term.coefficient,
             Self::Isotropic(coefficient)
             | Self::Prescribed {
                 value: coefficient, ..
@@ -117,26 +123,12 @@ impl<S: Coefficient> Row<S> {
     /// Collect by exact trial/derivative/pairing identity before coefficient
     /// validation. Keep the full Data expression, including cancelled domains.
     pub(super) fn collect_coefficients(&mut self) {
-        let mut terms: Vec<Term<S>> = Vec::new();
-        for term in std::mem::take(&mut self.terms) {
-            if !terms
-                .iter_mut()
-                .any(|existing| existing.add_coefficient(&term))
-            {
-                terms.push(term);
-            }
-        }
-        self.terms = terms;
-        let mut flux: Vec<FluxTerm<S>> = Vec::new();
-        for term in std::mem::take(&mut self.flux) {
-            if !flux
-                .iter_mut()
-                .any(|existing| existing.add_coefficient(&term))
-            {
-                flux.push(term);
-            }
-        }
-        self.flux = flux;
+        collect(&mut self.terms, Term::add_coefficient);
+        collect(
+            &mut self.components,
+            nonlinear::ComponentTerm::add_coefficient,
+        );
+        collect(&mut self.flux, FluxTerm::add_coefficient);
     }
 }
 
@@ -207,6 +199,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .map(|mut term| {
                     let coefficient = match &mut term {
                         FluxTerm::Trial(term) => &mut term.coefficient,
+                        FluxTerm::Component(term) => &mut term.coefficient,
                         FluxTerm::Isotropic(value) | FluxTerm::Prescribed { value, .. } => value,
                     };
                     *coefficient = coefficient
@@ -239,4 +232,14 @@ fn same_flux<S: Coefficient>(expected: &[FluxTerm<S>], mut candidate: Vec<FluxTe
         candidate.remove(index);
     }
     true
+}
+
+fn collect<T>(terms: &mut Vec<T>, add: impl Fn(&mut T, &T) -> bool) {
+    let mut collected = Vec::new();
+    for term in std::mem::take(terms) {
+        if !collected.iter_mut().any(|existing| add(existing, &term)) {
+            collected.push(term);
+        }
+    }
+    *terms = collected;
 }
