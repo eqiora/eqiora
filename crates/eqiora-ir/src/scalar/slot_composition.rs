@@ -1,6 +1,85 @@
 //! Substitute scalar inputs without evaluating values or losing demanded domains.
 use super::*;
 
+/// Structural operand closure shared by directional emission and substitution.
+pub(super) fn required_instructions(
+    instructions: &[Instruction],
+    roots: &[ValueId],
+) -> Result<Vec<bool>, Diagnostic> {
+    required_with_conditions(instructions, roots, true)
+}
+
+/// Formal differentiation retains a Require predicate verbatim, without traversing
+/// its inactive Boolean branches as separate derivative/domain obligations.
+pub(super) fn required_derivative_instructions(
+    instructions: &[Instruction],
+    roots: &[ValueId],
+) -> Result<Vec<bool>, Diagnostic> {
+    required_with_conditions(instructions, roots, false)
+}
+
+fn required_with_conditions(
+    instructions: &[Instruction],
+    roots: &[ValueId],
+    include_conditions: bool,
+) -> Result<Vec<bool>, Diagnostic> {
+    let mut needed = vec![false; instructions.len()];
+    for root in roots {
+        *needed
+            .get_mut(root.0 as usize)
+            .ok_or_else(|| ir_builder_error("scalar root is unavailable"))? = true;
+    }
+    for index in (0..needed.len()).rev() {
+        if !needed[index] {
+            continue;
+        }
+        let instruction = instructions[index];
+        if !include_conditions && let Instruction::Require { value, .. } = instruction {
+            needed[value.0 as usize] = true;
+        } else if let Instruction::CoefficientJet { start, len, shape } = instruction {
+            for operand in
+                coefficient_jet::operands(start, len, shape, &instructions[..index])?.iter()
+            {
+                needed[operand.0 as usize] = true;
+            }
+        } else if let Instruction::MapInvariant { start, extent, .. } = instruction {
+            for operand in map_evaluation::operand_range(start, extent, index)? {
+                needed[operand] = true;
+            }
+        } else if instruction
+            .map_scalar_operands(|id| {
+                needed[id.0 as usize] = true;
+                id
+            })
+            .is_none()
+        {
+            return Err(ir_builder_error(
+                "scalar instruction has no scalar operands",
+            ));
+        }
+    }
+    Ok(needed)
+}
+
+/// Conservative allocation work for relocation, including primitive gathers.
+pub(super) fn relocation_work(instructions: &[Instruction]) -> Result<usize, Diagnostic> {
+    instructions
+        .iter()
+        .try_fold(0usize, |work, instruction| {
+            let extra = match instruction {
+                Instruction::CoefficientJet { len, .. } => (*len as usize)
+                    .checked_mul(4)
+                    .and_then(|n| n.checked_add(1)),
+                Instruction::MapInvariant { extent, .. } => (*extent as usize)
+                    .checked_mul(*extent as usize)
+                    .and_then(|n| n.checked_add(1)),
+                _ => Some(0),
+            };
+            work.checked_add(extra?).and_then(|n| n.checked_add(1))
+        })
+        .ok_or_else(ir_size_error)
+}
+
 /// Relocate scalar operands, regathering primitives whose inputs must be contiguous.
 /// Guard projection and input composition use the same relocation rules.
 pub(super) fn remap_instruction(
@@ -47,56 +126,117 @@ impl ScalarInputIrBuilder {
         &mut self,
         source: &ScalarInputOperatorIr,
         inputs: &[ScalarInputValueId],
-        mut charge: impl FnMut(usize) -> Result<(), Diagnostic>,
+        charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Vec<ScalarInputValueId>, Diagnostic> {
         require_length(inputs, source.slots.len(), "scalar composition inputs")?;
         for &input in inputs {
             self.require_prior(input)?;
         }
+        self.compose_parts(
+            &source.instructions,
+            &source.typed_constants,
+            &source.primal_checks,
+            &source.roots,
+            inputs,
+            charge,
+        )
+    }
+
+    /// Create an input local to a calculus scope, without a fabricated Semantic identity.
+    pub(crate) fn scoped_input(
+        &mut self,
+        dimension: eqiora_core::DimExponents,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        let index = u32::try_from(self.slots.len()).map_err(|_| ir_size_error())?;
+        self.slots.push(BuilderInput::Formal(dimension));
+        self.push(Instruction::Read(SymbolSlot(index)))
+    }
+
+    /// Bind a completed scope only after its independent formal actions are emitted.
+    pub(crate) fn compose_scoped(
+        &mut self,
+        source: Self,
+        roots: &[ScalarInputValueId],
+        inputs: &[(ScalarInputValueId, eqiora_core::DimExponents)],
+        charge: impl FnMut(usize) -> Result<(), Diagnostic>,
+    ) -> Result<Vec<ScalarInputValueId>, Diagnostic> {
+        require_length(inputs, source.slots.len(), "scoped scalar inputs")?;
+        for (slot, &(input, dimension)) in source.slots.iter().zip(inputs) {
+            match slot {
+                BuilderInput::Formal(expected) if *expected == dimension => {}
+                _ => {
+                    return Err(ir_builder_error(
+                        "scoped scalar input has a different type or owner",
+                    ));
+                }
+            }
+            self.require_prior(input)?;
+        }
+        for &root in roots {
+            source.require_prior(root)?;
+        }
+        let roots = roots.iter().map(|id| id.0).collect::<Vec<_>>();
+        let inputs = inputs.iter().map(|(value, _)| *value).collect::<Vec<_>>();
+        self.compose_parts(
+            &source.instructions,
+            &source.typed_constants,
+            &source.primal_checks,
+            &roots,
+            &inputs,
+            charge,
+        )
+    }
+
+    fn compose_parts(
+        &mut self,
+        instructions: &[Instruction],
+        typed_constants: &[eqiora_core::ValueLiteral],
+        primal_checks: &[ValueId],
+        roots: &[ValueId],
+        inputs: &[ScalarInputValueId],
+        mut charge: impl FnMut(usize) -> Result<(), Diagnostic>,
+    ) -> Result<Vec<ScalarInputValueId>, Diagnostic> {
         // Include every copied instruction and the worst-case primitive gathers.
         // Charge before allocation/emission against the caller's existing budget.
-        let work = source
-            .instructions
-            .iter()
-            .try_fold(0usize, |work, instruction| {
-                let extra = match instruction {
-                    Instruction::CoefficientJet { len, .. } => (*len as usize)
-                        .checked_mul(4)
-                        .and_then(|n| n.checked_add(1)),
-                    Instruction::MapInvariant { extent, .. } => (*extent as usize)
-                        .checked_mul(*extent as usize)
-                        .and_then(|n| n.checked_add(1)),
-                    _ => Some(0),
-                };
-                work.checked_add(extra?).and_then(|n| n.checked_add(1))
-            })
-            .ok_or_else(ir_size_error)?;
+        let work = relocation_work(instructions)?;
         charge(work)?;
-        let mut mapped = Vec::with_capacity(source.instructions.len());
+        let demands = roots
+            .iter()
+            .chain(primal_checks)
+            .copied()
+            .collect::<Vec<_>>();
+        let needed = required_instructions(instructions, &demands)?;
+        let mut mapped = Vec::with_capacity(instructions.len());
         let mut map_entries = HashMap::new();
-        for (index, instruction) in source.instructions.iter().enumerate() {
+        for (index, instruction) in instructions.iter().enumerate() {
+            if !needed[index] {
+                mapped.push(None);
+                continue;
+            }
             let value = if let Instruction::Read(slot) = instruction {
                 inputs[slot.0 as usize]
             } else if let Instruction::TypedConstant(literal) = instruction {
-                self.typed_constant(source.typed_constants[*literal as usize].clone())?
+                self.typed_constant(typed_constants[*literal as usize].clone())?
             } else {
                 let instruction = remap_instruction(
-                    &source.instructions,
+                    instructions,
                     index,
                     &mut self.instructions,
                     &mut map_entries,
-                    |id| mapped[id.0 as usize],
+                    |id| mapped[id.0 as usize].expect("demanded scalar operand"),
                 )?;
                 self.push(instruction)?
             };
-            mapped.push(value.0);
+            mapped.push(Some(value.0));
         }
-        self.primal_checks
-            .extend(source.primal_checks.iter().map(|id| mapped[id.0 as usize]));
-        Ok(source
-            .roots
+        self.primal_checks.extend(
+            primal_checks
+                .iter()
+                .map(|id| mapped[id.0 as usize].expect("demanded primal check")),
+        );
+        Ok(roots
             .iter()
-            .map(|id| ScalarInputValueId(mapped[id.0 as usize]))
+            .map(|id| ScalarInputValueId(mapped[id.0 as usize].expect("demanded scalar root")))
             .collect())
     }
 }
@@ -106,6 +246,91 @@ mod tests {
     use super::*;
     use eqiora_core::{DimExponents, DynQuantity};
     use eqiora_schema::kernel::UnaryMathFunction;
+
+    #[test]
+    fn scoped_partial_precedes_aliased_input_substitution_and_keeps_scaled_division() {
+        let dimension = DimExponents::DIMENSIONLESS;
+        let mut scope = ScalarInputIrBuilder::new();
+        let numerator = scope.scoped_input(dimension).unwrap();
+        let denominator = scope.scoped_input(dimension).unwrap();
+        let quotient = scope.div(numerator, denominator).unwrap();
+        let one = scope.constant(DynQuantity::new(1., dimension)).unwrap();
+        let partial = scope
+            .formal_directional(quotient, &[None, Some(one)], dimension, |_| Ok(()))
+            .unwrap();
+
+        let mut destination = ScalarInputIrBuilder::new();
+        let same_value = destination
+            .constant(DynQuantity::new(1e-200, dimension))
+            .unwrap();
+        let roots = destination
+            .compose_scoped(
+                scope,
+                &[partial],
+                &[(same_value, dimension), (same_value, dimension)],
+                |_| Ok(()),
+            )
+            .unwrap();
+        let result = destination.finish(roots).unwrap().evaluate(&[]).unwrap();
+        // The independent partial d(a/b)/db is -1e200 at a=b=1e-200.
+        // Substituting a=b before differentiation would incorrectly give zero;
+        // materializing b² would underflow and lose the representable result.
+        assert!((result[0] / -1e200 - 1.).abs() <= 16. * f64::EPSILON);
+    }
+
+    #[test]
+    fn scoped_inputs_cannot_escape_or_acquire_a_different_dimension() {
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let mut scope = ScalarInputIrBuilder::new();
+        let input = scope.scoped_input(length).unwrap();
+        assert!(scope.finish([input]).is_err());
+
+        let mut scope = ScalarInputIrBuilder::new();
+        let input = scope.scoped_input(length).unwrap();
+        let mut destination = ScalarInputIrBuilder::new();
+        let value = destination
+            .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+            .unwrap();
+        assert!(
+            destination
+                .compose_scoped(
+                    scope,
+                    &[input],
+                    &[(value, DimExponents::DIMENSIONLESS)],
+                    |_| Ok(())
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn scoped_substitution_omits_unrequested_overflow_but_retains_explicit_checks() {
+        for demand_original in [false, true] {
+            let dimension = DimExponents::DIMENSIONLESS;
+            let mut scope = ScalarInputIrBuilder::new();
+            let x = scope.scoped_input(dimension).unwrap();
+            let square = scope.mul(x, x).unwrap();
+            let two = scope.constant(DynQuantity::new(2., dimension)).unwrap();
+            let partial = scope.mul(two, x).unwrap();
+            if demand_original {
+                scope.primal_checks.push(square.0);
+            }
+            let mut destination = ScalarInputIrBuilder::new();
+            let x = destination
+                .constant(DynQuantity::new(1e200, dimension))
+                .unwrap();
+            let roots = destination
+                .compose_scoped(scope, &[partial], &[(x, dimension)], |_| Ok(()))
+                .unwrap();
+            let result = destination.finish(roots).unwrap().evaluate(&[]);
+            if demand_original {
+                assert!(result.is_err());
+            } else {
+                // d(x²)/dx=2x is finite here, although x² is not representable.
+                assert_eq!(result.unwrap(), [2e200]);
+            }
+        }
+    }
 
     #[test]
     fn composition_relocates_boolean_constants_and_keeps_inactive_domains_lazy() {

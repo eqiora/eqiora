@@ -1,11 +1,13 @@
 id = "language.formal-partials"
 status = "implemented"
-scope = "explicit-real-scalar-polynomial-partials-at-independent-declared-bindings"
+scope = "explicit-real-scalar-polynomial-elementary-and-quotient-partials-at-independent-declared-bindings"
 reference_kind = "independent-product-and-composition-rule-analytic-values-and-binding-falsifiers"
 capabilities = ["two-input-formal-partials", "operator-composition-partials", "parameter-alias-chain-rule", "component-parent-parameter-identity", "dimensioned-conductivity-partial", "independence-and-unsupported-rule-falsifiers", "ordered-second-partials", "heterogeneous-jacobian-actions", "hessian-vector-actions", "real-dual-pairing", "ordered-third-partials", "cartesian-analytic-mixed-partial-observables"]
 
 [claim_boundary]
 real_scalar_polynomial_arithmetic = true
+elementary_and_quotient_first_second_partials = true
+source_and_derivative_domain_checks = true
 explicit_operator_composition = true
 parameter_alias_dependency_identity = true
 component_direct_parent_parameter_identity = true

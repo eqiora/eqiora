@@ -1,23 +1,24 @@
 //! Component selection at an already evaluated typed point. This projects
-//! coordinates only; the existing scalar derivative executor owns calculus.
+//! coordinates within scalar IR; the existing derivative executor owns calculus.
 use super::*;
 use eqiora_core::ValueLiteral;
-use eqiora_schema::kernel::{ExprDagBuilder, ExprId};
 
 impl ScalarOperatorIr {
     pub(super) fn point_components(
         &self,
         trace: &[Option<ValueLiteral>],
-    ) -> Result<(Self, Vec<ExprId>), Diagnostic> {
-        let mut builder = ExprDagBuilder::new();
-        // Preserve all input slots, including inputs absent from the selected
-        // component. Their values and differentiation roles keep their order.
-        let symbols = self
-            .symbols
-            .iter()
-            .map(|&symbol| builder.symbol(symbol))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut mapped: Vec<Vec<ExprId>> = vec![Vec::new(); self.instructions.len()];
+    ) -> Result<Self, Diagnostic> {
+        // Scalar points also need live-branch projection. Otherwise a downstream
+        // term walk can demand an inactive arm that has no evaluated value.
+        let mut instructions = (0..self.symbols.len())
+            .map(|index| Instruction::Read(SymbolSlot(index as u32)))
+            .collect::<Vec<_>>();
+        let symbols = (0..self.symbols.len())
+            .map(|index| ValueId(index as u32))
+            .collect::<Vec<_>>();
+        let mut typed_constants = Vec::new();
+        let mut mapped: Vec<Vec<ValueId>> = vec![Vec::new(); self.instructions.len()];
+        let mut map_entries = HashMap::new();
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let Some(value) = &trace[index] else { continue };
             let count = value
@@ -37,36 +38,40 @@ impl ScalarOperatorIr {
                     }
                 }
                 Instruction::Index(operand, channel) => {
-                    // Index removes the outer channel, exactly as the existing
-                    // component scalarizer's (channel, inner) coordinate rule.
                     let start = channel as usize * count;
                     components.extend_from_slice(&mapped[operand.0 as usize][start..start + count]);
                 }
-                Instruction::Constant(_) | Instruction::TypedConstant(_) => {
-                    let literal = builder.constant(value.clone())?;
-                    let extents = value.value_type().shape().extents();
-                    for flat in 0..count {
-                        let mut remaining = flat;
-                        let mut coordinates = vec![0; extents.len()];
-                        for (axis, extent) in extents.iter().enumerate().rev() {
-                            coordinates[axis] = (remaining % extent.get() as usize) as u32;
-                            remaining /= extent.get() as usize;
-                        }
-                        let mut selected = literal;
-                        for coordinate in coordinates {
-                            selected = builder.index(selected, coordinate)?;
-                        }
-                        components.push(selected);
-                    }
-                }
                 _ => {
                     for component in 0..count {
-                        let id = match instruction {
-                            Instruction::Read(slot) => symbols[slot.0 as usize],
-                            Instruction::And(a, b) | Instruction::Or(a, b)
-                                if trace[b.0 as usize].is_none() =>
-                            {
-                                at(a, component)
+                        if let Instruction::Read(slot) = instruction {
+                            components.push(symbols[slot.0 as usize]);
+                            continue;
+                        }
+                        if let Instruction::And(a, b) | Instruction::Or(a, b) = instruction
+                            && trace[b.0 as usize].is_none()
+                        {
+                            components.push(at(a, component));
+                            continue;
+                        }
+                        let instruction = match instruction {
+                            Instruction::Constant(_) | Instruction::TypedConstant(_) => {
+                                let extents = value.value_type().shape().extents();
+                                let mut remaining = component;
+                                let mut coordinates = vec![0; extents.len()];
+                                for (axis, extent) in extents.iter().enumerate().rev() {
+                                    coordinates[axis] = (remaining % extent.get() as usize) as u32;
+                                    remaining /= extent.get() as usize;
+                                }
+                                let mut selected = value.clone();
+                                for coordinate in coordinates {
+                                    selected = selected
+                                        .index(coordinate)
+                                        .map_err(|error| ir_builder_error(error.to_string()))?;
+                                }
+                                let constant = u32::try_from(typed_constants.len())
+                                    .map_err(|_| ir_size_error())?;
+                                typed_constants.push(selected);
+                                Instruction::TypedConstant(constant)
                             }
                             Instruction::Select {
                                 condition,
@@ -83,18 +88,29 @@ impl ScalarOperatorIr {
                                     else_value
                                 };
                                 let selected = at(branch, component);
-                                // Retain the predicate so active comparison ties
-                                // keep the existing derivative-boundary rejection.
-                                builder.select(at(condition, 0), selected, selected)?
+                                // Retain the live predicate's comparison boundary.
+                                Instruction::Select {
+                                    condition: at(condition, 0),
+                                    then_value: selected,
+                                    else_value: selected,
+                                }
                             }
-                            Instruction::Require { condition, value } => {
-                                builder.require(at(condition, 0), at(value, component))?
-                            }
-                            _ => self.append_instruction(&mut builder, instruction, |id| {
-                                at(id, component)
-                            })?,
+                            Instruction::Require { condition, value } => Instruction::Require {
+                                condition: at(condition, 0),
+                                value: at(value, component),
+                            },
+                            _ => slot_composition::remap_instruction(
+                                &self.instructions,
+                                index,
+                                &mut instructions,
+                                &mut map_entries,
+                                |id| at(id, component),
+                            )?,
                         };
-                        components.push(id);
+                        components.push(ValueId(
+                            u32::try_from(instructions.len()).map_err(|_| ir_size_error())?,
+                        ));
+                        instructions.push(instruction);
                     }
                 }
             }
@@ -115,12 +131,15 @@ impl ScalarOperatorIr {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let projected = Self::lower(&builder.finish(roots.iter().copied())?)?;
-        if projected.symbols != self.symbols {
-            return Err(ir_builder_error(
-                "point component projection changed input slots",
-            ));
-        }
-        Ok((projected, roots))
+        Ok(Self {
+            typed_inputs: self.typed_inputs.clone(),
+            source_values: Vec::new(),
+            instructions,
+            typed_constants,
+            roots,
+            symbols: self.symbols.clone(),
+            array_operands: Vec::new(),
+            definitions: Vec::new(),
+        })
     }
 }

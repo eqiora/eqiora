@@ -1,6 +1,104 @@
 use super::*;
 
 #[test]
+fn formal_derivative_wire_has_one_meaning_and_rejects_displaced_value_or_changed_inputs() {
+    use eqiora_core::{DimExponents, DynQuantity, ScalarDomain};
+    use eqiora_schema::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(DimExponents::DIMENSIONLESS)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let mut builder = CalculusBuilder::new([class; 2], class).unwrap();
+    let x = builder
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let y = builder
+        .push(CalculusNode::FormalComponent {
+            formal: 1,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let ratio = builder.push(CalculusNode::Div(x, y)).unwrap();
+    let partial = builder.partial(ratio, 1).unwrap();
+    let definition = builder.finish(partial).unwrap();
+    let mut dag = ExprDagBuilder::new();
+    let x = dag
+        .constant(DynQuantity::new(2., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let y = dag
+        .constant(DynQuantity::new(4., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let root = dag.pure_operator(&definition, [x, y]).unwrap();
+    let expression = dag.finish([root]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    assert_eq!(wire.decode().unwrap(), expression);
+    let node = wire.definitions[0].nodes.last().unwrap();
+    let mut encoded = serde_json::to_value(node).unwrap();
+    assert_eq!(encoded["op"], "differentiated");
+    assert!(encoded.get("value").is_none());
+    encoded["value"] = serde_json::json!(0);
+    assert!(serde_json::from_value::<WirePureCalculusNode>(encoded).is_err());
+    for changed in [
+        WirePureCalculusNode::Differentiated { source: 2, wrt: 0 },
+        WirePureCalculusNode::Differentiated {
+            source: u32::MAX,
+            wrt: 1,
+        },
+        WirePureCalculusNode::Differentiated { source: 2, wrt: 2 },
+    ] {
+        let mut tampered = wire.clone();
+        *tampered.definitions[0].nodes.last_mut().unwrap() = changed;
+        assert!(tampered.decode().is_err());
+    }
+}
+
+#[test]
+fn quotient_definition_roundtrips_and_rejects_operand_or_operation_tampering() {
+    use eqiora_schema::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
+    let generic = PureValueClass::invariant_scalar();
+    let mut calculus = CalculusBuilder::new([generic; 2], generic).unwrap();
+    let left = calculus
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let right = calculus
+        .push(CalculusNode::FormalComponent {
+            formal: 1,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let root = calculus.push(CalculusNode::Div(left, right)).unwrap();
+    let definition = calculus.finish(root).unwrap();
+    let mut dag = ExprDagBuilder::new();
+    let left = dag
+        .symbol(SymbolRef::Field(eqiora_core::Id::new()))
+        .unwrap();
+    let right = dag
+        .symbol(SymbolRef::Parameter(eqiora_core::Id::new()))
+        .unwrap();
+    let root = dag.pure_operator(&definition, [left, right]).unwrap();
+    let expression = dag.finish([root]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    let replay: WireExpression =
+        serde_json::from_slice(&serde_json::to_vec(&wire).unwrap()).unwrap();
+    assert_eq!(replay.decode().unwrap(), expression);
+    for tampered in [
+        WirePureCalculusNode::Div { left: 0, right: 2 },
+        WirePureCalculusNode::Mul { left: 0, right: 1 },
+        WirePureCalculusNode::Div { left: 1, right: 0 },
+    ] {
+        let mut malformed = wire.clone();
+        malformed.definitions[0].nodes[2] = tampered;
+        assert!(malformed.decode().is_err());
+    }
+}
+
+#[test]
 fn value_only_wire_retains_the_independent_input_and_rejects_forward_references() {
     let mut builder = ExprDagBuilder::new();
     let input = builder

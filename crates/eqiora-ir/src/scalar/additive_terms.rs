@@ -22,18 +22,18 @@ impl ScalarOperatorIr {
         inputs: &[ValueLiteral],
         selected: SymbolRef,
     ) -> Result<Vec<(Self, Vec<BigRational>)>, Diagnostic> {
-        let (projected, roots) = self.project_point(inputs, &self.roots)?;
+        let projected = self.project_point(inputs, &self.roots)?;
         let point = self
             .symbols
             .iter()
             .copied()
             .zip(inputs.iter().cloned())
             .collect::<HashMap<_, _>>();
-        let (_, trace) =
-            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
-        let (projected, roots) = projected.point_components(&trace)?;
-        let (_, trace) =
-            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        let (_, trace) = projected
+            .evaluate_value_trace(&projected.roots, &mut |symbol| point.get(&symbol).cloned())?;
+        let projected = projected.point_components(&trace)?;
+        let (_, trace) = projected
+            .evaluate_value_trace(&projected.roots, &mut |symbol| point.get(&symbol).cloned())?;
         let roles = projected
             .symbols
             .iter()

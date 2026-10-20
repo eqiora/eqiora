@@ -409,7 +409,7 @@ impl Evaluator<'_, '_> {
                             .iter()
                             .map(|id| operand(&values, *id, owner))
                             .collect::<Result<Vec<_>, _>>()?;
-                        pure::evaluate(owner, definition, &arguments, &mut self.component_work)?
+                        pure::evaluate(definition, &arguments, &mut self.component_work)?
                     }
                     ExprNode::Array { elements } => {
                         let elements = elements

@@ -16,6 +16,29 @@ pub(super) fn admit(function: UnaryMathFunction) -> Result<(), Diagnostic> {
     }
 }
 
+/// Absolute value uses the canonical point-bound comparison policy in every
+/// scalar lowering: a demanded switch at zero has no derivative.
+pub(super) fn lower_absolute(
+    instructions: &mut Vec<Instruction>,
+    value: ValueId,
+) -> Result<Instruction, Diagnostic> {
+    let first = u32::try_from(instructions.len()).map_err(|_| ir_size_error())?;
+    let condition = first.checked_add(1).ok_or_else(ir_size_error)?;
+    let negative = first.checked_add(2).ok_or_else(ir_size_error)?;
+    instructions.push(Instruction::Sub(value, value));
+    instructions.push(Instruction::Compare(
+        eqiora_schema::kernel::ComparisonOp::GreaterEqual,
+        value,
+        ValueId(first),
+    ));
+    instructions.push(Instruction::Neg(value));
+    Ok(Instruction::Select {
+        condition: ValueId(condition),
+        then_value: value,
+        else_value: ValueId(negative),
+    })
+}
+
 pub(super) fn value(function: UnaryMathFunction, value: f64) -> Result<f64, Diagnostic> {
     let value = ValueLiteral::try_from(DynQuantity::new(value, DimExponents::DIMENSIONLESS))
         .map_err(|error| ir_builder_error(error.to_string()))?;

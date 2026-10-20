@@ -35,6 +35,86 @@ fn ty(dimension: DimExponents) -> ExpressionType<u32> {
 }
 
 #[test]
+fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
+    let generic = PureValueClass::invariant_scalar();
+    let mut builder = CalculusBuilder::new([generic, generic], generic).unwrap();
+    let x = formal(&mut builder, 0);
+    let y = formal(&mut builder, 1);
+    let root = builder.push(CalculusNode::Div(x, y)).unwrap();
+    let quotient = builder.finish(root).unwrap();
+    assert_eq!(
+        quotient.dimension_monomial().exponents(),
+        [ExactRational::integer(1), ExactRational::integer(-1)]
+    );
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+    let complex_length = ExpressionType::<u32>::new(
+        ValueType::scalar(ScalarDomain::Complex, length).unwrap(),
+        None,
+    );
+    let instantiated = quotient.instantiate(&[complex_length, ty(time)]).unwrap();
+    assert_eq!(
+        instantiated.result_type().dimension(),
+        length.div(time).unwrap()
+    );
+    assert_eq!(
+        instantiated.result_type().value_type.scalar_domain(),
+        ScalarDomain::Complex
+    );
+
+    let mut outer = CalculusBuilder::new([generic; 3], generic).unwrap();
+    let x = formal(&mut outer, 0);
+    let y = formal(&mut outer, 1);
+    let z = formal(&mut outer, 2);
+    let inner = outer.apply_scalar(&quotient, &[y, z]).unwrap();
+    let root = outer.apply_scalar(&quotient, &[x, inner]).unwrap();
+    let composed = outer.finish(root).unwrap();
+    assert_eq!(
+        composed.dimension_monomial().exponents(),
+        [
+            ExactRational::integer(1),
+            ExactRational::integer(-1),
+            ExactRational::integer(1)
+        ]
+    );
+}
+
+#[test]
+fn quotient_and_product_have_distinct_definition_identity() {
+    let scalar = class(DimExponents::DIMENSIONLESS);
+    let definition = |divide| {
+        let mut builder = CalculusBuilder::new([scalar; 2], scalar).unwrap();
+        let x = formal(&mut builder, 0);
+        let y = formal(&mut builder, 1);
+        let root = builder
+            .push(if divide {
+                CalculusNode::Div(x, y)
+            } else {
+                CalculusNode::Mul(x, y)
+            })
+            .unwrap();
+        builder.finish(root).unwrap()
+    };
+    assert_ne!(definition(true).digest(), definition(false).digest());
+}
+
+#[test]
+fn zero_quotient_does_not_become_an_unconditional_zero_polynomial() {
+    let scalar = class(DimExponents::DIMENSIONLESS);
+    let mut builder = CalculusBuilder::new([scalar], scalar).unwrap();
+    let denominator = formal(&mut builder, 0);
+    let zero = literal(&mut builder, 0, DimExponents::DIMENSIONLESS);
+    let root = builder.push(CalculusNode::Div(zero, denominator)).unwrap();
+    let definition = builder.finish(root).unwrap();
+    let argument = ExactPolynomial::atom(0u8);
+    assert!(
+        ExactPolynomial::substitute::<ExactPolynomialError>(&definition, &[&argument], |_| Ok(()))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn typed_zero_threshold_and_inactive_arms_retain_exact_dimensions() {
     let voltage = DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap();
     let current = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap();
@@ -114,28 +194,7 @@ fn square_root_uses_rational_formal_exponents_and_typed_literal_factors() {
     let instance = definition
         .instantiate(&[ty(DimExponents::DIMENSIONLESS)])
         .unwrap();
-    let mut dag = ExprDagBuilder::new();
-    let unused = dag
-        .constant(
-            ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
-                    .expect("checked scalar type"),
-                1.0,
-            )
-            .unwrap(),
-        )
-        .unwrap();
-    let projected = dag
-        .project_operator_component(&instance, &[[unused]], &[], 3)
-        .unwrap();
-    let dag = dag.finish([projected]).unwrap();
-    assert!(
-        matches!(&dag.nodes()[1],ExprNode::Constant(value) if value.value_type().dimension()==length.pow(2,1).unwrap())
-    );
-    assert!(matches!(
-        dag.node(projected),
-        Some(ExprNode::UnaryMath(UnaryMathFunction::Sqrt, _))
-    ));
+    assert_eq!(instance.result_type().dimension(), length);
 }
 
 #[test]
@@ -204,9 +263,6 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
         })
         .unwrap();
     let definition = builder.finish(root).unwrap();
-    let instance = definition
-        .instantiate(&[ty(DimExponents::DIMENSIONLESS)])
-        .unwrap();
     let mut dag = ExprDagBuilder::new();
     let argument = dag
         .constant(
@@ -218,12 +274,22 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
             .unwrap(),
         )
         .unwrap();
-    let root = dag
-        .project_operator_component(&instance, &[[argument]], &[], 4)
-        .unwrap();
+    let root = dag.pure_operator(&definition, [argument]).unwrap();
     let dag = dag.finish([root]).unwrap();
-    assert!(matches!(dag.nodes()[2], ExprNode::Require { .. }));
-    assert!(matches!(dag.node(root), Some(ExprNode::Select { .. })));
+    assert!(matches!(
+        dag.node(root),
+        Some(ExprNode::PureOperatorApplication(_))
+    ));
+    assert!(
+        definition
+            .nodes()
+            .iter()
+            .any(|node| matches!(node, CalculusNode::Require { .. }))
+    );
+    assert!(matches!(
+        definition.nodes().last(),
+        Some(CalculusNode::Select { .. })
+    ));
 }
 
 #[test]

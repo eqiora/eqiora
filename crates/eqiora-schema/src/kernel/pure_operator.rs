@@ -16,7 +16,7 @@ mod actions;
 mod binary64;
 mod composition;
 mod derivative;
-mod derivative_validation;
+mod derivative_projection;
 mod dimensions;
 mod domains;
 mod encoding;
@@ -29,7 +29,7 @@ use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 pub use rational::ExactRational;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v7\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v8\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -57,8 +57,6 @@ pub enum PureOperatorError {
     NodeLimit,
     /// The dependency depth exceeded [`MAX_DEPTH`].
     DepthLimit,
-    /// A retained derivative value differs from the one the shared transform produces.
-    DerivativeMismatch,
     /// A formal slot was outside the definition's formal list.
     InvalidFormal(u16),
     /// A declared scalar or tensor value class was outside the portable limits.
@@ -97,8 +95,6 @@ impl fmt::Display for PureOperatorError {
             }
             Self::NodeLimit => formatter.write_str("pure operator node count exceeds its limit"),
             Self::DepthLimit => formatter.write_str("pure operator depth exceeds its limit"),
-            Self::DerivativeMismatch => formatter
-                .write_str("retained derivative value differs from its source and selected input"),
             Self::InvalidFormal(formal) => {
                 write!(formatter, "pure operator formal {formal} is invalid")
             }
@@ -332,7 +328,7 @@ pub enum CalculusNode {
         then_value: CalculusNodeId,
         else_value: CalculusNodeId,
     },
-    /// Checked real scalar function; only square root is supported.
+    /// Checked real scalar function with the canonical mathematical domain.
     UnaryMath(super::UnaryMathFunction, CalculusNodeId),
     /// One formal component addressed by explicit result or fixed coordinates.
     FormalComponent {
@@ -346,11 +342,9 @@ pub enum CalculusNode {
     /// One local formal occurrence bound to a caller expression during composition.
     /// Distinct formals retain distinct identities even when their values alias.
     BoundInput(CalculusNodeId),
-    /// A differentiated value that keeps its source and the input it was taken with
-    /// respect to. Execution reads `value`; `source` and `wrt` record the
-    /// differentiation order.
+    /// A formal partial defined by its source and independent selected input.
+    /// Nested nodes retain the differentiation order without a second stored formula.
     Differentiated {
-        value: CalculusNodeId,
         source: CalculusNodeId,
         wrt: CalculusNodeId,
     },
@@ -360,19 +354,22 @@ pub enum CalculusNode {
     Add(CalculusNodeId, CalculusNodeId),
     /// Exact multiplication.
     Mul(CalculusNodeId, CalculusNodeId),
+    /// Numeric quotient. The denominator must be nonzero when demanded.
+    Div(CalculusNodeId, CalculusNodeId),
 }
 
 impl CalculusNode {
     fn operands(&self) -> impl Iterator<Item = CalculusNodeId> {
         let operands = match *self {
             Self::Require { condition, value } => [Some(condition), Some(value), None],
-            Self::Differentiated { value, source, wrt } => [Some(value), Some(source), Some(wrt)],
+            Self::Differentiated { source, wrt } => [Some(source), Some(wrt), None],
             Self::BoundInput(value)
             | Self::Neg(value)
             | Self::Not(value)
             | Self::UnaryMath(_, value) => [Some(value), None, None],
             Self::Add(left, right)
             | Self::Mul(left, right)
+            | Self::Div(left, right)
             | Self::Compare(_, left, right)
             | Self::And(left, right)
             | Self::Or(left, right) => [Some(left), Some(right), None],
@@ -475,8 +472,8 @@ impl CalculusBuilder {
         if depth > MAX_DEPTH {
             return Err(PureOperatorError::DepthLimit);
         }
-        if let CalculusNode::Differentiated { source, wrt, value } = &node {
-            self.validate_differentiated(*source, *wrt, *value)?;
+        if let CalculusNode::Differentiated { source, wrt } = &node {
+            self.validate_differentiated(*source, *wrt)?;
         }
         let id = CalculusNodeId(
             u32::try_from(self.nodes.len()).map_err(|_| PureOperatorError::NodeLimit)?,

@@ -6,9 +6,9 @@ use eqiora_schema::kernel::{ExprDagBuilder, ExprId};
 
 impl ScalarOperatorIr {
     pub(super) fn projection_cost(&self) -> Result<usize, Diagnostic> {
-        self.instructions
-            .iter()
-            .try_fold(self.instructions.len(), |cost, node| {
+        self.instructions.iter().try_fold(
+            slot_composition::relocation_work(&self.instructions)?,
+            |cost, node| {
                 let extra = match node {
                     Instruction::PureOperator { definition, .. } => {
                         self.definitions[*definition as usize].1.nodes().len()
@@ -20,7 +20,8 @@ impl ScalarOperatorIr {
                     .ok_or_else(|| {
                         ir_builder_error("typed projection exceeds the scalar work budget")
                     })
-            })
+            },
+        )
     }
 
     /// Project an admitted real scalar residual for numerical derivative products.
@@ -65,7 +66,7 @@ impl ScalarOperatorIr {
         let mut projected = if operator.definitions.is_empty() {
             operator
         } else {
-            operator.project_types(&inputs, &operator.roots)?.0
+            operator.project_types(&inputs, &operator.roots)?
         };
         if projected
             .instructions
@@ -89,7 +90,7 @@ impl ScalarOperatorIr {
         &self,
         inputs: &[ValueLiteral],
         roots: &[ValueId],
-    ) -> Result<(Self, Vec<ExprId>), Diagnostic> {
+    ) -> Result<Self, Diagnostic> {
         let types = inputs
             .iter()
             .map(|value| value.value_type().clone())
@@ -97,11 +98,7 @@ impl ScalarOperatorIr {
         self.project_types(&types, roots)
     }
 
-    fn project_types(
-        &self,
-        inputs: &[ValueType],
-        roots: &[ValueId],
-    ) -> Result<(Self, Vec<ExprId>), Diagnostic> {
+    fn project_types(&self, inputs: &[ValueType], roots: &[ValueId]) -> Result<Self, Diagnostic> {
         self.projection_cost()?;
         if inputs.len() != self.symbols.len()
             || inputs.iter().any(|value| {
@@ -111,6 +108,22 @@ impl ScalarOperatorIr {
             return Err(ir_builder_error(
                 "typed scalar point requires one finite real scalar per symbol",
             ));
+        }
+        if self.definitions.is_empty()
+            && let Some(admitted) = &self.typed_inputs
+        {
+            if inputs != admitted
+                || roots
+                    .iter()
+                    .any(|id| id.0 as usize >= self.instructions.len())
+            {
+                return Err(ir_builder_error(
+                    "numeric projection differs from its admitted input types or roots",
+                ));
+            }
+            let mut projected = self.clone();
+            projected.roots = roots.to_vec();
+            return Ok(projected);
         }
         let mut builder = ExprDagBuilder::new();
         let mut source = Vec::with_capacity(self.instructions.len());
@@ -148,56 +161,109 @@ impl ScalarOperatorIr {
                 ));
             }
         }
-        let mut builder = ExprDagBuilder::new();
-        let mut projected = Vec::with_capacity(self.instructions.len());
-        for instruction in &self.instructions {
-            let result = if let Instruction::PureOperator {
-                definition,
-                start,
-                len,
-            } = *instruction
-            {
-                let operands = &self.array_operands[start as usize..start as usize + len as usize];
-                let args = operands
-                    .iter()
-                    .map(|id| {
-                        typed
-                            .node_type(source[id.0 as usize])
-                            .expect("checked argument")
-                            .clone()
-                    })
-                    .collect::<Vec<_>>();
-                let instance = self.definitions[definition as usize]
-                    .1
-                    .instantiate(&args)
-                    .map_err(|error| ir_builder_error(error.to_string()))?;
-                let ids = operands
-                    .iter()
-                    .map(|id| projected[id.0 as usize])
-                    .collect::<Vec<_>>();
-                builder.project_operator_component(
-                    &instance,
-                    &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
-                    &[],
-                    1_000_000,
-                )?
-            } else {
-                self.append_instruction(&mut builder, *instruction, |id| projected[id.0 as usize])?
-            };
-            projected.push(result);
+        let mut builder = ScalarInputIrBuilder::new();
+        builder.typed_constants = self.typed_constants.clone();
+        let mut input_values = Vec::with_capacity(inputs.len());
+        for (index, (&symbol, ty)) in self.symbols.iter().zip(inputs).enumerate() {
+            let coordinate = ScalarSymbolCoordinate::for_value(symbol, ty)?.remove(0);
+            input_values.push(builder.input(ScalarInputSlot::new(
+                index as u32,
+                coordinate,
+                ty.dimension(),
+            ))?);
         }
-        let roots = roots
-            .iter()
-            .map(|id| projected[id.0 as usize])
-            .collect::<Vec<_>>();
-        let dag = builder.finish(roots.iter().copied())?;
-        let projected = Self::lower(&dag)?;
-        if projected.symbols != self.symbols {
+        let mut projected: Vec<ScalarInputValueId> = Vec::with_capacity(self.instructions.len());
+        let mut array_operands = Vec::new();
+        let mut work = self.projection_cost()?;
+        let mut map_entries = HashMap::new();
+        for (index, instruction) in self.instructions.iter().copied().enumerate() {
+            let value = match instruction {
+                Instruction::Read(slot) => input_values[slot.0 as usize],
+                Instruction::PureOperator {
+                    definition,
+                    start,
+                    len,
+                } => {
+                    let operands =
+                        &self.array_operands[start as usize..start as usize + len as usize];
+                    let arguments = operands
+                        .iter()
+                        .map(|id| source[id.0 as usize])
+                        .collect::<Vec<_>>();
+                    let expected = typed
+                        .node_type(source[index])
+                        .expect("checked application type");
+                    let (scope, root) = crate::ComponentScalarization::lower_scalar_definition(
+                        &self.definitions[definition as usize].1,
+                        &typed,
+                        &arguments,
+                        expected,
+                        &mut work,
+                    )?;
+                    let bindings = operands
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(id, argument)| {
+                            (
+                                projected[id.0 as usize],
+                                typed
+                                    .node_type(*argument)
+                                    .expect("checked argument")
+                                    .dimension(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    builder.compose_scoped(scope, &[root], &bindings, |cost| {
+                        work = work
+                            .checked_add(cost)
+                            .filter(|work| *work <= 1_000_000)
+                            .ok_or_else(|| {
+                                ir_builder_error("typed projection exceeds the scalar work budget")
+                            })?;
+                        Ok(())
+                    })?[0]
+                }
+                Instruction::Array { start, len } => {
+                    let next = u32::try_from(array_operands.len()).map_err(|_| ir_size_error())?;
+                    array_operands.extend(
+                        self.array_operands[start as usize..start as usize + len as usize]
+                            .iter()
+                            .map(|id| projected[id.0 as usize].0),
+                    );
+                    builder.push(Instruction::Array { start: next, len })?
+                }
+                _ => {
+                    let instruction = slot_composition::remap_instruction(
+                        &self.instructions,
+                        index,
+                        &mut builder.instructions,
+                        &mut map_entries,
+                        |id| projected[id.0 as usize].0,
+                    )?;
+                    builder.push(instruction)?
+                }
+            };
+            projected.push(value);
+        }
+        if !builder.primal_checks.is_empty() {
             return Err(ir_builder_error(
-                "scalar projection changed input identity/order",
+                "pure scalar projection has unbound primal obligations",
             ));
         }
-        Ok((projected, roots))
+        Ok(Self {
+            typed_inputs: Some(inputs.to_vec()),
+            source_values: self
+                .source_values
+                .iter()
+                .map(|id| projected[id.0 as usize].0)
+                .collect(),
+            typed_constants: builder.typed_constants,
+            array_operands,
+            definitions: Vec::new(),
+            symbols: self.symbols.clone(),
+            instructions: builder.instructions,
+            roots: roots.iter().map(|id| projected[id.0 as usize].0).collect(),
+        })
     }
 
     pub(super) fn append_instruction(
@@ -259,3 +325,6 @@ impl ScalarOperatorIr {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

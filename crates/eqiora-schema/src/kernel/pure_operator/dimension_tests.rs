@@ -1,6 +1,5 @@
 use super::*;
-use crate::kernel::ExprDagBuilder;
-use eqiora_core::{DynQuantity, ScalarDomain, ValueType};
+use eqiora_core::{ScalarDomain, ValueType};
 
 fn temperature() -> DimExponents {
     DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).unwrap()
@@ -169,7 +168,7 @@ fn polynomial_addition_requires_provable_dimensions_and_pins_result_identity() {
 }
 
 #[test]
-fn scalar_composition_and_projection_keep_order_and_preflight_total_work() {
+fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let definition = conductivity();
     let mut outer = CalculusBuilder::new(
         definition.formals().iter().copied(),
@@ -182,39 +181,6 @@ fn scalar_composition_and_projection_keep_order_and_preflight_total_work() {
     let root = outer.apply_scalar(&definition, &args).unwrap();
     let composed = outer.finish(root).unwrap();
     assert_eq!(composed.canonical_bytes(), definition.canonical_bytes());
-    let types = arguments();
-    let instance = definition.instantiate(&types).unwrap();
-    let mut dag = ExprDagBuilder::new();
-    let ids = [20.0, 10.0, 0.01]
-        .into_iter()
-        .zip(&types)
-        .map(|(value, ty)| {
-            dag.constant(DynQuantity::new(value, ty.dimension()))
-                .unwrap()
-        })
-        .collect::<Vec<_>>();
-    // Three formal references reuse the existing nodes; all remaining body nodes append once.
-    let exact_nodes = definition.nodes().len();
-    assert!(
-        dag.project_operator_component(
-            &instance,
-            &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
-            &[],
-            exact_nodes - 1
-        )
-        .is_err()
-    );
-    let root = dag
-        .project_operator_component(
-            &instance,
-            &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
-            &[],
-            exact_nodes,
-        )
-        .unwrap();
-    let dag = dag.finish([root]).unwrap();
-    assert_eq!(dag.nodes().len(), exact_nodes);
-    assert!(matches!(dag.node(root),Some(crate::kernel::ExprNode::Mul(left,_)) if *left==ids[1]));
     let mut wrong = CalculusBuilder::new(
         [constrained(DimExponents::DIMENSIONLESS); 3],
         PureValueClass::invariant_scalar(),

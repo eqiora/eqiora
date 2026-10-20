@@ -48,11 +48,13 @@ proof normalization does not authorize reassociating floating-point operations.
 
 The native scalar calculus owner exposes inspectable first and second partial derivative
 graphs. For the example, the temperature derivatives at 20 K are 0.14 W/(m*K^2) and
-0.002 W/(m*K^3). A zero partial retains its derived dimensions and support. Unsupported
+0.002 W/(m*K^3). A zero partial retains its derived dimensions, support and original source domain.
+Derivatives also reject points where their own value is undefined, such as a square-root slope at zero. Unsupported
 profiles and expressions exceeding calculus resource budgets reject rather than substituting finite differences.
 Repeated polynomial partials have no separate derivative-order ceiling. Source
 `partial(expression, wrt = binding, holding = (...))` admits real scalar polynomial
-arithmetic and local operator composition at exact declared formals, Parameters, or continuous
+arithmetic, quotients, `math.sin`, `math.cos`, `math.exp`, `math.log`, `math.sqrt`,
+and local operator composition at exact declared formals, Parameters, or continuous
 state Fields. Let aliases retain dependencies and cannot be differentiation or holding bindings.
 A Component Parameter slot preserves a directly bound parent Parameter direction; a literal
 or derived binding does not introduce a new independent value.
@@ -87,8 +89,8 @@ Fresh initial Parameter tangents are validated at the chosen initial coordinate,
 not by attempting an unrelated initialization at zero during Plan resolution. A pure operator receives time as a named
 input; it cannot read an ambient clock. Bare `time` is not a source expression.
 
-`derivative(expression)` applies the total time chain rule to admitted real scalar polynomial
-expressions, let aliases and operator composition over continuous States and fixed Parameters.
+`derivative(expression)` applies the total time chain rule to the admitted real scalar calculus
+expressions above, let aliases and operator composition over continuous States and fixed Parameters.
 For example, `derivative(q*q)` expands through the shared formal partial owner to the two product
 contributions, and `derivative(time()*q)` includes both explicit time and State evolution.
 The default distributed-field derivative holds the declared spatial coordinates fixed.

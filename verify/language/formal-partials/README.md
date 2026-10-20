@@ -1,6 +1,7 @@
 # Explicit formal partials
 
-The case admits real scalar polynomial partials and local operator composition at named
+The case admits real scalar polynomial, elementary-function and quotient partials,
+and local operator composition at named
 independent bindings, without a mesh or solved-state sensitivity. Compiler tests preserve
 Parameter alias dependencies and reject dependent, foreign, conflicting, and unsupported
 bindings or rules. Installed Python product tests separately cover direct authoring, emitted
@@ -22,6 +23,19 @@ composed third partials of `x³` all give `6`, independently of the evaluation p
 The repeated polynomial transform has no separate derivative-order ceiling; its existing
 node and depth budgets still bound construction and replay. `x*abs(x)` is not admitted
 as a C2 expression even at a currently positive evaluation point.
+
+Model expressions and local operators share the retained formal derivative owner. Independent
+first/second derivatives of `sin`, `cos`, `exp`, `log` and `sqrt` are checked at 0, 1 or 4,
+where the expected values are exactly representable. Composition gives
+`(sin(log(x)))'' = -1` at `x=1`. For `x/y` at `(2,4)`, the `y` partials are `-1/8`
+and `1/16`. Binding both local arguments to the same outer input preserves local independence:
+`partial_x(x/y)` becomes `1/p`, whose outer derivative at `p=2` is `-1/4`;
+`partial_y(x/y)` becomes `-1/p`, whose outer derivative is `1/4`.
+At `x=y=1e-200`, the `y` partial is finite `-1e200`, even though `y*y` underflows.
+Sixteen binary64 epsilons of relative error cover the bounded scaled quotient calculation.
+Invalid logarithm/quotient sources still reject when the selected partial is zero; a square-root
+partial at zero rejects its undefined derivative. Value branches and absolute-value expressions
+are not admitted as formally smooth expressions merely because one sampled point is positive.
 
 The heterogeneous specimen `f=x²v`, with `x=3 m`, `v=5 m/s` and direction
 `(2 m,-1 m/s)`, gives `Jv=51 m³/s`. Its Hessian-action blocks are `14 m²/s`

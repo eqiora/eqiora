@@ -19,6 +19,9 @@ pub(super) fn project(
     {
         return Err(ProjectionFailure::Unsupported);
     }
+    let definition = definition
+        .polynomial_derivative_view()
+        .map_err(|_| ProjectionFailure::Unsupported)?;
     *remaining = remaining
         .checked_sub(definition.nodes().len())
         .ok_or(ProjectionFailure::Unsupported)?;
@@ -28,7 +31,6 @@ pub(super) fn project(
             CalculusNode::Rational { .. }
                 | CalculusNode::FormalComponent { .. }
                 | CalculusNode::BoundInput(_)
-                | CalculusNode::Differentiated { .. }
                 | CalculusNode::Neg(_)
                 | CalculusNode::Add(..)
                 | CalculusNode::Mul(..)
@@ -42,7 +44,7 @@ pub(super) fn project(
     }
     project_node(
         dag,
-        definition,
+        &definition,
         application.arguments(),
         definition.root(),
         remaining,
@@ -73,10 +75,7 @@ fn project_node(
             value: value.clone(),
             dimension: dimension.exponents(),
         },
-        // Canonical definition validation has already checked the retained derivative.
-        CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
-            *child(*value)?
-        }
+        CalculusNode::BoundInput(value) => *child(*value)?,
         CalculusNode::Neg(value) => E::Neg {
             value: child(*value)?,
         },

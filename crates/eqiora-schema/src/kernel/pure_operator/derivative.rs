@@ -1,198 +1,216 @@
-//! Formal differentiation with exact arithmetic and preserved order, shared by
-//! source compilation and the IR.
+//! Formal partials retain only the mathematical source and selected input.
 use super::*;
 use eqiora_core::ScalarDomain;
 
-#[derive(Clone, Copy)]
-pub(super) enum Selection {
-    Formal(u16),
-    Occurrence(CalculusNodeId),
-}
-impl Selection {
-    fn matches(self, id: CalculusNodeId, node: &CalculusNode) -> bool {
-        match self {
-            Self::Formal(selected) => {
-                matches!(node, CalculusNode::FormalComponent { formal, axes } if *formal == selected && axes.is_empty())
-            }
-            Self::Occurrence(selected) => id == selected,
-        }
-    }
-}
-
 impl CalculusBuilder {
-    /// Append the first partial derivative of an explicit real scalar polynomial with
-    /// respect to one declared formal, holding all other formals fixed.
-    ///
-    /// The original input occurrences and product-rule order are kept. A constant
-    /// result is zero, with the quotient dimension. Explicit validity requirements keep
-    /// their original predicate even when the derivative is zero; predicates are not
-    /// differentiated. On error nothing is appended, and the existing node and depth
-    /// limits apply.
+    /// Append a real scalar partial while holding the other formal inputs fixed.
+    /// The source, selected input, and derivative order remain canonical. Numerical
+    /// execution and optional polynomial proof expansion use their respective owners.
+    /// Explicit validity predicates are retained, never differentiated.
     ///
     /// # Errors
-    /// Rejects invalid nodes or formals, unconstrained or non-real scalar input types,
-    /// unsupported derivative rules, and unrepresentable dimensions.
+    /// Rejects invalid formals, non-real or unconstrained scalar types, nonsmooth values,
+    /// unrepresentable dimensions, and node or depth limits. Errors append nothing.
     pub fn partial(
         &mut self,
         root: CalculusNodeId,
         formal: u16,
     ) -> Result<CalculusNodeId, PureOperatorError> {
-        let selected = self
-            .formals
+        self.formals
             .get(usize::from(formal))
             .ok_or(PureOperatorError::InvalidFormal(formal))?;
-        if self.formals.iter().any(|value| {
-            !value.is_invariant_scalar()
-                || value.scalar_domain() != Some(ScalarDomain::Real)
-                || value.dimension().is_none()
-        }) {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        let output = self.value_type(root)?;
-        if output.scalar_domain() != ScalarDomain::Real || !output.shape().is_scalar() {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        let dimension = output
-            .dimension()
-            .div(selected.dimension().unwrap())
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-        let (mut staged, result) = self.raw_partial(
-            root,
-            Selection::Formal(formal),
-            selected.dimension().unwrap(),
-            dimension,
-        )?;
-        let wrt = staged.push(CalculusNode::FormalComponent {
-            formal,
-            axes: Box::new([]),
-        })?;
-        let result = staged.push(CalculusNode::Differentiated {
-            value: result,
-            source: root,
-            wrt,
-        })?;
-        *self = staged;
-        Ok(result)
-    }
-    pub(super) fn raw_partial(
-        &self,
-        root: CalculusNodeId,
-        selection: Selection,
-        input_dimension: DimExponents,
-        dimension: DimExponents,
-    ) -> Result<(Self, CalculusNodeId), PureOperatorError> {
-        let root_index = definition_index(root, self.nodes.len())?;
-        let mut reachable = vec![false; root_index + 1];
-        let mut pending = vec![root];
-        while let Some(id) = pending.pop() {
-            let index = definition_index(id, reachable.len())?;
-            if std::mem::replace(&mut reachable[index], true) {
-                continue;
-            }
-            if selection.matches(id, &self.nodes[index]) {
-                continue;
-            }
-            // A validity predicate is retained verbatim, not differentiated.
-            match &self.nodes[index] {
-                CalculusNode::Require { value, .. }
-                | CalculusNode::Differentiated { value, .. } => pending.push(*value),
-                node => pending.extend(node.operands()),
-            }
-        }
+        definition_index(root, self.nodes.len())?;
         let mut staged = Self {
             formals: self.formals.clone(),
             result: self.result,
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };
-        let mut derivatives = vec![None; root_index + 1];
-        for (index, node) in self.nodes.iter().take(root_index + 1).enumerate() {
-            if !reachable[index] {
-                continue;
-            }
-            let derivative = |id: CalculusNodeId| derivatives[id.index() as usize];
-            if selection.matches(CalculusNodeId(index as u32), node) {
-                derivatives[index] = Some(staged.push(CalculusNode::Rational {
-                    value: ExactRational::integer(1),
-                    dimension: DimExponents::DIMENSIONLESS,
-                })?);
-                continue;
-            }
-            derivatives[index] = match node {
-                CalculusNode::Rational { .. } => None,
-                CalculusNode::Differentiated { value, .. } | CalculusNode::BoundInput(value) => {
-                    derivative(*value)
-                }
-                CalculusNode::Boolean(_)
-                | CalculusNode::Compare(..)
-                | CalculusNode::Not(_)
-                | CalculusNode::And(..)
-                | CalculusNode::Or(..) => None,
-                CalculusNode::Require { condition, value } => {
-                    let value = match derivative(*value) {
-                        Some(value) => value,
-                        None => {
-                            let dimension = self
-                                .value_type(*value)?
-                                .dimension()
-                                .div(input_dimension)
-                                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-                            staged.push(CalculusNode::Rational {
-                                value: ExactRational::integer(0),
-                                dimension,
-                            })?
-                        }
-                    };
-                    Some(staged.push(CalculusNode::Require {
-                        condition: *condition,
-                        value,
-                    })?)
-                }
-                CalculusNode::FormalComponent { axes, .. } if axes.is_empty() => None,
-                CalculusNode::Neg(value) => derivative(*value)
-                    .map(|value| staged.push(CalculusNode::Neg(value)))
-                    .transpose()?,
-                CalculusNode::Add(left, right) => {
-                    sum(&mut staged, derivative(*left), derivative(*right))?
-                }
-                CalculusNode::Mul(left, right) => {
-                    let first = derivative(*left)
-                        .map(|value| staged.push(CalculusNode::Mul(value, *right)))
-                        .transpose()?;
-                    let second = derivative(*right)
-                        .map(|value| staged.push(CalculusNode::Mul(*left, value)))
-                        .transpose()?;
-                    sum(&mut staged, first, second)?
-                }
-                _ => return Err(PureOperatorError::FormalTypeMismatch),
-            };
-        }
-        let result = match derivatives[root_index] {
-            Some(value) => value,
-            None => staged.push(CalculusNode::Rational {
-                value: ExactRational::integer(0),
-                dimension,
-            })?,
-        };
-        Ok((staged, result))
+        let wrt = staged.push(CalculusNode::FormalComponent {
+            formal,
+            axes: Box::new([]),
+        })?;
+        let result = staged.push(CalculusNode::Differentiated { source: root, wrt })?;
+        *self = staged;
+        Ok(result)
     }
-}
 
-fn sum(
-    builder: &mut CalculusBuilder,
-    left: Option<CalculusNodeId>,
-    right: Option<CalculusNodeId>,
-) -> Result<Option<CalculusNodeId>, PureOperatorError> {
-    match (left, right) {
-        (Some(left), Some(right)) => builder.push(CalculusNode::Add(left, right)).map(Some),
-        (Some(value), None) | (None, Some(value)) => Ok(Some(value)),
-        (None, None) => Ok(None),
+    pub(super) fn validate_differentiated(
+        &self,
+        source: CalculusNodeId,
+        wrt: CalculusNodeId,
+    ) -> Result<(), PureOperatorError> {
+        if self.formals.iter().any(|class| {
+            !class.is_invariant_scalar()
+                || class.dimension().is_none()
+                || class.scalar_domain() != Some(ScalarDomain::Real)
+        }) {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        match &self.nodes[definition_index(wrt, self.nodes.len())?] {
+            CalculusNode::FormalComponent { axes, .. } if axes.is_empty() => {}
+            CalculusNode::BoundInput(_) => {}
+            _ => return Err(PureOperatorError::FormalTypeMismatch),
+        }
+        let selected = self.value_type(wrt)?;
+        let output = self.value_type(source)?;
+        if [&selected, &output]
+            .iter()
+            .any(|ty| !ty.shape().is_scalar() || ty.scalar_domain() != ScalarDomain::Real)
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        output
+            .dimension()
+            .div(selected.dimension())
+            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+        let mut pending = vec![source];
+        let mut seen = vec![false; self.nodes.len()];
+        while let Some(id) = pending.pop() {
+            let index = definition_index(id, self.nodes.len())?;
+            if std::mem::replace(&mut seen[index], true) {
+                continue;
+            }
+            if id == wrt && matches!(self.nodes[index], CalculusNode::BoundInput(_)) {
+                continue;
+            }
+            match &self.nodes[index] {
+                // Predicates retain their authored domain, including lazy branches.
+                CalculusNode::Require { value, .. } => pending.push(*value),
+                CalculusNode::Select { .. }
+                | CalculusNode::UnaryMath(crate::kernel::UnaryMathFunction::Abs, _) => {
+                    return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                node => pending.extend(node.operands()),
+            }
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn real_unit() -> PureValueClass {
+        PureValueClass::invariant_scalar()
+            .with_dimension(DimExponents::DIMENSIONLESS)
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap()
+    }
+
+    #[test]
+    fn formal_partials_reject_nonsmooth_values_but_retain_predicate_domains() {
+        let mut builder = CalculusBuilder::new([real_unit()], real_unit()).unwrap();
+        let x = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let absolute = builder
+            .push(CalculusNode::UnaryMath(
+                crate::kernel::UnaryMathFunction::Abs,
+                x,
+            ))
+            .unwrap();
+        // x|x| has different second derivatives on the two sides of zero.
+        // Formal admission cannot infer smoothness from a later sampled value.
+        let value = builder.push(CalculusNode::Mul(x, absolute)).unwrap();
+        let before = builder.nodes.clone();
+        assert_eq!(
+            builder.partial(value, 0),
+            Err(PureOperatorError::FormalTypeMismatch)
+        );
+        assert_eq!(builder.nodes, before);
+
+        let one = builder
+            .push(CalculusNode::Rational {
+                value: ExactRational::integer(1),
+                dimension: DimExponents::DIMENSIONLESS,
+            })
+            .unwrap();
+        let condition = builder
+            .push(CalculusNode::Compare(
+                crate::kernel::ComparisonOp::Less,
+                absolute,
+                one,
+            ))
+            .unwrap();
+        let guarded = builder
+            .push(CalculusNode::Require {
+                condition,
+                value: x,
+            })
+            .unwrap();
+        assert!(builder.partial(guarded, 0).is_ok());
+    }
+
+    #[test]
+    fn formal_partials_do_not_require_a_polynomial_witness() {
+        for unary in [None, Some(crate::kernel::UnaryMathFunction::Log)] {
+            let mut builder = CalculusBuilder::new([real_unit()], real_unit()).unwrap();
+            let x = builder
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let one = builder
+                .push(CalculusNode::Rational {
+                    value: ExactRational::integer(1),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })
+                .unwrap();
+            let root = if let Some(function) = unary {
+                builder.push(CalculusNode::UnaryMath(function, x)).unwrap()
+            } else {
+                builder.push(CalculusNode::Div(one, x)).unwrap()
+            };
+            let before = builder.nodes.len();
+            let first = builder.partial(root, 0).unwrap();
+            assert_eq!(
+                builder.nodes.len(),
+                before + 2,
+                "only selection and derivative are stored"
+            );
+            assert!(
+                matches!(builder.nodes[first.index() as usize], CalculusNode::Differentiated { source, .. } if source == root)
+            );
+            let second = builder.partial(first, 0).unwrap();
+            let definition = builder.finish(second).unwrap();
+            assert!(definition.polynomial_derivative_view().is_err());
+        }
+    }
+
+    #[test]
+    fn invalid_derivative_source_and_selection_reject_atomically() {
+        let mut builder = CalculusBuilder::new([real_unit()], real_unit()).unwrap();
+        let x = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let one = builder
+            .push(CalculusNode::Rational {
+                value: ExactRational::integer(1),
+                dimension: DimExponents::DIMENSIONLESS,
+            })
+            .unwrap();
+        let before = builder.nodes.clone();
+        assert_eq!(
+            builder.partial(CalculusNodeId(before.len() as u32), 0),
+            Err(PureOperatorError::InvalidNode)
+        );
+        assert_eq!(
+            builder.push(CalculusNode::Differentiated {
+                source: x,
+                wrt: one
+            }),
+            Err(PureOperatorError::FormalTypeMismatch)
+        );
+        assert_eq!(builder.nodes, before);
+    }
 
     #[test]
     fn partial_retains_validity_for_both_variable_and_typed_zero_derivatives() {
@@ -231,23 +249,28 @@ mod tests {
             .unwrap();
         for formal in [0, 1] {
             let derived = builder.partial(root, formal).unwrap();
-            let CalculusNode::Differentiated {
-                value: derived,
-                source,
-                ..
-            } = builder.nodes[derived.index() as usize]
+            let CalculusNode::Differentiated { source, .. } =
+                builder.nodes[derived.index() as usize]
             else {
                 panic!("derivative history retained")
             };
             assert_eq!(source, root);
-            let CalculusNode::Require { condition, value } =
-                builder.nodes[derived.index() as usize]
+            let definition = CalculusBuilder {
+                formals: builder.formals.clone(),
+                result: real_unit(),
+                nodes: builder.nodes.clone(),
+                depths: builder.depths.clone(),
+            }
+            .finish(derived)
+            .unwrap();
+            let view = definition.polynomial_derivative_view().unwrap();
+            let CalculusNode::Require { condition, value } = view.nodes[view.root.index() as usize]
             else {
                 panic!("guard retained")
             };
             assert_eq!(condition, predicate);
             assert!(
-                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { ref value, dimension }
+                matches!(view.nodes[value.index() as usize], CalculusNode::Rational { ref value, dimension }
                 if *value == ExactRational::integer(if formal == 0 { 1 } else { 0 }) && dimension == DimExponents::DIMENSIONLESS)
             );
         }
@@ -291,16 +314,17 @@ mod tests {
         for _ in 3..=16 {
             let previous = current;
             current = builder.partial(previous, 0).unwrap();
-            let CalculusNode::Differentiated { source, value, .. } =
+            let CalculusNode::Differentiated { source, .. } =
                 builder.nodes[current.index() as usize]
             else {
                 panic!("ordered derivative history");
             };
             assert_eq!(source, previous);
-            assert!(
-                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { ref value, dimension } if *value == ExactRational::integer(0) && dimension == DimExponents::DIMENSIONLESS)
-            );
         }
-        builder.finish(current).unwrap();
+        let definition = builder.finish(current).unwrap();
+        let view = definition.polynomial_derivative_view().unwrap();
+        assert!(
+            matches!(&view.nodes[view.root.index() as usize], CalculusNode::Rational { value, dimension } if *value == ExactRational::integer(0) && *dimension == DimExponents::DIMENSIONLESS)
+        );
     }
 }

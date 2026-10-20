@@ -2,16 +2,97 @@
 use super::*;
 use crate::{DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent};
 use eqiora_core::{DimExponents, Id, ValueType, entity::kinds};
-use eqiora_schema::kernel::{ExprDagBuilder, typing::RootContract};
+use eqiora_schema::kernel::{
+    ExprDagBuilder,
+    pure_operator::{CalculusBuilder, CalculusNode, PureValueClass},
+    typing::RootContract,
+};
 
 #[test]
 fn complex_quotient_primal_and_real_pairing_products() {
+    check_quotient(false);
+    check_quotient(true);
+}
+
+#[test]
+fn real_closed_quotient_actions_survive_denominator_square_underflow() {
     let numerator = SymbolRef::Field(Id::<kinds::Field>::new());
     let denominator = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
     let mut dag = ExprDagBuilder::new();
     let a = dag.symbol(numerator).unwrap();
     let b = dag.symbol(denominator).unwrap();
-    let q = dag.div(a, b).unwrap();
+    let root = dag.pure_operator(&quotient_definition(), [a, b]).unwrap();
+    let typed = TypedResidual::infer(
+        dag.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |_| {
+            Ok::<_, ()>(ExpressionType::<()>::new(
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+                None,
+            ))
+        },
+    )
+    .unwrap();
+    let lowered = ComponentScalarization::lower(&typed).unwrap();
+    let role = |symbol| {
+        if symbol == numerator {
+            DifferentiationRole::Unknown
+        } else {
+            DifferentiationRole::Parameter
+        }
+    };
+    let linearized = lowered
+        .linearize(|c| Some((1e-200, role(c.symbol()))))
+        .unwrap();
+    let mut value = [0.];
+    linearized.primal(&mut value).unwrap();
+    assert_eq!(value, [1.]);
+    // d(u/v)/dv = -u/v² = -1e200 at u=v=1e-200. The result is
+    // representable even though evaluating v² in binary64 gives zero.
+    linearized
+        .jvp(RelationTangent::Parameter(&[1.]), &mut value)
+        .unwrap();
+    assert!((value[0] / -1e200 - 1.).abs() <= 16. * f64::EPSILON);
+    linearized
+        .jvp(
+            RelationTangent::Both {
+                unknown: &[1.],
+                parameter: &[1.],
+            },
+            &mut value,
+        )
+        .unwrap();
+    assert_eq!(value, [0.]);
+    let mut du = [0.];
+    let mut dp = [0.];
+    linearized
+        .vjp(
+            &[1e-200],
+            RelationCotangent::Both {
+                unknown: &mut du,
+                parameter: &mut dp,
+            },
+        )
+        .unwrap();
+    assert!((du[0] - 1.).abs() <= 16. * f64::EPSILON);
+    assert!((dp[0] + 1.).abs() <= 16. * f64::EPSILON);
+    let zero = lowered.linearize(|c| Some((0., role(c.symbol())))).unwrap();
+    assert!(zero.primal(&mut value).is_err());
+}
+
+fn check_quotient(closed_operator: bool) {
+    let numerator = SymbolRef::Field(Id::<kinds::Field>::new());
+    let denominator = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let mut dag = ExprDagBuilder::new();
+    let a = dag.symbol(numerator).unwrap();
+    let b = dag.symbol(denominator).unwrap();
+    let q = if closed_operator {
+        dag.pure_operator(&quotient_definition(), [a, b]).unwrap()
+    } else {
+        dag.div(a, b).unwrap()
+    };
     let typed = TypedResidual::infer(
         dag.finish([q]).unwrap(),
         None,
@@ -153,4 +234,23 @@ fn complex_quotient_primal_and_real_pairing_products() {
         ))
     });
     assert!(invalid.unwrap().primal(&mut [0.; 2]).is_err());
+}
+
+fn quotient_definition() -> eqiora_schema::kernel::pure_operator::PureOperatorDefinition {
+    let generic = PureValueClass::invariant_scalar();
+    let mut builder = CalculusBuilder::new([generic; 2], generic).unwrap();
+    let left = builder
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let right = builder
+        .push(CalculusNode::FormalComponent {
+            formal: 1,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let root = builder.push(CalculusNode::Div(left, right)).unwrap();
+    builder.finish(root).unwrap()
 }

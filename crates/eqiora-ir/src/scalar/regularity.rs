@@ -31,6 +31,15 @@ impl ScalarOperatorIr {
                     depends(a) || depends(b)
                 }
                 Instruction::Div(a, b) if !depends(b) => depends(a),
+                // Fixed validity checks preserve the smooth value's regularity.
+                // A varying predicate cannot establish validity over an interval.
+                Instruction::Compare(_, a, b) | Instruction::And(a, b) | Instruction::Or(a, b)
+                    if !depends(a) && !depends(b) =>
+                {
+                    false
+                }
+                Instruction::Not(a) if !depends(a) => false,
+                Instruction::Require { condition, value } if !depends(condition) => depends(value),
                 Instruction::PowI(a, exponent) if exponent >= 0 || !depends(a) => {
                     exponent != 0 && depends(a)
                 }

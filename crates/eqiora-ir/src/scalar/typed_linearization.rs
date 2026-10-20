@@ -22,6 +22,17 @@ impl ScalarOperatorIr {
                 "typed linearization point/role count differs from symbols",
             ));
         }
+        if self.typed_inputs.as_ref().is_some_and(|types| {
+            types.len() != inputs.len()
+                || types
+                    .iter()
+                    .zip(inputs)
+                    .any(|(expected, actual)| expected != actual.value_type())
+        }) {
+            return Err(ir_builder_error(
+                "typed linearization inputs differ from the admitted types",
+            ));
+        }
         let frozen = roles.contains(&DifferentiationRole::Frozen);
         let bound = if frozen {
             std::borrow::Cow::Owned(self.freeze_inputs(inputs, roles)?)
@@ -39,20 +50,20 @@ impl ScalarOperatorIr {
             .copied()
             .filter(|role| *role != DifferentiationRole::Frozen)
             .collect::<Vec<_>>();
-        let (projected, roots) = bound.project_point(&active_inputs, &bound.roots)?;
+        let projected = bound.project_point(&active_inputs, &bound.roots)?;
         let point = bound
             .symbols
             .iter()
             .copied()
             .zip(active_inputs.iter().cloned())
             .collect::<HashMap<_, _>>();
-        let (_, trace) =
-            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        let (_, trace) = projected
+            .evaluate_value_trace(&projected.roots, &mut |symbol| point.get(&symbol).cloned())?;
         // Validate all demanded typed values before choosing components: an
         // Array eagerly evaluates even its nonselected elements.
-        let (projected, roots) = projected.point_components(&trace)?;
-        let (_, trace) =
-            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        let projected = projected.point_components(&trace)?;
+        let (_, trace) = projected
+            .evaluate_value_trace(&projected.roots, &mut |symbol| point.get(&symbol).cloned())?;
         let dependencies = projected.active_input_dependencies(&trace, &roles)?;
         projected
             .typed_instructions()
@@ -95,36 +106,85 @@ impl ScalarOperatorIr {
         roles: &[DifferentiationRole],
     ) -> Result<Self, Diagnostic> {
         self.projection_cost()?;
-        let mut builder = eqiora_schema::kernel::ExprDagBuilder::new();
-        let mut mapped = Vec::with_capacity(self.instructions.len());
-        for &instruction in &self.instructions {
-            let value = match instruction {
-                Instruction::Read(slot)
-                    if roles[slot.0 as usize] == DifferentiationRole::Frozen =>
-                {
-                    builder.constant(inputs[slot.0 as usize].clone())?
+        let mut symbols = Vec::new();
+        let mut slots = Vec::with_capacity(self.symbols.len());
+        for (&symbol, role) in self.symbols.iter().zip(roles) {
+            slots.push(if *role == DifferentiationRole::Frozen {
+                None
+            } else {
+                let slot = SymbolSlot(u32::try_from(symbols.len()).map_err(|_| ir_size_error())?);
+                symbols.push(symbol);
+                Some(slot)
+            });
+        }
+        let mut instructions = Vec::new();
+        let mut typed_constants = self.typed_constants.clone();
+        let mut array_operands = Vec::new();
+        let mut mapped: Vec<ValueId> = Vec::with_capacity(self.instructions.len());
+        let mut map_entries = HashMap::new();
+        for (index, instruction) in self.instructions.iter().copied().enumerate() {
+            let instruction = match instruction {
+                Instruction::Read(slot) => match slots[slot.0 as usize] {
+                    Some(slot) => Instruction::Read(slot),
+                    None => {
+                        let constant =
+                            u32::try_from(typed_constants.len()).map_err(|_| ir_size_error())?;
+                        typed_constants.push(inputs[slot.0 as usize].clone());
+                        Instruction::TypedConstant(constant)
+                    }
+                },
+                Instruction::Array { start, len }
+                | Instruction::PureOperator { start, len, .. } => {
+                    let next = u32::try_from(array_operands.len()).map_err(|_| ir_size_error())?;
+                    array_operands.extend(
+                        self.array_operands[start as usize..start as usize + len as usize]
+                            .iter()
+                            .map(|id| mapped[id.0 as usize]),
+                    );
+                    match instruction {
+                        Instruction::Array { .. } => Instruction::Array { start: next, len },
+                        Instruction::PureOperator { definition, .. } => Instruction::PureOperator {
+                            definition,
+                            start: next,
+                            len,
+                        },
+                        _ => unreachable!("matched aggregate operand inventory"),
+                    }
                 }
-                _ => {
-                    self.append_instruction(&mut builder, instruction, |id| mapped[id.0 as usize])?
-                }
+                _ => slot_composition::remap_instruction(
+                    &self.instructions,
+                    index,
+                    &mut instructions,
+                    &mut map_entries,
+                    |id| mapped[id.0 as usize],
+                )?,
             };
-            mapped.push(value);
-        }
-        let bound =
-            Self::lower(&builder.finish(self.roots.iter().map(|id| mapped[id.0 as usize]))?)?;
-        if !bound.symbols.iter().copied().eq(self
-            .symbols
-            .iter()
-            .copied()
-            .zip(roles)
-            .filter(|(_, role)| **role != DifferentiationRole::Frozen)
-            .map(|(symbol, _)| symbol))
-        {
-            return Err(ir_builder_error(
-                "frozen input projection changed active input order",
+            mapped.push(ValueId(
+                u32::try_from(instructions.len()).map_err(|_| ir_size_error())?,
             ));
+            instructions.push(instruction);
         }
-        Ok(bound)
+        Ok(Self {
+            typed_inputs: self.typed_inputs.as_ref().map(|types| {
+                types
+                    .iter()
+                    .zip(roles)
+                    .filter(|(_, role)| **role != DifferentiationRole::Frozen)
+                    .map(|(ty, _)| ty.clone())
+                    .collect()
+            }),
+            source_values: self
+                .source_values
+                .iter()
+                .map(|id| mapped[id.0 as usize])
+                .collect(),
+            roots: self.roots.iter().map(|id| mapped[id.0 as usize]).collect(),
+            instructions,
+            typed_constants,
+            array_operands,
+            symbols,
+            definitions: self.definitions.clone(),
+        })
     }
 
     pub(super) fn active_input_dependencies(

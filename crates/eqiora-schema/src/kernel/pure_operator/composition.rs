@@ -66,68 +66,15 @@ impl CalculusBuilder {
             .collect::<Result<Vec<_>, _>>()?;
         let mut ids = Vec::with_capacity(definition.nodes.len());
         for node in &definition.nodes {
-            let mapped = |id| {
-                ids.get(definition_index(id, ids.len())?)
-                    .copied()
-                    .ok_or(PureOperatorError::InvalidNode)
-            };
             let id = match node {
                 CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
                     arguments[usize::from(*formal)]
                 }
-                CalculusNode::Rational { value, dimension } => {
-                    staged.push(CalculusNode::Rational {
-                        value: value.clone(),
-                        dimension: *dimension,
-                    })?
+                CalculusNode::FormalComponent { .. } => {
+                    return Err(PureOperatorError::FormalTypeMismatch);
                 }
-                CalculusNode::Boolean(value) => staged.push(CalculusNode::Boolean(*value))?,
-                CalculusNode::Compare(op, left, right) => {
-                    staged.push(CalculusNode::Compare(*op, mapped(*left)?, mapped(*right)?))?
-                }
-                CalculusNode::Not(value) => staged.push(CalculusNode::Not(mapped(*value)?))?,
-                CalculusNode::And(left, right) => {
-                    staged.push(CalculusNode::And(mapped(*left)?, mapped(*right)?))?
-                }
-                CalculusNode::Or(left, right) => {
-                    staged.push(CalculusNode::Or(mapped(*left)?, mapped(*right)?))?
-                }
-                CalculusNode::UnaryMath(function, value) => {
-                    staged.push(CalculusNode::UnaryMath(*function, mapped(*value)?))?
-                }
-                CalculusNode::Select {
-                    condition,
-                    then_value,
-                    else_value,
-                } => staged.push(CalculusNode::Select {
-                    condition: mapped(*condition)?,
-                    then_value: mapped(*then_value)?,
-                    else_value: mapped(*else_value)?,
-                })?,
-                CalculusNode::Require { condition, value } => {
-                    staged.push(CalculusNode::Require {
-                        condition: mapped(*condition)?,
-                        value: mapped(*value)?,
-                    })?
-                }
-                CalculusNode::Differentiated { value, source, wrt } => {
-                    staged.push(CalculusNode::Differentiated {
-                        value: mapped(*value)?,
-                        source: mapped(*source)?,
-                        wrt: mapped(*wrt)?,
-                    })?
-                }
-                CalculusNode::BoundInput(value) => {
-                    staged.push(CalculusNode::BoundInput(mapped(*value)?))?
-                }
-                CalculusNode::Neg(value) => staged.push(CalculusNode::Neg(mapped(*value)?))?,
-                CalculusNode::Add(left, right) => {
-                    staged.push(CalculusNode::Add(mapped(*left)?, mapped(*right)?))?
-                }
-                CalculusNode::Mul(left, right) => {
-                    staged.push(CalculusNode::Mul(mapped(*left)?, mapped(*right)?))?
-                }
-                _ => return Err(PureOperatorError::FormalTypeMismatch),
+                // The closed definition already owns the topological operand invariant.
+                node => staged.push(node.map_operands(|id| ids[id.index() as usize]))?,
             };
             ids.push(id);
         }
@@ -136,6 +83,48 @@ impl CalculusBuilder {
         derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
         *self = staged;
         Ok(root)
+    }
+}
+
+impl CalculusNode {
+    pub(super) fn map_operands(
+        &self,
+        mut map: impl FnMut(CalculusNodeId) -> CalculusNodeId,
+    ) -> Self {
+        let mut node = self.clone();
+        match &mut node {
+            Self::Require {
+                condition: a,
+                value: b,
+            }
+            | Self::Differentiated { source: a, wrt: b }
+            | Self::Add(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::Compare(_, a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b) => {
+                *a = map(*a);
+                *b = map(*b);
+            }
+            Self::BoundInput(a) | Self::Neg(a) | Self::Not(a) | Self::UnaryMath(_, a) => {
+                *a = map(*a)
+            }
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                *condition = map(*condition);
+                *then_value = map(*then_value);
+                *else_value = map(*else_value);
+            }
+            Self::Rational { .. }
+            | Self::Boolean(_)
+            | Self::FormalComponent { .. }
+            | Self::KroneckerDelta(..) => {}
+        }
+        node
     }
 }
 

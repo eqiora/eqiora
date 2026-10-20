@@ -197,7 +197,7 @@ fn compile_local(
                 return Err(pure_error(
                     file,
                     expression.range(),
-                    "operator bodies require exact polynomial expressions over lexical formals",
+                    "operator bodies require closed calculus expressions over lexical formals",
                 ));
             }
         }
@@ -207,7 +207,7 @@ fn compile_local(
             return Err(pure_error(
                 file,
                 range,
-                "operator bodies admit only local lexical polynomial operators",
+                "operator bodies admit only local lexical closed operators",
             ));
         }
         compile_local(file, callee.as_str(), sources, compiled, active)?;
@@ -357,7 +357,7 @@ fn compile_expression(
                 pure_error(
                     file,
                     expression.range(),
-                    format!("unsupported partial of explicit real scalar polynomial: {error}"),
+                    format!("unsupported partial of explicit real scalar calculus: {error}"),
                 )
             });
         }
@@ -482,7 +482,12 @@ fn compile_expression(
         ExprKind::Binary { op, left, right }
             if matches!(
                 op,
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::And | BinaryOp::Or
+                BinaryOp::Add
+                    | BinaryOp::Sub
+                    | BinaryOp::Mul
+                    | BinaryOp::Div
+                    | BinaryOp::And
+                    | BinaryOp::Or
             ) || crate::lower::comparison_operator(*op).is_some() =>
         {
             let left = compile_expression(file, left, formals, sources, compiled, builder)?;
@@ -494,6 +499,7 @@ fn compile_expression(
             }
             match op {
                 BinaryOp::Mul => CalculusNode::Mul(left, right),
+                BinaryOp::Div => CalculusNode::Div(left, right),
                 BinaryOp::And => CalculusNode::And(left, right),
                 BinaryOp::Or => CalculusNode::Or(left, right),
                 op if crate::lower::comparison_operator(*op).is_some() => CalculusNode::Compare(
@@ -613,7 +619,7 @@ fn compile_expression(
             return Err(pure_error(
                 file,
                 expression.range(),
-                "operator bodies require exact polynomial expressions over lexical formals",
+                "operator bodies require closed calculus expressions over lexical formals",
             ));
         }
     };

@@ -91,9 +91,8 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
                 push_component_index(&mut bytes, *left);
                 push_component_index(&mut bytes, *right);
             }
-            CalculusNode::Differentiated { value, source, wrt } => {
+            CalculusNode::Differentiated { source, wrt } => {
                 bytes.push(14);
-                bytes.extend_from_slice(&value.index().to_be_bytes());
                 bytes.extend_from_slice(&source.index().to_be_bytes());
                 bytes.extend_from_slice(&wrt.index().to_be_bytes());
             }
@@ -112,6 +111,11 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
             }
             CalculusNode::Mul(left, right) => {
                 bytes.push(5);
+                bytes.extend_from_slice(&left.index().to_be_bytes());
+                bytes.extend_from_slice(&right.index().to_be_bytes());
+            }
+            CalculusNode::Div(left, right) => {
+                bytes.push(16);
                 bytes.extend_from_slice(&left.index().to_be_bytes());
                 bytes.extend_from_slice(&right.index().to_be_bytes());
             }

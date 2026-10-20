@@ -1,13 +1,8 @@
 //! Retained pure applications use the shared scalar or component IR projection.
 use super::*;
-use eqiora_schema::kernel::{
-    ExprDagBuilder,
-    pure_operator::PureOperatorDefinition,
-    typing::{ExpressionType, RootContract, TypedResidual},
-};
+use eqiora_schema::kernel::{pure_operator::PureOperatorDefinition, typing::ExpressionType};
 
 pub(super) fn evaluate(
-    owner: RawId,
     definition: &PureOperatorDefinition,
     arguments: &[&ValueLiteral],
     component_work: &mut usize,
@@ -32,64 +27,14 @@ pub(super) fn evaluate(
         .ok_or_else(component_budget_error)?;
     check_component_work(*component_work, cost)?;
     *component_work += cost;
-    let mut builder = ExprDagBuilder::new();
-    let arguments = arguments
-        .iter()
-        .map(|value| builder.constant((*value).clone()))
-        .collect::<Result<Vec<_>, _>>()?;
-    if !complex && types.iter().all(|ty| ty.shape().is_scalar()) && result_type.shape().is_scalar()
-    {
-        let root = builder.project_operator_component(
-            &instance,
-            &arguments.iter().map(|id| [*id]).collect::<Vec<_>>(),
-            &[],
-            1_000_000,
-        )?;
-        let dag = builder.finish([root])?;
-        return evaluate_selected(owner, &dag, &[root], &mut |_| None)?
-            .pop()
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    codes::INVALID_EXPRESSION_DAG,
-                    "pure operator result is absent",
-                )
-            });
-    }
-    let root = builder.pure_operator(definition, arguments)?;
-    let typed = TypedResidual::<()>::infer(
-        builder.finish([root])?,
-        None,
-        |_| None,
-        RootContract::ComponentwiseResidual,
-        |_| -> Result<ExpressionType<()>, Diagnostic> {
-            Err(Diagnostic::error(
-                codes::INVALID_EXPRESSION_DAG,
-                "closed pure application contains a symbol",
-            ))
-        },
-    )
-    .map_err(|error| {
-        Diagnostic::error(
-            codes::INVALID_EXPRESSION_DAG,
-            format!("pure application typing failed: {error:?}"),
-        )
-    })?;
-    let values = eqiora_ir::ComponentScalarization::lower(&typed)?.evaluate(|_| None)?;
-    let components = values
-        .chunks_exact(if complex { 2 } else { 1 })
-        .map(|value| (value[0], if complex { value[1] } else { 0.0 }));
-    ValueLiteral::new(result_type, components).map_err(|error| {
-        Diagnostic::error(
-            codes::INVALID_EXPRESSION_DAG,
-            format!("pure application result is invalid: {error}"),
-        )
-    })
+    eqiora_ir::ComponentScalarization::evaluate_pure_operator(definition, arguments)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use eqiora_core::{DimExponents, Id, ValueFrame, ValueShape, entity::kinds};
+    use eqiora_schema::kernel::ExprDagBuilder;
 
     #[test]
     fn retained_tensor_application_evaluates_real_and_complex_values() {

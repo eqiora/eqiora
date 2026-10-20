@@ -2,9 +2,9 @@
 use super::*;
 
 impl Context<'_> {
-    pub(super) fn degree_expression(
+    pub(super) fn degree_density(
         &mut self,
-        expression: &ExprDag,
+        id: Id<kinds::Observable>,
         depth: usize,
     ) -> Result<Degree, Diagnostic> {
         if depth > 32 {
@@ -12,60 +12,65 @@ impl Context<'_> {
                 "finite integral degree dependency depth exceeds 32",
             ));
         }
-        self.charge(expression.nodes().len())?;
-        let mut degrees: Vec<Degree> = Vec::with_capacity(expression.nodes().len());
-        for node in expression.nodes() {
-            let at = |id: &ExprId| &degrees[id.index() as usize];
-            let degree = match node {
-                ExprNode::Constant(_)
-                | ExprNode::Symbol(SymbolRef::Field(_) | SymbolRef::Parameter(_)) => Degree::new(),
-                ExprNode::Symbol(SymbolRef::Coordinate { factor, axis, .. }) => {
-                    Degree::from([((factor.erase(), *axis), 1)])
+        let typed = self
+            .kernel
+            .typed_observable(id)
+            .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
+        self.charge(typed.expression().nodes().len())?;
+        let components = eqiora_ir::ComponentScalarization::lower(&typed)?;
+        let [row] = components.rows() else {
+            return Err(invalid("integral density requires one real scalar root"));
+        };
+        let mut inputs = Vec::with_capacity(row.symbols().len());
+        for coordinate in row.symbols() {
+            inputs.push(match coordinate.symbol() {
+                SymbolRef::Field(_) | SymbolRef::Parameter(_) => Degree::new(),
+                SymbolRef::Coordinate { factor, axis, .. } => {
+                    Degree::from([((factor.erase(), axis), 1)])
                 }
-                ExprNode::Symbol(SymbolRef::Observable(id)) => {
-                    self.degree_observable(*id, depth + 1)?
-                }
-                ExprNode::Neg(value) => at(value).clone(),
-                ExprNode::Add(a, b) | ExprNode::Sub(a, b) => combine(at(a), at(b), false)?,
-                ExprNode::Mul(a, b) => combine(at(a), at(b), true)?,
-                ExprNode::Div(a, b) if at(b).is_empty() => at(a).clone(),
-                ExprNode::PowI(value, power) if *power >= 0 => {
-                    if *power == 0 {
-                        Degree::new()
-                    } else {
-                        at(value)
-                            .iter()
-                            .map(|(axis, degree)| {
-                                let power = u16::try_from(*power).map_err(|_| {
-                                    invalid("finite polynomial exponent exceeds u16")
-                                })?;
-                                Ok((
-                                    *axis,
-                                    degree.checked_mul(power).ok_or_else(|| {
-                                        invalid("finite polynomial degree overflow")
-                                    })?,
-                                ))
-                            })
-                            .collect::<Result<Degree, Diagnostic>>()?
-                    }
-                }
-                ExprNode::PowI(value, _) | ExprNode::UnaryMath(_, value)
-                    if at(value).is_empty() =>
-                {
-                    Degree::new()
+                SymbolRef::Observable(dependency) => {
+                    self.degree_observable(dependency, depth + 1)?
                 }
                 _ => {
                     return Err(invalid(
-                        "finite integral requires a polynomial in its coordinate factors with coordinate-independent denominators",
+                        "finite integral degree references an unsupported symbol",
                     ));
                 }
-            };
-            degrees.push(degree);
+            });
         }
-        if expression.roots().len() != 1 {
-            return Err(invalid("integral density requires one root"));
+        let axes = inputs
+            .iter()
+            .flat_map(|degree| degree.keys().copied())
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut result = Degree::new();
+        for axis in axes {
+            let degrees = inputs
+                .iter()
+                .map(|degree| Some(usize::from(degree.get(&axis).copied().unwrap_or(0))))
+                .collect::<Vec<_>>();
+            let degree = row.polynomial_degree(&degrees).ok_or_else(|| invalid(
+                "finite integral requires a polynomial in its coordinate factors with coordinate-independent denominators",
+            ))?;
+            let degree = u16::try_from(degree)
+                .map_err(|_| invalid("finite polynomial degree exceeds u16"))?;
+            if degree != 0 {
+                result.insert(axis, degree);
+            }
         }
-        Ok(degrees[expression.roots()[0].index() as usize].clone())
+        // A polynomial value on a restricted domain is insufficient for a
+        // regular integral. Reuse the factor-density domain check before
+        // choosing quadrature nodes that might miss a pole or invalid guard.
+        let varying = row
+            .symbols()
+            .iter()
+            .zip(&inputs)
+            .filter(|(_, degree)| !degree.is_empty())
+            .map(|(coordinate, _)| coordinate.symbol())
+            .collect::<std::collections::HashSet<_>>();
+        eqiora_ir::ScalarOperatorIr::lower_typed_scalar(&typed)?
+            .require_regular_density(|symbol| varying.contains(&symbol))
+            .map_err(|error| invalid(error.message()))?;
+        Ok(result)
     }
 
     fn degree_observable(
@@ -85,7 +90,7 @@ impl Context<'_> {
             ));
         }
         let definition = definition.clone();
-        let mut degree = self.degree_expression(definition.expression(), depth)?;
+        let mut degree = self.degree_density(id, depth)?;
         if let ObservableReduction::SpatialIntegral { domain, .. } = definition.reduction() {
             for (axis, _) in axes(self.kernel, domain)? {
                 degree.remove(&axis);
@@ -94,19 +99,4 @@ impl Context<'_> {
         self.degrees.insert(id.erase(), degree.clone());
         Ok(degree)
     }
-}
-
-fn combine(left: &Degree, right: &Degree, multiply: bool) -> Result<Degree, Diagnostic> {
-    let mut result = left.clone();
-    for (axis, degree) in right {
-        let current = result.entry(*axis).or_default();
-        *current = if multiply {
-            current
-                .checked_add(*degree)
-                .ok_or_else(|| invalid("finite polynomial degree overflow"))?
-        } else {
-            (*current).max(*degree)
-        };
-    }
-    Ok(result)
 }

@@ -87,6 +87,7 @@ def test_stationary_newton_replays_seed_residual_and_actual_solve_history(exact_
 @pytest.mark.parametrize("law,upper", [
     ("polynomial_flux", 3), ("property_reaction", 3),
     ("property_flux", 3), ("property_flux", 1.99),
+    ("property_rational", 3),
 ])
 def test_stationary_material_runs_and_replays(law, upper):
     graph = q.geometry.GeometryGraph()
@@ -97,14 +98,19 @@ def test_stationary_material_runs_and_replays(law, upper):
     body = geometry.selection("body")
     supports = """support body:volume(ambient_dimension=1),
         support left:boundary(parent=body),support right:boundary(parent=body)"""
+    constant_solution = law in {"property_reaction", "property_rational"}
     if law.startswith("property_"):
-        reaction = law == "property_reaction"
+        reaction = constant_solution
         forcing = "(response(value=u)-5)/1[m^2]" if reaction else "2*(1+coordinate(0)/1[m])/1[m^2]"
+        response = "1+value^2"
+        if law == "property_rational":
+            response = "1/(1+value^2)"
+            forcing = "(u^2-4)/1[m^2]"
         right_law = "trace(u)=2" if reaction else "normal(response(value=u)*grad(u))=5[1/m]"
         source = f"""
         property contract Response(input value:1):1 {{derivatives first_partials;}}
         property release Material:Response {{
-            analytic {{value=1+value^2;source_unit:1=1;}}
+            analytic {{value={response};source_unit:1=1;}}
             validity value>=-1 and value<={upper};outside reject;branch single;
             citation org.example.manufactured;license spdx.CC0_1_0;
         }}
@@ -144,13 +150,14 @@ def test_stationary_material_runs_and_replays(law, upper):
     plan = q.Plan.from_bytes(plan.to_bytes())
     field = model.field(model.field_ids[0])
     coordinates = np.asarray(mesh.coordinates)[:, 0]
-    # Independent solutions: constant u=2 gives response=5 and zero gradient;
+    # Independent solutions: constant u=2 makes the reaction and gradient zero;
     # u=1+x gives q'=2(1+x), with the prescribed outlet flux q(1)=5.
-    exact = np.full_like(coordinates, 2.) if law == "property_reaction" else 1+coordinates
+    # The rational-law case makes no general quadrature-exactness claim.
+    exact = np.full_like(coordinates, 2.) if constant_solution else 1+coordinates
     # Exact Q1 integration gives initial interior residual (-235/12,-1,-235/12)
     # and Newton direction (241/49,1977/392,241/49). The full trial violates
     # the upper bound 3; its half step is admissible and decreases the residual.
-    values = np.array([2., 0., 0., 0., 2.]) if law == "property_reaction" else np.ones(5)
+    values = np.array([2., 0., 0., 0., 2.]) if constant_solution else np.ones(5)
     if upper < 2:
         values = exact.copy()
     state = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=values),))

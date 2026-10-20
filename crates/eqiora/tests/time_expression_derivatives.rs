@@ -20,6 +20,13 @@ model M() {
    derivative(stored_value)=87 [1/s];
    derivative(fixed*fixed)=0 [1/s];
    derivative(time()*q)=11;
+   derivative(math.sin(q-3))=2 [1/s];
+   derivative(math.cos(q-3))=0 [1/s];
+   derivative(math.exp(q-3))=2 [1/s];
+   derivative(math.log(q-2))=2 [1/s];
+   derivative(math.sqrt(y-1))=0.75 [1/s];
+   derivative(q/(y-1))=-0.0625 [1/s];
+   derivative(math.sin((derivative(q*q)-12[1/s])*1[s]))=26 [1/s];
  }
 }"#;
     let models = compile("chain.eqi", source).unwrap();
@@ -55,6 +62,10 @@ model M() {
                         3.,
                         eqiora::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
                     ),
+                    SymbolRef::Derivative(id, order) if id.erase() == q && order.get() == 2 => (
+                        3.,
+                        eqiora::DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).unwrap(),
+                    ),
                     SymbolRef::Time => (
                         4.,
                         eqiora::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
@@ -78,7 +89,7 @@ fn time_coordinate_and_smooth_derivatives_reject_wrong_context_or_dependencies()
     for relation in [
         "derivative(v*v)=0 [1/s]",
         "derivative(pre(q))=0 [1/s]",
-        "derivative(math.sin(q))=0 [1/s]",
+        "derivative(math.abs(q))=0 [1/s]",
         "time(1)=0 [s]",
         "time=0 [s]",
     ] {

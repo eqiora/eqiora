@@ -46,16 +46,20 @@ impl ExpressionChecker<'_, '_, '_> {
                     value,
                 } => pending.push(*value.clone()),
                 ExprKind::Binary {
-                    op: BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Pow,
+                    op:
+                        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Pow,
                     left,
                     right,
                 } => {
                     pending.extend([*left.clone(), *right.clone()]);
                 }
-                ExprKind::Call { callee, arguments } if !is_builtin_operator(callee) => {
-                    pending.extend(arguments.expressions().cloned());
-                }
-                ExprKind::Call { callee, arguments } if callee.as_str() == "derivative" => {
+                ExprKind::Call { callee, arguments }
+                    if !is_builtin_operator(callee)
+                        || callee.as_str() == "derivative"
+                        || crate::math::unary_function(callee.as_str()).is_some() =>
+                {
+                    // This pass owns evolution dependencies. Canonical formal
+                    // calculus owns which mathematical values are differentiable.
                     pending.extend(arguments.expressions().cloned());
                 }
                 ExprKind::Call { callee, arguments }
@@ -72,7 +76,7 @@ impl ExpressionChecker<'_, '_, '_> {
             codes::LANGUAGE_TYPE_ERROR,
             self.scope.file,
             value.range(),
-            "time derivative admits explicit smooth scalar polynomial expressions of continuous states, fixed Parameters, declared coordinates, explicit pullbacks and coordinate-map factors; discrete, algebraic, and unsupported derivative products reject",
+            "time derivative requires admitted scalar calculus over continuous states, fixed Parameters, declared coordinates, explicit pullbacks and coordinate-map factors; discrete, algebraic, and unsupported derivative products reject",
         )
     }
 }

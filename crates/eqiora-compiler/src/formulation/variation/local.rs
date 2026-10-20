@@ -495,7 +495,8 @@ mod tests {
 
     fn polynomial(derived: &LocalVariation) -> ExactPolynomial<usize> {
         let mut values: Vec<ExactPolynomial<usize>> = Vec::new();
-        for node in derived.definition.nodes() {
+        let definition = derived.definition.polynomial_derivative_view().unwrap();
+        for node in definition.nodes() {
             let get = |id: CalculusNodeId| &values[id.index() as usize];
             values.push(match node {
                 CalculusNode::FormalComponent { formal, .. } => {
@@ -505,13 +506,11 @@ mod tests {
                 CalculusNode::Add(a, b) => get(*a).checked_add(get(*b)).unwrap(),
                 CalculusNode::Mul(a, b) => get(*a).checked_mul(get(*b)).unwrap(),
                 CalculusNode::Neg(a) => get(*a).checked_neg().unwrap(),
-                CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
-                    get(*value).clone()
-                }
+                CalculusNode::BoundInput(value) => get(*value).clone(),
                 _ => panic!("non-polynomial output"),
             });
         }
-        values[derived.definition.root().index() as usize].clone()
+        values[definition.root().index() as usize].clone()
     }
 
     fn product(coefficient: i64, a: usize, b: usize) -> ExactPolynomial<usize> {

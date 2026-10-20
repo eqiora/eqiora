@@ -61,6 +61,13 @@ absolute bound covers the same finite arithmetic and exact polynomial quadrature
 A shared scale of `2 m` in `x/scale+scale*x/(1 m²)` gives `225/4` for the density
 coordinate derivative; scale `-2 m` gives `-225/4`. Zero divisors, varying poles,
 Parameter-dependent support geometry and bound-coordinate selectors reject.
+Formal calculus can represent a pointwise quotient derivative without proving exchange with
+an integral. Regular-density admission therefore remains an obligation of ordinary Result
+observation: `1/v` across `[-2,4]` and `1/(x-a)^2` with upper endpoint `a` reject there,
+including their proposed integral partials, even when interior quadrature samples avoid the pole.
+Fixed validity predicates preserve smooth-density classification; coordinate-varying predicates
+cannot prove regularity over an interval. These controls no longer rely on a compiler-wide
+ban on quotient differentiation.
 Declaration reordering and alpha-renaming preserve the structural fingerprint; Model replay
 preserves the derived observation. This profile is a declaration-root first partial of one
 named integral. Higher/composite integral derivatives, nonpolynomial densities, Cartesian
@@ -112,6 +119,15 @@ amplitude and survives Model, Plan and Result replay and re-execution. For spher
 `a*(2+3r²)` on `[0,2]`, the average target `46/5` determines `a=1`; this catches
 an omitted radial Jacobian even when a normalized ratio cancels the angular factor.
 The total still checks that angular factor. These affine comparisons retain `1e-11`.
+
+Source partial integrands use the shared typed scalar polynomial-degree rules. For
+`partial(A*x/(2 m), wrt=x)`, integration over `[0,2] m` gives `A`, so the
+constraint integral = 3 solves `A=3`. Replacing division by multiplication by
+`0.5/m` gives the same result. Degree classification does not prove interval
+regularity: `partial(p*A*(x/m)^2 + log((x-0.1 m)/m), wrt=p)` has polynomial
+value `A*(x/m)^2` but retains its source domain `x>0.1 m`. The finite constraint
+rejects its integral on `[0,2] m` before choosing quadrature, even though the
+two-point Gauss nodes `(1 +/- 1/sqrt(3)) m` both satisfy that domain.
 
 A nonlinear density with amplitude coefficient `A²` has residual `(45/2)A²-90`.
 The ordinary strict-positive Newton lifecycle accepts `A=2`, rechecks the original
