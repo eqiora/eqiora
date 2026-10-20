@@ -228,8 +228,12 @@ impl typed::TypedInstructions<'_> {
                 continue;
             }
             match *node {
-                Instruction::ValueOnly { input, .. } => {
-                    require_inactive_value_only_input(dependencies[input.0 as usize])?;
+                Instruction::DerivativeLimit {
+                    start, len, order, ..
+                } => {
+                    let active = derivative_limit::inputs(start, len, index)?
+                        .any(|input| dependencies[input]);
+                    derivative_limit::require_order(order, u32::from(active))?;
                 }
                 Instruction::Compare(_, a, b) => {
                     let a = trace[a.0 as usize].as_ref().expect("demanded comparison");
@@ -303,7 +307,13 @@ impl typed::TypedInstructions<'_> {
                     | Instruction::And(a, b)
                     | Instruction::Or(a, b) => at(a) || at(b),
                     Instruction::Require { condition, value } => at(condition) || at(value),
-                    Instruction::ValueOnly { input, value } => at(input) || at(value),
+                    Instruction::DerivativeLimit {
+                        start, len, value, ..
+                    } => {
+                        at(value)
+                            || derivative_limit::inputs(start, len, index)?
+                                .any(|input| dependencies[input])
+                    }
                     Instruction::Select {
                         condition,
                         then_value,
@@ -356,9 +366,7 @@ impl typed::TypedInstructions<'_> {
                 } else {
                     else_value
                 }),
-                Instruction::Require { value, .. } | Instruction::ValueOnly { value, .. } => {
-                    Some(value)
-                }
+                Instruction::Require { value, .. } => Some(value),
                 _ => None,
             }
         };
@@ -379,6 +387,15 @@ impl typed::TypedInstructions<'_> {
                 continue;
             }
             match node {
+                Instruction::DerivativeLimit {
+                    start, len, value, ..
+                } => {
+                    pending.push(value);
+                    pending.extend(
+                        derivative_limit::inputs(start, len, id.0 as usize)?
+                            .map(|input| ValueId(input as u32)),
+                    );
+                }
                 Instruction::Neg(a) | Instruction::PowI(a, _) | Instruction::Math(_, a) => {
                     pending.push(a)
                 }

@@ -3,7 +3,7 @@ use super::artifact::{decode, one};
 use super::*;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use eqiora_numerics::{
-    CommonAlgebraicState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
+    CommonInitialState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
 };
 use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
@@ -118,12 +118,7 @@ impl WireRequest {
                 ..
             } => {
                 let initial = initial
-                    .map(|value| {
-                        let algebraic = plan
-                            .as_algebraic()
-                            .ok_or_else(|| invalid("finite seed requires its algebraic Plan"))?;
-                        CommonAlgebraicState::from_bytes(&decode(&value)?, algebraic)
-                    })
+                    .map(|value| CommonInitialState::from_bytes(&decode(&value)?, &plan))
                     .transpose()
                     .map_err(one)?;
                 let program = DifferentiableProgramIdentity::from_bytes(

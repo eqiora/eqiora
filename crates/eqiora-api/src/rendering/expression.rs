@@ -331,13 +331,18 @@ impl Context<'_> {
                     self.lower(dag, *value, next)?,
                 ],
             ),
-            ExprNode::ValueOnly { input, value } => call(
-                "value_only",
-                vec![
-                    self.lower(dag, *input, next)?,
-                    self.lower(dag, *value, next)?,
-                ],
-            ),
+            ExprNode::DerivativeLimit {
+                inputs,
+                value,
+                order,
+            } => {
+                let mut arguments = inputs
+                    .iter()
+                    .map(|input| self.lower(dag, *input, next))
+                    .collect::<Result<Vec<_>, _>>()?;
+                arguments.push(self.lower(dag, *value, next)?);
+                call(&format!("derivative_limit_{order}"), arguments)
+            }
             ExprNode::Select {
                 condition,
                 then_value,

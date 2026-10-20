@@ -188,8 +188,34 @@ As above, each evaluation keeps its own solution and partial derivatives. The
 seed, the strict-interior conditions, and the residual and regularity checks are
 applied again at every point. `evidence.primal_solve` is a `NonlinearSolveSummary`,
 even when no Newton update was needed, and `derivative_solve` describes the
-linear sensitivity solve, normal or transposed. This path does not support ordered
-maps, global tracking of a solution branch, or higher implicit derivatives.
+linear sensitivity solve, normal or transposed. Independent ordered maps reuse
+the same immutable seed at each point. This does not track a solution branch
+globally or provide higher implicit derivatives.
+
+## Stationary nonlinear spatial points
+
+A stationary real Q1 Newton Plan uses the same `state=` argument. Supply a
+complete spatial `State.initial` with physical Field values. Each Parameter
+point starts from its free seed coordinates and applies that point's prescribed
+boundary values. The initial State remains immutable. Affine spatial Programs
+consume no initial State.
+
+For `-div((1+p*u)*grad(u))=0` on `[0,1]`, with endpoint values `1` and `r`,
+`q(u)=u+p*u²/2` is affine in position. On two equal Q1 cells the midpoint
+satisfies `q(u_mid)=(q(1)+q(r))/2`. At `p=0, r=2`, `u_mid=1.5` and
+`du_mid/dp=1/8`; at `p=1, r=2`, they are `sqrt(6.5)-1` and
+`1-2.5/sqrt(6.5)`. These sensitivities include the constitutive dependence
+and the implicit change in the solution. Selecting `r` also differentiates the
+boundary lift and the prescribed output value.
+
+The Newton solve retains its accepted Jacobian and original residual for the
+same residual/output partial and total JVP/VJP APIs. Direct material Parameter
+products use the release's first-partial contract; they do not require a mixed
+second material derivative. Validity conditions still apply at the exact
+operating point. Saved evaluation collections retain the exact spatial seed
+and recheck candidates through the original equations without solving again.
+This path currently covers stationary real Cartesian Q1 execution; it does not
+establish time/history or geometry sensitivities.
 
 ## Native ordered batches
 

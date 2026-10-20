@@ -56,14 +56,14 @@ impl RegionDofMap<f64> {
     pub(crate) fn solve_nonlinear<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<f64>,
+        input: &RegionSolveInput<f64>,
         initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
         nonlinear: NonlinearSolvePlan,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_>,
     ) -> Result<RegionNonlinearOutput, Diagnostic> {
-        let step = self.validate_solve_input(mesh, &input)?;
-        let seed = self.nonlinear_predictor(&input, initial)?;
+        let step = self.validate_solve_input(mesh, input)?;
+        let seed = self.nonlinear_predictor(input, initial)?;
         let multipliers = input
             .forms
             .iter()
@@ -72,8 +72,8 @@ impl RegionDofMap<f64> {
         let prepared = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
-            input.forms,
-            input.natural,
+            input.forms.clone(),
+            input.natural.clone(),
             input.previous.as_ref(),
             input.geometry_action.as_deref(),
         )?;

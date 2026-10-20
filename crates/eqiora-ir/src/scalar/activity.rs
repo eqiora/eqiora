@@ -7,6 +7,14 @@ fn operands(
     mut visit: impl FnMut(ValueId),
 ) -> Result<(), Diagnostic> {
     match instructions[index] {
+        Instruction::DerivativeLimit {
+            start, len, value, ..
+        } => {
+            for input in derivative_limit::inputs(start, len, index)? {
+                visit(ValueId(input as u32));
+            }
+            visit(value);
+        }
         Instruction::CoefficientJet { start, len, shape } => {
             for id in coefficient_jet::operands(start, len, shape, &instructions[..index])?.iter() {
                 visit(id);
@@ -82,6 +90,7 @@ fn dependencies(
 
 impl ScalarLinearization<'_> {
     pub(super) fn derivative_demand(&self, values: &[f64]) -> Result<Vec<bool>, Diagnostic> {
+        derivative_limit::require_first(&self.instructions, &self.active)?;
         // The complete original primal has already been evaluated. Retain its
         // active unary regularity even when a frozen zero removes a derivative
         // contribution. The ordinary unary owner admits zero directions too.

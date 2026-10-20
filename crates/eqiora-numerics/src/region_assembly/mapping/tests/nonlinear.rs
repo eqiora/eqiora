@@ -34,7 +34,7 @@ pub(super) fn check_stationary(
         mapping
             .solve_nonlinear(
                 mesh,
-                input(),
+                &input(),
                 seed,
                 nonlinear,
                 NonZeroUsize::MIN,
@@ -63,8 +63,8 @@ pub(super) fn check_stationary(
         initial_norm,
         Some(output.solve.evidence.initial_residual_norm)
     );
-    assert_eq!(packets, output.solve.assembly_report.packet_count());
-    assert_eq!(targets, output.solve.assembly_report.target_count());
+    assert_eq!(packets, output.solve.assembly.report.packet_count());
+    assert_eq!(targets, output.solve.assembly.report.target_count());
     assert!(validate(&initial, &initial, 1).is_err());
     assert!(validate(&output.fields, &initial, 0).is_err());
     assert!(validate(&output.fields, &initial, 5).is_err());

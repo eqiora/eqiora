@@ -791,3 +791,72 @@ fn exponential_uses_the_shared_value_and_forward_reverse_derivative_paths() {
     assert_eq!(reverse, forward);
     assert!(ir.evaluate(&[1000.0]).is_err());
 }
+
+#[test]
+fn additive_atoms_retain_the_complete_property_derivative_contract() {
+    use eqiora_core::ValueLiteral;
+    let selected = SymbolRef::Field(Id::<kinds::Field>::new());
+    let frozen = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let literal =
+        |x| ValueLiteral::try_from(DynQuantity::new(x, DimExponents::DIMENSIONLESS)).unwrap();
+    for order in [0, 1] {
+        let mut atoms = Vec::new();
+        for unused in [false, true] {
+            let mut builder = ExprDagBuilder::new();
+            if unused {
+                builder
+                    .constant(DynQuantity::new(17., DimExponents::DIMENSIONLESS))
+                    .unwrap();
+            }
+            let x = builder.symbol(selected).unwrap();
+            let y = builder.symbol(frozen).unwrap();
+            let value = builder.mul(x, y).unwrap();
+            let guarded = builder.derivative_limit(vec![x, y], value, order).unwrap();
+            let twice = builder.add(guarded, guarded).unwrap();
+            let ir = ScalarOperatorIr::lower(&builder.finish([twice]).unwrap()).unwrap();
+            let inputs = ir
+                .symbols()
+                .iter()
+                .map(|s| literal(if *s == selected { 2. } else { 3. }))
+                .collect::<Vec<_>>();
+            let terms = ir.additive_terms(&inputs, selected).unwrap();
+            assert_eq!(terms.len(), 1);
+            let (atom, coefficient) = terms.into_iter().next().unwrap();
+            assert_eq!(
+                coefficient,
+                [num_rational::BigRational::from_integer(2.into())]
+            );
+            let point = [literal(2.)];
+            let action = atom.linearize_typed(&point, &[DifferentiationRole::Unknown]);
+            if order == 0 {
+                assert!(
+                    action
+                        .unwrap_err()
+                        .message()
+                        .contains("value-only contract")
+                );
+            } else {
+                let action = action.unwrap();
+                let mut result = [0.];
+                action
+                    .jvp(RelationTangent::Unknown(&[1.]), &mut result)
+                    .unwrap();
+                assert_eq!(result, [3.]);
+                assert!(
+                    action
+                        .mixed_jvp(
+                            RelationTangent::Unknown(&[1.]),
+                            RelationTangent::Unknown(&[1.]),
+                            RelationTangent::Unknown(&[0.]),
+                            &mut result,
+                        )
+                        .unwrap_err()
+                        .message()
+                        .contains("requested 2")
+                );
+            }
+            atoms.push(atom);
+        }
+        assert_eq!(atoms[0], atoms[1]);
+    }
+}

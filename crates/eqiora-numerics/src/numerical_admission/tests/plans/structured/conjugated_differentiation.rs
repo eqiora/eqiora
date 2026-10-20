@@ -198,6 +198,7 @@ fn check_derivatives(
         for point in [[2., 3.], [0., 0.], [-1., 4.]] {
             let accepted = plan
                 .differentiate(
+                    None,
                     &[parameter],
                     Some(&point),
                     &outputs,
@@ -257,6 +258,7 @@ fn check_derivatives(
             }
             let replay = plan
                 .validate_differentiated_values(
+                    None,
                     &[parameter],
                     Some(&point),
                     &outputs,
@@ -269,6 +271,7 @@ fn check_derivatives(
             altered[1] += 0.01;
             assert!(
                 plan.validate_differentiated_values(
+                    None,
                     &[parameter],
                     Some(&point),
                     &outputs,

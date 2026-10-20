@@ -33,9 +33,11 @@ pub(super) enum Instruction {
         condition: ValueId,
         value: ValueId,
     },
-    ValueOnly {
-        input: ValueId,
+    DerivativeLimit {
+        start: ValueId,
+        len: u32,
         value: ValueId,
+        order: u32,
     },
     Math(eqiora_schema::kernel::UnaryMathFunction, ValueId),
     Not(ValueId),
@@ -71,7 +73,6 @@ impl Instruction {
             self,
             Self::Select { .. }
                 | Self::Require { .. }
-                | Self::ValueOnly { .. }
                 | Self::PureOperator { .. }
                 | Self::Compare(..)
                 | Self::Not(_)
@@ -132,10 +133,7 @@ impl Instruction {
                 condition: at(condition),
                 value: at(value),
             },
-            Self::ValueOnly { input, value } => Self::ValueOnly {
-                input: at(input),
-                value: at(value),
-            },
+            Self::DerivativeLimit { .. } => return None,
             Self::Array { .. } | Self::PureOperator { .. } => return None,
         })
     }

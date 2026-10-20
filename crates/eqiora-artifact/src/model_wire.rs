@@ -14,10 +14,8 @@ use crate::model::{
 };
 use crate::{ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, invalid_artifact};
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v48";
 const MODEL_LABEL: &str = "current Model";
 const ENVELOPE_LABEL: &str = "current Model envelope";
-const DECODE_LABEL: &str = "decode eqiora.model-envelope/v48";
 
 /// Canonical serialization of a Semantic Model in the current format.
 #[derive(Debug, Clone, PartialEq)]
@@ -26,6 +24,9 @@ pub struct ModelEnvelope {
 }
 
 impl ModelEnvelope {
+    /// Exact schema emitted and admitted by the current artifact owner.
+    pub const SCHEMA: &'static str = "eqiora.model-envelope/v49";
+
     /// Encode one immutable validated Semantic Kernel program.
     ///
     /// # Errors
@@ -66,7 +67,7 @@ impl ModelEnvelope {
             .collect();
         let mut envelope = Self {
             wire: WireModelEnvelope {
-                schema: MODEL_SCHEMA.to_owned(),
+                schema: Self::SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 source_revision: program.revision().0,
                 model_ulid: program.model().ulid().to_string(),
@@ -88,7 +89,7 @@ impl ModelEnvelope {
     pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
         limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
-            .map_err(|error| invalid_artifact(format!("invalid {MODEL_SCHEMA} JSON: {error}")))?;
+            .map_err(|error| invalid_artifact(format!("invalid {} JSON: {error}", Self::SCHEMA)))?;
         let mut envelope = Self { wire };
         envelope.canonicalize_and_validate(limits)?;
         Ok(envelope)
@@ -123,7 +124,7 @@ impl ModelEnvelope {
         let bytes = serde_json::to_vec(&content).map_err(|error| {
             invalid_artifact(format!("cannot serialize {MODEL_LABEL} content: {error}"))
         })?;
-        Ok(ArtifactDigest::compute(MODEL_SCHEMA.as_bytes(), &bytes))
+        Ok(ArtifactDigest::compute(Self::SCHEMA.as_bytes(), &bytes))
     }
 
     /// Reconstruct one typed transaction without committing it.
@@ -147,7 +148,7 @@ impl ModelEnvelope {
             definitions.push(definition);
         }
 
-        let mut transaction = Transaction::new(DECODE_LABEL);
+        let mut transaction = Transaction::new(format!("decode {}", Self::SCHEMA));
         for node in definitions {
             transaction.push(Op::DefineKernelNode { node });
         }
@@ -231,9 +232,10 @@ impl ModelEnvelope {
     }
 
     fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
-        if self.wire.schema != MODEL_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
+        if self.wire.schema != Self::SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(format!(
-                "unsupported {MODEL_SCHEMA} schema or canonical encoding"
+                "unsupported {} schema or canonical encoding",
+                Self::SCHEMA
             )));
         }
         if self.wire.source_revision == 0 {

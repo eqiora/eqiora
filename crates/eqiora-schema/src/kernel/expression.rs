@@ -197,10 +197,14 @@ pub enum ExprNode {
     },
     /// Demand a Boolean domain condition; false rejects before demanding the value.
     Require { condition: ExprId, value: ExprId },
-    /// Retain a value-only contract for one independent real input.
-    /// Primal evaluation demands both operands; derivative products through
-    /// an active input are unavailable, including when its sampled derivative is zero.
-    ValueOnly { input: ExprId, value: ExprId },
+    /// Retain the permitted total derivative order across independent real inputs.
+    /// Primal evaluation demands every input and the value. Derivative activity is
+    /// structural, including at a sampled zero tangent.
+    DerivativeLimit {
+        inputs: Vec<ExprId>,
+        value: ExprId,
+        order: u32,
+    },
     /// Demand the Boolean condition, then only the selected value arm.
     /// Both arms remain statically typed and retain their dependencies.
     Select {
@@ -344,12 +348,14 @@ impl ExprNode {
                 }
                 Ok(())
             }
-            Self::Require { condition, value }
-            | Self::ValueOnly {
-                input: condition,
-                value,
-            } => {
+            Self::Require { condition, value } => {
                 visit(*condition)?;
+                visit(*value)
+            }
+            Self::DerivativeLimit { inputs, value, .. } => {
+                for input in inputs {
+                    visit(*input)?;
+                }
                 visit(*value)
             }
             Self::Select {
@@ -591,9 +597,18 @@ impl ExprDagBuilder {
         self.push(ExprNode::Require { condition, value })
     }
 
-    /// Retain a value-only independent-input contract through expression projection.
-    pub fn value_only(&mut self, input: ExprId, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::ValueOnly { input, value })
+    /// Retain a total independent-input derivative limit through expression projection.
+    pub fn derivative_limit(
+        &mut self,
+        inputs: Vec<ExprId>,
+        value: ExprId,
+        order: u32,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::DerivativeLimit {
+            inputs,
+            value,
+            order,
+        })
     }
 
     /// Select one complete value lazily from a Boolean condition.

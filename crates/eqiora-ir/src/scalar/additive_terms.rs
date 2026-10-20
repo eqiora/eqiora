@@ -246,6 +246,7 @@ impl ScalarOperatorIr {
         let mut pending = vec![(root, false)];
         let mut instructions = Vec::new();
         let mut literals = Vec::new();
+        let mut map_entries = HashMap::new();
         while let Some((id, exit)) = pending.pop() {
             let index = id.0 as usize;
             if mapped[index].is_some() {
@@ -271,23 +272,20 @@ impl ScalarOperatorIr {
                 Instruction::Read(SymbolSlot(0))
             } else if !exit {
                 let mut children = Vec::new();
-                self.instructions[index]
-                    .map_scalar_operands(|child| {
-                        children.push(child);
-                        child
-                    })
-                    .ok_or_else(|| {
-                        ir_builder_error("additive term is outside scalar projection")
-                    })?;
+                slot_composition::visit_instruction_operands(&self.instructions, index, |child| {
+                    children.push(child)
+                })?;
                 pending.push((id, true));
                 pending.extend(children.into_iter().rev().map(|child| (child, false)));
                 continue;
             } else {
-                self.instructions[index]
-                    .map_scalar_operands(|child| {
-                        mapped[child.0 as usize].expect("prior term operand")
-                    })
-                    .ok_or_else(|| ir_builder_error("additive term is outside scalar projection"))?
+                slot_composition::remap_instruction(
+                    &self.instructions,
+                    index,
+                    &mut instructions,
+                    &mut map_entries,
+                    |child| mapped[child.0 as usize].expect("prior term operand"),
+                )?
             };
             let position = if let Some(position) =
                 instructions.iter().position(|existing| *existing == node)

@@ -100,7 +100,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             };
             seeds[slot.ordinal() as usize] = seed;
         }
-        match self.builder.directional(value, &seeds, |work| {
+        match self.builder.directional(value, &seeds, dimension, |work| {
             super::finite::charge_products(self.finite_products, work)
         })? {
             Some(value) => Ok(value),

@@ -89,13 +89,40 @@ impl BoundFieldComponent<f64> {
         coefficients: &[f64],
         derivative: bool,
     ) -> Result<(f64, Vec<f64>), Diagnostic> {
-        let inputs = self
-            .columns
+        self.value.action(
+            sample.physical,
+            &self.inputs(fields, sample, coefficients),
+            derivative,
+        )
+    }
+
+    pub(super) fn parameter_action(
+        &self,
+        fields: &[RegionFieldLayout],
+        sample: &FieldPoint<'_>,
+        coefficients: &[f64],
+        parameter: &eqiora_ir::ScalarSymbolCoordinate,
+        derivative: bool,
+    ) -> Result<(f64, Vec<f64>), Diagnostic> {
+        self.value.parameter_action(
+            sample.physical,
+            &self.inputs(fields, sample, coefficients),
+            parameter,
+            derivative,
+        )
+    }
+
+    fn inputs(
+        &self,
+        fields: &[RegionFieldLayout],
+        sample: &FieldPoint<'_>,
+        coefficients: &[f64],
+    ) -> Vec<f64> {
+        self.columns
             .iter()
             .map(|(field, coordinate)| {
                 sample.evaluate(*field, &fields[*field], coefficients, *coordinate)
             })
-            .collect::<Vec<_>>();
-        self.value.action(sample.physical, &inputs, derivative)
+            .collect()
     }
 }

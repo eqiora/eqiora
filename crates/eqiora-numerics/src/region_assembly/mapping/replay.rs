@@ -81,6 +81,33 @@ impl RegionDofMap<f64> {
         nonlinear: eqiora_realization::NonlinearSolvePlan,
         iterations: usize,
     ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic> {
+        let accepted =
+            self.accept_nonlinear_coefficients(mesh, input, fields, initial, nonlinear)?;
+        if iterations > nonlinear.maximum_iterations().get() {
+            return Err(invalid("Newton iteration history exceeds its Plan limit"));
+        }
+        accepted
+            .initial
+            .validate_updates(accepted.residual_target, iterations)?;
+        Ok((
+            accepted.residual_norm,
+            accepted.residual_target,
+            accepted.assembly.report.packet_count(),
+            accepted.assembly.report.target_count(),
+            Some(accepted.initial.residual_norm),
+        ))
+    }
+
+    /// Mathematical acceptance shared by Result replay and implicit derivatives.
+    /// This derives no producer history and executes no solve.
+    pub(crate) fn accept_nonlinear_coefficients<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: &RegionSolveInput<f64>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        nonlinear: eqiora_realization::NonlinearSolvePlan,
+    ) -> Result<AcceptedNonlinearPoint, Diagnostic> {
         self.validate_solve_input(mesh, input)?;
         let reduced = if input.previous.is_some() {
             self.validated_step_point(input, fields)?
@@ -108,14 +135,6 @@ impl RegionDofMap<f64> {
         let residual_target = nonlinear
             .absolute_tolerance()
             .max(nonlinear.relative_tolerance() * initial);
-        if iterations > nonlinear.maximum_iterations().get()
-            || (iterations == 0 && (seed != reduced || initial > residual_target))
-            || (iterations > 0 && initial <= residual_target)
-        {
-            return Err(invalid(
-                "Newton iteration history contradicts its original predictor",
-            ));
-        }
         let residual = norm(&reduced)?;
         if residual > residual_target {
             return Err(invalid(
@@ -134,12 +153,32 @@ impl RegionDofMap<f64> {
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect();
         self.require_multiplier_closure(action.systems[0].matrix(), &multipliers)?;
-        Ok((
-            residual,
+        // Both ordinary residual evaluation and the retained differentiated action
+        // must satisfy the original target; neither is replaced by J*x-b.
+        let assembled_norm = super::super::newton::residual_norm(&action.residuals[0])?;
+        if assembled_norm > residual_target {
+            return Err(invalid(
+                "supplied Region linearization violates the original nonlinear residual",
+            ));
+        }
+        let at_seed = seed == reduced;
+        Ok(AcceptedNonlinearPoint {
+            values: reduced,
+            residual_norm: residual,
             residual_target,
-            action.report.packet_count(),
-            action.report.target_count(),
-            Some(initial),
-        ))
+            initial: crate::nonlinear_execution::NewtonInitialPoint {
+                residual_norm: initial,
+                at_seed,
+            },
+            assembly: action,
+        })
     }
+}
+
+pub(crate) struct AcceptedNonlinearPoint {
+    pub(crate) values: Vec<f64>,
+    pub(crate) assembly: crate::region_assembly::nonlinear::RegionAssemblyLinearization,
+    pub(crate) residual_norm: f64,
+    pub(crate) residual_target: f64,
+    pub(crate) initial: crate::nonlinear_execution::NewtonInitialPoint,
 }

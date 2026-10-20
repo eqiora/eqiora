@@ -40,7 +40,12 @@ fn emitted_quotient_retains_affine_and_polynomial_coefficient_bindings() {
             .constant(DynQuantity::new(scale, dimension))
             .unwrap();
         let derivative = builder
-            .directional(root, &[None, None, Some(step)], reject_finite_map_work)
+            .directional(
+                root,
+                &[None, None, Some(step)],
+                dimension,
+                reject_finite_map_work,
+            )
             .unwrap()
             .unwrap();
         let ir = builder.finish([derivative]).unwrap();
@@ -155,7 +160,12 @@ fn guarded_unitful_quotient_coefficients_keep_forward_reverse_and_mixed_actions(
             .constant(DynQuantity::new(2. * scale, time.div(length).unwrap()))
             .unwrap();
         let derivative = builder
-            .directional(root, &[Some(da), Some(db)], reject_finite_map_work)
+            .directional(
+                root,
+                &[Some(da), Some(db)],
+                time.pow(-1, 1).unwrap(),
+                reject_finite_map_work,
+            )
             .unwrap()
             .unwrap();
         let ir = builder.finish([derivative]).unwrap();
@@ -288,11 +298,11 @@ fn emitted_and_affine_quotient_actions_use_the_same_range_safe_rule() {
             .unwrap();
         let seeds = [Some(da), Some(db)];
         let first = builder
-            .directional(root, &seeds, reject_finite_map_work)
+            .directional(root, &seeds, dimension, reject_finite_map_work)
             .unwrap()
             .unwrap();
         let second = builder
-            .directional(first, &seeds, reject_finite_map_work)
+            .directional(first, &seeds, dimension, reject_finite_map_work)
             .unwrap()
             .unwrap();
         let ir = builder.finish([root, first, second]).unwrap();

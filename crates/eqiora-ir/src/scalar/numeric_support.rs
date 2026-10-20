@@ -153,16 +153,6 @@ pub(super) fn ir_builder_error(message: impl Into<String>) -> Diagnostic {
         .with_graph_path(GraphPath::new(["operator-ir", "input-slots"]))
 }
 
-pub(super) fn require_inactive_value_only_input(active: bool) -> Result<(), Diagnostic> {
-    if active {
-        Err(ir_builder_error(
-            "value-only contract does not admit independent-input derivative products",
-        ))
-    } else {
-        Ok(())
-    }
-}
-
 pub(super) fn ir_path(index: usize) -> GraphPath {
     GraphPath::new(["operator-ir".to_owned(), index.to_string()])
 }
@@ -179,7 +169,6 @@ pub(super) fn validate_linearization_inputs(
             instruction,
             Instruction::Select { .. }
                 | Instruction::Require { .. }
-                | Instruction::ValueOnly { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Array { .. }
                 | Instruction::Index(_, _)

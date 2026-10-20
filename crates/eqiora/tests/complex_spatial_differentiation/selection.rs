@@ -184,6 +184,7 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
                         plan.as_spatial()
                             .unwrap()
                             .differentiate(
+                                None,
                                 &selected,
                                 None,
                                 &invalid,

@@ -111,6 +111,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
             .collect::<Vec<_>>();
         let point = plan
             .differentiate(
+                None,
                 &selected,
                 Some(&values),
                 &outputs,
@@ -221,6 +222,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
         assert!((forward - reverse).abs() < 1e-11);
         let replay = plan
             .validate_differentiated_values(
+                None,
                 &selected,
                 Some(&values),
                 &outputs,
@@ -312,6 +314,7 @@ fn coefficient_load_and_trace_partials_obey_the_same_discrete_balance() {
                 .collect::<Vec<_>>();
             let point = plan
                 .differentiate(
+                    None,
                     &selected,
                     None,
                     &outputs,
@@ -486,14 +489,17 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
                 } else {
                     C::new(0., 1.)
                 };
-                let (actual, lift) = system
-                    .parameter_partial(
+                let prepared = plan
+                    .prepare_differentiation(
                         equations,
-                        coordinate,
-                        admission.resources(),
-                        &admission.discretizations,
-                        &vec![0.; 2 * count],
+                        &[parameter.id()],
+                        None,
+                        &[plan.fields().next().unwrap().0.erase()],
+                        &std::collections::HashMap::new(),
                     )
+                    .unwrap();
+                let (actual, lift) = prepared
+                    .affine_parameter_partial(&system, coordinate, &vec![0.; 2 * count])
                     .unwrap();
                 let mut expected = vec![C::new(0., 0.); count];
                 let mut expected_lift = vec![C::new(0., 0.); if fem { 5 } else { 4 }];

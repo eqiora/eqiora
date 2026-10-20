@@ -20,6 +20,14 @@ It specifies what a consumer may request and what domain information a release m
 It does not manufacture smoothness from an annotation. The initial contracts are pure and
 memoryless; adding history, uncertainty, or another independent input changes the contract.
 
+The order applies to the complete independent-input tuple: `first_partials` admits
+each first partial, but neither a repeated partial nor a mixed second partial across
+different inputs. `first_open_intervals` has the same order limit and additionally
+requires an admitted open interval. These limits survive lowering, symbolic
+differentiation and Model replay, including a derivative that simplifies to zero.
+A frozen property value may multiply another active expression without requesting
+a property derivative; its original operating-domain checks still apply.
+
 Contract and release names permit notation immediately after the name. Top-level exported
 declarations use the existing `public` visibility modifier. Body privacy and exact imported
 identity use the same module rules as components. An output's units alone do not establish

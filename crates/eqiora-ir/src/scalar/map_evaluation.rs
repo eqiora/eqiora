@@ -66,33 +66,6 @@ pub(super) fn operand_range(
     Ok(start..limit)
 }
 
-/// Gather scalar coordinates without changing units or signed zero. Both initial
-/// lowering and active-program projection use this contiguous operand convention.
-pub(super) fn gather_entries(
-    instructions: &mut Vec<Instruction>,
-    entries: impl ExactSizeIterator<Item = ValueId> + Clone,
-) -> Result<ValueId, Diagnostic> {
-    let end = instructions.len();
-    let limit = end
-        .checked_add(entries.len())
-        .and_then(|n| n.checked_add(1))
-        .ok_or_else(ir_size_error)?;
-    u32::try_from(limit).map_err(|_| ir_size_error())?;
-    if entries.clone().any(|entry| entry.0 as usize >= end) {
-        return Err(ir_builder_error(
-            "map gather requires prior scalar operands",
-        ));
-    }
-    let one = ValueId(end as u32);
-    instructions.push(Instruction::Constant(eqiora_core::DynQuantity::new(
-        1.,
-        eqiora_core::DimExponents::DIMENSIONLESS,
-    )));
-    let start = ValueId(one.0 + 1);
-    instructions.extend(entries.map(|entry| Instruction::Mul(entry, one)));
-    Ok(start)
-}
-
 #[derive(Default)]
 pub(super) struct MapCache(HashMap<(u32, u32), MapEvaluation>);
 impl MapCache {

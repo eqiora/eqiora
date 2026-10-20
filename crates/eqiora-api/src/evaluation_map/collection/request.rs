@@ -1,7 +1,7 @@
 //! Frozen request meaning without an executable Program or Run closure.
 use super::*;
 use eqiora_numerics::{
-    CommonAlgebraicState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
+    CommonInitialState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -9,7 +9,7 @@ pub(super) enum RecordedRequest {
     Evaluations {
         plan: ResolvedCommonPlan,
         program: Box<DifferentiableProgramIdentity>,
-        initial: Option<CommonAlgebraicState>,
+        initial: Option<CommonInitialState<'static>>,
         points: Vec<DifferentiableValues>,
         shared: Vec<Parameter>,
         samples: Option<Vec<SampledParameterPoint>>,

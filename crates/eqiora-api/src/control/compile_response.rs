@@ -7,8 +7,7 @@ use super::{
 };
 use crate::ModelDocument;
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v48";
-const MODEL_TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v48";
+use eqiora_artifact::{ModelEnvelope, ModelTransactionEnvelope};
 
 /// Exact canonical Model identity returned by successful compile/check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,8 +261,8 @@ pub fn execute_compile_v2(request: &CompileRequestV2) -> CompileControlExecution
         }
     };
     let model = CompileModelDescriptorV2 {
-        schema: MODEL_SCHEMA.to_owned(),
-        transaction_schema: MODEL_TRANSACTION_SCHEMA.to_owned(),
+        schema: ModelEnvelope::SCHEMA.to_owned(),
+        transaction_schema: ModelTransactionEnvelope::SCHEMA.to_owned(),
         digest: reference.artifact().to_string(),
         model_id: reference.model().to_string(),
         semantic_revision: reference.semantic_revision().get(),
@@ -287,8 +286,8 @@ fn validate_model(model: &CompileModelDescriptorV2) -> Result<(), DiagnosticReco
             .digest
             .bytes()
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'));
-    if model.schema != MODEL_SCHEMA
-        || model.transaction_schema != MODEL_TRANSACTION_SCHEMA
+    if model.schema != ModelEnvelope::SCHEMA
+        || model.transaction_schema != ModelTransactionEnvelope::SCHEMA
         || !valid_digest
         || model.model_id.is_empty()
         || model.model_id.chars().count() > 128

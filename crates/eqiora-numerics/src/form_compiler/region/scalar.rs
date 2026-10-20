@@ -209,14 +209,28 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
-        if self.rows.iter().any(|row| !row.components.is_empty()) {
+        if self
+            .rows
+            .iter()
+            .flat_map(|row| &row.components)
+            .any(|term| term.parameter.is_some())
+        {
             return Err(invalid(
-                "nonlinear component Parameter actions require their mixed scalar IR products",
+                "repeated component Parameter partials require a higher-order input product",
             ));
         }
         let mut partial = self.map_data(&|value| {
             value.derivative(&|input| f64::from(input == coordinate), self.dimension)
         })?;
+        // d(c*f)/dp = c_p*f + c*f_p. Retain both original operands, including
+        // their domains, even when a sampled factor or tangent vanishes.
+        for (row, source) in partial.rows.iter_mut().zip(&self.rows) {
+            row.components.extend(source.components.iter().map(|term| {
+                let mut partial = term.clone();
+                partial.parameter = Some(coordinate.clone());
+                partial
+            }));
+        }
         // Positivity belongs to the already assembled primal constitutive law.
         // Its derivative can have either sign, including zero.
         for row in &mut partial.rows {

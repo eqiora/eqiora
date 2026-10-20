@@ -1,4 +1,6 @@
 //! Supplied candidates use exact Plan assembly and original residual admission.
+mod material;
+
 use super::*;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
 
@@ -59,6 +61,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             // No execution precedes this independently supplied candidate.
             let accepted = plan
                 .validate_differentiated_values(
+                    None,
                     &[parameter],
                     Some(&[2.]),
                     &outputs,
@@ -92,6 +95,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             ] {
                 assert!(
                     plan.validate_differentiated_values(
+                        None,
                         &[parameter],
                         Some(&[2.]),
                         &outputs,
@@ -103,6 +107,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             }
             assert!(
                 plan.validate_differentiated_values(
+                    None,
                     &[parameter],
                     Some(&[1.]),
                     &outputs,
@@ -116,6 +121,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             assert!(
                 foreign_mesh
                     .validate_differentiated_values(
+                        None,
                         &[parameter],
                         Some(&[2.]),
                         &outputs,
@@ -128,6 +134,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             // computed coordinates revalidate identically, without another solve.
             let live = plan
                 .differentiate(
+                    None,
                     &[parameter],
                     Some(&[2.]),
                     &outputs,
@@ -137,6 +144,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                 .unwrap();
             let replayed = plan
                 .validate_differentiated_values(
+                    None,
                     &[parameter],
                     Some(&[2.]),
                     &outputs,

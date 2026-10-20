@@ -20,14 +20,11 @@ impl CommonAlgebraicState {
         target: f64,
         iterations: usize,
     ) -> Result<(), Diagnostic> {
-        if (iterations == 0) != (initial_norm <= target)
-            || (iterations == 0 && values != self.values())
-        {
-            return Err(invalid(
-                "nonlinear zero-update record differs from initial State acceptance",
-            ));
+        crate::nonlinear_execution::NewtonInitialPoint {
+            residual_norm: initial_norm,
+            at_seed: values == self.values(),
         }
-        Ok(())
+        .validate_updates(target, iterations)
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {

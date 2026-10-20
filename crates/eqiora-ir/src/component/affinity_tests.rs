@@ -29,7 +29,7 @@ fn affine_classification_retains_coefficients_branches_and_primal_domains() {
     let minus = b.neg(product).unwrap();
     let frozen_branch = b.select(frozen_guard, product, minus).unwrap();
     let active_branch = b.select(active_guard, product, minus).unwrap();
-    let restricted_product = b.value_only(product, product).unwrap();
+    let restricted_product = b.derivative_limit(vec![product], product, 0).unwrap();
     let typed = TypedResidual::<()>::infer(
         b.finish([
             product,

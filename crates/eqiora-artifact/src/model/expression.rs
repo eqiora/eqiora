@@ -343,9 +343,10 @@ pub(crate) enum WireExpressionNode {
         condition: u32,
         value: u32,
     },
-    ValueOnly {
-        input: u32,
+    DerivativeLimit {
+        inputs: Vec<u32>,
         value: u32,
+        order: u32,
     },
     Compare {
         comparison: WireComparisonOp,
@@ -572,9 +573,14 @@ impl WireExpressionNode {
                 condition: condition.index(),
                 value: value.index(),
             },
-            ExprNode::ValueOnly { input, value } => Self::ValueOnly {
-                input: input.index(),
+            ExprNode::DerivativeLimit {
+                inputs,
+                value,
+                order,
+            } => Self::DerivativeLimit {
+                inputs: inputs.iter().map(|input| input.index()).collect(),
                 value: value.index(),
+                order: *order,
             },
             ExprNode::Quotient(left, right) => Self::Quotient {
                 left: left.index(),
@@ -779,9 +785,18 @@ impl WireExpressionNode {
             Self::Require { condition, value } => {
                 builder.require(operand(ids, *condition)?, operand(ids, *value)?)
             }
-            Self::ValueOnly { input, value } => {
-                builder.value_only(operand(ids, *input)?, operand(ids, *value)?)
-            }
+            Self::DerivativeLimit {
+                inputs,
+                value,
+                order,
+            } => builder.derivative_limit(
+                inputs
+                    .iter()
+                    .map(|input| operand(ids, *input))
+                    .collect::<Result<_, _>>()?,
+                operand(ids, *value)?,
+                *order,
+            ),
             Self::Quotient { left, right } => {
                 builder.quotient(operand(ids, *left)?, operand(ids, *right)?)
             }

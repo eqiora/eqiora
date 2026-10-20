@@ -62,14 +62,17 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     .ok_or_else(|| {
                         invalid_component_ir("coordinate Jacobian dimension overflow")
                     })?;
-                let entry = match self.builder.directional(value, &seeds, |work| {
-                    finite::charge_products(self.finite_products, work)
-                })? {
-                    Some(entry) => entry,
-                    None => self
+                let entry =
+                    match self
                         .builder
-                        .constant(DynQuantity::new(0., entry_dimension))?,
-                };
+                        .directional(value, &seeds, entry_dimension, |work| {
+                            finite::charge_products(self.finite_products, work)
+                        })? {
+                        Some(entry) => entry,
+                        None => self
+                            .builder
+                            .constant(DynQuantity::new(0., entry_dimension))?,
+                    };
                 // Axes may have different dimensions. Factor the coherent unit
                 // of each entry out before using the common numeric matrix owner.
                 let unit = self

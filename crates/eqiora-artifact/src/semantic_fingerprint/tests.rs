@@ -58,15 +58,15 @@ fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
 
 #[test]
 fn expression_arena_allocation_is_alpha_normalized_too() {
-    let first = manually_allocated_expression(false, false, false);
-    let reversed = manually_allocated_expression(true, false, false);
+    let first = manually_allocated_expression(false, false, None);
+    let reversed = manually_allocated_expression(true, false, None);
     assert!(StructuralSemanticFingerprint::compare_programs(&first, &reversed).unwrap());
 }
 
 #[test]
 fn model_boundary_membership_is_not_alpha_normalized_away() {
-    let internal = manually_allocated_expression(false, false, false);
-    let exposed = manually_allocated_expression(false, true, false);
+    let internal = manually_allocated_expression(false, false, None);
+    let exposed = manually_allocated_expression(false, true, None);
     assert!(!StructuralSemanticFingerprint::compare_programs(&internal, &exposed).unwrap());
 }
 
@@ -148,7 +148,7 @@ fn exact_canonicalization_fails_instead_of_using_occurrence_order() {
 fn manually_allocated_expression(
     reverse: bool,
     expose_port: bool,
-    value_only: bool,
+    derivative_order: Option<u32>,
 ) -> KernelProgram {
     let left = Id::<kinds::Field>::new();
     let right = Id::<kinds::Field>::new();
@@ -167,8 +167,10 @@ fn manually_allocated_expression(
         (left_value, right_value)
     };
     let root = expression.add(left_value, right_value).unwrap();
-    let root = if value_only {
-        expression.value_only(left_value, root).unwrap()
+    let root = if let Some(order) = derivative_order {
+        expression
+            .derivative_limit(vec![left_value, right_value], root, order)
+            .unwrap()
     } else {
         root
     };
@@ -251,10 +253,13 @@ fn manually_allocated_expression(
 }
 
 #[test]
-fn value_only_contract_is_semantic_and_survives_alpha_normalization() {
-    let unrestricted = manually_allocated_expression(false, false, false);
-    let restricted = manually_allocated_expression(false, false, true);
-    let reordered = manually_allocated_expression(true, false, true);
+fn derivative_order_is_semantic_and_survives_alpha_normalization() {
+    let unrestricted = manually_allocated_expression(false, false, None);
+    let restricted = manually_allocated_expression(false, false, Some(0));
+    let reordered = manually_allocated_expression(true, false, Some(0));
+    let first = manually_allocated_expression(false, false, Some(1));
+    assert!(!StructuralSemanticFingerprint::compare_programs(&restricted, &first).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&unrestricted, &first).unwrap());
     assert!(!StructuralSemanticFingerprint::compare_programs(&unrestricted, &restricted).unwrap());
     assert!(StructuralSemanticFingerprint::compare_programs(&restricted, &reordered).unwrap());
 }

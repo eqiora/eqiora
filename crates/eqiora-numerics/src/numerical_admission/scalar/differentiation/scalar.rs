@@ -7,6 +7,30 @@ use std::sync::Arc;
 pub(in crate::numerical_admission) trait DifferentiationScalar:
     Coefficient + Send + Sync
 {
+    fn solve_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        if initial.is_some() || point.plan.admission.nonlinear.is_some() {
+            return Err(invalid(
+                "this affine spatial differentiation path requires no initial State",
+            ));
+        }
+        point.solve_affine(backend)
+    }
+    fn accept_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        if initial.is_some() || point.plan.admission.nonlinear.is_some() {
+            return Err(invalid(
+                "this affine spatial differentiation path requires no initial State",
+            ));
+        }
+        point.accept_affine(candidate)
+    }
     type Projection: crate::form_compiler::region::coordinates::Projection<Self, Scalar = f64>;
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
@@ -41,6 +65,36 @@ pub(super) fn coordinates<S: DifferentiationScalar>(
 }
 
 impl DifferentiationScalar for f64 {
+    fn solve_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        if point.plan.admission.nonlinear.is_some() {
+            point.solve_nonlinear(initial, backend)
+        } else if initial.is_none() {
+            point.solve_affine(backend)
+        } else {
+            Err(invalid(
+                "affine spatial differentiation does not consume an initial State",
+            ))
+        }
+    }
+    fn accept_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        if point.plan.admission.nonlinear.is_some() {
+            point.accept_nonlinear(initial, candidate)
+        } else if initial.is_none() {
+            point.accept_affine(candidate)
+        } else {
+            Err(invalid(
+                "affine spatial differentiation does not consume an initial State",
+            ))
+        }
+    }
     type Projection = crate::form_compiler::region::coordinates::Native;
     const WIDTH: usize = 1;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
@@ -81,10 +135,9 @@ impl DifferentiationScalar for f64 {
             None,
             None,
         )?;
-        crate::region_assembly::residual::evaluate_affine_work(
+        prepared.work.residual(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
-            &prepared.work,
             values,
         )
     }

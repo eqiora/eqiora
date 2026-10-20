@@ -10,7 +10,7 @@ use eqiora_differentiation::{
 use eqiora_execution::{AcceptedOutputFingerprintV1, ExecutionReceipt};
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
 use eqiora_numerics::{
-    CommonAlgebraicState, CommonDifferentiationLinearization, CommonDifferentiationPoint,
+    CommonDifferentiationLinearization, CommonDifferentiationPoint, CommonInitialState,
     ResolvedCommonPlan,
 };
 use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
@@ -179,7 +179,7 @@ pub struct DifferentiableEvaluation {
 pub struct DifferentiableProgram {
     identity: DifferentiableProgramIdentity,
     plan: ResolvedCommonPlan,
-    initial: Option<CommonAlgebraicState>,
+    initial: Option<CommonInitialState<'static>>,
     backend: &'static dyn LinearSolverBackend,
     default: DifferentiableEvaluation,
 }

@@ -578,10 +578,17 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 let value = self.lower_shaped_part(value, component, part)?;
                 self.builder.require(condition, value)?
             }
-            ExprNode::ValueOnly { input, value } => {
-                let input = self.lower_part(input, &[], ScalarPart::Real)?;
+            ExprNode::DerivativeLimit {
+                inputs,
+                value,
+                order,
+            } => {
+                let inputs = inputs
+                    .iter()
+                    .map(|input| self.lower_part(*input, &[], ScalarPart::Real))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let value = self.lower_shaped_part(value, component, part)?;
-                self.builder.value_only(input, value)?
+                self.builder.derivative_limit(&inputs, value, order)?
             }
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped_part(operand, component, part)?;
@@ -635,12 +642,12 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                             "pure operator application has no exact expression-local definition",
                         )
                     })?;
-                let value_only = self
+                let derivative_order = self
                     .expression
                     .properties()
                     .get(&value)
-                    .is_some_and(|release| !release.first_partials());
-                if value_only {
+                    .map(|release| u32::from(release.first_partials()));
+                if derivative_order.is_some() {
                     finite::charge_products(self.finite_products, application.arguments().len())?;
                 }
                 let mut result = self.lower_pure_definition(
@@ -650,11 +657,13 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                     node_type,
                     part,
                 )?;
-                if value_only {
-                    for argument in application.arguments() {
-                        let input = self.lower_part(*argument, &[], ScalarPart::Real)?;
-                        result = self.builder.value_only(input, result)?;
-                    }
+                if let Some(order) = derivative_order {
+                    let inputs = application
+                        .arguments()
+                        .iter()
+                        .map(|argument| self.lower_part(*argument, &[], ScalarPart::Real))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    result = self.builder.derivative_limit(&inputs, result, order)?;
                 }
                 result
             }

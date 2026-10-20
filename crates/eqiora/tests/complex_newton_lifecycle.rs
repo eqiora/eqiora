@@ -312,7 +312,7 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
             ],
             &[document.observable_ref("output").unwrap().erase()],
             Default::default(),
-            Some(initial.clone()),
+            Some(initial.clone().into()),
             &FaerLinearSolver,
         )
         .unwrap();
@@ -329,7 +329,7 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
                 eqiora::api::RecordedDifferentiableEvaluation::from_bytes(
                     &record.to_bytes().unwrap(),
                     &resolved,
-                    Some(&initial),
+                    Some(&(&initial).into()),
                 )
                 .unwrap(),
                 record,

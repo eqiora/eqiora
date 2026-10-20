@@ -9,7 +9,7 @@ impl CommonSpatialPlan {
     pub(super) fn solve_region_newton(
         &self,
         mapping: &RegionDofMap<f64>,
-        input: RegionSolveInput<f64>,
+        input: &RegionSolveInput<f64>,
         initial: &BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>,
         request: LinearSolveRequest<'_>,
     ) -> Result<crate::region_assembly::mapping::RegionNonlinearOutput, Diagnostic> {
@@ -67,7 +67,7 @@ impl CommonSpatialPlan {
         )?;
         let output = self.solve_region_newton(
             &mapping,
-            input,
+            &input,
             &seed,
             LinearSolveRequest::new(&checked, self.admission.linear.solver),
         )?;
@@ -181,6 +181,6 @@ pub(super) fn newton_execution(
                 .map(CommonSolveEvidence::from_report)
                 .collect(),
         },
-        assembly: CommonAssemblyEvidence::from_report(&solve.assembly_report),
+        assembly: CommonAssemblyEvidence::from_report(&solve.assembly.report),
     }
 }

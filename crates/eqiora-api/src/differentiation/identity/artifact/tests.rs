@@ -128,15 +128,17 @@ fn seeded_identity_reopening_requires_the_exact_initial_state() {
         &[document.parameter_ref("p").unwrap()],
         &[document.field_ref("x").unwrap().erase()],
         &Default::default(),
-        Some(&seed),
+        Some(&(&seed).into()),
     )
     .unwrap();
-    let seed =
-        CommonAlgebraicState::from_bytes(&seed.to_bytes().unwrap(), plan.as_algebraic().unwrap())
-            .unwrap();
+    let seed = eqiora_numerics::CommonAlgebraicState::from_bytes(
+        &seed.to_bytes().unwrap(),
+        plan.as_algebraic().unwrap(),
+    )
+    .unwrap();
     let bytes = identity.to_bytes().unwrap();
     assert_eq!(
-        DifferentiableProgramIdentity::from_bytes(&bytes, &plan, Some(&seed)).unwrap(),
+        DifferentiableProgramIdentity::from_bytes(&bytes, &plan, Some(&(&seed).into())).unwrap(),
         identity,
     );
     assert!(DifferentiableProgramIdentity::from_bytes(&bytes, &plan, None).is_err());
@@ -177,7 +179,7 @@ fn identity_reopening_rejects_foreign_artifacts_and_invalid_selections() {
         DifferentiableProgramIdentity::from_bytes(
             &serde_json::to_vec(&wire).unwrap(),
             &plan,
-            Some(&seed),
+            Some(&(&seed).into()),
         )
         .unwrap_err()[0]
             .message()

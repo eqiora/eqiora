@@ -10,6 +10,7 @@ pub(super) struct Component<S: Coefficient> {
     test: BasisComponent,
     value: BoundFieldComponent<S>,
     coefficient: usize,
+    parameter: Option<eqiora_ir::ScalarSymbolCoordinate>,
 }
 
 impl<S: Coefficient> Component<S> {
@@ -24,6 +25,7 @@ impl<S: Coefficient> Component<S> {
             test: term.test,
             value: BoundFieldComponent::new(&term.value, fields)?,
             coefficient,
+            parameter: term.parameter.clone(),
         })
     }
 }
@@ -42,7 +44,12 @@ impl Component<f64> {
             values: &sample.values,
             gradients: &sample.gradients,
         };
-        let (value, gradient) = self.value.action(fields, &basis, point, derivative)?;
+        let (value, gradient) = if let Some(parameter) = &self.parameter {
+            self.value
+                .parameter_action(fields, &basis, point, parameter, derivative)?
+        } else {
+            self.value.action(fields, &basis, point, derivative)?
+        };
         let test = &fields[self.row];
         let count = point.len();
         for node in 0..sample.values[self.row].len() {

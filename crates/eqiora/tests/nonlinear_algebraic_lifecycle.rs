@@ -197,7 +197,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             )
             .unwrap();
         assert!(point.receipt().is_none());
-        assert_eq!(point.nonlinear_initial_state().unwrap(), &initial);
+        assert_eq!(point.nonlinear_initial_state().unwrap(), &(&initial).into());
         assert!(point.nonlinear_iterations().unwrap() > 0);
         assert!((point.linearization().output_values()[0] - (w + p)).abs() < 1e-12);
         let mut partial = [0.0];
@@ -274,7 +274,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         std::slice::from_ref(&input),
         &[output.erase()],
         Default::default(),
-        Some(initial.clone()),
+        Some(initial.clone().into()),
         &FaerLinearSolver,
     )
     .unwrap();
@@ -370,7 +370,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             std::slice::from_ref(&input),
             &[output.erase()],
             Default::default(),
-            Some(foreign_initial),
+            Some(foreign_initial.into()),
             &FaerLinearSolver
         )
         .is_err()
@@ -381,7 +381,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             &[foreign.parameter_ref("p").unwrap()],
             &[output.erase()],
             Default::default(),
-            Some(initial.clone()),
+            Some(initial.clone().into()),
             &FaerLinearSolver
         )
         .is_err()
@@ -392,7 +392,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             std::slice::from_ref(&input),
             &[foreign.observable_ref("output").unwrap().erase()],
             Default::default(),
-            Some(initial.clone()),
+            Some(initial.clone().into()),
             &FaerLinearSolver
         )
         .is_err()
@@ -540,7 +540,7 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
         Default::default(),
-        Some(initial),
+        Some(initial.into()),
         &ParallelOnly,
     )
     .unwrap();

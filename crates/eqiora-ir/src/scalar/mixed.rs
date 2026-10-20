@@ -20,6 +20,7 @@ impl ScalarLinearization<'_> {
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
         require_length(output, self.residual_dimension(), "mixed residual tangent")?;
+        self.require_mixed_contracts(&first, &second)?;
         let values = evaluate_instructions(&self.instructions, &self.inputs)?;
         let active = self.derivative_demand(&values)?;
         let mut maps = map_evaluation::MapCache::default();
@@ -42,6 +43,7 @@ pub(super) fn curvature(
     let r = |id| read(right, id, index);
     Ok(match instruction {
         Instruction::Constant(_)
+        | Instruction::DerivativeLimit { .. }
         | Instruction::Read(_)
         | Instruction::Neg(_)
         | Instruction::Add(_, _)

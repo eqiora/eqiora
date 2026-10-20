@@ -1,5 +1,6 @@
 //! One accepted output point for spatial linear or finite algebraic Plans.
 use super::*;
+use crate::nonlinear_execution::NewtonInitialPoint;
 use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 mod output;
@@ -10,7 +11,7 @@ pub(super) enum Primal {
     Affine(eqiora_solver::SolveReport),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
-        initial: CommonAlgebraicState,
+        initial: crate::CommonInitialState<'static>,
         iterations: usize,
         linear_solves: Vec<eqiora_solver::SolveReport>,
     },
@@ -74,9 +75,9 @@ impl CommonDifferentiationPoint {
         Ok(self)
     }
 
-    /// Exact finite initial State, absent for spatial linear execution.
+    /// Exact retained initial State, absent for linear execution.
     #[must_use]
-    pub fn nonlinear_initial_state(&self) -> Option<&CommonAlgebraicState> {
+    pub fn nonlinear_initial_state(&self) -> Option<&crate::CommonInitialState<'static>> {
         match &self.primal {
             Primal::Nonlinear { initial, .. } => Some(initial),
             _ => None,
@@ -104,7 +105,7 @@ pub struct CommonDifferentiationLinearization {
     state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
     residual_target: f64,
-    initial_residual_norm: Option<f64>,
+    initial: Option<NewtonInitialPoint>,
 }
 
 impl CommonDifferentiationLinearization {
@@ -123,13 +124,14 @@ impl CommonDifferentiationLinearization {
         state_scalar_domain: eqiora_core::ScalarDomain,
         output: Output,
         residual_target: f64,
+        initial: Option<NewtonInitialPoint>,
     ) -> Self {
         Self {
             relation,
             state_scalar_domain,
             output,
             residual_target,
-            initial_residual_norm: None,
+            initial,
         }
     }
 
@@ -138,14 +140,14 @@ impl CommonDifferentiationLinearization {
         state_scalar_domain: eqiora_core::ScalarDomain,
         output: DenseOutputLinearization,
         residual_target: f64,
-        initial_residual_norm: Option<f64>,
+        initial: Option<NewtonInitialPoint>,
     ) -> Self {
         Self {
             relation,
             state_scalar_domain,
             output: Output::Dense(output),
             residual_target,
-            initial_residual_norm,
+            initial,
         }
     }
 
@@ -177,7 +179,17 @@ impl CommonDifferentiationLinearization {
     /// Original seed residual for a nonlinear point; absent for a linear point.
     #[must_use]
     pub const fn initial_residual_norm(&self) -> Option<f64> {
-        self.initial_residual_norm
+        match self.initial {
+            Some(initial) => Some(initial.residual_norm),
+            None => None,
+        }
+    }
+    /// Validate only the update-count facts implied by the rederived seed and
+    /// accepted point. This does not authenticate a producer or solve history.
+    pub fn validate_nonlinear_update_count(&self, iterations: usize) -> Result<(), Diagnostic> {
+        self.initial
+            .ok_or_else(|| invalid("nonlinear update count requires a nonlinear accepted point"))?
+            .validate_updates(self.residual_target, iterations)
     }
 }
 
