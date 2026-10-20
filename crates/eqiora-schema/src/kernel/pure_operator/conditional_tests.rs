@@ -67,8 +67,8 @@ fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
     let x = formal(&mut outer, 0);
     let y = formal(&mut outer, 1);
     let z = formal(&mut outer, 2);
-    let inner = outer.apply_scalar(&quotient, &[y, z]).unwrap();
-    let root = outer.apply_scalar(&quotient, &[x, inner]).unwrap();
+    let inner = outer.apply_scalar_inputs(&quotient, &[y, z]).unwrap();
+    let root = outer.apply_scalar_inputs(&quotient, &[x, inner]).unwrap();
     let composed = outer.finish(root).unwrap();
     assert_eq!(
         composed.dimension_monomial().exponents(),
@@ -294,7 +294,7 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
 }
 
 #[test]
-fn nonlinear_profile_and_fraction_bounds_reject_before_projection() {
+fn generic_selection_retains_the_selected_inputs_type() {
     let generic = PureValueClass::invariant_scalar();
     let mut builder = CalculusBuilder::new([generic.clone()], generic.clone()).unwrap();
     let input = formal(&mut builder, 0);
@@ -306,10 +306,18 @@ fn nonlinear_profile_and_fraction_bounds_reject_before_projection() {
             else_value: input,
         })
         .unwrap();
-    assert_eq!(
-        builder.finish(root).unwrap_err(),
-        PureOperatorError::FormalTypeMismatch
-    );
+    let definition = builder.finish(root).unwrap();
+    for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+        let value_type = ValueType::scalar(domain, DimExponents::DIMENSIONLESS).unwrap();
+        let instance = definition
+            .instantiate(&[ExpressionType::<()>::new(value_type.clone(), None)])
+            .unwrap();
+        assert_eq!(instance.result_type().value_type, value_type);
+    }
+}
+
+#[test]
+fn nonlinear_units_and_fraction_bounds_reject_before_projection() {
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let mut builder = CalculusBuilder::new([class(length)], class(length)).unwrap();
     let mut root = formal(&mut builder, 0);

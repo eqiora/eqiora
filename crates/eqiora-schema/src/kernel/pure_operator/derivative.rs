@@ -2,6 +2,34 @@
 use super::*;
 use eqiora_core::ScalarDomain;
 
+impl PureOperatorDefinition {
+    /// Differentiate a closed component definition without substituting its
+    /// inputs or discarding its result axes, frame or nominal basis.
+    pub(crate) fn formal_partial(&self, formal: u16) -> Result<Self, PureOperatorError> {
+        let input = self
+            .formals
+            .get(usize::from(formal))
+            .ok_or(PureOperatorError::InvalidFormal(formal))?;
+        let (output_dimension, input_dimension) = self
+            .result
+            .dimension()
+            .zip(input.dimension())
+            .ok_or(PureOperatorError::FormalTypeMismatch)?;
+        let dimension = output_dimension
+            .div(input_dimension)
+            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+        let mut builder = CalculusBuilder::new(
+            self.formals.iter().cloned(),
+            self.result.clone().with_dimension(dimension),
+        )?;
+        for node in &self.nodes {
+            builder.push(node.clone())?;
+        }
+        let partial = builder.partial(self.root, formal)?;
+        builder.finish(partial)
+    }
+}
+
 impl CalculusBuilder {
     /// Append a scalar partial with respect to an independent real input.
     /// Real or complex responses retain the other formal inputs fixed.

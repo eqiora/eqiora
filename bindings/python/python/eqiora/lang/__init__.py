@@ -392,6 +392,28 @@ class Operator:
                           _sources=frozenset((self._owner,)))
 
 
+def _result_axis(axis: int) -> _Ast:
+    if type(axis) is not int or not 0 <= axis <= 65535:
+        raise TypeError("component result axes must be nonnegative integers within u16")
+    return _Ast.number(str(axis))
+
+
+def component(value: object, *result_axes: int) -> Expression:
+    """Select a formal's component using result-axis numbers inside a pure operator.
+
+    Axis 0 means the current output's first coordinate, not fixed coordinate zero.
+    The shared compiler checks formal rank, axis extents and result-axis bounds.
+    """
+    value = _expression(value)
+    return Expression(_CREATE, _Ast.call("component", [value._ast, *map(_result_axis, result_axes)]),
+                      value._owner, _binders=value._binders, _sources=value._sources)
+
+
+def delta(left_axis: int, right_axis: int) -> Expression:
+    """Kronecker delta between two result axes in an operator or analytic property body."""
+    return Expression(_CREATE, _Ast.call("delta", [_result_axis(left_axis), _result_axis(right_axis)]))
+
+
 def matrix_trace(value: object) -> Expression:
     """Trace (sum of diagonal entries) of a finite endomorphism or spatial tensor."""
     return _unary("matrix_trace", value)
@@ -2446,7 +2468,7 @@ class Module:
 
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
-        """Declare a real scalar operator by calling ``body`` once with symbolic arguments.
+        """Declare a typed pure operator by calling ``body`` once with symbolic arguments.
 
         Formal types include physical dimensions, and calls use named arguments.
         The body cannot capture Model values or use values from another Module.
@@ -2462,8 +2484,6 @@ class Module:
         def checked(value: ValueType) -> str:
             if not isinstance(value, ValueType):
                 raise TypeError("operator contracts require ValueType")
-            if value.scalar_domain != "real" or value.shape:
-                raise ModuleError("Python operators require ordinary real scalar types")
             return self._type_syntax(value)
         signature = tuple((_name(key), checked(value)) for key, value in inputs.items())
         result = checked(result_type)
@@ -2914,6 +2934,7 @@ from ._constraints import Inequality, Complementarity, inequality, complementari
 
 
 __all__ = [
+    "component", "delta",
     "matrix_trace", "determinant", "inverse", "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
     "BoundarySet",
     "BoundaryMember",

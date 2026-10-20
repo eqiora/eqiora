@@ -124,7 +124,7 @@ impl PureOperatorDefinition {
     }
 }
 
-fn validate_argument_class<I>(
+pub(super) fn validate_argument_class<I>(
     class: &PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {

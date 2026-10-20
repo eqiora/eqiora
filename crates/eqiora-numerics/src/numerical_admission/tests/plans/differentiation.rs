@@ -1,5 +1,6 @@
 //! Supplied candidates use exact Plan assembly and original residual admission.
 mod material;
+mod tensor_material;
 
 use super::*;
 use eqiora_ir::{LinearizedRelation, RelationTangent};

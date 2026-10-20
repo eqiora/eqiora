@@ -285,7 +285,7 @@ mod tests {
         for (order, expected) in [(1, 0.25), (2, -0.25)] {
             let mut outer = CalculusBuilder::new([real()], real()).unwrap();
             let z = formal(&mut outer, 0);
-            let mut root = outer.apply_scalar(&definition, &[z, z]).unwrap();
+            let mut root = outer.apply_scalar_inputs(&definition, &[z, z]).unwrap();
             // The inner partial is -1/z after binding x=y=z. Differentiating
             // that composed value gives 1/z² and -2/z³, evaluated at z=2.
             for _ in 0..order {
@@ -319,7 +319,9 @@ mod tests {
             let mut outer = CalculusBuilder::new([real()], real()).unwrap();
             let z = formal(&mut outer, 0);
             let square = outer.push(CalculusNode::Mul(z, z)).unwrap();
-            let mut root = outer.apply_scalar(&first_definition, &[z, square]).unwrap();
+            let mut root = outer
+                .apply_scalar_inputs(&first_definition, &[z, square])
+                .unwrap();
             // partial_x (x²y) at (z,z²) = 2z³; its first two derivatives are 6z² and 12z.
             for _ in 0..order {
                 root = outer.partial(root, 0).unwrap();

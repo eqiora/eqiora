@@ -3395,6 +3395,26 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 [View source](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-component"></a>
+
+### `eqiora.lang.component`
+
+Select a formal component by output-axis numbers inside a pure operator.
+
+```python
+def component(value: object, *result_axes: int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-delta"></a>
+
+### `eqiora.lang.delta`
+
+Kronecker delta between result axes in an operator or analytic property body.
+
+```python
+def delta(left_axis: int, right_axis: int) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-matrix_trace"></a>
 
 ### `eqiora.lang.matrix_trace`

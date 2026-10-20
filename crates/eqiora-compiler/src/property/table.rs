@@ -20,8 +20,7 @@ pub(super) fn compile(
         return Err(fail("table axis must name its exact contract input"));
     }
     let axis_type = crate::value_types::lower_value_type::<()>(&contract.file, syntax, None)?;
-    let result_type =
-        crate::value_types::lower_value_type::<()>(&contract.file, &contract.value_type, None)?;
+    let result_type = contract.result_type::<()>(None)?;
     if [&axis_type, &result_type]
         .iter()
         .any(|value| value.scalar_domain() != ScalarDomain::Real || !value.shape().is_scalar())

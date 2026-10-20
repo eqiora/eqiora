@@ -26,27 +26,20 @@ pub(crate) fn build(
                 ));
                 continue;
             }
-            if let Err(diagnostic) =
-                crate::value_types::lower_value_type::<()>(&unit.file, value_type, None)
-            {
+            let contract = Contract {
+                file: unit.file.clone(),
+                visibility,
+                value_type: value_type.clone(),
+                inputs: inputs.to_vec(),
+                derivatives,
+                branch: branch.map(ToString::to_string),
+            };
+            if let Err(diagnostic) = contract.result_type::<()>(None) {
                 diagnostics.push(diagnostic);
                 continue;
             }
             let key = (unit.module.clone(), name.to_owned());
-            if contracts
-                .insert(
-                    key,
-                    Contract {
-                        file: unit.file.clone(),
-                        visibility,
-                        value_type: value_type.clone(),
-                        inputs: inputs.to_vec(),
-                        derivatives,
-                        branch: branch.map(ToString::to_string),
-                    },
-                )
-                .is_some()
-            {
+            if contracts.insert(key, contract).is_some() {
                 diagnostics.push(error(
                     &unit.file,
                     range,
@@ -90,11 +83,7 @@ pub(crate) fn build(
                 continue;
             };
             let contract = &contracts[&contract_key];
-            let contract_type = match crate::value_types::lower_value_type::<()>(
-                &contract.file,
-                &contract.value_type,
-                None,
-            ) {
+            let contract_type = match contract.result_type::<()>(None) {
                 Ok(value) => value,
                 Err(value) => {
                     diagnostics.push(value);

@@ -126,13 +126,21 @@ def test_imported_dimensioned_operator_preserves_partial_bindings_and_argument_o
 
 
 @pytest.mark.parametrize("channels", (False, True))
-def test_imported_spatial_operator_retains_tensor_roles_and_rejects_channel_arrays(channels):
-    provider = q.Module.parse(
-        "laws",
-        "public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2] "
-        "= component(left, 0) * component(right, 1);",
-        package="provider.example",
-    )
+@pytest.mark.parametrize("native", (False, True))
+def test_imported_spatial_operator_retains_tensor_roles_and_rejects_channel_arrays(channels, native):
+    if native:
+        provider = q.Module("laws", package="provider.example")
+        vector = q.ValueType.vector(q.ValueType.real(), 2)
+        provider.operator("dyadic", inputs={"left": vector, "right": vector},
+                          result_type=q.ValueType.tensor(q.ValueType.real(), 2, 2),
+                          body=lambda left, right: q.lang.component(left, 0) * q.lang.component(right, 1))
+    else:
+        provider = q.Module.parse(
+            "laws",
+            "public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2] "
+            "= component(left, 0) * component(right, 1);",
+            package="provider.example",
+        )
     main = q.Module("main")
     dyadic = main.import_module("laws", provider).operator("dyadic")
     model = main.model("Main")

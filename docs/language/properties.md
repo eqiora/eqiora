@@ -122,15 +122,17 @@ contains one pure `value = expression;`; operators and derivatives use the commo
 graph. A constant-output release still retains its declared inputs and is not automatically
 the same contract as a parameter-like constant.
 
-Analytic releases admit concrete real scalar inputs with real or complex scalar outputs.
+Analytic releases admit concrete real scalar inputs with real or complex scalar and tensor outputs.
+Tensor results retain their complete axes, frame and units through the shared value-type owner.
+A local operator with scalar inputs may supply the result when its component-layout contract
+matches the property's output; unit and scalar-domain checks remain with the component calculus.
 Use `math.complex(real, imaginary)` to construct a complex response; both components must
 have the same units. Intermediate expressions retain their own scalar domains, including
 when `math.real` or `math.imag` projects a complex response into a real consumer.
 Formal input partials hold the other real inputs fixed and have output units divided by
-the differentiated input's units. They preserve complex parts, validity and declared
-derivative order. These operations share the ordinary
-typed calculus and component execution. Complex independent inputs, general tensor analytic
-signatures and causal memory remain separate, unfinished capabilities.
+the differentiated input's units. They preserve complex parts, result axes and frame, validity and declared derivative order. These operations share the ordinary
+typed calculus and component execution. Complex or shaped independent inputs, composition
+with shaped formal inputs and causal memory remain separate, unfinished capabilities.
 
 An application may take an evolving real scalar State as an explicit input. Each evaluation
 uses that State at the current operating point and checks the declared validity guard.

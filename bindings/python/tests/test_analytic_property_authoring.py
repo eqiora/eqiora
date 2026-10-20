@@ -176,3 +176,74 @@ def test_complex_response_uses_common_plan_parameter_products_and_model_replay(t
                                        [dx.imag, 1.], rtol=0, atol=1e-10)
         with pytest.raises(eqiora.ValidationError):
             program.evaluate((5., 3.))
+
+
+@pytest.mark.parametrize("composed", (False, True))
+def test_tensor_response_preserves_native_types_units_products_and_replay(tmp_path, composed):
+    import numpy as np
+
+    source = eqiora.Module("main")
+    unit = u.W / u.m / u.K
+    dimension = eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1)
+    scalar = eqiora.ValueType.complex(dimension)
+    tensor = eqiora.ValueType.tensor(scalar, 2, 2)
+    inputs = {"T": eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
+              "p": eqiora.ValueType.real()}
+    def law(T, p):
+        x = T/q.quantity(1, u.K)
+        return (q.math.complex(x, x*x)*q.delta(0, 1)+p)*q.quantity(1, unit)
+    operation = source.operator("conductivity", inputs=inputs, result_type=tensor, body=law) if composed else law
+    owner = source.property_contract("Conductivity", value_type=tensor, inputs=inputs,
+                                     derivatives="first_partials", branch="principal")
+    T, p = owner.input("T"), owner.input("p")
+    measured = source.property_release("Measured", implements=owner, value=operation(T=T, p=p),
+        source_unit=unit, source_scale=1, citation="org.example.tensor", license="spdx.CC0_1_0",
+        validity=q.logical_and(q.logical_and(q.greater_equal(T, q.quantity(0, u.K)),
+                                            q.less_equal(T, q.quantity(4, u.K))),
+                               q.logical_and(q.greater_equal(p, 0), q.less_equal(p, 5))),
+        branch="principal", outside="reject")
+    consumer = source.component("Consumer")
+    requirement = consumer.property("response", contract=owner)
+    T = consumer.parameter("T", value_type=inputs["T"])
+    p = consumer.parameter("p", value_type=inputs["p"])
+    z = consumer.field("z", role=eqiora.FieldRole.Variable, value_type=scalar)
+    consumer.relation("law", q.equation(z, q.matrix_trace(requirement(T=T, p=p))))
+    consumer.observable("value", z, value_type=scalar)
+    root = source.model("Main")
+    for name, temperature, factor in [("first", 2, 3), ("second", 1, 2)]:
+        T = root.parameter(f"{name}_T", value_type=inputs["T"])
+        p = root.parameter(f"{name}_p", value_type=inputs["p"])
+        root.set_default(T, q.quantity(temperature, u.K))
+        root.set_default(p, factor)
+        root.instance(name, component=consumer, bindings={"T": T, "p": p, "response": measured})
+    direct = eqiora.compile(source=source, entry="Main")
+    path = tmp_path / "tensor-response.eqi"
+    source.write_eqi(path)
+    parsed = eqiora.compile(path=path, entry="Main")
+    assert direct.to_bytes() == parsed.to_bytes()
+    outputs = [direct.observable(f"{name}.value") for name in ("first", "second")]
+    selected = [direct.parameter(f"first_{name}") for name in ("T", "p")]
+    for model in [direct, parsed, eqiora.Model.from_bytes(direct.to_bytes())]:
+        plan = eqiora.resolve(model, solve=eqiora.solve.Linear(
+            relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference()))
+        result = eqiora.run(plan, state=eqiora.State.initial(plan))
+        result = eqiora.Result.from_bytes(plan, result.to_bytes())
+        for output, expected in zip(outputs, [10+8j, 6+2j], strict=True):
+            observed = result.observe(output)
+            assert observed.value_type == scalar
+            assert observed.value == pytest.approx(expected, rel=0, abs=1e-10)
+        program = eqiora.diff.compile(plan, inputs=tuple(selected), outputs=(outputs[0],))
+        # tr(K)=2T+2p+2iT² in conductivity units, with T in kelvin.
+        # Holding p fixed: d/dT=2+4iT. Holding T fixed: d/dp=2.
+        for T, p in [(2., 3.), (1., 2.)]:
+            point = program.evaluate((T, p))
+            np.testing.assert_allclose(point.primal().output[0], [2*T+2*p+2j*T*T], rtol=0, atol=1e-10)
+            np.testing.assert_allclose(point.jvp((1., 0.)).tangent[0], [2+4j*T], rtol=0, atol=1e-10)
+            np.testing.assert_allclose(point.jvp((0., 1.)).tangent[0], [2.], rtol=0, atol=1e-10)
+            np.testing.assert_allclose(point.vjp((1j,)).input_cotangent, [4*T, 0.], rtol=0, atol=1e-10)
+        for point in [(5., 3.), (2., 6.)]:
+            with pytest.raises(eqiora.ValidationError):
+                program.evaluate(point)

@@ -1,4 +1,6 @@
 //! Constitutive inputs remain typed and nominal through ordinary source execution.
+#[path = "analytic_property_execution/tensor.rs"]
+mod tensor;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::kernel::KernelNode;

@@ -245,7 +245,9 @@ impl TraceRegularityChecker {
     }
 }
 
-/// A conservative value-degree bound within the definition's declared domain.
+/// A conservative real-polynomial degree bound within the declared domain.
+/// Complex construction and real-linear projections preserve this bound; it
+/// does not assert holomorphic differentiability.
 /// A requirement restricts that domain without replacing the value or choosing
 /// another branch. It remains an executable obligation at demanded trace points;
 /// this degree does not prove domain validity. Every formal argument, including
@@ -261,8 +263,16 @@ fn polynomial_degree(definition: &PureOperatorDefinition) -> Option<u8> {
             CalculusNode::FormalComponent { .. } => Some(1),
             CalculusNode::Neg(value)
             | CalculusNode::BoundInput(value)
+            | CalculusNode::UnaryMath(
+                UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag,
+                value,
+            )
             | CalculusNode::Require { value, .. } => get(*value),
-            CalculusNode::Add(left, right) => get(*left).zip(get(*right)).map(|(a, b)| a.max(b)),
+            CalculusNode::Add(left, right)
+            | CalculusNode::Complex {
+                real: left,
+                imag: right,
+            } => get(*left).zip(get(*right)).map(|(a, b)| a.max(b)),
             CalculusNode::Mul(left, right) => get(*left)
                 .zip(get(*right))
                 .map(|(a, b)| a.saturating_add(b).min(2)),

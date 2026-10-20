@@ -123,82 +123,132 @@ fn guarded_polynomial_traces_retain_value_and_guard_input_regularity() {
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(eqiora_core::ScalarDomain::Real)
         .unwrap();
-    for squared in [false, true] {
-        for branch in [false, true] {
-            let mut calculus =
-                CalculusBuilder::new([class.clone(), class.clone()], class.clone()).unwrap();
-            let u = calculus
-                .push(CalculusNode::FormalComponent {
-                    formal: 0,
-                    axes: Box::new([]),
-                })
-                .unwrap();
-            let guard = calculus
-                .push(CalculusNode::FormalComponent {
-                    formal: 1,
-                    axes: Box::new([]),
-                })
-                .unwrap();
-            let zero = calculus
-                .push(CalculusNode::Rational {
-                    value: ExactRational::integer(0),
-                    dimension: DimExponents::DIMENSIONLESS,
-                })
-                .unwrap();
-            let condition = calculus
-                .push(CalculusNode::Compare(ComparisonOp::Less, zero, guard))
-                .unwrap();
-            let value = if squared {
-                calculus.push(CalculusNode::Mul(u, u)).unwrap()
-            } else {
-                u
-            };
-            let root = if branch {
-                calculus
-                    .push(CalculusNode::Select {
-                        condition,
-                        then_value: value,
-                        else_value: zero,
+    for (complex, projection) in [
+        (false, None),
+        (true, None),
+        (true, Some(UnaryMathFunction::Conj)),
+        (true, Some(UnaryMathFunction::Real)),
+        (true, Some(UnaryMathFunction::Imag)),
+    ] {
+        let result = class
+            .clone()
+            .with_scalar_domain(
+                if complex
+                    && !matches!(
+                        projection,
+                        Some(UnaryMathFunction::Real | UnaryMathFunction::Imag)
+                    )
+                {
+                    eqiora_core::ScalarDomain::Complex
+                } else {
+                    eqiora_core::ScalarDomain::Real
+                },
+            )
+            .unwrap();
+        for squared in [false, true] {
+            for branch in [false, true] {
+                let mut calculus =
+                    CalculusBuilder::new([class.clone(), class.clone()], result.clone()).unwrap();
+                let u = calculus
+                    .push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: Box::new([]),
                     })
-                    .unwrap()
-            } else {
-                calculus
-                    .push(CalculusNode::Require { condition, value })
-                    .unwrap()
-            };
-            let definition = calculus.finish(root).unwrap();
-            let guard_field = Id::<kinds::Field>::new();
-            let typed = expression(2, 0, |builder, u, on| {
-                let guard = builder.symbol(SymbolRef::Field(guard_field)).unwrap();
-                let value = builder.pure_operator(&definition, [u, guard]).unwrap();
-                builder.trace(value, on).unwrap()
-            });
-            for regularity in [
-                SpatialRegularity::L2,
-                SpatialRegularity::H1,
-                SpatialRegularity::Smooth,
-            ] {
-                let accepted = !branch
-                    && (regularity == SpatialRegularity::Smooth
-                        || (!squared && regularity == SpatialRegularity::H1));
-                assert_eq!(
-                    typed.validate_trace_regularity(|_| regularity).is_ok(),
-                    accepted
+                    .unwrap();
+                let guard = calculus
+                    .push(CalculusNode::FormalComponent {
+                        formal: 1,
+                        axes: Box::new([]),
+                    })
+                    .unwrap();
+                let zero = calculus
+                    .push(CalculusNode::Rational {
+                        value: ExactRational::integer(0),
+                        dimension: DimExponents::DIMENSIONLESS,
+                    })
+                    .unwrap();
+                let condition = calculus
+                    .push(CalculusNode::Compare(ComparisonOp::Less, zero, guard))
+                    .unwrap();
+                let value = if squared {
+                    calculus.push(CalculusNode::Mul(u, u)).unwrap()
+                } else {
+                    u
+                };
+                let value = if complex {
+                    let value = calculus
+                        .push(CalculusNode::Complex {
+                            real: value,
+                            imag: value,
+                        })
+                        .unwrap();
+                    projection.map_or(value, |op| {
+                        calculus.push(CalculusNode::UnaryMath(op, value)).unwrap()
+                    })
+                } else {
+                    value
+                };
+                let zero = if complex
+                    && !matches!(
+                        projection,
+                        Some(UnaryMathFunction::Real | UnaryMathFunction::Imag)
+                    ) {
+                    calculus
+                        .push(CalculusNode::Complex {
+                            real: zero,
+                            imag: zero,
+                        })
+                        .unwrap()
+                } else {
+                    zero
+                };
+                let root = if branch {
+                    calculus
+                        .push(CalculusNode::Select {
+                            condition,
+                            then_value: value,
+                            else_value: zero,
+                        })
+                        .unwrap()
+                } else {
+                    calculus
+                        .push(CalculusNode::Require { condition, value })
+                        .unwrap()
+                };
+                let definition = calculus.finish(root).unwrap();
+                let guard_field = Id::<kinds::Field>::new();
+                let typed = expression(2, 0, |builder, u, on| {
+                    let guard = builder.symbol(SymbolRef::Field(guard_field)).unwrap();
+                    let value = builder.pure_operator(&definition, [u, guard]).unwrap();
+                    builder.trace(value, on).unwrap()
+                });
+                for regularity in [
+                    SpatialRegularity::L2,
+                    SpatialRegularity::H1,
+                    SpatialRegularity::Smooth,
+                ] {
+                    let accepted = !branch
+                        && (regularity == SpatialRegularity::Smooth
+                            || (!squared && regularity == SpatialRegularity::H1));
+                    assert_eq!(
+                        typed.validate_trace_regularity(|_| regularity).is_ok(),
+                        accepted
+                    );
+                }
+                // A smooth value cannot hide a rough guard-only argument. Neither
+                // this type check nor polynomial degree proves that the guard holds.
+                assert!(
+                    typed
+                        .validate_trace_regularity(|symbol| {
+                            if symbol == SymbolRef::Field(guard_field) {
+                                SpatialRegularity::L2
+                            } else {
+                                SpatialRegularity::Smooth
+                            }
+                        })
+                        .is_err()
                 );
             }
-            // A smooth value cannot hide a rough guard-only argument. Neither
-            // this type check nor polynomial degree proves that the guard holds.
-            assert!(
-                typed
-                    .validate_trace_regularity(|symbol| {
-                        if symbol == SymbolRef::Field(guard_field) {
-                            SpatialRegularity::L2
-                        } else {
-                            SpatialRegularity::Smooth
-                        }
-                    })
-                    .is_err()
-            );
         }
     }
 }
@@ -408,4 +458,78 @@ fn weak_normal_values_allow_linear_scaling_but_not_pointwise_products() {
     scaled
         .validate_trace_regularity(|_| SpatialRegularity::HDiv)
         .unwrap();
+}
+
+#[test]
+fn complex_polynomials_on_weak_traces_require_real_linearity() {
+    use crate::kernel::pure_operator::{CalculusBuilder, PureValueClass};
+    use eqiora_core::ScalarDomain;
+
+    for projection in [
+        None,
+        Some(UnaryMathFunction::Conj),
+        Some(UnaryMathFunction::Real),
+        Some(UnaryMathFunction::Imag),
+    ] {
+        for squared in [false, true] {
+            let input = PureValueClass::invariant_scalar()
+                .with_dimension(DimExponents::DIMENSIONLESS)
+                .with_scalar_domain(ScalarDomain::Real)
+                .unwrap();
+            let output = input
+                .clone()
+                .with_scalar_domain(
+                    if matches!(
+                        projection,
+                        Some(UnaryMathFunction::Real | UnaryMathFunction::Imag)
+                    ) {
+                        ScalarDomain::Real
+                    } else {
+                        ScalarDomain::Complex
+                    },
+                )
+                .unwrap();
+            let mut calculus = CalculusBuilder::new([input], output).unwrap();
+            let u = calculus
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let value = if squared {
+                calculus.push(CalculusNode::Mul(u, u)).unwrap()
+            } else {
+                u
+            };
+            let value = calculus
+                .push(CalculusNode::Complex {
+                    real: value,
+                    imag: value,
+                })
+                .unwrap();
+            let value = projection.map_or(value, |op| {
+                calculus.push(CalculusNode::UnaryMath(op, value)).unwrap()
+            });
+            let definition = calculus.finish(value).unwrap();
+            let typed = expression(2, 1, |builder, u, on| {
+                let normal = builder.normal_component(u, on).unwrap();
+                builder.pure_operator(&definition, [normal]).unwrap()
+            });
+            let checked = typed.validate_trace_regularity(|_| SpatialRegularity::HDiv);
+            if squared {
+                assert!(checked.unwrap_err().iter().any(|error| matches!(
+                    error,
+                    TypedResidualError::Type {
+                        error: TypeViolation::WeakTraceOperationUnsupported,
+                        ..
+                    }
+                )));
+            } else {
+                checked.unwrap();
+            }
+            typed
+                .validate_trace_regularity(|_| SpatialRegularity::Smooth)
+                .unwrap();
+        }
+    }
 }

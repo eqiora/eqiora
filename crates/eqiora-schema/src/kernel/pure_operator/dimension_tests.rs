@@ -18,6 +18,55 @@ fn formal(builder: &mut CalculusBuilder, slot: u16) -> CalculusNodeId {
         })
         .unwrap()
 }
+
+#[test]
+fn symbolic_unary_units_use_the_concrete_functions_requirement() {
+    use crate::kernel::UnaryMathFunction;
+    let generic = PureValueClass::invariant_scalar()
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    for (function, exponent) in [
+        (UnaryMathFunction::Sqrt, (1, 2)),
+        (UnaryMathFunction::Abs2, (2, 1)),
+        (UnaryMathFunction::Imag, (1, 1)),
+        (UnaryMathFunction::Arg, (0, 1)),
+    ] {
+        let mut builder = CalculusBuilder::new([generic.clone()], generic.clone()).unwrap();
+        let input = formal(&mut builder, 0);
+        let root = builder
+            .push(CalculusNode::UnaryMath(function, input))
+            .unwrap();
+        let definition = builder.finish(root).unwrap();
+        for dimension in [temperature(), DimExponents::DIMENSIONLESS] {
+            let instance = definition
+                .instantiate(&[ExpressionType::<()>::new(
+                    ValueType::scalar(ScalarDomain::Real, dimension).unwrap(),
+                    None,
+                )])
+                .unwrap();
+            assert_eq!(
+                instance.result_type().dimension(),
+                dimension.pow(exponent.0, exponent.1).unwrap()
+            );
+        }
+    }
+    for function in [
+        UnaryMathFunction::Sin,
+        UnaryMathFunction::Cos,
+        UnaryMathFunction::Exp,
+        UnaryMathFunction::Log,
+    ] {
+        let mut builder = CalculusBuilder::new([generic.clone()], generic.clone()).unwrap();
+        let input = formal(&mut builder, 0);
+        let root = builder
+            .push(CalculusNode::UnaryMath(function, input))
+            .unwrap();
+        assert!(
+            builder.finish(root).is_err(),
+            "unconstrained units for {function:?}"
+        );
+    }
+}
 fn conductivity() -> PureOperatorDefinition {
     let mut builder = CalculusBuilder::new(
         [
@@ -178,7 +227,7 @@ fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let args = (0..3)
         .map(|slot| formal(&mut outer, slot))
         .collect::<Vec<_>>();
-    let root = outer.apply_scalar(&definition, &args).unwrap();
+    let root = outer.apply_scalar_inputs(&definition, &args).unwrap();
     let composed = outer.finish(root).unwrap();
     assert_eq!(composed.canonical_bytes(), definition.canonical_bytes());
     let mut wrong = CalculusBuilder::new(
@@ -189,6 +238,6 @@ fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let args = (0..3)
         .map(|slot| formal(&mut wrong, slot))
         .collect::<Vec<_>>();
-    assert!(wrong.apply_scalar(&definition, &args).is_err());
+    assert!(wrong.apply_scalar_inputs(&definition, &args).is_err());
     assert_eq!(wrong.finish(args[0]).unwrap().nodes().len(), 3);
 }

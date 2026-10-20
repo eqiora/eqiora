@@ -4,6 +4,16 @@ import numpy as np
 import pytest
 
 
+def newton_policy():
+    linear = q.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-14, maximum_iterations=100,
+        algorithm=q.solve.LinearSolver.SparseLu, preconditioner=q.solve.Preconditioner.Identity,
+        reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
+    return q.solve.Newton(
+        linear=linear, relative_tolerance=0., absolute_tolerance=1e-11,
+        maximum_iterations=16, maximum_line_search_steps=16)
+
+
 def material_plan(property_law):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
@@ -38,13 +48,7 @@ def material_plan(property_law):
         "right": (geometry.selection("right"), body),
     })
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(2,))))
-    linear = q.solve.Linear(
-        relative_tolerance=1e-13, absolute_tolerance=1e-14, maximum_iterations=100,
-        algorithm=q.solve.LinearSolver.SparseLu, preconditioner=q.solve.Preconditioner.Identity,
-        reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
-    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Newton(
-        linear=linear, relative_tolerance=0., absolute_tolerance=1e-11,
-        maximum_iterations=16, maximum_line_search_steps=16))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=newton_policy())
     plan = q.Plan.from_bytes(plan.to_bytes())
     field = plan.fields[0]
     seed = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=np.array([1., 1.5, 2.])),))
@@ -95,3 +99,80 @@ def test_nonlinear_spatial_products_and_recorded_collection(property_law):
     assert seed.to_bytes() == before
     with pytest.raises(q.EqioraError):
         q.diff.compile(plan, inputs=inputs, outputs=(plan.fields[0],))
+
+
+def tensor_material_plan(property_law):
+    graph = q.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0., 1.), y_bounds=(0., 1.))
+    sides = ("left", "right", "bottom", "top")
+    geometry = graph.build(rectangle, named_topology={
+        "body": rectangle.region, **dict(zip(sides, rectangle.boundaries, strict=True)),
+    })
+    body = geometry.selection("body")
+    supports = "support body:volume(ambient_dimension=2)," + ",".join(
+        f"support {side}:boundary(parent=body)" for side in sides)
+    law = "(1+T)*delta(0,1)+p"
+    declarations = f"operator k(input T:1,input p:1):tensor<1,2,2>={law};"
+    property_argument = ""
+    binding = ""
+    if property_law:
+        declarations = f"""
+        property contract Conductivity(input T:1,input p:1):tensor<1,2,2> {{
+            derivatives first_partials;
+        }}
+        property release Measured:Conductivity {{
+            analytic {{value={law};source_unit:1=1;}}
+            validity T>=0 and T<=20 and p>=0 and p<=3;outside reject;branch single;
+            citation org.example.manufactured;license spdx.CC0_1_0;
+        }}"""
+        property_argument = ",property k:Conductivity"
+        binding = ",k=Measured"
+    exact = "p*(1+coordinate(0)/1[m]+2*coordinate(1)/1[m])"
+    flux = "contract(k(T=u,p=p),grad(u),axes=((1,0),))"
+    source = f"""{declarations}
+    component Equation({supports},parameter p:1{property_argument}) {{
+        variable u:1 on body in smooth;
+        relation balance on body {{-div({flux})=-5*p*p/1[m^2];}}
+        relation lower_x on left {{trace(u)={exact};}}
+        relation lower_y on bottom {{trace(u)={exact};}}
+        relation upper_x on right {{normal({flux})=((1+{exact})*p+3*p*p)/1[m];}}
+        relation upper_y on top {{normal({flux})=(2*(1+{exact})*p+3*p*p)/1[m];}}
+    }}
+    public model Main({supports}) {{parameter p:1=1;
+        instance physics:Equation(body=body,left=left,right=right,bottom=bottom,top=top,p=p{binding});
+    }}"""
+    model = q.compile(source=source, entry="Main", geometry=geometry, bindings={
+        "body": body, **{side: (geometry.selection(side), body) for side in sides},
+    })
+    mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(2, 2))))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=newton_policy())
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    points = np.stack(np.meshgrid(np.linspace(0, 1, 3), np.linspace(0, 1, 3), indexing="ij"), axis=-1).reshape(-1, 2)
+    profile = 1 + points @ np.array([1., 2.])
+    seed = q.State.initial(plan, fields=(q.InitialField(
+        plan.fields[0], vertex_values=profile-.25*points[:, 0]*points[:, 1]),))
+    return model, plan, q.State.from_bytes(plan, seed.to_bytes()), profile
+
+
+@pytest.mark.parametrize("property_law", [False, True])
+def test_tensor_material_solution_and_total_parameter_products(property_law):
+    model, plan, seed, profile = tensor_material_plan(property_law)
+    before = seed.to_bytes()
+    program = q.diff.compile(plan, inputs=(plan.model.parameter(model.parameter("p").id),),
+                             outputs=(plan.fields[0],), state=seed)
+    # K=(1+u)I+pJ, where J has every entry equal to one. For u=p(1+x+2y),
+    # grad(u)=p(1,2), div(K grad(u))=5p² and J grad(u)=(3p,3p).
+    # The nonzero off-diagonal flux and both natural traces matter. Q1 represents
+    # this affine solution exactly; du/dp=1+x+2y includes boundary and state terms.
+    weights = np.arange(1, 10)/16
+    for p in [.5, 1., 2.]:
+        point = program.evaluate((p,))
+        np.testing.assert_allclose(point.primal().output[0], p*profile, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(point.jvp((1.,)).tangent[0], profile, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(point.vjp((weights,)).input_cotangent,
+                                   [np.dot(profile, weights)], rtol=0, atol=1e-10)
+    if property_law:
+        with pytest.raises(q.EqioraError):
+            program.evaluate((4.,))
+        np.testing.assert_allclose(program.primal().output[0], profile, rtol=0, atol=1e-10)
+    assert seed.to_bytes() == before

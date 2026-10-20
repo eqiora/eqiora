@@ -367,6 +367,82 @@ fn current_wire_unknown_feature_digest_and_resource_limit_fail_closed() {
 }
 
 #[test]
+fn composed_complex_embedding_preserves_units_branch_and_replay() {
+    use eqiora::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
+    use eqiora::{ScalarDomain, ValueLiteral, ValueType};
+    let source = r#"
+operator embed(input x:m^2):complex<m^2> = x;
+operator response(input x:m^2):complex<m> = math.sqrt(embed(x=x));
+model Main() {
+    variable x:m^2;
+    variable y:complex<m>;
+    relation law { y=response(x=x); }
+}
+"#;
+    let document = eqiora::api::ModelDocument::compile("embedding.eqi", source).unwrap();
+    let replay = eqiora::api::ModelDocument::replay(&document.canonical_json().unwrap()).unwrap();
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let input_type = ValueType::scalar(ScalarDomain::Real, length.pow(2, 1).unwrap()).unwrap();
+    let output_type = ValueType::scalar(ScalarDomain::Complex, length).unwrap();
+    for program in [document.program(), replay.program()] {
+        let definition = pure_definition(program);
+        let mut derivative = CalculusBuilder::new(
+            [PureValueClass::from_value_type(input_type.clone()).unwrap()],
+            PureValueClass::from_value_type(
+                output_type
+                    .clone()
+                    .with_dimension(length.pow(-1, 1).unwrap())
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let input = derivative
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let root = derivative
+            .apply_scalar_inputs(&definition, &[input])
+            .unwrap();
+        let root = derivative.partial(root, 0).unwrap();
+        let derivative = derivative.finish(root).unwrap();
+        // Principal sqrt(x+0i): sqrt(-4)=+2i, sqrt(9)=3.
+        // Away from the principal cut the derivative is 1/(2 sqrt(x+0i)).
+        // The existing complex derivative contract rejects the cut; a derivative
+        // constrained to a real path along that cut is not supplied by this test.
+        for (x, expected, slope) in [(-4., (0., 2.), None), (9., (3., 0.), Some((1. / 6., 0.)))] {
+            let input = ValueLiteral::from_real(input_type.clone(), x).unwrap();
+            let output =
+                ComponentScalarization::evaluate_pure_operator(&definition, &[&input]).unwrap();
+            assert_eq!(output.value_type(), &output_type);
+            let (re, im) = output.components().unwrap().next().unwrap();
+            assert!((re - expected.0).abs() < 1e-14 && (im - expected.1).abs() < 1e-14);
+            let output = ComponentScalarization::evaluate_pure_operator(&derivative, &[&input]);
+            let Some(slope) = slope else {
+                assert!(
+                    output
+                        .unwrap_err()
+                        .message()
+                        .contains("principal branch cut")
+                );
+                continue;
+            };
+            let output = output.unwrap();
+            assert_eq!(output.value_type().dimension(), length.pow(-1, 1).unwrap());
+            let (re, im) = output.components().unwrap().next().unwrap();
+            assert!((re - slope.0).abs() < 1e-14 && (im - slope.1).abs() < 1e-14);
+        }
+    }
+    let narrowing = source.replace(
+        "complex<m> = math.sqrt(embed(x=x))",
+        "m = math.sqrt(embed(x=x))",
+    );
+    assert!(eqiora::api::ModelDocument::compile("narrowing.eqi", &narrowing).is_err());
+}
+
+#[test]
 fn exact_array_signatures_compile_replay_and_execute_through_component_ir() {
     use eqiora::{ScalarDomain, ValueLiteral, ValueType};
     let fixtures = [
