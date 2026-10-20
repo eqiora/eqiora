@@ -264,7 +264,7 @@ impl CommonSpatialPlan {
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
         if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
-            let output = self.solve_region_newton(&mapping, input, &initial, request)?;
+            let output = self.solve_region_newton(&mapping, &input, &initial, request)?;
             let values = output
                 .fields
                 .into_values()

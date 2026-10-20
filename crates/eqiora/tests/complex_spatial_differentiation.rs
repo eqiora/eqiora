@@ -309,6 +309,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                 plan.as_spatial()
                     .unwrap()
                     .validate_differentiated_values(
+                        None,
                         &selected,
                         Some(&input.fixture_coordinates()),
                         &[output_id],
@@ -323,6 +324,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                 plan.as_spatial()
                     .unwrap()
                     .validate_differentiated_values(
+                        None,
                         &selected,
                         Some(&input.fixture_coordinates()),
                         &[output_id],

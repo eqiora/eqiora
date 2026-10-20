@@ -987,6 +987,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             assert!(
                 scaled
                     .differentiate(
+                        None,
                         &[parameter],
                         None,
                         &outputs,
@@ -1000,6 +1001,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
         }
         let field = plan
             .differentiate(
+                None,
                 &[parameter],
                 None,
                 &outputs,
@@ -1009,6 +1011,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             .unwrap();
         let reopened = plan
             .validate_differentiated_values(
+                None,
                 &[parameter],
                 None,
                 &outputs,
@@ -1037,6 +1040,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
         }
         let doubled = plan
             .differentiate(
+                None,
                 &[parameter],
                 Some(&[4.0 * std::f64::consts::PI.powi(2)]),
                 &outputs,
@@ -1085,6 +1089,7 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
     let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let field = plan
         .differentiate(
+            None,
             &[parameter],
             None,
             &outputs,

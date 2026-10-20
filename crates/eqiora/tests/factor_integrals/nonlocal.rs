@@ -141,7 +141,7 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
         &[document.parameter_ref("amount").unwrap()],
         &[document.observable_ref("readout").unwrap().erase()],
         Default::default(),
-        Some(initial),
+        Some(initial.into()),
         &FaerLinearSolver,
     )
     .unwrap();

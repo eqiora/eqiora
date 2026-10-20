@@ -71,9 +71,10 @@ impl ScalarInputIrBuilder {
         &mut self,
         root: ScalarInputValueId,
         seeds: &[Option<ScalarInputValueId>],
+        dimension: eqiora_core::DimExponents,
         charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
-        self.directional_in(root, seeds, None, charge)
+        self.directional_in(root, seeds, dimension, false, charge)
     }
 
     /// Formal partials retain authored validity predicates without changing their boundary.
@@ -85,7 +86,7 @@ impl ScalarInputIrBuilder {
         dimension: eqiora_core::DimExponents,
         charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        self.directional_in(root, seeds, Some(dimension), charge)?
+        self.directional_in(root, seeds, dimension, true, charge)?
             .ok_or_else(|| ir_builder_error("formal derivative lacks its typed result"))
     }
 
@@ -93,16 +94,17 @@ impl ScalarInputIrBuilder {
         &mut self,
         root: ScalarInputValueId,
         seeds: &[Option<ScalarInputValueId>],
-        formal_dimension: Option<eqiora_core::DimExponents>,
+        dimension: eqiora_core::DimExponents,
+        formal: bool,
         mut charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
-        let formal = formal_dimension.is_some();
         let needed = if formal {
             slot_composition::required_derivative_instructions(&self.instructions, &[root.0])?
         } else {
             slot_composition::required_instructions(&self.instructions, &[root.0])?
         };
         let mut conditions = Vec::new();
+        let mut derivative_limits = Vec::new();
         if !formal {
             self.primal_checks.push(root.0);
         }
@@ -126,6 +128,21 @@ impl ScalarInputIrBuilder {
             .zip(needed)
             .zip(active.iter().copied())
         {
+            if needed
+                && let Instruction::DerivativeLimit {
+                    start, len, order, ..
+                } = instruction
+            {
+                let inputs = derivative_limit::inputs(start, len, directions.len())?;
+                let requested = u32::from(inputs.clone().any(|input| active[input]));
+                derivative_limit::require_order(order, requested)?;
+                derivative_limits.push((
+                    inputs
+                        .map(|input| ScalarInputValueId(ValueId(input as u32)))
+                        .collect::<Vec<_>>(),
+                    order - requested,
+                ));
+            }
             if needed && formal {
                 if let Instruction::Require { condition, .. } = instruction {
                     conditions.push(ScalarInputValueId(condition));
@@ -174,12 +191,7 @@ impl ScalarInputIrBuilder {
                             .transpose()?
                     }
                 }
-                Instruction::ValueOnly { input, value } => {
-                    require_inactive_value_only_input(active[input.0 as usize])?;
-                    directions[value.0 as usize]
-                        .map(|direction| self.value_only(ScalarInputValueId(input), direction))
-                        .transpose()?
-                }
+                Instruction::DerivativeLimit { value, .. } => directions[value.0 as usize],
                 Instruction::Read(slot) => seeds.get(slot.0 as usize).copied().flatten(),
                 Instruction::CoefficientJet { start, len, shape } => {
                     let operands = coefficient_jet::operands(
@@ -255,7 +267,7 @@ impl ScalarInputIrBuilder {
             directions.push(direction);
         }
         let direction = directions[root.0.0 as usize];
-        if let Some(dimension) = formal_dimension {
+        if formal || !derivative_limits.is_empty() {
             let mut value = match direction {
                 Some(value) => value,
                 None => self.constant(eqiora_core::DynQuantity::new(0., dimension))?,
@@ -264,6 +276,9 @@ impl ScalarInputIrBuilder {
             // never acquires an eager global check from a nested formal partial.
             for condition in conditions.into_iter().rev() {
                 value = self.require(condition, value)?;
+            }
+            for (inputs, order) in derivative_limits.into_iter().rev() {
+                value = self.derivative_limit(&inputs, value, order)?;
             }
             Ok(Some(value))
         } else {

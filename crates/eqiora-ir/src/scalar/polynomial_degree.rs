@@ -37,7 +37,7 @@ impl ScalarInputOperatorIr {
                 // Require restricts the domain, not the value's polynomial.
                 // Its predicate remains in the instruction degrees, so an
                 // affine/constant proof cannot erase a selected primal guard.
-                Instruction::Require { value, .. } | Instruction::ValueOnly { value, .. } => {
+                Instruction::Require { value, .. } | Instruction::DerivativeLimit { value, .. } => {
                     at(value)
                 }
                 Instruction::Select {
@@ -120,11 +120,18 @@ impl ScalarInputOperatorIr {
         // Classify every retained instruction, not just the outputs. A zero
         // power or cancellation must not hide an unknown-dependent domain.
         let degrees = self.polynomial_degrees(&inputs)?;
-        if self.instructions.iter().any(|instruction| {
-            matches!(instruction,
-            Instruction::ValueOnly { input, .. } if degrees[input.0 as usize] != Some([0]))
-        }) {
-            return Ok(false);
+        for (index, instruction) in self.instructions.iter().enumerate() {
+            if let Instruction::DerivativeLimit {
+                start,
+                len,
+                order: 0,
+                ..
+            } = *instruction
+                && derivative_limit::inputs(start, len, index)?
+                    .any(|input| degrees[input] != Some([0]))
+            {
+                return Ok(false);
+            }
         }
         Ok(degrees
             .iter()

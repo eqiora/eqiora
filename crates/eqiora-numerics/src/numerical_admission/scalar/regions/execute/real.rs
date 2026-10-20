@@ -10,15 +10,6 @@ pub(in crate::numerical_admission) enum StaticSpatialSystem<P: Coefficient> {
     Complex(StaticRegionSystem<C, P>),
 }
 
-impl<P: Coefficient> StaticSpatialSystem<P> {
-    pub(in crate::numerical_admission) fn mapping(&self) -> &RegionDofMap<P> {
-        match self {
-            Self::Real(system) => &system.mapping,
-            Self::Complex(system) => &system.mapping,
-        }
-    }
-}
-
 /// Assembly precedes solver selection; mathematical Field identity stays in the map.
 pub(in crate::numerical_admission) struct RealStaticAssembly {
     mapping: RegionDofMap<C>,

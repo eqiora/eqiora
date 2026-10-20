@@ -68,7 +68,7 @@ impl DifferentiableProgramIdentity {
     pub fn from_bytes(
         bytes: &[u8],
         plan: &ResolvedCommonPlan,
-        initial: Option<&CommonAlgebraicState>,
+        initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         check_size(bytes).map_err(single)?;
         let wire: WireIdentity = serde_json::from_slice(bytes)
@@ -77,7 +77,7 @@ impl DifferentiableProgramIdentity {
         if wire.schema != SCHEMA
             || wire.model != model.artifact().as_str()
             || wire.plan != plan.identity()
-            || wire.initial_state.as_deref() != initial.map(CommonAlgebraicState::identity)
+            || wire.initial_state.as_deref() != initial.map(CommonInitialState::identity)
         {
             return Err(single(invalid(
                 "Program identity differs from its exact artifacts",

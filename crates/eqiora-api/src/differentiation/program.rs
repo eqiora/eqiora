@@ -7,7 +7,7 @@ impl DifferentiableProgram {
     pub(crate) const fn plan(&self) -> &ResolvedCommonPlan {
         &self.plan
     }
-    pub(crate) const fn initial_state(&self) -> Option<&CommonAlgebraicState> {
+    pub(crate) const fn initial_state(&self) -> Option<&CommonInitialState<'static>> {
         self.initial.as_ref()
     }
 
@@ -15,11 +15,12 @@ impl DifferentiableProgram {
         signature::kernel(&self.plan)
     }
     /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
-    /// Finite nonlinear Plans require their complete initial State and an
+    /// Nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or
     /// instantaneous real/complex Observables, in component real/imaginary order.
     /// Static spatial Plans select complete Fields and reduced Observables, with
-    /// explicit quadrature for spatial integrals and no finite seed.
+    /// explicit quadrature for spatial integrals. Stationary Newton uses a
+    /// spatial seed; affine spatial execution consumes no seed.
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.
@@ -28,7 +29,7 @@ impl DifferentiableProgram {
         inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
         outputs: &[ModelEntityRef],
         quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
-        initial: Option<CommonAlgebraicState>,
+        initial: Option<CommonInitialState<'static>>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
         let identity = DifferentiableProgramIdentity::from_plan(
@@ -202,7 +203,7 @@ impl DifferentiableEvaluation {
 
 fn accept_plan_point(
     plan: &ResolvedCommonPlan,
-    initial: Option<&CommonAlgebraicState>,
+    initial: Option<&CommonInitialState<'_>>,
     selected: &[Id<kinds::Parameter>],
     values: Option<&[f64]>,
     outputs: &[RawId],
@@ -210,12 +211,17 @@ fn accept_plan_point(
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Spatial(plan) => {
-            plan.differentiate(selected, values, outputs, quadratures, backend)
-        }
+        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(
+            spatial_initial(initial)?,
+            selected,
+            values,
+            outputs,
+            quadratures,
+            backend,
+        ),
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;
-            let initial = match initial {
+            let initial = match algebraic_initial(initial)? {
                 Some(initial) => initial,
                 None if plan.nonlinear().is_none() => {
                     canonical = plan.initial_state(&[])?;
@@ -233,4 +239,31 @@ fn accept_plan_point(
             "this Plan does not admit implicit output differentiation",
         )),
     }
+}
+
+/// Typed projections of the same seed owner; wrong families never become absence.
+pub(super) fn spatial_initial<'a>(
+    initial: Option<&'a CommonInitialState<'_>>,
+) -> Result<Option<&'a eqiora_numerics::CommonState>, Diagnostic> {
+    initial
+        .map(|state| match state {
+            CommonInitialState::Spatial(state) => Ok(state.as_ref()),
+            _ => Err(invalid(
+                "spatial differentiation requires a spatial initial State",
+            )),
+        })
+        .transpose()
+}
+
+pub(super) fn algebraic_initial<'a>(
+    initial: Option<&'a CommonInitialState<'_>>,
+) -> Result<Option<&'a eqiora_numerics::CommonAlgebraicState>, Diagnostic> {
+    initial
+        .map(|state| match state {
+            CommonInitialState::Algebraic(state) => Ok(state.as_ref()),
+            _ => Err(invalid(
+                "finite differentiation requires an algebraic initial State",
+            )),
+        })
+        .transpose()
 }

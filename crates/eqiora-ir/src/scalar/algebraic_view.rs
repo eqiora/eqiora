@@ -126,6 +126,21 @@ impl<'a> ScalarExpressionView<'a> {
 fn structure(instruction: Instruction) -> Option<(Instruction, Vec<ValueId>)> {
     let mut operands = Vec::new();
     let instruction = match instruction {
+        Instruction::DerivativeLimit {
+            start,
+            len,
+            value,
+            order,
+        } => {
+            operands.extend((start.0..start.0.checked_add(len)?).map(ValueId));
+            operands.push(value);
+            Instruction::DerivativeLimit {
+                start: ValueId(0),
+                len,
+                value: ValueId(0),
+                order,
+            }
+        }
         Instruction::MapInvariant {
             start,
             extent,
@@ -228,5 +243,35 @@ mod tests {
         );
         assert_eq!(original.evaluate(&[]).unwrap(), [1.]);
         assert!(invalid.evaluate(&[]).is_err());
+    }
+
+    #[test]
+    fn proof_views_keep_derivative_order_and_the_complete_input_tuple() {
+        let build = |order, count, unused| {
+            let mut builder = ScalarInputIrBuilder::new();
+            if unused {
+                builder.boolean(true).unwrap();
+            }
+            let inputs = [2., 3.].map(|value| {
+                builder
+                    .constant(DynQuantity::new(value, DimExponents::DIMENSIONLESS))
+                    .unwrap()
+            });
+            let value = builder.mul(inputs[0], inputs[1]).unwrap();
+            let root = builder
+                .derivative_limit(&inputs[..count], value, order)
+                .unwrap();
+            builder.finish([root]).unwrap()
+        };
+        let original = build(1, 2, false);
+        for (order, count, same) in [(1, 2, true), (0, 2, false), (1, 1, false)] {
+            let other = build(order, count, true);
+            assert_eq!(
+                original
+                    .expression_view()
+                    .same_expression(other.expression_view(), |_, _| true),
+                same
+            );
+        }
     }
 }

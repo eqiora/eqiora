@@ -139,7 +139,7 @@ fn check_spatial_observables(
                 let native = plan
                     .as_spatial()
                     .unwrap()
-                    .differentiate(&selected, Some(&values), &outputs, &rules, backend)
+                    .differentiate(None, &selected, Some(&values), &outputs, &rules, backend)
                     .unwrap();
                 let linearization = native.linearization();
                 let (primal, derivative) = expected(&direction);
@@ -319,6 +319,7 @@ fn check_spatial_observables(
                     .as_spatial()
                     .unwrap()
                     .validate_differentiated_values(
+                        None,
                         &selected,
                         Some(&values),
                         &outputs,
@@ -331,6 +332,7 @@ fn check_spatial_observables(
                     plan.as_spatial()
                         .unwrap()
                         .differentiate(
+                            None,
                             &selected,
                             Some(&values),
                             &outputs,

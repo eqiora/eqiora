@@ -50,9 +50,11 @@ pub(crate) fn compile_differentiable(
         let initial = state
             .map(|state| {
                 state
-                    .algebraic_native
-                    .clone()
-                    .ok_or_else(|| invalid("differentiation requires a finite initial State"))
+                    .initial_state()
+                    .map(eqiora_numerics::CommonInitialState::into_owned)
+                    .ok_or_else(|| {
+                        invalid("differentiation requires an exact native initial State")
+                    })
             })
             .transpose()?;
         let model = native_plan.model_artifact();

@@ -99,21 +99,30 @@ fn quotient_definition_roundtrips_and_rejects_operand_or_operation_tampering() {
 }
 
 #[test]
-fn value_only_wire_retains_the_independent_input_and_rejects_forward_references() {
-    let mut builder = ExprDagBuilder::new();
-    let input = builder
-        .symbol(SymbolRef::Parameter(eqiora_core::Id::new()))
-        .unwrap();
-    let value = builder.powi(input, 2).unwrap();
-    let root = builder.value_only(input, value).unwrap();
-    let expression = builder.finish([root]).unwrap();
-    let wire = WireExpression::encode(&expression).unwrap();
-    let replay: WireExpression =
-        serde_json::from_slice(&serde_json::to_vec(&wire).unwrap()).unwrap();
-    assert_eq!(replay.decode().unwrap(), expression);
-    let mut malformed = wire;
-    malformed.nodes[2] = WireExpressionNode::ValueOnly { input: 2, value: 1 };
-    assert!(malformed.decode().is_err());
+fn derivative_limit_wire_retains_order_and_input_tuple_and_rejects_forward_references() {
+    for order in [0, 1] {
+        let mut builder = ExprDagBuilder::new();
+        let a = builder
+            .symbol(SymbolRef::Parameter(eqiora_core::Id::new()))
+            .unwrap();
+        let b = builder
+            .symbol(SymbolRef::Parameter(eqiora_core::Id::new()))
+            .unwrap();
+        let value = builder.mul(a, b).unwrap();
+        let root = builder.derivative_limit(vec![a, b], value, order).unwrap();
+        let expression = builder.finish([root]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let replay: WireExpression =
+            serde_json::from_slice(&serde_json::to_vec(&wire).unwrap()).unwrap();
+        assert_eq!(replay.decode().unwrap(), expression);
+        let mut malformed = wire;
+        malformed.nodes[3] = WireExpressionNode::DerivativeLimit {
+            inputs: vec![0, 3],
+            value: 2,
+            order,
+        };
+        assert!(malformed.decode().is_err());
+    }
 }
 
 #[test]

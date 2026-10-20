@@ -216,6 +216,115 @@ fn declared_first_partials_keep_the_independently_known_material_products() {
         .vjp(&[2.], eqiora_ir::RelationCotangent::Parameter(&mut output))
         .unwrap();
     assert_eq!(output, [24.]);
+    assert!(
+        action
+            .mixed_jvp(
+                eqiora_ir::RelationTangent::Parameter(&[1.]),
+                eqiora_ir::RelationTangent::Parameter(&[1.]),
+                eqiora_ir::RelationTangent::Parameter(&[0.]),
+                &mut output,
+            )
+            .unwrap_err()
+            .message()
+            .contains("requested 2")
+    );
+    let roles = scalar
+        .symbols()
+        .iter()
+        .map(|symbol| {
+            if *symbol == input {
+                DifferentiationRole::Parameter
+            } else {
+                DifferentiationRole::Unknown
+            }
+        })
+        .collect::<Vec<_>>();
+    let action = scalar.linearize(&point, &roles).unwrap();
+    // y is outside the property x -> x², so d_y d_x(x²*y) needs only
+    // the property's first derivative, not its second derivative.
+    action
+        .mixed_jvp(
+            eqiora_ir::RelationTangent::Unknown(&[1.]),
+            eqiora_ir::RelationTangent::Parameter(&[1.]),
+            eqiora_ir::RelationTangent::Parameter(&[0.]),
+            &mut output,
+        )
+        .unwrap();
+    assert_eq!(output, [4.]);
+}
+
+#[test]
+fn a_first_partial_contract_limits_total_order_across_distinct_formals() {
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(DimExponents::DIMENSIONLESS)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let mut calculus = CalculusBuilder::new([class, class], class).unwrap();
+    let a = calculus
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let b = calculus
+        .push(CalculusNode::FormalComponent {
+            formal: 1,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let value = calculus.push(CalculusNode::Mul(a, b)).unwrap();
+    let release = PropertyRelease::new(
+        ("example::Pair".into(), "example::Product".into()),
+        vec!["a".into(), "b".into()],
+        None,
+        PropertyDerivatives::FirstPartials,
+        ("org.example.manufactured".into(), "spdx.CC0_1_0".into()),
+        PropertyMeaning::Analytic(calculus.finish(value).unwrap()),
+    )
+    .unwrap();
+    let mut dag = ExprDagBuilder::new();
+    let a = dag.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+    let b = dag.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+    let root = dag.property(release, [a, b]).unwrap();
+    let typed = type_scalar(dag.finish([root]).unwrap());
+    let scalar = ScalarOperatorIr::lower_typed_scalar(&typed).unwrap();
+    let component = ComponentScalarization::lower(&typed).unwrap();
+    for action in [
+        scalar
+            .linearize(
+                &[0., 3.],
+                &[DifferentiationRole::Unknown, DifferentiationRole::Parameter],
+            )
+            .unwrap(),
+        component.rows()[0]
+            .linearize(
+                &[0., 3.],
+                &[DifferentiationRole::Unknown, DifferentiationRole::Parameter],
+            )
+            .unwrap(),
+    ] {
+        let mut output = [0.];
+        action
+            .jvp(eqiora_ir::RelationTangent::Unknown(&[1.]), &mut output)
+            .unwrap();
+        assert_eq!(output, [3.]);
+        action
+            .jvp(eqiora_ir::RelationTangent::Parameter(&[1.]), &mut output)
+            .unwrap();
+        assert_eq!(output, [0.]);
+        assert!(
+            action
+                .mixed_jvp(
+                    eqiora_ir::RelationTangent::Unknown(&[1.]),
+                    eqiora_ir::RelationTangent::Parameter(&[1.]),
+                    eqiora_ir::RelationTangent::Parameter(&[0.]),
+                    &mut output,
+                )
+                .unwrap_err()
+                .message()
+                .contains("requested 2")
+        );
+    }
 }
 
 #[test]
@@ -294,7 +403,7 @@ fn a_sampled_zero_coefficient_cannot_hide_an_active_property_argument() {
     let x = dag.symbol(input).unwrap();
     let p = dag.symbol(coefficient).unwrap();
     let product = dag.mul(p, x).unwrap();
-    let root = dag.value_only(product, product).unwrap();
+    let root = dag.derivative_limit(vec![product], product, 0).unwrap();
     let typed = type_scalar(dag.finish([root]).unwrap());
     let components = ComponentScalarization::lower(&typed).unwrap();
     let row = &components.rows()[0];

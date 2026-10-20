@@ -1,6 +1,33 @@
 //! Substitute scalar inputs without evaluating values or losing demanded domains.
 use super::*;
 
+/// Gather scalar coordinates without changing units or signed zero. Both initial
+/// lowering and active-program projection use this contiguous operand convention.
+pub(super) fn gather_entries(
+    instructions: &mut Vec<Instruction>,
+    entries: impl ExactSizeIterator<Item = ValueId> + Clone,
+) -> Result<ValueId, Diagnostic> {
+    let end = instructions.len();
+    let limit = end
+        .checked_add(entries.len())
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(ir_size_error)?;
+    u32::try_from(limit).map_err(|_| ir_size_error())?;
+    if entries.clone().any(|entry| entry.0 as usize >= end) {
+        return Err(ir_builder_error(
+            "scalar gather requires prior scalar operands",
+        ));
+    }
+    let one = ValueId(end as u32);
+    instructions.push(Instruction::Constant(eqiora_core::DynQuantity::new(
+        1.,
+        eqiora_core::DimExponents::DIMENSIONLESS,
+    )));
+    let start = ValueId(one.0 + 1);
+    instructions.extend(entries.map(|entry| Instruction::Mul(entry, one)));
+    Ok(start)
+}
+
 /// Structural operand closure shared by directional emission and substitution.
 pub(super) fn required_instructions(
     instructions: &[Instruction],
@@ -36,29 +63,53 @@ fn required_with_conditions(
         let instruction = instructions[index];
         if !include_conditions && let Instruction::Require { value, .. } = instruction {
             needed[value.0 as usize] = true;
-        } else if let Instruction::CoefficientJet { start, len, shape } = instruction {
-            for operand in
-                coefficient_jet::operands(start, len, shape, &instructions[..index])?.iter()
-            {
+        } else {
+            visit_instruction_operands(instructions, index, |operand| {
                 needed[operand.0 as usize] = true;
-            }
-        } else if let Instruction::MapInvariant { start, extent, .. } = instruction {
-            for operand in map_evaluation::operand_range(start, extent, index)? {
-                needed[operand] = true;
-            }
-        } else if instruction
-            .map_scalar_operands(|id| {
-                needed[id.0 as usize] = true;
-                id
-            })
-            .is_none()
-        {
-            return Err(ir_builder_error(
-                "scalar instruction has no scalar operands",
-            ));
+            })?;
         }
     }
     Ok(needed)
+}
+
+/// Visit all operands, including contiguous primitive input tuples.
+/// Dependency walks and relocation consumers share this structural authority.
+pub(super) fn visit_instruction_operands(
+    instructions: &[Instruction],
+    index: usize,
+    mut visit: impl FnMut(ValueId),
+) -> Result<(), Diagnostic> {
+    match instructions[index] {
+        Instruction::DerivativeLimit {
+            start, len, value, ..
+        } => {
+            for input in derivative_limit::inputs(start, len, index)? {
+                visit(ValueId(input as u32));
+            }
+            visit(value);
+        }
+        Instruction::CoefficientJet { start, len, shape } => {
+            for operand in
+                coefficient_jet::operands(start, len, shape, &instructions[..index])?.iter()
+            {
+                visit(operand);
+            }
+        }
+        Instruction::MapInvariant { start, extent, .. } => {
+            for input in map_evaluation::operand_range(start, extent, index)? {
+                visit(ValueId(input as u32));
+            }
+        }
+        instruction => {
+            instruction
+                .map_scalar_operands(|id| {
+                    visit(id);
+                    id
+                })
+                .ok_or_else(|| ir_builder_error("scalar instruction has no scalar operands"))?;
+        }
+    }
+    Ok(())
 }
 
 /// Conservative allocation work for relocation, including primitive gathers.
@@ -67,6 +118,7 @@ pub(super) fn relocation_work(instructions: &[Instruction]) -> Result<usize, Dia
         .iter()
         .try_fold(0usize, |work, instruction| {
             let extra = match instruction {
+                Instruction::DerivativeLimit { len, .. } => (*len as usize).checked_add(1),
                 Instruction::CoefficientJet { len, .. } => (*len as usize)
                     .checked_mul(4)
                     .and_then(|n| n.checked_add(1)),
@@ -90,6 +142,16 @@ pub(super) fn remap_instruction(
     at: impl Fn(ValueId) -> ValueId,
 ) -> Result<Instruction, Diagnostic> {
     Ok(match source[index] {
+        Instruction::DerivativeLimit {
+            start,
+            len,
+            value,
+            order,
+        } => {
+            let inputs =
+                derivative_limit::inputs(start, len, index)?.map(|input| at(ValueId(input as u32)));
+            derivative_limit::gather(instructions, inputs, at(value), order)?
+        }
         Instruction::CoefficientJet { start, len, shape } => {
             let operands = coefficient_jet::operands(start, len, shape, &source[..index])?;
             let (a, b) = operands.values(|id| Ok(at(id)))?;
@@ -105,7 +167,7 @@ pub(super) fn remap_instruction(
             } else {
                 let entries = map_evaluation::operand_range(start, extent, index)?
                     .map(|operand| at(ValueId(operand as u32)));
-                let mapped = map_evaluation::gather_entries(instructions, entries)?;
+                let mapped = slot_composition::gather_entries(instructions, entries)?;
                 map_entries.insert((start.0, extent), mapped);
                 mapped
             };

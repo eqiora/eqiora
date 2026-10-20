@@ -357,10 +357,13 @@ impl Evaluator<'_, '_> {
                         | ExprNode::Mul(a, b)
                         | ExprNode::Div(a, b)
                         | ExprNode::Quotient(a, b)
-                        | ExprNode::Remainder(a, b)
-                        | ExprNode::ValueOnly { input: a, value: b } => {
+                        | ExprNode::Remainder(a, b) => {
                             pending.push(Frame::Demand(*b));
                             pending.push(Frame::Demand(*a));
+                        }
+                        ExprNode::DerivativeLimit { inputs, value, .. } => {
+                            pending.push(Frame::Demand(*value));
+                            pending.extend(inputs.iter().rev().copied().map(Frame::Demand));
                         }
                         _ => {
                             return Err(Diagnostic::error(
@@ -384,7 +387,7 @@ impl Evaluator<'_, '_> {
                         };
                         operand(&values, *selected, owner)?.clone()
                     }
-                    ExprNode::Require { value, .. } | ExprNode::ValueOnly { value, .. } => {
+                    ExprNode::Require { value, .. } | ExprNode::DerivativeLimit { value, .. } => {
                         operand(&values, *value, owner)?.clone()
                     }
                     ExprNode::UnaryMath(function, value) => {

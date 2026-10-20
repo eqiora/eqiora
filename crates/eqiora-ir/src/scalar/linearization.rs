@@ -89,7 +89,6 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             let cotangent = adjoints[index];
             match *instruction {
                 Instruction::Select { .. }
-                | Instruction::ValueOnly { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
@@ -107,6 +106,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     return Err(ir_builder_error(
                         "discrete operations cannot be differentiated",
                     ));
+                }
+                Instruction::DerivativeLimit { value, .. } => {
+                    accumulate(&mut adjoints, value, cotangent, index)?;
                 }
                 Instruction::Constant(_) => {}
                 Instruction::ComplexDiv {
@@ -295,6 +297,7 @@ impl<'a> ScalarLinearization<'a> {
             })
             .collect::<Vec<_>>();
         let active = activity::numerical_activity(instructions, &bindings)?;
+        derivative_limit::require_first(instructions, &active)?;
         Ok(Self {
             instructions: std::borrow::Cow::Borrowed(instructions),
             roots: std::borrow::Cow::Borrowed(roots),
@@ -338,7 +341,6 @@ impl ScalarLinearization<'_> {
             }
             let mut tangent = match *instruction {
                 Instruction::Select { .. }
-                | Instruction::ValueOnly { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
@@ -358,6 +360,7 @@ impl ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => Scaled::ZERO,
+                Instruction::DerivativeLimit { value, .. } => read(&tangents, value, index)?,
                 Instruction::ComplexDiv {
                     operands,
                     imaginary,

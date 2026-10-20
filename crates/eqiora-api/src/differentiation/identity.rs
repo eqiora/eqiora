@@ -50,7 +50,7 @@ impl DifferentiableProgramIdentity {
         &self.quadratures
     }
 
-    /// Exact finite seed bound by this Program; absent for spatial linear execution.
+    /// Exact initial State bound by this Program; absent for spatial linear execution.
     #[must_use]
     pub fn initial_state_identity(&self) -> Option<&str> {
         self.initial_state_identity.as_deref()
@@ -89,7 +89,7 @@ impl DifferentiableProgramIdentity {
         inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
         outputs: &[ModelEntityRef],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
-        initial: Option<&CommonAlgebraicState>,
+        initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if inputs.is_empty() {
             return Err(single(invalid(
@@ -125,12 +125,29 @@ impl DifferentiableProgramIdentity {
         }
         let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
+        if initial.is_none()
+            && matches!(
+                plan.canonical_solve_request(),
+                Some(eqiora_numerics::CommonSolvePolicy::Newton { .. })
+            )
+        {
+            return Err(single(invalid(
+                "nonlinear differentiation requires its exact initial State",
+            )));
+        }
         match plan {
             ResolvedCommonPlan::Spatial(spatial) => {
-                if initial.is_some() {
-                    return Err(single(invalid(
-                        "spatial differentiation requires no finite seed",
-                    )));
+                let seed = program::spatial_initial(initial).map_err(single)?;
+                if seed.is_some() {
+                    if !matches!(
+                        plan.canonical_solve_request(),
+                        Some(eqiora_numerics::CommonSolvePolicy::Newton { .. })
+                    ) {
+                        return Err(single(invalid(
+                            "affine spatial differentiation consumes no initial State",
+                        )));
+                    }
+                    spatial.run_identity(seed).map_err(single)?;
                 }
                 for output in &outputs {
                     if let Some(observable) = output.downcast::<kinds::Observable>() {
@@ -151,17 +168,14 @@ impl DifferentiableProgramIdentity {
                     }
                 }
             }
-            ResolvedCommonPlan::Algebraic(plan) => {
-                if initial.is_some_and(|state| state.plan_identity() != plan.identity()) {
-                    return Err(single(invalid(
-                        "differentiable initial State belongs to a foreign Plan",
-                    )));
-                }
-                if initial.is_none() && plan.nonlinear().is_some() {
-                    return Err(single(invalid(
-                        "finite nonlinear differentiation requires its exact initial State",
-                    )));
-                }
+            ResolvedCommonPlan::Algebraic(plan)
+                if program::algebraic_initial(initial)
+                    .map_err(single)?
+                    .is_some_and(|state| state.plan_identity() != plan.identity()) =>
+            {
+                return Err(single(invalid(
+                    "differentiable initial State belongs to a foreign Plan",
+                )));
             }
             _ => {}
         }

@@ -5,7 +5,7 @@ use eqiora_realization::Space;
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
-use crate::{CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
+use crate::{CommonInitialState, CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
 
 pub(crate) mod artifact;
 mod error_estimate;
@@ -89,14 +89,6 @@ enum CommonResultPayload {
     },
 }
 
-/// Borrowed initial State retained by a common Run.
-#[derive(Debug, Clone, Copy)]
-pub enum CommonInitialState<'a> {
-    Spatial(&'a crate::CommonState),
-    Algebraic(&'a crate::CommonAlgebraicState),
-    Time(&'a crate::CommonTimeState),
-}
-
 /// Complete accepted output and evidence for one common execution Result.
 ///
 /// Solve observations select a retained output position, or `None` for a static
@@ -120,20 +112,18 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.acceptance {
                 StaticAcceptedEvidence::Spatial { initial_state, .. } => {
-                    initial_state.as_ref().map(CommonInitialState::Spatial)
+                    initial_state.as_ref().map(CommonInitialState::from)
                 }
                 StaticAcceptedEvidence::SteadyStokes(_) => None,
             },
-            CommonResultPayload::Algebraic { initial_state, .. } => {
-                Some(CommonInitialState::Algebraic(initial_state))
-            }
+            CommonResultPayload::Algebraic { initial_state, .. } => Some(initial_state.into()),
             CommonResultPayload::Trajectory { trajectory, .. } => {
                 if let Some(request) = trajectory.time_request() {
-                    Some(CommonInitialState::Time(request.state()))
+                    Some(request.state().into())
                 } else {
                     trajectory
                         .spatial_request()
-                        .map(|request| CommonInitialState::Spatial(request.state()))
+                        .map(|request| request.state().into())
                 }
             }
             CommonResultPayload::Eigen(_) => None,

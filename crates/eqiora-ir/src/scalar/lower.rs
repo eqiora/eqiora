@@ -161,10 +161,22 @@ impl ScalarOperatorIr {
                     condition: value_id(*condition, &values)?,
                     value: value_id(*value, &values)?,
                 },
-                ExprNode::ValueOnly { input, value } => Instruction::ValueOnly {
-                    input: value_id(*input, &values)?,
-                    value: value_id(*value, &values)?,
-                },
+                ExprNode::DerivativeLimit {
+                    inputs,
+                    value,
+                    order,
+                } => {
+                    let inputs = inputs
+                        .iter()
+                        .map(|input| value_id(*input, &values))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    derivative_limit::gather(
+                        &mut instructions,
+                        inputs.iter().copied(),
+                        value_id(*value, &values)?,
+                        *order,
+                    )?
+                }
                 ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Abs, value) => {
                     real_math::lower_absolute(&mut instructions, value_id(*value, &values)?)?
                 }
@@ -232,16 +244,22 @@ impl ScalarOperatorIr {
             instructions.push(instruction);
             let id = expression.node_id(index as u32).expect("retained node");
             if let Some(release) = expression.properties().get(&id)
-                && !release.first_partials()
                 && let ExprNode::PureOperatorApplication(application) = node
             {
-                for argument in application.arguments() {
-                    let value = values[index];
-                    let input = value_id(*argument, &values)?;
-                    values[index] =
-                        ValueId(u32::try_from(instructions.len()).map_err(|_| ir_size_error())?);
-                    instructions.push(Instruction::ValueOnly { input, value });
-                }
+                let inputs = application
+                    .arguments()
+                    .iter()
+                    .map(|argument| value_id(*argument, &values))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let guard = derivative_limit::gather(
+                    &mut instructions,
+                    inputs.iter().copied(),
+                    values[index],
+                    u32::from(release.first_partials()),
+                )?;
+                values[index] =
+                    ValueId(u32::try_from(instructions.len()).map_err(|_| ir_size_error())?);
+                instructions.push(guard);
             }
         }
         let roots = expression

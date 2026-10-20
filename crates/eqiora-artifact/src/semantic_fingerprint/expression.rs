@@ -51,7 +51,7 @@ enum ExpressionTag {
     Pullback = 48,
     CoordinateMapFactor = 49,
     CoordinateMapFactorAction = 50,
-    ValueOnly = 51,
+    DerivativeLimit = 51,
 }
 
 pub(super) fn encode_expression(
@@ -163,13 +163,22 @@ pub(super) fn encode_expression(
                 *value,
                 &canonical_index,
             )?,
-            ExprNode::ValueOnly { input, value } => binary_expr(
-                encoder,
-                ExpressionTag::ValueOnly,
-                *input,
-                *value,
-                &canonical_index,
-            )?,
+            ExprNode::DerivativeLimit {
+                inputs,
+                value,
+                order,
+            } => {
+                encoder.u8(ExpressionTag::DerivativeLimit as u8)?;
+                encoder.u32(*order)?;
+                encoder.u32(
+                    u32::try_from(inputs.len())
+                        .map_err(|_| fingerprint_error("derivative input count overflow"))?,
+                )?;
+                for input in inputs {
+                    encoder.u32(canonical_expr_id(*input, &canonical_index)?)?;
+                }
+                encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
+            }
             ExprNode::Quotient(left, right) => binary_expr(
                 encoder,
                 ExpressionTag::Quotient,
@@ -595,11 +604,10 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
             then_value,
             else_value,
         } => vec![*condition, *then_value, *else_value],
-        ExprNode::Require { condition, value }
-        | ExprNode::ValueOnly {
-            input: condition,
-            value,
-        } => vec![*condition, *value],
+        ExprNode::Require { condition, value } => vec![*condition, *value],
+        ExprNode::DerivativeLimit { inputs, value, .. } => {
+            inputs.iter().copied().chain([*value]).collect()
+        }
         ExprNode::PureOperatorApplication(application) => application.arguments().to_vec(),
         ExprNode::Constant(_) | ExprNode::Symbol(_) => Vec::new(),
         _ => Vec::new(),

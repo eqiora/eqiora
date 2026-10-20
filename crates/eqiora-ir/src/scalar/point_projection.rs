@@ -311,7 +311,18 @@ impl ScalarOperatorIr {
                 else_value,
             } => builder.select(at(condition), at(then_value), at(else_value)),
             Instruction::Require { condition, value } => builder.require(at(condition), at(value)),
-            Instruction::ValueOnly { input, value } => builder.value_only(at(input), at(value)),
+            Instruction::DerivativeLimit {
+                start,
+                len,
+                value,
+                order,
+            } => builder.derivative_limit(
+                derivative_limit::inputs(start, len, self.instructions.len())?
+                    .map(|input| at(ValueId(input as u32)))
+                    .collect(),
+                at(value),
+                order,
+            ),
             Instruction::PureOperator {
                 definition,
                 start,

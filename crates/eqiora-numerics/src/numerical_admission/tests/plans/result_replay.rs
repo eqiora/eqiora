@@ -247,7 +247,15 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
     let Some(crate::CommonInitialState::Spatial(retained)) = result.initial_state() else {
         panic!("missing seed");
     };
-    assert_eq!(retained, &initial);
+    assert_eq!(retained.as_ref(), &initial);
+    let retained = crate::CommonInitialState::Spatial(retained).into_owned();
+    assert_eq!(retained.identity(), initial.identity());
+    assert_eq!(retained.to_bytes().unwrap(), initial.to_bytes().unwrap());
+    assert_eq!(
+        crate::CommonInitialState::from_bytes(&retained.to_bytes().unwrap(), result.plan())
+            .unwrap(),
+        retained
+    );
     let bytes = result.to_bytes().unwrap();
     assert_eq!(
         crate::CommonResult::from_bytes(&bytes, result.plan()).unwrap(),

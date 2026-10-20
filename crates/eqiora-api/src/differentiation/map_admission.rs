@@ -81,17 +81,18 @@ impl DifferentiableProgram {
         let entries = multiply(n, n)?;
         let csr_entries = multiply(entries, size_of::<usize>() + size_of::<f64>())?;
         let offsets = multiply(n.checked_add(1).ok_or_else(overflow)?, size_of::<usize>())?;
-        // Accepted state, original residual and CSR RHS, plus the nonlinear seed.
-        let state = multiply(n, 4 * size_of::<f64>())?;
+        // Accepted state, original residual and CSR RHS. The physical seed
+        // is accounted separately because constrained coordinates also remain owned.
+        let state = multiply(n, 3 * size_of::<f64>())?;
         let design = multiply(multiply(n, p)?, size_of::<f64>())?;
         // Dense finite outputs own O_w; indexed spatial outputs own DOF indices.
         // Charge both bounds so the estimate never depends on observed sparsity.
         let output = multiply(o, size_of::<f64>() + size_of::<Option<usize>>())?;
         let output_state = multiply(multiply(o, n)?, size_of::<f64>())?;
-        let updates = match &self.plan {
-            ResolvedCommonPlan::Algebraic(plan) => plan
-                .nonlinear()
-                .map_or(0, |nonlinear| nonlinear.maximum_iterations().get()),
+        let updates = match self.plan.canonical_solve_request() {
+            Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) => {
+                nonlinear.maximum_iterations().get()
+            }
             _ => 0,
         };
         let reports = multiply(updates, size_of::<SolveReport>())?;
@@ -105,10 +106,7 @@ impl DifferentiableProgram {
             self.map_evidence_bytes()?,    // temporary comparison/publication metadata
             self.initial
                 .as_ref()
-                .map_or(0, |initial| initial.identity().len()),
-            self.initial
-                .as_ref()
-                .map_or(0, |initial| initial.plan_identity().len()),
+                .map_or(Ok(0), CommonInitialState::retained_payload_bytes)?,
             size_of::<DifferentiableValues>(),
             size_of::<eqiora_solver::CanonicalCsrSystemView>(),
             size_of_val(

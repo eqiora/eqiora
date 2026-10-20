@@ -38,6 +38,7 @@ impl ObservationPartials {
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
     pub(super) fn observation_partials(
         &self,
+        mapping: &RegionDofMap<S>,
         full: &[S],
         states: usize,
     ) -> Result<Vec<ObservationPartials>, Diagnostic> {
@@ -52,7 +53,6 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             }
             return Ok(Vec::new());
         }
-        let mapping = self.system.mapping();
         let fields = self
             .plan
             .fields()
@@ -138,12 +138,13 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
 
     pub(super) fn selected_output(
         &self,
+        mapping: &RegionDofMap<S>,
+        keys: &[crate::region_assembly::mapping::FieldDof],
         full: &[S],
         states: usize,
         direct: Vec<f64>,
         observations: Vec<ObservationPartials>,
     ) -> Result<Output, Diagnostic> {
-        let mapping = self.system.mapping();
         let columns = self.coordinates.len();
         let field_output = |keys: &[crate::region_assembly::mapping::FieldDof],
                             direct: Vec<f64>| {
@@ -169,7 +170,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             .map(Output::Field)
         };
         if observations.is_empty() {
-            return field_output(&self.keys, direct);
+            return field_output(keys, direct);
         }
         let mut observations = observations
             .into_iter()
@@ -184,7 +185,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                 let count = mapping.field_keys(*id).count();
                 let end = cursor + count;
                 parts.push(field_output(
-                    &self.keys[cursor..end],
+                    &keys[cursor..end],
                     direct[cursor * S::WIDTH * columns..end * S::WIDTH * columns].to_vec(),
                 )?);
                 cursor = end;

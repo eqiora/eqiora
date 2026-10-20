@@ -81,6 +81,15 @@ impl Hash for PyState {
 }
 
 impl PyState {
+    pub(crate) fn initial_state(&self) -> Option<eqiora_numerics::CommonInitialState<'_>> {
+        match (&self.native, &self.algebraic_native, &self.time_native) {
+            (Some(state), None, None) => Some(state.into()),
+            (None, Some(state), None) => Some(state.into()),
+            (None, None, Some(state)) => Some(state.into()),
+            _ => None,
+        }
+    }
+
     pub(crate) fn from_initial(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
@@ -88,13 +97,13 @@ impl PyState {
     ) -> PyResult<Self> {
         match state {
             eqiora_numerics::CommonInitialState::Spatial(state) => {
-                Self::from_common(py, plan, state.clone(), 0, None, None)
+                Self::from_common(py, plan, state.into_owned(), 0, None, None)
             }
             eqiora_numerics::CommonInitialState::Algebraic(state) => {
-                Ok(Self::from_common_algebraic(py, plan, state.clone()))
+                Ok(Self::from_common_algebraic(py, plan, state.into_owned()))
             }
             eqiora_numerics::CommonInitialState::Time(state) => {
-                Ok(Self::from_common_time(py, plan, state.clone(), None))
+                Ok(Self::from_common_time(py, plan, state.into_owned(), None))
             }
         }
     }
@@ -226,31 +235,9 @@ impl PyState {
         plan: &crate::common_plan::PyPlan,
         data: &[u8],
     ) -> PyResult<Self> {
-        let mut state = match plan.native() {
-            eqiora_numerics::ResolvedCommonPlan::Algebraic(native_plan) => {
-                let native = eqiora_numerics::CommonAlgebraicState::from_bytes(data, native_plan)
-                    .map_err(|d| crate::error::validation_error(py, &[d]))?;
-                Self::from_common_algebraic(py, plan, native)
-            }
-            eqiora_numerics::ResolvedCommonPlan::Time(native_plan) => {
-                let native = native_plan
-                    .state_from_bytes(data)
-                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-                Self::from_common_time(py, plan, native, None)
-            }
-            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Spatial(_) => {
-                let native = CommonState::from_bytes(data, plan.native())
-                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-                Self::from_common(py, plan, native, 0, None, None)?
-            }
-            eqiora_numerics::ResolvedCommonPlan::Eigen(_)
-            | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
-                return Err(PyValueError::new_err(
-                    "State.from_bytes requires an algebraic, time, or spatial Plan",
-                ));
-            }
-        };
+        let native = eqiora_numerics::CommonInitialState::from_bytes(data, plan.native())
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        let mut state = Self::from_initial(py, plan, native)?;
         state.source_kind = Some("artifact");
         state.source_request_identity = None;
         state.source_trajectory_identity = None;

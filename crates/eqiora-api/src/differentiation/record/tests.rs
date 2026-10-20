@@ -12,7 +12,7 @@ fn fixture(
 ) -> (
     DifferentiableProgram,
     ResolvedCommonPlan,
-    Option<CommonAlgebraicState>,
+    Option<CommonInitialState<'static>>,
 ) {
     let equation = if nonlinear { "w*w=p" } else { "w=p" };
     let document = ModelDocument::compile("record.eqi", &format!(
@@ -27,7 +27,7 @@ fn fixture_for_document(
 ) -> (
     DifferentiableProgram,
     ResolvedCommonPlan,
-    Option<CommonAlgebraicState>,
+    Option<CommonInitialState<'static>>,
 ) {
     let model = eqiora_artifact::ModelEnvelope::from_program(document.program()).unwrap();
     let solver = SolverPlan::new(
@@ -50,7 +50,7 @@ fn fixture_for_document(
     };
     let plan =
         CommonAlgebraicPlan::resolve(&model, policy, None, &[], None, &FaerLinearSolver).unwrap();
-    let initial = nonlinear.then(|| {
+    let initial: Option<CommonInitialState<'static>> = nonlinear.then(|| {
         plan.initial_state(&[CommonInitialField::finite(
             model.artifact_reference().unwrap().artifact().clone(),
             document.field_ref("w").unwrap().id(),
@@ -59,6 +59,7 @@ fn fixture_for_document(
         )
         .unwrap()])
             .unwrap()
+            .into()
     });
     let plan = ResolvedCommonPlan::Algebraic(Box::new(plan));
     let program = DifferentiableProgram::compile(

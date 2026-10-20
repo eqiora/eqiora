@@ -10,7 +10,6 @@ use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, invalid_artifact, validate_text,
 };
 
-const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v48";
 const TRANSACTION_LABEL: &str = "current Model transaction";
 const ENVELOPE_LABEL: &str = "current Model transaction envelope";
 
@@ -26,6 +25,9 @@ pub struct ModelTransactionEnvelope {
 }
 
 impl ModelTransactionEnvelope {
+    /// Exact schema emitted and admitted by the current artifact owner.
+    pub const SCHEMA: &'static str = "eqiora.model-transaction-envelope/v49";
+
     /// Encode an ordered transaction without changing operation order.
     ///
     /// # Errors
@@ -44,7 +46,7 @@ impl ModelTransactionEnvelope {
             .collect::<Result<Vec<_>, _>>()?;
         let mut envelope = Self {
             wire: WireModelTransactionEnvelope {
-                schema: TRANSACTION_SCHEMA.to_owned(),
+                schema: Self::SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 label: transaction.label().to_owned(),
                 ops,
@@ -62,9 +64,8 @@ impl ModelTransactionEnvelope {
     /// Returns `EQ0901` for malformed, oversized, or wrong-version data.
     pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
         limits.json.check(bytes)?;
-        let wire = serde_json::from_slice(bytes).map_err(|error| {
-            invalid_artifact(format!("invalid {TRANSACTION_SCHEMA} JSON: {error}"))
-        })?;
+        let wire = serde_json::from_slice(bytes)
+            .map_err(|error| invalid_artifact(format!("invalid {} JSON: {error}", Self::SCHEMA)))?;
         let mut envelope = Self { wire };
         envelope.canonicalize_and_validate(limits)?;
         Ok(envelope)
@@ -86,7 +87,7 @@ impl ModelTransactionEnvelope {
     /// Returns `EQ0901` if serialization unexpectedly fails.
     pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
         Ok(ArtifactDigest::compute(
-            TRANSACTION_SCHEMA.as_bytes(),
+            Self::SCHEMA.as_bytes(),
             &self.canonical_json()?,
         ))
     }
@@ -110,9 +111,10 @@ impl ModelTransactionEnvelope {
     }
 
     fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
-        if self.wire.schema != TRANSACTION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
+        if self.wire.schema != Self::SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(format!(
-                "unsupported {TRANSACTION_SCHEMA} schema or canonical encoding"
+                "unsupported {} schema or canonical encoding",
+                Self::SCHEMA
             )));
         }
         validate_text("transaction label", &self.wire.label)?;

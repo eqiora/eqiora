@@ -35,9 +35,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V43: &[u8] = b"eqiora.structural-semantic-fingerprint/v43\0";
+const FINGERPRINT_DOMAIN_V44: &[u8] = b"eqiora.structural-semantic-fingerprint/v44\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V43: u16 = 43;
+const GENERATION_V44: u16 = 44;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -81,7 +81,7 @@ pub enum SemanticFingerprintGeneration {
     /// - authored Field spatial regularity;
     /// - coordinate-map factor actions with their factor, parameter, and
     ///   ordered directions.
-    V43,
+    V44,
 }
 
 impl SemanticFingerprintGeneration {
@@ -89,19 +89,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V43 => "eqiora.structural-semantic-fingerprint/v43",
+            Self::V44 => "eqiora.structural-semantic-fingerprint/v44",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V43 => GENERATION_V43,
+            Self::V44 => GENERATION_V44,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V43 => FINGERPRINT_DOMAIN_V43,
+            Self::V44 => FINGERPRINT_DOMAIN_V44,
         }
     }
 }
@@ -243,7 +243,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V43;
+        let generation = SemanticFingerprintGeneration::V44;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();

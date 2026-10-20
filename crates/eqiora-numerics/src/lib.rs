@@ -21,6 +21,8 @@ mod cartesian_fvm_geometry;
 mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
+mod common_initial_state;
+pub use common_initial_state::CommonInitialState;
 mod common_ode;
 mod common_time;
 pub use common_time::{
@@ -56,9 +58,8 @@ pub use canonical_stokes::{
 };
 pub use common_ode::{CommonOdePlan, CommonOdePolicy};
 pub use common_result::{
-    CommonExecutionEvidence, CommonExecutionTopology, CommonInitialState,
-    CommonObservableStateTangent, CommonObservation, CommonProviderEvidence, CommonResult,
-    CommonSolveEvidence,
+    CommonExecutionEvidence, CommonExecutionTopology, CommonObservableStateTangent,
+    CommonObservation, CommonProviderEvidence, CommonResult, CommonSolveEvidence,
 };
 pub use common_trajectory::{
     CommonTrajectory, CommonTrajectoryObservation, FiniteSpectrum, TimeObservationInterpolation,

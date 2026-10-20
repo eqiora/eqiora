@@ -331,15 +331,20 @@ impl ScalarInputIrBuilder {
         })
     }
 
-    pub(crate) fn value_only(
+    pub(crate) fn derivative_limit(
         &mut self,
-        input: ScalarInputValueId,
+        inputs: &[ScalarInputValueId],
         value: ScalarInputValueId,
+        order: u32,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        self.binary(input, value, |input, value| Instruction::ValueOnly {
-            input,
-            value,
-        })
+        self.require_prior(value)?;
+        let instruction = derivative_limit::gather(
+            &mut self.instructions,
+            inputs.iter().map(|input| input.0),
+            value.0,
+            order,
+        )?;
+        self.push(instruction)
     }
 
     pub(crate) fn complex_div(
@@ -360,8 +365,11 @@ impl ScalarInputIrBuilder {
         &mut self,
         entries: &[ScalarInputValueId],
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        map_evaluation::gather_entries(&mut self.instructions, entries.iter().map(|entry| entry.0))
-            .map(ScalarInputValueId)
+        slot_composition::gather_entries(
+            &mut self.instructions,
+            entries.iter().map(|entry| entry.0),
+        )
+        .map(ScalarInputValueId)
     }
 
     pub(crate) fn unary_math(
@@ -868,6 +876,7 @@ struct SymbolSlot(u32);
 
 mod numeric_support;
 use numeric_support::*;
+mod derivative_limit;
 
 #[cfg(test)]
 mod tests;

@@ -95,7 +95,7 @@ impl RecordedDifferentiableEvaluation {
     pub fn from_bytes(
         bytes: &[u8],
         plan: &ResolvedCommonPlan,
-        initial: Option<&CommonAlgebraicState>,
+        initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         eqiora_artifact::JsonLimits::EXECUTION
             .check(bytes)
@@ -123,6 +123,7 @@ impl RecordedDifferentiableEvaluation {
             .collect::<Vec<_>>();
         let linearization = match plan {
             ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
+                program::spatial_initial(initial).map_err(single)?,
                 &selected,
                 Some(point.coordinates()),
                 &outputs,
@@ -131,7 +132,7 @@ impl RecordedDifferentiableEvaluation {
             ),
             ResolvedCommonPlan::Algebraic(algebraic) => {
                 let canonical;
-                let initial = match initial {
+                let initial = match program::algebraic_initial(initial).map_err(single)? {
                     Some(initial) => initial,
                     None => {
                         canonical = algebraic.initial_state(&[]).map_err(single)?;
@@ -200,7 +201,7 @@ impl PrimalEvidence {
     fn validate(
         &self,
         plan: &ResolvedCommonPlan,
-        initial: Option<&CommonAlgebraicState>,
+        initial: Option<&CommonInitialState<'_>>,
         linearization: &CommonDifferentiationLinearization,
     ) -> Result<(), Diagnostic> {
         match self {
@@ -221,10 +222,13 @@ impl PrimalEvidence {
                 iterations,
                 initial_residual_norm,
             } => {
-                let nonlinear = plan
-                    .as_algebraic()
-                    .and_then(|plan| plan.nonlinear())
-                    .ok_or_else(|| invalid("nonlinear evaluation record requires a Newton Plan"))?;
+                let Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) =
+                    plan.canonical_solve_request()
+                else {
+                    return Err(invalid(
+                        "nonlinear evaluation record requires a Newton Plan",
+                    ));
+                };
                 let initial = initial.ok_or_else(|| {
                     invalid("nonlinear evaluation record requires its initial State")
                 })?;
@@ -237,12 +241,7 @@ impl PrimalEvidence {
                         "nonlinear evaluation record differs from its initial State or iteration policy",
                     ));
                 }
-                initial.validate_nonlinear_update_count(
-                    linearization.relation().accepted_unknowns(),
-                    *initial_residual_norm,
-                    linearization.residual_target(),
-                    *iterations,
-                )
+                linearization.validate_nonlinear_update_count(*iterations)
             }
         }
     }

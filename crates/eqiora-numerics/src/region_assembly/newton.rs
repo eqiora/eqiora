@@ -2,7 +2,7 @@
 use super::nonlinear::RegionAssemblyLinearization;
 use super::*;
 use crate::nonlinear_execution::{NewtonEvidence, NewtonTrial, solve_damped_newton};
-use eqiora_assembly::{AssemblyReport, AssemblyTargetId, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::{AssemblyTargetId, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_realization::{NonlinearSolvePlan, Target, VectorLayoutKind};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest};
 use std::{num::NonZeroUsize, sync::Arc};
@@ -11,7 +11,7 @@ pub(crate) struct RegionNewtonSolution {
     pub(crate) values: Vec<f64>,
     pub(crate) residual_norm: f64,
     pub(crate) evidence: NewtonEvidence,
-    pub(crate) assembly_report: AssemblyReport,
+    pub(crate) assembly: RegionAssemblyLinearization,
 }
 
 struct RegionNewtonPoint {
@@ -103,7 +103,7 @@ impl PreparedRegionAssembly<f64> {
             values: accepted.values,
             residual_norm,
             evidence,
-            assembly_report: accepted.assembly.report,
+            assembly: accepted.assembly,
         })
     }
 }

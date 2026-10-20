@@ -181,7 +181,7 @@ fn program(
             &inputs,
             &outputs,
             Default::default(),
-            Some(initial),
+            Some(initial.into()),
             &FaerLinearSolver,
         )
         .unwrap(),

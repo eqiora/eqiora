@@ -8,6 +8,8 @@ use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
+mod affine;
+mod nonlinear;
 mod outputs;
 mod partials;
 mod scalar;
@@ -19,8 +21,12 @@ impl CommonSpatialPlan {
     /// Omitted values select the canonical Model point; unselected Parameters stay fixed.
     /// Ordered outputs may mix complete Fields and reduced Observables. Spatial
     /// integrals require explicit rules for their exact integration Domains.
+    /// Stationary Newton Plans require their exact initial State; affine Plans
+    /// take no seed. Parameter changes retain free seed coordinates and apply
+    /// the new point's essential boundary values.
     pub fn differentiate(
         &self,
+        initial: Option<&CommonState>,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
@@ -30,10 +36,10 @@ impl CommonSpatialPlan {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .solve(backend),
+                .solve(initial, backend),
             RecognizedNativeModel::ComplexSpatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .solve(backend),
+                .solve(initial, backend),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
             )),
@@ -44,6 +50,7 @@ impl CommonSpatialPlan {
     /// Uses the same Parameter point, original residual, boundary lift and partial actions.
     pub fn validate_differentiated_values(
         &self,
+        initial: Option<&CommonState>,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
@@ -53,17 +60,17 @@ impl CommonSpatialPlan {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .accept_candidate(candidate),
+                .accept_candidate(initial, candidate),
             RecognizedNativeModel::ComplexSpatial(equations) => self
                 .prepare_differentiation(equations, selected, values, outputs, quadratures)?
-                .accept_candidate(candidate),
+                .accept_candidate(initial, candidate),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
             )),
         }
     }
 
-    fn prepare_differentiation<S: DifferentiationScalar>(
+    pub(in crate::numerical_admission) fn prepare_differentiation<S: DifferentiationScalar>(
         &self,
         template: &ExecutableSpatialEquations<S>,
         selected: &[Id<kinds::Parameter>],
@@ -111,18 +118,6 @@ impl CommonSpatialPlan {
         for region in &mut equations.regions {
             region.form = region.form.bind_parameter_point(&point)?;
         }
-        let system = S::finalize(self, &equations)?;
-        let structure = equations.algebraic_structure(None)?;
-        let linear = match &system {
-            StaticSpatialSystem::Real(system) => self
-                .admission
-                .linear
-                .at_parameter_problem(system.core.canonical_csr_system_view(), Some(&structure))?,
-            StaticSpatialSystem::Complex(system) => self
-                .admission
-                .linear
-                .at_parameter_problem(system.core.canonical_csr_system_view(), Some(&structure))?,
-        };
         let unique = outputs
             .iter()
             .copied()
@@ -145,20 +140,13 @@ impl CommonSpatialPlan {
                 ));
             }
         }
-        let keys = if selected_fields.is_empty() {
-            Vec::new()
-        } else {
-            system.mapping().selected_field_keys(&selected_fields)?
-        };
         Ok(PreparedPoint {
             plan: self,
             equations,
-            keys,
+            selected_fields,
             point,
             outputs: outputs.to_vec(),
             quadratures: quadratures.clone(),
-            system,
-            linear,
             design,
             values,
             coordinates: crate::parameter_point::coordinates(self.kernel(), selected)?,
@@ -166,15 +154,13 @@ impl CommonSpatialPlan {
     }
 }
 
-struct PreparedPoint<'a, S: DifferentiationScalar> {
+pub(in crate::numerical_admission) struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
     equations: ExecutableSpatialEquations<S>,
-    system: StaticSpatialSystem<S>,
-    linear: NativeLinearPolicy,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
-    keys: Vec<crate::region_assembly::mapping::FieldDof>,
+    selected_fields: Vec<eqiora_core::RawId>,
     point: crate::parameter_point::ParameterPoint,
     outputs: Vec<eqiora_core::RawId>,
     quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
@@ -183,82 +169,38 @@ struct PreparedPoint<'a, S: DifferentiationScalar> {
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
     fn solve(
         self,
+        initial: Option<&CommonState>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        match &self.system {
-            StaticSpatialSystem::Real(system) => self.solve_system(system, backend),
-            StaticSpatialSystem::Complex(system) => self.solve_system(system, backend),
-        }
-    }
-
-    fn solve_system<A: DifferentiationScalar>(
-        &self,
-        system: &StaticRegionSystem<A, S>,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (values, primal) = A::solve(
-            self.plan,
-            &self.linear,
-            &self.equations,
-            &system.core,
-            backend,
-        )?;
-        let target = match &primal {
-            Primal::Linear(receipt) => receipt.report().residual_target(),
-            Primal::Affine(report) => report.residual_target(),
-            Primal::Nonlinear { .. } => unreachable!("static linear solve"),
-        };
-        let linearization = self.linearize(system, values, target)?;
-        if let Primal::Linear(receipt) = &primal
-            && receipt.operator()
-                != linearization
-                    .relation()
-                    .state_jacobian()
-                    .agreement_fingerprint()
-        {
-            return Err(invalid(
-                "common Plan solve receipt differs from its differentiated state system",
-            ));
-        }
-        Ok(CommonDifferentiationPoint::from_primal(
-            linearization,
-            primal,
-        ))
+        S::solve_point(self, initial, backend)
     }
 
     fn accept_candidate(
         self,
+        initial: Option<&CommonState>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        match &self.system {
-            StaticSpatialSystem::Real(system) => self.accept_system(system, candidate),
-            StaticSpatialSystem::Complex(system) => self.accept_system(system, candidate),
-        }
+        S::accept_point(self, initial, candidate)
     }
 
-    fn accept_system<A: DifferentiationScalar>(
+    /// Output selection and boundary-chain products have one owner for affine
+    /// and nonlinear accepted points; the residual algorithm remains separate.
+    fn output_partials(
         &self,
-        system: &StaticRegionSystem<A, S>,
-        candidate: &[f64],
-    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let values = A::from_coordinates(candidate)?;
-        let (_, target) = system.core.validate_coefficients(&values)?;
-        self.linearize(system, values, target)
-    }
-
-    fn linearize<A: DifferentiationScalar>(
-        &self,
-        system: &StaticRegionSystem<A, S>,
-        values: Vec<A>,
-        target: f64,
-    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let mapping = &system.mapping;
-        let state_coordinates = coordinates(values).collect::<Vec<_>>();
-        let physical = S::from_coordinates(&state_coordinates)?;
+        mapping: &RegionDofMap<S>,
+        state_coordinates: &[f64],
+        mut partial: impl FnMut(&ScalarSymbolCoordinate) -> Result<(Vec<f64>, Vec<f64>), Diagnostic>,
+    ) -> Result<(Vec<f64>, Output), Diagnostic> {
+        let physical = S::from_coordinates(state_coordinates)?;
         let full = mapping.lift(&physical, false)?;
-        let keys = &self.keys;
+        let keys = if self.selected_fields.is_empty() {
+            Vec::new()
+        } else {
+            mapping.selected_field_keys(&self.selected_fields)?
+        };
         let count = self.coordinates.len();
-        let mut observations = self.observation_partials(&full, state_coordinates.len())?;
+        let mut observations =
+            self.observation_partials(mapping, &full, state_coordinates.len())?;
         let output_count = keys
             .len()
             .checked_mul(S::WIDTH)
@@ -276,14 +218,15 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             ))?
         ];
         for (column, coordinate) in self.coordinates.iter().enumerate() {
-            let (partial, lift) = system.parameter_partial(
-                &self.equations,
-                coordinate,
-                self.plan.admission.resources(),
-                &self.plan.admission.discretizations,
-                &state_coordinates,
-            )?;
-            for (row, value) in partial.into_iter().enumerate() {
+            let (values, lift) = partial(coordinate)?;
+            if values.len() != state_coordinates.len()
+                || lift.len() != mapping.full_count() * S::WIDTH
+            {
+                return Err(invalid(
+                    "Parameter partial differs from the exact Field coordinate map",
+                ));
+            }
+            for (row, value) in values.into_iter().enumerate() {
                 residual[row * count + column] = value;
             }
             for (row, key) in keys.iter().enumerate() {
@@ -296,19 +239,14 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                 observation.add_lift(column, count, &lift)?;
             }
         }
-        let output = self.selected_output(&full, state_coordinates.len(), direct, observations)?;
-        let relation = AssembledLinearizedRelation::from_shared_canonical(
-            A::real_system(&system.core)?,
-            state_coordinates,
-            self.design.clone(),
-            self.values.clone(),
-            residual,
+        let output = self.selected_output(
+            mapping,
+            &keys,
+            &full,
+            state_coordinates.len(),
+            direct,
+            observations,
         )?;
-        Ok(CommonDifferentiationLinearization::from_spatial(
-            relation,
-            A::DOMAIN,
-            output,
-            target,
-        ))
+        Ok((residual, output))
     }
 }

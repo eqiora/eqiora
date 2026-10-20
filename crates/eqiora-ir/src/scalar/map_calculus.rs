@@ -194,7 +194,7 @@ impl ScalarInputIrBuilder {
                         let entries = coordinates
                             .iter()
                             .map(|&index| ValueId(start.0 + index as u32));
-                        let minor = ScalarInputValueId(map_evaluation::gather_entries(
+                        let minor = ScalarInputValueId(slot_composition::gather_entries(
                             &mut self.instructions,
                             entries,
                         )?);
@@ -265,7 +265,12 @@ mod tests {
                 .unwrap();
             let guarded = builder.require(condition, inverse).unwrap();
             let derivative = builder
-                .directional(guarded, &[Some(one)], |_| Ok(()))
+                .directional(
+                    guarded,
+                    &[Some(one)],
+                    length.pow(-1, 1).unwrap(),
+                    |_| Ok(()),
+                )
                 .unwrap()
                 .unwrap();
             let ir = builder.finish([derivative]).unwrap();

@@ -6,6 +6,8 @@ use eqiora_ir::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordina
 use eqiora_schema::kernel::KernelNode;
 
 mod action;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ComponentColumn {

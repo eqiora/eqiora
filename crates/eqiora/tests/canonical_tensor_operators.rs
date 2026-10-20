@@ -60,7 +60,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let displaced = String::from_utf8(transaction_bytes.clone())
         .unwrap()
         .replace(
-            "eqiora.model-transaction-envelope/v48",
+            "eqiora.model-transaction-envelope/v49",
             "eqiora.model-transaction-envelope/v45",
         );
     let error =
@@ -68,7 +68,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     assert!(
         error
             .to_string()
-            .contains("unsupported eqiora.model-transaction-envelope/v48"),
+            .contains("unsupported eqiora.model-transaction-envelope/v49"),
         "{error}"
     );
 
@@ -102,7 +102,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let model = ModelEnvelope::from_program(&program).expect("current Model");
     let model_bytes = model.canonical_json().unwrap();
     let model_text = String::from_utf8_lossy(&model_bytes);
-    assert!(model_text.contains("eqiora.model-envelope/v48"));
+    assert!(model_text.contains("eqiora.model-envelope/v49"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
     let replayed_model = ModelEnvelope::from_json(&model_bytes, Default::default())
@@ -110,19 +110,19 @@ fn source_meaning_crosses_the_closed_current_wire() {
     assert_eq!(replayed_model.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed_model.digest().unwrap(), model.digest().unwrap());
     assert_eq!(replayed_model.to_program().unwrap(), program);
-    let displaced = model_text.replace("eqiora.model-envelope/v48", "eqiora.model-envelope/v45");
+    let displaced = model_text.replace("eqiora.model-envelope/v49", "eqiora.model-envelope/v45");
     let error = ModelEnvelope::from_json(displaced.as_bytes(), Default::default()).unwrap_err();
     assert!(
         error
             .to_string()
-            .contains("unsupported eqiora.model-envelope/v48"),
+            .contains("unsupported eqiora.model-envelope/v49"),
         "{error}"
     );
 
     let document = eqiora::api::ModelDocument::compile("elastic-relation.eqi", ELASTIC_RELATION)
         .expect("public facade must preserve the current wire");
     let document_bytes = document.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v48"));
+    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v49"));
     assert_eq!(
         eqiora::api::ModelDocument::replay(&document_bytes)
             .unwrap()

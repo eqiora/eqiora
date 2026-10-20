@@ -12,6 +12,27 @@ pub(crate) struct NewtonEvidence {
     pub(crate) linear_solves: Vec<SolveReport>,
 }
 
+/// Seed facts rederived at an accepted point, independent of a producer's history.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct NewtonInitialPoint {
+    pub(crate) residual_norm: f64,
+    pub(crate) at_seed: bool,
+}
+
+impl NewtonInitialPoint {
+    /// The caller separately checks the Plan's maximum update count.
+    pub(crate) fn validate_updates(self, target: f64, iterations: usize) -> Result<(), Diagnostic> {
+        if (iterations == 0) != (self.residual_norm <= target) || (iterations == 0 && !self.at_seed)
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "nonlinear iteration history contradicts zero-update initial State acceptance",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// A trial evaluator may retain an already computed linearization. Otherwise
 /// only the accepted trial is linearized. Neither path publishes a State.
 pub(crate) struct NewtonTrial<L> {

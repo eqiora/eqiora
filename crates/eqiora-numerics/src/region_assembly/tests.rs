@@ -196,9 +196,9 @@ fn region_newton_retains_prepared_multi_target_assembly() {
             |_| Ok(()),
         )
         .unwrap();
-    assert!(solution.assembly_report.structure_identity().is_some());
-    assert_eq!(solution.assembly_report.target_count(), 2);
-    assert_eq!(solution.assembly_report.packet_count(), fixture.cells.len());
+    assert!(solution.assembly.report.structure_identity().is_some());
+    assert_eq!(solution.assembly.report.target_count(), 2);
+    assert_eq!(solution.assembly.report.packet_count(), fixture.cells.len());
     let mut free = solution.values.iter();
     let full = fixture
         .fixed

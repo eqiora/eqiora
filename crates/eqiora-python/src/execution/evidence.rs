@@ -164,8 +164,11 @@ impl RunIdentity {
                 Self::from_common_algebraic(plan)
             }
             eqiora_numerics::ResolvedCommonPlan::Spatial(plan) => {
-                let initial = match result.initial_state() {
-                    Some(eqiora_numerics::CommonInitialState::Spatial(state)) => Some(state),
+                let retained = result.initial_state();
+                let initial = match &retained {
+                    Some(eqiora_numerics::CommonInitialState::Spatial(state)) => {
+                        Some(state.as_ref())
+                    }
                     None => None,
                     _ => return None,
                 };

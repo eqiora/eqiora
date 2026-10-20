@@ -39,7 +39,7 @@ impl CommonAlgebraicPlan {
             (
                 solution.values,
                 Primal::Nonlinear {
-                    initial: initial.clone(),
+                    initial: initial.clone().into(),
                     iterations: solution.iterations,
                     linear_solves: solution.linear_solves,
                 },
@@ -281,7 +281,12 @@ impl PreparedPoint {
                 },
                 output,
                 assessment.residual_target(),
-                initial_residual_norm,
+                initial_residual_norm.map(|residual_norm| {
+                    crate::nonlinear_execution::NewtonInitialPoint {
+                        residual_norm,
+                        at_seed: point == initial.values(),
+                    }
+                }),
             ),
             assessment,
         ))
