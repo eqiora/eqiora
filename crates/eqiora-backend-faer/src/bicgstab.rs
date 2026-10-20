@@ -33,13 +33,15 @@ pub(super) fn solve(
     let mut residual = vec![0.; dimension];
     let mut best_norm = residual_norm(problem, &best, &mut residual)?;
     let mut iterations = 0;
+    let mut cycle_limit = dimension;
     while best_norm > target && iterations < plan.maximum_iterations().get() {
         let before = best_norm;
-        // One full-dimensional Krylov cycle is bounded independently of any
-        // fixture or sampled convergence history. Reinitialization replaces the
-        // recursive residual with b-Ax. Every attempted cycle consumes the same
-        // original iteration budget, including a cycle with numerical breakdown.
-        let limit = dimension.min(plan.maximum_iterations().get() - iterations);
+        // Begin with one full-dimensional cycle, then double the allowance:
+        // finite-precision Krylov convergence may need more than n steps, so
+        // repeatedly truncating at n can discard useful recurrence history.
+        // Restart with b-Ax while charging all attempted work, including
+        // numerical breakdown, to the original total iteration budget.
+        let limit = cycle_limit.min(plan.maximum_iterations().get() - iterations);
         output.col_as_slice_mut(0).copy_from_slice(&best);
         let params = BicgParams {
             initial_guess: EXPLICIT_INITIAL_GUESS,
@@ -83,17 +85,18 @@ pub(super) fn solve(
         // A nonfinite search direction belongs to the solver recurrence.
         // An actual operator failure always propagates, even if an earlier
         // iterate happened to meet the tolerance.
-        failure.take_breakdown()?;
+        let breakdown = failure.take_breakdown()?;
         // The original guess was not accepted above. Faer's zero-RHS
         // shortcut can replace it while reporting zero Krylov iterations;
         // charge that attempted correction once instead of claiming initial
         // convergence or allowing work outside the original budget.
         iterations += result.as_ref().map_or(limit, |info| info.iter_count.max(1));
-        if best_norm > target && best_norm >= before {
+        if breakdown && best_norm > target && best_norm >= before {
             return Err(solve_failed(
-                "faer BiCGSTAB cycle made no true-residual progress",
+                "faer BiCGSTAB breakdown made no true-residual progress",
             ));
         }
+        cycle_limit = cycle_limit.saturating_mul(2);
     }
     if best_norm > target {
         return Err(solve_failed(
