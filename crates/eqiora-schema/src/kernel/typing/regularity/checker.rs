@@ -245,8 +245,12 @@ impl TraceRegularityChecker {
     }
 }
 
-/// A conservative bound on the degree of a closed polynomial component map.
-/// Conditions, nonlinear scalar functions, and unproved branches are not handled.
+/// A conservative value-degree bound within the definition's declared domain.
+/// A requirement restricts that domain without replacing the value or choosing
+/// another branch. It remains an executable obligation at demanded trace points;
+/// this degree does not prove domain validity. Every formal argument, including
+/// guard-only inputs, still participates in the application regularity check.
+/// Nonlinear scalar functions and unproved value branches are not handled.
 fn polynomial_degree(definition: &PureOperatorDefinition) -> Option<u8> {
     let mut degrees = Vec::<Option<u8>>::with_capacity(definition.nodes().len());
     for node in definition.nodes() {
@@ -256,6 +260,7 @@ fn polynomial_degree(definition: &PureOperatorDefinition) -> Option<u8> {
             CalculusNode::FormalComponent { .. } => Some(1),
             CalculusNode::Neg(value)
             | CalculusNode::BoundInput(value)
+            | CalculusNode::Require { value, .. }
             | CalculusNode::Differentiated { value, .. } => get(*value),
             CalculusNode::Add(left, right) => get(*left).zip(get(*right)).map(|(a, b)| a.max(b)),
             CalculusNode::Mul(left, right) => get(*left)

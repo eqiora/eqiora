@@ -33,6 +33,7 @@ mod quadrature;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
+mod field_point;
 mod flux;
 mod lowering;
 mod nonlinear;

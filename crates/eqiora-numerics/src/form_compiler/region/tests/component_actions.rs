@@ -3,6 +3,67 @@ use super::*;
 use eqiora_meshing::QuadratureRule;
 
 #[test]
+fn natural_facet_retains_material_domain_when_volume_samples_are_valid() {
+    use eqiora_core::diagnostic::codes;
+    use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode};
+
+    for profile in ["first_partials", "value_only"] {
+        let source = source("-div(response(value=u)*grad(u))=0", true, 1)
+            .replace("value<=4", "value<=1.99")
+            .replace("box(0,2)", "box(0,1)")
+            .replace("first_partials", profile);
+        let form = derive_dimension(&source, 1).unwrap();
+        let (fields, rows) = form.si_bindings(|_| Ok(p1())).unwrap();
+        let reference = ReferenceCell::hypercube(1).unwrap();
+        let bound = form.bind(reference, &fields, &rows, None).unwrap();
+        let field = bound.fields()[0].field;
+        let geometry = AffineGeometryMap::new(reference, 1, vec![0.5], vec![0.5]).unwrap();
+        let point = [1., 2.];
+        let cell = bound
+            .prepare_cell(
+                &geometry,
+                &QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap(),
+            )
+            .unwrap();
+        // u=1+x. Every volume sample has u <= (3+sqrt(3/5))/2 < 1.99;
+        // only the outlet u(1)=2 violates the declared material domain.
+        assert!(cell.residual(&BTreeMap::new(), &point).is_ok());
+        for (side, x, flux) in [(0, 0., -2.), (1, 1., 5.)] {
+            let facet = AffineGeometryMap::new(ReferenceCell::point(), 1, vec![x], vec![]).unwrap();
+            let incidence = EntityIncidence {
+                entity: MeshEntity::new(1, 0),
+                local_ordinal: side,
+                orientation: OrientationCode::new(0),
+            };
+            let facet = bound
+                .prepare_natural_facet(
+                    field,
+                    &geometry,
+                    (&facet, incidence, &[side]),
+                    &QuadratureRule::point(),
+                    |_, _| Ok(vec![flux]),
+                )
+                .unwrap();
+            if side == 0 {
+                assert_eq!(facet.residual(&point).unwrap(), [2., 0.]);
+                // Checking the original primal does not request a derivative
+                // of the replaced traction, even for a value-only property.
+                assert_eq!(facet.linearize(&point).unwrap().residual, [2., 0.]);
+            } else {
+                assert_eq!(
+                    facet.residual(&point).unwrap_err().code(),
+                    codes::EXPRESSION_DOMAIN_VIOLATION
+                );
+                assert_eq!(
+                    facet.linearize(&point).err().unwrap().code(),
+                    codes::EXPRESSION_DOMAIN_VIOLATION
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn value_only_material_values_do_not_grant_newton_derivatives() {
     for flux in [false, true] {
         let balance = if flux {
@@ -38,6 +99,163 @@ fn value_only_material_values_do_not_grant_newton_derivatives() {
                 .message()
                 .contains("value-only contract")
         );
+    }
+}
+
+#[test]
+fn constitutive_facet_checks_keep_cell_constant_values() {
+    use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode};
+    let source = source("-div(response(value=c)*grad(u))=0", true, 1)
+        .replace("value>=0", "value>=1")
+        .replace(
+            "variable u:1 on body in smooth;",
+            "variable u:1 on body in smooth; variable c:1 on body in smooth;
+             relation material_state on body {c^2=4;}",
+        );
+    let form = derive_dimension(&source, 1).unwrap();
+    let flux_field = form
+        .rows
+        .iter()
+        .find(|row| row.has_boundary_flux())
+        .unwrap()
+        .tested;
+    let (fields, rows) = form
+        .si_bindings(|field| {
+            Ok(if field == flux_field {
+                p1()
+            } else {
+                Space::cell_constant()
+            })
+        })
+        .unwrap();
+    let reference = ReferenceCell::hypercube(1).unwrap();
+    let bound = form.bind(reference, &fields, &rows, None).unwrap();
+    let cell = AffineGeometryMap::new(reference, 1, vec![1.], vec![1.]).unwrap();
+    let facet = AffineGeometryMap::new(ReferenceCell::point(), 1, vec![0.], vec![]).unwrap();
+    let incidence = EntityIncidence {
+        entity: MeshEntity::new(1, 0),
+        local_ordinal: 0,
+        orientation: OrientationCode::new(0),
+    };
+    let facet = bound
+        .prepare_natural_facet(
+            flux_field,
+            &cell,
+            (&facet, incidence, &[0]),
+            &QuadratureRule::point(),
+            |_, _| Ok(vec![0.]),
+        )
+        .unwrap();
+    // A cell-interior constant DOF has trace 2, not zero. The H1 field u=0
+    // has zero gradient and traction while the material input c stays valid.
+    let mut point = vec![0.; 3];
+    let material = bound
+        .fields()
+        .iter()
+        .find(|field| field.field != flux_field)
+        .unwrap();
+    point[material.range.start] = 2.;
+    assert_eq!(facet.residual(&point).unwrap(), [0.; 3]);
+    assert_eq!(facet.linearize(&point).unwrap().residual, [0.; 3]);
+}
+
+#[test]
+fn facet_material_inputs_retain_bubble_normal_gradients() {
+    use eqiora_core::diagnostic::codes;
+    use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode, ReferenceTopology};
+    let source = source(
+        "-div(response(value=contract(grad(u),grad(u),axes=((0,0),))*1[m^2])*grad(u))=0",
+        true,
+        2,
+    );
+    let form = derive_dimension(&source, 2).unwrap();
+    let (fields, rows) = form
+        .si_bindings(|_| Ok(Space::simplex_p1_bubble()))
+        .unwrap();
+    let reference = ReferenceCell::simplex(2).unwrap();
+    let bound = form.bind(reference, &fields, &rows, None).unwrap();
+    let cell = geometry();
+    let facet = AffineGeometryMap::from_simplex_vertices(vec![vec![0., 0.], vec![1., 0.]]).unwrap();
+    let topology = ReferenceTopology::new(reference).unwrap();
+    let ordinal = (0..topology.entity_count(1).unwrap())
+        .find(|ordinal| topology.entity(1, *ordinal).unwrap().vertex_ordinals() == [0, 1])
+        .unwrap();
+    let incidence = EntityIncidence {
+        entity: MeshEntity::new(2, 0),
+        local_ordinal: ordinal,
+        orientation: OrientationCode::new(0),
+    };
+    let facet = bound
+        .prepare_natural_facet(
+            bound.fields()[0].field,
+            &cell,
+            (&facet, incidence, &[0, 1]),
+            &simplex_duffy_gauss_legendre(1, 1).unwrap(),
+            |_, _| Ok(vec![0.]),
+        )
+        .unwrap();
+    // b=27*x*y*(1-x-y) vanishes on y=0, but db/dy=27/4 at x=1/2.
+    // The material input |grad(b)|²=729/16 exceeds 4. Scaling b by 1/10
+    // makes the input 729/1600, which is inside the original validity domain.
+    assert!(facet.residual(&[0., 0., 0., 0.1]).is_ok());
+    assert_eq!(
+        facet.residual(&[0., 0., 0., 1.]).unwrap_err().code(),
+        codes::EXPRESSION_DOMAIN_VIOLATION
+    );
+}
+
+#[test]
+fn affine_facet_checks_prescribed_material_domain() {
+    use eqiora_core::diagnostic::codes;
+    use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode};
+
+    let source = source(
+        "-div(response(value=coordinate(0)/1[m])*grad(u))=0",
+        true,
+        1,
+    )
+    .replace("value<=4", "value<=0.99")
+    .replace("box(0,2)", "box(0,1)");
+    let form = derive_dimension(&source, 1).unwrap();
+    assert!(!form.is_nonlinear());
+    let (fields, rows) = form.si_bindings(|_| Ok(p1())).unwrap();
+    let reference = ReferenceCell::hypercube(1).unwrap();
+    let bound = form.bind(reference, &fields, &rows, None).unwrap();
+    let cell = AffineGeometryMap::new(reference, 1, vec![0.5], vec![0.5]).unwrap();
+    // All three volume abscissae lie below 0.99. Only x=1 violates the
+    // original prescribed coefficient's domain, independent of the unknown u.
+    assert!(
+        bound
+            .prepare_cell(
+                &cell,
+                &QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap()
+            )
+            .unwrap()
+            .evaluate(&BTreeMap::new())
+            .is_ok()
+    );
+    for (side, x) in [(0, 0.), (1, 1.)] {
+        let facet = AffineGeometryMap::new(ReferenceCell::point(), 1, vec![x], vec![]).unwrap();
+        let incidence = EntityIncidence {
+            entity: MeshEntity::new(1, 0),
+            local_ordinal: side,
+            orientation: OrientationCode::new(0),
+        };
+        let prepared = bound.prepare_natural_facet(
+            bound.fields()[0].field,
+            &cell,
+            (&facet, incidence, &[side]),
+            &QuadratureRule::point(),
+            |_, _| Ok(vec![0.]),
+        );
+        if side == 0 {
+            assert!(prepared.is_ok());
+        } else {
+            assert_eq!(
+                prepared.err().unwrap().code(),
+                codes::EXPRESSION_DOMAIN_VIOLATION
+            );
+        }
     }
 }
 

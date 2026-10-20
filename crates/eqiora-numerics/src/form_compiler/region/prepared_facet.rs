@@ -1,4 +1,6 @@
 //! Prepared parent-cell trace actions, shared by affine and Newton assembly.
+use super::field_point::{BoundFieldComponent, FieldPoint};
+use super::flux::FluxTerm;
 use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, invalid};
 use crate::discrete_space::DiscreteSpace;
 use crate::spatial_expression::Coefficient;
@@ -10,7 +12,9 @@ use eqiora_meshing::{
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
+    physical: Vec<f64>,
     values: Vec<Vec<f64>>,
+    gradients: Vec<Vec<[f64; 3]>>,
     coefficients: Vec<S>,
 }
 
@@ -23,17 +27,19 @@ pub(crate) struct PreparedRegionFacet<S: Coefficient> {
     fields: Vec<RegionFieldLayout>,
     row: usize,
     columns: Vec<usize>,
+    constitutive: Vec<BoundFieldComponent<S>>,
+    transport_nodes: Vec<Vec<bool>>,
     normal: Vec<f64>,
     affine: LocalContribution<S>,
     samples: Vec<Sample<S>>,
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
-    pub(crate) fn requires_transport_completion(&self, field: RawId) -> bool {
+    pub(crate) fn requires_facet_evaluation(&self, field: RawId) -> bool {
         self.form
             .rows
             .iter()
-            .any(|row| row.tested == field && !row.dyadics.is_empty())
+            .any(|row| row.tested == field && row.has_boundary_flux())
     }
 
     /// Retain the established affine rule and cover every cubic trace product.
@@ -92,7 +98,8 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .position(|layout| layout.field == field)
             .expect("validated natural Field");
         let normal = crate::affine_fem::parent_outward_normal(cell, incidence)?;
-        let terms = &self.form.rows[row].dyadics;
+        let source = &self.form.rows[row];
+        let terms = &source.dyadics;
         let columns = terms
             .iter()
             .map(|term| {
@@ -102,17 +109,45 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     .ok_or_else(|| invalid("natural dyadic trial lacks a binding"))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let constitutive = source
+            .flux
+            .iter()
+            .filter_map(|term| match term {
+                FluxTerm::Component(term) => {
+                    Some(BoundFieldComponent::new(&term.value, &self.fields))
+                }
+                _ => None,
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut prepared = PreparedRegionFacet {
             domain: self.domain(),
             parent: cell.clone(),
             fields: self.fields.clone(),
             row,
             columns,
+            constitutive,
+            transport_nodes: Vec::new(),
             normal,
             affine,
             samples: Vec::new(),
         };
-        if terms.is_empty() {
+        // Replacing traction by a datum does not erase the original
+        // coefficients' domain obligations, including in affine execution.
+        // Validate each physical scalar coordinate image just as volume
+        // assembly does; a real-linear action need not be complex-linear.
+        let coefficients = source
+            .flux
+            .iter()
+            .map(|flux| flux.coefficient().coordinate_images(dimension))
+            .collect::<Result<Vec<_>, _>>()?;
+        for sample in rule.points() {
+            let mut physical = vec![0.; dimension];
+            facet.map_point(&sample.coordinates, &mut physical)?;
+            for coefficient in coefficients.iter().flatten() {
+                let _ = coefficient.evaluate(&physical)?;
+            }
+        }
+        if terms.is_empty() && prepared.constitutive.is_empty() {
             return Ok(prepared);
         }
         if dimension > 1
@@ -140,6 +175,17 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .iter()
             .map(|layout| DiscreteSpace::new(layout.space, self.reference))
             .collect::<Result<Vec<_>, _>>()?;
+        prepared.transport_nodes = spaces
+            .iter()
+            .map(|space| {
+                space
+                    .local_dofs()
+                    .iter()
+                    .map(|dof| dof.entity_dimension() != dimension)
+                    .collect()
+            })
+            .collect();
+        let inverse = cell.inverse_jacobian()?;
         for sample in rule.points() {
             let facet_table = facet_space.tabulate(&sample.coordinates)?;
             let reference = crate::affine_fem::facet_reference_point(
@@ -147,24 +193,28 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 parent_vertices,
                 facet_table.values(),
             )?;
-            let values = spaces
+            let tables = spaces
                 .iter()
-                .map(|space| {
-                    let table = space.tabulate(&reference)?;
-                    Ok(table
-                        .values()
-                        .iter()
-                        .zip(space.local_dofs())
-                        .map(|(value, dof)| {
-                            if dof.entity_dimension() == dimension {
-                                0.
-                            } else {
-                                *value
-                            }
-                        })
-                        .collect())
-                })
+                .map(|space| space.tabulate(&reference))
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let values = tables.iter().map(|table| table.values().to_vec()).collect();
+            let gradients = tables
+                .iter()
+                .map(|table| {
+                    (0..table.values().len())
+                        .map(|node| {
+                            let gradient = crate::affine_fem::physical_gradient(
+                                table.gradient(node).expect("supported gradient"),
+                                &inverse,
+                                dimension,
+                            );
+                            let mut result = [0.; 3];
+                            result[..dimension].copy_from_slice(&gradient);
+                            result
+                        })
+                        .collect()
+                })
+                .collect();
             let mut physical = vec![0.; dimension];
             facet.map_point(&sample.coordinates, &mut physical)?;
             let coefficients = terms
@@ -180,7 +230,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             prepared.samples.push(Sample {
+                physical,
                 values,
+                gradients,
                 coefficients,
             });
         }
@@ -189,6 +241,14 @@ impl<S: Coefficient> BoundRegionForm<S> {
 }
 
 impl<S: Coefficient> PreparedRegionFacet<S> {
+    fn transport_shape(&self, sample: &Sample<S>, field: usize, node: usize) -> f64 {
+        if self.transport_nodes[field][node] {
+            sample.values[field][node]
+        } else {
+            0.
+        }
+    }
+
     pub(crate) fn affine(&self) -> &LocalContribution<S> {
         &self.affine
     }
@@ -239,6 +299,17 @@ impl PreparedRegionFacet<f64> {
         let dimension = self.normal.len();
         let test = &self.fields[self.row];
         for sample in &self.samples {
+            let basis = FieldPoint {
+                physical: &sample.physical,
+                values: &sample.values,
+                gradients: &sample.gradients,
+            };
+            // Demand the original constitutive primal even though its
+            // traction was replaced or cancels against the other side.
+            // This does not request a material derivative or add a traction.
+            for value in &self.constitutive {
+                let _ = value.action(&self.fields, &basis, point, false)?;
+            }
             for (&column, &coefficient) in self.columns.iter().zip(&sample.coefficients) {
                 let trial = &self.fields[column];
                 let value = (0..dimension)
@@ -246,7 +317,8 @@ impl PreparedRegionFacet<f64> {
                         sample.values[column]
                             .iter()
                             .enumerate()
-                            .map(|(b, shape)| {
+                            .map(|(b, _)| {
+                                let shape = self.transport_shape(sample, column, b);
                                 shape * trial.scale * point[trial.range.start + b * dimension + i]
                             })
                             .sum::<f64>()
@@ -257,7 +329,8 @@ impl PreparedRegionFacet<f64> {
                     .zip(&self.normal)
                     .map(|(u, n)| u * n)
                     .sum::<f64>();
-                for (a, test_value) in sample.values[self.row].iter().enumerate() {
+                for (a, _) in sample.values[self.row].iter().enumerate() {
+                    let test_value = self.transport_shape(sample, self.row, a);
                     for (i, component_value) in value.iter().enumerate() {
                         let r = test.range.start + a * dimension + i;
                         action.residual[r] +=
@@ -265,7 +338,8 @@ impl PreparedRegionFacet<f64> {
                         if !derivative {
                             continue;
                         }
-                        for (b, trial_value) in sample.values[column].iter().enumerate() {
+                        for (b, _) in sample.values[column].iter().enumerate() {
+                            let trial_value = self.transport_shape(sample, column, b);
                             for (k, normal_component) in self.normal.iter().enumerate() {
                                 let c = trial.range.start + b * dimension + k;
                                 action.jacobian[r * count + c] += coefficient
