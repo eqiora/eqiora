@@ -12,6 +12,49 @@ pub(super) enum ScalarPart {
     Imaginary,
 }
 
+impl ScalarPart {
+    fn for_domain(domain: eqiora_core::ScalarDomain) -> Result<&'static [Self], Diagnostic> {
+        match domain {
+            eqiora_core::ScalarDomain::Real => Ok(&[Self::Real]),
+            eqiora_core::ScalarDomain::Complex => Ok(&[Self::Real, Self::Imaginary]),
+            _ => Err(invalid_component_ir(
+                "scalar coordinates require a numeric value",
+            )),
+        }
+    }
+}
+
+impl<I: Clone + Eq> super::ComponentDagLowering<'_, I> {
+    /// Retain every input component in derivative permissions, including components
+    /// absent from the output formula. Zero numerical actions do not grant permission.
+    pub(super) fn lower_input_coordinates(
+        &mut self,
+        inputs: &[eqiora_schema::kernel::ExprId],
+    ) -> Result<Vec<crate::scalar::ScalarInputValueId>, Diagnostic> {
+        let mut values = Vec::new();
+        for &input in inputs {
+            let index = super::node_index(input, self.node_types.len())?;
+            let ty = self.node_types[index].value_type.clone();
+            let parts = ScalarPart::for_domain(ty.scalar_domain())?;
+            let count = ty
+                .shape()
+                .component_count()
+                .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?;
+            let work = count
+                .checked_mul(parts.len())
+                .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?;
+            super::finite::charge_products(self.finite_products, work)?;
+            for flat in 0..count {
+                let component = row_major_index(ty.shape(), flat)?;
+                for &part in parts {
+                    values.push(self.lower_part(input, &component, part)?);
+                }
+            }
+        }
+        Ok(values)
+    }
+}
+
 /// One scalar coordinate of a shaped Semantic Model symbol.
 ///
 /// The empty component index denotes a scalar. Non-scalar indices are
@@ -34,15 +77,7 @@ impl ScalarSymbolCoordinate {
         symbol: SymbolRef,
         value_type: &eqiora_core::ValueType,
     ) -> Result<Vec<Self>, Diagnostic> {
-        let parts: &[ScalarPart] = match value_type.scalar_domain() {
-            eqiora_core::ScalarDomain::Real => &[ScalarPart::Real],
-            eqiora_core::ScalarDomain::Complex => &[ScalarPart::Real, ScalarPart::Imaginary],
-            _ => {
-                return Err(invalid_component_ir(
-                    "scalar coordinates require a numeric value",
-                ));
-            }
-        };
+        let parts = ScalarPart::for_domain(value_type.scalar_domain())?;
         let count = value_type
             .shape()
             .component_count()

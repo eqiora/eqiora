@@ -421,21 +421,7 @@ pub(super) fn branch_expression(
     mask: u32,
     first_pair: &mut usize,
 ) -> Result<Option<ExprDag>, Diagnostic> {
-    let mut builder = ExprDagBuilder::new();
-    for node in relation.expression.nodes() {
-        match node {
-            ExprNode::PureOperatorApplication(application) => {
-                let definition = relation
-                    .expression
-                    .definition(application.definition())
-                    .expect("admitted pure operator definition");
-                builder.pure_operator(definition, application.arguments().iter().copied())?;
-            }
-            _ => {
-                builder.push(node.clone())?;
-            }
-        }
-    }
+    let mut builder = ExprDagBuilder::from_dag(&relation.expression);
     let mut roots = Vec::new();
     for (kind, pair) in relation
         .conditions

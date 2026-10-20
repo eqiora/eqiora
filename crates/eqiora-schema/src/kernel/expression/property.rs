@@ -128,14 +128,13 @@ impl PropertyRelease {
         }
         if let Some(definition) = meaning.definition()
             && (definition.result_rule().exact_type().is_none()
-                || definition.formals().iter().any(|formal| {
-                    !formal.is_invariant_scalar()
-                        || formal.dimension().is_none()
-                        || formal.scalar_domain() != Some(eqiora_core::ScalarDomain::Real)
-                }))
+                || definition
+                    .formals()
+                    .iter()
+                    .any(|formal| formal.exact_type().is_none()))
         {
             return Err(invalid(
-                "analytic property requires concrete real scalar inputs and a concrete real or complex result",
+                "analytic property requires concrete numeric input and result types",
             ));
         }
         match &meaning {
