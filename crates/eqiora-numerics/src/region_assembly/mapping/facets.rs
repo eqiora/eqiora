@@ -45,6 +45,8 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
 /// Admitted constitutive tractions cancel in the shared test trace. The remaining
 /// equation-derived transport flux must still be completed on each owned side;
 /// different transport coefficients need not cancel across the interface.
+/// Original constitutive domain checks remain required on both sides even when
+/// their tractions cancel and there is no transport completion.
 pub(crate) fn prepare_interface_facets<'mesh, 'form, S: Coefficient + 'form>(
     mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
     forms: impl IntoIterator<Item = &'form BoundRegionForm<S>>,
@@ -66,7 +68,7 @@ pub(crate) fn prepare_interface_facets<'mesh, 'form, S: Coefficient + 'form>(
                 .iter()
                 .find(|layout| layout.field == field)
                 .ok_or_else(|| invalid("interface facet has no exact tested Field"))?;
-            if !form.requires_transport_completion(field) {
+            if !form.requires_facet_evaluation(field) {
                 continue;
             }
             for witness in &trace.facets {

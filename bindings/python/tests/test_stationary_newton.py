@@ -84,8 +84,11 @@ def test_stationary_newton_replays_seed_residual_and_actual_solve_history(exact_
             q.Result.from_bytes(plan, forged)
 
 
-@pytest.mark.parametrize("law", ["polynomial_flux", "property_reaction"])
-def test_stationary_material_runs_and_replays(law):
+@pytest.mark.parametrize("law,upper", [
+    ("polynomial_flux", 3), ("property_reaction", 3),
+    ("property_flux", 3), ("property_flux", 1.99),
+])
+def test_stationary_material_runs_and_replays(law, upper):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={
@@ -94,21 +97,24 @@ def test_stationary_material_runs_and_replays(law):
     body = geometry.selection("body")
     supports = """support body:volume(ambient_dimension=1),
         support left:boundary(parent=body),support right:boundary(parent=body)"""
-    if law == "property_reaction":
+    if law.startswith("property_"):
+        reaction = law == "property_reaction"
+        forcing = "(response(value=u)-5)/1[m^2]" if reaction else "2*(1+coordinate(0)/1[m])/1[m^2]"
+        right_law = "trace(u)=2" if reaction else "normal(response(value=u)*grad(u))=5[1/m]"
         source = f"""
         property contract Response(input value:1):1 {{derivatives first_partials;}}
         property release Material:Response {{
             analytic {{value=1+value^2;source_unit:1=1;}}
-            validity value>=-1 and value<=3;outside reject;branch single;
+            validity value>=-1 and value<={upper};outside reject;branch single;
             citation org.example.manufactured;license spdx.CC0_1_0;
         }}
         component Equation({supports},property response:Response) {{
             variable u:1 on body in smooth;
             relation balance on body {{
-                -div(response(value=u)*grad(u))+(response(value=u)-5)/1[m^2]=0;
+                -div(response(value=u)*grad(u))+{forcing}=0;
             }}
-            relation left_value on left {{trace(u)=2;}}
-            relation right_value on right {{trace(u)=2;}}
+            relation left_value on left {{trace(u)={2 if reaction else 1};}}
+            relation right_value on right {{{right_law};}}
         }}
         public model Main({supports}) {{
             instance physics:Equation(body=body,left=left,right=right,response=Material);
@@ -145,8 +151,17 @@ def test_stationary_material_runs_and_replays(law):
     # and Newton direction (241/49,1977/392,241/49). The full trial violates
     # the upper bound 3; its half step is admissible and decreases the residual.
     values = np.array([2., 0., 0., 0., 2.]) if law == "property_reaction" else np.ones(5)
+    if upper < 2:
+        values = exact.copy()
     state = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=values),))
     before = state.to_bytes()
+    if upper < 2:
+        # All volume abscissae are below 1.99. The exact solution's outlet
+        # value 2 violates only the original constitutive domain at the face.
+        with pytest.raises(q.ExecutionError, match="domain condition"):
+            q.run(plan, state=state)
+        assert state.to_bytes() == before
+        return
     result = q.run(plan, state=state)
     assert state.to_bytes() == before
     assert result.solve.completed_iterations > 1

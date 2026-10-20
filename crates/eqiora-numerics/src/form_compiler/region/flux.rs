@@ -19,6 +19,14 @@ pub(super) enum FluxTerm<S: Coefficient> {
 }
 
 impl<S: Coefficient> FluxTerm<S> {
+    pub(super) fn coefficient(&self) -> &Data<S> {
+        match self {
+            Self::Trial(term) => &term.coefficient,
+            Self::Component(term) => &term.coefficient,
+            Self::Isotropic(value) | Self::Prescribed { value, .. } => value,
+        }
+    }
+
     fn add_coefficient(&mut self, other: &Self) -> bool {
         let (left, right) = match (self, other) {
             (Self::Trial(a), Self::Trial(b)) => return a.add_coefficient(b),

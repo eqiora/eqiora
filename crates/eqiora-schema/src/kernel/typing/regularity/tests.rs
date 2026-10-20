@@ -115,6 +115,94 @@ fn exact_tangential_lift_transfers_the_curl_trace_theorem() {
 }
 
 #[test]
+fn guarded_polynomial_traces_retain_value_and_guard_input_regularity() {
+    use crate::kernel::ComparisonOp;
+    use crate::kernel::pure_operator::{CalculusBuilder, ExactRational, PureValueClass};
+
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(DimExponents::DIMENSIONLESS)
+        .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+        .unwrap();
+    for squared in [false, true] {
+        for branch in [false, true] {
+            let mut calculus = CalculusBuilder::new([class, class], class).unwrap();
+            let u = calculus
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let guard = calculus
+                .push(CalculusNode::FormalComponent {
+                    formal: 1,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let zero = calculus
+                .push(CalculusNode::Rational {
+                    value: ExactRational::integer(0),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })
+                .unwrap();
+            let condition = calculus
+                .push(CalculusNode::Compare(ComparisonOp::Less, zero, guard))
+                .unwrap();
+            let value = if squared {
+                calculus.push(CalculusNode::Mul(u, u)).unwrap()
+            } else {
+                u
+            };
+            let root = if branch {
+                calculus
+                    .push(CalculusNode::Select {
+                        condition,
+                        then_value: value,
+                        else_value: zero,
+                    })
+                    .unwrap()
+            } else {
+                calculus
+                    .push(CalculusNode::Require { condition, value })
+                    .unwrap()
+            };
+            let definition = calculus.finish(root).unwrap();
+            let guard_field = Id::<kinds::Field>::new();
+            let typed = expression(2, 0, |builder, u, on| {
+                let guard = builder.symbol(SymbolRef::Field(guard_field)).unwrap();
+                let value = builder.pure_operator(&definition, [u, guard]).unwrap();
+                builder.trace(value, on).unwrap()
+            });
+            for regularity in [
+                SpatialRegularity::L2,
+                SpatialRegularity::H1,
+                SpatialRegularity::Smooth,
+            ] {
+                let accepted = !branch
+                    && (regularity == SpatialRegularity::Smooth
+                        || (!squared && regularity == SpatialRegularity::H1));
+                assert_eq!(
+                    typed.validate_trace_regularity(|_| regularity).is_ok(),
+                    accepted
+                );
+            }
+            // A smooth value cannot hide a rough guard-only argument. Neither
+            // this type check nor polynomial degree proves that the guard holds.
+            assert!(
+                typed
+                    .validate_trace_regularity(|symbol| {
+                        if symbol == SymbolRef::Field(guard_field) {
+                            SpatialRegularity::L2
+                        } else {
+                            SpatialRegularity::Smooth
+                        }
+                    })
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn h1_does_not_grant_a_trace_of_its_gradient_or_nonlinear_product() {
     for typed in [
         expression(2, 0, |b, u, on| {

@@ -2,89 +2,137 @@ use super::*;
 
 #[test]
 fn stationary_material_flux_matches_nonzero_natural_data_without_double_counting() {
-    let geometry = cartesian_interval();
-    let source = POISSON_INTERVAL
-        .replace("on body in h1", "on body in smooth")
-        .replace(
-            "-div(grad(potential)) - source_scale",
-            "-div((1+potential^2)*grad(potential))+2*(1+coordinate(0)/1[m])/1[m^2]",
-        )
-        .replace(
-            "left { trace(potential) = 0; }",
-            "left { trace(potential) = 1; }",
-        )
-        .replace(
-            "right { trace(potential) = 0; }",
-            "right { normal((1+potential^2)*grad(potential)) = 5[1/m]; }",
-        );
-    let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
-    let plan = ResolvedCommonPlan::resolve(
-        &model,
-        cartesian_box_resources(&geometry, &[2]),
-        CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Newton {
-            linear: exact_reference_linear(
-                LinearSolver::BiConjugateGradientStabilized,
-                1e-13,
-                1e-14,
-                NonZeroUsize::new(100).unwrap(),
-            ),
-            nonlinear: NonlinearSolvePlan::new(0., 1e-11, NonZeroUsize::new(16).unwrap(), 16)
-                .unwrap(),
-        },
-        None,
-        None,
-        &REFERENCE_LINEAR_SOLVER,
-        None,
-    )
-    .unwrap();
-    let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
-    let spatial = plan.as_spatial().unwrap();
-    let field = spatial.fields().next().unwrap().0;
-    let initial = spatial
-        .initial_state(
+    for upper in [None, Some("4"), Some("1.99")] {
+        let geometry = cartesian_interval();
+        let source = POISSON_INTERVAL
+            .replace("on body in h1", "on body in smooth")
+            .replace(
+                "-div(grad(potential)) - source_scale",
+                "-div((1+potential^2)*grad(potential))+2*(1+coordinate(0)/1[m])/1[m^2]",
+            )
+            .replace(
+                "left { trace(potential) = 0; }",
+                "left { trace(potential) = 1; }",
+            )
+            .replace(
+                "right { trace(potential) = 0; }",
+                "right { normal((1+potential^2)*grad(potential)) = 5[1/m]; }",
+            );
+        let source = if let Some(upper) = upper {
+            guarded_natural_source(&source, upper)
+        } else {
+            source
+        };
+        let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
+        let plan = ResolvedCommonPlan::resolve(
+            &model,
+            cartesian_box_resources(&geometry, &[2]),
+            CommonSpatialPolicy::Q1,
+            CommonSolvePolicy::Newton {
+                linear: exact_reference_linear(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-13,
+                    1e-14,
+                    NonZeroUsize::new(100).unwrap(),
+                ),
+                nonlinear: NonlinearSolvePlan::new(0., 1e-11, NonZeroUsize::new(16).unwrap(), 16)
+                    .unwrap(),
+            },
             None,
-            vec![
-                CommonInitialField::new(
-                    model.digest().unwrap(),
-                    field,
-                    Some(
-                        CommonInitialValues::new(eqiora_core::ValueShape::scalar(), vec![1.; 3])
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
+        let spatial = plan.as_spatial().unwrap();
+        let field = spatial.fields().next().unwrap().0;
+        let initial = spatial
+            .initial_state(
+                None,
+                vec![
+                    CommonInitialField::new(
+                        model.digest().unwrap(),
+                        field,
+                        Some(
+                            CommonInitialValues::new(
+                                eqiora_core::ValueShape::scalar(),
+                                if upper == Some("1.99") {
+                                    vec![1., 1.5, 2.]
+                                } else {
+                                    vec![1.; 3]
+                                },
+                            )
                             .unwrap(),
-                    ),
-                    None,
-                )
-                .unwrap(),
-            ],
-        )
-        .unwrap();
-    let result = spatial
-        .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
-        .unwrap();
-    assert!(result.nonlinear_iterations(None).unwrap() > 1);
-    // On [0,1], u=1+x gives q=(1+u²)u', q'=2(1+x), q(1)=5.
-    // Both the volume load and the outward datum are nonzero; adding q again
-    // on the natural facet cannot satisfy these exact nodal values.
-    for (actual, expected) in result
-        .field_block(0, 0)
-        .unwrap()
-        .1
-        .iter()
-        .zip([1., 1.5, 2.])
-    {
-        assert!((actual - expected).abs() < 1e-11, "{actual} != {expected}");
+                        ),
+                        None,
+                    )
+                    .unwrap(),
+                ],
+            )
+            .unwrap();
+        let result = spatial.run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER);
+        if upper == Some("1.99") {
+            // On the last half-cell, even the largest volume abscissa has
+            // u=7/4+1/(4*sqrt(3))<1.99. Only the natural face has u=2.
+            assert_eq!(
+                result.err().unwrap().code(),
+                eqiora_core::diagnostic::codes::EXPRESSION_DOMAIN_VIOLATION
+            );
+            continue;
+        }
+        let result = result.unwrap();
+        assert!(result.nonlinear_iterations(None).unwrap() > 1);
+        // On [0,1], u=1+x gives q=(1+u²)u', q'=2(1+x), q(1)=5.
+        // Both the volume load and the outward datum are nonzero; adding q again
+        // on the natural facet cannot satisfy these exact nodal values.
+        for (actual, expected) in result
+            .field_block(0, 0)
+            .unwrap()
+            .1
+            .iter()
+            .zip([1., 1.5, 2.])
+        {
+            assert!((actual - expected).abs() < 1e-11, "{actual} != {expected}");
+        }
+        assert_eq!(
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+            result
+        );
+        assert!(
+            crate::CommonResult::from_bytes(
+                &result_replay::reseal_values(&result, 0, &[1., 1.5, 2.25]),
+                &plan,
+            )
+            .is_err()
+        );
     }
-    assert_eq!(
-        crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
-        result
-    );
-    assert!(
-        crate::CommonResult::from_bytes(
-            &result_replay::reseal_values(&result, 0, &[1., 1.5, 2.25]),
-            &plan,
+}
+
+fn guarded_natural_source(source: &str, upper: &str) -> String {
+    let equation = source
+        .replace(
+            "public component PoissonInterval(",
+            "component Equation(property response:Response,",
         )
-        .is_err()
-    );
+        .replace("(1+potential^2)", "response(value=potential)");
+    format!(
+        "property contract Response(input value:1):1 {{derivatives first_partials;}}
+property release Material:Response {{
+ analytic {{value=1+value^2;source_unit:1=1;}}
+ validity value>=0 and value<={upper};outside reject;branch single;
+ citation org.example.manufactured;license spdx.CC0_1_0;
+}}
+{equation}
+public component PoissonInterval(
+ support body:volume(ambient_dimension=1),
+ support left:boundary(parent=body),support right:boundary(parent=body),
+ parameter source_scale:1/m^2
+) {{
+ instance physics:Equation(body=body,left=left,right=right,
+   source_scale=source_scale,response=Material);
+}}"
+    )
 }
 
 #[test]
