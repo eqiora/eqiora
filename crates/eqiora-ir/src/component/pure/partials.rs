@@ -162,7 +162,7 @@ mod tests {
             (true, 1, [0.16, -1.12]),
             (true, 2, [-0.176, 0.032]),
         ] {
-            let mut builder = CalculusBuilder::new([real()], complex).unwrap();
+            let mut builder = CalculusBuilder::new([real()], complex.clone()).unwrap();
             let x = formal(&mut builder, 0);
             let one = builder
                 .push(CalculusNode::Rational {
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn a_real_result_retains_complex_intermediates_and_the_body_owns_its_domain() {
         let complex = real().with_scalar_domain(ScalarDomain::Complex).unwrap();
-        let mut builder = CalculusBuilder::new([complex], real()).unwrap();
+        let mut builder = CalculusBuilder::new([complex.clone()], real()).unwrap();
         let z = formal(&mut builder, 0);
         let squared = builder.push(CalculusNode::Mul(z, z)).unwrap();
         let root = builder

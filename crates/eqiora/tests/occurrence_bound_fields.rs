@@ -167,12 +167,7 @@ fn source_identity(source: &str) -> LocalSourceIdentity {
     let document = eqiora::language::parse("identity.eqi", source)
         .into_document()
         .expect("identity fixture parses");
-    let identity = LocalSourceIdentity::from_document(&document).expect("bounded source identity");
-    assert_eq!(
-        identity.namespace().unwrap().segments()[0],
-        "local-source-v33"
-    );
-    identity
+    LocalSourceIdentity::from_document(&document).expect("bounded source identity")
 }
 
 fn package_sources(

@@ -770,6 +770,19 @@ fn validate_expression(
         _ => false,
     };
     probability::validate_bindings(owner, expression, environment.nodes, diagnostics);
+    for value in expression
+        .definitions()
+        .values()
+        .flat_map(|definition| {
+            definition
+                .formals()
+                .iter()
+                .chain([definition.result_rule()])
+        })
+        .filter_map(eqiora_schema::kernel::pure_operator::PureValueClass::exact_type)
+    {
+        nominal_values::check(owner, value, environment.nodes, diagnostics);
+    }
     for node in expression.nodes() {
         if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))) && !observable_references {
             diagnostics.push(kernel_error(

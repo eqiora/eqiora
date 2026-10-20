@@ -3,7 +3,9 @@
 use super::correction::SolutionCorrection;
 use super::*;
 
-pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+pub(super) fn solve_preconditioned_bicgstab<
+    S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync,
+>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
@@ -95,7 +97,7 @@ pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64>
         )?;
         require_finite(&recurrence.direction_image, "BiCGSTAB operator image")?;
 
-        let alpha_denominator = dot(
+        let mut alpha_denominator = dot(
             execution,
             &recurrence.shadow_residual,
             &recurrence.direction_image,
@@ -105,9 +107,11 @@ pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64>
                 recurrence.reset(&residual);
                 continue;
             }
-            return Err(solve_failed(
-                "BiCGSTAB step denominator broke down before convergence",
-            ));
+            // A fresh residual can be orthogonal to A M^-1 r even for a
+            // nonsingular operator. Change the free shadow vector, not the
+            // equation, preconditioner, stopping tolerance or iteration budget.
+            (shadow_product, alpha_denominator) =
+                recurrence.retarget_shadow(&residual, execution)?;
         }
         recurrence.alpha = shadow_product / alpha_denominator;
         if !recurrence.alpha.is_finite() {
@@ -284,6 +288,46 @@ impl<S: Scalar + ComplexFloat<Real = f64>> Recurrence<S> {
             *direction = *residual + beta * (*direction - self.omega * *direction_image);
         }
         require_finite(&self.direction, "BiCGSTAB direction")
+    }
+
+    fn retarget_shadow(
+        &mut self,
+        residual: &[S],
+        execution: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<(S, S), Diagnostic>
+    where
+        S: From<f64>,
+    {
+        let residual_norm = FixedOrderInnerProduct::norm(execution, residual)?;
+        let image_norm = FixedOrderInnerProduct::norm(execution, &self.direction_image)?;
+        if residual_norm == 0. || image_norm == 0. {
+            return Err(solve_failed(
+                "BiCGSTAB step denominator broke down before convergence",
+            ));
+        }
+        // Called only for a fresh p=r with <r,v>=0, v=A M^-1 r.
+        // With h=r/||r||+v/||v||, <h,r>=||r|| and <h,v>=||v||.
+        // Both are nonzero for a nonzero residual and operator image. Scaling
+        // keeps the shadow bounded; the ordinary true-residual check still owns
+        // acceptance. No operator application or random perturbation is added.
+        for ((shadow, r), v) in self
+            .shadow_residual
+            .iter_mut()
+            .zip(residual)
+            .zip(&self.direction_image)
+        {
+            *shadow = *r / <S as From<f64>>::from(residual_norm)
+                + *v / <S as From<f64>>::from(image_norm);
+        }
+        require_finite(&self.shadow_residual, "BiCGSTAB replacement shadow")?;
+        let rho = dot(execution, &self.shadow_residual, residual)?;
+        let denominator = dot(execution, &self.shadow_residual, &self.direction_image)?;
+        if rho == S::zero() || denominator == S::zero() {
+            return Err(solve_failed(
+                "BiCGSTAB replacement shadow broke down before convergence",
+            ));
+        }
+        Ok((rho, denominator))
     }
 
     fn restart(&mut self, true_residual: &[S], residual: &mut [S]) {

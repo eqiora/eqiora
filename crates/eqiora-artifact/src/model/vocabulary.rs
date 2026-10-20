@@ -484,7 +484,7 @@ impl WireRationalTime {
     }
 }
 
-pub(crate) const PURE_COMPONENT_CALCULUS_V4: &str = "eqiora.pure-component-calculus/v4";
+pub(crate) const PURE_COMPONENT_CALCULUS_V5: &str = "eqiora.pure-component-calculus/v5";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -501,11 +501,10 @@ impl WirePureOperatorDefinition {
     pub(crate) fn encode(definition: &PureOperatorDefinition) -> Self {
         Self {
             digest: definition.digest().to_string(),
-            required_features: vec![PURE_COMPONENT_CALCULUS_V4.to_owned()],
+            required_features: vec![PURE_COMPONENT_CALCULUS_V5.to_owned()],
             formals: definition
                 .formals()
                 .iter()
-                .copied()
                 .map(WirePureValueClass::encode)
                 .collect(),
             result: WirePureValueClass::encode(definition.result_rule()),
@@ -527,7 +526,7 @@ impl WirePureOperatorDefinition {
         if let Some(feature) = self
             .required_features
             .iter()
-            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V4)
+            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V5)
         {
             return Err(invalid_artifact(format!(
                 "pure-operator definition requires unknown feature `{feature}`"
@@ -549,7 +548,6 @@ impl WirePureOperatorDefinition {
         let formals = self
             .formals
             .iter()
-            .copied()
             .map(WirePureValueClass::decode)
             .collect::<Result<Vec<_>, _>>()?;
         let result = self.result.decode()?;
@@ -577,9 +575,12 @@ impl WirePureOperatorDefinition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureValueClass {
+    Exact {
+        value_type: super::value_type::WireValueType,
+    },
     InvariantScalar {
         #[serde(deserialize_with = "Deserialize::deserialize")]
         dimension: Option<WireDimension>,
@@ -598,7 +599,20 @@ pub(crate) enum WirePureValueClass {
 }
 
 impl WirePureValueClass {
-    pub(crate) fn encode(value: PureValueClass) -> Self {
+    pub(crate) fn exact_type(&self) -> Option<&super::value_type::WireValueType> {
+        match self {
+            Self::Exact { value_type } => Some(value_type),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn encode(value: &PureValueClass) -> Self {
+        if let Some(value) = value.exact_type() {
+            return Self::Exact {
+                value_type: super::value_type::WireValueType::encode(value)
+                    .expect("bounded numeric pure contract"),
+            };
+        }
         let dimension = value.dimension().map(WireDimension::encode);
         let scalar_domain = value.scalar_domain().map(WireScalarDomain::encode);
         match value.spatial_rank() {
@@ -615,8 +629,13 @@ impl WirePureValueClass {
         }
     }
 
-    pub(crate) fn decode(self) -> Result<PureValueClass, Diagnostic> {
+    pub(crate) fn decode(&self) -> Result<PureValueClass, Diagnostic> {
+        if let Self::Exact { value_type } = self {
+            return PureValueClass::from_value_type(value_type.decode()?)
+                .map_err(|error| invalid_artifact(format!("invalid pure value class: {error}")));
+        }
         let (class, dimension, scalar_domain) = match self {
+            Self::Exact { .. } => unreachable!("exact contract handled above"),
             Self::InvariantScalar {
                 dimension,
                 scalar_domain,
@@ -627,9 +646,9 @@ impl WirePureValueClass {
                 dimension,
                 scalar_domain,
             } => {
-                let class = PureValueClass::spatial_tensor(rank)
+                let class = PureValueClass::spatial_tensor(*rank)
                     .and_then(|class| match extent {
-                        Some(extent) => class.with_spatial_extent(extent),
+                        Some(extent) => class.with_spatial_extent(*extent),
                         None => Ok(class),
                     })
                     .map_err(|error| {
@@ -644,10 +663,16 @@ impl WirePureValueClass {
                 .map_err(|error| invalid_artifact(format!("invalid pure value class: {error}")))?,
             None => class,
         };
-        Ok(match dimension {
+        let class = match dimension {
             Some(dimension) => class.with_dimension(dimension.decode()),
             None => class,
-        })
+        };
+        if class.exact_type().is_some() {
+            return Err(invalid_artifact(
+                "fully specified pure contracts require an exact value type",
+            ));
+        }
+        Ok(class)
     }
 }
 

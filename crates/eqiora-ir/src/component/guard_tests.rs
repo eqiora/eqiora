@@ -367,7 +367,7 @@ fn pure_guarded_polynomial_retains_values_products_and_validity() {
         .with_dimension(unit)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut c = CalculusBuilder::new([class], class).unwrap();
+    let mut c = CalculusBuilder::new([class.clone()], class).unwrap();
     let x = c
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -466,7 +466,7 @@ fn pure_piecewise_math_uses_lazy_boolean_demand_and_active_derivatives() {
         .with_dimension(unit)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut c = CalculusBuilder::new([class], class).unwrap();
+    let mut c = CalculusBuilder::new([class.clone()], class).unwrap();
     let x = c
         .push(CalculusNode::FormalComponent {
             formal: 0,

@@ -125,7 +125,8 @@ fn guarded_polynomial_traces_retain_value_and_guard_input_regularity() {
         .unwrap();
     for squared in [false, true] {
         for branch in [false, true] {
-            let mut calculus = CalculusBuilder::new([class, class], class).unwrap();
+            let mut calculus =
+                CalculusBuilder::new([class.clone(), class.clone()], class.clone()).unwrap();
             let u = calculus
                 .push(CalculusNode::FormalComponent {
                     formal: 0,

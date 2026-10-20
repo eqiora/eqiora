@@ -11,6 +11,7 @@ use expression::{canonical_expr_id, encode_expression};
 mod observable;
 mod projection;
 mod property;
+mod pure_operator;
 mod relation;
 mod values;
 
@@ -35,9 +36,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V44: &[u8] = b"eqiora.structural-semantic-fingerprint/v44\0";
+const FINGERPRINT_DOMAIN_V45: &[u8] = b"eqiora.structural-semantic-fingerprint/v45\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V44: u16 = 44;
+const GENERATION_V45: u16 = 45;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -53,6 +54,7 @@ pub enum SemanticFingerprintGeneration {
     /// - initialization and sample/hold transitions;
     /// - typed operators and conditional value guards;
     /// - bounded arbitrary-precision exact coefficients in operator definitions;
+    /// - complete pure signatures with alpha-normalized nominal type references;
     /// - nominal records with ordered heterogeneous member expressions;
     /// - typed Observables with their expression, reduced-value references,
     ///   and reduction support;
@@ -81,7 +83,7 @@ pub enum SemanticFingerprintGeneration {
     /// - authored Field spatial regularity;
     /// - coordinate-map factor actions with their factor, parameter, and
     ///   ordered directions.
-    V44,
+    V45,
 }
 
 impl SemanticFingerprintGeneration {
@@ -89,19 +91,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V44 => "eqiora.structural-semantic-fingerprint/v44",
+            Self::V45 => "eqiora.structural-semantic-fingerprint/v45",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V44 => GENERATION_V44,
+            Self::V45 => GENERATION_V45,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V44 => FINGERPRINT_DOMAIN_V44,
+            Self::V45 => FINGERPRINT_DOMAIN_V45,
         }
     }
 }
@@ -243,7 +245,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V44;
+        let generation = SemanticFingerprintGeneration::V45;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();

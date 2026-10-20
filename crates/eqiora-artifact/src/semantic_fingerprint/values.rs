@@ -71,7 +71,10 @@ pub(super) fn encode_quantity(encoder: &mut Encoder, value: DynQuantity) -> Resu
     encode_dimension(encoder, value.dim())
 }
 
-fn encode_dimension(encoder: &mut Encoder, value: DimExponents) -> Result<(), Diagnostic> {
+pub(super) fn encode_dimension(
+    encoder: &mut Encoder,
+    value: DimExponents,
+) -> Result<(), Diagnostic> {
     for (numerator, denominator) in value.exponents() {
         encoder.i32(numerator)?;
         encoder.i32(denominator)?;

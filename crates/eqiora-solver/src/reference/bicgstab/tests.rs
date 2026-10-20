@@ -76,3 +76,104 @@ fn real_shadow_orthogonality_restarts_without_accepting_an_unconverged_solution(
 fn complex_shadow_orthogonality_restarts_without_accepting_an_unconverged_solution() {
     check_shadow_restart(Complex64::new(1., 1.));
 }
+
+struct OffDiagonal<S>([S; 2]);
+impl<S> CsrStorage<S> for OffDiagonal<S> {
+    fn rows(&self) -> usize {
+        2
+    }
+    fn columns(&self) -> usize {
+        2
+    }
+    fn row_offsets(&self) -> &[usize] {
+        &[0, 1, 2]
+    }
+    fn column_indices(&self) -> &[usize] {
+        &[1, 0]
+    }
+    fn values(&self) -> &[S] {
+        &self.0
+    }
+}
+
+fn check_fresh_shadow_recovery<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(phase: S)
+where
+    super::super::ReferenceLinearSolver: LinearSolverBackend<S>,
+{
+    // A = phase * [[0,2],[3,0]]. For either coordinate RHS, r* A r=0,
+    // although det(A)=-6*phase² is nonzero. Column values give the exact
+    // coordinate solutions without calling an implementation to derive them.
+    for scale in [0.0009765625, 1., 1024.] {
+        let phase = phase * <S as From<f64>>::from(scale);
+        let storage = OffDiagonal([
+            <S as From<f64>>::from(2.) * phase,
+            <S as From<f64>>::from(3.) * phase,
+        ]);
+        for (rhs, expected) in [
+            (
+                [<S as From<f64>>::from(2.) * phase, S::zero()],
+                [S::zero(), S::one()],
+            ),
+            (
+                [S::zero(), <S as From<f64>>::from(3.) * phase],
+                [S::one(), S::zero()],
+            ),
+        ] {
+            let system =
+                CanonicalCsrSystemView::new(&storage, &rhs, LinearOperatorProperties::General)
+                    .unwrap();
+            let plan = SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-13,
+                0.,
+                8.try_into().unwrap(),
+            )
+            .unwrap();
+            let result = REFERENCE_LINEAR_SOLVER
+                .solve(&system.linear_problem().unwrap(), plan)
+                .unwrap();
+            for (actual, expected) in result.values().iter().zip(expected) {
+                assert!((*actual - expected).abs() < 1e-12);
+            }
+            assert!(result.report().true_residual_norm() <= result.report().residual_target());
+            assert!(result.report().completed_iterations() <= 8);
+            // Independently reapply the two authored rows.
+            let residual = [
+                <S as From<f64>>::from(2.) * phase * result.values()[1] - rhs[0],
+                <S as From<f64>>::from(3.) * phase * result.values()[0] - rhs[1],
+            ];
+            assert!(
+                residual[0].abs().hypot(residual[1].abs()) <= result.report().residual_target()
+            );
+        }
+    }
+    let singular = OffDiagonal([S::zero(), S::zero()]);
+    let system = CanonicalCsrSystemView::new(
+        &singular,
+        &[S::one(), S::zero()],
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-13,
+        0.,
+        8.try_into().unwrap(),
+    )
+    .unwrap();
+    assert!(
+        REFERENCE_LINEAR_SOLVER
+            .solve(&system.linear_problem().unwrap(), plan)
+            .is_err()
+    );
+}
+
+#[test]
+fn real_fresh_shadow_recovers_orthogonal_operator_images_without_accepting_singular_systems() {
+    check_fresh_shadow_recovery(1.);
+}
+
+#[test]
+fn complex_fresh_shadow_recovers_orthogonal_operator_images_without_accepting_singular_systems() {
+    check_fresh_shadow_recovery(Complex64::new(1., -2.));
+}

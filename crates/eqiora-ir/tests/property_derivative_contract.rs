@@ -23,7 +23,7 @@ fn fixture_with_power(
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut calculus = CalculusBuilder::new([class], class).unwrap();
+    let mut calculus = CalculusBuilder::new([class.clone()], class).unwrap();
     let x = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -259,7 +259,7 @@ fn a_first_partial_contract_limits_total_order_across_distinct_formals() {
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut calculus = CalculusBuilder::new([class, class], class).unwrap();
+    let mut calculus = CalculusBuilder::new([class.clone(), class.clone()], class).unwrap();
     let a = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,

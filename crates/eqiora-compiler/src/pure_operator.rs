@@ -1,8 +1,8 @@
 //! Translation of pure-operator source syntax into Kernel definitions.
 //!
-//! Local compilation, resolved-package analysis, and source identity all use
-//! this one conversion, so no source adapter can interpret the pure calculus
-//! differently.
+//! Local compilation and resolved-package analysis use this one conversion
+//! after lexical type binding. Source identity encodes authored syntax before
+//! binding; it must not require the occurrence identities it seeds.
 
 pub(crate) mod actions;
 pub(crate) mod property;
@@ -306,20 +306,8 @@ fn value_class(
         )
         .map_err(|error| kernel_error(file, range, error)),
         PureValueClassSyntax::Typed(syntax) => {
-            let value_type = crate::value_types::lower_scalar_type(file, syntax)?;
-            if !matches!(
-                value_type.scalar_domain(),
-                eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
-            ) {
-                return Err(pure_error(
-                    file,
-                    range,
-                    "operator scalar contracts require ordinary real or complex scalar types",
-                ));
-            }
-            PureValueClass::invariant_scalar()
-                .with_dimension(value_type.dimension())
-                .with_scalar_domain(value_type.scalar_domain())
+            let value_type = crate::value_types::lower_signature_type::<()>(file, syntax, None)?;
+            PureValueClass::from_value_type(value_type)
                 .map_err(|error| kernel_error(file, range, error))
         }
         _ => Err(pure_error(file, range, "unsupported operator value class")),

@@ -916,17 +916,6 @@ fn declaration_identity_form(digest: &[u8; 32]) -> String {
     result
 }
 
-fn pure_operator_identity_form(digest: [u8; 32]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut result = String::with_capacity(111);
-    result.push_str("eqiora.pure-operator-definition.v1:sha256:");
-    for byte in digest {
-        result.push(char::from(HEX[usize::from(byte >> 4)]));
-        result.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    result
-}
-
 fn resolved_source_label(module: &CompilationModuleId, file: &str) -> String {
     use core::fmt::Write;
 

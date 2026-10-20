@@ -19,7 +19,7 @@ impl PureOperatorDefinition {
         {
             return Ok(Cow::Borrowed(self));
         }
-        let mut builder = CalculusBuilder::new(self.formals.iter().copied(), self.result)?;
+        let mut builder = CalculusBuilder::new(self.formals.iter().cloned(), self.result.clone())?;
         let mut ids = Vec::<CalculusNodeId>::with_capacity(self.nodes.len());
         for node in &self.nodes {
             let node = node.map_operands(|id| ids[id.index() as usize]);
@@ -92,7 +92,7 @@ impl CalculusBuilder {
         }
         let mut staged = Self {
             formals: self.formals.clone(),
-            result: self.result,
+            result: self.result.clone(),
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };

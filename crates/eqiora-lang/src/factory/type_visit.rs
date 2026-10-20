@@ -10,6 +10,16 @@ impl super::SourceAstFactory {
         document: &mut Document,
         mut visit: impl FnMut(Option<&str>, &mut ValueTypeSyntax),
     ) {
+        for operator in &mut document.pure_operators {
+            for formal in &mut operator.formals {
+                if let crate::PureValueClassSyntax::Typed(syntax) = &mut formal.value_class {
+                    visit(None, syntax);
+                }
+            }
+            if let crate::PureValueClassSyntax::Typed(syntax) = &mut operator.result {
+                visit(None, syntax);
+            }
+        }
         for record in &mut document.records {
             for member in &mut record.members {
                 visit(None, &mut member.value_type);

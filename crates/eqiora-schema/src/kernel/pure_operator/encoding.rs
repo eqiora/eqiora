@@ -5,10 +5,21 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
     let mut bytes = DEFINITION_DOMAIN.to_vec();
     push_u32(&mut bytes, definition.formals.len());
     for formal in &definition.formals {
-        push_value_class(&mut bytes, *formal);
+        push_value_class(&mut bytes, formal);
     }
-    push_value_class(&mut bytes, definition.result);
-    push_u32(&mut bytes, definition.nodes.len());
+    push_value_class(&mut bytes, &definition.result);
+    push_body(&mut bytes, definition);
+    bytes
+}
+
+pub(super) fn canonical_body_bytes(definition: &PureOperatorDefinition) -> Vec<u8> {
+    let mut bytes = b"eqiora.pure-operator-body/v1\0".to_vec();
+    push_body(&mut bytes, definition);
+    bytes
+}
+
+fn push_body(bytes: &mut Vec<u8>, definition: &PureOperatorDefinition) {
+    push_u32(bytes, definition.nodes.len());
     for node in &definition.nodes {
         match node {
             CalculusNode::Require { condition, value } => {
@@ -18,8 +29,8 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
             }
             CalculusNode::Rational { value, dimension } => {
                 bytes.push(0);
-                push_rational(&mut bytes, value);
-                push_dimension(&mut bytes, *dimension);
+                push_rational(bytes, value);
+                push_dimension(bytes, *dimension);
             }
             CalculusNode::Boolean(value) => {
                 bytes.push(6);
@@ -80,16 +91,16 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
             }
             CalculusNode::FormalComponent { formal, axes } => {
                 bytes.push(1);
-                push_u16(&mut bytes, *formal);
-                push_u32(&mut bytes, axes.len());
+                push_u16(bytes, *formal);
+                push_u32(bytes, axes.len());
                 for axis in axes {
-                    push_component_index(&mut bytes, *axis);
+                    push_component_index(bytes, *axis);
                 }
             }
             CalculusNode::KroneckerDelta(left, right) => {
                 bytes.push(2);
-                push_component_index(&mut bytes, *left);
-                push_component_index(&mut bytes, *right);
+                push_component_index(bytes, *left);
+                push_component_index(bytes, *right);
             }
             CalculusNode::Differentiated { source, wrt } => {
                 bytes.push(14);
@@ -127,20 +138,42 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
         }
     }
     bytes.extend_from_slice(&definition.root.index().to_be_bytes());
-    bytes
 }
 
-fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
-    match class.spatial_rank() {
-        None => bytes.push(0),
-        Some(rank) => {
+fn push_value_class(bytes: &mut Vec<u8>, class: &PureValueClass) {
+    if let Some(value) = class.exact_type() {
+        bytes.push(2);
+        push_u32(bytes, value.shape().rank());
+        for extent in value.shape().extents() {
+            bytes.extend_from_slice(&extent.get().to_be_bytes());
+        }
+        push_u32(bytes, value.array_rank());
+        bytes.push(match value.frame() {
+            ValueFrame::Invariant => 0,
+            ValueFrame::SpatialCartesian => 1,
+        });
+        if let Some((source, target)) = value.map_bases() {
+            bytes.push(2);
+            push_basis(bytes, source);
+            push_basis(bytes, target);
+        } else if let Some(basis) = value.coordinate_basis() {
             bytes.push(1);
-            push_u16(bytes, rank);
-            match class.spatial_extent() {
-                None => bytes.push(0),
-                Some(extent) => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&extent.to_be_bytes());
+            push_basis(bytes, basis);
+        } else {
+            bytes.push(0);
+        }
+    } else {
+        match class.spatial_rank() {
+            None => bytes.push(0),
+            Some(rank) => {
+                bytes.push(1);
+                push_u16(bytes, rank);
+                match class.spatial_extent() {
+                    None => bytes.push(0),
+                    Some(extent) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&extent.to_be_bytes());
+                    }
                 }
             }
         }
@@ -193,5 +226,14 @@ fn push_component_index(bytes: &mut Vec<u8>, index: ComponentIndex) {
             bytes.push(1);
             bytes.extend_from_slice(&coordinate.to_be_bytes());
         }
+    }
+}
+
+fn push_basis(bytes: &mut Vec<u8>, basis: eqiora_core::FiniteBasis) {
+    bytes.push(u8::from(basis.is_dual()));
+    bytes.push(if basis.factors().is_some() { 2 } else { 1 });
+    for atom in basis.atoms() {
+        bytes.extend_from_slice(&atom.space().expect("atomic basis").ulid().to_bytes());
+        bytes.extend_from_slice(&atom.extent().to_be_bytes());
     }
 }

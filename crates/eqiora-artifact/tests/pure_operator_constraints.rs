@@ -20,16 +20,13 @@ fn program(dimension: DimExponents, constrained: bool) -> KernelProgram {
     let relation = Id::new();
     let activation = Id::new();
     let model = OntologyId::new();
-    let class = PureValueClass::invariant_scalar();
     let class = if constrained {
-        class
-            .with_dimension(dimension)
-            .with_scalar_domain(ScalarDomain::Real)
+        PureValueClass::from_value_type(ValueType::scalar(ScalarDomain::Real, dimension).unwrap())
             .unwrap()
     } else {
-        class
+        PureValueClass::invariant_scalar()
     };
-    let mut calculus = CalculusBuilder::new([class], class).unwrap();
+    let mut calculus = CalculusBuilder::new([class.clone()], class).unwrap();
     let component = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -91,34 +88,24 @@ fn constraints_round_trip_through_model_and_transaction() {
         let bytes = envelope.canonical_json().unwrap();
         let mut json: Value = serde_json::from_slice(&bytes).unwrap();
         let definition = &relation_expression(&mut json)["definitions"][0];
-        let expected_domain = if constrained {
-            json!("real")
-        } else {
-            Value::Null
-        };
-        for class in [&definition["formals"][0], &definition["result"]] {
-            assert!(class.as_object().unwrap().contains_key("scalar_domain"));
-            assert_eq!(class["scalar_domain"], expected_domain);
-        }
+        // The constrained identity has one complete ValueType; the generic
+        // template keeps explicitly unresolved constraints. Both apply to the
+        // same real, length-valued operand, but they are different contracts.
         let expected = if constrained {
-            json!([[0, 1], [1, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]])
+            json!({
+                "kind": "exact",
+                "value_type": {
+                    "domain": "real",
+                    "dimension": [[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]],
+                    "shape": [], "frame": "invariant", "array_rank": 0,
+                    "basis": {"kind": "ordinary"}
+                }
+            })
         } else {
-            Value::Null
+            json!({"kind": "invariant-scalar", "dimension": null, "scalar_domain": null})
         };
-        assert_eq!(definition["formals"][0]["dimension"], expected);
-        assert_eq!(definition["result"]["dimension"], expected);
-        assert!(
-            definition["formals"][0]
-                .as_object()
-                .unwrap()
-                .contains_key("dimension")
-        );
-        assert!(
-            definition["result"]
-                .as_object()
-                .unwrap()
-                .contains_key("dimension")
-        );
+        assert_eq!(definition["formals"][0], expected);
+        assert_eq!(definition["result"], expected);
         let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
         assert_eq!(decoded.to_program().unwrap(), original);
         let (seed, model) = decoded.to_transaction().unwrap();
@@ -166,13 +153,13 @@ fn malformed_missing_and_tampered_constraints_are_rejected() {
             let mut invalid = original.clone();
             let definition = &mut relation_expression(&mut invalid)["definitions"][0];
             let class = if field == "formals" {
-                &mut definition[field][0]
+                &mut definition[field][0]["value_type"]
             } else {
-                &mut definition[field]
+                &mut definition[field]["value_type"]
             };
             match mutation {
                 0 => {
-                    class.as_object_mut().unwrap().remove("dimension");
+                    assert!(class.as_object_mut().unwrap().remove("dimension").is_some());
                 }
                 1 => {
                     class["dimension"][1] = json!([1, 0]);
@@ -216,16 +203,16 @@ fn scalar_domain_constraints_are_mandatory_checked_and_identity_bound() {
             let mut invalid = original.clone();
             let definition = &mut relation_expression(&mut invalid)["definitions"][0];
             let class = if formal {
-                &mut definition["formals"][0]
+                &mut definition["formals"][0]["value_type"]
             } else {
-                &mut definition["result"]
+                &mut definition["result"]["value_type"]
             };
             match domain {
                 None => {
-                    class.as_object_mut().unwrap().remove("scalar_domain");
+                    assert!(class.as_object_mut().unwrap().remove("domain").is_some());
                 }
                 Some(value) => {
-                    class["scalar_domain"] = value;
+                    class["domain"] = value;
                 }
             }
             assert!(
@@ -235,6 +222,63 @@ fn scalar_domain_constraints_are_mandatory_checked_and_identity_bound() {
                 )
                 .is_err()
             );
+        }
+    }
+}
+
+#[test]
+fn exact_and_generic_contracts_reject_missing_payloads_and_obsolete_constraints() {
+    for constrained in [false, true] {
+        let original: Value = serde_json::from_slice(
+            &ModelEnvelope::from_program(&program(length(), constrained))
+                .unwrap()
+                .canonical_json()
+                .unwrap(),
+        )
+        .unwrap();
+        for formal in [false, true] {
+            let fields: &[&str] = if constrained {
+                &["value_type"]
+            } else {
+                &["dimension", "scalar_domain"]
+            };
+            for field in fields {
+                let mut invalid = original.clone();
+                let definition = &mut relation_expression(&mut invalid)["definitions"][0];
+                let class = if formal {
+                    &mut definition["formals"][0]
+                } else {
+                    &mut definition["result"]
+                };
+                assert!(class.as_object_mut().unwrap().remove(*field).is_some());
+                assert!(
+                    ModelEnvelope::from_json(
+                        &serde_json::to_vec(&invalid).unwrap(),
+                        ModelDecoderLimits::default()
+                    )
+                    .is_err()
+                );
+            }
+            if constrained {
+                let mut invalid = original.clone();
+                let definition = &mut relation_expression(&mut invalid)["definitions"][0];
+                let class = if formal {
+                    &mut definition["formals"][0]
+                } else {
+                    &mut definition["result"]
+                };
+                // Fully specified constraints must not retain the displaced
+                // generic encoding, even when their mathematical meaning agrees.
+                *class = json!({"kind":"invariant-scalar", "scalar_domain":"real",
+                    "dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]});
+                assert!(
+                    ModelEnvelope::from_json(
+                        &serde_json::to_vec(&invalid).unwrap(),
+                        ModelDecoderLimits::default()
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 }

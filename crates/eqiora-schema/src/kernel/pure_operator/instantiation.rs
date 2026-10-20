@@ -21,9 +21,9 @@ impl PureOperatorDefinition {
         let mut common_support = None;
         let mut spatial_extent = None;
         for (rule, argument) in self.formals.iter().zip(arguments) {
-            validate_argument_class(*rule, argument)?;
-            if rule.spatial_rank().is_some() {
-                let extent = argument.shape().extents()[0].get();
+            validate_argument_class(rule, argument)?;
+            if argument.frame() == ValueFrame::SpatialCartesian {
+                let extent = argument.shape().extents()[argument.value_type.array_rank()].get();
                 if spatial_extent.is_some_and(|expected| expected != extent) {
                     return Err(PureOperatorError::FormalTypeMismatch);
                 }
@@ -48,14 +48,9 @@ impl PureOperatorDefinition {
                 None => common_support = Some(support.clone()),
             }
         }
-        let formals = self
-            .formals
+        let formals = arguments
             .iter()
-            .zip(arguments)
-            .map(|(rule, argument)| {
-                rule.with_dimension(argument.dimension())
-                    .with_scalar_domain(argument.value_type.scalar_domain())
-            })
+            .map(|argument| PureValueClass::from_value_type(argument.value_type.clone()))
             .collect::<Result<Vec<_>, _>>()?;
         let component_types = dimensions::component_types(&formals, &self.nodes)?;
         let scalar_domain = domains::result_domain(
@@ -84,31 +79,42 @@ impl PureOperatorDefinition {
         if self
             .result
             .spatial_extent()
-            .is_some_and(|expected| spatial_extent != Some(expected))
+            .is_some_and(|expected| spatial_extent.is_some_and(|actual| actual != expected))
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        for node in &self.nodes {
-            let coordinates: &[ComponentIndex] = match node {
-                CalculusNode::FormalComponent { axes, .. } => axes,
-                CalculusNode::KroneckerDelta(left, right) => &[*left, *right],
-                _ => continue,
-            };
-            if coordinates.iter().any(|index| {
-                matches!(index,
-                ComponentIndex::Fixed(coordinate)
-                    if spatial_extent.is_none_or(|extent| *coordinate >= extent))
-            }) {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
-        }
         let result_type = expression_type_for_class(
-            self.result,
+            &self.result,
             scalar_domain,
             result_dimension,
             common_support,
-            spatial_extent,
+            spatial_extent.or(self.result.spatial_extent()),
         )?;
+        let result_class = PureValueClass::from_value_type(result_type.value_type.clone())?;
+        for node in &self.nodes {
+            match node {
+                CalculusNode::FormalComponent { formal, axes } => {
+                    formals[usize::from(*formal)].validate_component(axes, &result_class)?;
+                }
+                CalculusNode::KroneckerDelta(left, right) => {
+                    if let (ComponentIndex::Fixed(left), ComponentIndex::Fixed(right)) =
+                        (left, right)
+                        && spatial_extent
+                            .or(self.result.spatial_extent())
+                            .is_none_or(|extent| *left >= extent || *right >= extent)
+                    {
+                        return Err(PureOperatorError::FormalTypeMismatch);
+                    }
+                    for (axis, other) in [(*left, *right), (*right, *left)] {
+                        if let ComponentIndex::Result(index) = axis {
+                            let extent = result_type.shape().extents()[usize::from(index)].get();
+                            validate_component_axis(other, extent, &result_type)?;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         Ok(PureOperatorInstantiation {
             definition: self,
             arguments: arguments.to_vec(),
@@ -119,9 +125,15 @@ impl PureOperatorDefinition {
 }
 
 fn validate_argument_class<I>(
-    class: PureValueClass,
+    class: &PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
+    if let Some(exact) = class.exact_type() {
+        if exact != &argument.value_type {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        return validate_spatial_shape(argument);
+    }
     if class
         .scalar_domain()
         .is_some_and(|expected| expected != argument.value_type.scalar_domain())
@@ -179,12 +191,26 @@ fn validate_argument_class<I>(
 }
 
 fn expression_type_for_class<I>(
-    class: PureValueClass,
+    class: &PureValueClass,
     scalar_domain: eqiora_core::ScalarDomain,
     dimension: eqiora_core::DimExponents,
     support: Option<SpatialSupport<I>>,
     spatial_extent: Option<u32>,
 ) -> Result<ExpressionType<I>, PureOperatorError> {
+    if let Some(exact) = class.exact_type() {
+        let result = ExpressionType::new(exact.clone(), support);
+        validate_spatial_shape(&result)?;
+        if result.frame() == ValueFrame::SpatialCartesian
+            && spatial_extent.is_some_and(|extent| {
+                result.shape().extents()[exact.array_rank()..]
+                    .iter()
+                    .any(|actual| actual.get() != extent)
+            })
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        return Ok(result);
+    }
     match class.spatial_rank() {
         None => Ok(ExpressionType::new(
             eqiora_core::ValueType::scalar(scalar_domain, dimension)
@@ -207,5 +233,42 @@ fn expression_type_for_class<I>(
             .map(|value_type| ExpressionType::new(value_type, support))
             .map_err(|_| PureOperatorError::FormalTypeMismatch)
         }
+    }
+}
+
+fn validate_spatial_shape<I>(value: &ExpressionType<I>) -> Result<(), PureOperatorError> {
+    if value.frame() != ValueFrame::SpatialCartesian {
+        return Ok(());
+    }
+    let axes = &value.shape().extents()[value.value_type.array_rank()..];
+    let extent = value
+        .support
+        .as_ref()
+        .and_then(SpatialSupport::ambient_dimensions)
+        .and_then(|extent| u32::try_from(extent).ok())
+        .or_else(|| axes.first().map(|axis| axis.get()));
+    if extent.is_none() || axes.iter().any(|axis| Some(axis.get()) != extent) {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
+    Ok(())
+}
+
+fn validate_component_axis<I>(
+    axis: ComponentIndex,
+    extent: u32,
+    result: &ExpressionType<I>,
+) -> Result<(), PureOperatorError> {
+    let valid = match axis {
+        ComponentIndex::Fixed(coordinate) => coordinate < extent,
+        ComponentIndex::Result(index) => result
+            .shape()
+            .extents()
+            .get(usize::from(index))
+            .is_some_and(|actual| actual.get() == extent),
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(PureOperatorError::FormalTypeMismatch)
     }
 }

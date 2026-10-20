@@ -37,7 +37,8 @@ fn ty(dimension: DimExponents) -> ExpressionType<u32> {
 #[test]
 fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
     let generic = PureValueClass::invariant_scalar();
-    let mut builder = CalculusBuilder::new([generic, generic], generic).unwrap();
+    let mut builder =
+        CalculusBuilder::new([generic.clone(), generic.clone()], generic.clone()).unwrap();
     let x = formal(&mut builder, 0);
     let y = formal(&mut builder, 1);
     let root = builder.push(CalculusNode::Div(x, y)).unwrap();
@@ -62,7 +63,7 @@ fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
         ScalarDomain::Complex
     );
 
-    let mut outer = CalculusBuilder::new([generic; 3], generic).unwrap();
+    let mut outer = CalculusBuilder::new(vec![generic.clone(); 3], generic.clone()).unwrap();
     let x = formal(&mut outer, 0);
     let y = formal(&mut outer, 1);
     let z = formal(&mut outer, 2);
@@ -83,7 +84,7 @@ fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
 fn quotient_and_product_have_distinct_definition_identity() {
     let scalar = class(DimExponents::DIMENSIONLESS);
     let definition = |divide| {
-        let mut builder = CalculusBuilder::new([scalar; 2], scalar).unwrap();
+        let mut builder = CalculusBuilder::new(vec![scalar.clone(); 2], scalar.clone()).unwrap();
         let x = formal(&mut builder, 0);
         let y = formal(&mut builder, 1);
         let root = builder
@@ -101,7 +102,7 @@ fn quotient_and_product_have_distinct_definition_identity() {
 #[test]
 fn zero_quotient_does_not_become_an_unconditional_zero_polynomial() {
     let scalar = class(DimExponents::DIMENSIONLESS);
-    let mut builder = CalculusBuilder::new([scalar], scalar).unwrap();
+    let mut builder = CalculusBuilder::new([scalar.clone()], scalar.clone()).unwrap();
     let denominator = formal(&mut builder, 0);
     let zero = literal(&mut builder, 0, DimExponents::DIMENSIONLESS);
     let root = builder.push(CalculusNode::Div(zero, denominator)).unwrap();
@@ -295,7 +296,7 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
 #[test]
 fn nonlinear_profile_and_fraction_bounds_reject_before_projection() {
     let generic = PureValueClass::invariant_scalar();
-    let mut builder = CalculusBuilder::new([generic], generic).unwrap();
+    let mut builder = CalculusBuilder::new([generic.clone()], generic.clone()).unwrap();
     let input = formal(&mut builder, 0);
     let condition = builder.push(CalculusNode::Boolean(true)).unwrap();
     let root = builder

@@ -115,7 +115,7 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
             .unwrap()
             .generation()
             .as_str(),
-        "eqiora.structural-semantic-fingerprint/v44"
+        "eqiora.structural-semantic-fingerprint/v45"
     );
     let bytes = artifact.canonical_json().unwrap();
     let mut displaced: serde_json::Value = serde_json::from_slice(&bytes).unwrap();

@@ -412,7 +412,7 @@ fn canonical_abs_preserves_real_values_slopes_and_zero_boundary_rejection() {
 fn shared_numeric_projection_retains_original_roots_and_symbol_order() {
     use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
     let dimension = DimExponents::DIMENSIONLESS;
-    let mut definition = CalculusBuilder::new([class(dimension); 2], class(dimension)).unwrap();
+    let mut definition = CalculusBuilder::new(vec![class(dimension); 2], class(dimension)).unwrap();
     let a = formal(&mut definition, 0);
     let b = formal(&mut definition, 1);
     let square = definition.push(CalculusNode::Mul(a, a)).unwrap();

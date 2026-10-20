@@ -20,7 +20,9 @@ mod model_item;
 use component_item::encode_component_item;
 use model_item::encode_model_item;
 mod declarations;
-use declarations::{encode_component, encode_connector, encode_pure_operators};
+use declarations::{encode_component, encode_connector};
+mod operator;
+use operator::encode_pure_operators;
 mod dimension;
 mod domain;
 pub(crate) mod formulation;
@@ -41,9 +43,9 @@ use eqiora_lang::{
     CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr, ExprKind, FamilyBinderSyntax,
-    FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax, RelationDecl,
+    RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, UnaryOp,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -63,7 +65,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 33;
+const CANONICAL_VERSION: u16 = 34;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;

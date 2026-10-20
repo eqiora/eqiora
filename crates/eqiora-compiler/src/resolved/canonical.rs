@@ -124,33 +124,27 @@ pub(super) fn collect_canonical_declarations(
                 diagnostics,
             );
         }
-        let operators = match crate::pure_operator::compile_definitions(&unit.file, &unit.document)
-        {
-            Ok(definitions) => definitions,
-            Err(error) => {
-                diagnostics.push(error);
-                BTreeMap::new()
-            }
-        };
         for operator in unit.document.pure_operators() {
-            let path = canonical_declaration_path(&unit.module, operator.name());
-            if !paths.insert((unit.module.owner().clone(), path.clone())) {
-                diagnostics.push(resolved_error(format!(
-                    "duplicate top-level declaration `{}` in module `{}`",
-                    operator.name(),
-                    unit.module
-                )));
-                continue;
-            }
-            if let Some(definition) = operators.get(operator.name()) {
-                result.push(CanonicalDeclarationIdentity {
-                    namespace: unit.module.owner().clone(),
-                    path,
-                    kind: CanonicalDeclarationKind::PureOperator,
-                    visibility: operator.visibility(),
-                    canonical_form: pure_operator_identity_form(definition.digest().bytes()),
-                });
-            }
+            let document = SourceAstFactory::document_with_pure_operators(
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![operator.clone()],
+                Vec::new(),
+            )
+            .expect("one parsed operator is a valid document");
+            push_canonical(
+                &mut result,
+                &mut paths,
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, operator.name()),
+                CanonicalDeclarationKind::PureOperator,
+                operator.visibility(),
+                &document,
+                &resolved_aliases,
+                &operator_formals,
+                diagnostics,
+            );
         }
         for component in unit.document.components() {
             let document = SourceAstFactory::document(

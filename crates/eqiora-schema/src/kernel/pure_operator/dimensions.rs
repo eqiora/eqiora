@@ -10,7 +10,7 @@ struct Proof {
 
 pub(super) fn validate_profile(
     formals: &[PureValueClass],
-    result: PureValueClass,
+    result: &PureValueClass,
     nodes: &[CalculusNode],
 ) -> Result<(), PureOperatorError> {
     if nodes.iter().any(|node| {
@@ -27,9 +27,8 @@ pub(super) fn validate_profile(
                 | CalculusNode::UnaryMath(..)
                 | CalculusNode::Complex { .. }
         )
-    }) && formals.iter().chain([&result]).any(|class| {
-        !class.is_invariant_scalar()
-            || class.dimension().is_none()
+    }) && formals.iter().chain([result]).any(|class| {
+        class.dimension().is_none()
             || !matches!(
                 class.scalar_domain(),
                 Some(ScalarDomain::Real | ScalarDomain::Complex)
@@ -387,7 +386,7 @@ fn normalized(
 }
 pub(super) fn validate_result_dimension(
     formals: &[PureValueClass],
-    result: PureValueClass,
+    result: &PureValueClass,
     monomial: &FormalDimensionMonomial,
 ) -> Result<(), PureOperatorError> {
     if let Some(expected) = result.dimension() {

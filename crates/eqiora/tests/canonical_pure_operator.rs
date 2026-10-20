@@ -228,7 +228,7 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
 
     let model_text = String::from_utf8(direct.canonical_json().unwrap()).unwrap();
     assert!(model_text.contains("pure-operator-application"));
-    assert!(model_text.contains("eqiora.pure-component-calculus/v4"));
+    assert!(model_text.contains("eqiora.pure-component-calculus/v5"));
     assert!(
         !model_text.contains("dyadic"),
         "source operator names and name recognizers cannot enter canonical Model bytes"
@@ -364,4 +364,132 @@ fn current_wire_unknown_feature_digest_and_resource_limit_fail_closed() {
     )
     .unwrap_err();
     assert!(diagnostic.message().contains("exceeds decoder limit"));
+}
+
+#[test]
+fn exact_array_signatures_compile_replay_and_execute_through_component_ir() {
+    use eqiora::{ScalarDomain, ValueLiteral, ValueType};
+    let fixtures = [
+        (
+            "operator swap_axes(input x:array<array<1,3>,2>):array<array<1,2>,3> = component(x,1,0); model Main(){variable x:array<array<1,3>,2>; variable y:array<array<1,2>,3>; relation r{y=swap_axes(x=x);}}",
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .unwrap()
+                .array(3)
+                .unwrap()
+                .array(2)
+                .unwrap(),
+            vec![(1., 0.), (2., 0.), (3., 0.), (4., 0.), (5., 0.), (6., 0.)],
+            vec![(1., 0.), (4., 0.), (2., 0.), (5., 0.), (3., 0.), (6., 0.)],
+        ),
+        (
+            "operator project(input x:array<complex<1>,3>):array<1,3> = math.real(component(x,0)) + math.imag(component(x,0)); model Main(){variable x:array<complex<1>,3>; variable y:array<1,3>; relation r{y=project(x=x);}}",
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap()
+                .array(3)
+                .unwrap(),
+            vec![(1., 2.), (3., 4.), (5., 6.)],
+            vec![(3., 0.), (7., 0.), (11., 0.)],
+        ),
+    ];
+    for (source, value_type, components, expected) in fixtures {
+        let document = eqiora::api::ModelDocument::compile("typed.eqi", source).unwrap();
+        let bytes = document.canonical_json().unwrap();
+        let replay = eqiora::api::ModelDocument::replay(&bytes).unwrap();
+        assert_eq!(replay.canonical_json().unwrap(), bytes);
+        for program in [document.program(), replay.program()] {
+            let definition = pure_definition(program);
+            let input = ValueLiteral::new(value_type.clone(), components.clone()).unwrap();
+            let output =
+                ComponentScalarization::evaluate_pure_operator(&definition, &[&input]).unwrap();
+            assert_eq!(output.components().unwrap().collect::<Vec<_>>(), expected);
+            assert_eq!(
+                output.value_type(),
+                definition.result_rule().exact_type().unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn exact_nominal_signatures_bind_before_component_lowering() {
+    let source = r#"
+space A = orthonormal(a,b);
+space B = orthonormal(c,d);
+operator retain(input x:coordinates<complex<1>,A>):coordinates<complex<1>,A>
+    = component(x,0);
+operator retain_map(input x:map<complex<1>,A,B>):map<complex<1>,A,B>
+    = component(x,0,1);
+model Main() {
+    variable x:coordinates<complex<1>,A>;
+    variable y:coordinates<complex<1>,A>;
+    variable m:map<complex<1>,A,B>;
+    variable n:map<complex<1>,A,B>;
+    relation r { y = retain(x=x); }
+    relation s { n = retain_map(x=m); }
+}
+"#;
+    let document = eqiora::api::ModelDocument::compile("nominal.eqi", source).unwrap();
+    let root = prepare_package_release_v1(
+        source_package(ROOT_PACKAGE, "src/main.eqi", source, vec![]),
+        &[],
+    )
+    .unwrap();
+    let (store, resolution) = exact_package::resolved_store(&root, &[]);
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap();
+    assert_eq!(
+        packaged.model().structural_fingerprint().unwrap(),
+        document.structural_fingerprint().unwrap()
+    );
+    let bytes = document.canonical_json().unwrap();
+    let replay = eqiora::api::ModelDocument::replay(&bytes).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), bytes);
+    let renamed = source
+        .replace("input x:", "input arg:")
+        .replace("component(x,", "component(arg,")
+        .replace("retain(x=x)", "retain(arg=x)")
+        .replace("retain_map(x=m)", "retain_map(arg=m)");
+    assert_eq!(
+        eqiora::api::ModelDocument::compile("moved.eqi", &renamed)
+            .unwrap()
+            .canonical_json()
+            .unwrap(),
+        bytes
+    );
+    for program in [
+        document.program(),
+        replay.program(),
+        packaged.model().program(),
+    ] {
+        let mut definitions = 0;
+        for node in program.nodes() {
+            let KernelNode::Relation(relation) = node else {
+                continue;
+            };
+            for definition in relation.expression().definitions().values() {
+                definitions += 1;
+                let ty = definition.formals()[0].exact_type().unwrap();
+                let components = (0..ty.shape().component_count().unwrap())
+                    .map(|i| (i as f64 + 1., -(i as f64 + 2.)))
+                    .collect::<Vec<_>>();
+                let input = eqiora::ValueLiteral::new(ty.clone(), components.clone()).unwrap();
+                let output =
+                    ComponentScalarization::evaluate_pure_operator(definition, &[&input]).unwrap();
+                assert_eq!(output.value_type(), ty);
+                assert_eq!(output.components().unwrap().collect::<Vec<_>>(), components);
+            }
+        }
+        assert_eq!(definitions, 2);
+    }
+    for changed in [
+        source.replace(
+            "variable x:coordinates<complex<1>,A>",
+            "variable x:coordinates<complex<1>,B>",
+        ),
+        source.replace(
+            "variable m:map<complex<1>,A,B>",
+            "variable m:map<complex<1>,B,A>",
+        ),
+    ] {
+        assert!(eqiora::api::ModelDocument::compile("foreign.eqi", &changed).is_err());
+    }
 }
