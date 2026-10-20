@@ -98,9 +98,12 @@ framework, answer:
 4. What existing branch, type, or repeated reasoning becomes simpler or disappears?
 5. What compatibility promise and deletion cost does it create?
 
-One real consumer is enough for a private helper. A public or durable abstraction normally
-needs two independent consumers, unless that public surface is itself the product capability.
-Anticipated reuse is not a consumer. A small crate or schema is still permanent complexity.
+Use the smallest owner that satisfies the current responsibility. A public or durable abstraction
+needs a current contract or concrete consumer that a private implementation cannot serve.
+Follow the [platform strategy](ai-authored-platform-strategy.md#architecture-discipline): do not
+wait for a second consumer when a shared invariant already requires one owner, and complete
+necessary abstraction with the capability that exposes it. Similar code and anticipated reuse
+alone do not establish a shared responsibility. A small crate or schema is still permanent complexity.
 
 When a ceiling blocks work, split or simplify the implementation. Raising a ceiling or adding
 architecture debt is itself a reviewed high-risk change with a reason and deletion condition.
