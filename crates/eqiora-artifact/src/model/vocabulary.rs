@@ -484,7 +484,7 @@ impl WireRationalTime {
     }
 }
 
-pub(crate) const PURE_COMPONENT_CALCULUS_V3: &str = "eqiora.pure-component-calculus/v3";
+pub(crate) const PURE_COMPONENT_CALCULUS_V4: &str = "eqiora.pure-component-calculus/v4";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -501,7 +501,7 @@ impl WirePureOperatorDefinition {
     pub(crate) fn encode(definition: &PureOperatorDefinition) -> Self {
         Self {
             digest: definition.digest().to_string(),
-            required_features: vec![PURE_COMPONENT_CALCULUS_V3.to_owned()],
+            required_features: vec![PURE_COMPONENT_CALCULUS_V4.to_owned()],
             formals: definition
                 .formals()
                 .iter()
@@ -527,7 +527,7 @@ impl WirePureOperatorDefinition {
         if let Some(feature) = self
             .required_features
             .iter()
-            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V3)
+            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V4)
         {
             return Err(invalid_artifact(format!(
                 "pure-operator definition requires unknown feature `{feature}`"
@@ -681,6 +681,10 @@ impl WireComponentIndex {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureCalculusNode {
+    Complex {
+        real: u32,
+        imag: u32,
+    },
     BoundInput {
         value: u32,
     },
@@ -807,6 +811,10 @@ impl WirePureCalculusNode {
                 source: source.index(),
                 wrt: wrt.index(),
             },
+            CalculusNode::Complex { real, imag } => Self::Complex {
+                real: real.index(),
+                imag: imag.index(),
+            },
             CalculusNode::BoundInput(value) => Self::BoundInput {
                 value: value.index(),
             },
@@ -888,6 +896,10 @@ impl WirePureCalculusNode {
             Self::Differentiated { source, wrt } => CalculusNode::Differentiated {
                 source: calculus_operand(ids, *source)?,
                 wrt: calculus_operand(ids, *wrt)?,
+            },
+            Self::Complex { real, imag } => CalculusNode::Complex {
+                real: calculus_operand(ids, *real)?,
+                imag: calculus_operand(ids, *imag)?,
             },
             Self::BoundInput { value } => CalculusNode::BoundInput(calculus_operand(ids, *value)?),
             Self::Neg { value } => CalculusNode::Neg(calculus_operand(ids, *value)?),

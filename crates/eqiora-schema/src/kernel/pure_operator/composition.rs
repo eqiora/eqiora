@@ -98,6 +98,7 @@ impl CalculusNode {
                 value: b,
             }
             | Self::Differentiated { source: a, wrt: b }
+            | Self::Complex { real: a, imag: b }
             | Self::Add(a, b)
             | Self::Mul(a, b)
             | Self::Div(a, b)

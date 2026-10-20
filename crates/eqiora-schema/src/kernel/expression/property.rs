@@ -138,8 +138,10 @@ impl PropertyRelease {
         if let Some(definition) = meaning.definition()
             && (!definition.result_rule().is_invariant_scalar()
                 || definition.result_rule().dimension().is_none()
-                || definition.result_rule().scalar_domain()
-                    != Some(eqiora_core::ScalarDomain::Real)
+                || !matches!(
+                    definition.result_rule().scalar_domain(),
+                    Some(eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex)
+                )
                 || definition.formals().iter().any(|formal| {
                     !formal.is_invariant_scalar()
                         || formal.dimension().is_none()
@@ -147,7 +149,7 @@ impl PropertyRelease {
                 }))
         {
             return Err(invalid(
-                "analytic property requires concrete real scalar input and output contracts",
+                "analytic property requires concrete real scalar inputs and real or complex scalar outputs",
             ));
         }
         match &meaning {

@@ -8,7 +8,7 @@ struct PureComponent<'a> {
     definition: &'a PureOperatorDefinition,
     arguments: &'a [ExprId],
     component: &'a [u32],
-    complex: bool,
+    component_types: &'a [eqiora_core::ValueType],
     remapped: Vec<[Option<ScalarInputValueId>; 2]>,
     formal_values: Option<Vec<ScalarInputValueId>>,
     bound_values: Vec<(CalculusNodeId, ScalarInputValueId)>,
@@ -88,8 +88,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             definition,
             arguments,
             component,
-            complex: expected_result.value_type.scalar_domain()
-                == eqiora_core::ScalarDomain::Complex,
+            component_types: expansion.component_types(),
             remapped: vec![[None; 2]; definition.nodes().len()],
             formal_values,
             bound_values: Vec::new(),
@@ -108,6 +107,16 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         let part_index = usize::from(part == Imaginary);
         if let Some(mapped) = state.remapped[index][part_index] {
             return Ok(mapped);
+        }
+        if part == Imaginary
+            && state.component_types[index].scalar_domain() == eqiora_core::ScalarDomain::Real
+        {
+            // A real intermediate stays real inside a complex expression. Keep its
+            // demanded value and domains when constructing the typed imaginary zero.
+            let real = self.lower_calculus_component(state, value, Real)?;
+            let zero = self.builder.sub(real, real)?;
+            state.remapped[index][part_index] = Some(zero);
+            return Ok(zero);
         }
         let node = state.definition.nodes()[index].clone();
         let mapped = match node {
@@ -145,20 +154,29 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 if let Some(values) = &state.formal_values {
-                    values[usize::from(formal)]
+                    let real = values[usize::from(formal)];
+                    if part == Real {
+                        real
+                    } else {
+                        self.builder.sub(real, real)?
+                    }
                 } else {
                     self.lower_part(operand, &coordinates, part)?
                 }
             }
             CalculusNode::BoundInput(inner) => {
                 if let Some((_, mapped)) = state.bound_values.iter().find(|(id, _)| *id == value) {
-                    *mapped
+                    if part == Real {
+                        *mapped
+                    } else {
+                        self.builder.sub(*mapped, *mapped)?
+                    }
                 } else {
                     self.lower_calculus_component(state, inner, part)?
                 }
             }
             CalculusNode::Differentiated { source, wrt, .. } => {
-                self.lower_formal_partial(state, source, wrt)?
+                self.lower_formal_partial(state, source, wrt, part)?
             }
             CalculusNode::Boolean(value) => self.builder.boolean(value)?,
             CalculusNode::Compare(op, left, right) => {
@@ -194,22 +212,15 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 let value = self.lower_calculus_component(state, value, part)?;
                 self.builder.require(condition, value)?
             }
+            CalculusNode::Complex { real, imag } => {
+                self.lower_calculus_component(state, if part == Real { real } else { imag }, Real)?
+            }
             CalculusNode::UnaryMath(function, value) => {
-                // The schema's definition typing admits only real operands here.
-                // Embedding into a complex result still retains their domains.
-                let real = self.lower_math_parts(function, false, Real, |this, part| {
-                    let real = this.lower_calculus_component(state, value, Real)?;
-                    if part == Real {
-                        Ok(real)
-                    } else {
-                        this.builder.sub(real, real)
-                    }
-                })?;
-                if part == Real {
-                    real
-                } else {
-                    self.builder.sub(real, real)?
-                }
+                let complex = state.component_types[value.index() as usize].scalar_domain()
+                    == eqiora_core::ScalarDomain::Complex;
+                self.lower_math_parts(function, complex, part, |this, part| {
+                    this.lower_calculus_component(state, value, part)
+                })?
             }
             CalculusNode::Neg(value) => {
                 let value = self.lower_calculus_component(state, value, part)?;
@@ -223,7 +234,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             CalculusNode::Mul(left, right) => {
                 let ar = self.lower_calculus_component(state, left, Real)?;
                 let br = self.lower_calculus_component(state, right, Real)?;
-                if !state.complex {
+                if state.component_types[index].scalar_domain()
+                    != eqiora_core::ScalarDomain::Complex
+                {
                     self.builder.mul(ar, br)?
                 } else {
                     let ai = self.lower_calculus_component(state, left, Imaginary)?;
@@ -234,7 +247,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             CalculusNode::Div(left, right) => {
                 let ar = self.lower_calculus_component(state, left, Real)?;
                 let br = self.lower_calculus_component(state, right, Real)?;
-                if !state.complex {
+                if state.component_types[index].scalar_domain()
+                    != eqiora_core::ScalarDomain::Complex
+                {
                     self.builder.div(ar, br)?
                 } else {
                     let ai = self.lower_calculus_component(state, left, Imaginary)?;

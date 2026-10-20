@@ -789,27 +789,22 @@ pub fn unary_math<I: Clone>(
     if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::PowerRequiresScalar);
     }
-    let dimension = match function {
-        UnaryMathFunction::Sqrt => operand.dimension().pow(1, 2),
-        UnaryMathFunction::Abs2 => operand.dimension().pow(2, 1),
-        UnaryMathFunction::Arg => Some(DimExponents::DIMENSIONLESS),
-        UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag => {
-            unreachable!("component projections handled above")
-        }
-        UnaryMathFunction::Abs => Some(operand.dimension()),
+    if matches!(
+        function,
         UnaryMathFunction::Sin
-        | UnaryMathFunction::Cos
-        | UnaryMathFunction::Exp
-        | UnaryMathFunction::Log => {
-            if operand.dimension() != DimExponents::DIMENSIONLESS {
-                return Err(TypeViolation::MathRequiresDimensionlessScalar);
-            }
-            Some(DimExponents::DIMENSIONLESS)
-        }
+            | UnaryMathFunction::Cos
+            | UnaryMathFunction::Exp
+            | UnaryMathFunction::Log
+    ) && operand.dimension() != DimExponents::DIMENSIONLESS
+    {
+        return Err(TypeViolation::MathRequiresDimensionlessScalar);
     }
-    .ok_or(TypeViolation::DimensionOverflow {
-        operation: "unary mathematics",
-    })?;
+    let (numerator, denominator) = function.dimension_power();
+    let dimension = operand.dimension().pow(numerator, denominator).ok_or(
+        TypeViolation::DimensionOverflow {
+            operation: "unary mathematics",
+        },
+    )?;
     let domain = if matches!(
         function,
         UnaryMathFunction::Abs | UnaryMathFunction::Abs2 | UnaryMathFunction::Arg

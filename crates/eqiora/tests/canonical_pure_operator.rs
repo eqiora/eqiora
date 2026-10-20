@@ -228,7 +228,7 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
 
     let model_text = String::from_utf8(direct.canonical_json().unwrap()).unwrap();
     assert!(model_text.contains("pure-operator-application"));
-    assert!(model_text.contains("eqiora.pure-component-calculus/v3"));
+    assert!(model_text.contains("eqiora.pure-component-calculus/v4"));
     assert!(
         !model_text.contains("dyadic"),
         "source operator names and name recognizers cannot enter canonical Model bytes"

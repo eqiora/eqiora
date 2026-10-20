@@ -96,6 +96,11 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
                 bytes.extend_from_slice(&source.index().to_be_bytes());
                 bytes.extend_from_slice(&wrt.index().to_be_bytes());
             }
+            CalculusNode::Complex { real, imag } => {
+                bytes.push(17);
+                bytes.extend_from_slice(&real.index().to_be_bytes());
+                bytes.extend_from_slice(&imag.index().to_be_bytes());
+            }
             CalculusNode::BoundInput(value) => {
                 bytes.push(15);
                 bytes.extend_from_slice(&value.index().to_be_bytes());

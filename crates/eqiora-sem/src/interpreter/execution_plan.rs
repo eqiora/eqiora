@@ -68,19 +68,6 @@ impl ExecutionPlan {
                     "reference execution requires real scalar, invariant real/integer channels, or exact discrete Parameters",
                 ));
             }
-            if let KernelNode::Relation(relation) = node
-                && !finite
-                && relation
-                    .expression()
-                    .nodes()
-                    .iter()
-                    .any(|node| matches!(node, ExprNode::Complex { .. }))
-            {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "reference execution does not admit complex construction",
-                ));
-            }
             if let KernelNode::Domain(domain) = node
                 && let DomainKind::ScalarPhysical {
                     across_type,

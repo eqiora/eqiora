@@ -31,6 +31,102 @@ model Main() {
 }
 "#;
 
+const COMPLEX_SOURCE: &str = r#"
+property contract Response(input x:1,input y:1):complex<1> {
+  derivatives first_partials;
+  branch principal;
+}
+operator response(input x:1,input y:1):complex<1>
+  = x*x/math.complex(1,x) + math.complex(0,y);
+property release Measured:Response {
+  analytic { value=response(x=x,y=y); source_unit:1=1; }
+  validity x>=0 and x<=4;
+  outside reject;
+  branch principal;
+  citation org.example.response;
+  license spdx.CC0_1_0;
+}
+component Consumer(parameter x:1,parameter y:1,property response:Response) {
+  variable re:1;
+  variable im:1;
+  relation law {
+    re=math.real(response(x=x,y=y));
+    im=math.imag(response(x=x,y=y));
+  }
+}
+model Main() {
+  instance first:Consumer(x=2,y=3,response=Measured);
+  instance second:Consumer(x=1,y=2,response=Measured);
+}
+"#;
+
+#[test]
+fn complex_response_properties_keep_real_inputs_partials_and_replay() {
+    use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+    let document = ModelDocument::compile("complex-property.eqi", COMPLEX_SOURCE).unwrap();
+    let bytes = ModelEnvelope::from_program(document.program())
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let reopened = ModelEnvelope::from_json(&bytes, Default::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(document.program(), &reopened);
+    // g=x²/(1+ix)+iy. At x=2, g_x=.16-1.12i; at x=1, g_x=.5-i.
+    // g_y=i at both points, holding the other named input fixed.
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    for program in [document.program(), &reopened] {
+        let release = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(value) => value.expression().properties().values().next(),
+                _ => None,
+            })
+            .unwrap();
+        for (input, expected) in [
+            ("x", [[0.16, -1.12], [0.5, -1.]]),
+            ("y", [[0., 1.], [0., 1.]]),
+        ] {
+            let partial = release.partial(input).unwrap();
+            for (point, expected) in [[2., 3.], [1., 2.]].into_iter().zip(expected) {
+                let arguments = point.map(|x| ValueLiteral::from_real(scalar.clone(), x).unwrap());
+                let actual = eqiora::ir::ComponentScalarization::evaluate_pure_operator(
+                    &partial,
+                    &[&arguments[0], &arguments[1]],
+                )
+                .unwrap();
+                assert_eq!(actual.value_type().scalar_domain(), ScalarDomain::Complex);
+                let (re, im) = actual.components().unwrap().next().unwrap();
+                for (actual, expected) in [re, im].into_iter().zip(expected) {
+                    assert!((actual - expected).abs() < 1e-13);
+                }
+            }
+            let outside = ValueLiteral::from_real(scalar.clone(), 5.).unwrap();
+            let y = ValueLiteral::from_real(scalar.clone(), 3.).unwrap();
+            assert!(
+                eqiora::ir::ComponentScalarization::evaluate_pure_operator(
+                    &partial,
+                    &[&outside, &y],
+                )
+                .is_err()
+            );
+        }
+        let result = Interpreter::new()
+            .run(program, ReferenceConfig::new(0., 1.).unwrap())
+            .unwrap();
+        for (name, expected) in [
+            ("first.re", 0.8),
+            ("first.im", 1.4),
+            ("second.re", 0.5),
+            ("second.im", 1.5),
+        ] {
+            let field = document.field_ref(name).unwrap().id().erase();
+            assert!((result.last_value(field).unwrap().value() - expected).abs() < 1e-10);
+        }
+    }
+}
+
 #[test]
 fn two_analytic_component_consumers_keep_operating_inputs_and_release_on_replay() {
     let document = ModelDocument::compile("conductivity.eqi", SOURCE).unwrap();
@@ -147,7 +243,7 @@ fn independent_partials_keep_other_inputs_fixed_and_reject_outside_validity() {
     }
 }
 
-fn packaged_model(source: &str) -> eqiora::package::PackagedModelDocument {
+fn packaged_sources(declarations: &str, consumer: &str) -> eqiora::package::PackagedModelDocument {
     use eqiora::package::*;
     fn package(name: &str, source: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
         let path = NormalizedRelativePath::parse("src/main.eqi").unwrap();
@@ -173,27 +269,16 @@ fn packaged_model(source: &str) -> eqiora::package::PackagedModelDocument {
         .unwrap();
         prepare_package_release_v1(sources, dependencies).unwrap()
     }
-    let (declarations, consumer) = source.split_once("component Thermal").unwrap();
     let properties = package(
-        "org.example.Fluid",
+        "org.example.Properties",
         &declarations
             .replace("property contract", "public property contract")
             .replace("property release", "public property release"),
         &[],
     );
-    let consumer = format!(
-        "import org.example.Fluid.main as fluid;\npublic component Thermal{}",
-        consumer
-            .replace(
-                "conductivity: Conductivity",
-                "conductivity: fluid.Conductivity"
-            )
-            .replace("conductivity = Fluid", "conductivity = fluid.Fluid")
-            .replace("model Main", "public model Main")
-    );
     let root = package(
         "org.example.Consumer",
-        &consumer,
+        consumer,
         std::slice::from_ref(&properties),
     );
     let resolution =
@@ -202,6 +287,102 @@ fn packaged_model(source: &str) -> eqiora::package::PackagedModelDocument {
     store.insert(&properties).unwrap();
     store.insert(&root).unwrap();
     PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap()
+}
+
+fn packaged_model(source: &str) -> eqiora::package::PackagedModelDocument {
+    let (declarations, consumer) = source.split_once("component Thermal").unwrap();
+    let consumer = format!(
+        "import org.example.Properties.main as properties;\npublic component Thermal{}",
+        consumer
+            .replace(
+                "conductivity: Conductivity",
+                "conductivity: properties.Conductivity"
+            )
+            .replace("conductivity = Fluid", "conductivity = properties.Fluid")
+            .replace("model Main", "public model Main")
+    );
+    packaged_sources(declarations, &consumer)
+}
+
+#[test]
+fn complex_property_package_and_direct_law_agree_without_flattening_lineage() {
+    let evolving = COMPLEX_SOURCE
+        .replace(
+            "  variable re:1;",
+            "  state elapsed:s;\n  initial { elapsed=0[s]; }\n\
+               relation clock { derivative(elapsed)=1; }\n  variable re:1;",
+        )
+        .replace("response(x=x,y=y));", "response(x=x+elapsed/1[s],y=y));");
+    let direct = evolving
+        .replace(
+            "response(x=x+elapsed/1[s],y=y)",
+            "(x+elapsed/1[s])^2/math.complex(1,x+elapsed/1[s]) + math.complex(0,y)",
+        )
+        .replace(",property response:Response", "")
+        .replace(",response=Measured", "");
+    for (source, keeps_release) in [(evolving.as_str(), true), (direct.as_str(), false)] {
+        let local = ModelDocument::compile("complex-property.eqi", source).unwrap();
+        let (declarations, consumer) = source.split_once("component Consumer").unwrap();
+        let consumer = format!(
+            "import org.example.Properties.main as properties;\npublic component Consumer{}",
+            consumer
+                .replace("response:Response", "response:properties.Response")
+                .replace("response=Measured", "response=properties.Measured")
+                .replace("model Main", "public model Main")
+        );
+        let packaged = packaged_sources(declarations, &consumer);
+        for model in [&local, packaged.model()] {
+            let bytes = ModelEnvelope::from_program(model.program())
+                .unwrap()
+                .canonical_json()
+                .unwrap();
+            let reopened = ModelEnvelope::from_json(&bytes, Default::default())
+                .unwrap()
+                .to_program()
+                .unwrap();
+            for program in [model.program(), &reopened] {
+                let releases = program
+                    .nodes()
+                    .filter_map(|node| match node {
+                        KernelNode::Relation(value) => Some(value.expression().properties()),
+                        _ => None,
+                    })
+                    .flat_map(|properties| properties.values())
+                    .collect::<Vec<_>>();
+                assert_eq!(!releases.is_empty(), keeps_release);
+                assert!(releases.iter().all(|release| release.inputs() == ["x", "y"]
+                    && release.guarded()
+                    && release.branch() == Some("principal")));
+                let result = Interpreter::new()
+                    .run(program, ReferenceConfig::new(1., 0.25).unwrap())
+                    .unwrap();
+                // elapsed'=1 integrates exactly. For a=x+t,
+                // a²/(1+ia)+iy = a²/(1+a²) + i*(y-a³/(1+a²)).
+                for (name, x, y) in [("first", 2., 3.), ("second", 1., 2.)] {
+                    for part in ["re", "im"] {
+                        let field = model
+                            .field_ref(&format!("{name}.{part}"))
+                            .unwrap()
+                            .id()
+                            .erase();
+                        let samples = result
+                            .samples()
+                            .iter()
+                            .filter(|sample| sample.coordinate() == field);
+                        let mut count = 0;
+                        for sample in samples {
+                            let a = x + sample.time();
+                            let re = a * a / (1. + a * a);
+                            let expected = if part == "re" { re } else { y - a * re };
+                            assert!((sample.value().value() - expected).abs() < 1e-10);
+                            count += 1;
+                        }
+                        assert_eq!(count, 5);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]

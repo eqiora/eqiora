@@ -33,6 +33,7 @@ impl ScalarOperatorIr {
             let id = self
                 .source_values
                 .get(sample.index() as usize)
+                .and_then(Option::as_ref)
                 .ok_or_else(|| invalid_linearization("numerical sample expression is missing"))?;
             if !selected.insert(id.0) {
                 return Err(invalid_linearization(

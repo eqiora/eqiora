@@ -269,7 +269,7 @@ impl ScalarOperatorIr {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             typed_inputs: None,
-            source_values: values,
+            source_values: values.into_iter().map(Some).collect(),
             typed_constants,
             definitions,
             array_operands,

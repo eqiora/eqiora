@@ -5,6 +5,17 @@ use eqiora_core::{Diagnostic, ScalarDomain, ValueLiteral, diagnostic::codes};
 use num_complex::Complex64;
 
 impl UnaryMathFunction {
+    /// Dimension exponent shared by concrete typing and symbolic formal dimensions.
+    /// Dimensionless-input restrictions are checked by the typing owner separately.
+    pub(crate) const fn dimension_power(self) -> (i32, i32) {
+        match self {
+            Self::Sqrt => (1, 2),
+            Self::Abs2 => (2, 1),
+            Self::Sin | Self::Cos | Self::Exp | Self::Log | Self::Arg => (0, 1),
+            Self::Conj | Self::Real | Self::Imag | Self::Abs => (1, 1),
+        }
+    }
+
     /// Restriction on a finite real operand, expressed as a comparison with zero.
     /// Absence means every finite real operand is in the mathematical domain;
     /// representability of the result is a separate execution check.

@@ -694,6 +694,7 @@ impl<'a> ProgramCompiler<'a> {
                 | CalculusNode::And(..)
                 | CalculusNode::Or(..)
                 | CalculusNode::Select { .. }
+                | CalculusNode::Complex { .. }
                 | CalculusNode::UnaryMath(..)
                 | CalculusNode::Div(..) => {
                     return Err(tape_error(
@@ -959,6 +960,7 @@ fn definition_source_scale(
             | CalculusNode::And(..)
             | CalculusNode::Or(..)
             | CalculusNode::Select { .. }
+            | CalculusNode::Complex { .. }
             | CalculusNode::UnaryMath(..)
             | CalculusNode::Div(..) => {
                 return Err(tape_error(

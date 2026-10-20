@@ -4,6 +4,56 @@ use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
 use eqiora_schema::kernel::{ExprDagBuilder, ExprId};
 
+impl ScalarInputOperatorIr {
+    /// Reuse a component program when each input is one whole real Semantic
+    /// symbol. Coordinate pairs and shaped inputs keep their component owner.
+    pub(crate) fn into_symbol_operator(
+        self,
+        source_values: Vec<Option<ScalarInputValueId>>,
+    ) -> Result<ScalarOperatorIr, Diagnostic> {
+        if !self.primal_checks.is_empty() {
+            return Err(ir_builder_error(
+                "scalar projection has unbound primal obligations",
+            ));
+        }
+        let mut symbols = Vec::with_capacity(self.slots.len());
+        let mut seen = std::collections::HashSet::with_capacity(self.slots.len());
+        let mut inputs = Vec::with_capacity(self.slots.len());
+        for slot in &self.slots {
+            let source = slot.source();
+            if source.is_imaginary()
+                || !source.component_index().is_empty()
+                || !source.spatial_derivative_axes().is_empty()
+                || !seen.insert(source.symbol())
+            {
+                return Err(ir_builder_error(
+                    "scalar projection requires one whole real value per symbol",
+                ));
+            }
+            symbols.push(source.symbol());
+            inputs.push(
+                ValueType::scalar(ScalarDomain::Real, slot.dimension())
+                    .map_err(|error| ir_builder_error(error.to_string()))?,
+            );
+        }
+        let operator = ScalarOperatorIr {
+            typed_inputs: Some(inputs),
+            source_values: source_values
+                .into_iter()
+                .map(|id| id.map(|id| id.0))
+                .collect(),
+            typed_constants: self.typed_constants,
+            array_operands: Vec::new(),
+            definitions: Vec::new(),
+            symbols,
+            instructions: self.instructions,
+            roots: self.roots,
+        };
+        operator.projection_cost()?;
+        Ok(operator)
+    }
+}
+
 impl ScalarOperatorIr {
     pub(super) fn projection_cost(&self) -> Result<usize, Diagnostic> {
         self.instructions.iter().try_fold(
@@ -30,10 +80,35 @@ impl ScalarOperatorIr {
     /// Conditional programs retain their input types so ordinary numerical
     /// evaluation and linearization use typed demand and active-branch rules.
     ///
+    /// Complex intermediates use the shared component lowering; input symbols
+    /// and roots remain real scalars.
+    ///
     /// # Errors
-    /// Rejects non-real or shaped values, invalid typed applications, and the
+    /// Rejects non-real or shaped inputs/roots, invalid typed applications, and the
     /// existing scalar projection resource bounds.
-    pub fn lower_typed_scalar<I>(typed: &TypedResidual<I>) -> Result<Self, Diagnostic> {
+    pub fn lower_typed_scalar<I: Clone + Eq>(typed: &TypedResidual<I>) -> Result<Self, Diagnostic> {
+        let mut pending = typed.expression().roots().to_vec();
+        let mut visited = vec![false; typed.node_types().len()];
+        while let Some(node) = pending.pop() {
+            if std::mem::replace(&mut visited[node.index() as usize], true) {
+                continue;
+            }
+            if typed.node_types()[node.index() as usize]
+                .value_type
+                .scalar_domain()
+                == ScalarDomain::Complex
+            {
+                return crate::ComponentScalarization::lower_real_scalar(typed);
+            }
+            typed
+                .expression()
+                .node(node)
+                .expect("typed node")
+                .try_for_each_operand(|operand| {
+                    pending.push(operand);
+                    Ok::<(), Diagnostic>(())
+                })?;
+        }
         Self::project_typed_operator(typed, Self::lower(typed.expression())?)
     }
 
@@ -255,7 +330,7 @@ impl ScalarOperatorIr {
             source_values: self
                 .source_values
                 .iter()
-                .map(|id| projected[id.0 as usize].0)
+                .map(|id| id.map(|id| projected[id.0 as usize].0))
                 .collect(),
             typed_constants: builder.typed_constants,
             array_operands,

@@ -3,13 +3,14 @@ use super::*;
 use eqiora_core::ScalarDomain;
 
 impl CalculusBuilder {
-    /// Append a real scalar partial while holding the other formal inputs fixed.
+    /// Append a scalar partial with respect to an independent real input.
+    /// Real or complex responses retain the other formal inputs fixed.
     /// The source, selected input, and derivative order remain canonical. Numerical
     /// execution and optional polynomial proof expansion use their respective owners.
     /// Explicit validity predicates are retained, never differentiated.
     ///
     /// # Errors
-    /// Rejects invalid formals, non-real or unconstrained scalar types, nonsmooth values,
+    /// Rejects invalid formals, non-real inputs or unconstrained scalar types, nonsmooth values,
     /// unrepresentable dimensions, and node or depth limits. Errors append nothing.
     pub fn partial(
         &mut self,
@@ -54,9 +55,13 @@ impl CalculusBuilder {
         }
         let selected = self.value_type(wrt)?;
         let output = self.value_type(source)?;
-        if [&selected, &output]
-            .iter()
-            .any(|ty| !ty.shape().is_scalar() || ty.scalar_domain() != ScalarDomain::Real)
+        if !selected.shape().is_scalar()
+            || selected.scalar_domain() != ScalarDomain::Real
+            || !output.shape().is_scalar()
+            || !matches!(
+                output.scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
