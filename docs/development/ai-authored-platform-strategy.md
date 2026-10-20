@@ -1,7 +1,7 @@
 # AI-authored platform strategy
 
 - Status: Accepted
-- Revised: 2026-08-26
+- Revised: 2026-10-19
 - Related: [high-risk and parallel development](vertical-slice-development.md),
   [local verification](local-verification.md), and [roadmap](../roadmap.md)
 
@@ -15,6 +15,11 @@ test count, or CI activity in isolation.
 AI makes implementation cheap. It does not make context, integration, compatibility, scientific
 evidence, or human attention free. Process and abstraction therefore need the same deletion
 pressure as production code.
+
+**Design responsibility boundaries first, implement concrete capabilities, and abstract when
+real consumers demonstrate a shared responsibility.** Standardize invariants that must agree
+across the system from the outset. Complete necessary abstraction as part of the work that
+exposes it; neither speculative generality nor indefinite duplication is the default.
 
 The default development path is one primary agent, one local change, the narrowest useful
 check, one self-review, and stop. The same primary agent owns implementation through pull
@@ -35,10 +40,10 @@ registry, or exact-byte oracle. A focused test at an existing typed boundary is 
 evidence for ordinary behavior. Independent scientific derivation and exact-artifact oracles
 remain exceptional because their failure cost is durable.
 
-Generated or hand-written physics must not create a bespoke proof system per module. Prefer
-existing compiler, realization, and evidence paths when they genuinely reduce repeated
-invariant-bearing formulas. Do not build a universal form, plugin, or intermediate
-representation before a current capability and a second real consumer show the need.
+Generated or hand-written physics must not create a bespoke proof system per module. Use
+the existing compiler, realization, and evidence boundaries; extend their shared responsibility
+when a concrete capability requires it. Numerical implementations and independent evidence
+must remain independently derived even when their formulas look similar.
 
 ## Claim-local evidence development
 
@@ -79,6 +84,35 @@ cost.
 
 ## Architecture discipline
 
+Establish who owns meaning, validation, and change before choosing a general implementation.
+For Eqiora, physical units, input identity, mathematical domains, diagnostic meanings, and
+persisted data contracts need consistent owners across Rust, Python, and execution backends.
+Define the boundary needed by current work; do not invent an extensibility framework for
+hypothetical consumers. Keep semantic identity, execution provenance, and presentation separate.
+Boundaries remain revisable under the pre-1.0 convergence rules below.
+
+Build and verify a concrete end-to-end capability through those boundaries. Similar code is
+not sufficient evidence of a shared responsibility. Implementations that answer to different
+contracts or evolve for different reasons may remain separate, even with repeated code.
+Numerical evaluation, exact algebraic classification, independent test oracles, and distinct
+discretization methods must not be coupled merely to reduce line count. Share the invariants
+they must obey while preserving their separate algorithms and evidence responsibilities.
+
+Necessary abstraction is part of completing a capability, not optional later cleanup. Establish
+or extend one authoritative owner in the current change when:
+
+- correcting one rule would otherwise require coordinated edits to multiple implementations;
+- different entry points disagree on the meaning of the same operation or data contract; or
+- a concrete new consumer would otherwise copy the same invariant or work around a
+  restriction in its existing owner.
+
+Migrate affected consumers and delete displaced paths together. Do not add another copy with
+a promise to unify it later. A system-wide invariant may need one owner from its first use;
+an implementation abstraction needs demonstrated shared behavior and compatible reasons to
+change. Use the smallest existing type, private helper, or shared implementation that satisfies
+that need before adding a public abstraction. Do not require a quota of duplicate implementations
+before fixing an already established shared responsibility.
+
 Preserve the general mathematical surface when choosing a first executable profile. A
 convenient algorithm or fixture size must not become a permanent dimension, model-family,
 or composition restriction. Keep mathematical admissibility separate from execution
@@ -86,15 +120,13 @@ resources, numerical conditioning, and provider availability. When a concrete co
 exposes such a restriction, replace the limiting algorithm at its existing owner and
 verify that consumer; do not merely increase a hard-coded size or imply untested generality.
 
-Choose the smallest design that closes the current claim:
-
-- use an existing type before adding a wrapper or translation layer;
-- use a private helper before a public abstraction;
-- require a current invariant owner and real consumer;
-- keep semantic identity, execution provenance, and presentation state separate;
-- do not move branching, configuration, or validation into every consumer;
-- split oversized implementation files instead of raising ceilings; and
-- delete speculative pilots when their second consumer or measured benefit does not arrive.
+Keep one concrete capability and its necessary integration on the critical path. Complete its
+required abstraction, consumer migration, verification, and merge before treating it as done.
+Use dependency-ordered changes when needed; each integration must leave the relevant contract
+coherent. Adjacent cleanup with no bearing on that outcome must not keep expanding the work.
+Scope control is not permission to leave competing owners of an invariant touched by the change.
+Judge abstraction by whether one conceptual correction has one natural owner, not by how many
+files or functions it combines. Delete speculative abstractions with no demonstrated consumer.
 
 An architecture check must protect a plausible defect in a current supported surface.
 Private source layout is not a product artifact. Line, token, complexity, or public-surface
