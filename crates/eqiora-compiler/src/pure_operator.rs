@@ -21,6 +21,12 @@ use eqiora_schema::kernel::pure_operator::{
 
 use crate::diagnostics::source_error;
 
+fn is_calculus_math(name: &str) -> bool {
+    name == "math.complex"
+        || crate::math::unary_function(name).is_some()
+        || crate::math::piecewise::arity(name).is_some()
+}
+
 /// Whether a call path denotes the closed source builtin vocabulary rather
 /// than a package-resolved pure definition.
 pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
@@ -152,8 +158,7 @@ fn compile_local(
                     ));
                 }
                 if !matches!(callee.as_str(), "component" | "rational" | "delta")
-                    && crate::math::unary_function(callee.as_str()).is_none()
-                    && crate::math::piecewise::arity(callee.as_str()).is_none()
+                    && !is_calculus_math(callee.as_str())
                 {
                     callees.push((callee.clone(), expression.range()));
                 }
@@ -302,16 +307,19 @@ fn value_class(
         .map_err(|error| kernel_error(file, range, error)),
         PureValueClassSyntax::Typed(syntax) => {
             let value_type = crate::value_types::lower_scalar_type(file, syntax)?;
-            if value_type.scalar_domain() != eqiora_core::ScalarDomain::Real {
+            if !matches!(
+                value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+            ) {
                 return Err(pure_error(
                     file,
                     range,
-                    "operator scalar contracts require ordinary real scalar types",
+                    "operator scalar contracts require ordinary real or complex scalar types",
                 ));
             }
             PureValueClass::invariant_scalar()
                 .with_dimension(value_type.dimension())
-                .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+                .with_scalar_domain(value_type.scalar_domain())
                 .map_err(|error| kernel_error(file, range, error))
         }
         _ => Err(pure_error(file, range, "unsupported operator value class")),
@@ -510,10 +518,7 @@ fn compile_expression(
                 _ => CalculusNode::Add(left, right),
             }
         }
-        ExprKind::Call { callee, arguments }
-            if crate::math::unary_function(callee.as_str()).is_some()
-                || crate::math::piecewise::arity(callee.as_str()).is_some() =>
-        {
+        ExprKind::Call { callee, arguments } if is_calculus_math(callee.as_str()) => {
             let arguments = arguments.positional().ok_or_else(|| {
                 pure_error(
                     file,
@@ -527,7 +532,19 @@ fn compile_expression(
                     compile_expression(file, argument, formals, sources, compiled, builder)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            if let Some(function) = crate::math::unary_function(callee.as_str()) {
+            if callee.as_str() == "math.complex" {
+                let [real, imag] = arguments.as_slice() else {
+                    return Err(pure_error(
+                        file,
+                        expression.range(),
+                        "math.complex requires two operands",
+                    ));
+                };
+                CalculusNode::Complex {
+                    real: *real,
+                    imag: *imag,
+                }
+            } else if let Some(function) = crate::math::unary_function(callee.as_str()) {
                 let [value] = arguments.as_slice() else {
                     return Err(pure_error(
                         file,
@@ -811,6 +828,30 @@ mod tests {
             "operator outer(input x:spatial[1],input y:spatial[1]):spatial[2]=component(x,0)*component(y,1);",
         );
         assert_eq!(first.digest(), second.digest());
+    }
+
+    #[test]
+    fn complex_construction_and_real_projection_share_calculus_call_admission() {
+        use eqiora_core::ScalarDomain;
+        for (body, domain) in [
+            ("math.complex(x*x, x)", ScalarDomain::Complex),
+            ("partial(math.complex(x*x, x),wrt=x)", ScalarDomain::Complex),
+            ("math.imag(math.complex(x*x, x))", ScalarDomain::Real),
+        ] {
+            let result = if domain == ScalarDomain::Complex {
+                "complex<1>"
+            } else {
+                "1"
+            };
+            let definition = definition(&format!("operator response(input x:1):{result}={body};"));
+            assert_eq!(definition.result_rule().scalar_domain(), Some(domain));
+            assert!(
+                definition
+                    .nodes()
+                    .iter()
+                    .any(|node| matches!(node, CalculusNode::Complex { .. }))
+            );
+        }
     }
 
     #[test]

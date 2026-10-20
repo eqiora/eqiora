@@ -29,7 +29,7 @@ use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 pub use rational::ExactRational;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v8\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v9\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -348,6 +348,11 @@ pub enum CalculusNode {
         source: CalculusNodeId,
         wrt: CalculusNodeId,
     },
+    /// Construct a complex scalar from real components of the same dimension.
+    Complex {
+        real: CalculusNodeId,
+        imag: CalculusNodeId,
+    },
     /// Exact negation.
     Neg(CalculusNodeId),
     /// Exact addition.
@@ -367,7 +372,11 @@ impl CalculusNode {
             | Self::Neg(value)
             | Self::Not(value)
             | Self::UnaryMath(_, value) => [Some(value), None, None],
-            Self::Add(left, right)
+            Self::Complex {
+                real: left,
+                imag: right,
+            }
+            | Self::Add(left, right)
             | Self::Mul(left, right)
             | Self::Div(left, right)
             | Self::Compare(_, left, right)
@@ -497,7 +506,7 @@ impl CalculusBuilder {
         dimensions::validate_profile(&self.formals, self.result, &self.nodes)?;
         let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
         validate_result_dimension(&self.formals, self.result, &dimension)?;
-        domains::validate_result(&self.formals, self.result)?;
+        domains::validate_result(&self.formals, self.result, &self.nodes, root)?;
         Ok(PureOperatorDefinition {
             formals: self.formals,
             result: self.result,
@@ -684,9 +693,17 @@ pub struct PureOperatorInstantiation<'a, I> {
     definition: &'a PureOperatorDefinition,
     arguments: Vec<ExpressionType<I>>,
     result_type: ExpressionType<I>,
+    component_types: Vec<eqiora_core::ValueType>,
 }
 
 impl<I> PureOperatorInstantiation<'_, I> {
+    /// Concrete scalar type of each calculus component, in topological node order.
+    /// These types include intermediate complex values even for a real result.
+    #[must_use]
+    pub fn component_types(&self) -> &[eqiora_core::ValueType] {
+        &self.component_types
+    }
+
     /// Definition being instantiated.
     #[must_use]
     pub const fn definition(&self) -> &PureOperatorDefinition {

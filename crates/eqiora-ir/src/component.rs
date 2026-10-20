@@ -14,6 +14,7 @@ mod guard_tests;
 mod map_factor;
 mod pullback;
 mod pure;
+mod scalar_projection;
 mod spatial;
 
 use std::collections::HashMap;

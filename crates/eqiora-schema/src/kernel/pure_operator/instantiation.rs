@@ -20,7 +20,6 @@ impl PureOperatorDefinition {
         }
         let mut common_support = None;
         let mut spatial_extent = None;
-        let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
             validate_argument_class(*rule, argument)?;
             if rule.spatial_rank().is_some() {
@@ -30,9 +29,6 @@ impl PureOperatorDefinition {
                 }
                 spatial_extent = Some(extent);
             }
-            scalar_domain = scalar_domain
-                .common(argument.value_type.scalar_domain())
-                .ok_or(PureOperatorError::FormalTypeMismatch)?;
             let Some(support) = argument.support.as_ref() else {
                 continue;
             };
@@ -52,13 +48,21 @@ impl PureOperatorDefinition {
                 None => common_support = Some(support.clone()),
             }
         }
-        if self
-            .result
-            .scalar_domain()
-            .is_some_and(|expected| expected != scalar_domain)
-        {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
+        let formals = self
+            .formals
+            .iter()
+            .zip(arguments)
+            .map(|(rule, argument)| {
+                rule.with_dimension(argument.dimension())
+                    .with_scalar_domain(argument.value_type.scalar_domain())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let component_types = dimensions::component_types(&formals, &self.nodes)?;
+        let scalar_domain = domains::result_domain(
+            self.result.scalar_domain(),
+            Some(component_types[self.root.index() as usize].scalar_domain()),
+        )?
+        .ok_or(PureOperatorError::FormalTypeMismatch)?;
         let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
         if self
             .result
@@ -109,6 +113,7 @@ impl PureOperatorDefinition {
             definition: self,
             arguments: arguments.to_vec(),
             result_type,
+            component_types,
         })
     }
 }

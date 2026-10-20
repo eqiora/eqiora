@@ -1,6 +1,6 @@
 # Property contracts and releases
 
-These declarations use the existing contract/release owner. Bounded real analytic and
+These declarations use the existing contract/release owner. Bounded analytic and
 one-dimensional exact table releases execute through source, package, Python and current
 Model replay. The [data-backed specimen](data-backed-property.md) derives the table and two
 consumer laws independently; its complete target-language consumer surface remains broader
@@ -121,6 +121,16 @@ cannot capture them. Exactly one of `analytic` and `table` is required. An analy
 contains one pure `value = expression;`; operators and derivatives use the common expression
 graph. A constant-output release still retains its declared inputs and is not automatically
 the same contract as a parameter-like constant.
+
+Analytic releases admit concrete real scalar inputs with real or complex scalar outputs.
+Use `math.complex(real, imaginary)` to construct a complex response; both components must
+have the same units. Intermediate expressions retain their own scalar domains, including
+when `math.real` or `math.imag` projects a complex response into a real consumer.
+Formal input partials hold the other real inputs fixed and have output units divided by
+the differentiated input's units. They preserve complex parts, validity and declared
+derivative order. These operations share the ordinary
+typed calculus and component execution. Complex independent inputs, general tensor analytic
+signatures and causal memory remain separate, unfinished capabilities.
 
 An application may take an evolving real scalar State as an explicit input. Each evaluation
 uses that State at the current operating point and checks the declared validity guard.

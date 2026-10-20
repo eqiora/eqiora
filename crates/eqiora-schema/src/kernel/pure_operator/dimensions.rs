@@ -25,11 +25,15 @@ pub(super) fn validate_profile(
                 | CalculusNode::Or(..)
                 | CalculusNode::Select { .. }
                 | CalculusNode::UnaryMath(..)
+                | CalculusNode::Complex { .. }
         )
     }) && formals.iter().chain([&result]).any(|class| {
         !class.is_invariant_scalar()
             || class.dimension().is_none()
-            || class.scalar_domain() != Some(ScalarDomain::Real)
+            || !matches!(
+                class.scalar_domain(),
+                Some(ScalarDomain::Real | ScalarDomain::Complex)
+            )
     }) {
         return Err(PureOperatorError::FormalTypeMismatch);
     }
@@ -229,54 +233,57 @@ fn prove(
                 left.domain = common(left.domain, right.domain);
                 left
             }
-            CalculusNode::UnaryMath(function, value) => {
-                let mut value = get(*value)?;
-                if value.domain != Some(ScalarDomain::Real) {
+            CalculusNode::Complex { real, imag } => {
+                let mut real = get(*real)?;
+                let imag = get(*imag)?;
+                if real.domain != Some(ScalarDomain::Real)
+                    || imag.domain != Some(ScalarDomain::Real)
+                {
                     return Err(PureOperatorError::FormalTypeMismatch);
                 }
-                if matches!(
-                    function,
-                    super::super::UnaryMathFunction::Sin
-                        | super::super::UnaryMathFunction::Cos
-                        | super::super::UnaryMathFunction::Exp
-                        | super::super::UnaryMathFunction::Log
-                ) {
-                    if normalized(formals, &value.dimension)?
-                        != normalized(formals, &dimensionless(formals.len()))?
-                    {
-                        return Err(PureOperatorError::FormalTypeMismatch);
-                    }
-                    value.dimension = dimensionless(formals.len());
-                    proofs.push(value);
-                    continue;
+                same_dimension(formals, &real, &imag)?;
+                real.domain = Some(ScalarDomain::Complex);
+                real
+            }
+            CalculusNode::UnaryMath(function, operand) => {
+                let operand = get(*operand)?;
+                let (dimension, free) = normalized(formals, &operand.dimension)?;
+                if free.iter().any(|power| !power.is_zero()) {
+                    return Err(PureOperatorError::FormalTypeMismatch);
                 }
-                use super::super::UnaryMathFunction;
-                let (numerator, denominator) = match function {
-                    UnaryMathFunction::Sqrt => (1, 2),
-                    UnaryMathFunction::Abs2 => (2, 1),
-                    UnaryMathFunction::Arg => {
-                        value.dimension = dimensionless(formals.len());
-                        proofs.push(value);
-                        continue;
-                    }
-                    _ => {
-                        proofs.push(value);
-                        continue;
-                    }
-                };
-                value.dimension.fixed_dimension = value
-                    .dimension
+                let ty = ExpressionType::<()>::new(
+                    ValueType::scalar(
+                        operand
+                            .domain
+                            .ok_or(PureOperatorError::FormalTypeMismatch)?,
+                        dimension,
+                    )
+                    .map_err(|_| PureOperatorError::FormalTypeMismatch)?,
+                    None,
+                );
+                let ty =
+                    super::super::typing::unary_math(*function, &ty).map_err(
+                        |error| match error {
+                            super::super::typing::TypeViolation::DimensionOverflow { .. } => {
+                                PureOperatorError::ResultDimensionOverflow
+                            }
+                            _ => PureOperatorError::FormalTypeMismatch,
+                        },
+                    )?;
+                let (numerator, denominator) = function.dimension_power();
+                let mut dimension = operand.dimension;
+                dimension.fixed_dimension = dimension
                     .fixed_dimension
                     .pow(numerator, denominator)
                     .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-                for exponent in &mut value.dimension.exponents {
-                    *exponent =
-                        bounded(exponent.checked_mul(ExactRational::new(
-                            numerator.into(),
-                            denominator.into(),
-                        )?)?)?;
+                let exponent = ExactRational::new(numerator.into(), denominator.into())?;
+                for power in &mut dimension.exponents {
+                    *power = bounded(power.checked_mul(exponent.clone())?)?;
                 }
-                value
+                Proof {
+                    domain: Some(ty.value_type.scalar_domain()),
+                    dimension,
+                }
             }
         };
         // Check fixed formal dimensions before any downstream component expansion.
@@ -284,6 +291,27 @@ fn prove(
         proofs.push(proof);
     }
     Ok(proofs)
+}
+
+/// Concrete component types are computed once for the exact argument types.
+pub(super) fn component_types(
+    formals: &[PureValueClass],
+    nodes: &[CalculusNode],
+) -> Result<Vec<ValueType>, PureOperatorError> {
+    prove(formals, nodes)?
+        .into_iter()
+        .map(|proof| {
+            let (dimension, free) = normalized(formals, &proof.dimension)?;
+            if free.iter().any(|power| !power.is_zero()) {
+                return Err(PureOperatorError::FormalTypeMismatch);
+            }
+            ValueType::scalar(
+                proof.domain.ok_or(PureOperatorError::FormalTypeMismatch)?,
+                dimension,
+            )
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)
+        })
+        .collect()
 }
 
 fn bounded(exponent: ExactRational) -> Result<ExactRational, PureOperatorError> {

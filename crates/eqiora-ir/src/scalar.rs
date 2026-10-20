@@ -470,7 +470,9 @@ impl ScalarInputIrBuilder {
 pub struct ScalarOperatorIr {
     // A typed scalar lowering retains input types only when ordered demand is needed.
     typed_inputs: Option<Vec<eqiora_core::ValueType>>,
-    source_values: Vec<ValueId>,
+    // A real-coordinate projection has no scalar value for an original complex
+    // or shaped intermediate. Missing source values must never alias one part.
+    source_values: Vec<Option<ValueId>>,
     typed_constants: Vec<eqiora_core::ValueLiteral>,
     array_operands: Vec<ValueId>,
     definitions: Vec<(

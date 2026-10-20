@@ -55,7 +55,7 @@ fn scalar_composition_is_lexical_acyclic_and_dimension_checked() {
         "operator law(input x:scalar):scalar=x^1000000000;",
         "operator law(input x:scalar):scalar=rational(1,0);",
         "operator law(input x:integer):integer=x;",
-        "operator law(input x:complex<1>):complex<1>=x;",
+        "operator law(input x:complex<1>):1=x;",
         "operator law(input x:K):m=x;",
     ] {
         assert!(
@@ -210,4 +210,18 @@ fn zero_powers_do_not_erase_the_zero_to_zero_domain_error() {
             "{errors:?}"
         );
     }
+}
+
+#[test]
+fn complex_identity_is_admitted_without_implicit_real_narrowing_or_real_partials() {
+    let declaration = "operator law(input x:complex<1>):complex<1>=x;";
+    compile(
+        "complex-identity.eqi",
+        &format!(
+            "{declaration} model M(){{relation r{{law(x=math.complex(2,3))=math.complex(2,3);}}}}"
+        ),
+    )
+    .unwrap_or_else(|errors| panic!("{errors:?}"));
+    // Real formal differentiation remains a distinct admission boundary.
+    assert!(compile("complex-partial.eqi", "operator law(input x:complex<1>):complex<1>=partial(x,wrt=x); model M(){relation r{1=1;}}").is_err());
 }

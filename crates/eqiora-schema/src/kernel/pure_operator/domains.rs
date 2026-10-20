@@ -20,32 +20,34 @@ impl PureValueClass {
     }
 }
 
-fn common(left: Option<ScalarDomain>, right: Option<ScalarDomain>) -> Option<ScalarDomain> {
-    match (left, right) {
-        (Some(ScalarDomain::Complex), _) | (_, Some(ScalarDomain::Complex)) => {
-            Some(ScalarDomain::Complex)
-        }
-        (Some(ScalarDomain::Real), Some(ScalarDomain::Real)) => Some(ScalarDomain::Real),
-        _ => None,
-    }
-}
-
+/// The body owns its result domain; unused inputs cannot change it.
 pub(super) fn validate_result(
     formals: &[PureValueClass],
     result: PureValueClass,
+    nodes: &[CalculusNode],
+    root: CalculusNodeId,
 ) -> Result<(), PureOperatorError> {
-    if let Some(expected) = result.scalar_domain() {
-        let mut actual = Some(ScalarDomain::Real);
-        // Unknown generic domains can still become certainly Complex when a later
-        // constrained formal supplies Complex, so this must not short-circuit.
-        for formal in formals {
-            actual = common(actual, formal.scalar_domain());
-        }
-        if actual != Some(expected) {
+    result_domain(
+        result.scalar_domain(),
+        expression_domain(formals, nodes, root)?,
+    )
+    .map(|_| ())
+}
+
+pub(super) fn result_domain(
+    expected: Option<ScalarDomain>,
+    actual: Option<ScalarDomain>,
+) -> Result<Option<ScalarDomain>, PureOperatorError> {
+    if let Some(expected) = expected {
+        if actual != Some(expected)
+            && !(expected == ScalarDomain::Complex && actual == Some(ScalarDomain::Real))
+        {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
+        Ok(Some(expected))
+    } else {
+        Ok(actual)
     }
-    Ok(())
 }
 
 pub(super) use super::dimensions::expression_domain;

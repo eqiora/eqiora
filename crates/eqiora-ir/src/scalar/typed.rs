@@ -47,6 +47,7 @@ impl ScalarOperatorIr {
                 self.source_values
                     .get(id.index() as usize)
                     .copied()
+                    .flatten()
                     .ok_or_else(|| ir_builder_error("typed source root is unavailable"))
             })
             .collect::<Result<Vec<_>, _>>()?;

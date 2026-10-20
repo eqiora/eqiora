@@ -8,6 +8,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         state: &mut PureComponent<'_>,
         source: CalculusNodeId,
         wrt: CalculusNodeId,
+        part: ScalarPart,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         let dimension = |node| {
             state
@@ -72,7 +73,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 definition: state.definition,
                 arguments: state.arguments,
                 component: state.component,
-                complex: false,
+                component_types: state.component_types,
                 remapped: vec![[None; 2]; state.definition.nodes().len()],
                 formal_values: Some(values[..formal_count].to_vec()),
                 bound_values: bound_nodes
@@ -80,7 +81,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     .zip(values[formal_count..].iter().copied())
                     .collect(),
             };
-            let root = self.lower_calculus_component(&mut local, source, ScalarPart::Real)?;
+            let root = self.lower_calculus_component(&mut local, source, part)?;
             let mut seeds = vec![None; values.len()];
             seeds[selected] = Some(
                 self.builder
@@ -146,6 +147,99 @@ mod tests {
         )
         .unwrap();
         Ok(ComponentScalarization::lower(&typed)?.evaluate(|_| None)?[0])
+    }
+
+    #[test]
+    fn complex_response_formal_partials_use_the_existing_component_products() {
+        let complex = real().with_scalar_domain(ScalarDomain::Complex).unwrap();
+        // f(x)=x/(1+i*x), f'=1/(1+i*x)^2, f''=-2i/(1+i*x)^3.
+        // For g=x*f, g'=f+x*f' and g''=2*f'+x*f''.
+        for (square, order, expected) in [
+            (false, 0, [0.4, -0.8]),
+            (false, 1, [-0.12, -0.16]),
+            (false, 2, [0.032, 0.176]),
+            (true, 0, [0.8, -1.6]),
+            (true, 1, [0.16, -1.12]),
+            (true, 2, [-0.176, 0.032]),
+        ] {
+            let mut builder = CalculusBuilder::new([real()], complex).unwrap();
+            let x = formal(&mut builder, 0);
+            let one = builder
+                .push(CalculusNode::Rational {
+                    value: ExactRational::integer(1),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })
+                .unwrap();
+            let denominator = builder
+                .push(CalculusNode::Complex { real: one, imag: x })
+                .unwrap();
+            let numerator = if square {
+                builder.push(CalculusNode::Mul(x, x)).unwrap()
+            } else {
+                x
+            };
+            let mut root = builder
+                .push(CalculusNode::Div(numerator, denominator))
+                .unwrap();
+            for _ in 0..order {
+                root = builder.partial(root, 0).unwrap();
+            }
+            let definition = builder.finish(root).unwrap();
+            let argument = eqiora_core::ValueLiteral::from_real(
+                eqiora_core::ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .unwrap(),
+                2.,
+            )
+            .unwrap();
+            let result =
+                ComponentScalarization::evaluate_pure_operator(&definition, &[&argument]).unwrap();
+            assert_eq!(result.value_type().scalar_domain(), ScalarDomain::Complex);
+            let (re, im) = result.components().unwrap().next().unwrap();
+            for (actual, expected) in [re, im].into_iter().zip(expected) {
+                assert!(
+                    (actual - expected).abs() < 1e-14,
+                    "order {order}: {actual} != {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_real_result_retains_complex_intermediates_and_the_body_owns_its_domain() {
+        let complex = real().with_scalar_domain(ScalarDomain::Complex).unwrap();
+        let mut builder = CalculusBuilder::new([complex], real()).unwrap();
+        let z = formal(&mut builder, 0);
+        let squared = builder.push(CalculusNode::Mul(z, z)).unwrap();
+        let root = builder
+            .push(CalculusNode::UnaryMath(
+                eqiora_schema::kernel::UnaryMathFunction::Imag,
+                squared,
+            ))
+            .unwrap();
+        let definition = builder.finish(root).unwrap();
+        let argument = eqiora_core::ValueLiteral::new(
+            eqiora_core::ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            [(2., 3.)],
+        )
+        .unwrap();
+        let result =
+            ComponentScalarization::evaluate_pure_operator(&definition, &[&argument]).unwrap();
+        assert_eq!(result.real_scalar_value().unwrap().value(), 12.);
+        // A complex argument which the body does not consume does not change a real output.
+        let mut builder = CalculusBuilder::new([real(), complex], real()).unwrap();
+        let x = formal(&mut builder, 0);
+        let definition = builder.finish(x).unwrap();
+        let first = eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            7.,
+        )
+        .unwrap();
+        let result =
+            ComponentScalarization::evaluate_pure_operator(&definition, &[&first, &argument])
+                .unwrap();
+        assert_eq!(result.real_scalar_value().unwrap().value(), 7.);
     }
 
     #[test]

@@ -242,6 +242,13 @@ impl ScalarOperatorIr {
         trace: &[Option<ValueLiteral>],
         dependencies: &[bool],
     ) -> Result<Self, Diagnostic> {
+        let selected_type = self
+            .symbols
+            .iter()
+            .position(|symbol| *symbol == selected)
+            .and_then(|slot| self.typed_inputs.as_ref()?.get(slot))
+            .ok_or_else(|| ir_builder_error("additive term has no admitted input type"))?
+            .clone();
         let mut mapped = vec![None; self.instructions.len()];
         let mut pending = vec![(root, false)];
         let mut instructions = Vec::new();
@@ -298,9 +305,9 @@ impl ScalarOperatorIr {
             mapped[index] = Some(ValueId(position as u32));
         }
         Ok(Self {
-            typed_inputs: None,
+            typed_inputs: Some(vec![selected_type]),
             source_values: (0..instructions.len())
-                .map(|index| ValueId(index as u32))
+                .map(|index| Some(ValueId(index as u32)))
                 .collect(),
             symbols: vec![selected],
             instructions,

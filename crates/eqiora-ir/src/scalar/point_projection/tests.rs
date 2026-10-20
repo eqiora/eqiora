@@ -3,6 +3,140 @@ use super::*;
 use eqiora_core::{DimExponents, DynQuantity, Id, ScalarDomain, ValueType};
 
 #[test]
+fn unused_complex_values_do_not_change_exact_discrete_control_admission() {
+    let unit = DimExponents::DIMENSIONLESS;
+    let mut builder = ExprDagBuilder::new();
+    builder
+        .constant(
+            ValueLiteral::new(
+                ValueType::scalar(ScalarDomain::Complex, unit).unwrap(),
+                [(1., 2.)],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let integer = ValueType::scalar(ScalarDomain::Integer, unit).unwrap();
+    let a = builder
+        .constant(ValueLiteral::integer(integer.clone(), [9_007_199_254_740_992]).unwrap())
+        .unwrap();
+    let b = builder
+        .constant(ValueLiteral::integer(integer, [9_007_199_254_740_993]).unwrap())
+        .unwrap();
+    let condition = builder
+        .compare(eqiora_schema::kernel::ComparisonOp::Less, a, b)
+        .unwrap();
+    let yes = builder.constant(DynQuantity::new(7., unit)).unwrap();
+    let no = builder.constant(DynQuantity::new(9., unit)).unwrap();
+    let root = builder.select(condition, yes, no).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        builder.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| -> Result<ExpressionType<()>, ()> { unreachable!() },
+    )
+    .unwrap();
+    assert_eq!(
+        ScalarOperatorIr::lower_typed_scalar(&typed)
+            .unwrap()
+            .evaluate(&[])
+            .unwrap(),
+        [7.]
+    );
+}
+
+#[test]
+fn real_scalar_projection_keeps_complex_intermediates_actions_and_lazy_domains() {
+    use eqiora_schema::kernel::UnaryMathFunction;
+    use eqiora_schema::kernel::typing::SpatialSupport;
+    let unit = DimExponents::DIMENSIONLESS;
+    let ty = ValueType::scalar(ScalarDomain::Real, unit).unwrap();
+    let symbol = SymbolRef::Parameter(Id::new());
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let one = builder.constant(DynQuantity::new(1., unit)).unwrap();
+    let zero = builder.constant(DynQuantity::new(0., unit)).unwrap();
+    let negative = builder.constant(DynQuantity::new(-1., unit)).unwrap();
+    let invalid = builder
+        .unary_math(UnaryMathFunction::Sqrt, negative)
+        .unwrap();
+    let denominator = builder.complex(one, x).unwrap();
+    let square = builder.mul(x, x).unwrap();
+    let value = builder.div(square, denominator).unwrap();
+    let real = builder.unary_math(UnaryMathFunction::Real, value).unwrap();
+    let imaginary = builder.unary_math(UnaryMathFunction::Imag, value).unwrap();
+    let positive = builder
+        .compare(eqiora_schema::kernel::ComparisonOp::Greater, x, zero)
+        .unwrap();
+    let real = builder.select(positive, real, invalid).unwrap();
+    let typed = TypedResidual::infer(
+        builder.finish([real, imaginary]).unwrap(),
+        None::<SpatialSupport<()>>,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::new(ty.clone(), None)),
+    )
+    .unwrap();
+    let operator = ScalarOperatorIr::lower_typed_scalar(&typed).unwrap();
+    assert_eq!(operator.symbols(), &[symbol]);
+    let point = [ValueLiteral::from_real(ty, 2.).unwrap()];
+    let values = operator
+        .evaluate_typed(&[real, imaginary], &mut |_| Some(point[0].clone()))
+        .unwrap();
+    for (actual, expected) in values.iter().zip([0.8, -1.6]) {
+        assert!((actual.real_scalar_value().unwrap().value() - expected).abs() < 1e-14);
+    }
+    assert!(
+        operator
+            .evaluate_typed(&[value], &mut |_| Some(point[0].clone()))
+            .is_err()
+    );
+    // g=x²/(1+ix). At x=2, g'=.16-1.12i and g''=-.176+.032i.
+    let linear = operator
+        .linearize_typed(&point, &[DifferentiationRole::Unknown])
+        .unwrap();
+    let mut action = [0.; 2];
+    linear
+        .jvp(RelationTangent::Unknown(&[1.]), &mut action)
+        .unwrap();
+    for (actual, expected) in action.into_iter().zip([0.16, -1.12]) {
+        assert!((actual - expected).abs() < 1e-13);
+    }
+    linear
+        .mixed_jvp(
+            RelationTangent::Unknown(&[1.]),
+            RelationTangent::Unknown(&[1.]),
+            RelationTangent::Unknown(&[0.]),
+            &mut action,
+        )
+        .unwrap();
+    for (actual, expected) in action.into_iter().zip([-0.176, 0.032]) {
+        assert!((actual - expected).abs() < 1e-13);
+    }
+    // Initial tangent compatibility decomposes these same roots into opaque
+    // additive terms. Their admitted input types and complex-division primitive
+    // must survive that projection without a round trip through source syntax.
+    use num_traits::ToPrimitive;
+    let mut reconstructed = [0.; 2];
+    for (atom, coefficients) in operator.additive_terms(&point, symbol).unwrap() {
+        let linear = atom
+            .linearize_typed(&point, &[DifferentiationRole::Unknown])
+            .unwrap();
+        let mut derivative = [0.];
+        linear
+            .jvp(RelationTangent::Unknown(&[1.]), &mut derivative)
+            .unwrap();
+        for (value, coefficient) in reconstructed.iter_mut().zip(coefficients) {
+            *value += coefficient.to_f64().unwrap() * derivative[0];
+        }
+    }
+    for (actual, expected) in reconstructed.into_iter().zip([0.16, -1.12]) {
+        assert!((actual - expected).abs() < 1e-13);
+    }
+    assert!(operator.evaluate(&[-1.]).is_err());
+}
+
+#[test]
 fn quotient_partial_survives_frozen_inputs_and_array_component_selection() {
     let dimension = DimExponents::DIMENSIONLESS;
     let ty = ValueType::scalar(ScalarDomain::Real, dimension).unwrap();

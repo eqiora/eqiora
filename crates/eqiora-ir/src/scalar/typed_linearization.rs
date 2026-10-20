@@ -176,7 +176,7 @@ impl ScalarOperatorIr {
             source_values: self
                 .source_values
                 .iter()
-                .map(|id| mapped[id.0 as usize])
+                .map(|id| id.map(|id| mapped[id.0 as usize]))
                 .collect(),
             roots: self.roots.iter().map(|id| mapped[id.0 as usize]).collect(),
             instructions,
@@ -206,7 +206,9 @@ impl ScalarOperatorIr {
                 .active_program(&self.roots, trace, dependencies)?;
         Ok(Self {
             typed_inputs: None,
-            source_values: (0..instructions.len()).map(|i| ValueId(i as u32)).collect(),
+            source_values: (0..instructions.len())
+                .map(|i| Some(ValueId(i as u32)))
+                .collect(),
             typed_constants: Vec::new(),
             array_operands: Vec::new(),
             definitions: Vec::new(),
