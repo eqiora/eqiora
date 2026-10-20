@@ -13,7 +13,7 @@ mod nonlinear;
 mod outputs;
 mod partials;
 mod scalar;
-use crate::region_assembly::mapping::RegionDofMap;
+use crate::region_assembly::mapping::{RegionDofMap, RegionRealCoordinates};
 use scalar::{DifferentiationScalar, coordinates};
 
 impl CommonSpatialPlan {
@@ -191,7 +191,8 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         state_coordinates: &[f64],
         mut partial: impl FnMut(&ScalarSymbolCoordinate) -> Result<(Vec<f64>, Vec<f64>), Diagnostic>,
     ) -> Result<(Vec<f64>, Output), Diagnostic> {
-        let physical = S::from_coordinates(state_coordinates)?;
+        let layout = RegionRealCoordinates::new(mapping)?;
+        let physical = layout.decode(state_coordinates)?;
         let full = mapping.lift(&physical, false)?;
         let keys = if self.selected_fields.is_empty() {
             Vec::new()
@@ -201,10 +202,11 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         let count = self.coordinates.len();
         let mut observations =
             self.observation_partials(mapping, &full, state_coordinates.len())?;
-        let output_count = keys
-            .len()
-            .checked_mul(S::WIDTH)
-            .ok_or_else(|| invalid("Field coordinate count overflow"))?;
+        let output_coordinates = keys
+            .iter()
+            .flat_map(|key| layout.global_coordinates(*key))
+            .collect::<Vec<_>>();
+        let output_count = output_coordinates.len();
         let mut residual = vec![
             0.;
             state_coordinates.len().checked_mul(count).ok_or_else(
@@ -219,9 +221,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         ];
         for (column, coordinate) in self.coordinates.iter().enumerate() {
             let (values, lift) = partial(coordinate)?;
-            if values.len() != state_coordinates.len()
-                || lift.len() != mapping.full_count() * S::WIDTH
-            {
+            if values.len() != state_coordinates.len() || lift.len() != layout.full_count() {
                 return Err(invalid(
                     "Parameter partial differs from the exact Field coordinate map",
                 ));
@@ -229,11 +229,8 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             for (row, value) in values.into_iter().enumerate() {
                 residual[row * count + column] = value;
             }
-            for (row, key) in keys.iter().enumerate() {
-                let global = mapping.global_dof(*key).expect("mapped Field DOF") * S::WIDTH;
-                for part in 0..S::WIDTH {
-                    direct[(row * S::WIDTH + part) * count + column] = lift[global + part];
-                }
+            for (row, &global) in output_coordinates.iter().enumerate() {
+                direct[row * count + column] = lift[global];
             }
             for observation in &mut observations {
                 observation.add_lift(column, count, &lift)?;

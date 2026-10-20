@@ -1,5 +1,6 @@
 //! Model-derived real-linear component actions use the same physical quadrature.
 use super::*;
+use crate::form_compiler::region::coordinates::Real;
 use crate::parameter_point::ParameterPoint;
 use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule};
@@ -43,6 +44,64 @@ fn cell_constant_value_basis_does_not_admit_a_weak_gradient() {
         error.message().contains("weak differential pairing"),
         "{error:?}"
     );
+}
+
+#[test]
+fn mixed_real_and_complex_fields_keep_only_their_independent_coordinates() {
+    let source = "model Mixed() {
+        domain body=box(0,2,0,3);
+        variable u:complex<1> on body;variable v:1 on body;
+        relation given on body {2*u=math.complex(6,8);}
+        relation projected on body {v=2*math.real(u)-math.imag(u)+1;}
+    }";
+    let (transaction, model, symbols) = compile("mixed-coordinate-region.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let form = CompiledRegionForm::<C>::derive(&program, symbols.get("body").unwrap(), 2).unwrap();
+    let (fields, rows) = form.si_bindings(|_| Ok(Space::cell_constant())).unwrap();
+    let reference = ReferenceCell::hypercube(2).unwrap();
+    let bound = form.bind(reference, &fields, &rows, None).unwrap();
+    let map = AffineGeometryMap::new(reference, 2, vec![1., 1.5], vec![1., 0., 0., 1.5]).unwrap();
+    let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
+    assert!(
+        bound
+            .prepare_affine_actions::<Native>(&map, None, &rule)
+            .is_err()
+    );
+    let (local, _) = bound
+        .prepare_affine_actions::<Real>(&map, None, &rule)
+        .unwrap();
+    let u = symbols.get("u").unwrap();
+    let coordinates = bound
+        .fields
+        .iter()
+        .flat_map(|field| {
+            if field.field == u {
+                vec![0, 1]
+            } else {
+                vec![2]
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(coordinates.len(), 3);
+    assert_eq!(local.rows(), 3);
+    // P0 integrates the constant matrix over area six. In (Re u, Im u, v)
+    // coordinates: 2u=6+8i and v-2 Re(u)+Im(u)=1. There is no Im(v) unknown.
+    let expected = [[2., 0., 0.], [0., 2., 0.], [-2., 1., 1.]];
+    let rhs = [6., 8., 1.];
+    for (row, &physical_row) in coordinates.iter().enumerate() {
+        close(local.rhs()[row], 6. * rhs[physical_row]);
+        for (column, &physical_column) in coordinates.iter().enumerate() {
+            close(
+                local.entry(row, column).unwrap(),
+                6. * expected[physical_row][physical_column],
+            );
+        }
+    }
 }
 
 fn coefficient(a: C, b: C, conjugate: bool, row: usize, column: usize) -> [[f64; 2]; 2] {
@@ -136,7 +195,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                 let (fields, rows) = form.si_bindings(|_| Ok(space)).unwrap();
                 let bound = form.bind(reference, &fields, &rows, None).unwrap();
                 let (local, geometry) = bound
-                    .prepare_real_affine_actions(&map, Some(&direction), &rule)
+                    .prepare_affine_actions::<Real>(&map, Some(&direction), &rule)
                     .unwrap();
                 check_matrix(&local, nodes, a, b, conjugate);
                 for i in 0..nodes {
@@ -155,7 +214,9 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                     close(*actual, 2. * original);
                 }
                 if !conjugate {
-                    let (native, _) = bound.prepare_affine_actions(&map, None, &rule).unwrap();
+                    let (native, _) = bound
+                        .prepare_affine_actions::<Native>(&map, None, &rule)
+                        .unwrap();
                     for row in 0..native.rows() {
                         for column in 0..native.columns() {
                             let value = native.entry(row, column).unwrap();
@@ -166,7 +227,11 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                         }
                     }
                 } else if b.norm() != 0. {
-                    assert!(bound.prepare_affine_actions(&map, None, &rule).is_err());
+                    assert!(
+                        bound
+                            .prepare_affine_actions::<Native>(&map, None, &rule)
+                            .is_err()
+                    );
                 }
                 for (parameter, id) in ids.iter().enumerate() {
                     let value = program.typed_value(id.erase()).unwrap();
@@ -183,7 +248,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                         };
                         let derivative = bound.parameter_partial(&coordinate).unwrap();
                         let (partial, _) = derivative
-                            .prepare_real_affine_actions(&map, None, &rule)
+                            .prepare_affine_actions::<Real>(&map, None, &rule)
                             .unwrap();
                         let zero = C::new(0., 0.);
                         check_matrix(

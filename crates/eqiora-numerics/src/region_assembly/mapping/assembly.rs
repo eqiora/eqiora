@@ -1,13 +1,14 @@
 //! Shared preparation for assembly, solving and checking a supplied algebraic State.
 use super::*;
 use crate::form_compiler::region::BoundRegionForm;
+use crate::form_compiler::region::coordinates::{Native, Projection};
 use crate::region_assembly::PreparedRegionAssembly;
 use eqiora_assembly::{AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry, QuadratureRule};
 
-pub(crate) struct MappedRegionAssembly<S: Coefficient> {
+pub(crate) struct MappedRegionAssembly<S: Coefficient, P: Projection<S> = Native> {
     pub(crate) plan: AssemblyPlan,
-    pub(crate) work: PreparedRegionAssembly<S>,
+    pub(crate) work: PreparedRegionAssembly<S, P>,
     pub(crate) packet_domains: Vec<RawId>,
 }
 
@@ -32,15 +33,9 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         let domains = &self.cell_domains;
         let plan = self.assembly_plan()?;
         let cells = self.assembly_cells(mesh, &forms, previous, geometry_action, &plan)?;
-        let mut packet_domains = domains.to_vec();
-        for (index, _) in &natural {
-            packet_domains.push(
-                *domains
-                    .get(*index)
-                    .ok_or_else(|| invalid("natural packet has a foreign cell"))?,
-            );
-        }
-        let work = PreparedRegionAssembly::new(packet_set, &plan, forms, domains, cells, natural)?;
+        let work =
+            PreparedRegionAssembly::<_>::new(packet_set, &plan, forms, domains, cells, natural)?;
+        let packet_domains = work.packet_domains(domains)?;
         Ok(MappedRegionAssembly {
             plan,
             work,

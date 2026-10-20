@@ -20,7 +20,6 @@ mod execution_checkpoint;
 mod execution_session;
 mod geometry;
 mod jax_ffi;
-mod matrix;
 mod meshing;
 mod model;
 mod model_io;

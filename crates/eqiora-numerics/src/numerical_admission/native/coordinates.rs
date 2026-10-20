@@ -27,11 +27,15 @@ impl RecognizedNativeAdmission {
         })
     }
 
-    pub(in crate::numerical_admission) fn linear_scalar_domain(
+    pub(in crate::numerical_admission) fn numerical_scalar_domain(
         &self,
         spatial: &NativeSpatialPolicy,
         scaling: &eqiora_realization::SystemScaling,
+        nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<eqiora_core::ScalarDomain, Diagnostic> {
+        if nonlinear.is_some() {
+            return Ok(eqiora_core::ScalarDomain::Real);
+        }
         match (&self.recognized, spatial) {
             (
                 RecognizedNativeModel::ComplexSpatial(equations),

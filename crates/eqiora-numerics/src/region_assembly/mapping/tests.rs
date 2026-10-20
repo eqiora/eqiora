@@ -286,7 +286,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                 previous: BTreeMap::new(),
             })
             .collect();
-        let work = PreparedRegionAssembly::new(
+        let work = PreparedRegionAssembly::<_>::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,
             forms,
@@ -594,7 +594,7 @@ model VectorRegion() {
             .into(),
         })
         .collect();
-    let work = PreparedRegionAssembly::new(
+    let work = PreparedRegionAssembly::<_>::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &plan,
         vec![(bound, quadrature)],

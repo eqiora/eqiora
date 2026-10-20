@@ -268,15 +268,6 @@ pub(crate) fn lower_scalar_candidate(
                         complex.message()
                     ))
                 })?;
-            if complex
-                .fields()
-                .iter()
-                .any(|(_, ty)| ty.scalar_domain() != eqiora_core::ScalarDomain::Complex)
-            {
-                return Err(invalid(
-                    "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
-                ));
-            }
             Ok(RecognizedNativeModel::ComplexSpatial(Box::new(complex)))
         }
     }

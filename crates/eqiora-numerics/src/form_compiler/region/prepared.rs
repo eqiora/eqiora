@@ -1,6 +1,7 @@
 //! Immutable local actions for one exact form, geometry and quadrature binding.
 
-use crate::form_compiler::region::integration::IntegralField;
+use super::coordinates::{Native, Projection};
+use num_complex::ComplexFloat;
 use std::collections::BTreeMap;
 
 use eqiora_assembly::LocalContribution;
@@ -14,7 +15,12 @@ use crate::spatial_expression::Coefficient;
 
 mod ale;
 mod components;
+mod dyadics;
+mod history;
 use components::Component;
+
+pub(crate) type CellActions<S, P = Native> =
+    (PreparedRegionCell<S, P>, Option<PreparedRegionCell<S, P>>);
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
@@ -34,11 +40,12 @@ struct Dyadic {
 /// Local numbering contains no mesh indices, global maps or mutable coefficients.
 /// Adaptation creates new geometry bindings and resolves its maps separately.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedRegionCell<S: Coefficient> {
+pub(crate) struct PreparedRegionCell<S: Coefficient, P: Projection<S> = Native> {
     dimension: usize,
     fields: Vec<RegionFieldLayout>,
-    affine: LocalContribution<S>,
-    history: Vec<(RawId, usize, Vec<S>)>,
+    coordinates: Vec<std::ops::Range<usize>>,
+    affine: LocalContribution<P::Scalar>,
+    history: Vec<(RawId, usize, Vec<P::Scalar>)>,
     dyadics: Vec<Dyadic>,
     components: Vec<Component<S>>,
     samples: Vec<Sample<S>>,
@@ -75,7 +82,22 @@ impl<S: Coefficient> BoundRegionForm<S> {
         previous_geometry: &AffineGeometryMap,
         directions: Option<(&AffineGeometryLinearization, &AffineGeometryLinearization)>,
         quadrature: &QuadratureRule,
-    ) -> Result<(PreparedRegionCell<S>, Option<PreparedRegionCell<S>>), Diagnostic> {
+    ) -> Result<CellActions<S>, Diagnostic> {
+        self.prepare_projected_cell_actions::<Native>(
+            geometry,
+            previous_geometry,
+            directions,
+            quadrature,
+        )
+    }
+
+    pub(crate) fn prepare_projected_cell_actions<P: Projection<S>>(
+        &self,
+        geometry: &AffineGeometryMap,
+        previous_geometry: &AffineGeometryMap,
+        directions: Option<(&AffineGeometryLinearization, &AffineGeometryLinearization)>,
+        quadrature: &QuadratureRule,
+    ) -> Result<CellActions<S, P>, Diagnostic> {
         if directions.is_some_and(|(current, previous)| {
             current.map() != geometry || previous.map() != previous_geometry
         }) {
@@ -105,7 +127,8 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "distinct history geometry requires scalar inventory without eliminated states",
             ));
         }
-        let (affine, affine_tangent) = self.prepare_affine_actions(
+        let coordinates = P::ranges(&self.fields)?;
+        let (affine, affine_tangent) = self.prepare_affine_actions::<P>(
             geometry,
             directions.map(|(current, _)| current),
             quadrature,
@@ -113,19 +136,19 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut history = Vec::new();
         let mut history_tangent = Vec::new();
         for (field, layout) in &self.previous {
-            let (column, (matrix, matrix_tangent)) = self.history_matrix(
+            let (column, (matrix, matrix_tangent)) = self.history_matrix::<P>(
                 *field,
                 previous_geometry,
                 directions.map(|(_, previous)| previous),
                 quadrature,
             )?;
-            let range = &self.fields[column].range;
-            if range.len() != layout.range.len() {
+            let range = &coordinates[column];
+            if self.fields[column].range.len() != layout.range.len() {
                 return Err(invalid(
                     "prepared history basis differs from its algebraic binding",
                 ));
             }
-            let block = |matrix: &LocalContribution<S>| {
+            let block = |matrix: &LocalContribution<P::Scalar>| {
                 matrix
                     .matrix()
                     .chunks_exact(affine.rows())
@@ -277,6 +300,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             dimension: self.form.dimension,
             fields: self.fields.clone(),
             affine,
+            coordinates: coordinates.clone(),
             history: history_tangent,
             dyadics: dyadics.clone(),
             components: components.clone(),
@@ -287,6 +311,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 dimension: self.form.dimension,
                 fields: self.fields.clone(),
                 affine,
+                coordinates,
                 history,
                 dyadics,
                 components,
@@ -295,87 +320,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
             tangent,
         ))
     }
-
-    fn history_matrix(
-        &self,
-        field: RawId,
-        geometry: &AffineGeometryMap,
-        direction: Option<&AffineGeometryLinearization>,
-        quadrature: &QuadratureRule,
-    ) -> Result<(usize, super::integration::IntegralActions<S>), Diagnostic> {
-        let fields = self
-            .fields
-            .iter()
-            .map(IntegralField::from)
-            .collect::<Vec<_>>();
-        let mut integrals = Vec::new();
-        let mut data = Vec::new();
-        let mut column = None;
-        for (row, source) in self.form.rows.iter().enumerate() {
-            for term in &source.terms {
-                if term.trial != field {
-                    continue;
-                }
-                let eliminated = self.eliminations.get(&term.trial);
-                let scale = match (eliminated, term.derivative) {
-                    (Some(_), false) => -1.,
-                    (None, true) => self.time_step().expect("bound derivative step").recip(),
-                    _ => continue,
-                };
-                let trial = eliminated.copied().unwrap_or(term.trial);
-                let index = self
-                    .fields
-                    .iter()
-                    .position(|layout| layout.field == trial)
-                    .ok_or_else(|| invalid("history lacks an algebraic binding"))?;
-                if column.is_some_and(|column| column != index) {
-                    return Err(invalid("history has conflicting algebraic bindings"));
-                }
-                column = Some(index);
-                integrals.push(super::integration::IntegralTerm {
-                    test_coordinate: 0,
-                    trial_coordinate: 0,
-                    row,
-                    column: index,
-                    pairing: term.pairing,
-                    trial_scale: scale,
-                });
-                data.push((row, &term.coefficient));
-            }
-        }
-        let column =
-            column.ok_or_else(|| invalid("consumed history lacks a mathematical action"))?;
-        let (matrix, tangent) = super::integration::integrate_with_geometry_direction(
-            self.reference,
-            &fields,
-            &integrals,
-            geometry,
-            direction,
-            quadrature,
-            |_, physical, physical_tangent, coefficients, _, _, coefficient_tangents, _, _| {
-                for (index, (value, (row, coefficient))) in
-                    coefficients.iter_mut().zip(&data).enumerate()
-                {
-                    let (primal, tangent) = super::evaluate::evaluate_data(
-                        coefficient,
-                        physical,
-                        direction.map(|_| physical_tangent),
-                    )?;
-                    let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
-                    *value = scale * primal;
-                    if let Some(output) = coefficient_tangents.get_mut(index) {
-                        *output = scale * tangent;
-                    }
-                }
-                Ok(())
-            },
-        )?;
-        Ok((column, (matrix, tangent)))
-    }
 }
 
-impl<S: Coefficient> PreparedRegionCell<S> {
-    pub(crate) fn add_load(&mut self, load: &[S]) -> Result<(), Diagnostic> {
+impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
+    pub(crate) fn add_load(&mut self, load: &[P::Scalar]) -> Result<(), Diagnostic> {
         if load.len() != self.affine.rows() || load.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "prepared load requires exact finite local equation coverage",
@@ -396,7 +344,10 @@ impl<S: Coefficient> PreparedRegionCell<S> {
         )?;
         Ok(())
     }
-    fn rhs(&self, previous: &BTreeMap<RawId, Vec<S>>) -> Result<Vec<S>, Diagnostic> {
+    fn rhs(
+        &self,
+        previous: &BTreeMap<RawId, Vec<P::Scalar>>,
+    ) -> Result<Vec<P::Scalar>, Diagnostic> {
         if previous.len() != self.history.len()
             || self.history.iter().any(|(id, count, _)| {
                 previous.get(id).is_none_or(|values| {
@@ -414,7 +365,9 @@ impl<S: Coefficient> PreparedRegionCell<S> {
                 *value += row
                     .iter()
                     .zip(&previous[id])
-                    .fold(<S as From<f64>>::from(0.0), |sum, (a, b)| sum + *a * *b);
+                    .fold(<P::Scalar as From<f64>>::from(0.0), |sum, (a, b)| {
+                        sum + *a * *b
+                    });
             }
         }
         Ok(rhs)
@@ -422,8 +375,8 @@ impl<S: Coefficient> PreparedRegionCell<S> {
 
     pub(crate) fn evaluate(
         &self,
-        previous: &BTreeMap<RawId, Vec<S>>,
-    ) -> Result<LocalContribution<S>, Diagnostic> {
+        previous: &BTreeMap<RawId, Vec<P::Scalar>>,
+    ) -> Result<LocalContribution<P::Scalar>, Diagnostic> {
         if !self.dyadics.is_empty() || !self.components.is_empty() {
             return Err(invalid(
                 "nonlinear region evaluation requires an explicit candidate point",
@@ -438,7 +391,7 @@ impl<S: Coefficient> PreparedRegionCell<S> {
     }
 }
 
-impl PreparedRegionCell<f64> {
+impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
     pub(crate) fn linearize(
         &self,
         previous: &BTreeMap<RawId, Vec<f64>>,
@@ -482,71 +435,12 @@ impl PreparedRegionCell<f64> {
                 .map(|(row, rhs)| row.iter().zip(point).map(|(a, b)| a * b).sum::<f64>() - rhs)
                 .collect(),
         };
-        let dimension = self.dimension;
+        let physical = P::physical_point(&self.fields, &self.coordinates, point);
         for sample in &self.samples {
             for term in &self.components {
-                term.add_action(&self.fields, sample, point, derivative, &mut action)?;
+                self.add_component_action(term, sample, &physical, derivative, &mut action)?;
             }
-            for (term, coefficient) in self.dyadics.iter().zip(&sample.coefficients) {
-                let trial = &self.fields[term.column];
-                let test = &self.fields[term.row];
-                let mut value = [0.; 3];
-                let mut gradient = [[0.; 3]; 3];
-                for (node, shape) in sample.values[term.column].iter().enumerate() {
-                    for i in 0..dimension {
-                        let u = trial.scale * point[trial.range.start + node * dimension + i];
-                        value[i] += shape * u;
-                        for (entry, shape_gradient) in gradient[i][..dimension]
-                            .iter_mut()
-                            .zip(&sample.gradients[term.column][node][..dimension])
-                        {
-                            *entry += shape_gradient * u;
-                        }
-                    }
-                }
-                for (a, test_value) in sample.values[term.row].iter().enumerate() {
-                    let test_gradient = &sample.gradients[term.row][a];
-                    let directional_test = dot(&value, test_gradient, dimension);
-                    for i in 0..dimension {
-                        let r = test.range.start + a * dimension + i;
-                        let advective = dot(&value, &gradient[i], dimension);
-                        action.residual[r] += if term.split {
-                            -0.5 * coefficient
-                                * (advective * test_value - value[i] * directional_test)
-                        } else {
-                            coefficient * value[i] * directional_test
-                        };
-                        if !derivative {
-                            continue;
-                        }
-                        for (b, trial_value) in sample.values[term.column].iter().enumerate() {
-                            let directional_trial =
-                                dot(&value, &sample.gradients[term.column][b], dimension);
-                            for k in 0..dimension {
-                                let c = trial.range.start + b * dimension + k;
-                                let identity = if i == k { 1. } else { 0. };
-                                let entry = if term.split {
-                                    -0.5 * coefficient
-                                        * trial.scale
-                                        * ((trial_value * gradient[i][k]
-                                            + identity * directional_trial)
-                                            * test_value
-                                            - trial_value
-                                                * (identity * directional_test
-                                                    + value[i] * test_gradient[k]))
-                                } else {
-                                    coefficient
-                                        * trial.scale
-                                        * trial_value
-                                        * (identity * directional_test
-                                            + value[i] * test_gradient[k])
-                                };
-                                action.jacobian[r * count + c] += entry;
-                            }
-                        }
-                    }
-                }
-            }
+            self.add_dyadic_actions(sample, &physical, derivative, &mut action)?;
         }
         if action
             .residual
@@ -558,12 +452,4 @@ impl PreparedRegionCell<f64> {
         }
         Ok(action)
     }
-}
-
-fn dot(left: &[f64; 3], right: &[f64; 3], dimension: usize) -> f64 {
-    left[..dimension]
-        .iter()
-        .zip(&right[..dimension])
-        .map(|(a, b)| a * b)
-        .sum()
 }

@@ -152,7 +152,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
             previous: BTreeMap::new(),
         })
         .collect();
-    let work = PreparedRegionAssembly::new(
+    let work = PreparedRegionAssembly::<_>::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &plan,
         vec![(bound.clone(), QuadratureRule::gauss_legendre(2).unwrap())],
@@ -217,7 +217,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
             previous: BTreeMap::new(),
         })
         .collect();
-    let work = PreparedRegionAssembly::new(
+    let work = PreparedRegionAssembly::<_>::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &action_plan,
         vec![(bound, QuadratureRule::gauss_legendre(2).unwrap())],

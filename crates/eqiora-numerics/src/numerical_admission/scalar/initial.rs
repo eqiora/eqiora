@@ -1,4 +1,7 @@
 use super::*;
+use crate::form_compiler::region::coordinates::{self, Real};
+use crate::region_assembly::mapping::RegionDofMap;
+use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
     /// Construct exact nodal initial assignments. At time zero, source conditions
@@ -13,10 +16,29 @@ impl CommonSpatialPlan {
     ) -> Result<CommonState, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing spatial equations"));
-        };
-        let (mapping, _) = self.state_assembly(time_s)?;
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => {
+                let (mapping, _) = self.state_assembly(time_s)?;
+                self.initial_state_from(equations, mapping, time_s, fields)
+            }
+            RecognizedNativeModel::ComplexSpatial(equations) => {
+                if time_s.is_some() {
+                    return Err(invalid("complex spatial State requires a stationary Plan"));
+                }
+                let (mapping, _) = self.stationary_assembly(equations)?;
+                self.initial_state_from(equations, mapping, time_s, fields)
+            }
+            _ => Err(invalid("missing spatial equations")),
+        }
+    }
+
+    fn initial_state_from<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        mapping: RegionDofMap<S>,
+        time_s: Option<f64>,
+        fields: Vec<CommonInitialField>,
+    ) -> Result<CommonState, Diagnostic> {
         let inventory = self.physical_field_inventory(&mapping)?;
         let model = self.admission.model().digest()?;
         let mut seen = BTreeSet::new();
@@ -60,7 +82,21 @@ impl CommonSpatialPlan {
                         "InitialField shape or cardinality differs from its exact coefficient block",
                     ));
                 }
-                supplied.extend(keys.into_iter().zip(data.values().iter().copied()));
+                for (key, &(re, im)) in keys.into_iter().zip(data.values()) {
+                    if layout.value_type.scalar_domain() == eqiora_core::ScalarDomain::Real
+                        && im != 0.
+                    {
+                        return Err(invalid(
+                            "real InitialField cannot contain imaginary coefficients",
+                        ));
+                    }
+                    supplied.insert(
+                        key,
+                        S::from_parts(re, im).ok_or_else(|| {
+                            invalid("InitialField scalar domain differs from its Plan")
+                        })?,
+                    );
+                }
             }
         }
         let mut values = Vec::new();
@@ -82,7 +118,7 @@ impl CommonSpatialPlan {
                 .ok_or_else(|| invalid("initial Field has no exact Region"))?
                 .form;
             let source = if time_s == Some(0.0) {
-                let sample = |point: &[f64]| -> Result<Option<f64>, Diagnostic> {
+                let sample = |point: &[f64]| -> Result<Option<S>, Diagnostic> {
                     Ok(form
                         .initial_values_at(point)?
                         .get(&key.field)
@@ -133,7 +169,7 @@ impl CommonSpatialPlan {
                             // The normalized hierarchical bubble equals one at
                             // the barycenter; the P1 part already contributes
                             // the average of the vertex values there.
-                            let mut nodal_value = 0.0;
+                            let mut nodal_value = S::zero();
                             for vertex in vertices {
                                 nodal_value +=
                                     sample(&mesh.mesh().vertices()[vertex.index()])?.ok_or_else(
@@ -163,7 +199,10 @@ impl CommonSpatialPlan {
                 (Some(value), None) | (None, Some(value)) => value,
                 (None, None) => return Err(invalid("initial State omits an exact stored Field")),
             };
-            values.push(value);
+            values.extend(coordinates::values::<S, Real>(
+                &inventory[&key.field].value_type,
+                &[value],
+            )?);
         }
         self.scalar_state(time_s, values)
     }

@@ -238,6 +238,13 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             for (&key, &physical) in &field.coefficients {
                 let value = physical / layout.scale;
                 let global = self.global_dof(key).expect("exact coordinate inventory");
+                if layout.value_type.scalar_domain() == eqiora_core::ScalarDomain::Real
+                    && physical.im() != 0.
+                {
+                    return Err(invalid(
+                        "a real Field has an imaginary physical coefficient",
+                    ));
+                }
                 if !value.is_finite() || globals[global].is_some_and(|old| old != value) {
                     return Err(invalid(
                         "history is nonfinite or disagrees on an exact trace quotient",

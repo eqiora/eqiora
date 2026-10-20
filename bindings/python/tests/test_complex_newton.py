@@ -1,6 +1,7 @@
 """Independent cubic roots through the common finite Newton lifecycle."""
 import math
 import unittest
+import numpy as np
 import eqiora as q
 
 
@@ -59,4 +60,8 @@ def test_complex_newton_retains_shaped_seeds_and_exact_replay():
     cyclic.append(cyclic)
     with check.assertRaisesRegex(ValueError, "cycle"):
         q.InitialField(model.field("z"), value=cyclic)
+    object_cycle = np.empty(1, dtype=object)
+    object_cycle[0] = object_cycle
+    with check.assertRaisesRegex(ValueError, "cycle"):
+        q.InitialField(model.field("z"), value=object_cycle)
 

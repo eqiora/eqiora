@@ -222,7 +222,7 @@ def test_nonlinear_seed_rejects_branch_departure_and_foreign_identity():
         eqiora.State.initial(plan)
     with pytest.raises(eqiora.ValidationError):
         eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), value=-2.0),))
-    with pytest.raises(ValueError, match="booleans"):
+    with pytest.raises(TypeError, match="bool"):
         eqiora.InitialField(model.field("w"), value=True)
     with pytest.raises(ValueError, match="spatial"):
         eqiora.InitialField(model.field("w"), value=1.0, vertex_values=[1.0])

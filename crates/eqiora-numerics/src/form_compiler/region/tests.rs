@@ -9,6 +9,7 @@ use eqiora_realization::{
 };
 use eqiora_schema::kernel::KernelNode;
 
+use super::coordinates::Native;
 use super::*;
 
 mod anisotropic;
@@ -22,8 +23,10 @@ mod coupled_transport;
 mod curl;
 mod error_estimate;
 mod flux;
+mod global_nonlinear;
 mod moments;
 mod nonlinear;
+mod nonlinear_coordinates;
 mod orientation;
 mod prepared;
 mod quadrature;

@@ -223,6 +223,18 @@ fn real_fields_keep_one_coordinate_and_prescribed_words() {
         .unwrap()
         .im = 1.;
     assert!(coordinates.validated_algebraic_point(&imaginary).is_err());
+    assert!(mapping.physical_predictor(&imaginary).is_err());
+    // Stale essential values may be replaced by a predictor, but their physical
+    // scalar domain cannot be ignored merely because the coordinate is fixed.
+    let mut imaginary_fixed = recovered.clone();
+    imaginary_fixed
+        .get_mut(&field)
+        .unwrap()
+        .coefficients
+        .get_mut(&key(0))
+        .unwrap()
+        .im = 1.;
+    assert!(mapping.physical_predictor(&imaginary_fixed).is_err());
     let invalid = mapping
         .with_prescribed(&BTreeMap::from([(key(0), C::new(1., 2.))]))
         .unwrap();

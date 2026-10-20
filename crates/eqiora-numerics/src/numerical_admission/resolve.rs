@@ -159,22 +159,8 @@ impl ResolvedCommonPlan {
                     .regions
                     .iter()
                     .any(|region| region.form.is_nonlinear());
-                let (linear_request, nonlinear) = match solve {
-                    CommonSolvePolicy::Linear(linear) if !nonlinear_equations => (linear, None),
-                    CommonSolvePolicy::Linear(_) => {
-                        return Err(invalid(
-                            "nonlinear Region equations require an explicit Newton policy",
-                        ));
-                    }
-                    CommonSolvePolicy::Newton { linear, nonlinear } => {
-                        if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
-                            return Err(invalid(
-                                "Region Newton currently requires finite elements",
-                            ));
-                        }
-                        (linear, Some(nonlinear))
-                    }
-                };
+                let (linear_request, nonlinear) =
+                    resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
                 let properties = recognized.operator_properties(&spatial, nonlinear)?;
                 let (linear, temporal) = resolve_linear_requirements(
                     CommonSolvePolicy::Linear(linear_request),
@@ -220,13 +206,14 @@ impl ResolvedCommonPlan {
                     } else {
                         equations.finite_element_formulation()
                     },
-                    "complex linear spatial form",
+                    "complex spatial form",
                 )?;
-                let CommonSolvePolicy::Linear(request) = solve else {
-                    return Err(invalid(
-                        "complex spatial Plan requires exact linear controls",
-                    ));
-                };
+                let nonlinear_equations = equations
+                    .regions
+                    .iter()
+                    .any(|region| region.form.is_nonlinear());
+                let (request, nonlinear) =
+                    resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
                 if equations
                     .regions
                     .iter()
@@ -236,9 +223,10 @@ impl ResolvedCommonPlan {
                         "complex spatial storage has no admitted temporal execution",
                     ));
                 }
-                let properties = recognized.operator_properties(&spatial, None)?;
+                let properties = recognized.operator_properties(&spatial, nonlinear)?;
                 let structure = equations.algebraic_structure(None)?;
-                let domain = recognized.linear_scalar_domain(&spatial, &system_scaling)?;
+                let domain =
+                    recognized.numerical_scalar_domain(&spatial, &system_scaling, nonlinear)?;
                 let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
                     super::solver_planning::resolve_complex_linear(
                         request,
@@ -260,7 +248,8 @@ impl ResolvedCommonPlan {
                         .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
-                let admission = recognized.complete(spatial, linear, None, None, system_scaling)?;
+                let admission =
+                    recognized.complete(spatial, linear, None, nonlinear, system_scaling)?;
                 CommonSpatialPlan::from_complex_admission(
                     model,
                     admission,
@@ -374,6 +363,27 @@ impl ResolvedCommonPlan {
             }
         }
     }
+}
+
+fn resolve_spatial_strategy(
+    solve: CommonSolvePolicy,
+    spatial: &NativeSpatialPolicy,
+    nonlinear_equations: bool,
+) -> Result<(CommonLinearRequest, Option<NonlinearSolvePlan>), Diagnostic> {
+    Ok(match solve {
+        CommonSolvePolicy::Linear(linear) if !nonlinear_equations => (linear, None),
+        CommonSolvePolicy::Linear(_) => {
+            return Err(invalid(
+                "nonlinear Region equations require an explicit Newton policy",
+            ));
+        }
+        CommonSolvePolicy::Newton { linear, nonlinear } => {
+            if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
+                return Err(invalid("Region Newton currently requires finite elements"));
+            }
+            (linear, Some(nonlinear))
+        }
+    })
 }
 
 #[allow(

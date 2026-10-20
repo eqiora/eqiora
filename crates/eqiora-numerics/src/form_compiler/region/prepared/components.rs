@@ -30,12 +30,12 @@ impl<S: Coefficient> Component<S> {
     }
 }
 
-impl Component<f64> {
-    pub(super) fn add_action(
+impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
+    pub(super) fn add_component_action(
         &self,
-        fields: &[RegionFieldLayout],
-        sample: &Sample<f64>,
-        point: &[f64],
+        term: &Component<S>,
+        sample: &Sample<S>,
+        point: &[S],
         derivative: bool,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
@@ -44,28 +44,43 @@ impl Component<f64> {
             values: &sample.values,
             gradients: &sample.gradients,
         };
-        let (value, gradient) = if let Some(parameter) = &self.parameter {
-            self.value
-                .parameter_action(fields, &basis, point, parameter, derivative)?
+        let (value, gradient) = if let Some(parameter) = &term.parameter {
+            term.value
+                .parameter_action(&self.fields, &basis, point, parameter, derivative)?
         } else {
-            self.value.action(fields, &basis, point, derivative)?
+            term.value.action(&self.fields, &basis, point, derivative)?
         };
-        let test = &fields[self.row];
-        let count = point.len();
-        for node in 0..sample.values[self.row].len() {
-            let (component, test_basis) = basis.coordinate(self.row, node, self.test);
-            let r = test.range.start + node * test.components + component;
-            let weight = test_basis * sample.coefficients[self.coefficient];
-            action.residual[r] += weight * value;
-            if derivative {
-                for ((column, component), derivative) in self.value.columns().iter().zip(&gradient)
-                {
-                    let trial = &fields[*column];
-                    for node in 0..sample.values[*column].len() {
-                        let (component, trial_basis) = basis.coordinate(*column, node, *component);
-                        let c = trial.range.start + node * trial.components + component;
-                        action.jacobian[r * count + c] +=
-                            weight * derivative * trial.scale * trial_basis;
+        let test = &self.fields[term.row];
+        let width = P::width(&test.value_type)?;
+        let count = action.residual.len();
+        for node in 0..sample.values[term.row].len() {
+            let (component, test_basis) = basis.coordinate(term.row, node, term.test);
+            let row =
+                self.coordinates[term.row].start + (node * test.components + component) * width;
+            let weight = sample.coefficients[term.coefficient] * test_basis;
+            for test_coordinate in 0..width {
+                let r = row + test_coordinate;
+                action.residual[r] += P::component(weight * value, test_coordinate);
+                if derivative {
+                    for ((column, component), partials) in
+                        term.value.columns().iter().zip(&gradient)
+                    {
+                        let trial = &self.fields[*column];
+                        let trial_width = P::width(&trial.value_type)?;
+                        for node in 0..sample.values[*column].len() {
+                            let (component, trial_basis) =
+                                basis.coordinate(*column, node, *component);
+                            let column = self.coordinates[*column].start
+                                + (node * trial.components + component) * trial_width;
+                            for (coordinate, partial) in
+                                partials.iter().take(trial_width).enumerate()
+                            {
+                                action.jacobian[r * count + column + coordinate] +=
+                                    P::component(weight * *partial, test_coordinate)
+                                        * trial.scale
+                                        * trial_basis;
+                            }
+                        }
                     }
                 }
             }

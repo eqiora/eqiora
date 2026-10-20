@@ -9,9 +9,13 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         matrix: &CsrMatrix<S>,
         multipliers: &BTreeSet<RawId>,
     ) -> Result<(), Diagnostic> {
-        if multipliers.is_empty() {
-            return Ok(());
-        }
+        require_independent_actions(matrix, &self.constant_multiplier_modes(multipliers)?)
+    }
+
+    pub(super) fn constant_multiplier_modes(
+        &self,
+        multipliers: &BTreeSet<RawId>,
+    ) -> Result<Vec<Vec<usize>>, Diagnostic> {
         for field in multipliers {
             let (_, layout) = self
                 .fields
@@ -78,7 +82,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     .collect::<Vec<_>>(),
             );
         }
-        require_independent_actions(matrix, &modes)
+        Ok(modes)
     }
 }
 
@@ -88,7 +92,7 @@ fn norm<S: Coefficient>(values: &[S]) -> f64 {
         .fold(0.0, |length, value| length.hypot(value.abs()))
 }
 
-fn require_independent_actions<S: Coefficient + Sync>(
+pub(super) fn require_independent_actions<S: Coefficient + Sync>(
     matrix: &CsrMatrix<S>,
     modes: &[Vec<usize>],
 ) -> Result<(), Diagnostic> {
@@ -181,6 +185,67 @@ mod tests {
             C::new(0., -2.),
         ]);
         require_independent_actions(&independent, &modes).unwrap();
+    }
+
+    #[test]
+    fn projected_complex_multiplier_requires_both_constant_directions() {
+        use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType, entity::kinds};
+        use eqiora_meshing::CartesianMesh;
+        use num_complex::Complex64 as C;
+        let domain = Id::<kinds::Domain>::new().erase();
+        let field = Id::<kinds::Field>::new().erase();
+        let mesh = CartesianMesh::from_axes(vec![vec![0., 1.]]).unwrap();
+        let layout = RegionFieldLayout {
+            field,
+            value_type: ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            range: 0..2,
+            components: 1,
+            scale: 2.,
+        };
+        let mapping = RegionDofMap::<C>::new(
+            &mesh,
+            &BTreeMap::from([(domain, vec![layout])]),
+            ReferenceCell::hypercube(1).unwrap(),
+            &[domain],
+            &[],
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        let coordinates = RegionRealCoordinates::new(&mapping).unwrap();
+        let multipliers = BTreeSet::from([field]);
+        // Identity closes both constant directions. Re-only diagonal misses the
+        // imaginary constant; all-ones has nonzero but dependent mode images.
+        for (diagonal, accepted) in [([1., 1., 1., 1.], true), ([1., 0., 1., 0.], false)] {
+            let matrix = CsrMatrix::from_sorted_csr(
+                4,
+                4,
+                vec![0, 1, 2, 3, 4],
+                vec![0, 1, 2, 3],
+                diagonal.to_vec(),
+            )
+            .unwrap();
+            assert_eq!(
+                coordinates
+                    .require_multiplier_closure(&matrix, &multipliers)
+                    .is_ok(),
+                accepted
+            );
+        }
+        let dependent = CsrMatrix::from_sorted_csr(
+            4,
+            4,
+            vec![0, 4, 8, 12, 16],
+            (0..4).cycle().take(16).collect(),
+            vec![1.; 16],
+        )
+        .unwrap();
+        assert!(
+            coordinates
+                .require_multiplier_closure(&dependent, &multipliers)
+                .is_err()
+        );
     }
 
     #[test]

@@ -17,7 +17,7 @@ impl BoundRegionForm<f64> {
         cell: usize,
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
-    ) -> Result<(PreparedRegionCell<f64>, Option<PreparedRegionCell<f64>>), Diagnostic> {
+    ) -> Result<CellActions<f64>, Diagnostic> {
         if D != self.form.dimension
             || self
                 .time_step()

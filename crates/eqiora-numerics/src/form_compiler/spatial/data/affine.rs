@@ -228,13 +228,17 @@ impl<S: Coefficient> AffineData<S> {
                            index: Option<usize>| {
             index.map_or(0., |index| row.coefficients()[index])
         };
-        if self.column.is_some()
-            && self.input_imaginary.is_none()
-            && let Some(imaginary) = imaginary
-        {
+        if self.column.is_some() && self.input_imaginary.is_none() {
             for column in &self.row.columns {
-                if coefficient(real, column.imaginary) != -coefficient(imaginary, column.real)
-                    || coefficient(imaginary, column.imaginary) != coefficient(real, column.real)
+                if column.scalar_domain == eqiora_core::ScalarDomain::Real && imaginary.is_none() {
+                    continue;
+                }
+                // A real-valued projection of a complex trial has a zero
+                // imaginary row, not an absent complex-linearity obligation.
+                let imaginary_coefficient =
+                    |index| imaginary.map_or(0., |row| coefficient(row, index));
+                if coefficient(real, column.imaginary) != -imaginary_coefficient(column.real)
+                    || imaginary_coefficient(column.imaginary) != coefficient(real, column.real)
                 {
                     return Err(super::super::invalid(
                         "nonholomorphic spatial component action requires a real-coordinate realization",
@@ -254,11 +258,7 @@ impl<S: Coefficient> AffineData<S> {
                 ),
                 None => row.offsets()[0],
             };
-        let mut result = <S as From<f64>>::from(project(real));
-        if let Some(imaginary) = imaginary {
-            result += S::imaginary_unit().expect("admitted complex scalar domain")
-                * <S as From<f64>>::from(project(imaginary));
-        }
-        Ok(result)
+        S::from_parts(project(real), imaginary.map_or(0., project))
+            .ok_or_else(|| super::super::invalid("affine value exceeds its numeric scalar domain"))
     }
 }

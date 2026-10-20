@@ -1,18 +1,23 @@
 //! Real numerical coordinates over the existing typed topology and constraints.
+use super::assembly::MappedRegionAssembly;
 use super::*;
-use num_complex::Complex64 as C;
+use crate::form_compiler::region::coordinates::{self, Real};
+use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
+use eqiora_assembly::{
+    AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget, TargetAssemblyMap,
+};
 use std::ops::Range;
 
 /// The physical map remains the owner of Field identity, quotienting, orientation
 /// and scaling. Only scalar storage changes; physical components are never doubled.
-pub(crate) struct RegionRealCoordinates<'a> {
-    mapping: &'a RegionDofMap<C>,
+pub(crate) struct RegionRealCoordinates<'a, S: Coefficient> {
+    mapping: &'a RegionDofMap<S>,
     ranges: Vec<Range<usize>>,
     constraints: ConstrainedDofLayout<f64>,
 }
 
-impl<'a> RegionRealCoordinates<'a> {
-    pub(crate) fn new(mapping: &'a RegionDofMap<C>) -> Result<Self, Diagnostic> {
+impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
+    pub(crate) fn new(mapping: &'a RegionDofMap<S>) -> Result<Self, Diagnostic> {
         let mut widths = vec![None; mapping.full_count];
         for (field, global) in mapping
             .globals
@@ -30,7 +35,7 @@ impl<'a> RegionRealCoordinates<'a> {
         }
         let prescribed = mapping
             .constraints
-            .lift(&vec![C::new(0., 0.); mapping.free_count()])?;
+            .lift(&vec![S::zero(); mapping.free_count()])?;
         let mut ranges = Vec::with_capacity(widths.len());
         let mut fixed = Vec::new();
         for (index, width) in widths.into_iter().enumerate() {
@@ -41,13 +46,13 @@ impl<'a> RegionRealCoordinates<'a> {
                 .checked_add(width)
                 .ok_or_else(|| invalid("real coordinate count overflows usize"))?;
             let value = prescribed[index];
-            if width == 1 && value.im != 0. {
+            if width == 1 && value.im() != 0. {
                 return Err(invalid(
                     "a prescribed real Field has an imaginary coefficient",
                 ));
             }
             let free = mapping.constraints.is_free(index)?;
-            for part in [value.re, value.im].into_iter().take(width) {
+            for part in [value.re(), value.im()].into_iter().take(width) {
                 fixed.push((!free).then_some(part));
             }
             ranges.push(start..end);
@@ -57,6 +62,40 @@ impl<'a> RegionRealCoordinates<'a> {
             ranges,
             constraints: ConstrainedDofLayout::new(fixed)?,
         })
+    }
+
+    pub(crate) fn full_count(&self) -> usize {
+        self.ranges.last().map_or(0, |range| range.end)
+    }
+
+    pub(crate) fn global_coordinates(&self, key: FieldDof) -> Range<usize> {
+        self.ranges[self.mapping.global_dof(key).expect("mapped Field DOF")].clone()
+    }
+
+    pub(crate) fn free_coordinate(&self, global: usize) -> Option<usize> {
+        self.constraints
+            .free_index(global)
+            .map(|index| index.index())
+    }
+
+    pub(crate) fn restrict_action(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        self.constraints.restrict_action(values)
+    }
+
+    pub(crate) fn encode_full(&self, values: &[S]) -> Result<Vec<f64>, Diagnostic> {
+        if values.len() != self.ranges.len() || values.iter().any(|value| !value.is_finite()) {
+            return Err(invalid(
+                "full physical coordinates have invalid size or values",
+            ));
+        }
+        let mut result = Vec::with_capacity(self.full_count());
+        for (value, range) in values.iter().zip(&self.ranges) {
+            if range.len() == 1 && value.im() != 0. {
+                return Err(invalid("a real Field has an imaginary coefficient"));
+            }
+            result.extend([value.re(), value.im()].into_iter().take(range.len()));
+        }
+        Ok(result)
     }
 
     /// Expand only storage indices. Both parts inherit the physical functional's
@@ -81,22 +120,30 @@ impl<'a> RegionRealCoordinates<'a> {
     /// independent coordinates. A real Field cannot hide an imaginary part.
     pub(crate) fn validated_algebraic_point(
         &self,
-        fields: &BTreeMap<RawId, RecoveredRegionField<C>>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
     ) -> Result<Vec<f64>, Diagnostic> {
-        let values = self.mapping.validated_algebraic_point(fields)?;
+        self.encode(&self.mapping.validated_algebraic_point(fields)?)
+    }
+
+    pub(crate) fn encode(&self, values: &[S]) -> Result<Vec<f64>, Diagnostic> {
+        if values.len() != self.mapping.free_count() || values.iter().any(|v| !v.is_finite()) {
+            return Err(invalid(
+                "physical reduced coordinates have invalid size or values",
+            ));
+        }
         let mut coordinates = Vec::with_capacity(self.constraints.free_count());
         for (global, value) in self
             .mapping
             .constraints
             .free_globals()
             .into_iter()
-            .zip(values)
+            .zip(values.iter().copied())
         {
             let width = self.ranges[global].len();
-            if width == 1 && value.im != 0. {
+            if width == 1 && value.im() != 0. {
                 return Err(invalid("a real Field has an imaginary coefficient"));
             }
-            coordinates.extend([value.re, value.im].into_iter().take(width));
+            coordinates.extend([value.re(), value.im()].into_iter().take(width));
         }
         Ok(coordinates)
     }
@@ -106,16 +153,22 @@ impl<'a> RegionRealCoordinates<'a> {
     pub(crate) fn recover(
         &self,
         reduced: &[f64],
-    ) -> Result<BTreeMap<RawId, RecoveredRegionField<C>>, Diagnostic> {
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
+        self.mapping.recover(
+            &self.decode(reduced)?,
+            &self.mapping.fields.keys().copied().collect::<Vec<_>>(),
+        )
+    }
+
+    pub(crate) fn decode(&self, reduced: &[f64]) -> Result<Vec<S>, Diagnostic> {
         let full = self.constraints.lift(reduced)?;
-        let physical_reduced = self
-            .mapping
+        self.mapping
             .constraints
             .free_globals()
             .into_iter()
             .map(|global| {
                 let range = &self.ranges[global];
-                C::new(
+                S::from_parts(
                     full[range.start],
                     if range.len() == 2 {
                         full[range.start + 1]
@@ -123,12 +176,39 @@ impl<'a> RegionRealCoordinates<'a> {
                         0.
                     },
                 )
+                .ok_or_else(|| {
+                    invalid("physical scalar cannot represent its exact Field coordinates")
+                })
             })
-            .collect::<Vec<_>>();
-        self.mapping.recover(
-            &physical_reduced,
-            &self.mapping.fields.keys().copied().collect::<Vec<_>>(),
-        )
+            .collect()
+    }
+
+    pub(super) fn require_multiplier_closure(
+        &self,
+        matrix: &eqiora_assembly::CsrMatrix<f64>,
+        multipliers: &BTreeSet<RawId>,
+    ) -> Result<(), Diagnostic> {
+        let globals = self.mapping.constraints.free_globals();
+        let mut projected = Vec::new();
+        for mode in self.mapping.constant_multiplier_modes(multipliers)? {
+            // Every connected mode belongs to one Field; both scalar directions
+            // of a complex constant must have independent nonzero images.
+            let width = self.ranges[globals[mode[0]]].len();
+            for part in 0..width {
+                projected.push(
+                    mode.iter()
+                        .map(|&index| {
+                            let global = self.ranges[globals[index]].start + part;
+                            self.constraints
+                                .free_index(global)
+                                .expect("free multiplier mode")
+                                .index()
+                        })
+                        .collect(),
+                );
+            }
+        }
+        super::multiplier_closure::require_independent_actions(matrix, &projected)
     }
 
     /// Project static local actions before constraint elimination and scatter.
@@ -136,7 +216,7 @@ impl<'a> RegionRealCoordinates<'a> {
     pub(crate) fn assemble_static<'mesh>(
         &self,
         mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
-        input: &RegionSolveInput<C>,
+        input: &RegionSolveInput<S>,
     ) -> Result<
         (
             eqiora_assembly::LinearSystem<f64>,
@@ -161,18 +241,12 @@ impl<'a> RegionRealCoordinates<'a> {
     pub(crate) fn with_static_work<'mesh, R>(
         &self,
         mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
-        input: &RegionSolveInput<C>,
+        input: &RegionSolveInput<S>,
         consume: impl FnOnce(
             &eqiora_assembly::AssemblyPlan,
             &dyn eqiora_assembly::AssemblyWork<f64>,
         ) -> Result<R, Diagnostic>,
     ) -> Result<R, Diagnostic> {
-        self.mapping.validate_solve_input(mesh, input)?;
-        if !self.mapping.gauges.is_empty() {
-            return Err(invalid(
-                "real-coordinate assembly has no integral-constraint packets yet",
-            ));
-        }
         if input.previous.is_some()
             || input.geometry_action.is_some()
             || input
@@ -184,33 +258,89 @@ impl<'a> RegionRealCoordinates<'a> {
                 "real-coordinate assembly has no temporal action binding yet",
             ));
         }
-        let plan = self.mapping.assembly_plan()?;
-        let cells = self
-            .mapping
-            .assembly_cells(mesh, &input.forms, None, None, &plan)?;
+        let prepared = self.prepare_assembly(mesh, input)?;
+        consume(&prepared.plan, &prepared.work)
+    }
+
+    /// Keep physical topology, history and geometry with their existing map;
+    /// expand only scalar storage before the shared prepared assembly owner.
+    pub(crate) fn prepare_assembly<'mesh>(
+        &self,
+        mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
+        input: &RegionSolveInput<S>,
+    ) -> Result<MappedRegionAssembly<S, Real>, Diagnostic> {
+        self.mapping.validate_solve_input(mesh, input)?;
+        if !self.mapping.gauges.is_empty() {
+            return Err(invalid(
+                "real-coordinate assembly has no integral-constraint packets yet",
+            ));
+        }
+        let physical_plan = self.mapping.assembly_plan()?;
+        let physical_cells = self.mapping.assembly_cells(
+            mesh,
+            &input.forms,
+            input.previous.as_ref(),
+            input.geometry_action.as_deref(),
+            &physical_plan,
+        )?;
+        let plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(self.constraints.free_count())?,
+            AssemblyTarget::new(self.ranges.last().expect("nonempty mapped Fields").end)?,
+        ])?;
         let forms = input
             .forms
             .iter()
-            .map(|(form, rule)| (form.domain(), (form, rule)))
+            .map(|(form, _)| (form.domain(), form))
             .collect::<BTreeMap<_, _>>();
-        let mut packets = Vec::new();
-        for cell in &cells {
-            let (form, rule) = forms[&self.mapping.cell_domains[cell.index]];
-            let (local, _) = form.prepare_real_affine_actions(&cell.geometry, None, rule)?;
-            let (globals, signs) = self.cell_coordinates(cell.index)?;
-            packets.push((local.reoriented(&signs, &signs)?, globals));
+        let mut cells = Vec::with_capacity(physical_cells.len());
+        for cell in physical_cells {
+            let (globals, orientation) = self.cell_coordinates(cell.index)?;
+            let form = forms[&self.mapping.cell_domains[cell.index]];
+            let previous = cell
+                .previous
+                .into_iter()
+                .map(|(id, values)| {
+                    let field = &form.previous_fields()[&id].value_type;
+                    Ok((id, coordinates::values::<S, Real>(field, &values)?))
+                })
+                .collect::<Result<_, Diagnostic>>()?;
+            cells.push(RegionAssemblyCell {
+                index: cell.index,
+                geometry: cell.geometry,
+                previous_geometry: cell.previous_geometry,
+                orientation,
+                previous,
+                mappings: vec![
+                    TargetAssemblyMap::new(
+                        plan.target_id(0).expect("reduced target"),
+                        self.constraints.reduced_map(&globals)?,
+                    ),
+                    TargetAssemblyMap::new(
+                        plan.target_id(1).expect("full target"),
+                        self.constraints.full_map(&globals)?,
+                    ),
+                ]
+                .into(),
+            });
         }
-        for (index, facet) in &input.natural {
-            let cell = cells
-                .get(*index)
-                .ok_or_else(|| invalid("natural packet has a foreign cell"))?;
-            let (form, _) = forms[&self.mapping.cell_domains[*index]];
-            facet.validate_parent(form, &cell.geometry)?;
-            let local = facet.real_coordinate_load()?;
-            let (globals, signs) = self.cell_coordinates(*index)?;
-            packets.push((local.reoriented(&signs, &signs)?, globals));
-        }
-        self.constraints
-            .with_work(packets.len(), |index| Ok(packets[index].clone()), consume)
+        let natural = input
+            .natural
+            .iter()
+            .map(|(index, facet)| Ok((*index, facet.clone().project::<Real>()?)))
+            .collect::<Result<_, Diagnostic>>()?;
+        let work = PreparedRegionAssembly::<S, Real>::new(
+            AssemblyPacketSetIdentityV1::Unbound,
+            &plan,
+            input.forms.clone(),
+            &self.mapping.cell_domains,
+            cells,
+            natural,
+        )?;
+        let packet_domains = work.packet_domains(&self.mapping.cell_domains)?;
+        Ok(MappedRegionAssembly {
+            plan,
+            work,
+            packet_domains,
+        })
     }
 }

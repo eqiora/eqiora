@@ -6,7 +6,7 @@ use super::residual::{mapped_local_point, scatter_residual};
 use super::*;
 use eqiora_assembly::{AssemblyBackend, AssemblyMap, AssemblyTargetId};
 
-impl PreparedRegionAssembly<f64> {
+impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegionAssembly<S, P> {
     pub(crate) fn linearize(
         &self,
         plan: &AssemblyPlan,

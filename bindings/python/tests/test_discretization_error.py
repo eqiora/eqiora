@@ -212,9 +212,9 @@ def test_localized_polynomial_error_and_indicators_have_independent_references()
     assert estimates[2] < estimates[1] < estimates[0]
 
 
-@pytest.mark.parametrize("value", [True, np.bool_(True), 1+2j, np.complex64(1+2j), np.complex128(1+2j)])
+@pytest.mark.parametrize("value", [True, np.bool_(True)])
 @pytest.mark.parametrize("vector", [False, True])
-def test_initial_field_rejects_nonreal_and_boolean_components(value, vector):
+def test_initial_field_rejects_boolean_components(value, vector):
     model, _, _, _ = solve(2)
     field = model.field("definition.u")
     # InitialField retains typed coefficients before Plan/shape admission.
@@ -224,6 +224,21 @@ def test_initial_field_rejects_nonreal_and_boolean_components(value, vector):
     invalid = [[value, 0.]] if vector else [value]
     with pytest.raises(TypeError):
         q.InitialField(field, vertex_values=invalid)
+
+
+@pytest.mark.parametrize("component", [complex, np.complex64, np.complex128])
+@pytest.mark.parametrize("array", [False, True])
+def test_real_spatial_state_rejects_imaginary_initial_coefficients(component, array):
+    model, mesh, plan, _ = solve(2)
+    field = model.field("definition.u")
+    values = [component(1+2j) for _ in mesh.coordinates]
+    if array:
+        values = np.asarray(values)
+    # InitialField retains complete components; the owning Plan enforces the
+    # real Field domain, after shape and cardinality have been checked.
+    assignment = q.InitialField(field, vertex_values=values)
+    with pytest.raises(q.ValidationError, match="real InitialField cannot contain imaginary"):
+        q.State.initial(plan, fields=(assignment,))
 
 
 @pytest.mark.parametrize("simplex, expected", [(True, 5/96), (False, 5/64)])
@@ -253,7 +268,7 @@ def test_stationary_state_seeds_run_and_survives_result_replay(simplex, expected
         q.State.initial(plan, time_s=0., fields=(q.InitialField(field, vertex_values=values),))
     bad = values.copy()
     bad[0] = 1.
-    with pytest.raises(q.ValidationError, match="boundary"):
+    with pytest.raises(q.ValidationError, match="prescribed"):
         q.State.initial(plan, fields=(q.InitialField(field, vertex_values=bad),))
     refined = mesh.refine((0,), maximum_cells=100) if simplex else None
     if refined is not None:

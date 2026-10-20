@@ -13,6 +13,7 @@ mod tests;
 pub(super) struct ComponentColumn {
     pub(super) field: RawId,
     pub(super) component: BasisComponent,
+    pub(super) scalar_domain: ScalarDomain,
     pub(super) real: Option<usize>,
     pub(super) imaginary: Option<usize>,
 }
@@ -168,9 +169,14 @@ impl<S: Coefficient> Context<'_, S> {
                 return Err(super::super::invalid("component trial has no exact Field"));
             };
             let value_type = definition.value_type();
-            if value_type.scalar_domain() != ty.scalar_domain() {
+            if !matches!(
+                value_type.scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            ) || (value_type.scalar_domain() == ScalarDomain::Complex
+                && S::DOMAIN != ScalarDomain::Complex)
+            {
                 return Err(super::super::invalid(
-                    "mixed real/complex component actions require a real-coordinate realization",
+                    "component trial requires its complete numeric scalar domain",
                 ));
             }
             let mut coordinates = std::collections::BTreeMap::new();
@@ -207,6 +213,7 @@ impl<S: Coefficient> Context<'_, S> {
                     columns.push(ComponentColumn {
                         field: field.erase(),
                         component,
+                        scalar_domain: value_type.scalar_domain(),
                         real: None,
                         imaginary: None,
                     });

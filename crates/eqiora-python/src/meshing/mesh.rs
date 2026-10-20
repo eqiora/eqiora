@@ -10,6 +10,7 @@ use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
+use numpy::ndarray::Ix2;
 use pyo3::exceptions::{PyOverflowError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyTuple};
@@ -19,9 +20,9 @@ mod topology;
 
 use super::plan::{MeshProviderPolicy, PlannedMesh, PyMeshPlan};
 use super::request_error;
+use crate::array::OwnedBuffer;
 use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::digest_to_hex;
-use crate::matrix::ReadOnlyMatrix;
 use crate::panic_boundary;
 
 /// Immutable source-bound accepted Mesh.
@@ -36,8 +37,8 @@ pub(crate) struct PyMesh {
     source: AcceptedMeshSource,
     lineage: MeshLineage,
     canonical_bytes: Vec<u8>,
-    coordinates: ReadOnlyMatrix<f64>,
-    cells: ReadOnlyMatrix<u32>,
+    coordinates: OwnedBuffer<f64, Ix2>,
+    cells: OwnedBuffer<u32, Ix2>,
 }
 
 enum AcceptedMeshSource {
@@ -710,7 +711,7 @@ fn project_simplicial_mesh(
     py: Python<'_>,
     mesh: &eqiora::meshing::SimplicialMesh,
     dimension: usize,
-) -> PyResult<(ReadOnlyMatrix<f64>, ReadOnlyMatrix<u32>)> {
+) -> PyResult<(OwnedBuffer<f64, Ix2>, OwnedBuffer<u32, Ix2>)> {
     let vertex_count = mesh.vertices().len();
     let mut coordinates = Vec::with_capacity(vertex_count * dimension);
     for coordinate in mesh.vertices() {
@@ -739,8 +740,8 @@ fn project_simplicial_mesh(
         );
     }
     Ok((
-        ReadOnlyMatrix::new(vertex_count, dimension, coordinates),
-        ReadOnlyMatrix::new(cell_count, cell_width, cells),
+        OwnedBuffer::matrix(vertex_count, dimension, coordinates),
+        OwnedBuffer::matrix(cell_count, cell_width, cells),
     ))
 }
 
@@ -750,7 +751,7 @@ fn project_cartesian_mesh(
     dimension: usize,
     vertex_count: usize,
     cell_count: usize,
-) -> PyResult<(ReadOnlyMatrix<f64>, ReadOnlyMatrix<u32>)> {
+) -> PyResult<(OwnedBuffer<f64, Ix2>, OwnedBuffer<u32, Ix2>)> {
     let mut coordinates = Vec::with_capacity(vertex_count * dimension);
     for index in 0..vertex_count {
         let coordinate = mesh
@@ -789,8 +790,8 @@ fn project_cartesian_mesh(
         );
     }
     Ok((
-        ReadOnlyMatrix::new(vertex_count, dimension, coordinates),
-        ReadOnlyMatrix::new(cell_count, cell_width, cells),
+        OwnedBuffer::matrix(vertex_count, dimension, coordinates),
+        OwnedBuffer::matrix(cell_count, cell_width, cells),
     ))
 }
 

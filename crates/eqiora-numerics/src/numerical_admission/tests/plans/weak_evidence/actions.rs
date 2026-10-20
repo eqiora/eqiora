@@ -68,7 +68,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
         )
         .unwrap();
     let boundary = (1, local);
-    let work = PreparedRegionAssembly::new(
+    let work = PreparedRegionAssembly::<_>::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &plan,
         vec![(bound, QuadratureRule::gauss_legendre(2).unwrap())],

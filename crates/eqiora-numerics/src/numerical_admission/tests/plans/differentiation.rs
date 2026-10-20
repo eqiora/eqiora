@@ -1,5 +1,6 @@
 //! Supplied candidates use exact Plan assembly and original residual admission.
 mod material;
+mod mixed_scalar;
 mod tensor_material;
 
 use super::*;

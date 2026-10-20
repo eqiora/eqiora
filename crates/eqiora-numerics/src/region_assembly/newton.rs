@@ -19,7 +19,7 @@ struct RegionNewtonPoint {
     assembly: RegionAssemblyLinearization,
 }
 
-impl PreparedRegionAssembly<f64> {
+impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegionAssembly<S, P> {
     #[allow(
         clippy::too_many_arguments,
         reason = "exact target, numerical policies, and multiplier admission are independent inputs"

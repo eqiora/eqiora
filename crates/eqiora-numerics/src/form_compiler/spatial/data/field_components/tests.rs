@@ -22,12 +22,12 @@ fn component(
     component_from_source(&source, "r", None)
 }
 
-fn component_from_source(
+fn component_from_source<S: Coefficient>(
     source: &str,
     relation: &str,
     prescribed: Option<(&str, &str)>,
 ) -> (
-    Arc<FieldComponent<f64>>,
+    Arc<FieldComponent<S>>,
     KernelProgram,
     [Id<kinds::Parameter>; 2],
 ) {
@@ -50,7 +50,7 @@ fn component_from_source(
         let KernelNode::Field(definition) = program.node(field).unwrap() else {
             panic!("coefficient Field");
         };
-        let context = Context::<f64> {
+        let context = Context::<S> {
             program: &program,
             dag,
             owner,
@@ -67,7 +67,7 @@ fn component_from_source(
     let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
         panic!("test equation");
     };
-    let context = Context::<f64> {
+    let context = Context::<S> {
         program: &program,
         dag,
         owner,
@@ -94,7 +94,7 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
         for u in [-1., 2.] {
             let (value, gradient) = bound.action(&[0.25], &[u], true).unwrap();
             assert_eq!(value, u + p * u * u);
-            assert_eq!(gradient, [1. + 2. * p * u]);
+            assert_eq!(gradient, [[1. + 2. * p * u, 0.]]);
             assert_eq!(
                 bound
                     .parameter_action(&[0.25], &[u], &parameter, false)
@@ -301,5 +301,152 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
                 .map(|(value, _)| value)
                 .is_err()
         );
+    }
+}
+
+#[test]
+fn complex_component_products_retain_independent_real_directions() {
+    use num_complex::Complex64 as C;
+    let source = "model Products() {
+        domain body=box(0,1);parameter p:1=0;parameter q:1=0;
+        variable u:complex<1> on body;
+        relation r on body {u=(1+p*math.real(u))*u+q*math.conj(u);}
+    }";
+    let (component, program, parameters) = component_from_source::<C>(source, "r", None);
+    let coordinates = coordinates(&program, &parameters).unwrap();
+    for p in [0., 3.] {
+        let q = -2.;
+        let point = ParameterPoint::bind(&program, &parameters, &[p, q]).unwrap();
+        let bound = component.bind_parameter_point(&point).unwrap();
+        for u in [C::new(-1., 2.), C::new(2., -1.)] {
+            let (a, b) = (u.re, u.im);
+            // f=(1+p*a)*(a+i*b)+q*(a-i*b). These are independent
+            // derivatives with respect to a and b, not a complex derivative.
+            let (value, gradient) = bound.action(&[0.25], &[u], true).unwrap();
+            assert_eq!(value, C::new((1. + p * a + q) * a, (1. + p * a - q) * b));
+            assert_eq!(
+                gradient,
+                [[
+                    C::new(1. + 2. * p * a + q, p * b),
+                    C::new(0., 1. + p * a - q)
+                ]]
+            );
+            let (value, gradient) = bound
+                .parameter_action(&[0.25], &[u], &coordinates[0], true)
+                .unwrap();
+            assert_eq!(value, C::new(a * a, a * b));
+            assert_eq!(gradient, [[C::new(2. * a, b), C::new(0., a)]]);
+            let (value, gradient) = bound
+                .parameter_action(&[0.25], &[u], &coordinates[1], true)
+                .unwrap();
+            assert_eq!(value, u.conj());
+            assert_eq!(gradient, [[C::new(1., 0.), C::new(0., -1.)]]);
+        }
+    }
+}
+
+#[test]
+fn real_outputs_and_imaginary_only_inputs_keep_their_coordinate_roles() {
+    use num_complex::Complex64 as C;
+    for (expression, expected, gradient) in [
+        (
+            "math.abs2(u)",
+            C::new(13., 0.),
+            [C::new(4., 0.), C::new(-6., 0.)],
+        ),
+        (
+            "math.complex(0,math.imag(u)^2)",
+            C::new(0., 9.),
+            [C::new(0., 0.), C::new(0., -6.)],
+        ),
+    ] {
+        let source = format!(
+            "model Products() {{
+            domain body=box(0,1);parameter p:1=0;parameter q:1=0;
+            variable u:complex<1> on body;relation r on body {{u={expression};}}
+        }}"
+        );
+        let (component, _, _) = component_from_source::<C>(&source, "r", None);
+        let (value, actual) = component.action(&[0.25], &[C::new(2., -3.)], true).unwrap();
+        assert_eq!(value, expected);
+        assert_eq!(actual, [gradient]);
+    }
+}
+
+#[test]
+fn mixed_field_domains_preserve_real_inputs_and_complex_output_parts() {
+    use num_complex::Complex64 as C;
+    let source = "model Products() {
+        domain body=box(0,1);parameter p:1=0;parameter q:1=0;
+        variable u:complex<1> on body;variable v:1 on body;
+        relation r on body {u=(1+v)*u;}
+    }";
+    let (component, _, _) = component_from_source::<C>(source, "r", None);
+    let values = component
+        .columns
+        .iter()
+        .map(|column| {
+            if column.scalar_domain == ScalarDomain::Real {
+                C::new(2., 0.)
+            } else {
+                C::new(3., -4.)
+            }
+        })
+        .collect::<Vec<_>>();
+    let (value, gradient) = component.action(&[0.25], &values, true).unwrap();
+    assert_eq!(value, C::new(9., -12.));
+    for (column, gradient) in component.columns.iter().zip(gradient) {
+        let expected = if column.scalar_domain == ScalarDomain::Real {
+            [C::new(3., -4.), C::new(0., 0.)]
+        } else {
+            [C::new(3., 0.), C::new(0., 3.)]
+        };
+        assert_eq!(gradient, expected);
+    }
+    let mut invalid = values;
+    let real = component
+        .columns
+        .iter()
+        .position(|column| column.scalar_domain == ScalarDomain::Real)
+        .unwrap();
+    invalid[real].im = 1.;
+    assert!(component.action(&[0.25], &invalid, false).is_err());
+
+    let source = "model Products() {
+        domain body=box(0,1);parameter p:1=0;parameter q:1=0;
+        variable u:complex<1> on body;
+        relation r on body {u=math.complex(math.real(u),math.imag(u));}
+    }";
+    let (component, _, _) = component_from_source::<C>(source, "r", None);
+    let (value, _) = component
+        .action(&[0.25], &[C::new(-0., -0.)], false)
+        .unwrap();
+    assert_eq!(value.re.to_bits(), (-0_f64).to_bits());
+    assert_eq!(value.im.to_bits(), (-0_f64).to_bits());
+}
+
+#[test]
+fn affine_real_projections_of_complex_trials_require_real_coordinates() {
+    use num_complex::Complex64 as C;
+    for (expression, expected) in [
+        ("math.real(u)", [C::new(1., 0.), C::new(0., 0.)]),
+        ("math.imag(u)", [C::new(0., 0.), C::new(1., 0.)]),
+    ] {
+        let source = format!(
+            "model Products() {{
+                domain body=box(0,1);parameter p:1=0;parameter q:1=0;
+                variable u:complex<1> on body;relation r on body {{u={expression};}}
+            }}"
+        );
+        let (component, _, _) = component_from_source::<C>(&source, "r", None);
+        assert!(component.is_affine());
+        let affine = crate::form_compiler::spatial::data::affine::project(component);
+        assert_eq!(affine.terms.len(), 1);
+        let coefficient = &affine.terms[0].2;
+        assert!(coefficient.evaluate(&[0.25]).is_err());
+        let images = coefficient.coordinate_images(1).unwrap();
+        for (image, expected) in images.iter().zip(expected) {
+            assert_eq!(image.evaluate(&[0.25]).unwrap(), expected);
+        }
     }
 }

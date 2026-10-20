@@ -1,4 +1,5 @@
 //! Prepared parent-cell trace actions, shared by affine and Newton assembly.
+use super::coordinates::{Native, Projection};
 use super::field_point::{BoundFieldComponent, FieldPoint};
 use super::flux::FluxTerm;
 use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, invalid};
@@ -9,6 +10,8 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{
     AffineGeometryMap, EntityIncidence, GeometryMap, QuadratureRule, ReferenceCellFamily,
 };
+
+mod action;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
@@ -21,7 +24,7 @@ struct Sample<S: Coefficient> {
 /// Physical geometry, trace orientation and complete Field ranges remain bound
 /// while candidate coefficients change. Global constraints belong to assembly.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedRegionFacet<S: Coefficient> {
+pub(crate) struct PreparedRegionFacet<S: Coefficient, P: Projection<S> = Native> {
     domain: RawId,
     parent: AffineGeometryMap,
     fields: Vec<RegionFieldLayout>,
@@ -30,7 +33,8 @@ pub(crate) struct PreparedRegionFacet<S: Coefficient> {
     constitutive: Vec<BoundFieldComponent<S>>,
     transport_nodes: Vec<Vec<bool>>,
     normal: Vec<f64>,
-    affine: LocalContribution<S>,
+    coordinates: Vec<std::ops::Range<usize>>,
+    affine: LocalContribution<P::Scalar>,
     samples: Vec<Sample<S>>,
 }
 
@@ -128,6 +132,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             constitutive,
             transport_nodes: Vec::new(),
             normal,
+            coordinates: <Native as Projection<S>>::ranges(&self.fields)?,
             affine,
             samples: Vec::new(),
         };
@@ -240,7 +245,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
     }
 }
 
-impl<S: Coefficient> PreparedRegionFacet<S> {
+impl<S: Coefficient, P: Projection<S>> PreparedRegionFacet<S, P> {
     fn transport_shape(&self, sample: &Sample<S>, field: usize, node: usize) -> f64 {
         if self.transport_nodes[field][node] {
             sample.values[field][node]
@@ -249,7 +254,7 @@ impl<S: Coefficient> PreparedRegionFacet<S> {
         }
     }
 
-    pub(crate) fn affine(&self) -> &LocalContribution<S> {
+    pub(crate) fn affine(&self) -> &LocalContribution<P::Scalar> {
         &self.affine
     }
 
@@ -268,133 +273,48 @@ impl<S: Coefficient> PreparedRegionFacet<S> {
     }
 }
 
-impl PreparedRegionFacet<f64> {
-    pub(crate) fn linearize(&self, point: &[f64]) -> Result<RegionLinearization, Diagnostic> {
-        self.action(point, true)
-    }
-
-    pub(crate) fn residual(&self, point: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        Ok(self.action(point, false)?.residual)
-    }
-
-    pub(super) fn action(
-        &self,
-        point: &[f64],
-        derivative: bool,
-    ) -> Result<RegionLinearization, Diagnostic> {
-        let count = self.affine.rows();
-        if point.len() != count || point.iter().any(|value| !value.is_finite()) {
-            return Err(invalid(
-                "nonlinear natural facet requires an exact finite parent point",
-            ));
-        }
-        let mut action = RegionLinearization {
-            jacobian: if derivative {
-                vec![0.; count * count]
-            } else {
-                Vec::new()
-            },
-            residual: self.affine.rhs().iter().map(|value| -*value).collect(),
-        };
-        let dimension = self.normal.len();
-        let test = &self.fields[self.row];
-        for sample in &self.samples {
-            let basis = FieldPoint {
-                physical: &sample.physical,
-                values: &sample.values,
-                gradients: &sample.gradients,
-            };
-            // Demand the original constitutive primal even though its
-            // traction was replaced or cancels against the other side.
-            // This does not request a material derivative or add a traction.
-            for value in &self.constitutive {
-                let _ = value.action(&self.fields, &basis, point, false)?;
-            }
-            for (&column, &coefficient) in self.columns.iter().zip(&sample.coefficients) {
-                let trial = &self.fields[column];
-                let value = (0..dimension)
-                    .map(|i| {
-                        sample.values[column]
-                            .iter()
-                            .enumerate()
-                            .map(|(b, _)| {
-                                let shape = self.transport_shape(sample, column, b);
-                                shape * trial.scale * point[trial.range.start + b * dimension + i]
-                            })
-                            .sum::<f64>()
-                    })
-                    .collect::<Vec<_>>();
-                let normal_value = value
-                    .iter()
-                    .zip(&self.normal)
-                    .map(|(u, n)| u * n)
-                    .sum::<f64>();
-                for (a, _) in sample.values[self.row].iter().enumerate() {
-                    let test_value = self.transport_shape(sample, self.row, a);
-                    for (i, component_value) in value.iter().enumerate() {
-                        let r = test.range.start + a * dimension + i;
-                        action.residual[r] +=
-                            coefficient * test_value * normal_value * component_value;
-                        if !derivative {
-                            continue;
-                        }
-                        for (b, _) in sample.values[column].iter().enumerate() {
-                            let trial_value = self.transport_shape(sample, column, b);
-                            for (k, normal_component) in self.normal.iter().enumerate() {
-                                let c = trial.range.start + b * dimension + k;
-                                action.jacobian[r * count + c] += coefficient
-                                    * test_value
-                                    * trial_value
-                                    * trial.scale
-                                    * (normal_component * component_value
-                                        + if i == k { normal_value } else { 0. });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if action
-            .residual
+impl<S: Coefficient> PreparedRegionFacet<S> {
+    /// Reuse the physical trace samples and project only their numerical storage.
+    pub(crate) fn project<P: Projection<S>>(self) -> Result<PreparedRegionFacet<S, P>, Diagnostic> {
+        if self
+            .affine
+            .matrix()
             .iter()
-            .chain(&action.jacobian)
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid("nonlinear natural facet action is non-finite"));
-        }
-        Ok(action)
-    }
-}
-
-impl PreparedRegionFacet<num_complex::Complex64> {
-    /// A prescribed natural load is a physical value, not a trial action.
-    /// Project its scalar parts without introducing a second trace integrator.
-    pub(crate) fn real_coordinate_load(&self) -> Result<LocalContribution<f64>, Diagnostic> {
-        if !self.samples.is_empty()
-            || self
-                .affine
-                .matrix()
-                .iter()
-                .any(|value| *value != num_complex::Complex64::new(0., 0.))
+            .any(|value| *value != <S as From<f64>>::from(0.))
         {
             return Err(invalid(
-                "real-coordinate facet projection requires a prescribed affine load",
+                "natural facet projection requires a load without a trial matrix",
             ));
         }
         let mut rhs = Vec::new();
         for field in &self.fields {
-            let width = field.real_scalar_coordinates()?;
-            for value in &self.affine.rhs()[field.range.clone()] {
-                if width == 1 && value.im != 0. {
-                    return Err(invalid("a real Field load has an imaginary component"));
-                }
-                rhs.extend([value.re, value.im].into_iter().take(width));
-            }
+            rhs.extend(super::coordinates::values::<S, P>(
+                &field.value_type,
+                &self.affine.rhs()[field.range.clone()],
+            )?);
         }
         let entries = rhs
             .len()
             .checked_mul(rhs.len())
-            .ok_or_else(|| invalid("real-coordinate facet matrix dimensions overflow"))?;
-        LocalContribution::new(rhs.len(), rhs.len(), vec![0.; entries], rhs)
+            .ok_or_else(|| invalid("projected facet matrix dimensions overflow"))?;
+        let affine = LocalContribution::new(
+            rhs.len(),
+            rhs.len(),
+            vec![<P::Scalar as From<f64>>::from(0.); entries],
+            rhs,
+        )?;
+        Ok(PreparedRegionFacet {
+            domain: self.domain,
+            parent: self.parent,
+            coordinates: P::ranges(&self.fields)?,
+            fields: self.fields,
+            row: self.row,
+            columns: self.columns,
+            constitutive: self.constitutive,
+            transport_nodes: self.transport_nodes,
+            normal: self.normal,
+            affine,
+            samples: self.samples,
+        })
     }
 }

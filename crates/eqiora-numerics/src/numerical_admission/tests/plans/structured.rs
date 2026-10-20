@@ -6,6 +6,7 @@ mod differentiation;
 mod integrals;
 mod observations;
 mod real_coordinates;
+mod state;
 
 #[test]
 fn channel_fields_retain_each_real_and_complex_component() {
@@ -124,6 +125,9 @@ fn channel_fields_retain_each_real_and_complex_component() {
             let (_, value_type) = spatial.fields().next().unwrap();
             assert_eq!(value_type.array_rank(), 1);
             assert_eq!(value_type.frame(), eqiora_core::ValueFrame::Invariant);
+            if method == CommonSpatialPolicy::Q1 {
+                state::check(&model, &plan, complex);
+            }
             let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             observations::check_channels(&model, &plan, &result, method, complex);
             integrals::check(&model, &plan, &result, method, complex);

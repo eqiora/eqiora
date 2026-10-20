@@ -2,13 +2,15 @@
 use super::*;
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent};
 
-impl FieldComponent<f64> {
+impl<S: Coefficient> FieldComponent<S> {
+    /// Each physical input column has independent real and imaginary derivatives.
+    /// An absent scalar coordinate contributes zero; the output retains its domain.
     pub(in crate::form_compiler) fn action(
         &self,
         physical: &[f64],
-        values: &[f64],
+        values: &[S],
         derivative: bool,
-    ) -> Result<(f64, Vec<f64>), Diagnostic> {
+    ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.product(physical, values, None, derivative)
     }
 
@@ -16,22 +18,66 @@ impl FieldComponent<f64> {
     pub(in crate::form_compiler) fn parameter_action(
         &self,
         physical: &[f64],
-        values: &[f64],
+        values: &[S],
         parameter: &ScalarSymbolCoordinate,
         derivative: bool,
-    ) -> Result<(f64, Vec<f64>), Diagnostic> {
+    ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.product(physical, values, Some(parameter), derivative)
     }
 
     fn product(
         &self,
         physical: &[f64],
-        values: &[f64],
+        values: &[S],
+        parameter: Option<&ScalarSymbolCoordinate>,
+        derivative: bool,
+    ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
+        if self.rows.is_empty() || self.rows.len() > 2 {
+            return Err(super::super::super::invalid(
+                "component action has no exact scalar rows",
+            ));
+        }
+        let mut values_by_part = [0.; 2];
+        let mut gradients = [Vec::new(), Vec::new()];
+        for row in &self.rows {
+            let part = usize::from(row.is_imaginary());
+            let (value, gradient) =
+                self.row_product(row, physical, values, parameter, derivative)?;
+            values_by_part[part] = value;
+            gradients[part] = gradient;
+        }
+        let assemble = |parts: [f64; 2]| {
+            S::from_parts(parts[0], parts[1]).ok_or_else(|| {
+                super::super::super::invalid("component value exceeds its numeric scalar domain")
+            })
+        };
+        let value = assemble(values_by_part)?;
+        let mut columns = Vec::new();
+        if derivative {
+            for column in &self.columns {
+                let coordinate = |index: Option<usize>| -> Result<S, Diagnostic> {
+                    assemble(std::array::from_fn(|part| {
+                        index
+                            .and_then(|index| gradients[part].get(index))
+                            .copied()
+                            .unwrap_or(0.)
+                    }))
+                };
+                columns.push([coordinate(column.real)?, coordinate(column.imaginary)?]);
+            }
+        }
+        Ok((value, columns))
+    }
+
+    fn row_product(
+        &self,
+        row: &ComponentScalarRow,
+        physical: &[f64],
+        values: &[S],
         parameter: Option<&ScalarSymbolCoordinate>,
         derivative: bool,
     ) -> Result<(f64, Vec<f64>), Diagnostic> {
-        let inputs = self.point(physical, values)?;
-        let row = &self.rows[0];
+        let inputs = self.point(row, physical, values)?;
         if parameter.is_none() && !derivative {
             return row.evaluate(&inputs).map(|value| (value, Vec::new()));
         }
@@ -98,16 +144,10 @@ impl FieldComponent<f64> {
         for (index, entry) in unknowns.into_iter().zip(gradient) {
             selected_gradient[index] += entry;
         }
-        Ok((
-            value[0],
-            self.columns
-                .iter()
-                .map(|column| selected_gradient[column.real.expect("checked real column")])
-                .collect(),
-        ))
+        Ok((value[0], selected_gradient))
     }
 
-    fn binding(&self, coordinate: &ScalarSymbolCoordinate) -> Result<&Input<f64>, Diagnostic> {
+    fn binding(&self, coordinate: &ScalarSymbolCoordinate) -> Result<&Input<S>, Diagnostic> {
         self.bindings
             .iter()
             .find(|(value, _)| value == coordinate)
@@ -115,24 +155,31 @@ impl FieldComponent<f64> {
             .ok_or_else(|| super::super::super::invalid("component input lacks its exact binding"))
     }
 
-    fn point(&self, physical: &[f64], values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        if self.rows.len() != 1
-            || values.len() != self.columns.len()
+    fn point(
+        &self,
+        row: &ComponentScalarRow,
+        physical: &[f64],
+        values: &[S],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        if values.len() != self.columns.len()
             || values.iter().any(|value| !value.is_finite())
-            || self
-                .columns
-                .iter()
-                .any(|column| column.real.is_none() || column.imaginary.is_some())
+            || self.columns.iter().zip(values).any(|(column, value)| {
+                column.scalar_domain == ScalarDomain::Real && value.im() != 0.
+            })
         {
             return Err(super::super::super::invalid(
-                "nonlinear component action requires exact finite real trial coordinates",
+                "component action requires exact finite typed trial values",
             ));
         }
         let mut selected = vec![0.; self.selected.len()];
         for (column, value) in self.columns.iter().zip(values) {
-            selected[column.real.expect("checked real column")] = *value;
+            if let Some(index) = column.real {
+                selected[index] = value.re();
+            }
+            if let Some(index) = column.imaginary {
+                selected[index] = value.im();
+            }
         }
-        let row = &self.rows[0];
         let mut inputs = Vec::with_capacity(row.symbols().len());
         for coordinate in row.symbols() {
             if let Some(index) = self.selected.iter().position(|value| value == coordinate) {
