@@ -11,26 +11,12 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
         point: PreparedPoint<'_, Self>,
         initial: Option<&CommonState>,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        if initial.is_some() || point.plan.admission.nonlinear.is_some() {
-            return Err(invalid(
-                "this affine spatial differentiation path requires no initial State",
-            ));
-        }
-        point.solve_affine(backend)
-    }
+    ) -> Result<CommonDifferentiationPoint, Diagnostic>;
     fn accept_point(
         point: PreparedPoint<'_, Self>,
         initial: Option<&CommonState>,
         candidate: &[f64],
-    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        if initial.is_some() || point.plan.admission.nonlinear.is_some() {
-            return Err(invalid(
-                "this affine spatial differentiation path requires no initial State",
-            ));
-        }
-        point.accept_affine(candidate)
-    }
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic>;
     type Projection: crate::form_compiler::region::coordinates::Projection<Self, Scalar = f64>;
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
@@ -46,7 +32,15 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
         mesh: &eqiora_meshing::CartesianMesh,
         input: crate::region_assembly::mapping::RegionSolveInput<Self>,
         values: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic>;
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let projected = crate::region_assembly::mapping::RegionRealCoordinates::new(mapping)?;
+        let prepared = projected.prepare_assembly(mesh, &input)?;
+        prepared.work.residual(
+            &prepared.plan,
+            prepared.plan.target_id(0).expect("reduced target"),
+            values,
+        )
+    }
     fn solve<P: Coefficient + Send + Sync>(
         plan: &CommonSpatialPlan,
         linear: &NativeLinearPolicy,
@@ -70,30 +64,14 @@ impl DifferentiationScalar for f64 {
         initial: Option<&CommonState>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        if point.plan.admission.nonlinear.is_some() {
-            point.solve_nonlinear(initial, backend)
-        } else if initial.is_none() {
-            point.solve_affine(backend)
-        } else {
-            Err(invalid(
-                "affine spatial differentiation does not consume an initial State",
-            ))
-        }
+        point.solve_strategy(initial, backend)
     }
     fn accept_point(
         point: PreparedPoint<'_, Self>,
         initial: Option<&CommonState>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        if point.plan.admission.nonlinear.is_some() {
-            point.accept_nonlinear(initial, candidate)
-        } else if initial.is_none() {
-            point.accept_affine(candidate)
-        } else {
-            Err(invalid(
-                "affine spatial differentiation does not consume an initial State",
-            ))
-        }
+        point.accept_strategy(initial, candidate)
     }
     type Projection = crate::form_compiler::region::coordinates::Native;
     const WIDTH: usize = 1;
@@ -120,26 +98,6 @@ impl DifferentiationScalar for f64 {
                 admission.operator_properties,
             )
             .map(StaticSpatialSystem::Real)
-    }
-    fn parameter_residual(
-        mapping: &RegionDofMap<Self>,
-        mesh: &eqiora_meshing::CartesianMesh,
-        input: crate::region_assembly::mapping::RegionSolveInput<Self>,
-        values: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic> {
-        let prepared = mapping.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            input.forms,
-            input.natural,
-            None,
-            None,
-        )?;
-        prepared.work.residual(
-            &prepared.plan,
-            prepared.plan.target_id(0).expect("reduced target"),
-            values,
-        )
     }
     fn solve<P: Coefficient + Send + Sync>(
         plan: &CommonSpatialPlan,
@@ -171,6 +129,21 @@ impl DifferentiationScalar for f64 {
 }
 
 impl DifferentiationScalar for Complex64 {
+    fn solve_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        point.solve_strategy(initial, backend)
+    }
+    fn accept_point(
+        point: PreparedPoint<'_, Self>,
+        initial: Option<&CommonState>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        point.accept_strategy(initial, candidate)
+    }
+
     type Projection = crate::form_compiler::region::coordinates::Real;
     const WIDTH: usize = 2;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
@@ -207,25 +180,6 @@ impl DifferentiationScalar for Complex64 {
             admission.resources(),
             &admission.discretizations,
             &admission.system_scaling,
-        )
-    }
-    fn parameter_residual(
-        mapping: &RegionDofMap<Self>,
-        mesh: &eqiora_meshing::CartesianMesh,
-        input: crate::region_assembly::mapping::RegionSolveInput<Self>,
-        values: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic> {
-        crate::region_assembly::mapping::RegionRealCoordinates::new(mapping)?.with_static_work(
-            mesh,
-            &input,
-            |plan, work| {
-                crate::region_assembly::residual::evaluate_affine_work(
-                    plan,
-                    plan.target_id(0).expect("reduced target"),
-                    work,
-                    values,
-                )
-            },
         )
     }
     fn solve<P: Coefficient + Send + Sync>(

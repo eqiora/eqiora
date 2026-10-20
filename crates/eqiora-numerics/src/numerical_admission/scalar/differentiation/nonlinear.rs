@@ -1,17 +1,55 @@
 //! Original stationary Newton acceptance and its retained Jacobian feed implicit actions.
 use super::*;
 use crate::region_assembly::{
-    mapping::{RecoveredRegionField, RegionSolveInput},
+    mapping::{
+        RecoveredRegionField, RegionAlgebraicCoordinates, RegionRealCoordinates, RegionSolveInput,
+    },
     nonlinear::RegionAssemblyLinearization,
 };
 
-type Seed = BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>;
+type NonlinearInputs<S> = (
+    RegionDofMap<S>,
+    RegionSolveInput<S>,
+    BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>,
+);
 
-impl PreparedPoint<'_, f64> {
-    fn nonlinear_inputs(
-        &self,
-        initial: &CommonState,
-    ) -> Result<(RegionDofMap<f64>, RegionSolveInput<f64>, Seed), Diagnostic> {
+impl<S: DifferentiationScalar> PreparedPoint<'_, S>
+where
+    RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+{
+    pub(super) fn solve_strategy(
+        self,
+        initial: Option<&CommonState>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        if self.plan.admission.nonlinear.is_some() {
+            self.solve_nonlinear(initial, backend)
+        } else if initial.is_none() {
+            self.solve_affine(backend)
+        } else {
+            Err(invalid(
+                "affine spatial differentiation does not consume an initial State",
+            ))
+        }
+    }
+
+    pub(super) fn accept_strategy(
+        self,
+        initial: Option<&CommonState>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        if self.plan.admission.nonlinear.is_some() {
+            self.accept_nonlinear(initial, candidate)
+        } else if initial.is_none() {
+            self.accept_affine(candidate)
+        } else {
+            Err(invalid(
+                "affine spatial differentiation does not consume an initial State",
+            ))
+        }
+    }
+
+    fn nonlinear_inputs(&self, initial: &CommonState) -> Result<NonlinearInputs<S>, Diagnostic> {
         self.plan.static_initial_fields(initial)?;
         let admission = &self.plan.admission;
         let (mapping, input) = self.equations.static_assembly(
@@ -52,7 +90,9 @@ impl PreparedPoint<'_, f64> {
             .solve;
         let initial_point = crate::nonlinear_execution::NewtonInitialPoint {
             residual_norm: solved.evidence.initial_residual_norm,
-            at_seed: solved.values == mapping.physical_predictor(&seed)?,
+            at_seed: solved.values
+                == RegionRealCoordinates::new(&mapping)?
+                    .encode(&mapping.physical_predictor(&seed)?)?,
         };
         let linearization = self.nonlinear_linearization(
             &mapping,
@@ -81,14 +121,7 @@ impl PreparedPoint<'_, f64> {
             invalid("nonlinear spatial differentiation requires its exact initial State")
         })?;
         let (mapping, input, seed) = self.nonlinear_inputs(initial)?;
-        let fields = mapping.recover(
-            candidate,
-            &self
-                .plan
-                .fields()
-                .map(|(id, _)| id.erase())
-                .collect::<Vec<_>>(),
-        )?;
+        let fields = RegionRealCoordinates::new(&mapping)?.recover(candidate)?;
         let NativeMeshResources::Cartesian { mesh, .. } = self.plan.admission.resources() else {
             return Err(invalid(
                 "spatial Parameter differentiation requires exact Cartesian resources",
@@ -113,8 +146,8 @@ impl PreparedPoint<'_, f64> {
 
     fn nonlinear_linearization(
         &self,
-        mapping: &RegionDofMap<f64>,
-        input: &RegionSolveInput<f64>,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
         values: Vec<f64>,
         assembly: RegionAssemblyLinearization,
         target: f64,

@@ -50,7 +50,7 @@ fn check<S: Coefficient>(source: &str, phase: S) {
     let direction =
         AffineGeometryLinearization::new(map.clone(), vec![2., -1.], vec![0.; 4]).unwrap();
     let (primal, tangent) = bound
-        .prepare_affine_actions(
+        .prepare_affine_actions::<Native>(
             &map,
             Some(&direction),
             &simplex_duffy_gauss_legendre(2, 3).unwrap(),
@@ -214,7 +214,7 @@ fn conjugated_gradient_requires_a_real_linear_realization() {
     let bound = form.bind(reference, &fields, &rows, None).unwrap();
     let map = AffineGeometryMap::new(reference, 2, vec![0., 0.], vec![2., 0., 0., 3.]).unwrap();
     let error = bound
-        .prepare_affine_actions(&map, None, &simplex_duffy_gauss_legendre(2, 3).unwrap())
+        .prepare_affine_actions::<Native>(&map, None, &simplex_duffy_gauss_legendre(2, 3).unwrap())
         .unwrap_err();
     assert!(
         error.message().contains("real-coordinate realization"),

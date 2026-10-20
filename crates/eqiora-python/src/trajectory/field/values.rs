@@ -1,4 +1,4 @@
-//! Shape-preserving numerical coefficients for one exact no-Mesh Field.
+//! Shape-preserving real/complex coefficients shared by every InitialField association.
 use super::*;
 use pyo3::types::{PyList, PyTuple};
 
@@ -8,12 +8,7 @@ enum Visit<'py> {
 }
 
 pub(super) fn extract(value: &Bound<'_, PyAny>) -> PyResult<(eqiora::ValueShape, Vec<(f64, f64)>)> {
-    let value = if value.hasattr("tolist")? {
-        value.call_method0("tolist")?
-    } else {
-        value.clone()
-    };
-    let mut visits = vec![Visit::Value(value, 0)];
+    let mut visits = vec![Visit::Value(value.clone(), 0)];
     let mut active = BTreeSet::new();
     let mut extents = Vec::new();
     let mut leaf_depth = None;
@@ -26,8 +21,15 @@ pub(super) fn extract(value: &Bound<'_, PyAny>) -> PyResult<(eqiora::ValueShape,
             }
             Visit::Value(value, depth) => (value, depth),
         };
+        // Normalize arrays and NumPy scalars at every depth, retaining the source
+        // identity so object arrays cannot evade cycle detection by allocating lists.
+        let identity = value.as_ptr() as usize;
+        let value = if value.hasattr("tolist")? {
+            value.call_method0("tolist")?
+        } else {
+            value
+        };
         if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
-            let identity = value.as_ptr() as usize;
             if !active.insert(identity) {
                 return Err(PyValueError::new_err("InitialField value contains a cycle"));
             }
@@ -56,9 +58,6 @@ pub(super) fn extract(value: &Bound<'_, PyAny>) -> PyResult<(eqiora::ValueShape,
                 ));
             }
             leaf_depth = Some(depth);
-            if value.is_instance_of::<PyBool>() {
-                return Err(PyValueError::new_err("InitialField value rejects booleans"));
-            }
             components.push(crate::modeling::value_literal::scalar(&value)?);
         }
     }

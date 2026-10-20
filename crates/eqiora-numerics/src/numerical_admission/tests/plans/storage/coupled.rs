@@ -173,10 +173,10 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
             assert_eq!(initial.spatial_values().unwrap()[index], expected + offset);
         }
         for (values, message) in [
-            (vec![0.; 8], "exact mapped inventory"),
+            (vec![0.; 8], "physical fields omit exact mapped coordinates"),
             (
                 vec![f64::NAN; 9],
-                "physical fields require complete finite coefficients",
+                "physical Field coordinates must be complete and finite",
             ),
         ] {
             let mut invalid = initial.clone();

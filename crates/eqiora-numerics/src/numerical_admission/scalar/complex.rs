@@ -94,9 +94,7 @@ impl CommonSpatialPlan {
             self.authored_formulation.as_ref(),
         )?;
         if replayed != *self {
-            return Err(invalid(
-                "complex linear Plan changed during exact internal replay",
-            ));
+            return Err(invalid("complex Plan changed during exact internal replay"));
         }
         Ok(())
     }
@@ -134,17 +132,13 @@ impl NativeNumericalAdmission {
                 .fields
                 .into_iter()
                 .map(|(field, ty, values, space)| {
-                    (
-                        field,
-                        ty,
-                        values
-                            .into_iter()
-                            .flat_map(|value| [value.re, value.im])
-                            .collect(),
-                        space,
-                    )
+                    let values = crate::form_compiler::region::coordinates::values::<
+                        _,
+                        crate::form_compiler::region::coordinates::Real,
+                    >(&ty, &values)?;
+                    Ok((field, ty, values, space))
                 })
-                .collect(),
+                .collect::<Result<_, Diagnostic>>()?,
             solve_report: output.solve_report,
             assembly_report: output.assembly_report,
             nullspace: output.nullspace,

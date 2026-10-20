@@ -5,16 +5,31 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonInitialValues {
     shape: eqiora_core::ValueShape,
-    values: Box<[f64]>,
+    values: Box<[(f64, f64)]>,
 }
 
 impl CommonInitialValues {
     /// Entity-major values, with row-major physical components within each entity.
-    pub fn new(shape: eqiora_core::ValueShape, values: Vec<f64>) -> Result<Self, Diagnostic> {
+    /// Real and complex inputs preserve both scalar parts; the owning Plan checks
+    /// the exact Field scalar domain.
+    pub fn new(
+        shape: eqiora_core::ValueShape,
+        values: Vec<impl Into<num_complex::Complex64>>,
+    ) -> Result<Self, Diagnostic> {
+        let values = values
+            .into_iter()
+            .map(|value| {
+                let value = value.into();
+                (value.re, value.im)
+            })
+            .collect::<Vec<_>>();
         let components = shape
             .component_count()
             .ok_or_else(|| invalid("InitialField component count overflows"))?;
-        if !values.len().is_multiple_of(components) || values.iter().any(|value| !value.is_finite())
+        if !values.len().is_multiple_of(components)
+            || values
+                .iter()
+                .any(|(re, im)| !re.is_finite() || !im.is_finite())
         {
             return Err(invalid(
                 "InitialField requires complete finite coherent-SI components",
@@ -28,8 +43,23 @@ impl CommonInitialValues {
     pub fn shape(&self) -> &eqiora_core::ValueShape {
         &self.shape
     }
-    pub fn values(&self) -> &[f64] {
+    /// Row-major physical components as `(real, imaginary)` pairs.
+    pub fn values(&self) -> &[(f64, f64)] {
         &self.values
+    }
+
+    pub(super) fn real_values(&self) -> Result<Vec<f64>, Diagnostic> {
+        self.values
+            .iter()
+            .map(|&(re, im)| {
+                if im != 0. {
+                    return Err(invalid(
+                        "real InitialField cannot contain imaginary coefficients",
+                    ));
+                }
+                Ok(re)
+            })
+            .collect()
     }
 
     pub(super) fn vectors<const N: usize>(&self) -> Result<Vec<[f64; N]>, Diagnostic> {
@@ -45,7 +75,7 @@ impl CommonInitialValues {
                 "InitialField vector shape differs from exact Field",
             ));
         }
-        Ok(self.values.as_chunks::<N>().0.to_vec())
+        Ok(self.real_values()?.as_chunks::<N>().0.to_vec())
     }
 }
 
@@ -56,13 +86,7 @@ pub struct CommonInitialField {
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     vertex: Option<CommonInitialValues>,
     cell: Option<CommonInitialValues>,
-    finite: Option<FiniteInitialValue>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct FiniteInitialValue {
-    shape: eqiora_core::ValueShape,
-    components: Box<[(f64, f64)]>,
+    finite: Option<CommonInitialValues>,
 }
 
 impl CommonInitialField {
@@ -94,13 +118,16 @@ impl CommonInitialField {
         shape: eqiora_core::ValueShape,
         components: Vec<(f64, f64)>,
     ) -> Result<Self, Diagnostic> {
-        if shape.component_count() != Some(components.len())
-            || components
-                .iter()
-                .any(|(re, im)| !re.is_finite() || !im.is_finite())
-        {
+        let value = CommonInitialValues::new(
+            shape,
+            components
+                .into_iter()
+                .map(|(re, im)| num_complex::Complex64::new(re, im))
+                .collect(),
+        )?;
+        if value.shape().component_count() != Some(value.values().len()) {
             return Err(invalid(
-                "finite InitialField requires its complete shape and finite coherent-SI components",
+                "finite InitialField requires exactly one complete physical value",
             ));
         }
         Ok(Self {
@@ -108,10 +135,7 @@ impl CommonInitialField {
             field,
             vertex: None,
             cell: None,
-            finite: Some(FiniteInitialValue {
-                shape,
-                components: components.into_boxed_slice(),
-            }),
+            finite: Some(value),
         })
     }
     /// No-Mesh coefficients; absent for spatial assignments.
@@ -119,7 +143,7 @@ impl CommonInitialField {
     pub fn finite_value(&self) -> Option<(&eqiora_core::ValueShape, &[(f64, f64)])> {
         self.finite
             .as_ref()
-            .map(|value| (&value.shape, value.components.as_ref()))
+            .map(|value| (&value.shape, value.values()))
     }
     #[must_use]
     pub const fn model(&self) -> &eqiora_artifact::ArtifactDigest {

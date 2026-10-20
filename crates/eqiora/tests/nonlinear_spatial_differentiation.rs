@@ -1,5 +1,7 @@
 //! Nonlinear material products through the ordinary Program and immutable records.
 mod support;
+#[path = "nonlinear_spatial_differentiation/tables.rs"]
+mod tables;
 use eqiora::api::{
     DifferentiableProgram, EvaluationCollection, EvaluationMapExecutionPolicy, EvaluationMapPlan,
     EvaluationMapRetention, ModelDocument, RecordedDifferentiableEvaluation,
@@ -38,6 +40,17 @@ fn fixture() -> (
     }",
     )
     .unwrap();
+    fixture_from_document(document, 2.)
+}
+
+fn fixture_from_document(
+    document: ModelDocument,
+    right: f64,
+) -> (
+    ModelDocument,
+    ResolvedCommonPlan,
+    CommonInitialState<'static>,
+) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0., 1.]).unwrap();
     let boundaries = interval.boundaries();
@@ -97,10 +110,13 @@ fn fixture() -> (
             vec![
                 CommonInitialField::new(
                     document.artifact_reference().unwrap().artifact().clone(),
-                    document.field_ref("u").unwrap().id(),
+                    plan.as_spatial().unwrap().fields().next().unwrap().0,
                     Some(
-                        CommonInitialValues::new(eqiora::ValueShape::scalar(), vec![1., 1.5, 2.])
-                            .unwrap(),
+                        CommonInitialValues::new(
+                            eqiora::ValueShape::scalar(),
+                            vec![1., (1. + right) / 2., right],
+                        )
+                        .unwrap(),
                     ),
                     None,
                 )
@@ -122,7 +138,20 @@ fn program(
             document.parameter_ref("p").unwrap(),
             document.parameter_ref("r").unwrap(),
         ],
-        &[document.field_ref("u").unwrap().erase()],
+        &[document
+            .field_ref(
+                &plan
+                    .as_spatial()
+                    .unwrap()
+                    .fields()
+                    .next()
+                    .unwrap()
+                    .0
+                    .ulid()
+                    .to_string(),
+            )
+            .unwrap()
+            .erase()],
         Default::default(),
         Some(seed.clone()),
         &FaerLinearSolver,

@@ -1,26 +1,56 @@
 //! One ownership and lazy materialization path for each admitted scalar dtype.
-use numpy::{Element, IntoPyArray, PyArray1, PyArrayMethods};
+use numpy::ndarray::{Array, Dimension, Ix1, Ix2, IxDyn};
+use numpy::{Element, IntoPyArray, PyArray, PyArrayMethods};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use std::{mem, sync::Mutex};
 
-pub(super) struct OwnedBuffer<T: Element + Copy> {
-    state: Mutex<State<T>>,
+pub(crate) struct OwnedBuffer<T: Element + Copy, D: Dimension = Ix1> {
+    shape: D,
+    state: Mutex<State<T, D>>,
 }
 
-enum State<T: Element> {
+enum State<T: Element, D: Dimension> {
     Native(Vec<T>),
     Materializing,
-    Numpy(Py<PyArray1<T>>),
+    Numpy(Py<PyArray<T, D>>),
 }
 
 impl<T: Element + Copy> OwnedBuffer<T> {
-    pub(super) fn new(values: Vec<T>) -> Self {
+    pub(crate) fn new(values: Vec<T>) -> Self {
+        Self::with_shape(numpy::ndarray::Dim([values.len()]), values)
+    }
+}
+
+impl<T: Element + Copy> OwnedBuffer<T, Ix2> {
+    pub(crate) fn matrix(rows: usize, columns: usize, values: Vec<T>) -> Self {
+        Self::with_shape(numpy::ndarray::Dim([rows, columns]), values)
+    }
+
+    pub(crate) fn shape(&self) -> (usize, usize) {
+        (self.shape[0], self.shape[1])
+    }
+}
+
+impl<T: Element + Copy> OwnedBuffer<T, IxDyn> {
+    pub(crate) fn shaped(shape: Vec<usize>, values: Vec<T>) -> Self {
+        Self::with_shape(IxDyn(&shape), values)
+    }
+}
+
+impl<T: Element + Copy, D: Dimension> OwnedBuffer<T, D> {
+    fn with_shape(shape: D, values: Vec<T>) -> Self {
+        debug_assert_eq!(shape.size(), values.len());
         Self {
+            shape,
             state: Mutex::new(State::Native(values)),
         }
     }
 
-    pub(super) fn numpy(&self, py: Python<'_>) -> PyResult<Py<PyArray1<T>>> {
+    pub(crate) fn ndim(&self) -> usize {
+        self.shape.ndim()
+    }
+
+    pub(crate) fn numpy(&self, py: Python<'_>) -> PyResult<Py<PyArray<T, D>>> {
         let values = {
             let mut state = self
                 .state
@@ -43,7 +73,9 @@ impl<T: Element + Copy> OwnedBuffer<T> {
             values
         };
         // Import hooks may re-enter this buffer. Never hold the lock across NumPy initialization.
-        let array = values.into_pyarray(py);
+        let native = Array::from_shape_vec(self.shape.clone(), values)
+            .expect("validated native array shape");
+        let array = native.into_pyarray(py);
         let owned = array.clone().unbind();
         drop(array.readwrite().make_nonwriteable());
         let mut state = self
@@ -59,7 +91,7 @@ impl<T: Element + Copy> OwnedBuffer<T> {
         Ok(owned)
     }
 
-    pub(super) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<T>> {
+    pub(crate) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<T>> {
         let array = {
             let state = self
                 .state
@@ -78,7 +110,7 @@ impl<T: Element + Copy> OwnedBuffer<T> {
         Ok(array.bind(py).readonly().as_slice()?.to_vec())
     }
 
-    pub(super) fn get(&self, py: Python<'_>, index: usize) -> PyResult<T> {
+    pub(crate) fn get(&self, py: Python<'_>, index: usize) -> PyResult<T> {
         let array = {
             let state = self
                 .state

@@ -57,11 +57,6 @@ pub(super) fn lower<S: Coefficient>(
         let component = match component {
             Component::Affine(value) => value,
             Component::Nonlinear(value) => {
-                if S::DOMAIN != eqiora_core::ScalarDomain::Real {
-                    return Err(invalid(
-                        "nonlinear component Region actions require real coordinates",
-                    ));
-                }
                 let term = super::super::nonlinear::ComponentTerm {
                     test,
                     value,

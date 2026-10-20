@@ -16,24 +16,30 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
         eqiora_geometry::CanonicalGeometryLimits::default(),
     )
     .unwrap();
-    for property in [false, true] {
+    for (property, complex) in [(false, false), (true, false), (false, true), (true, true)] {
         let supports = "support body:volume(ambient_dimension=2),
             support left:boundary(parent=body),support right:boundary(parent=body),
             support bottom:boundary(parent=body),support top:boundary(parent=body)";
-        let law = "(1+T)*delta(0,1)+p";
+        let law = if complex {
+            "math.complex(1+T,1)*delta(0,1)+p"
+        } else {
+            "(1+T)*delta(0,1)+p"
+        };
+        let scalar = if complex { "complex<1>" } else { "1" };
+        let branch = if complex { "principal" } else { "single" };
         let declarations = if property {
             format!(
-                "property contract Conductivity(input T:1,input p:1):tensor<1,2,2> {{
-                    derivatives first_partials;
+                "property contract Conductivity(input T:1,input p:1):tensor<{scalar},2,2> {{
+                    derivatives first_partials;branch {branch};
                 }}
                 property release Measured:Conductivity {{
                     analytic {{value={law};source_unit:1=1;}}
-                    validity T>=0 and T<=20 and p>=0 and p<=3;outside reject;branch single;
+                    validity T>=0 and T<=20 and p>=0 and p<=3;outside reject;branch {branch};
                     citation org.example.manufactured;license spdx.CC0_1_0;
                 }}"
             )
         } else {
-            format!("operator k(input T:1,input p:1):tensor<1,2,2>={law};")
+            format!("operator k(input T:1,input p:1):tensor<{scalar},2,2>={law};")
         };
         let argument = if property {
             ",property k:Conductivity"
@@ -41,17 +47,39 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
             ""
         };
         let binding = if property { ",k=Measured" } else { "" };
-        let exact = "p*(1+coordinate(0)/1[m]+2*coordinate(1)/1[m])";
-        let flux = "contract(k(T=u,p=p),grad(u),axes=((1,0),))";
+        let real_exact = "p*(1+coordinate(0)/1[m]+2*coordinate(1)/1[m])";
+        let exact = if complex {
+            format!("math.complex({real_exact},p*(2-coordinate(0)/1[m]+coordinate(1)/1[m]))")
+        } else {
+            real_exact.to_owned()
+        };
+        let temperature = if complex { "math.real(u)" } else { "u" };
+        let flux = format!("contract(k(T={temperature},p=p),grad(u),axes=((1,0),))");
+        let forcing = if complex {
+            "-math.complex(5,1)*p*p"
+        } else {
+            "-5*p*p"
+        };
+        let (right, top) = if complex {
+            (
+                format!("math.complex(1+{real_exact},1)*p*math.complex(1,-1)+3*p*p"),
+                format!("math.complex(1+{real_exact},1)*p*math.complex(2,1)+3*p*p"),
+            )
+        } else {
+            (
+                format!("(1+{real_exact})*p+3*p*p"),
+                format!("2*(1+{real_exact})*p+3*p*p"),
+            )
+        };
         let source = format!(
             "{declarations}
             component Equation({supports},parameter p:1{argument}) {{
-                variable u:1 on body in smooth;
-                relation balance on body {{-div({flux})=-5*p*p/1[m^2];}}
+                variable u:{scalar} on body in smooth;
+                relation balance on body {{-div({flux})={forcing}/1[m^2];}}
                 relation lower_x on left {{trace(u)={exact};}}
                 relation lower_y on bottom {{trace(u)={exact};}}
-                relation upper_x on right {{normal({flux})=((1+{exact})*p+3*p*p)/1[m];}}
-                relation upper_y on top {{normal({flux})=(2*(1+{exact})*p+3*p*p)/1[m];}}
+                relation upper_x on right {{normal({flux})=({right})/1[m];}}
+                relation upper_y on top {{normal({flux})=({top})/1[m];}}
             }}
             public component Material({supports},parameter p:1) {{
                 instance physics:Equation(body=body,left=left,right=right,
@@ -109,26 +137,53 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
             .into_iter()
             .map(|entity| mesh.vertex_coordinates(entity).unwrap().to_vec())
             .collect::<Vec<_>>();
+        let width = if complex { 2 } else { 1 };
+        let profile_at = |x: &[f64]| [1. + x[0] + 2. * x[1], 2. - x[0] + x[1]];
         let profile = points
             .iter()
-            .map(|x| 1. + x[0] + 2. * x[1])
+            .flat_map(|x| profile_at(x).into_iter().take(width))
             .collect::<Vec<_>>();
         let free_profile = points
             .iter()
-            .zip(&profile)
-            .filter(|(x, _)| x[0] > 0. && x[1] > 0.)
-            .map(|(_, value)| *value)
+            .filter(|x| x[0] > 0. && x[1] > 0.)
+            .flat_map(|x| profile_at(x).into_iter().take(width))
             .collect::<Vec<_>>();
         let initial = plan
             .scalar_state(
                 None,
                 points
                     .iter()
-                    .zip(&profile)
-                    .map(|(x, value)| value - 0.25 * x[0] * x[1])
+                    .flat_map(|x| {
+                        let value = profile_at(x);
+                        [
+                            value[0] - 0.25 * x[0] * x[1],
+                            value[1] - 0.125 * x[0] * x[1],
+                        ]
+                        .into_iter()
+                        .take(width)
+                    })
                     .collect(),
             )
             .unwrap();
+        let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
+        let result = plan
+            .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        close(result.field_block(0, 0).unwrap().1, &profile);
+        assert_eq!(
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap(),
+            result
+        );
+        let mut corrupted = profile.clone();
+        let interior = points.iter().position(|x| x[0] > 0. && x[1] > 0.).unwrap();
+        corrupted[interior * width + width - 1] += 0.01;
+        assert!(
+            crate::CommonResult::from_bytes(
+                &super::super::result_replay::reseal_values(&result, 0, &corrupted),
+                &resolved,
+            )
+            .is_err()
+        );
         let before = initial.to_bytes().unwrap();
         let parameter = plan
             .kernel()
@@ -141,9 +196,11 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
         let outputs = [field.erase()];
         let quadratures = std::collections::HashMap::new();
         for p in [0.5, 1., 2.] {
-            // K=(1+u)I+pJ, J_ij=1. With u=p(1+x+2y), div(K grad u)=5p².
-            // Q1 represents u exactly. The total derivative is phi=1+x+2y,
-            // including both coefficient-state dependence and prescribed traces.
+            // Real: u=p*phi, K=(1+u)I+pJ, div(K grad u)=5p².
+            // Complex: u=p*(phi+i*psi), K=(1+Re(u)+i)I+pJ,
+            // phi=1+x+2y, psi=2-x+y, J_ij=1, div(K grad u)=p²(5+i).
+            // Q1 represents both affine profiles exactly. du/dp=phi+i*psi,
+            // including material-state dependence and nonzero essential/natural data.
             let candidate = free_profile
                 .iter()
                 .map(|value| p * value)

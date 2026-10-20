@@ -29,21 +29,20 @@ impl FieldPoint<'_> {
         }
     }
 
-    pub(super) fn evaluate(
+    pub(super) fn evaluate<S: Coefficient>(
         &self,
         field: usize,
         layout: &RegionFieldLayout,
-        coefficients: &[f64],
+        coefficients: &[S],
         coordinate: BasisComponent,
-    ) -> f64 {
+    ) -> S {
         self.values[field]
             .iter()
             .enumerate()
             .map(|(node, _)| {
                 let (component, basis) = self.coordinate(field, node, coordinate);
-                layout.scale
-                    * coefficients[layout.range.start + node * layout.components + component]
-                    * basis
+                coefficients[layout.range.start + node * layout.components + component]
+                    * (layout.scale * basis)
             })
             .sum()
     }
@@ -81,14 +80,14 @@ impl<S: Coefficient> BoundFieldComponent<S> {
     }
 }
 
-impl BoundFieldComponent<f64> {
+impl<S: Coefficient> BoundFieldComponent<S> {
     pub(super) fn action(
         &self,
         fields: &[RegionFieldLayout],
         sample: &FieldPoint<'_>,
-        coefficients: &[f64],
+        coefficients: &[S],
         derivative: bool,
-    ) -> Result<(f64, Vec<f64>), Diagnostic> {
+    ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.value.action(
             sample.physical,
             &self.inputs(fields, sample, coefficients),
@@ -100,10 +99,10 @@ impl BoundFieldComponent<f64> {
         &self,
         fields: &[RegionFieldLayout],
         sample: &FieldPoint<'_>,
-        coefficients: &[f64],
+        coefficients: &[S],
         parameter: &eqiora_ir::ScalarSymbolCoordinate,
         derivative: bool,
-    ) -> Result<(f64, Vec<f64>), Diagnostic> {
+    ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.value.parameter_action(
             sample.physical,
             &self.inputs(fields, sample, coefficients),
@@ -116,8 +115,8 @@ impl BoundFieldComponent<f64> {
         &self,
         fields: &[RegionFieldLayout],
         sample: &FieldPoint<'_>,
-        coefficients: &[f64],
-    ) -> Vec<f64> {
+        coefficients: &[S],
+    ) -> Vec<S> {
         self.columns
             .iter()
             .map(|(field, coordinate)| {

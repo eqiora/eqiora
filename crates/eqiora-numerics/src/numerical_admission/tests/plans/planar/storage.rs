@@ -84,19 +84,19 @@ public component Heat(
                 plan.scalar_state(Some(0.), vec![2.; 4])
                     .unwrap_err()
                     .message()
-                    .contains("physical fields require complete")
+                    .contains("physical fields omit exact mapped coordinates")
             );
             assert!(
                 plan.scalar_state(Some(0.), vec![f64::NAN; 5])
                     .unwrap_err()
                     .message()
-                    .contains("physical fields require complete")
+                    .contains("physical Field coordinates must be complete and finite")
             );
             assert!(
                 plan.scalar_state(Some(0.), vec![0.; 5])
                     .unwrap_err()
                     .message()
-                    .contains("prescribed boundary")
+                    .contains("prescribed algebraic trace")
             );
             let run =
                 CommonTransientRunRequest::from_steps(replay.clone(), initial, 3, vec![1, 2, 3])

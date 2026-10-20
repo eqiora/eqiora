@@ -36,6 +36,35 @@ def test_complex_spatial_parameter_actions_use_real_pairing(method):
                              outputs=(plan.fields[0],))
     nodal = method is q.fem.Q1
     x = (np.arange(5 if nodal else 4) + (0 if nodal else .5)) / 4
+    if nodal:
+        # A complete complex seed need not solve the equations; only its exact
+        # physical type, coefficient layout and essential trace are admitted.
+        seed = (1+x[:, None])*p + x[:, None]*(1-x[:, None])*(3-5j)
+        field = plan.fields[0]
+        initial = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=seed),))
+        before = initial.to_bytes()
+        for typed_seed in (seed.astype(np.complex64),
+                           [[np.complex64(value) for value in row] for row in seed]):
+            typed = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=typed_seed),))
+            assert typed.to_bytes() == before
+        expected_seed = seed.copy()
+        seed[1, 0] += 100+200j
+        for state in (initial, q.State.from_bytes(plan, before)):
+            assert state.time_s is None
+            assert state.to_bytes() == before
+            actual = state.field(field).values("vertex")
+            assert actual.dtype == np.dtype("complex128")
+            assert actual.shape == (5, 2)
+            assert not actual.flags.writeable
+            assert state.field(field).values("vertex") is actual
+            np.testing.assert_array_equal(actual, expected_seed)
+            with pytest.raises(ValueError):
+                actual[0, 0] = 0
+        wrong = expected_seed.copy()
+        wrong[0, 0] += 1j
+        for invalid in (wrong, expected_seed[:-1], expected_seed[:, 0]):
+            with pytest.raises(q.ValidationError):
+                q.State.initial(plan, fields=(q.InitialField(field, vertex_values=invalid),))
     # Directly integrate -conj(a)*u''=load. TPFA's half-cell Dirichlet
     # distances add load*h²/(8*conj(a)); Q1 has exact quadratic nodal values.
     f = x*(1-x)/2 + (0 if nodal else 1/128)

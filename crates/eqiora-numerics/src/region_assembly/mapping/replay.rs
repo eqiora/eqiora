@@ -3,12 +3,12 @@ use super::*;
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
-impl RegionDofMap<f64> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     fn validated_step_point(
         &self,
-        input: &RegionSolveInput<f64>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-    ) -> Result<Vec<f64>, Diagnostic> {
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+    ) -> Result<Vec<S>, Diagnostic> {
         self.validate_physical(fields)?;
         let previous = input
             .previous
@@ -26,13 +26,13 @@ impl RegionDofMap<f64> {
                         ..*key
                     };
                     let new = fields[&pair.state().erase()].coefficients[key];
-                    let increment = step.duration().value()
-                        * fields[&pair.rate().erase()].coefficients[&rate_key];
+                    let increment = fields[&pair.rate().erase()].coefficients[&rate_key]
+                        * step.duration().value();
                     // Same floating-operation bound used by physical volume sampling.
                     let roundoff = (8. * f64::EPSILON * old.abs())
                         + (8. * f64::EPSILON * new.abs())
                         + (8. * f64::EPSILON * increment.abs());
-                    if !increment.is_finite() || (new - old - increment).abs() > roundoff {
+                    if !increment.is_finite() || (new - *old - increment).abs() > roundoff {
                         return Err(invalid("accepted step violates backward-Euler kinematics"));
                     }
                     if input
@@ -49,7 +49,9 @@ impl RegionDofMap<f64> {
         }
         self.validated_algebraic_point(fields)
     }
+}
 
+impl RegionDofMap<f64> {
     pub(crate) fn validate_step_coefficients<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
@@ -71,13 +73,16 @@ impl RegionDofMap<f64> {
     }
 }
 
-impl RegionDofMap<f64> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S>
+where
+    Self: RegionAlgebraicCoordinates<f64, S>,
+{
     pub(crate) fn validate_nonlinear_coefficients<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: &RegionSolveInput<f64>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-        initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        initial: &BTreeMap<RawId, RecoveredRegionField<S>>,
         nonlinear: eqiora_realization::NonlinearSolvePlan,
         iterations: usize,
     ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic> {
@@ -103,26 +108,19 @@ impl RegionDofMap<f64> {
     pub(crate) fn accept_nonlinear_coefficients<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: &RegionSolveInput<f64>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-        initial: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        initial: &BTreeMap<RawId, RecoveredRegionField<S>>,
         nonlinear: eqiora_realization::NonlinearSolvePlan,
     ) -> Result<AcceptedNonlinearPoint, Diagnostic> {
         self.validate_solve_input(mesh, input)?;
         let reduced = if input.previous.is_some() {
-            self.validated_step_point(input, fields)?
+            self.encode_coordinates(&self.validated_step_point(input, fields)?)?
         } else {
-            self.validated_algebraic_point(fields)?
+            self.validated_coordinates(fields)?
         };
         let seed = self.nonlinear_predictor(input, initial)?;
-        let prepared = self.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            input.forms.clone(),
-            input.natural.clone(),
-            input.previous.as_ref(),
-            input.geometry_action.as_deref(),
-        )?;
+        let prepared = self.prepare_numeric_assembly(mesh, input)?;
         let target = prepared.plan.target_id(0).expect("reduced target");
         let norm = |point: &[f64]| -> Result<f64, Diagnostic> {
             super::super::newton::residual_norm(&prepared.work.residual(
@@ -152,7 +150,7 @@ impl RegionDofMap<f64> {
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect();
-        self.require_multiplier_closure(action.systems[0].matrix(), &multipliers)?;
+        self.require_numeric_multiplier_closure(action.systems[0].matrix(), &multipliers)?;
         // Both ordinary residual evaluation and the retained differentiated action
         // must satisfy the original target; neither is replaced by J*x-b.
         let assembled_norm = super::super::newton::residual_norm(&action.residuals[0])?;

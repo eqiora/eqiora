@@ -12,10 +12,10 @@ use eqiora_numerics::{
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyBytes, PyModule, PySequence, PyTuple};
+use pyo3::types::{PyBool, PyBytes, PyModule, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
+use crate::array::OwnedBuffer;
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 use crate::model_io::{

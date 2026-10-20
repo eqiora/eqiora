@@ -1,4 +1,3 @@
-use crate::form_compiler::region::integration::IntegralField;
 use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 
@@ -8,28 +7,34 @@ use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap
 use super::binding::BoundRegionForm;
 use super::invalid;
 
-use super::coordinates::{Native, Projection, Real};
+use super::coordinates::Projection;
+use num_complex::ComplexFloat;
 
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Validate local inputs without performing quadrature or constructing contributions.
-    pub(crate) fn validate_cell(
+    pub(crate) fn validate_cell<P: Projection<S>>(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-        previous: &BTreeMap<RawId, Vec<S>>,
+        previous: &BTreeMap<RawId, Vec<P::Scalar>>,
     ) -> Result<(), Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
-        if previous.len() != self.previous.len()
-            || self.previous.iter().any(|(field, layout)| {
-                previous.get(field).is_none_or(|values| {
-                    values.len() != layout.range.len()
-                        || values.iter().any(|value| !value.is_finite())
-                })
-            })
-        {
-            return Err(invalid(
-                "previous coefficients require exact consumed Field coverage, shape and finite values",
-            ));
+        let message =
+            "previous coefficients require exact consumed Field coverage, shape and finite values";
+        if previous.len() != self.previous.len() {
+            return Err(invalid(message));
+        }
+        for (field, layout) in &self.previous {
+            let count = layout
+                .range
+                .len()
+                .checked_mul(P::width(&layout.value_type)?)
+                .ok_or_else(|| invalid("previous scalar coordinate count overflow"))?;
+            if previous.get(field).is_none_or(|values| {
+                values.len() != count || values.iter().any(|value| !value.is_finite())
+            }) {
+                return Err(invalid(message));
+            }
         }
         Ok(())
     }
@@ -58,31 +63,14 @@ impl<S: Coefficient> BoundRegionForm<S> {
         Ok(())
     }
 
-    pub(super) fn prepare_affine_actions(
-        &self,
-        geometry: &AffineGeometryMap,
-        direction: Option<&AffineGeometryLinearization>,
-        quadrature: &QuadratureRule,
-    ) -> Result<super::integration::IntegralActions<S>, Diagnostic> {
-        self.prepare_projected_actions::<Native>(geometry, direction, quadrature)
-    }
-
-    fn prepare_projected_actions<P: Projection<S>>(
+    pub(super) fn prepare_affine_actions<P: Projection<S>>(
         &self,
         geometry: &AffineGeometryMap,
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
     ) -> Result<super::integration::IntegralActions<P::Scalar>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
-        let fields = self
-            .fields
-            .iter()
-            .map(|layout| {
-                let mut field = IntegralField::from(layout);
-                field.scalar_coordinates = P::width(&layout.value_type)?;
-                Ok(field)
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let fields = super::coordinates::fields::<S, P>(&self.fields)?;
         let indices = self
             .fields
             .iter()
@@ -189,25 +177,6 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 Ok(())
             },
         )
-    }
-}
-
-impl BoundRegionForm<num_complex::Complex64> {
-    /// Integrate the full real-linear action while retaining physical component
-    /// pairings and the exact nodal or moment basis. Numbering is Field-major,
-    /// basis-major, real/imaginary-coordinate-minor.
-    pub(crate) fn prepare_real_affine_actions(
-        &self,
-        geometry: &AffineGeometryMap,
-        direction: Option<&AffineGeometryLinearization>,
-        quadrature: &QuadratureRule,
-    ) -> Result<super::integration::IntegralActions<f64>, Diagnostic> {
-        if self.time.is_some() || !self.previous.is_empty() || self.form.is_nonlinear() {
-            return Err(invalid(
-                "real-coordinate local preparation requires static affine actions",
-            ));
-        }
-        self.prepare_projected_actions::<Real>(geometry, direction, quadrature)
     }
 }
 

@@ -161,9 +161,9 @@ public component AffineStorage(
         .initial_state(Some(0.0), Vec::new())
         .unwrap_err();
     assert!(
-        mismatch
-            .message()
-            .contains("scalar State contradicts prescribed boundary values")
+        mismatch.message().contains("prescribed algebraic trace"),
+        "{}",
+        mismatch.message()
     );
 
     let singular_source = source.replace("u = x", "u = 1 [m ^ 2] / (x - 1 [m])");

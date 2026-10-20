@@ -52,16 +52,15 @@ impl CommonSpatialPlan {
                 let values = values
                     .iter()
                     .map(|(id, values)| {
-                        let (pairs, remainder) = values.as_chunks::<2>();
-                        if !remainder.is_empty() {
-                            return Err(invalid("complex Result omits a coefficient component"));
-                        }
+                        let (_, ty) = self
+                            .fields()
+                            .find(|(field, _)| field.erase() == *id)
+                            .ok_or_else(|| invalid("complex Result contains an unowned Field"))?;
                         Ok((
                             *id,
-                            pairs
-                                .iter()
-                                .map(|[re, im]| num_complex::Complex64::new(*re, *im))
-                                .collect(),
+                            crate::form_compiler::region::coordinates::Real::decode::<
+                                num_complex::Complex64,
+                            >(ty, values)?,
                         ))
                     })
                     .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;

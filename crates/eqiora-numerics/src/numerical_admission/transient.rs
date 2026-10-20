@@ -662,7 +662,7 @@ impl CommonTransientFlowPlan {
             _ => return Err(invalid("MINI velocity requires vector2 cell_values")),
         };
         let pressure_vertices = match pressure.vertex() {
-            Some(values) if values.shape().is_scalar() => values.values().to_vec(),
+            Some(values) if values.shape().is_scalar() => values.real_values()?,
             _ => return Err(invalid("P1 pressure requires scalar vertex_values")),
         };
         if pressure.cell().is_some() {

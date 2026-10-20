@@ -9,7 +9,7 @@ use pyo3::types::IntoPyDict;
 use pyo3::types::{PyAny, PyBool, PyComplex, PyDict, PyFloat, PyInt, PyModule};
 
 mod storage;
-use storage::OwnedBuffer;
+pub(crate) use storage::OwnedBuffer;
 
 const DLPACK_CPU_DEVICE_TYPE: i32 = 1;
 const DLPACK_CPU_DEVICE_ID: i32 = 0;

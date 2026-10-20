@@ -221,7 +221,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
         crate::constrained_dofs::ConstrainedDofLayout::new(vec![Some(0.0); 6]).unwrap();
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(6).unwrap()]).unwrap();
     let target = plan.target_id(0).unwrap();
-    let work = PreparedRegionAssembly::new(
+    let work = PreparedRegionAssembly::<_>::new(
         AssemblyPacketSetIdentityV1::from_sha256([73; 32]),
         &plan,
         vec![(bound, simplex_duffy_gauss_legendre(2, 2).unwrap())],

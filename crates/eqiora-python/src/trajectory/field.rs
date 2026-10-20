@@ -1,7 +1,8 @@
 use super::*;
 use eqiora::ValueFrame;
+use numpy::ndarray::IxDyn;
 use std::collections::BTreeSet;
-mod finite_initial;
+mod values;
 
 /// Immutable exact-Field-bound coherent-SI initial coefficients.
 #[pyclass(
@@ -40,7 +41,7 @@ impl PyInitialField {
                 "finite InitialField cannot contain spatial associations",
             ));
         }
-        let finite = value.map(finite_initial::extract).transpose()?;
+        let finite = value.map(values::extract).transpose()?;
         let native = match finite {
             Some((shape, components)) => CommonInitialField::finite(model, id, shape, components),
             None => CommonInitialField::new(model, id, vertex, cell),
@@ -86,78 +87,79 @@ pub(super) fn extract_initial_fields(
 }
 
 fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialValues> {
-    let normalized = value
-        .cast::<PySequence>()
-        .is_err()
-        .then(|| value.call_method0("tolist"))
-        .transpose()?;
-    let sequence = normalized
-        .as_ref()
-        .unwrap_or(value)
-        .cast::<PySequence>()
-        .map_err(|_| {
-            PyValueError::new_err("InitialField values must be scalar or vector sequences")
-        })?;
-    let length = sequence.len()?;
-    if length == 0 {
+    let (shape, components) = values::extract(value)?;
+    if shape.is_scalar() {
         return Err(PyValueError::new_err(
-            "InitialField value sequences must be nonempty",
+            "InitialField spatial values require an entity axis",
         ));
     }
-    let first = sequence.get_item(0)?;
-    let (shape, values) = if first.cast::<PySequence>().is_ok()
-        && !first.is_instance_of::<pyo3::types::PyString>()
-    {
-        let width = first.cast::<PySequence>()?.len()?;
-        let extent = u32::try_from(width)
-            .map_err(|_| PyOverflowError::new_err("InitialField vector width exceeds uint32"))?;
-        let shape = eqiora::ValueShape::new([extent])
-            .map_err(|_| PyValueError::new_err("InitialField vectors must have nonzero width"))?;
-        let mut values = Vec::new();
-        for index in 0..length {
-            let row = sequence
-                .get_item(index)?
-                .cast_into::<PySequence>()
-                .map_err(|_| PyValueError::new_err("InitialField vector rows must be sequences"))?;
-            if row.len()? != width {
-                return Err(PyValueError::new_err(
-                    "InitialField vector rows have inconsistent widths",
-                ));
-            }
-            for component in 0..width {
-                values.push(crate::modeling::value_literal::real(
-                    &row.get_item(component)?,
-                )?);
-            }
-        }
-        (shape, values)
-    } else {
-        let values = (0..length)
-            .map(|index| crate::modeling::value_literal::real(&sequence.get_item(index)?))
-            .collect::<PyResult<Vec<_>>>()?;
-        (eqiora::ValueShape::scalar(), values)
-    };
-    CommonInitialValues::new(shape, values)
-        .map_err(|diagnostic| crate::error::validation_error(value.py(), &[diagnostic]))
+    let physical_shape =
+        eqiora::ValueShape::new(shape.extents().iter().skip(1).map(|extent| extent.get()))
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    CommonInitialValues::new(
+        physical_shape,
+        components
+            .into_iter()
+            .map(|(re, im)| numpy::Complex64::new(re, im))
+            .collect(),
+    )
+    .map_err(|diagnostic| crate::error::validation_error(value.py(), &[diagnostic]))
 }
 
 enum ProjectedValues {
-    Scalar(ReadOnlyVector<f64>),
-    Vector(ReadOnlyMatrix<f64>),
+    Real(OwnedBuffer<f64, IxDyn>),
+    Complex(OwnedBuffer<numpy::Complex64, IxDyn>),
 }
 
 impl ProjectedValues {
     fn numpy(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Scalar(values) => Ok(values.numpy(py)?.into_any()),
-            Self::Vector(values) => Ok(values.numpy(py)?.into_any()),
+            Self::Real(values) => Ok(values.numpy(py)?.into_any()),
+            Self::Complex(values) => Ok(values.numpy(py)?.into_any()),
         }
     }
 
     pub(crate) fn scalar_snapshot(&self, py: Python<'_>) -> PyResult<Option<Vec<f64>>> {
         match self {
-            Self::Scalar(values) => Ok(Some(values.snapshot(py)?)),
-            Self::Vector(_) => Ok(None),
+            Self::Real(values) if values.ndim() == 1 => Ok(Some(values.snapshot(py)?)),
+            _ => Ok(None),
+        }
+    }
+
+    fn from_coordinates(
+        ty: &eqiora::ValueType,
+        entities: usize,
+        values: Vec<f64>,
+    ) -> PyResult<Self> {
+        let mut shape = vec![entities];
+        shape.extend(
+            ty.shape()
+                .extents()
+                .iter()
+                .map(|extent| extent.get() as usize),
+        );
+        let count = shape
+            .iter()
+            .try_fold(1usize, |count, extent| count.checked_mul(*extent))
+            .ok_or_else(|| PyOverflowError::new_err("State Field shape overflows"))?;
+        match ty.scalar_domain() {
+            eqiora::ScalarDomain::Real if count == values.len() => {
+                Ok(Self::Real(OwnedBuffer::shaped(shape, values)))
+            }
+            eqiora::ScalarDomain::Complex if count.checked_mul(2) == Some(values.len()) => {
+                Ok(Self::Complex(OwnedBuffer::shaped(
+                    shape,
+                    values
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| numpy::Complex64::new(pair[0], pair[1]))
+                        .collect(),
+                )))
+            }
+            _ => Err(PyRuntimeError::new_err(
+                "State Field coordinates differ from their complete mathematical type",
+            )),
         }
     }
 }
@@ -166,7 +168,7 @@ pub(crate) struct ProjectedBlock {
     association: &'static str,
     digest: String,
     values: ProjectedValues,
-    support_indices: Arc<ReadOnlyVector<u32>>,
+    support_indices: Arc<OwnedBuffer<u32>>,
 }
 
 impl ProjectedBlock {
@@ -651,7 +653,7 @@ fn common_vector_block(association: &'static str, values: &[[f64; 2]]) -> PyResu
     common_block(
         association,
         &coefficients.clone(),
-        ProjectedValues::Vector(ReadOnlyMatrix::new(values.len(), 2, coefficients)),
+        ProjectedValues::Real(OwnedBuffer::shaped(vec![values.len(), 2], coefficients)),
         values.len(),
     )
 }
@@ -660,7 +662,7 @@ fn common_scalar_block(association: &'static str, values: &[f64]) -> PyResult<Pr
     common_block(
         association,
         values,
-        ProjectedValues::Scalar(ReadOnlyVector::new(values.to_vec())),
+        ProjectedValues::Real(OwnedBuffer::shaped(vec![values.len()], values.to_vec())),
         values.len(),
     )
 }
@@ -688,7 +690,7 @@ fn common_block_at(
         association,
         digest: hex_sha256(hasher.finalize().as_slice()),
         values,
-        support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
+        support_indices: Arc::new(OwnedBuffer::new(support_indices)),
     })
 }
 
@@ -714,7 +716,7 @@ fn common_block(
         association,
         digest: hex_sha256(hasher.finalize().as_slice()),
         values,
-        support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
+        support_indices: Arc::new(OwnedBuffer::new(support_indices)),
     })
 }
 
@@ -744,8 +746,17 @@ impl PyFieldSnapshot {
             let component_count = value_type.shape().component_count().ok_or_else(|| {
                 PyRuntimeError::new_err("State Field component count is not representable")
             })?;
+            let scalar_width = if value_type.scalar_domain() == eqiora::ScalarDomain::Complex {
+                2
+            } else {
+                1
+            };
+            let coordinate_count = component_count.checked_mul(scalar_width).ok_or_else(|| {
+                PyOverflowError::new_err("State Field coordinate count overflows")
+            })?;
             let mut groups = std::collections::BTreeMap::<usize, (Vec<usize>, Vec<f64>)>::new();
-            for (entity, coefficients) in entities.iter().zip(owned.chunks_exact(component_count)) {
+            for (entity, coefficients) in entities.iter().zip(owned.chunks_exact(coordinate_count))
+            {
                 let (indices, values) = groups.entry(entity.dimension()).or_default();
                 indices.push(entity.index());
                 values.extend_from_slice(coefficients);
@@ -766,15 +777,11 @@ impl PyFieldSnapshot {
                             ));
                         }
                     };
-                    let projected = if value_type.shape().is_scalar() {
-                        ProjectedValues::Scalar(ReadOnlyVector::new(values.clone()))
-                    } else {
-                        ProjectedValues::Vector(ReadOnlyMatrix::new(
-                            indices.len(),
-                            component_count,
-                            values.clone(),
-                        ))
-                    };
+                    let projected = ProjectedValues::from_coordinates(
+                        value_type,
+                        indices.len(),
+                        values.clone(),
+                    )?;
                     common_block_at(association, &values, projected, &indices)
                 })
                 .collect::<PyResult<Vec<_>>>()?;

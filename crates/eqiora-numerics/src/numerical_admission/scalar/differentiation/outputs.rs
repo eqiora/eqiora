@@ -53,16 +53,17 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             }
             return Ok(Vec::new());
         }
+        let layout = RegionRealCoordinates::new(mapping)?;
+        let coordinates = layout.encode_full(full)?;
         let fields = self
             .plan
             .fields()
             .map(|(id, _)| {
-                let values = coordinates(
-                    mapping
-                        .field_keys(id.erase())
-                        .map(|key| full[mapping.global_dof(key).expect("mapped Field DOF")]),
-                )
-                .collect::<Vec<_>>();
+                let values = mapping
+                    .field_keys(id.erase())
+                    .flat_map(|key| layout.global_coordinates(key))
+                    .map(|index| coordinates[index])
+                    .collect::<Vec<_>>();
                 (id, values)
             })
             .collect::<Vec<_>>();
@@ -105,22 +106,20 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                     parameters.extend(partial.parameters);
                     let mut weights = Vec::new();
                     for (field, values) in partial.fields {
-                        let keys = mapping.field_keys(field).collect::<Vec<_>>();
-                        if values.len() != keys.len() * S::WIDTH {
+                        let indices = mapping
+                            .field_keys(field)
+                            .flat_map(|key| layout.global_coordinates(key))
+                            .collect::<Vec<_>>();
+                        if values.len() != indices.len() {
                             return Err(invalid(
                                 "observation covector differs from exact Field mapping",
                             ));
                         }
-                        for (index, key) in keys.into_iter().enumerate() {
-                            let values = &values[index * S::WIDTH..(index + 1) * S::WIDTH];
-                            let global =
-                                mapping.global_dof(key).expect("mapped Field DOF") * S::WIDTH;
-                            for (part, &value) in values.iter().enumerate() {
-                                if let Some(free) = mapping.free_dof(key) {
-                                    state[row * states + free.index() * S::WIDTH + part] += value;
-                                }
-                                weights.push((global + part, value));
+                        for (global, value) in indices.into_iter().zip(values) {
+                            if let Some(free) = layout.free_coordinate(global) {
+                                state[row * states + free] += value;
                             }
+                            weights.push((global, value));
                         }
                     }
                     lift.push(weights);
@@ -146,24 +145,20 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         observations: Vec<ObservationPartials>,
     ) -> Result<Output, Diagnostic> {
         let columns = self.coordinates.len();
+        let layout = RegionRealCoordinates::new(mapping)?;
+        let coordinates = layout.encode_full(full)?;
         let field_output = |keys: &[crate::region_assembly::mapping::FieldDof],
                             direct: Vec<f64>| {
             FieldCoefficientLinearization::new(
-                coordinates(
-                    keys.iter()
-                        .map(|key| full[mapping.global_dof(*key).expect("mapped Field DOF")]),
-                )
-                .collect(),
+                keys.iter()
+                    .flat_map(|key| layout.global_coordinates(*key))
+                    .map(|index| coordinates[index])
+                    .collect(),
                 states,
                 columns,
                 keys.iter()
-                    .flat_map(|key| {
-                        (0..S::WIDTH).map(move |part| {
-                            mapping
-                                .free_dof(*key)
-                                .map(|dof| dof.index() * S::WIDTH + part)
-                        })
-                    })
+                    .flat_map(|key| layout.global_coordinates(*key))
+                    .map(|index| layout.free_coordinate(index))
                     .collect(),
                 direct,
             )
@@ -178,17 +173,24 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut parts = Vec::new();
         let mut cursor = 0;
+        let mut coordinate_cursor = 0;
         for id in &self.outputs {
             if let Some(observation) = observations.remove(id) {
                 parts.push(observation.output()?);
             } else {
                 let count = mapping.field_keys(*id).count();
                 let end = cursor + count;
+                let coordinates = keys[cursor..end]
+                    .iter()
+                    .map(|key| layout.global_coordinates(*key).len())
+                    .sum::<usize>();
+                let coordinate_end = coordinate_cursor + coordinates;
                 parts.push(field_output(
                     &keys[cursor..end],
-                    direct[cursor * S::WIDTH * columns..end * S::WIDTH * columns].to_vec(),
+                    direct[coordinate_cursor * columns..coordinate_end * columns].to_vec(),
                 )?);
                 cursor = end;
+                coordinate_cursor = coordinate_end;
             }
         }
         Output::sequence(parts)

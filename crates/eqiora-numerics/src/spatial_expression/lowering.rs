@@ -17,6 +17,8 @@ pub(crate) trait Coefficient:
 {
     fn literal(value: &ValueLiteral) -> Option<Self>;
     fn imaginary_unit() -> Option<Self>;
+    /// Reassemble numerical coordinates without arithmetic that changes signed zero.
+    fn from_parts(real: f64, imaginary: f64) -> Option<Self>;
 }
 
 impl Coefficient for f64 {
@@ -25,6 +27,9 @@ impl Coefficient for f64 {
     }
     fn imaginary_unit() -> Option<Self> {
         None
+    }
+    fn from_parts(real: f64, imaginary: f64) -> Option<Self> {
+        (imaginary == 0.).then_some(real)
     }
 }
 
@@ -43,6 +48,9 @@ impl Coefficient for Complex64 {
     }
     fn imaginary_unit() -> Option<Self> {
         Some(Self::new(0.0, 1.0))
+    }
+    fn from_parts(real: f64, imaginary: f64) -> Option<Self> {
+        Some(Self::new(real, imaginary))
     }
 }
 

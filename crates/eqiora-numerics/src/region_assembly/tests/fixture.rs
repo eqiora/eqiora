@@ -142,7 +142,7 @@ impl Fixture {
     }
 
     pub fn prepare(&self) -> Result<PreparedRegionAssembly<f64>, Diagnostic> {
-        PreparedRegionAssembly::new(
+        PreparedRegionAssembly::<_>::new(
             self.packet_set,
             &self.plan,
             self.forms.clone(),

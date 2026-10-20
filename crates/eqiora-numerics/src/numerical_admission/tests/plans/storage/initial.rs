@@ -139,11 +139,13 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
         None,
     )
     .unwrap();
+    let mismatch = plan
+        .initial_state(Some(0.0), vec![incompatible])
+        .unwrap_err();
     assert!(
-        plan.initial_state(Some(0.0), vec![incompatible])
-            .unwrap_err()
-            .message()
-            .contains("contradicts prescribed boundary")
+        mismatch.message().contains("prescribed algebraic trace"),
+        "{}",
+        mismatch.message()
     );
     let state = plan
         .initial_state(Some(0.0), vec![assignment.clone()])

@@ -1,4 +1,6 @@
 use super::*;
+use crate::region_assembly::mapping::{RecoveredRegionField, RegionDofMap, RegionSolveInput};
+use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
     /// Identity of the exact stationary numerical request, including its seed.
@@ -61,21 +63,13 @@ impl CommonSpatialPlan {
                 self.scalar_assembly_at(time)
             }
             (None, None) => {
-                if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-                    return Err(invalid("stationary spatial State requires a nodal Plan"));
-                }
                 let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model()
                 else {
                     return Err(invalid(
-                        "stationary spatial State requires real nodal equations",
+                        "temporal state assembly requires real spatial equations",
                     ));
                 };
-                equations.static_assembly(
-                    self.admission.resources(),
-                    &self.admission.discretizations,
-                    &self.admission.system_scaling,
-                    self.admission.operator_properties,
-                )
+                self.stationary_assembly(equations)
             }
             _ => Err(invalid(
                 "State model Time must match the Plan: absent for stationary, finite and nonnegative for transient",
@@ -83,20 +77,33 @@ impl CommonSpatialPlan {
         }
     }
 
-    pub(crate) fn scalar_state(
+    pub(super) fn stationary_assembly<S: Coefficient + Send + Sync>(
         &self,
-        time_s: Option<f64>,
-        values: Vec<f64>,
-    ) -> Result<CommonState, Diagnostic> {
-        let (mapping, input) = self.state_assembly(time_s)?;
-        let history = self.physical_fields(&mapping, &values)?;
-        let keys = mapping.keys().collect::<Vec<_>>();
-        if values.iter().any(|v| !v.is_finite()) {
+        equations: &ExecutableSpatialEquations<S>,
+    ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
+        if self.admission.temporal.is_some()
+            || matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_))
+        {
             return Err(invalid(
-                "spatial State requires complete finite nodal coefficients",
+                "stationary spatial State requires a stationary nodal Plan",
             ));
         }
-        let prescribed = mapping.lift(&vec![0.0; mapping.free_count()], false)?;
+        equations.static_assembly(
+            self.admission.resources(),
+            &self.admission.discretizations,
+            &self.admission.system_scaling,
+            self.admission.operator_properties,
+        )
+    }
+
+    fn validate_state_fields<S: Coefficient + Send + Sync>(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        values: &[f64],
+    ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>, Diagnostic> {
+        let history = self.physical_fields(mapping, values)?;
+        mapping.validate_prescribed_fields(&history)?;
         for (key, expected) in &input.prescribed_states {
             if history
                 .get(&key.field)
@@ -108,47 +115,54 @@ impl CommonSpatialPlan {
                 ));
             }
         }
-        for key in &keys {
-            let value = &history[&key.field].coefficients[key];
-            if mapping.free_dof(*key).is_none() {
-                let (_, layout) = mapping.field_layout(key.field).expect("exact Field");
-                let expected =
-                    prescribed[mapping.global_dof(*key).expect("exact coordinate")] * layout.scale;
-                if *value != expected {
-                    return Err(invalid(
-                        "scalar State contradicts prescribed boundary values",
-                    ));
+        Ok(history)
+    }
+
+    pub(crate) fn scalar_state(
+        &self,
+        time_s: Option<f64>,
+        values: Vec<f64>,
+    ) -> Result<CommonState, Diagnostic> {
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => {
+                let (mapping, input) = self.state_assembly(time_s)?;
+                let history = self.validate_state_fields(&mapping, &input, &values)?;
+                let algebraic = equations
+                    .regions
+                    .iter()
+                    .flat_map(|region| region.form.algebraic_fields())
+                    .collect::<BTreeSet<_>>();
+                if time_s.is_some() && !algebraic.is_empty() {
+                    match self.admission.resources() {
+                        NativeMeshResources::Cartesian { mesh, .. } => mapping
+                            .validate_algebraic_state(
+                                mesh.mesh(),
+                                input,
+                                &history,
+                                &algebraic,
+                                self.linear(),
+                            )?,
+                        NativeMeshResources::GmshSimplicial { mesh, .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
+                            .validate_algebraic_state(
+                                mesh.mesh(),
+                                input,
+                                &history,
+                                &algebraic,
+                                self.linear(),
+                            )?,
+                        _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
+                    }
                 }
             }
-        }
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing spatial equations"));
-        };
-        let algebraic = equations
-            .regions
-            .iter()
-            .flat_map(|region| region.form.algebraic_fields())
-            .collect::<BTreeSet<_>>();
-        if time_s.is_some() && !algebraic.is_empty() {
-            match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_algebraic_state(
-                    mesh.mesh(),
-                    input,
-                    &history,
-                    &algebraic,
-                    self.linear(),
-                )?,
-                NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
-                    .validate_algebraic_state(
-                        mesh.mesh(),
-                        input,
-                        &history,
-                        &algebraic,
-                        self.linear(),
-                    )?,
-                _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
+            RecognizedNativeModel::ComplexSpatial(equations) => {
+                if time_s.is_some() {
+                    return Err(invalid("complex spatial State requires a stationary Plan"));
+                }
+                let (mapping, input) = self.stationary_assembly(equations)?;
+                self.validate_state_fields(&mapping, &input, &values)?;
             }
+            _ => return Err(invalid("missing spatial equations")),
         }
         CommonState::new(
             self.identity().to_owned(),

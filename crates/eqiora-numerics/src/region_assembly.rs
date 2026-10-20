@@ -9,6 +9,7 @@ use eqiora_assembly::{
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
+use crate::form_compiler::region::coordinates::{Native, Projection};
 use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell, PreparedRegionFacet};
 use crate::spatial_expression::Coefficient;
 
@@ -39,14 +40,17 @@ pub(crate) struct RegionAssemblyCell<S: Coefficient> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedRegionAssembly<S: Coefficient> {
+pub(crate) struct PreparedRegionAssembly<S: Coefficient, P: Projection<S> = Native> {
     packet_set: AssemblyPacketSetIdentityV1,
-    prepared: Vec<PreparedRegionCell<S>>,
-    cells: Vec<RegionAssemblyCell<S>>,
-    boundary_packets: Vec<(usize, PreparedRegionFacet<S>)>,
+    prepared: Vec<PreparedRegionCell<S, P>>,
+    cells: Vec<RegionAssemblyCell<P::Scalar>>,
+    boundary_packets: Vec<(usize, PreparedRegionFacet<S, P>)>,
 }
 
-impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
+impl<S: Coefficient + Send + Sync, P: Projection<S>> PreparedRegionAssembly<S, P>
+where
+    P::Scalar: Send + Sync,
+{
     /// The Domain sequence is in the authenticated mesh's logical packet order.
     /// Maps already include Plan DOF binding and any trace/essential constraints.
     pub(crate) fn new(
@@ -54,8 +58,8 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
         plan: &AssemblyPlan,
         forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
         cell_domains: &[RawId],
-        mut cells: Vec<RegionAssemblyCell<S>>,
-        boundary_packets: Vec<(usize, PreparedRegionFacet<S>)>,
+        mut cells: Vec<RegionAssemblyCell<P::Scalar>>,
+        boundary_packets: Vec<(usize, PreparedRegionFacet<S, P>)>,
     ) -> Result<Self, Diagnostic> {
         if cell_domains.is_empty() || cells.len() != cell_domains.len() {
             return Err(invalid(
@@ -95,8 +99,11 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
                     "cell reference differs from its selected Domain form",
                 ));
             }
-            form.validate_cell(&cell.geometry, quadrature, &cell.previous)?;
-            let local_count = form.fields().last().expect("bound nonempty form").range.end;
+            form.validate_cell::<P>(&cell.geometry, quadrature, &cell.previous)?;
+            let local_count = P::ranges(form.fields())?
+                .last()
+                .expect("bound nonempty form")
+                .end;
             if cell.orientation.len() != local_count
                 || cell.orientation.iter().any(|sign| !matches!(sign, -1 | 1))
             {
@@ -105,12 +112,15 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
                 ));
             }
             validate_maps(plan, local_count, &cell.mappings)?;
-            prepared.push(match &cell.previous_geometry {
-                Some(previous) => {
-                    form.prepare_cell_with_history_geometry(&cell.geometry, previous, quadrature)?
-                }
-                None => form.prepare_cell(&cell.geometry, quadrature)?,
-            });
+            prepared.push(
+                form.prepare_projected_cell_actions::<P>(
+                    &cell.geometry,
+                    cell.previous_geometry.as_ref().unwrap_or(&cell.geometry),
+                    None,
+                    quadrature,
+                )?
+                .0,
+            );
         }
         cells
             .len()
@@ -130,7 +140,21 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
             boundary_packets,
         })
     }
-    fn packet_cell(&self, packet_index: usize) -> Result<&RegionAssemblyCell<S>, Diagnostic> {
+    pub(crate) fn packet_domains(&self, domains: &[RawId]) -> Result<Vec<RawId>, Diagnostic> {
+        (0..self.packet_count())
+            .map(|index| {
+                domains
+                    .get(self.packet_cell(index)?.index)
+                    .copied()
+                    .ok_or_else(|| invalid("region packet has a foreign cell Domain"))
+            })
+            .collect()
+    }
+
+    fn packet_cell(
+        &self,
+        packet_index: usize,
+    ) -> Result<&RegionAssemblyCell<P::Scalar>, Diagnostic> {
         let index = if packet_index < self.cells.len() {
             packet_index
         } else {
@@ -145,7 +169,11 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
     }
 }
 
-impl<S: Coefficient + Send + Sync> AssemblyWork<S> for PreparedRegionAssembly<S> {
+impl<S: Coefficient + Send + Sync, P: Projection<S>> AssemblyWork<P::Scalar>
+    for PreparedRegionAssembly<S, P>
+where
+    P::Scalar: Send + Sync,
+{
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.packet_set
     }
@@ -154,7 +182,7 @@ impl<S: Coefficient + Send + Sync> AssemblyWork<S> for PreparedRegionAssembly<S>
         self.cells.len() + self.boundary_packets.len()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<S>, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<P::Scalar>, Diagnostic> {
         let cell = self.packet_cell(packet_index)?;
         let local = if packet_index < self.cells.len() {
             self.prepared[packet_index].evaluate(&cell.previous)?

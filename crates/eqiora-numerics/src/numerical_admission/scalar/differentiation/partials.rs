@@ -32,7 +32,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                         )
                     },
                 )?;
-                Ok((residual, vec![0.; system.mapping.full_count() * S::WIDTH]))
+                Ok((
+                    residual,
+                    vec![0.; RegionRealCoordinates::new(&system.mapping)?.full_count()],
+                ))
             }
         }
     }
@@ -91,16 +94,14 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         }
         let mut residual = S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?;
         let lift = partial_mapping.lift(&vec![S::zero(); mapping.free_count()], false)?;
-        let lift = coordinates(lift).collect::<Vec<_>>();
+        let layout = RegionRealCoordinates::new(mapping)?;
+        let lift = layout.encode_full(&lift)?;
         // The full accepted Jacobian supplies J*g_p for affine and nonlinear laws.
         let numerical_lift = A::from_coordinates(&lift)?;
         let mut action = vec![A::zero(); full.matrix().rows()];
         full.matrix().apply(&numerical_lift, &mut action)?;
-        let physical_action = S::from_coordinates(&coordinates(action).collect::<Vec<_>>())?;
-        for (value, action) in residual
-            .iter_mut()
-            .zip(coordinates(mapping.restrict_action(&physical_action)?))
-        {
+        let action = layout.restrict_action(&coordinates(action).collect::<Vec<_>>())?;
+        for (value, action) in residual.iter_mut().zip(action) {
             *value += action;
         }
         Ok((residual, lift))

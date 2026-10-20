@@ -127,7 +127,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
                 previous: BTreeMap::new(),
             })
             .collect();
-        let work = PreparedRegionAssembly::new(
+        let work = PreparedRegionAssembly::<_>::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,
             forms,

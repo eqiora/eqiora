@@ -1,12 +1,16 @@
 //! Complete physical field coordinates shared by State, Result and observations.
 use super::*;
+use crate::form_compiler::region::coordinates::{Projection, Real};
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField, RegionDofMap};
+use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
     /// Borrow each accepted State Field in its exact Mesh-entity/component order.
     ///
     /// The Plan owns Field identity, physical type and coefficient layout. Values
     /// borrow the immutable State; they are coefficients, not physical samples.
+    /// Each complex component occupies adjacent real and imaginary words; that
+    /// storage width does not add an axis to the Field's mathematical shape.
     /// No reconstruction or derived observation is evaluated here.
     /// # Errors
     /// Rejects a foreign State, unsupported state storage, or incomplete layout.
@@ -36,10 +40,12 @@ impl CommonSpatialPlan {
         let mut fields = Vec::with_capacity(self.fields().len());
         for (field, value_type) in self.fields() {
             let entities = self.field_coefficient_entities(field)?;
+            let width = <Real as Projection<num_complex::Complex64>>::width(value_type)?;
             let count = value_type
                 .shape()
                 .component_count()
                 .and_then(|components| entities.len().checked_mul(components))
+                .and_then(|components| components.checked_mul(width))
                 .ok_or_else(|| invalid("State Field coefficient count overflows"))?;
             let (values, rest) = remaining.split_at_checked(count).ok_or_else(|| {
                 invalid("State coefficients differ from their exact Field layout")
@@ -87,72 +93,80 @@ impl CommonSpatialPlan {
         }
     }
 
-    pub(super) fn physical_field_inventory(
+    pub(super) fn physical_field_inventory<S: Coefficient + Send + Sync>(
         &self,
-        mapping: &RegionDofMap<f64>,
-    ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>, Diagnostic> {
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("spatial State lacks its exact equations"));
-        };
-        let mut fields = BTreeMap::new();
-        for region in &equations.regions {
-            for (field, value_type) in region.form.represented_fields() {
-                let rate = region
-                    .form
-                    .kinematics()
-                    .iter()
-                    .find(|(pair, _)| pair.state().erase() == field)
-                    .map(|(pair, _)| pair.rate().erase())
-                    .unwrap_or(field);
-                let (domain, layout) = mapping.field_layout(rate).ok_or_else(|| {
-                    invalid("represented State Field lacks its exact algebraic rate")
-                })?;
-                let coefficients = mapping
-                    .keys()
-                    .filter(|key| key.field == rate)
-                    .map(|key| (FieldDof { field, ..key }, 0.))
-                    .collect();
-                fields.insert(
-                    field,
-                    RecoveredRegionField {
-                        domain,
-                        value_type,
-                        space: layout.space,
-                        coefficients,
-                    },
-                );
+        mapping: &RegionDofMap<S>,
+    ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>, Diagnostic> {
+        fn inventory<S: Coefficient + Send + Sync, T: Coefficient>(
+            mapping: &RegionDofMap<S>,
+            equations: &ExecutableSpatialEquations<T>,
+        ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>, Diagnostic> {
+            let mut fields = BTreeMap::new();
+            for region in &equations.regions {
+                for (field, value_type) in region.form.represented_fields() {
+                    let rate = region
+                        .form
+                        .kinematics()
+                        .iter()
+                        .find(|(pair, _)| pair.state().erase() == field)
+                        .map(|(pair, _)| pair.rate().erase())
+                        .unwrap_or(field);
+                    let (domain, layout) = mapping.field_layout(rate).ok_or_else(|| {
+                        invalid("represented State Field lacks its exact algebraic rate")
+                    })?;
+                    let coefficients = mapping
+                        .keys()
+                        .filter(|key| key.field == rate)
+                        .map(|key| (FieldDof { field, ..key }, S::zero()))
+                        .collect();
+                    fields.insert(
+                        field,
+                        RecoveredRegionField {
+                            domain,
+                            value_type,
+                            space: layout.space,
+                            coefficients,
+                        },
+                    );
+                }
             }
+            Ok(fields)
         }
-        Ok(fields)
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => inventory(mapping, equations),
+            RecognizedNativeModel::ComplexSpatial(equations) => inventory(mapping, equations),
+            _ => Err(invalid("spatial State lacks its exact equations")),
+        }
     }
 
-    pub(super) fn physical_fields(
+    pub(super) fn physical_fields<S: Coefficient + Send + Sync>(
         &self,
-        mapping: &RegionDofMap<f64>,
+        mapping: &RegionDofMap<S>,
         values: &[f64],
-    ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>, Diagnostic> {
+    ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>, Diagnostic> {
         let mut fields = self.physical_field_inventory(mapping)?;
-        if values.len()
-            != fields
-                .values()
-                .map(|field| field.coefficients.len())
-                .sum::<usize>()
-        {
-            return Err(invalid(
-                "physical fields require complete coefficients in their exact mapped inventory",
-            ));
+        let mut remaining = values;
+        for field in fields.values_mut() {
+            let width = <Real as Projection<S>>::width(&field.value_type)?;
+            let size = field
+                .coefficients
+                .len()
+                .checked_mul(width)
+                .ok_or_else(|| invalid("physical Field coordinate count overflows"))?;
+            let (words, rest) = remaining
+                .split_at_checked(size)
+                .ok_or_else(|| invalid("physical fields omit exact mapped coordinates"))?;
+            for (target, value) in field
+                .coefficients
+                .values_mut()
+                .zip(Real::decode::<S>(&field.value_type, words)?)
+            {
+                *target = value;
+            }
+            remaining = rest;
         }
-        if values.iter().any(|value| !value.is_finite()) {
-            return Err(invalid(
-                "physical fields require complete finite coefficients",
-            ));
-        }
-        for (target, value) in fields
-            .values_mut()
-            .flat_map(|field| field.coefficients.values_mut())
-            .zip(values)
-        {
-            *target = *value;
+        if !remaining.is_empty() {
+            return Err(invalid("physical fields contain unowned coordinates"));
         }
         mapping.validate_physical(&fields)?;
         Ok(fields)
