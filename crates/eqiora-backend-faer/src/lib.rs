@@ -6,6 +6,7 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod bicgstab;
 mod complex;
 mod eigen;
 mod prepared_sparse_lu;
@@ -25,7 +26,6 @@ use eqiora_solver::{
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::matrix_free::{
     InitialGuessStatus, LinOp, Precond,
-    bicgstab::{BicgParams, bicgstab, bicgstab_scratch},
     conjugate_gradient::{CgParams, conjugate_gradient, conjugate_gradient_scratch},
 };
 use faer::reborrow::ReborrowMut;
@@ -195,7 +195,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 "the faer adapter does not implement MINRES",
             )),
             LinearSolver::BiConjugateGradientStabilized => {
-                solve_bicgstab(self.provider(), problem, plan, inverse_diagonal)
+                bicgstab::solve(self.provider(), problem, plan, inverse_diagonal)
             }
             LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(problem, plan),
         }
@@ -237,59 +237,6 @@ fn solve_cg(
     );
     failure.take()?;
     let info = result.map_err(|error| solve_failed(format!("faer CG failed: {error:?}")))?;
-    accept_linear_solution(
-        problem,
-        plan,
-        provider,
-        convergence_reason(info.iter_count),
-        info.iter_count,
-        info.abs_residual,
-        output.col_as_slice(0).to_vec(),
-    )
-}
-
-fn solve_bicgstab(
-    provider: SolverProvider,
-    problem: &LinearProblem<'_>,
-    plan: SolverPlan,
-    inverse_diagonal: Option<Vec<f64>>,
-) -> Result<LinearSolution, Diagnostic> {
-    let dimension = problem.operator().columns();
-    let mut output = initial_matrix(problem);
-    let right_hand_side = right_hand_side_matrix(problem);
-    let failure = ApplyFailure::default();
-    let operator = FaerOperator::new(problem.operator(), failure.clone());
-    let left_preconditioner = FaerPreconditioner::new(dimension, inverse_diagonal);
-    let right_preconditioner = FaerPreconditioner::new(dimension, None);
-    let parallelism = Par::Seq;
-    let scratch = bicgstab_scratch(
-        left_preconditioner.clone(),
-        right_preconditioner.clone(),
-        operator.clone(),
-        1,
-        parallelism,
-    );
-    let mut workspace = MemBuffer::new(scratch);
-    let params = BicgParams {
-        initial_guess: EXPLICIT_INITIAL_GUESS,
-        abs_tolerance: plan.absolute_tolerance(),
-        rel_tolerance: plan.relative_tolerance(),
-        max_iters: plan.maximum_iterations().get(),
-        ..Default::default()
-    };
-    let result = bicgstab(
-        output.as_mut(),
-        left_preconditioner,
-        right_preconditioner,
-        operator,
-        right_hand_side.as_ref(),
-        params,
-        |_| {},
-        parallelism,
-        MemStack::new(&mut workspace),
-    );
-    failure.take()?;
-    let info = result.map_err(|error| solve_failed(format!("faer BiCGSTAB failed: {error:?}")))?;
     accept_linear_solution(
         problem,
         plan,
@@ -350,7 +297,13 @@ const fn convergence_reason(iterations: usize) -> ConvergenceReason {
 }
 
 #[derive(Debug, Clone, Default)]
-struct ApplyFailure(Arc<Mutex<Option<Diagnostic>>>);
+struct ApplyFailure(Arc<Mutex<Option<ApplyError>>>);
+
+#[derive(Debug, Clone)]
+enum ApplyError {
+    Operator(Diagnostic),
+    NonfiniteSolverInput,
+}
 
 impl ApplyFailure {
     fn record(&self, diagnostic: Diagnostic) {
@@ -358,19 +311,37 @@ impl ApplyFailure {
             .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !matches!(*slot, Some(ApplyError::Operator(_))) {
+            *slot = Some(ApplyError::Operator(diagnostic));
+        }
+    }
+
+    fn record_nonfinite_input(&self) {
+        let mut slot = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if slot.is_none() {
-            *slot = Some(diagnostic);
+            *slot = Some(ApplyError::NonfiniteSolverInput);
         }
     }
 
     fn take(&self) -> Result<(), Diagnostic> {
+        if self.take_breakdown()? {
+            return Err(solve_failed("faer supplied a non-finite operator input"));
+        }
+        Ok(())
+    }
+
+    fn take_breakdown(&self) -> Result<bool, Diagnostic> {
         let mut slot = self
             .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         match slot.take() {
-            Some(diagnostic) => Err(diagnostic),
-            None => Ok(()),
+            Some(ApplyError::Operator(diagnostic)) => Err(diagnostic),
+            Some(ApplyError::NonfiniteSolverInput) => Ok(true),
+            None => Ok(false),
         }
     }
 }
@@ -403,6 +374,10 @@ impl<'a> FaerOperator<'a> {
         for column in 0..input.ncols() {
             let input_column = input.col(column).as_slice();
             let output_column = output.rb_mut().col_mut(column).as_slice_mut();
+            if input_column.iter().any(|value| !value.is_finite()) {
+                self.failure.record_nonfinite_input();
+                return;
+            }
             if let Err(diagnostic) = self.operator.apply(input_column, output_column) {
                 self.failure.record(diagnostic);
                 return;
