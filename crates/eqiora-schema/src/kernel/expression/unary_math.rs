@@ -1,10 +1,23 @@
 //! Shared finite component mathematics for constant folding and reference execution.
-use super::UnaryMathFunction;
+use super::{ComparisonOp, UnaryMathFunction};
 use crate::kernel::typing::{self, ExpressionType};
 use eqiora_core::{Diagnostic, ScalarDomain, ValueLiteral, diagnostic::codes};
 use num_complex::Complex64;
 
 impl UnaryMathFunction {
+    /// Restriction on a finite real operand, expressed as a comparison with zero.
+    /// Absence means every finite real operand is in the mathematical domain;
+    /// representability of the result is a separate execution check.
+    #[must_use]
+    pub const fn real_domain_condition(self) -> Option<ComparisonOp> {
+        match self {
+            Self::Log => Some(ComparisonOp::Greater),
+            Self::Sqrt => Some(ComparisonOp::GreaterEqual),
+            Self::Arg => Some(ComparisonOp::NotEqual),
+            _ => None,
+        }
+    }
+
     /// Evaluate a typed value with the canonical domain, shape and branch rules.
     /// Real roots/logarithms never promote invalid real inputs to complex values.
     /// Complex roots/logarithms use the principal branch; zero phase is rejected.
@@ -50,7 +63,28 @@ impl UnaryMathFunction {
         re: f64,
         im: f64,
     ) -> Result<(f64, f64), Diagnostic> {
-        if matches!(self, Self::Arg | Self::Log) && re == 0. && im == 0. {
+        if domain == ScalarDomain::Real
+            && let Some(condition) = self.real_domain_condition()
+        {
+            let valid = match condition {
+                ComparisonOp::Equal => re == 0.,
+                ComparisonOp::NotEqual => re != 0.,
+                ComparisonOp::Less => re < 0.,
+                ComparisonOp::LessEqual => re <= 0.,
+                ComparisonOp::Greater => re > 0.,
+                ComparisonOp::GreaterEqual => re >= 0.,
+            };
+            if !valid {
+                return Err(domain_error(
+                    "real mathematical operand is outside its domain",
+                ));
+            }
+        }
+        if domain != ScalarDomain::Real
+            && matches!(self, Self::Arg | Self::Log)
+            && re == 0.
+            && im == 0.
+        {
             return Err(domain_error(
                 "phase and logarithm require nonzero amplitude",
             ));
@@ -60,11 +94,8 @@ impl UnaryMathFunction {
                 Self::Sin => re.sin(),
                 Self::Cos => re.cos(),
                 Self::Exp => re.exp(),
-                Self::Log if re > 0. => re.ln(),
-                Self::Sqrt if re >= 0. => re.sqrt(),
-                Self::Log | Self::Sqrt => {
-                    return Err(domain_error("real root or logarithm is outside its domain"));
-                }
+                Self::Log => re.ln(),
+                Self::Sqrt => re.sqrt(),
                 Self::Conj | Self::Real => re,
                 Self::Imag => 0.,
                 Self::Abs => re.abs(),

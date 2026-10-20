@@ -182,8 +182,7 @@ pub(super) fn evaluate(
         let coordinate = unflatten(result.shape(), flat);
         let root = calculus.component(root, &coordinate, 0)?;
         let definition = calculus.builder.finish(root).map_err(reject)?;
-        let value =
-            super::pure::evaluate(owner, &definition, &inputs.iter().collect::<Vec<_>>(), work)?;
+        let value = super::pure::evaluate(&definition, &inputs.iter().collect::<Vec<_>>(), work)?;
         let scalar = value
             .real_scalar_value()
             .ok_or_else(|| reject("nonreal scalar projection"))?;
@@ -417,6 +416,7 @@ impl Projection<'_> {
         indices: &[u32],
         depth: usize,
     ) -> Result<CalculusNodeId, Diagnostic> {
+        let definition = definition.polynomial_derivative_view().map_err(reject)?;
         self.remaining = self
             .remaining
             .checked_sub(definition.nodes().len())
@@ -446,9 +446,7 @@ impl Projection<'_> {
                     )),
                     dimension: DimExponents::DIMENSIONLESS,
                 })?,
-                CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
-                    get(*value)
-                }
+                CalculusNode::BoundInput(value) => get(*value),
                 CalculusNode::Neg(value) => self.push(CalculusNode::Neg(get(*value)))?,
                 CalculusNode::Add(a, b) => self.push(CalculusNode::Add(get(*a), get(*b)))?,
                 CalculusNode::Mul(a, b) => self.push(CalculusNode::Mul(get(*a), get(*b)))?,

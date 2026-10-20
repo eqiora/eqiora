@@ -4,7 +4,6 @@ mod finite;
 pub use finite::{FiniteBinaryOperation, FiniteUnaryOperation};
 
 pub mod property;
-mod scalar_projection;
 mod spatial;
 mod time_derivative;
 mod unary_math;

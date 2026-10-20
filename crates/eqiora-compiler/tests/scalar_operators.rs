@@ -50,7 +50,6 @@ fn scalar_composition_is_lexical_acyclic_and_dimension_checked() {
         "operator law(input x:scalar):scalar=other(x=x);operator other(input x:scalar):scalar=law(x=x);",
         "operator law(input x:scalar):scalar=x+outside;",
         "operator law(input x:scalar):scalar=math.sin(x);",
-        "operator law(input x:scalar):scalar=x/2;",
         "operator law(input x:scalar):scalar=x^-1;",
         "operator law(input x:scalar):scalar=x^x;",
         "operator law(input x:scalar):scalar=x^1000000000;",
@@ -68,6 +67,40 @@ fn scalar_composition_is_lexical_acyclic_and_dimension_checked() {
             "{declaration}"
         );
     }
+}
+
+#[test]
+fn closed_quotients_admit_rational_values_and_preserve_units() {
+    for body in ["x/2", "x/y", "1/(1+x*x)"] {
+        let source = format!(
+            "operator law(input x:1,input y:1):1={body};model M(){{parameter x:1=2;parameter y:1=3;variable z:1;relation r{{z=law(y=y,x=x);}}}}"
+        );
+        compile("quotient.eqi", &source).unwrap_or_else(|errors| panic!("{body}: {errors:?}"));
+    }
+    for (result, valid) in [("m/s", true), ("m", false)] {
+        let source = format!(
+            "operator rate(input distance:m,input duration:s):{result}=distance/duration;model M(){{relation r{{rate(distance=6[m],duration=2[s])=3[{result}];}}}}"
+        );
+        assert_eq!(compile("units.eqi", &source).is_ok(), valid);
+    }
+}
+
+#[test]
+fn analytic_rational_property_exposes_its_declared_first_partials() {
+    let source = r#"
+property contract Response(input value:1):1 {derivatives first_partials;}
+property release Material:Response {
+    analytic {value=1/(1+value^2);source_unit:1=1;}
+    validity value>=-1 and value<=3;outside reject;branch single;
+    citation org.example.manufactured;license spdx.CC0_1_0;
+}
+component Equation(property response:Response) {
+    variable u:1;
+    relation balance {response(value=u)=0.2;}
+}
+model Main(){instance physics:Equation(response=Material);}
+"#;
+    compile("rational-property.eqi", source).unwrap_or_else(|errors| panic!("{errors:?}"));
 }
 
 #[test]

@@ -2,59 +2,28 @@
 use super::*;
 
 impl ScalarInputIrBuilder {
-    fn derivative_dependencies(&self, root: ScalarInputValueId) -> Result<Vec<bool>, Diagnostic> {
-        self.require_prior(root)?;
-        let mut needed = vec![false; root.0.0 as usize + 1];
-        needed[root.0.0 as usize] = true;
-        for index in (0..needed.len()).rev() {
-            if !needed[index] {
-                continue;
-            }
-            let instruction = self.instructions[index];
-            if let Instruction::CoefficientJet { start, len, shape } = instruction {
-                for operand in
-                    coefficient_jet::operands(start, len, shape, &self.instructions[..index])?
-                        .iter()
-                {
-                    needed[operand.0 as usize] = true;
-                }
-            } else if let Instruction::MapInvariant { start, extent, .. } = instruction {
-                for operand in map_evaluation::operand_range(start, extent, index)? {
-                    needed[operand] = true;
-                }
-            } else if instruction
-                .map_scalar_operands(|id| {
-                    needed[id.0 as usize] = true;
-                    id
-                })
-                .is_none()
-            {
-                return Err(ir_builder_error(
-                    "directional instruction has no scalar operands",
-                ));
-            }
-        }
-        Ok(needed)
-    }
-
     pub(crate) fn directional_inputs(
         &self,
         root: ScalarInputValueId,
     ) -> Result<Vec<ScalarInputSlot>, Diagnostic> {
-        let needed = self.derivative_dependencies(root)?;
+        let needed = slot_composition::required_instructions(&self.instructions, &[root.0])?;
         let mut slots = vec![false; self.slots.len()];
         for (instruction, needed) in self.instructions.iter().zip(needed) {
             if let Instruction::Read(slot) = instruction {
                 slots[slot.0 as usize] |= needed;
             }
         }
-        Ok(self
-            .slots
+        self.slots
             .iter()
             .zip(slots)
             .filter(|(_, needed)| *needed)
-            .map(|(slot, _)| slot.clone())
-            .collect())
+            .map(|(slot, _)| match slot {
+                BuilderInput::Bound(slot) => Ok(slot.clone()),
+                BuilderInput::Formal(_) => Err(ir_builder_error(
+                    "formal scalar inputs have no Semantic coordinate",
+                )),
+            })
+            .collect()
     }
 
     fn derivative_condition(
@@ -102,10 +71,41 @@ impl ScalarInputIrBuilder {
         &mut self,
         root: ScalarInputValueId,
         seeds: &[Option<ScalarInputValueId>],
+        charge: impl FnMut(usize) -> Result<(), Diagnostic>,
+    ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
+        self.directional_in(root, seeds, None, charge)
+    }
+
+    /// Formal partials retain authored validity predicates without changing their boundary.
+    /// The source value itself is not demanded when its derivative does not need it.
+    pub(crate) fn formal_directional(
+        &mut self,
+        root: ScalarInputValueId,
+        seeds: &[Option<ScalarInputValueId>],
+        dimension: eqiora_core::DimExponents,
+        charge: impl FnMut(usize) -> Result<(), Diagnostic>,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.directional_in(root, seeds, Some(dimension), charge)?
+            .ok_or_else(|| ir_builder_error("formal derivative lacks its typed result"))
+    }
+
+    fn directional_in(
+        &mut self,
+        root: ScalarInputValueId,
+        seeds: &[Option<ScalarInputValueId>],
+        formal_dimension: Option<eqiora_core::DimExponents>,
         mut charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
-        let needed = self.derivative_dependencies(root)?;
-        self.primal_checks.push(root.0);
+        let formal = formal_dimension.is_some();
+        let needed = if formal {
+            slot_composition::required_derivative_instructions(&self.instructions, &[root.0])?
+        } else {
+            slot_composition::required_instructions(&self.instructions, &[root.0])?
+        };
+        let mut conditions = Vec::new();
+        if !formal {
+            self.primal_checks.push(root.0);
+        }
         let instructions = self.instructions[..=root.0.0 as usize].to_vec();
         let bindings = self
             .slots
@@ -126,6 +126,28 @@ impl ScalarInputIrBuilder {
             .zip(needed)
             .zip(active.iter().copied())
         {
+            if needed && formal {
+                if let Instruction::Require { condition, .. } = instruction {
+                    conditions.push(ScalarInputValueId(condition));
+                }
+                let domain = match instruction {
+                    Instruction::Math(function, input) => {
+                        function.real_domain_condition().map(|op| (op, input))
+                    }
+                    Instruction::Div(_, denominator) => {
+                        Some((eqiora_schema::kernel::ComparisonOp::NotEqual, denominator))
+                    }
+                    Instruction::PowI(input, exponent) if exponent < 0 => {
+                        Some((eqiora_schema::kernel::ComparisonOp::NotEqual, input))
+                    }
+                    _ => None,
+                };
+                if let Some((op, input)) = domain {
+                    let input = ScalarInputValueId(input);
+                    let zero = self.sub(input, input)?;
+                    conditions.push(self.compare(op, input, zero)?);
+                }
+            }
             if !needed || !is_active {
                 directions.push(None);
                 continue;
@@ -141,12 +163,16 @@ impl ScalarInputIrBuilder {
                     })
                     .transpose()?,
                 Instruction::Require { condition, value } => {
-                    let condition = self.derivative_condition(condition, &active)?;
-                    let checked = self.require(condition, ScalarInputValueId(value))?;
-                    self.primal_checks.push(checked.0);
-                    directions[value.0 as usize]
-                        .map(|direction| self.require(condition, direction))
-                        .transpose()?
+                    if formal {
+                        directions[value.0 as usize]
+                    } else {
+                        let condition = self.derivative_condition(condition, &active)?;
+                        let checked = self.require(condition, ScalarInputValueId(value))?;
+                        self.primal_checks.push(checked.0);
+                        directions[value.0 as usize]
+                            .map(|direction| self.require(condition, direction))
+                            .transpose()?
+                    }
                 }
                 Instruction::ValueOnly { input, value } => {
                     require_inactive_value_only_input(active[input.0 as usize])?;
@@ -228,6 +254,23 @@ impl ScalarInputIrBuilder {
             };
             directions.push(direction);
         }
-        Ok(directions[root.0.0 as usize])
+        let direction = directions[root.0.0 as usize];
+        if let Some(dimension) = formal_dimension {
+            let mut value = match direction {
+                Some(value) => value,
+                None => self.constant(eqiora_core::DynQuantity::new(0., dimension))?,
+            };
+            // Keep validity on the returned value, so an inactive caller branch
+            // never acquires an eager global check from a nested formal partial.
+            for condition in conditions.into_iter().rev() {
+                value = self.require(condition, value)?;
+            }
+            Ok(Some(value))
+        } else {
+            Ok(direction)
+        }
     }
 }
+
+#[cfg(test)]
+mod tests;

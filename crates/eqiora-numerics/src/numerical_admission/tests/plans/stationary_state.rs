@@ -138,18 +138,26 @@ public component PoissonInterval(
 #[test]
 fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
     let geometry = cartesian_interval();
-    for flux in [false, true] {
-        let diffusion = if flux {
-            "-div((1+potential^2)*grad(potential))"
-        } else {
-            "-div(grad(potential))"
-        };
+    for (declaration, diffusion) in [
+        ("", "-div(grad(potential))"),
+        ("", "-div((1+potential^2)*grad(potential))"),
+        (
+            "operator conductivity(input value:1):1=1/(1+value^2);",
+            "-div(conductivity(value=potential)*grad(potential))",
+        ),
+    ] {
         let source = POISSON_INTERVAL
             .replace(
                 "-div(grad(potential)) - source_scale",
                 &format!("{diffusion}+potential^2/1[m^2]-4*source_scale"),
             )
             .replace("trace(potential) = 0", "trace(potential) = 2");
+        let source = if declaration.is_empty() {
+            source
+        } else {
+            source.replace("on body in h1", "on body in smooth")
+        };
+        let source = format!("{declaration}\n{source}");
         let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
         let plan = ResolvedCommonPlan::resolve(
             &model,
@@ -198,7 +206,9 @@ fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
             .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         assert!(result.nonlinear_iterations(None).unwrap() > 1);
-        // u=2 makes both the complete nonlinear source residual and gradient zero.
+        // u=2 makes both the complete nonlinear source residual and gradient zero,
+        // including the rational law. This is a manufactured constant solution,
+        // not a claim that finite quadrature integrates arbitrary rational fields.
         for value in result.field_block(0, 0).unwrap().1 {
             assert!((value - 2.).abs() < 1e-11);
         }

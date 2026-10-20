@@ -183,6 +183,15 @@ impl ExpressionLowerer<'_> {
                 wrt.clone(),
                 value.range(),
             ),
+            LoweringExpressionNode::Call { callee, argument }
+                if crate::math::unary_function(callee).is_some() =>
+            {
+                LoweringExpression::call(
+                    callee.clone(),
+                    self.expand_time_derivatives(argument, cache)?,
+                    value.range(),
+                )
+            }
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,

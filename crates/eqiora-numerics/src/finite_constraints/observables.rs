@@ -112,7 +112,7 @@ impl Context<'_> {
                 domain, measure, ..
             } => {
                 let selected = axes(self.kernel, domain)?;
-                let degree = self.degree_expression(definition.expression(), depth)?;
+                let degree = self.degree_density(id, depth)?;
                 let mut maximum = selected
                     .iter()
                     .map(|(axis, _)| degree.get(axis).copied().unwrap_or(0))

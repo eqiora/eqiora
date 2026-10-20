@@ -407,3 +407,65 @@ fn canonical_abs_preserves_real_values_slopes_and_zero_boundary_rejection() {
         );
     }
 }
+
+#[test]
+fn shared_numeric_projection_retains_original_roots_and_symbol_order() {
+    use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
+    let dimension = DimExponents::DIMENSIONLESS;
+    let mut definition = CalculusBuilder::new([class(dimension); 2], class(dimension)).unwrap();
+    let a = formal(&mut definition, 0);
+    let b = formal(&mut definition, 1);
+    let square = definition.push(CalculusNode::Mul(a, a)).unwrap();
+    let sum = definition.push(CalculusNode::Add(square, b)).unwrap();
+    let definition = definition.finish(sum).unwrap();
+    let symbols = [
+        SymbolRef::Parameter(Id::new()),
+        SymbolRef::Parameter(Id::new()),
+    ];
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbols[0]).unwrap();
+    let y = builder.symbol(symbols[1]).unwrap();
+    let absolute = builder.unary_math(UnaryMathFunction::Abs, x).unwrap();
+    let polynomial = builder.pure_operator(&definition, [x, y]).unwrap();
+    let combined = builder.add(absolute, polynomial).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        builder.finish([absolute, polynomial, combined]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::scalar(dimension, None)),
+    )
+    .unwrap();
+    let operator = ScalarOperatorIr::lower_typed_scalar(&typed).unwrap();
+    assert_eq!(operator.symbols(), symbols);
+    let point = [real(dimension, -2.), real(dimension, 3.)];
+    let roots = [combined, absolute, polynomial];
+    let values = operator
+        .evaluate_typed(&roots, &mut |symbol| {
+            symbols
+                .iter()
+                .position(|candidate| *candidate == symbol)
+                .map(|index| point[index].clone())
+        })
+        .unwrap();
+    assert_eq!(values.iter().map(value).collect::<Vec<_>>(), [9., 2., 7.]);
+    assert_eq!(
+        operator
+            .evaluate_typed_batch(&roots, &[point.to_vec()])
+            .unwrap()[0],
+        values
+    );
+    let linear = operator
+        .linearize_typed(&point, &[DifferentiationRole::Unknown; 2])
+        .unwrap();
+    let mut tangent = [0.; 3];
+    linear
+        .jvp(RelationTangent::Unknown(&[1., 2.]), &mut tangent)
+        .unwrap();
+    assert_eq!(tangent, [-1., -2., -3.]);
+    let mut adjoint = [0.; 2];
+    linear
+        .vjp(&[2., 3., 5.], RelationCotangent::Unknown(&mut adjoint))
+        .unwrap();
+    assert_eq!(adjoint, [-39., 8.]);
+}

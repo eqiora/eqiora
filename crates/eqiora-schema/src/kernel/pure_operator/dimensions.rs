@@ -77,6 +77,24 @@ fn same_dimension(
     }
 }
 
+fn combine_dimension(
+    left: &mut FormalDimensionMonomial,
+    right: &FormalDimensionMonomial,
+    divide: bool,
+) -> Result<(), PureOperatorError> {
+    left.fixed_dimension = if divide {
+        left.fixed_dimension.div(right.fixed_dimension)
+    } else {
+        left.fixed_dimension.mul(right.fixed_dimension)
+    }
+    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+    for (a, b) in left.exponents.iter_mut().zip(right.exponents.iter()) {
+        let b = if divide { b.checked_neg()? } else { b.clone() };
+        *a = bounded(a.checked_add(b)?)?;
+    }
+    Ok(())
+}
+
 fn prove(
     formals: &[PureValueClass],
     nodes: &[CalculusNode],
@@ -122,29 +140,13 @@ fn prove(
                     dimension,
                 }
             }
-            CalculusNode::Differentiated { value, source, wrt } => {
-                let value = get(*value)?;
-                let source = get(*source)?;
+            CalculusNode::Differentiated { source, wrt } => {
+                let mut source = get(*source)?;
                 let wrt = get(*wrt)?;
-                numeric(&value)?;
                 numeric(&source)?;
                 numeric(&wrt)?;
-                let mut quotient = source;
-                quotient.dimension.fixed_dimension = quotient
-                    .dimension
-                    .fixed_dimension
-                    .div(wrt.dimension.fixed_dimension)
-                    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-                for (exponent, divisor) in quotient
-                    .dimension
-                    .exponents
-                    .iter_mut()
-                    .zip(wrt.dimension.exponents.iter())
-                {
-                    *exponent = bounded(exponent.checked_add(divisor.checked_neg()?)?)?;
-                }
-                same_dimension(formals, &value, &quotient)?;
-                value
+                combine_dimension(&mut source.dimension, &wrt.dimension, true)?;
+                source
             }
             CalculusNode::BoundInput(value) => get(*value)?,
             CalculusNode::Neg(value) => {
@@ -214,24 +216,16 @@ fn prove(
                 left.domain = common(left.domain, right.domain);
                 left
             }
-            CalculusNode::Mul(left, right) => {
+            CalculusNode::Mul(left, right) | CalculusNode::Div(left, right) => {
                 let mut left = get(*left)?;
                 let right = get(*right)?;
                 numeric(&left)?;
                 numeric(&right)?;
-                left.dimension.fixed_dimension = left
-                    .dimension
-                    .fixed_dimension
-                    .mul(right.dimension.fixed_dimension)
-                    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-                for (left, right) in left
-                    .dimension
-                    .exponents
-                    .iter_mut()
-                    .zip(right.dimension.exponents.iter())
-                {
-                    *left = bounded(left.checked_add(right.clone())?)?;
-                }
+                combine_dimension(
+                    &mut left.dimension,
+                    &right.dimension,
+                    matches!(node, CalculusNode::Div(..)),
+                )?;
                 left.domain = common(left.domain, right.domain);
                 left
             }
@@ -381,13 +375,28 @@ impl CalculusBuilder {
     /// Resolve the concrete scalar type of a component from the calculus type check.
     /// Unconstrained generic dimensions or scalar domains cannot give a concrete type.
     pub fn value_type(&self, node: CalculusNodeId) -> Result<ValueType, PureOperatorError> {
-        let proofs = prove(&self.formals, &self.nodes)?;
-        let proof = &proofs[definition_index(node, proofs.len())?];
-        let domain = proof.domain.ok_or(PureOperatorError::FormalTypeMismatch)?;
-        let (dimension, free) = normalized(&self.formals, &proof.dimension)?;
-        if free.iter().any(|power| !power.is_zero()) {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        ValueType::scalar(domain, dimension).map_err(|_| PureOperatorError::FormalTypeMismatch)
+        concrete_value_type(&self.formals, &self.nodes, node)
     }
+}
+
+impl PureOperatorDefinition {
+    /// Resolve a concrete component type with the same proof used during construction.
+    pub fn value_type(&self, node: CalculusNodeId) -> Result<ValueType, PureOperatorError> {
+        concrete_value_type(&self.formals, &self.nodes, node)
+    }
+}
+
+fn concrete_value_type(
+    formals: &[PureValueClass],
+    nodes: &[CalculusNode],
+    node: CalculusNodeId,
+) -> Result<ValueType, PureOperatorError> {
+    let proofs = prove(formals, nodes)?;
+    let proof = &proofs[definition_index(node, proofs.len())?];
+    let domain = proof.domain.ok_or(PureOperatorError::FormalTypeMismatch)?;
+    let (dimension, free) = normalized(formals, &proof.dimension)?;
+    if free.iter().any(|power| !power.is_zero()) {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
+    ValueType::scalar(domain, dimension).map_err(|_| PureOperatorError::FormalTypeMismatch)
 }

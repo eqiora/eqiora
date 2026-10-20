@@ -15,7 +15,6 @@ use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::runtime::{CpuExecutor, CpuProgram};
 use eqiora::sem::{Interpreter, KernelProgram, ReferenceConfig};
 use eqiora::{DimExponents, Id, RawId, ScalarDomain, ValueLiteral, ValueType};
-use eqiora_ir::OperatorExpansionExt;
 
 const SOURCE: &str = r#"
 operator conductivity(input x:K,input k0:W/m/K,input a:1/K):W/m/K = k0*(1+a*x+a*a*x*x);
@@ -215,11 +214,6 @@ fn check_partials(
         .iter()
         .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
         .collect::<Vec<_>>();
-    let scalar = definition
-        .instantiate(&types)
-        .unwrap()
-        .component(&[])
-        .unwrap();
     let mut builder = ExprDagBuilder::new();
     let arguments = values
         .into_iter()
@@ -227,18 +221,38 @@ fn check_partials(
         .collect::<Vec<_>>();
     let mut roots = Vec::new();
     for (order, dimension) in [1, 2].into_iter().zip(dimensions) {
-        let (root, ty) = scalar
-            .partial(&mut builder, &arguments, formal, order)
+        let class = |dimension| {
+            PureValueClass::invariant_scalar()
+                .with_dimension(dimension)
+                .with_scalar_domain(ScalarDomain::Real)
+                .unwrap()
+        };
+        let mut calculus = CalculusBuilder::new(
+            types.iter().map(|ty| class(ty.dimension())),
+            class(dimension),
+        )
+        .unwrap();
+        let formals = (0..types.len())
+            .map(|slot| {
+                calculus
+                    .push(CalculusNode::FormalComponent {
+                        formal: slot as u16,
+                        axes: Box::new([]),
+                    })
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut partial = calculus.apply_scalar(definition, &formals).unwrap();
+        for _ in 0..order {
+            partial = calculus.partial(partial, formal).unwrap();
+        }
+        let definition = calculus.finish(partial).unwrap();
+        let root = builder
+            .pure_operator(&definition, arguments.iter().copied())
             .unwrap();
-        assert_eq!(ty.dimension(), dimension);
-        assert_eq!(ty.support, None);
         roots.push(root);
     }
     let dag = builder.finish(roots.clone()).unwrap();
-    assert!(dag.nodes().iter().all(|node| matches!(
-        node,
-        ExprNode::Constant(_) | ExprNode::Add(..) | ExprNode::Neg(..) | ExprNode::Mul(..)
-    )));
     let typed = TypedResidual::<()>::infer(
         dag.clone(),
         None,
@@ -250,7 +264,7 @@ fn check_partials(
     for (root, dimension) in roots.iter().zip(dimensions) {
         assert_eq!(typed.node_type(*root).unwrap().dimension(), dimension);
     }
-    let ir = ScalarOperatorIr::lower(&dag).unwrap();
+    let ir = ScalarOperatorIr::lower_typed_scalar(&typed).unwrap();
     for (actual, expected) in ir.evaluate(&[]).unwrap().into_iter().zip(expected) {
         close(actual, expected);
     }

@@ -484,7 +484,7 @@ impl WireRationalTime {
     }
 }
 
-pub(crate) const PURE_COMPONENT_CALCULUS_V2: &str = "eqiora.pure-component-calculus/v2";
+pub(crate) const PURE_COMPONENT_CALCULUS_V3: &str = "eqiora.pure-component-calculus/v3";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -501,7 +501,7 @@ impl WirePureOperatorDefinition {
     pub(crate) fn encode(definition: &PureOperatorDefinition) -> Self {
         Self {
             digest: definition.digest().to_string(),
-            required_features: vec![PURE_COMPONENT_CALCULUS_V2.to_owned()],
+            required_features: vec![PURE_COMPONENT_CALCULUS_V3.to_owned()],
             formals: definition
                 .formals()
                 .iter()
@@ -527,7 +527,7 @@ impl WirePureOperatorDefinition {
         if let Some(feature) = self
             .required_features
             .iter()
-            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V2)
+            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V3)
         {
             return Err(invalid_artifact(format!(
                 "pure-operator definition requires unknown feature `{feature}`"
@@ -685,7 +685,6 @@ pub(crate) enum WirePureCalculusNode {
         value: u32,
     },
     Differentiated {
-        value: u32,
         source: u32,
         wrt: u32,
     },
@@ -744,6 +743,10 @@ pub(crate) enum WirePureCalculusNode {
         left: u32,
         right: u32,
     },
+    Div {
+        left: u32,
+        right: u32,
+    },
 }
 
 impl WirePureCalculusNode {
@@ -785,7 +788,7 @@ impl WirePureCalculusNode {
             },
             CalculusNode::UnaryMath(function, value) => Self::UnaryMath {
                 function: WireUnaryMath::encode(*function)
-                    .expect("checked pure calculus admits only square root"),
+                    .expect("checked pure calculus has a portable mathematical operation"),
                 value: value.index(),
             },
             CalculusNode::FormalComponent { formal, axes } => Self::FormalComponent {
@@ -800,8 +803,7 @@ impl WirePureCalculusNode {
                 left_axis: WireComponentIndex::encode(*left),
                 right_axis: WireComponentIndex::encode(*right),
             },
-            CalculusNode::Differentiated { value, source, wrt } => Self::Differentiated {
-                value: value.index(),
+            CalculusNode::Differentiated { source, wrt } => Self::Differentiated {
                 source: source.index(),
                 wrt: wrt.index(),
             },
@@ -816,6 +818,10 @@ impl WirePureCalculusNode {
                 right: right.index(),
             },
             CalculusNode::Mul(left, right) => Self::Mul {
+                left: left.index(),
+                right: right.index(),
+            },
+            CalculusNode::Div(left, right) => Self::Div {
                 left: left.index(),
                 right: right.index(),
             },
@@ -879,8 +885,7 @@ impl WirePureCalculusNode {
                 left_axis,
                 right_axis,
             } => CalculusNode::KroneckerDelta(left_axis.decode(), right_axis.decode()),
-            Self::Differentiated { value, source, wrt } => CalculusNode::Differentiated {
-                value: calculus_operand(ids, *value)?,
+            Self::Differentiated { source, wrt } => CalculusNode::Differentiated {
                 source: calculus_operand(ids, *source)?,
                 wrt: calculus_operand(ids, *wrt)?,
             },
@@ -891,6 +896,10 @@ impl WirePureCalculusNode {
                 calculus_operand(ids, *right)?,
             ),
             Self::Mul { left, right } => CalculusNode::Mul(
+                calculus_operand(ids, *left)?,
+                calculus_operand(ids, *right)?,
+            ),
+            Self::Div { left, right } => CalculusNode::Div(
                 calculus_operand(ids, *left)?,
                 calculus_operand(ids, *right)?,
             ),

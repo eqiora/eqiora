@@ -61,7 +61,7 @@ impl ExpressionLowerer<'_> {
         value: &LoweringExpression,
         selected: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
-        // Formalization creates temporary reciprocals and chain-rule terms.
+        // Formalization creates temporary chain-rule terms.
         // Their pointer keys must never escape the lifetime of this call.
         let outer_cache = std::mem::take(&mut self.cache);
         let lowered = self.lower_partial_scoped(expression, value, selected);
@@ -169,7 +169,6 @@ impl ExpressionLowerer<'_> {
         let mut coordinate_derivative = matches!(input(selected), Some(Input::Coordinate(..)));
         let mut nested_partial = false;
         let mut literals = BTreeMap::new();
-        let mut divisors = BTreeMap::new();
         // The borrowed root keeps every source Arc alive throughout this call.
         // Both pointer-keyed maps are local to this formalization and its scope.
         let mut visited = BTreeSet::new();
@@ -202,19 +201,12 @@ impl ExpressionLowerer<'_> {
                     }
                 }
                 LoweringExpressionNode::Neg(value) => pending.push(value),
-                LoweringExpressionNode::Binary {
-                    operator: BinaryOp::Div,
-                    left,
-                    right,
-                } => {
-                    let reciprocal = reciprocal_literal(self.file, right)?;
-                    let index = input_slot(inputs.len())
-                        .map_err(|message| error(self.file, expression, message))?;
-                    divisors.insert(Arc::as_ptr(&value.node) as usize, index);
-                    inputs.push(reciprocal);
-                    pending.push(left);
-                }
                 LoweringExpressionNode::Binary { left, right, .. } => pending.extend([right, left]),
+                LoweringExpressionNode::Call { callee, argument }
+                    if crate::math::unary_function(callee).is_some() =>
+                {
+                    pending.push(argument);
+                }
                 LoweringExpressionNode::PureOperator { arguments, .. } => {
                     pending.extend(arguments.iter().rev())
                 }
@@ -222,7 +214,7 @@ impl ExpressionLowerer<'_> {
                     return Err(error(
                         self.file,
                         expression,
-                        "partial admits explicit scalar polynomial arithmetic and operator composition",
+                        "partial admits explicit real scalar calculus and operator composition",
                     ));
                 }
             }
@@ -327,14 +319,13 @@ impl ExpressionLowerer<'_> {
             value,
             &names,
             &literals,
-            &divisors,
             &mut calculus,
             &mut BTreeMap::new(),
         )?;
         let mut derivative = calculus
             .partial(root, 0)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-        // Chain the common exact polynomial derivative with each retained Field
+        // Chain the common formal derivative with each retained Field
         // or pullback derivative. Total time differentiation supplies their exact
         // rates; spatial differentiation supplies their coordinate directions.
         // Numerical basis choice stays outside calculus.
@@ -389,49 +380,6 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn reciprocal_literal(
-    file: &str,
-    expression: &LoweringExpression,
-) -> Result<LoweringExpression, Diagnostic> {
-    let mut value = expression;
-    let mut sign = 1.0;
-    while let LoweringExpressionNode::Neg(inner) = value.node.as_ref() {
-        value = inner;
-        sign = -sign;
-    }
-    let invalid = || {
-        error(
-            file,
-            expression,
-            "polynomial partial division requires a fixed nonzero real literal denominator",
-        )
-    };
-    let LoweringExpressionNode::Literal(literal) = value.node.as_ref() else {
-        return Err(invalid());
-    };
-    let quantity = literal
-        .real_scalar_value()
-        .filter(|value| value.value() != 0.0)
-        .ok_or_else(invalid)?;
-    let dimension = quantity.dim().pow(-1, 1).ok_or_else(|| {
-        error(
-            file,
-            expression,
-            "partial reciprocal dimension exceeds exact bounds",
-        )
-    })?;
-    let reciprocal = eqiora_core::ValueLiteral::from_real(
-        literal
-            .value_type()
-            .clone()
-            .with_dimension(dimension)
-            .map_err(|failure| error(file, expression, failure.to_string()))?,
-        sign / quantity.value(),
-    )
-    .map_err(|failure| error(file, expression, failure.to_string()))?;
-    Ok(LoweringExpression::literal(reciprocal, expression.range))
-}
-
 fn input_slot(count: usize) -> Result<u16, &'static str> {
     if count >= eqiora_schema::kernel::pure_operator::MAX_FORMALS {
         return Err("partial input occurrences exceed the calculus formal bound");
@@ -444,7 +392,6 @@ fn scalar(
     expression: &LoweringExpression,
     names: &BTreeMap<Input, u16>,
     literals: &BTreeMap<usize, u16>,
-    divisors: &BTreeMap<usize, u16>,
     builder: &mut CalculusBuilder,
     cache: &mut BTreeMap<usize, CalculusNodeId>,
 ) -> Result<CalculusNodeId, Diagnostic> {
@@ -462,16 +409,16 @@ fn scalar(
             axes: Box::new([]),
         },
         LoweringExpressionNode::Partial { value, wrt } => {
-            let root = scalar(file, value, names, literals, divisors, builder, cache)?;
+            let root = scalar(file, value, names, literals, builder, cache)?;
             let id = builder
                 .partial(root, names[&input(wrt).expect("validated partial input")])
                 .map_err(|failure| error(file, expression, failure.to_string()))?;
             cache.insert(key, id);
             return Ok(id);
         }
-        LoweringExpressionNode::Neg(value) => CalculusNode::Neg(scalar(
-            file, value, names, literals, divisors, builder, cache,
-        )?),
+        LoweringExpressionNode::Neg(value) => {
+            CalculusNode::Neg(scalar(file, value, names, literals, builder, cache)?)
+        }
         LoweringExpressionNode::Binary {
             operator: BinaryOp::Pow,
             left,
@@ -490,7 +437,7 @@ fn scalar(
                         "polynomial exponent exceeds the positive bounded calculus range",
                     )
                 })?;
-            let value = scalar(file, left, names, literals, divisors, builder, cache)?;
+            let value = scalar(file, left, names, literals, builder, cache)?;
             let mut product = value;
             for _ in 1..exponent {
                 product = builder
@@ -499,27 +446,21 @@ fn scalar(
             }
             return Ok(product);
         }
-        LoweringExpressionNode::Binary {
-            operator: BinaryOp::Div,
-            left,
-            ..
-        } => {
-            let left = scalar(file, left, names, literals, divisors, builder, cache)?;
-            let right = builder
-                .push(CalculusNode::FormalComponent {
-                    formal: divisors[&key],
-                    axes: Box::new([]),
-                })
-                .map_err(|failure| error(file, expression, failure.to_string()))?;
-            CalculusNode::Mul(left, right)
+        LoweringExpressionNode::Call { callee, argument }
+            if crate::math::unary_function(callee).is_some() =>
+        {
+            CalculusNode::UnaryMath(
+                crate::math::unary_function(callee).expect("matched unary mathematics"),
+                scalar(file, argument, names, literals, builder, cache)?,
+            )
         }
         LoweringExpressionNode::Binary {
             operator,
             left,
             right,
         } => {
-            let left = scalar(file, left, names, literals, divisors, builder, cache)?;
-            let mut right = scalar(file, right, names, literals, divisors, builder, cache)?;
+            let left = scalar(file, left, names, literals, builder, cache)?;
+            let mut right = scalar(file, right, names, literals, builder, cache)?;
             match operator {
                 BinaryOp::Add => CalculusNode::Add(left, right),
                 BinaryOp::Sub => {
@@ -529,11 +470,12 @@ fn scalar(
                     CalculusNode::Add(left, right)
                 }
                 BinaryOp::Mul => CalculusNode::Mul(left, right),
+                BinaryOp::Div => CalculusNode::Div(left, right),
                 _ => {
                     return Err(error(
                         file,
                         expression,
-                        "partial arithmetic requires an admitted polynomial rule",
+                        "partial arithmetic requires an admitted scalar calculus rule",
                     ));
                 }
             }
@@ -544,7 +486,7 @@ fn scalar(
         } => {
             let arguments = arguments
                 .iter()
-                .map(|value| scalar(file, value, names, literals, divisors, builder, cache))
+                .map(|value| scalar(file, value, names, literals, builder, cache))
                 .collect::<Result<Vec<_>, _>>()?;
             let id = builder
                 .apply_scalar(definition, &arguments)
@@ -556,7 +498,7 @@ fn scalar(
             return Err(error(
                 file,
                 expression,
-                "partial expression is outside the admitted polynomial profile",
+                "partial expression is outside the admitted real scalar calculus",
             ));
         }
     };

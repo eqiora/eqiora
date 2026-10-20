@@ -51,8 +51,19 @@ pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64>
     let mut preconditioned_intermediate = vec![S::zero(); dimension];
     let mut intermediate_image = vec![S::zero(); dimension];
     let mut reported_residual_norm = initial_residual_norm;
+    let mut cycle_length = dimension;
+    let mut next_replacement = cycle_length;
 
     for iteration in 1..=plan.maximum_iterations().get() {
+        // Finite precision can lose the biorthogonality that closes an exact
+        // n-dimensional recurrence. Reapply b-Ax at bounded cycle boundaries;
+        // growing cycles also allow useful history beyond n steps. Replacement
+        // uses the existing correction owner and the original acceptance target.
+        let replace_residual = iteration == next_replacement;
+        if replace_residual {
+            cycle_length = cycle_length.saturating_mul(2);
+            next_replacement = iteration.saturating_add(cycle_length);
+        }
         let mut shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
         if shadow_product == S::zero() {
             // Orthogonality to the old shadow is not singularity of the operator.
@@ -176,7 +187,7 @@ pub(super) fn solve_preconditioned_bicgstab<S: Scalar + ComplexFloat<Real = f64>
         require_finite(&solution, "BiCGSTAB solution")?;
         require_finite(&residual, "BiCGSTAB residual")?;
         reported_residual_norm = FixedOrderInnerProduct::norm(execution, &residual)?;
-        if reported_residual_norm <= recurrence_target {
+        if reported_residual_norm <= recurrence_target || replace_residual {
             let true_residual_norm = true_residual_norm(
                 execution,
                 problem,

@@ -5,7 +5,7 @@ use eqiora::graph::Op;
 use eqiora::ir::ScalarOperatorIr;
 use eqiora::kernel::{KernelNode, SymbolRef};
 
-fn residuals(source: &str) -> Vec<f64> {
+fn evaluated_values(source: &str) -> Result<Vec<Vec<eqiora::ValueLiteral>>, eqiora::Diagnostic> {
     let models = compile("partial.eqi", source).unwrap();
     let operations = models[0].transaction().ops();
     let parameters = operations
@@ -25,17 +25,23 @@ fn residuals(source: &str) -> Vec<f64> {
             } => Some(relation.expression()),
             _ => None,
         })
-        .flat_map(|dag| {
+        .map(|dag| {
             ScalarOperatorIr::lower(dag)
                 .unwrap()
                 .evaluate_typed(dag.roots(), &mut |symbol| match symbol {
                     SymbolRef::Parameter(id) => parameters.get(&id).cloned(),
                     _ => None,
                 })
-                .unwrap()
-                .into_iter()
-                .map(|value| value.real_scalar_value().unwrap().value())
         })
+        .collect()
+}
+
+fn residuals(source: &str) -> Vec<f64> {
+    evaluated_values(source)
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .map(|value| value.real_scalar_value().unwrap().value())
         .collect::<Vec<_>>()
         .as_chunks::<2>()
         .0
@@ -74,12 +80,73 @@ fn aliases_foreign_bindings_conflicting_holding_and_implicit_solution_partials_f
         "partial(x,wrt=x,holding=(z))",
         "partial(x,wrt=v)",
         "partial(derivative(v),wrt=x)",
-        "partial(math.sin(x),wrt=x)",
     ] {
         let source = format!(
             "model M() {{ parameter x:1=3; parameter y:1=3; let z=x; variable v:1; relation r {{ {expression}=0; }} }}"
         );
         assert!(compile("invalid.eqi", &source).is_err(), "{expression}");
+    }
+}
+
+#[test]
+fn elementary_and_quotient_partials_share_model_and_operator_calculus() {
+    // Analytic identities at 0, 1 and 4 avoid fitting a tolerance to libm output.
+    // (sin(log x))'' at x=1 is -1; (x/y)_y=-x/y² and (x/y)_yy=2x/y³.
+    let source = r#"
+operator dx(input x:1,input y:1):1=partial(x/y,wrt=x);
+operator dy(input x:1,input y:1):1=partial(x/y,wrt=y);
+model M() {
+ parameter z:1=0; parameter u:1=1; parameter x:1=2; parameter y:1=4;
+ let f=math.sin(math.log(u));
+ relation r {
+   partial(math.sin(z),wrt=z)=1;
+   partial(partial(math.sin(z),wrt=z),wrt=z)=0;
+   partial(math.cos(z),wrt=z)=0;
+   partial(partial(math.cos(z),wrt=z),wrt=z)=-1;
+   partial(math.exp(z),wrt=z)=1;
+   partial(partial(math.exp(z),wrt=z),wrt=z)=1;
+   partial(math.log(u),wrt=u)=1;
+   partial(partial(math.log(u),wrt=u),wrt=u)=-1;
+   partial(math.sqrt(y),wrt=y)=0.25;
+   partial(partial(math.sqrt(y),wrt=y),wrt=y)=-0.03125;
+   partial(partial(f,wrt=u),wrt=u)=-1;
+   partial(x/y,wrt=x)=0.25;
+   partial(x/y,wrt=y)=-0.125;
+   partial(partial(x/y,wrt=y),wrt=y)=0.0625;
+   partial(dx(x=x,y=x),wrt=x)=-0.25;
+   partial(dy(x=x,y=x),wrt=x)=0.25;
+ }
+}"#;
+    assert_eq!(residuals(source), vec![0.; 16]);
+}
+
+#[test]
+fn quotient_partial_does_not_square_a_tiny_denominator() {
+    // At x=y=1e-200, -x/y²=-1e200 is finite although y² underflows.
+    // Sixteen binary64 epsilons cover this short scaled quotient calculation.
+    let source = r#"model M() {
+ parameter x:1=1e-200; parameter y:1=1e-200;
+ relation r { partial(x/y,wrt=y)=-1e200; }
+}"#;
+    assert!(residuals(source)[0].abs() <= 16. * f64::EPSILON * 1e200);
+}
+
+#[test]
+fn formal_partial_execution_preserves_source_and_derivative_domains() {
+    for (value, expression) in [
+        (-1, "partial(math.log(x),wrt=x)"),
+        (-1, "partial(math.log(x),wrt=y)"),
+        (0, "partial(math.sqrt(x),wrt=x)"),
+        (0, "partial(1/x,wrt=x)"),
+        (0, "partial(1/x,wrt=y)"),
+    ] {
+        let source = format!(
+            "model M() {{ parameter x:1={value}; parameter y:1=1; relation r {{ {expression}=0; }} }}"
+        );
+        assert!(
+            evaluated_values(&source).is_err(),
+            "{expression} at {value}"
+        );
     }
 }
 
@@ -204,6 +271,10 @@ fn nonsmooth_second_partials_do_not_infer_smoothness_from_the_evaluation_point()
             "model M() {{ parameter x:1=3; relation r {{ partial(partial({value},wrt=x),wrt=x)=2; }} }}"
         );
         assert!(compile("nonsmooth.eqi", &source).is_err(), "{value}");
+        let operator = format!(
+            "operator second(input x:1):1=partial(partial({value},wrt=x),wrt=x); model M() {{ relation r {{ second(x=3)=2; }} }}"
+        );
+        assert!(compile("nonsmooth.eqi", &operator).is_err(), "{value}");
     }
 }
 

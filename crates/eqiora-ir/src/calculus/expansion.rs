@@ -24,7 +24,7 @@ pub trait OperatorExpansionExt<I> {
 impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
     fn component(&self, component: &[u32]) -> Result<ScalarCalculus<I>, CalculusError> {
         validate_component(self.result_type().shape(), component)?;
-        let definition = self.definition();
+        let definition = self.definition().polynomial_derivative_view()?;
         let mut nodes = Vec::with_capacity(definition.nodes().len());
         for node in definition.nodes() {
             let node = match node {
@@ -62,13 +62,6 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                         dimension: eqiora_core::DimExponents::DIMENSIONLESS,
                     }
                 }
-                CalculusNode::Differentiated { value, source, wrt } => {
-                    ScalarCalculusNode::Differentiated {
-                        value: *value,
-                        source: *source,
-                        wrt: *wrt,
-                    }
-                }
                 CalculusNode::BoundInput(value) => ScalarCalculusNode::BoundInput(*value),
                 CalculusNode::Neg(value) => ScalarCalculusNode::Neg(*value),
                 CalculusNode::Add(left, right) => ScalarCalculusNode::Add(*left, *right),
@@ -78,6 +71,7 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
             nodes.push(node);
         }
         Ok(ScalarCalculus {
+            source_definition: self.definition().digest(),
             argument_types: self.arguments().to_vec(),
             result_type: self.result_type().clone(),
             result_component: component.into(),
@@ -134,12 +128,6 @@ pub enum ScalarCalculusNode {
     FormalComponent(ScalarCalculusAtom),
     /// One retained local formal binding.
     BoundInput(CalculusNodeId),
-    /// Retained differentiation history, with an already expanded value.
-    Differentiated {
-        value: CalculusNodeId,
-        source: CalculusNodeId,
-        wrt: CalculusNodeId,
-    },
     /// Ordered negation.
     Neg(CalculusNodeId),
     /// Ordered addition.
@@ -148,9 +136,10 @@ pub enum ScalarCalculusNode {
     Mul(CalculusNodeId, CalculusNodeId),
 }
 
-/// Ordered executable component expression plus optional exact proof view.
+/// Ordered polynomial component proof view bound to its original definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarCalculus<I> {
+    pub(super) source_definition: eqiora_schema::kernel::pure_operator::OperatorDefinitionDigest,
     pub(super) argument_types: Vec<ExpressionType<I>>,
     pub(super) result_type: ExpressionType<I>,
     pub(super) result_component: Box<[u32]>,

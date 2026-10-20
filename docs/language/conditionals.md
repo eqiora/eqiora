@@ -45,8 +45,10 @@ The derivative is rejected whenever evaluation lands on a comparison boundary, i
 endpoint of a clamp and its equal-bound case. Boolean predicates are not differentiated, and
 you cannot assert smoothness yourself; equal branch values do not prove that the join is
 differentiable. Generalized derivatives and proofs of smooth joins are not available. Symbolic
-first and second `partial` graphs keep their polynomial profile, and a derivative computed at
-one point does not make the same branch valid at another point.
+first and second `partial` graphs admit the [smooth scalar calculus](operators.md),
+including quotients and elementary functions, while value branches and absolute-value
+expressions remain outside that formal profile. A derivative computed at one point does not
+make the same branch valid at another point.
 
 A piecewise value creates no history, hysteresis, reset, or crossing detection; use an explicit
 event for those. General nonsmooth solves, complex ordering, analytic functions beyond this

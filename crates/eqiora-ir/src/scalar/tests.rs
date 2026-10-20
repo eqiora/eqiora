@@ -533,6 +533,61 @@ fn additive_terms_preserve_singular_atoms_and_canonicalize_across_roots() {
 }
 
 #[test]
+fn additive_terms_follow_the_live_scalar_branch_without_demanding_the_other_arm() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::{ComparisonOp, UnaryMathFunction};
+    let selected = SymbolRef::Field(Id::<kinds::Field>::new());
+    let mode = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(selected).unwrap();
+    let mode_value = builder.symbol(mode).unwrap();
+    let zero = builder
+        .constant(DynQuantity::new(0., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let condition = builder
+        .compare(ComparisonOp::Greater, mode_value, zero)
+        .unwrap();
+    let negative = builder
+        .constant(DynQuantity::new(-1., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let invalid = builder
+        .unary_math(UnaryMathFunction::Log, negative)
+        .unwrap();
+    let root = builder.select(condition, x, invalid).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+    let x_value =
+        ValueLiteral::try_from(DynQuantity::new(2., DimExponents::DIMENSIONLESS)).unwrap();
+    let inputs = |enabled| {
+        ir.symbols()
+            .iter()
+            .map(|symbol| {
+                if *symbol == selected {
+                    x_value.clone()
+                } else {
+                    ValueLiteral::try_from(DynQuantity::new(
+                        if enabled { 1. } else { -1. },
+                        DimExponents::DIMENSIONLESS,
+                    ))
+                    .unwrap()
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    let terms = ir.additive_terms(&inputs(true), selected).unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(
+        terms[0].1,
+        [num_rational::BigRational::from_integer(1.into())]
+    );
+    let atom = &terms[0].0;
+    let (values, _) = atom
+        .evaluate_value_trace(&atom.roots, &mut |_| Some(x_value.clone()))
+        .unwrap();
+    assert_eq!(values.as_slice(), std::slice::from_ref(&x_value));
+    assert!(ir.additive_terms(&inputs(false), selected).is_err());
+}
+
+#[test]
 fn additive_terms_retain_active_guard_boundaries_and_original_domains() {
     use eqiora_core::ValueLiteral;
     use eqiora_schema::kernel::{ComparisonOp, UnaryMathFunction};

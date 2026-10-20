@@ -32,16 +32,20 @@ impl ScalarOperatorIr {
             .collect::<Result<Vec<_>, _>>()?;
         let mut results = Vec::with_capacity(inputs.len());
         for row in inputs {
-            let (projected, roots) = self.project_point(row, &roots)?;
+            let projected = self.project_point(row, &roots)?;
             let values = self
                 .symbols
                 .iter()
                 .copied()
                 .zip(row)
                 .collect::<HashMap<_, _>>();
-            results.push(projected.evaluate_typed(&roots, &mut |symbol| {
-                values.get(&symbol).map(|value| (*value).clone())
-            })?);
+            results.push(
+                projected
+                    .evaluate_value_trace(&projected.roots, &mut |symbol| {
+                        values.get(&symbol).map(|value| (*value).clone())
+                    })?
+                    .0,
+            );
         }
         Ok(results)
     }

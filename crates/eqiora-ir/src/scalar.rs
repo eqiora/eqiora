@@ -205,10 +205,15 @@ impl ScalarInputOperatorIr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScalarInputValueId(ValueId);
 
+enum BuilderInput {
+    Bound(ScalarInputSlot),
+    Formal(eqiora_core::DimExponents),
+}
+
 pub(crate) struct ScalarInputIrBuilder {
     primal_checks: Vec<ValueId>,
     typed_constants: Vec<eqiora_core::ValueLiteral>,
-    slots: Vec<ScalarInputSlot>,
+    slots: Vec<BuilderInput>,
     slot_indices: HashMap<ScalarInputSlot, SymbolSlot>,
     instructions: Vec<Instruction>,
     map_values: HashMap<(u32, u32, MapOutput), ScalarInputValueId>,
@@ -252,7 +257,7 @@ impl ScalarInputIrBuilder {
                 ));
             }
             let index = SymbolSlot(next);
-            self.slots.push(slot.clone());
+            self.slots.push(BuilderInput::Bound(slot.clone()));
             self.slot_indices.insert(slot, index);
             index
         };
@@ -364,8 +369,14 @@ impl ScalarInputIrBuilder {
         function: eqiora_schema::kernel::UnaryMathFunction,
         value: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        real_math::admit(function)?;
-        self.unary(value, |value| Instruction::Math(function, value))
+        if function == eqiora_schema::kernel::UnaryMathFunction::Abs {
+            self.require_prior(value)?;
+            let instruction = real_math::lower_absolute(&mut self.instructions, value.0)?;
+            self.push(instruction)
+        } else {
+            real_math::admit(function)?;
+            self.unary(value, |value| Instruction::Math(function, value))
+        }
     }
 
     pub(crate) fn powi(
@@ -394,7 +405,16 @@ impl ScalarInputIrBuilder {
         Ok(ScalarInputOperatorIr {
             primal_checks: self.primal_checks,
             typed_constants: self.typed_constants,
-            slots: self.slots,
+            slots: self
+                .slots
+                .into_iter()
+                .map(|slot| match slot {
+                    BuilderInput::Bound(slot) => Ok(slot),
+                    BuilderInput::Formal(_) => Err(ir_builder_error(
+                        "formal scalar inputs must be substituted before execution",
+                    )),
+                })
+                .collect::<Result<_, _>>()?,
             instructions: self.instructions,
             roots,
         })

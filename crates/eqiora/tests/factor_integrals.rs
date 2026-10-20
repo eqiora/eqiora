@@ -393,6 +393,54 @@ fn factor_integrals_retain_support_for_a_constant_declared_density() {
 }
 
 #[test]
+fn fixed_divisor_partial_keeps_polynomial_integral_constraint_admission() {
+    // d/dx(A*x/(2m))=A/(2m); integrating over [0,2m] gives A.
+    // The reciprocal spelling is the same polynomial and must use the same
+    // ordinary constraint path, with no floating-point derivative approximation.
+    for expression in ["0.5[1/m]*x", "x/2[m]"] {
+        let source = format!(
+            "model Distribution(support position:interval(m), support velocity:interval(m/s)) {{
+                coordinate x:m on position from position;
+                variable amplitude:1;
+                observable count:1=integral(partial(amplitude*({expression}),wrt=x),measure(position));
+                relation amplitude_value {{count=3;}}
+                observable value:1=amplitude;
+            }}"
+        );
+        let (model, symbols, result) = solve(&source, [-2., 4.]);
+        let value = result
+            .observe(
+                &model,
+                symbols.get("value").unwrap().downcast().unwrap(),
+                &std::collections::HashMap::new(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(value.value().real_scalar_value().unwrap().value(), 3.);
+    }
+}
+
+#[test]
+fn polynomial_integral_constraints_keep_partial_source_domains() {
+    // d/dp(p*A*(x/m)^2 + log((x-0.1m)/m)) = A*(x/m)^2.
+    // The source is undefined for x <= 0.1m. Its integral on [0,2m] is
+    // outside the regular-density contract even though both two-point Gauss
+    // nodes, x=(1 +/- 1/sqrt(3))m, lie above 0.1m.
+    let source = "model Distribution(support position:interval(m), support velocity:interval(m/s)) {
+        coordinate x:m on position from position;
+        variable amplitude:1; parameter p:1=2;
+        observable count:m=integral(partial(p*amplitude*(x/1[m])^2+math.log((x-0.1[m])/1[m]),wrt=p),measure(position));
+        relation amplitude_value {count=3[m];}
+    }";
+    let (model, _) = model(source, [-2., 4.]);
+    let error = resolve(&model).unwrap_err();
+    assert!(
+        error.message().contains("regular factor density"),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn fixed_integral_partials_follow_remaining_factor_and_independent_parameter() {
     let source = SOURCE
         .replace("variable amplitude:s/m^2;", "parameter amplitude:s/m^2=3; variable anchor:1;")
@@ -510,12 +558,29 @@ fn fixed_integral_partials_reject_moving_bounds_and_nonregular_density() {
             "amplitude*(1+x/2[m])*(1+(v/4[m/s])^2)",
             "amplitude*(1+x/2[m])*(1[m/s]/v)",
         );
-    let errors = compile(&source, [-2.0, 4.0]).unwrap_err();
+    // 1/v is pointwise differentiable away from zero, but its integral across
+    // [-2,4] is not regular. The common integral gate owns this obligation even
+    // when quadrature nodes happen to avoid the pole.
+    let (model, symbols, result) = solve(&source, [-2.0, 4.0]);
+    let rules = std::collections::HashMap::from([(
+        symbols.get("velocity").unwrap().downcast().unwrap(),
+        QuadratureRule::gauss_legendre(3).unwrap(),
+    )]);
+    let error = result
+        .observe_at(
+            &model,
+            symbols.get("dx").unwrap().downcast().unwrap(),
+            &[DynQuantity::new(
+                1.,
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+            )],
+            &rules,
+            None,
+        )
+        .unwrap_err();
     assert!(
-        errors.iter().any(|error| error
-            .message()
-            .contains("fixed nonzero real literal denominator")),
-        "{errors:?}"
+        error.message().contains("regular factor density"),
+        "{error:?}"
     );
 }
 
@@ -568,7 +633,7 @@ fn fixed_integral_partial_keeps_shared_literal_multipliers_and_divisors_distinct
             "observable mass:1=",
             "observable dx:1/m^2 on position=partial(density,wrt=retained_x); observable mass:1=",
         );
-    for (scale, expected) in [(2, 225.0 / 4.0), (-2, -225.0 / 4.0)] {
+    for (scale, expected) in [(2, Some(225.0 / 4.0)), (-2, Some(-225.0 / 4.0)), (0, None)] {
         let (model, symbols, result) = solve(
             &source.replace("scale:m=2[m]", &format!("scale:m={scale}[m]")),
             [-2.0, 4.0],
@@ -577,28 +642,27 @@ fn fixed_integral_partial_keeps_shared_literal_multipliers_and_divisors_distinct
             symbols.get("velocity").unwrap().downcast().unwrap(),
             QuadratureRule::gauss_legendre(3).unwrap(),
         )]);
-        let value = result
-            .observe_at(
-                &model,
-                symbols.get("dx").unwrap().downcast().unwrap(),
-                &[DynQuantity::new(
-                    1.0,
-                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-                )],
-                &rules,
-                None,
-            )
-            .unwrap();
+        let value = result.observe_at(
+            &model,
+            symbols.get("dx").unwrap().downcast().unwrap(),
+            &[DynQuantity::new(
+                1.0,
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+            )],
+            &rules,
+            None,
+        );
+        let Some(expected) = expected else {
+            assert_eq!(
+                value.unwrap_err().code(),
+                eqiora_core::diagnostic::codes::EXPRESSION_DOMAIN_VIOLATION
+            );
+            continue;
+        };
+        let value = value.unwrap();
         // d/dx [3*(x/2+2*x)*(15/2)] = (45/2)*(1/2+2) = 225/4.
         assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() <= 1e-11);
     }
-    let errors = compile(&source.replace("scale:m=2[m]", "scale:m=0[m]"), [-2.0, 4.0]).unwrap_err();
-    assert!(
-        errors.iter().any(|error| error
-            .message()
-            .contains("fixed nonzero real literal denominator")),
-        "{errors:?}"
-    );
 }
 
 #[test]

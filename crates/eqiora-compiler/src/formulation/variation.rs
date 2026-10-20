@@ -335,13 +335,11 @@ fn derive_value(
         .iter()
         .map(|(input, _)| variation_input(density, input, &derived.inputs, directions, wrt, domain))
         .collect::<Result<Vec<_>, _>>()?;
-    let integrand = render(
-        &derived.definition,
-        derived.definition.root(),
-        &inputs,
-        remaining,
-        0,
-    )?;
+    let definition = derived
+        .definition
+        .polynomial_derivative_view()
+        .map_err(|error| wire::rejection(&error.to_string()))?;
+    let integrand = render(&definition, definition.root(), &inputs, remaining, 0)?;
     Ok(typed(
         AuthoredFormExpressionKind::Integrate {
             domain,
@@ -510,9 +508,7 @@ fn render(
             ValueType::scalar(ScalarDomain::Real, *dimension).expect("real scalar type"),
             None,
         ),
-        CalculusNode::Differentiated { value, .. } | CalculusNode::BoundInput(value) => {
-            child(*value)?
-        }
+        CalculusNode::BoundInput(value) => child(*value)?,
         CalculusNode::Neg(value) => {
             let value = child(*value)?;
             typed(

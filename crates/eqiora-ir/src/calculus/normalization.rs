@@ -6,7 +6,7 @@ use super::ExactRational;
 use super::expansion::{ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 use super::{CalculusError, calculus_index, hash, push_rational, push_u16, push_u32};
 
-const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v3\0";
+const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v4\0";
 const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v2\0";
 
 impl<I: Clone + Eq> ScalarCalculus<I> {
@@ -43,8 +43,7 @@ impl ExactPolynomial {
             let polynomial = match node {
                 ScalarCalculusNode::Rational { value, .. } => Polynomial::constant(value.clone()),
                 ScalarCalculusNode::FormalComponent(atom) => Polynomial::atom(atom.clone()),
-                ScalarCalculusNode::BoundInput(value)
-                | ScalarCalculusNode::Differentiated { value, .. } => get(*value)?.clone(),
+                ScalarCalculusNode::BoundInput(value) => get(*value)?.clone(),
                 ScalarCalculusNode::Neg(value) => get(*value)?.checked_neg()?,
                 ScalarCalculusNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
                 ScalarCalculusNode::Mul(left, right) => get(*left)?.checked_mul(get(*right)?)?,
@@ -178,6 +177,7 @@ impl<I: Eq> NormalizationProof<I> {
 
 fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
     let mut bytes = COMPONENT_DOMAIN.to_vec();
+    bytes.extend_from_slice(&component.source_definition.bytes());
     push_u32(&mut bytes, component.result_component().len());
     for coordinate in component.result_component() {
         bytes.extend_from_slice(&coordinate.to_be_bytes());
@@ -199,12 +199,6 @@ fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
                 push_u32(&mut bytes, atom.component().len());
                 for coordinate in atom.component() {
                     bytes.extend_from_slice(&coordinate.to_be_bytes());
-                }
-            }
-            ScalarCalculusNode::Differentiated { value, source, wrt } => {
-                bytes.push(5);
-                for id in [value, source, wrt] {
-                    bytes.extend_from_slice(&id.index().to_be_bytes());
                 }
             }
             ScalarCalculusNode::BoundInput(value) => {
@@ -254,6 +248,50 @@ mod tests {
             }),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn derivative_proof_binds_original_definition_not_just_expanded_polynomial() {
+        use super::super::{CalculusBuilder, CalculusNode, OperatorExpansionExt, PureValueClass};
+        use eqiora_core::{ScalarDomain, ValueType};
+        let unit = DimExponents::DIMENSIONLESS;
+        let class = PureValueClass::invariant_scalar()
+            .with_dimension(unit)
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap();
+        let mut builder = CalculusBuilder::new([class], class).unwrap();
+        let x = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let square = builder.push(CalculusNode::Mul(x, x)).unwrap();
+        let first = builder.partial(square, 0).unwrap();
+        let definition = builder.finish(first).unwrap();
+        let expanded = definition.polynomial_derivative_view().unwrap();
+        let types = [ExpressionType::<()>::new(
+            ValueType::scalar(ScalarDomain::Real, unit).unwrap(),
+            None,
+        )];
+        let original = definition
+            .instantiate(&types)
+            .unwrap()
+            .component(&[])
+            .unwrap();
+        let rewritten = expanded
+            .instantiate(&types)
+            .unwrap()
+            .component(&[])
+            .unwrap();
+        assert_eq!(original.nodes(), rewritten.nodes());
+        let proof = original.normalize().unwrap();
+        assert!(proof.same_normal_form(&rewritten.normalize().unwrap()));
+        proof.verify(&original).unwrap();
+        assert_eq!(
+            proof.verify(&rewritten),
+            Err(CalculusError::ProofSourceMismatch)
+        );
     }
 
     #[test]

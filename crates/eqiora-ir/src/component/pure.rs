@@ -1,5 +1,7 @@
 //! Pointwise tensor definitions lower through the existing real scalar IR.
 use super::*;
+mod evaluation;
+mod partials;
 use eqiora_schema::kernel::pure_operator::{CalculusNode, CalculusNodeId};
 
 struct PureComponent<'a> {
@@ -8,6 +10,8 @@ struct PureComponent<'a> {
     component: &'a [u32],
     complex: bool,
     remapped: Vec<[Option<ScalarInputValueId>; 2]>,
+    formal_values: Option<Vec<ScalarInputValueId>>,
+    bound_values: Vec<(CalculusNodeId, ScalarInputValueId)>,
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -34,6 +38,25 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         component: &[u32],
         expected_result: &ExpressionType<I>,
         part: ScalarPart,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.lower_pure_definition_with_inputs(
+            definition,
+            arguments,
+            component,
+            expected_result,
+            part,
+            None,
+        )
+    }
+
+    fn lower_pure_definition_with_inputs(
+        &mut self,
+        definition: &PureOperatorDefinition,
+        arguments: &[ExprId],
+        component: &[u32],
+        expected_result: &ExpressionType<I>,
+        part: ScalarPart,
+        formal_values: Option<Vec<ScalarInputValueId>>,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         let argument_types = arguments
             .iter()
@@ -68,6 +91,8 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             complex: expected_result.value_type.scalar_domain()
                 == eqiora_core::ScalarDomain::Complex,
             remapped: vec![[None; 2]; definition.nodes().len()],
+            formal_values,
+            bound_values: Vec::new(),
         };
         self.lower_calculus_component(&mut state, definition.root(), part)
     }
@@ -119,10 +144,21 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                             .map_err(|error| invalid_component_ir(error.to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                self.lower_part(operand, &coordinates, part)?
+                if let Some(values) = &state.formal_values {
+                    values[usize::from(formal)]
+                } else {
+                    self.lower_part(operand, &coordinates, part)?
+                }
             }
-            CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
-                self.lower_calculus_component(state, value, part)?
+            CalculusNode::BoundInput(inner) => {
+                if let Some((_, mapped)) = state.bound_values.iter().find(|(id, _)| *id == value) {
+                    *mapped
+                } else {
+                    self.lower_calculus_component(state, inner, part)?
+                }
+            }
+            CalculusNode::Differentiated { source, wrt, .. } => {
+                self.lower_formal_partial(state, source, wrt)?
             }
             CalculusNode::Boolean(value) => self.builder.boolean(value)?,
             CalculusNode::Compare(op, left, right) => {
@@ -193,6 +229,18 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     let ai = self.lower_calculus_component(state, left, Imaginary)?;
                     let bi = self.lower_calculus_component(state, right, Imaginary)?;
                     self.multiply_parts([ar, ai], [br, bi], part)?
+                }
+            }
+            CalculusNode::Div(left, right) => {
+                let ar = self.lower_calculus_component(state, left, Real)?;
+                let br = self.lower_calculus_component(state, right, Real)?;
+                if !state.complex {
+                    self.builder.div(ar, br)?
+                } else {
+                    let ai = self.lower_calculus_component(state, left, Imaginary)?;
+                    let bi = self.lower_calculus_component(state, right, Imaginary)?;
+                    self.builder
+                        .complex_div([ar, ai, br, bi], part == Imaginary)?
                 }
             }
         };

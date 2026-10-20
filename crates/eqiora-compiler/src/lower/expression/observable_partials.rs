@@ -1,4 +1,4 @@
-//! Fixed-factor integral partials reuse ordinary polynomial differentiation and reduction.
+//! Fixed-factor integral partials reuse ordinary differentiation and reduction.
 use super::*;
 use std::borrow::Cow;
 
@@ -143,8 +143,9 @@ pub(in crate::lower) fn expand<'a>(
                 ));
             }
         };
-        // The existing partial lowerer admits the polynomial profile independently; it
-        // rejects unsupported operations rather than treating them as constants.
+        // Formal differentiation retains the source domains. The common integral
+        // evaluator must still prove regular density over the complete factor;
+        // pointwise differentiability alone cannot authorize exchanging operations.
         replacements.insert(
             (*name).to_owned(),
             (

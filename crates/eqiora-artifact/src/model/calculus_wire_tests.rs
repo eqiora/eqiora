@@ -147,23 +147,18 @@ fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
         let old_root = third["root"].as_u64().unwrap();
         let nodes = third["nodes"].as_array_mut().unwrap();
         let next = nodes.len();
-        nodes.push(json!({"op":"differentiated", "source":old_root, "value":old_root, "wrt":0}));
+        nodes.push(json!({"op":"differentiated", "source":old_root, "wrt":0}));
         third["root"] = json!(next);
         let invalid: WirePureOperatorDefinition = serde_json::from_value(third).unwrap();
         let error = invalid.rebuild_and_validate_digest().unwrap_err();
-        // Reusing a retained derivative node as its own computed value is a forged
-        // provenance/value pair, even when both happen to evaluate to zero.
-        assert!(
-            error
-                .message()
-                .contains("retained derivative value differs"),
-            "{error:?}"
-        );
+        // Even an additional valid zero-valued partial changes the ordered meaning;
+        // it cannot reuse the original definition identity.
+        assert!(error.message().contains("digest"), "{error:?}");
     }
 }
 
 #[test]
-fn retained_derivative_wire_rejects_a_false_value_before_digest_comparison() {
+fn derivative_wire_rejects_displaced_value_before_digest_comparison() {
     let class = PureValueClass::invariant_scalar()
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
@@ -178,12 +173,11 @@ fn retained_derivative_wire_rejects_a_false_value_before_digest_comparison() {
     let derivative = builder.partial(x, 0).unwrap();
     let definition = builder.finish(derivative).unwrap();
     let mut wire = serde_json::to_value(WirePureOperatorDefinition::encode(&definition)).unwrap();
-    // d(x)/dx=1, independently; substitute x while keeping valid references and units.
+    // A second stored formula is no longer part of the contract, regardless of value.
     wire["nodes"][derivative.index() as usize]["value"] = json!(x.index());
-    let invalid: WirePureOperatorDefinition = serde_json::from_value(wire).unwrap();
-    let error = invalid.rebuild_and_validate_digest().unwrap_err();
+    let error = serde_json::from_value::<WirePureOperatorDefinition>(wire).unwrap_err();
     assert!(
-        error.message().contains("retained derivative value"),
+        error.to_string().contains("unknown field `value`"),
         "{error:?}"
     );
 }

@@ -694,7 +694,8 @@ impl<'a> ProgramCompiler<'a> {
                 | CalculusNode::And(..)
                 | CalculusNode::Or(..)
                 | CalculusNode::Select { .. }
-                | CalculusNode::UnaryMath(..) => {
+                | CalculusNode::UnaryMath(..)
+                | CalculusNode::Div(..) => {
                     return Err(tape_error(
                         "class operator requires unguarded polynomial calculus",
                     ));
@@ -958,7 +959,8 @@ fn definition_source_scale(
             | CalculusNode::And(..)
             | CalculusNode::Or(..)
             | CalculusNode::Select { .. }
-            | CalculusNode::UnaryMath(..) => {
+            | CalculusNode::UnaryMath(..)
+            | CalculusNode::Div(..) => {
                 return Err(tape_error(
                     "class operator requires unguarded polynomial calculus",
                 ));

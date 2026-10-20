@@ -111,12 +111,40 @@ fn moving_limits_reject_capture_units_and_unjustified_exchange() {
         ("upper=a", "upper=x", "bound coordinate cannot be captured"),
         ("upper=a", "upper=a*a", "exact coordinate unit"),
         (",lower=0[m]", "", "both lower and upper"),
-        ("x*x,measure", "1[m^4]/(x-a)^2,measure", "polynomial"),
     ] {
         let errors = document(&SOURCE.replace(from, to)).unwrap_err();
         assert!(
             errors.iter().any(|error| error.message().contains(message)),
             "{to}: {errors:?}"
+        );
+    }
+    // The pole lies exactly at the moving endpoint. Neither value nor its
+    // purported Leibniz derivative may be accepted from finite interior samples.
+    let document = document(&SOURCE.replace("x*x,measure", "1[m^4]/(x-a)^2,measure")).unwrap();
+    let model = eqiora::artifact::ModelEnvelope::from_program(document.program()).unwrap();
+    let plan = super::resolve(&model).unwrap();
+    let result = plan
+        .run_result(
+            &plan.initial_state(&[]).unwrap(),
+            &eqiora_backend_faer::FaerLinearSolver,
+        )
+        .unwrap();
+    let rules = std::collections::HashMap::from([(
+        document.aliases()["line"].downcast().unwrap(),
+        eqiora::meshing::QuadratureRule::gauss_legendre(2).unwrap(),
+    )]);
+    for name in ["total", "slope"] {
+        let error = result
+            .observe(
+                &model,
+                document.aliases()[name].downcast().unwrap(),
+                &rules,
+                None,
+            )
+            .unwrap_err();
+        assert!(
+            error.message().contains("regular factor density"),
+            "{name}: {error:?}"
         );
     }
 }
