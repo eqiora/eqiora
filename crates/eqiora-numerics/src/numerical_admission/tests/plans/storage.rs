@@ -82,10 +82,10 @@ public component Heat(
             .unwrap();
         assert_eq!(initial.spatial_values().unwrap(), &[2.; 3]);
         for (values, message) in [
-            (vec![2.; 2], "exact mapped inventory"),
+            (vec![2.; 2], "physical fields omit exact mapped coordinates"),
             (
                 vec![2., f64::NAN, 2.],
-                "physical fields require complete finite coefficients",
+                "physical Field coordinates must be complete and finite",
             ),
         ] {
             let mut invalid = initial.clone();

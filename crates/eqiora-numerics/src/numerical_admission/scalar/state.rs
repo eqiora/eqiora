@@ -103,7 +103,7 @@ impl CommonSpatialPlan {
         values: &[f64],
     ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>, Diagnostic> {
         let history = self.physical_fields(mapping, values)?;
-        mapping.validated_algebraic_point(&history)?;
+        mapping.validate_prescribed_fields(&history)?;
         for (key, expected) in &input.prescribed_states {
             if history
                 .get(&key.field)

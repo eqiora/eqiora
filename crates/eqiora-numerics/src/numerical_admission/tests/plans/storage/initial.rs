@@ -143,7 +143,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
         .initial_state(Some(0.0), vec![incompatible])
         .unwrap_err();
     assert!(
-        mismatch.message().contains("prescribed word"),
+        mismatch.message().contains("prescribed algebraic trace"),
         "{}",
         mismatch.message()
     );

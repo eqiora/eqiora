@@ -78,6 +78,11 @@ public component Heat(
                 .initial_state(Some(0.), Vec::new())
                 .unwrap();
             assert_eq!(initial.spatial_values().unwrap(), expected);
+            // Source evaluation retains -0 from a negative slope at x=0.
+            // A physically equal essential trace must not rewrite State words.
+            for (actual, expected) in initial.spatial_values().unwrap().iter().zip(&expected) {
+                assert_eq!(actual.to_bits(), expected.to_bits());
+            }
             let run =
                 CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3])
                     .unwrap();

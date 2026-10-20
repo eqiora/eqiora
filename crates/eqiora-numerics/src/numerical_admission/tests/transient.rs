@@ -161,7 +161,7 @@ public component AffineStorage(
         .initial_state(Some(0.0), Vec::new())
         .unwrap_err();
     assert!(
-        mismatch.message().contains("prescribed word"),
+        mismatch.message().contains("prescribed algebraic trace"),
         "{}",
         mismatch.message()
     );

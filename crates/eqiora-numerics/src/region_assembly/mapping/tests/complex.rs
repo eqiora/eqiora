@@ -68,6 +68,33 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
         ])
     );
     mapping.validate_physical(&physical).unwrap();
+    // Physical initial values may carry either zero sign, but replayed solver
+    // coefficients must retain the exact prescribed words in both components.
+    let zero_trace = mapping
+        .with_prescribed(&BTreeMap::from([(key(0), C::new(0., 0.))]))
+        .unwrap();
+    let mut zero_fields = zero_trace.recover(&free, &[field]).unwrap();
+    zero_trace.validated_algebraic_point(&zero_fields).unwrap();
+    for value in [C::new(-0., 0.), C::new(0., -0.), C::new(-0., -0.)] {
+        zero_fields
+            .get_mut(&field)
+            .unwrap()
+            .coefficients
+            .insert(key(0), value);
+        zero_trace.validate_prescribed_fields(&zero_fields).unwrap();
+        let retained = zero_fields[&field].coefficients[&key(0)];
+        assert_eq!(retained.re.to_bits(), value.re.to_bits());
+        assert_eq!(retained.im.to_bits(), value.im.to_bits());
+        assert!(zero_trace.validated_algebraic_point(&zero_fields).is_err());
+    }
+    for value in [C::new(f64::MIN_POSITIVE, 0.), C::new(0., f64::MIN_POSITIVE)] {
+        zero_fields
+            .get_mut(&field)
+            .unwrap()
+            .coefficients
+            .insert(key(0), value);
+        assert!(zero_trace.validate_prescribed_fields(&zero_fields).is_err());
+    }
     let mut wrong_space = physical.clone();
     wrong_space.get_mut(&field).unwrap().space = Space::cell_constant();
     assert!(

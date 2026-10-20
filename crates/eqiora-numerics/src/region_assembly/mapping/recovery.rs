@@ -32,7 +32,19 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     ) -> Result<Vec<S>, Diagnostic> {
         let full = self.normalized_coefficients(fields)?;
         let reduced = self.restrict(&full)?;
-        let lifted = self.lift(&reduced, false)?;
+        self.validate_prescribed_fields(fields)?;
+        Ok(reduced)
+    }
+
+    /// Initial physical values must agree numerically with prescribed traces.
+    /// Preserve their words, including signed zeros; exact algebraic replay
+    /// additionally requires the normalized words in `validated_algebraic_point`.
+    pub(crate) fn validate_prescribed_fields(
+        &self,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+    ) -> Result<(), Diagnostic> {
+        self.validate_physical(fields)?;
+        let lifted = self.lift(&vec![S::zero(); self.free_count()], false)?;
         for key in self.keys().filter(|key| self.free_dof(*key).is_none()) {
             let physical = lifted[self.global_dof(key).expect("mapped coordinate")]
                 * self.field_scale(key.field)?;
@@ -42,7 +54,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 ));
             }
         }
-        Ok(reduced)
+        Ok(())
     }
 
     pub(crate) fn physical_fields_from_coefficients(
