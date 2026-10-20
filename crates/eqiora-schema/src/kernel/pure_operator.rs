@@ -19,6 +19,8 @@ mod derivative;
 mod derivative_projection;
 mod dimensions;
 mod domains;
+mod value_class;
+pub use value_class::PureValueClass;
 mod encoding;
 mod instantiation;
 mod polynomial;
@@ -29,7 +31,7 @@ use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 pub use rational::ExactRational;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v9\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v10\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -132,128 +134,6 @@ impl fmt::Display for PureOperatorError {
 }
 
 impl std::error::Error for PureOperatorError {}
-
-/// Pointwise value class of a formal argument or result.
-///
-/// Spatial tensors have a fixed rank and may constrain their common axis extent;
-/// otherwise the extent is inferred from framed arguments or their common support.
-/// A scalar is represented only by `None`, so spatial rank zero has no second
-/// representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PureValueClass {
-    spatial_rank: Option<std::num::NonZeroU16>,
-    spatial_extent: Option<std::num::NonZeroU32>,
-    dimension: Option<DimExponents>,
-    scalar_domain: Option<eqiora_core::ScalarDomain>,
-}
-
-impl PureValueClass {
-    /// Invariant scalar on the common support.
-    #[must_use]
-    pub const fn invariant_scalar() -> Self {
-        Self {
-            spatial_rank: None,
-            spatial_extent: None,
-            dimension: None,
-            scalar_domain: None,
-        }
-    }
-
-    /// Spatial Cartesian tensor of the given positive rank on the common support.
-    ///
-    /// # Errors
-    /// Rejects rank zero and ranks above the internal `MAX_TENSOR_RANK` limit.
-    pub fn spatial_tensor(rank: u16) -> Result<Self, PureOperatorError> {
-        let rank = std::num::NonZeroU16::new(rank).ok_or(PureOperatorError::InvalidResultRule)?;
-        if rank.get() > MAX_TENSOR_RANK {
-            return Err(PureOperatorError::InvalidResultRule);
-        }
-        Ok(Self {
-            spatial_rank: Some(rank),
-            spatial_extent: None,
-            dimension: None,
-            scalar_domain: None,
-        })
-    }
-
-    /// Constrain every spatial axis to one positive extent.
-    pub fn with_spatial_extent(mut self, extent: u32) -> Result<Self, PureOperatorError> {
-        if self.spatial_rank.is_none() {
-            return Err(PureOperatorError::InvalidResultRule);
-        }
-        self.spatial_extent =
-            Some(std::num::NonZeroU32::new(extent).ok_or(PureOperatorError::InvalidResultRule)?);
-        Ok(self)
-    }
-
-    /// Spatial extent constraint, absent for a generic spatial class or a scalar.
-    #[must_use]
-    pub const fn spatial_extent(self) -> Option<u32> {
-        match self.spatial_extent {
-            Some(extent) => Some(extent.get()),
-            None => None,
-        }
-    }
-
-    /// Constrain this scalar or tensor class to one physical dimension.
-    #[must_use]
-    pub const fn with_dimension(mut self, dimension: DimExponents) -> Self {
-        self.dimension = Some(dimension);
-        self
-    }
-
-    /// Physical dimension constraint, absent for a generic class.
-    #[must_use]
-    pub const fn dimension(self) -> Option<DimExponents> {
-        self.dimension
-    }
-
-    /// Spatial tensor rank, or `None` for an invariant scalar.
-    #[must_use]
-    pub const fn spatial_rank(self) -> Option<u16> {
-        match self.spatial_rank {
-            Some(rank) => Some(rank.get()),
-            None => None,
-        }
-    }
-
-    /// Mathematical value rank; zero denotes the invariant scalar.
-    #[must_use]
-    pub const fn rank(self) -> usize {
-        match self.spatial_rank {
-            Some(rank) => rank.get() as usize,
-            None => 0,
-        }
-    }
-
-    /// Whether this is the invariant scalar.
-    #[must_use]
-    pub const fn is_invariant_scalar(self) -> bool {
-        self.spatial_rank.is_none()
-    }
-}
-
-impl Ord for PureValueClass {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (
-            self.spatial_rank,
-            self.spatial_extent,
-            self.scalar_domain,
-            self.dimension.map(DimExponents::exponents),
-        )
-            .cmp(&(
-                other.spatial_rank,
-                other.spatial_extent,
-                other.scalar_domain,
-                other.dimension.map(DimExponents::exponents),
-            ))
-    }
-}
-impl PartialOrd for PureValueClass {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
 /// Stable local node ID in one topologically ordered calculus definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -444,18 +324,7 @@ impl CalculusBuilder {
                 let Some(rule) = self.formals.get(usize::from(*formal)) else {
                     return Err(PureOperatorError::InvalidFormal(*formal));
                 };
-                if axes.len() != rule.rank() {
-                    return Err(PureOperatorError::FormalComponentRank);
-                }
-                if axes.iter().any(|axis| !axis.valid_result_axis(result_rank)) {
-                    return Err(PureOperatorError::ResultAxisOutOfRange);
-                }
-                if axes.iter().any(|axis| {
-                    matches!(axis, ComponentIndex::Fixed(coordinate)
-                    if rule.spatial_extent().is_some_and(|extent| *coordinate >= extent))
-                }) {
-                    return Err(PureOperatorError::FormalTypeMismatch);
-                }
+                rule.validate_component(axes, &self.result)?;
             }
             CalculusNode::KroneckerDelta(left, right)
                 if !left.valid_result_axis(result_rank)
@@ -503,10 +372,10 @@ impl CalculusBuilder {
         if self.nodes.get(root_index).is_none() {
             return Err(PureOperatorError::InvalidNode);
         }
-        dimensions::validate_profile(&self.formals, self.result, &self.nodes)?;
+        dimensions::validate_profile(&self.formals, &self.result, &self.nodes)?;
         let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
-        validate_result_dimension(&self.formals, self.result, &dimension)?;
-        domains::validate_result(&self.formals, self.result, &self.nodes, root)?;
+        validate_result_dimension(&self.formals, &self.result, &dimension)?;
+        domains::validate_result(&self.formals, &self.result, &self.nodes, root)?;
         Ok(PureOperatorDefinition {
             formals: self.formals,
             result: self.result,
@@ -585,7 +454,15 @@ pub struct PureOperatorDefinition {
 }
 
 impl PureOperatorDefinition {
-    /// Canonical byte encoding, which excludes names and package paths.
+    /// Ordered calculus nodes and root, without the formal/result contracts.
+    /// Structural projections encode those contracts with their own nominal
+    /// references. These bytes alone are not a complete definition identity.
+    #[must_use]
+    pub fn canonical_body_bytes(&self) -> Vec<u8> {
+        encoding::canonical_body_bytes(self)
+    }
+
+    /// Complete canonical definition, including the exact formal and result contracts.
     #[must_use]
     pub fn canonical_bytes(&self) -> Vec<u8> {
         canonical_definition_bytes(self)
@@ -605,8 +482,8 @@ impl PureOperatorDefinition {
 
     /// Result-type rule.
     #[must_use]
-    pub const fn result_rule(&self) -> PureValueClass {
-        self.result
+    pub const fn result_rule(&self) -> &PureValueClass {
+        &self.result
     }
 
     /// Symbolic body dimension over formal dimensions.
@@ -630,7 +507,7 @@ impl PureOperatorDefinition {
     /// Standard symmetric-part definition `(A[i,j] + A[j,i]) / 2`.
     pub fn symmetric_part() -> Result<Self, PureOperatorError> {
         let tensor = PureValueClass::spatial_tensor(2)?;
-        let mut builder = CalculusBuilder::new([tensor], tensor)?;
+        let mut builder = CalculusBuilder::new([tensor.clone()], tensor)?;
         let direct = builder.push(CalculusNode::FormalComponent {
             formal: 0,
             axes: [ComponentIndex::Result(0), ComponentIndex::Result(1)].into(),
@@ -670,7 +547,7 @@ impl PureOperatorDefinition {
     pub fn dyadic_product() -> Result<Self, PureOperatorError> {
         let vector = PureValueClass::spatial_tensor(1)?;
         let mut builder =
-            CalculusBuilder::new([vector, vector], PureValueClass::spatial_tensor(2)?)?;
+            CalculusBuilder::new([vector.clone(), vector], PureValueClass::spatial_tensor(2)?)?;
         let left = builder.push(CalculusNode::FormalComponent {
             formal: 0,
             axes: [ComponentIndex::Result(0)].into(),
@@ -731,3 +608,6 @@ mod dimension_tests;
 
 #[cfg(test)]
 mod conditional_tests;
+
+#[cfg(test)]
+mod value_class_tests;

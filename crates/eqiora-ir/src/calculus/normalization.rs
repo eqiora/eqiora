@@ -259,7 +259,7 @@ mod tests {
             .with_dimension(unit)
             .with_scalar_domain(ScalarDomain::Real)
             .unwrap();
-        let mut builder = CalculusBuilder::new([class], class).unwrap();
+        let mut builder = CalculusBuilder::new([class.clone()], class).unwrap();
         let x = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,

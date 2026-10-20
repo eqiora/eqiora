@@ -119,7 +119,7 @@ fn definition_identity_excludes_names_but_includes_exact_body() {
     assert!(
         first
             .canonical_bytes()
-            .starts_with(b"eqiora.pure-operator-definition/v9\0")
+            .starts_with(b"eqiora.pure-operator-definition/v10\0")
     );
     assert_ne!(
         first.digest().to_string(),
@@ -191,7 +191,7 @@ fn dyadic_product_requires_one_exact_volume_and_checked_si_dimension() {
 #[test]
 fn symbolic_dimension_monomials_are_bounded() {
     let scalar = PureValueClass::invariant_scalar();
-    let mut builder = CalculusBuilder::new([scalar], scalar).unwrap();
+    let mut builder = CalculusBuilder::new([scalar.clone()], scalar.clone()).unwrap();
     let mut body = builder
         .push(CalculusNode::FormalComponent {
             formal: 0,

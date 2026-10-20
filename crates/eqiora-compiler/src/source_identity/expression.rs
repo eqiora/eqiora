@@ -62,14 +62,13 @@ pub(super) fn encode_expression(
         } => {
             encoder.u16(20)?;
             encode_expression(encoder, value, budget, next_depth(depth)?)?;
-            encode_path(encoder, wrt, budget)?;
-            encoder.u32(as_u32(holding.len(), "partial holding bindings")?)?;
-            let mut holding = holding.iter().collect::<Vec<_>>();
-            holding.sort_by(|left, right| left.as_str().cmp(right.as_str()));
-            for binding in holding {
-                encode_path(encoder, binding, budget)?;
-            }
-            Ok(())
+            encode_reference_path(encoder, wrt, budget)?;
+            let holding = encode_sorted_records(holding, budget, |binding, budget| {
+                let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                encode_reference_path(&mut encoder, binding, budget)?;
+                encoder.finish()
+            })?;
+            encoder.records(&holding)
         }
         ExprKind::Case { value, arms } => {
             encoder.u8(18)?;
@@ -132,6 +131,12 @@ pub(super) fn encode_expression(
                 u32::try_from(ordinal)
                     .map_err(|_| source_identity_error("binder depth overflows"))?,
             )
+        }
+        ExprKind::Name(name) if budget.lexical_formals.contains_key(name) => {
+            encode_formal(encoder, name, budget)
+        }
+        ExprKind::Path(path) if budget.lexical_formals.contains_key(path.as_str()) => {
+            encode_formal(encoder, path.as_str(), budget)
         }
         ExprKind::Boolean(value) => {
             encoder.u16(13)?;
@@ -201,7 +206,7 @@ pub(super) fn encode_expression(
         }
         ExprKind::Path(path) => {
             encoder.u16(3)?;
-            encoder.field(1, |encoder| encode_path(encoder, path, budget))
+            encoder.field(1, |encoder| encode_reference_path(encoder, path, budget))
         }
         ExprKind::BoundaryPortSelection { port, selector } => {
             encoder.u16(7)?;
@@ -561,4 +566,29 @@ pub(super) fn encode_decimal(
         value.coefficient(),
         value.exponent10(),
     ))
+}
+
+// A reference and a callable/type name have different lexical scopes. Only value
+// references may resolve to formal slots; a same-spelled callable stays a name.
+fn encode_reference_path(
+    encoder: &mut Encoder,
+    path: &NamePath,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    if let Some(&slot) = budget.lexical_formals.get(path.as_str()) {
+        budget.account_name(path.as_str())?;
+        encoder.u32(1 << 31)?;
+        encoder.u32(as_u32(slot, "operator formal slot")?)
+    } else {
+        encode_path(encoder, path, budget)
+    }
+}
+
+fn encode_formal(encoder: &mut Encoder, name: &str, budget: &mut Budget) -> Result<(), Diagnostic> {
+    budget.account_name(name)?;
+    encoder.u16(24)?;
+    encoder.u32(as_u32(
+        budget.lexical_formals[name],
+        "operator formal slot",
+    )?)
 }

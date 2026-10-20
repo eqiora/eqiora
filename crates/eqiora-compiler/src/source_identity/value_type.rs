@@ -21,12 +21,12 @@ pub(super) fn encode_value_type(
             } else {
                 6
             })?;
-            encode_path(encoder, name, budget)
+            encode_type_path(encoder, name, budget)
         }
         ValueTypeSyntaxKind::Coordinates { scalar, basis } => {
             encoder.u8(4)?;
             encoder.u8(u8::from(basis.dual))?;
-            encode_path(encoder, &basis.name, budget)?;
+            encode_type_path(encoder, &basis.name, budget)?;
             encode_value_type(encoder, scalar, budget, next_depth(depth)?)
         }
         ValueTypeSyntaxKind::LinearMap {
@@ -37,7 +37,7 @@ pub(super) fn encode_value_type(
             encoder.u8(8)?;
             for basis in [source, target] {
                 encoder.u8(u8::from(basis.dual))?;
-                encode_path(encoder, &basis.name, budget)?;
+                encode_type_path(encoder, &basis.name, budget)?;
             }
             encode_value_type(encoder, scalar, budget, next_depth(depth)?)
         }

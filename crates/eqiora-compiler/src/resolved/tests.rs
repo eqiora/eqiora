@@ -725,7 +725,7 @@ public operator outer(input left: spatial[1], input right: spatial[1]): spatial[
     assert!(
         operator
             .canonical_form()
-            .starts_with("eqiora.pure-operator-definition.v1:sha256:")
+            .starts_with("eqiora.source-declaration.v1:sha256:")
     );
 }
 

@@ -48,10 +48,10 @@ pub(crate) fn lower_value_type<I>(
     )
 }
 
-/// An Observable signature describes a result, not a value constructor or a
-/// Field location. Its spatial axes must subsequently match its typed expression.
-/// In particular, a reduction retains a Cartesian frame after removing support.
-pub(crate) fn lower_observable_type<I>(
+/// A declaration signature retains its complete mathematical type independently
+/// of a Field location. Applications subsequently check its spatial axes against
+/// their typed inputs and support; reductions can retain a frame without support.
+pub(crate) fn lower_signature_type<I>(
     file: &str,
     syntax: &ValueTypeSyntax,
     support: Option<&SpatialSupport<I>>,

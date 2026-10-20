@@ -189,3 +189,31 @@ fn hierarchy_does_not_resolve_bare_sin_as_a_user_operator() {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn nominal_operator_signature_aliases_preserve_exact_declaration_targets() {
+    let owner = namespace("root");
+    let analyze = |alias: &str, target: &str| {
+        analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
+            owner.clone(),
+            vec![
+                module_unit(&owner, "types", "types.eqi", "public space A=orthonormal(a,b); public space B=orthonormal(c,d);"),
+                unit(&owner, "main.eqi", &format!(
+                    "import root.types as {alias}; public operator retain(input x:coordinates<complex<1>,{alias}.{target}>):coordinates<complex<1>,{alias}.{target}>=component(x,0); model Main(){{}}"
+                )),
+            ],
+            vec![],
+        )).unwrap()
+    };
+    let first = analyze("basis", "A");
+    let renamed = analyze("other", "A");
+    let rewired = analyze("basis", "B");
+    assert_eq!(
+        first.canonical_declarations(),
+        renamed.canonical_declarations()
+    );
+    assert_ne!(
+        first.canonical_declarations(),
+        rewired.canonical_declarations()
+    );
+}

@@ -30,7 +30,7 @@ fn derived(
     selected: u16,
     order: usize,
 ) -> Result<PureOperatorDefinition, PureOperatorError> {
-    let mut builder = CalculusBuilder::new(inputs.iter().copied(), real(output))?;
+    let mut builder = CalculusBuilder::new(inputs.iter().cloned(), real(output))?;
     let arguments = (0..inputs.len())
         .map(|slot| formal(&mut builder, slot as u16))
         .collect::<Vec<_>>();
@@ -79,7 +79,7 @@ fn dimensioned_linear_operator_has_typed_zero_higher_partials() {
 #[test]
 fn retained_scalar_application_uses_typed_execution_and_rejects_unprojected_ad_or_complex() {
     let scalar = PureValueClass::invariant_scalar();
-    let mut definition = CalculusBuilder::new([scalar], scalar).unwrap();
+    let mut definition = CalculusBuilder::new([scalar.clone()], scalar).unwrap();
     let x = formal(&mut definition, 0);
     let square = definition.push(CalculusNode::Mul(x, x)).unwrap();
     let definition = definition.finish(square).unwrap();
@@ -201,14 +201,14 @@ fn tensor_applications_still_require_existing_component_expansion() {
 #[test]
 fn derived_applications_reject_unavailable_unused_arguments_atomically() {
     let unit = DimExponents::DIMENSIONLESS;
-    let mut definition = CalculusBuilder::new([real(unit); 2], real(unit)).unwrap();
+    let mut definition = CalculusBuilder::new(vec![real(unit); 2], real(unit)).unwrap();
     let x = formal(&mut definition, 0);
     let definition = definition.finish(x).unwrap();
     let mut foreign = ExprDagBuilder::new();
     foreign.constant(DynQuantity::new(0., unit)).unwrap();
     let unavailable = foreign.constant(DynQuantity::new(1., unit)).unwrap();
     for order in [1, 2] {
-        let partial = derived(&definition, &[real(unit); 2], unit, 0, order).unwrap();
+        let partial = derived(&definition, &[real(unit), real(unit)], unit, 0, order).unwrap();
         let mut destination = ExprDagBuilder::new();
         let existing = destination.constant(DynQuantity::new(7., unit)).unwrap();
         assert!(
@@ -238,7 +238,7 @@ fn scalar_jacobian_actions_and_hessian_directions_match_independent_polynomial_v
         .collect::<Vec<_>>();
     let mut roots = Vec::new();
     for selection in 0..expected.len() {
-        let mut builder = CalculusBuilder::new([class; 5], class).unwrap();
+        let mut builder = CalculusBuilder::new(vec![class.clone(); 5], class.clone()).unwrap();
         let inputs = (0..5)
             .map(|formal| {
                 builder

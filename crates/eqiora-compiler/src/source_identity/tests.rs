@@ -40,6 +40,58 @@ model M() { parameter p: 1 = 1; }
 }
 
 #[test]
+fn typed_operator_identity_precedes_nominal_binding_and_tracks_lexical_references() {
+    let source = r#"
+space A=orthonormal(a,b); space B=orthonormal(c,d);
+operator retain(input value:coordinates<complex<1>,A>):coordinates<complex<1>,A>
+ = component(value,0);
+operator derivative(input x:1,input y:1,input z:1):1
+ = partial(x*y*z,wrt=x,holding=(y,z));
+model M(){parameter p:1=1;}
+"#;
+    let expected = identity(source);
+    let renamed = source
+        .replace("value", "renamed")
+        .replace("input y:", "input q:")
+        .replace("input z:", "input a:")
+        .replace("x*y*z", "x*q*a")
+        .replace("holding=(y,z)", "holding=(a,q)");
+    assert_eq!(expected, identity(&renamed));
+    assert_ne!(
+        expected,
+        identity(&source.replace("complex<1>,A", "complex<1>,B"))
+    );
+    assert_ne!(
+        expected,
+        identity(&source.replace("wrt=x,holding=(y,z)", "wrt=y,holding=(x,z)"))
+    );
+    let mut bound = document(source);
+    let spaces =
+        crate::nominal::finite_spaces("bound.eqi", &bound, &expected.namespace().unwrap(), |_| {
+            None
+        })
+        .unwrap();
+    crate::nominal::bind_finite_types("bound.eqi", &mut bound, &spaces).unwrap();
+    assert_eq!(
+        expected,
+        LocalSourceIdentity::from_document(&bound).unwrap()
+    );
+    eqiora_lang::SourceAstFactory::visit_expressions(&mut bound, |_, expression| {
+        if matches!(expression.kind(), ExprKind::Name(name) if name == "value") {
+            *expression = eqiora_lang::SourceAstFactory::expression(
+                ExprKind::Path(NamePath::from_segments(["value"], expression.range()).unwrap()),
+                expression.range(),
+            )
+            .unwrap();
+        }
+    });
+    assert_eq!(
+        expected,
+        LocalSourceIdentity::from_document(&bound).unwrap()
+    );
+}
+
+#[test]
 fn declaration_binding_and_anonymous_member_permutations_are_invariant() {
     let first = r#"
 connector Pin {

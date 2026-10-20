@@ -40,7 +40,7 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V44
+        SemanticFingerprintGeneration::V45
     );
 }
 
@@ -101,7 +101,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V44
+            SemanticFingerprintGeneration::V45
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -131,7 +131,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V44);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V45);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();

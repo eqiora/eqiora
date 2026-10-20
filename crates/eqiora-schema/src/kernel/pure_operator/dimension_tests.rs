@@ -121,7 +121,7 @@ fn polynomial_addition_requires_provable_dimensions_and_pins_result_identity() {
             constrained(force),
             true,
         ),
-        (vec![scalar; 3], scalar, false),
+        (vec![scalar.clone(); 3], scalar.clone(), false),
         (
             vec![
                 constrained(length),
@@ -152,8 +152,8 @@ fn polynomial_addition_requires_provable_dimensions_and_pins_result_identity() {
         let root = builder.push(CalculusNode::Add(linear, nonlinear)).unwrap();
         assert_eq!(builder.finish(root).is_ok(), valid);
     }
-    let identity = |class| {
-        let mut builder = CalculusBuilder::new([class], class).unwrap();
+    let identity = |class: PureValueClass| {
+        let mut builder = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
         let root = formal(&mut builder, 0);
         builder.finish(root).unwrap()
     };
@@ -171,8 +171,8 @@ fn polynomial_addition_requires_provable_dimensions_and_pins_result_identity() {
 fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let definition = conductivity();
     let mut outer = CalculusBuilder::new(
-        definition.formals().iter().copied(),
-        definition.result_rule(),
+        definition.formals().iter().cloned(),
+        definition.result_rule().clone(),
     )
     .unwrap();
     let args = (0..3)
@@ -182,7 +182,7 @@ fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let composed = outer.finish(root).unwrap();
     assert_eq!(composed.canonical_bytes(), definition.canonical_bytes());
     let mut wrong = CalculusBuilder::new(
-        [constrained(DimExponents::DIMENSIONLESS); 3],
+        vec![constrained(DimExponents::DIMENSIONLESS); 3],
         PureValueClass::invariant_scalar(),
     )
     .unwrap();

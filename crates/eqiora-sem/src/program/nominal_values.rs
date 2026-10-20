@@ -370,3 +370,63 @@ mod tests {
         assert_eq!(errors.len(), 2);
     }
 }
+
+#[cfg(test)]
+mod pure_contract_tests {
+    use super::*;
+    use eqiora_schema::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
+    use eqiora_schema::kernel::{ExprDagBuilder, FiniteSpaceDef};
+
+    #[test]
+    fn pure_result_contract_requires_its_selected_nominal_basis() {
+        let selected = FiniteSpaceDef::new(Id::new(), ["A".into(), "B".into()]).unwrap();
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+        for basis in [
+            selected.basis(),
+            eqiora_core::FiniteBasis::new(selected.id(), 3).unwrap(),
+            eqiora_core::FiniteBasis::new(Id::new(), 2).unwrap(),
+        ] {
+            let result =
+                ValueType::coordinates(basis, ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .unwrap();
+            let mut calculus = CalculusBuilder::new(
+                [PureValueClass::from_value_type(scalar.clone()).unwrap()],
+                PureValueClass::from_value_type(result).unwrap(),
+            )
+            .unwrap();
+            let root = calculus
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let definition = calculus.finish(root).unwrap();
+            let mut expression = ExprDagBuilder::new();
+            let input = expression
+                .constant(eqiora_core::ValueLiteral::from_real(scalar.clone(), 2.).unwrap())
+                .unwrap();
+            let root = expression.pure_operator(&definition, [input]).unwrap();
+            let expression = expression.finish([root]).unwrap();
+            let nodes = BTreeMap::from([(selected.id().erase(), selected.clone().into())]);
+            let mut diagnostics = Vec::new();
+            validate_expression(
+                &expression,
+                Id::<kinds::Relation>::new().erase(),
+                TypingEnvironment {
+                    nodes: &nodes,
+                    values: &BTreeMap::new(),
+                    edges: &[],
+                    spatial_supports: &BTreeMap::new(),
+                },
+                None,
+                RootContract::ComponentwiseResidual,
+                &mut diagnostics,
+            );
+            assert_eq!(
+                diagnostics.is_empty(),
+                basis == selected.basis(),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}

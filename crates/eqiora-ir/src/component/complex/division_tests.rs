@@ -238,7 +238,7 @@ fn check_quotient(closed_operator: bool) {
 
 fn quotient_definition() -> eqiora_schema::kernel::pure_operator::PureOperatorDefinition {
     let generic = PureValueClass::invariant_scalar();
-    let mut builder = CalculusBuilder::new([generic; 2], generic).unwrap();
+    let mut builder = CalculusBuilder::new(vec![generic.clone(); 2], generic).unwrap();
     let left = builder
         .push(CalculusNode::FormalComponent {
             formal: 0,

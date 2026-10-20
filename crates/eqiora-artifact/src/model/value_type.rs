@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{dimension::WireDimension, invalid_artifact};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WireValueType {
     domain: WireScalarDomain,
@@ -21,7 +21,7 @@ pub(crate) struct WireValueType {
     basis: Box<WireValueBasis>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireValueBasis {
     Ordinary,
@@ -45,7 +45,7 @@ enum WireValueBasis {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireFiniteBasis {
     Atomic {
@@ -57,7 +57,7 @@ enum WireFiniteBasis {
         dual: bool,
     },
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WireFiniteFactor {
     pub(super) space: WireId,

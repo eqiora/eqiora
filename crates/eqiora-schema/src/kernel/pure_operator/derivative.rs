@@ -23,7 +23,7 @@ impl CalculusBuilder {
         definition_index(root, self.nodes.len())?;
         let mut staged = Self {
             formals: self.formals.clone(),
-            result: self.result,
+            result: self.result.clone(),
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };
@@ -286,7 +286,8 @@ mod tests {
             .with_dimension(DimExponents::DIMENSIONLESS)
             .with_scalar_domain(ScalarDomain::Real)
             .unwrap();
-        let mut builder = CalculusBuilder::new([class, class], class).unwrap();
+        let mut builder =
+            CalculusBuilder::new([class.clone(), class.clone()], class.clone()).unwrap();
         let x = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,

@@ -9,8 +9,11 @@ fn definition() -> PureOperatorDefinition {
     let real = PureValueClass::invariant_scalar()
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut b =
-        CalculusBuilder::new([real.with_dimension(area)], real.with_dimension(length)).unwrap();
+    let mut b = CalculusBuilder::new(
+        [real.clone().with_dimension(area)],
+        real.with_dimension(length),
+    )
+    .unwrap();
     let x = b
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -120,7 +123,8 @@ fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
     let make = |order: &[u16]| {
-        let mut builder = CalculusBuilder::new([class, class], class).unwrap();
+        let mut builder =
+            CalculusBuilder::new([class.clone(), class.clone()], class.clone()).unwrap();
         let x = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -163,7 +167,7 @@ fn derivative_wire_rejects_displaced_value_before_digest_comparison() {
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut builder = CalculusBuilder::new([class], class).unwrap();
+    let mut builder = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
     let x = builder
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -229,16 +233,17 @@ mod pure_constraint_tests {
             PureValueClass::spatial_tensor(2).unwrap(),
         ] {
             for value in [
-                class,
-                class.with_dimension(length),
+                class.clone(),
+                class.clone().with_dimension(length),
                 class
+                    .clone()
                     .with_scalar_domain(eqiora_core::ScalarDomain::Real)
                     .unwrap(),
                 class
                     .with_scalar_domain(eqiora_core::ScalarDomain::Complex)
                     .unwrap(),
             ] {
-                let wire = WirePureValueClass::encode(value);
+                let wire = WirePureValueClass::encode(&value);
                 let bytes = serde_json::to_vec(&wire).unwrap();
                 let restored: WirePureValueClass = serde_json::from_slice(&bytes).unwrap();
                 assert_eq!(restored.decode().unwrap(), value);
@@ -248,7 +253,7 @@ mod pure_constraint_tests {
             .unwrap()
             .with_dimension(length);
         assert_eq!(
-            serde_json::to_value(WirePureValueClass::encode(rank_two)).unwrap(),
+            serde_json::to_value(WirePureValueClass::encode(&rank_two)).unwrap(),
             json!({"kind":"spatial-tensor","rank":2,"extent":null,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
         );
         let invalid: WirePureValueClass = serde_json::from_value(
@@ -263,7 +268,7 @@ mod pure_constraint_tests {
         let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
         let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
         let class = PureValueClass::invariant_scalar().with_dimension(length);
-        let mut builder = CalculusBuilder::new([class], class).unwrap();
+        let mut builder = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
         let root = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -273,7 +278,7 @@ mod pure_constraint_tests {
         let mut wire = WirePureOperatorDefinition::encode(&builder.finish(root).unwrap());
         assert!(wire.rebuild_and_validate_digest().is_ok());
         wire.result =
-            WirePureValueClass::encode(PureValueClass::invariant_scalar().with_dimension(time));
+            WirePureValueClass::encode(&PureValueClass::invariant_scalar().with_dimension(time));
         let error = wire.rebuild_and_validate_digest().unwrap_err().to_string();
         assert!(
             error.contains("invalid pure-operator definition"),
@@ -307,4 +312,78 @@ fn rational_wire_rejects_old_parts_and_noncanonical_values_before_digest_checks(
     node.insert("numerator".into(), json!(0));
     node.insert("denominator".into(), json!(1));
     assert!(serde_json::from_value::<WirePureOperatorDefinition>(obsolete).is_err());
+}
+
+#[test]
+fn exact_contract_wire_preserves_nominal_axes_and_bounds_shape_admission() {
+    use eqiora_core::{FiniteBasis, Id, ValueType};
+    let basis = FiniteBasis::new(Id::new(), 3).unwrap();
+    for value in [
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .unwrap()
+            .array(3)
+            .unwrap(),
+        ValueType::coordinates(
+            basis.dual(),
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+    ] {
+        let class = PureValueClass::from_value_type(value.clone()).unwrap();
+        let mut calculus = CalculusBuilder::new([class.clone()], class).unwrap();
+        let root = calculus
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([ComponentIndex::Result(0)]),
+            })
+            .unwrap();
+        let definition = calculus.finish(root).unwrap();
+        let wire = WirePureOperatorDefinition::encode(&definition);
+        let mut json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire.rebuild_and_validate_digest().unwrap(), definition);
+        json["formals"][0]["value_type"]["array_rank"] = json!(2);
+        let invalid: WirePureOperatorDefinition = serde_json::from_value(json).unwrap();
+        assert!(invalid.rebuild_and_validate_digest().is_err());
+        let references = wire.formals[0]
+            .exact_type()
+            .unwrap()
+            .nominal_references()
+            .count();
+        assert_eq!(references, usize::from(value.coordinate_basis().is_some()));
+        let mut obsolete = wire;
+        obsolete.required_features = vec!["eqiora.pure-component-calculus/v4".into()];
+        assert!(obsolete.validate_features().is_err());
+    }
+    let oversized = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .unwrap()
+        .array(4097)
+        .unwrap();
+    let class = PureValueClass::from_value_type(oversized).unwrap();
+    let mut calculus = CalculusBuilder::new([class.clone()], class).unwrap();
+    let root = calculus
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([ComponentIndex::Result(0)]),
+        })
+        .unwrap();
+    let mut expression = super::expression::WireExpression {
+        definitions: vec![WirePureOperatorDefinition::encode(
+            &calculus.finish(root).unwrap(),
+        )],
+        properties: Vec::new(),
+        nodes: Vec::new(),
+        roots: Vec::new(),
+    };
+    assert!(
+        expression
+            .ensure_value_shape_limits(ModelDecoderLimits::default())
+            .is_err()
+    );
+    expression.definitions.clear();
+    assert!(
+        expression
+            .ensure_value_shape_limits(ModelDecoderLimits::default())
+            .is_ok()
+    );
 }

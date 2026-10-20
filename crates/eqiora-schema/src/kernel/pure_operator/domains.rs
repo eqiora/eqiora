@@ -2,28 +2,10 @@
 use super::*;
 use eqiora_core::ScalarDomain;
 
-impl PureValueClass {
-    /// Restrict an existing real or complex polynomial class to one scalar domain.
-    /// Discrete domains cannot be embedded in a pure polynomial.
-    pub fn with_scalar_domain(mut self, domain: ScalarDomain) -> Result<Self, PureOperatorError> {
-        if !matches!(domain, ScalarDomain::Real | ScalarDomain::Complex) {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        self.scalar_domain = Some(domain);
-        Ok(self)
-    }
-
-    /// Explicit scalar-domain constraint, or `None` for a generic class.
-    #[must_use]
-    pub const fn scalar_domain(self) -> Option<ScalarDomain> {
-        self.scalar_domain
-    }
-}
-
 /// The body owns its result domain; unused inputs cannot change it.
 pub(super) fn validate_result(
     formals: &[PureValueClass],
-    result: PureValueClass,
+    result: &PureValueClass,
     nodes: &[CalculusNode],
     root: CalculusNodeId,
 ) -> Result<(), PureOperatorError> {
@@ -58,7 +40,7 @@ mod tests {
     use eqiora_core::ValueType;
 
     fn identity(class: PureValueClass) -> PureOperatorDefinition {
-        let mut builder = CalculusBuilder::new([class], class).unwrap();
+        let mut builder = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
         let root = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -78,26 +60,32 @@ mod tests {
     fn native_concrete_real_constraint_rejects_complex_without_changing_generic_classes() {
         let generic =
             PureValueClass::invariant_scalar().with_dimension(DimExponents::DIMENSIONLESS);
-        let real = generic.with_scalar_domain(ScalarDomain::Real).unwrap();
+        let real = generic
+            .clone()
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap();
         assert!(
-            identity(real)
+            identity(real.clone())
                 .instantiate(&[argument(ScalarDomain::Real)])
                 .is_ok()
         );
         assert_eq!(
-            identity(real)
+            identity(real.clone())
                 .instantiate(&[argument(ScalarDomain::Complex)])
                 .unwrap_err(),
             PureOperatorError::FormalTypeMismatch
         );
         assert!(
-            identity(generic)
+            identity(generic.clone())
                 .instantiate(&[argument(ScalarDomain::Complex)])
                 .is_ok()
         );
-        assert_ne!(identity(real).digest(), identity(generic).digest());
+        assert_ne!(
+            identity(real.clone()).digest(),
+            identity(generic.clone()).digest()
+        );
         for domain in [ScalarDomain::Boolean, ScalarDomain::Integer] {
-            assert!(generic.with_scalar_domain(domain).is_err());
+            assert!(generic.clone().with_scalar_domain(domain).is_err());
         }
         let tensor = PureOperatorDefinition::symmetric_part().unwrap();
         let shape = eqiora_core::ValueShape::new([2, 2]).unwrap();
@@ -129,13 +117,19 @@ mod tests {
     #[test]
     fn composition_cannot_erase_a_concrete_real_formal_constraint() {
         let generic = PureValueClass::invariant_scalar();
-        let real = generic.with_scalar_domain(ScalarDomain::Real).unwrap();
-        let callee = identity(real);
+        let real = generic
+            .clone()
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap();
+        let callee = identity(real.clone());
         for class in [
-            generic,
-            generic.with_scalar_domain(ScalarDomain::Complex).unwrap(),
+            generic.clone(),
+            generic
+                .clone()
+                .with_scalar_domain(ScalarDomain::Complex)
+                .unwrap(),
         ] {
-            let mut wrapper = CalculusBuilder::new([class], class).unwrap();
+            let mut wrapper = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
             let input = wrapper
                 .push(CalculusNode::FormalComponent {
                     formal: 0,
@@ -148,7 +142,7 @@ mod tests {
             );
             assert_eq!(wrapper.finish(input).unwrap().nodes().len(), 1);
         }
-        let mut wrapper = CalculusBuilder::new([real], real).unwrap();
+        let mut wrapper = CalculusBuilder::new([real.clone()], real.clone()).unwrap();
         let input = wrapper
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -157,7 +151,7 @@ mod tests {
             .unwrap();
         let output = wrapper.apply_scalar(&callee, &[input]).unwrap();
         assert!(wrapper.finish(output).is_ok());
-        let mut invalid_result = CalculusBuilder::new([generic], real).unwrap();
+        let mut invalid_result = CalculusBuilder::new([generic.clone()], real.clone()).unwrap();
         let root = invalid_result
             .push(CalculusNode::FormalComponent {
                 formal: 0,

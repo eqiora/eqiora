@@ -1208,3 +1208,64 @@ fn finite_product_fingerprints_bind_factor_order_duality_and_permutation() {
             .unwrap()
     );
 }
+
+#[test]
+fn pure_nominal_contracts_compare_references_without_occurrence_ids() {
+    use eqiora_schema::kernel::FiniteSpaceDef;
+    use eqiora_schema::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
+    let build = |second: bool| {
+        let first = FiniteSpaceDef::new(Id::new(), ["A".into(), "B".into()]).unwrap();
+        let other = FiniteSpaceDef::new(Id::new(), ["C".into(), "D".into()]).unwrap();
+        let basis = if second { other.basis() } else { first.basis() };
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+        let result =
+            ValueType::coordinates(basis, ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+        let mut calculus = CalculusBuilder::new(
+            [PureValueClass::from_value_type(scalar.clone()).unwrap()],
+            PureValueClass::from_value_type(result).unwrap(),
+        )
+        .unwrap();
+        let root = calculus
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let definition = calculus.finish(root).unwrap();
+        let mut expression = ExprDagBuilder::new();
+        let input = expression
+            .constant(eqiora_core::ValueLiteral::from_real(scalar, 2.).unwrap())
+            .unwrap();
+        let output = expression.pure_operator(&definition, [input]).unwrap();
+        let relation = Id::new();
+        let activation = Id::new();
+        let model = OntologyId::new();
+        let nodes = [
+            KernelNode::from(first),
+            KernelNode::from(other),
+            KernelNode::from(
+                RelationDef::new(relation, expression.finish([output, output]).unwrap()).unwrap(),
+            ),
+            KernelNode::from(ActivationDef::continuous(activation)),
+        ];
+        let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+        let mut transaction = Transaction::new("pure nominal contracts");
+        for node in nodes {
+            transaction.push(Op::DefineKernelNode { node });
+        }
+        transaction.push(Op::Connect {
+            from: activation.erase(),
+            to: relation.erase(),
+            edge: EdgeKind::Activates,
+        });
+        transaction.push(Op::DefineOntologyView { view: view.into() });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+    };
+    let first = build(false);
+    let fresh = build(false);
+    let rewired = build(true);
+    assert!(StructuralSemanticFingerprint::compare_programs(&first, &fresh).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&first, &rewired).unwrap());
+}

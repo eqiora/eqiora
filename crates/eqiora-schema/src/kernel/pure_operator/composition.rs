@@ -39,7 +39,7 @@ impl CalculusBuilder {
         for (argument, formal) in arguments.iter().zip(&definition.formals) {
             definition_index(*argument, self.nodes.len())?;
             let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, *argument)?;
-            validate_result_dimension(&self.formals, *formal, &dimension)?;
+            validate_result_dimension(&self.formals, formal, &dimension)?;
             if let Some(expected) = formal.scalar_domain()
                 && domains::expression_domain(&self.formals, &self.nodes, *argument)?
                     != Some(expected)
@@ -50,7 +50,7 @@ impl CalculusBuilder {
         // Stage the bounded append so any failed depth/type check leaves the caller intact.
         let mut staged = Self {
             formals: self.formals.clone(),
-            result: self.result,
+            result: self.result.clone(),
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };
@@ -79,7 +79,7 @@ impl CalculusBuilder {
             ids.push(id);
         }
         let root = ids[definition_index(definition.root, ids.len())?];
-        dimensions::validate_profile(&staged.formals, staged.result, &staged.nodes)?;
+        dimensions::validate_profile(&staged.formals, &staged.result, &staged.nodes)?;
         derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
         *self = staged;
         Ok(root)
@@ -140,7 +140,8 @@ mod tests {
             .with_dimension(DimExponents::DIMENSIONLESS)
             .with_scalar_domain(ScalarDomain::Real)
             .unwrap();
-        let mut original = CalculusBuilder::new([class, class], class).unwrap();
+        let mut original =
+            CalculusBuilder::new([class.clone(), class.clone()], class.clone()).unwrap();
         let x = original
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -156,7 +157,7 @@ mod tests {
         let product = original.push(CalculusNode::Mul(x, y)).unwrap();
         let dx = original.partial(product, 0).unwrap();
         let definition = original.finish(dx).unwrap();
-        let mut caller = CalculusBuilder::new([class], class).unwrap();
+        let mut caller = CalculusBuilder::new([class.clone()], class.clone()).unwrap();
         let p = caller
             .push(CalculusNode::FormalComponent {
                 formal: 0,

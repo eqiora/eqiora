@@ -106,7 +106,8 @@ impl Context<'_> {
                 })
             }
             E::Curl { .. } | E::Cross { .. } => {
-                let rule = self.oriented_definition(value, depth + 1)?.result_rule();
+                let definition = self.oriented_definition(value, depth + 1)?;
+                let rule = definition.result_rule();
                 if rule.rank() == 0 {
                     Some(vec![])
                 } else {

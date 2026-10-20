@@ -376,8 +376,8 @@ fn open_interval_definition(
         return Err(fail());
     }
     let mut builder = CalculusBuilder::new(
-        definition.formals().iter().copied(),
-        definition.result_rule(),
+        definition.formals().iter().cloned(),
+        definition.result_rule().clone(),
     )
     .map_err(|_| fail())?;
     for (index, node) in nodes.iter().enumerate() {
@@ -412,8 +412,8 @@ fn partial_definition(
         .and_then(|output| input.dimension().and_then(|input| output.div(input)))
         .ok_or_else(|| invalid("property partial requires exact input/output dimensions"))?;
     let mut builder = CalculusBuilder::new(
-        definition.formals().iter().copied(),
-        definition.result_rule().with_dimension(dimension),
+        definition.formals().iter().cloned(),
+        definition.result_rule().clone().with_dimension(dimension),
     )
     .map_err(failure)?;
     let arguments = (0..definition.formals().len())

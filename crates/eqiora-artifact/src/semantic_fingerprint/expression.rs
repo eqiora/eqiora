@@ -65,6 +65,8 @@ pub(super) fn encode_expression(
 ) -> Result<Vec<u32>, Diagnostic> {
     budget.account_expression_nodes(expression.nodes().len())?;
     let (order, canonical_index) = canonical_expression_order(expression, extra_roots)?;
+    let mut definition_slots = BTreeMap::new();
+    let mut definitions = Vec::new();
     encoder.len(order.len())?;
     for original_index in order {
         let node = expression.nodes().get(original_index).ok_or_else(|| {
@@ -370,7 +372,14 @@ pub(super) fn encode_expression(
             }
             ExprNode::PureOperatorApplication(application) => {
                 encoder.u8(ExpressionTag::PureOperator as u8)?;
-                encoder.raw(&application.definition().bytes())?;
+                let next = definitions.len();
+                let slot = *definition_slots
+                    .entry(application.definition())
+                    .or_insert_with(|| {
+                        definitions.push(application.definition());
+                        next
+                    });
+                encoder.len(slot)?;
                 encoder.len(application.arguments().len())?;
                 for argument in application.arguments() {
                     encoder.u32(canonical_expr_id(*argument, &canonical_index)?)?;
@@ -383,12 +392,12 @@ pub(super) fn encode_expression(
     for root in expression.roots() {
         encoder.u32(canonical_expr_id(*root, &canonical_index)?)?;
     }
-    encoder.len(expression.definitions().len())?;
-    for (digest, definition) in expression.definitions() {
-        encoder.raw(&digest.bytes())?;
-        let bytes = definition.canonical_bytes();
-        budget.account_bytes(bytes.len())?;
-        encoder.bytes(&bytes)?;
+    encoder.len(definitions.len())?;
+    for (slot, digest) in definitions.into_iter().enumerate() {
+        let definition = expression
+            .definition(digest)
+            .ok_or_else(|| fingerprint_error("pure application definition is absent"))?;
+        pure_operator::encode(encoder, definition, scope, slot, ids, references, budget)?;
     }
     property::encode(encoder, expression, &canonical_index)?;
     Ok(canonical_index)

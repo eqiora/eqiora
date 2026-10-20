@@ -633,6 +633,22 @@ parameter. An operator's parameters live in their own scope, separate from the c
 substitution follows the bound declaration rather than the spelling of a parameter or import
 alias.
 
+Pure operator signatures may declare exact real or complex scalar, array, vector, and tensor
+value types, including finite coordinates and linear maps in declared bases. A signature
+retains units, ordered array axes, spatial frame and nominal basis identity; equal component
+counts do not make different types interchangeable. In a
+component body, `component(x, 1, 0)` selects input components using result axes 1 and 0,
+so an exact rectangular array transpose needs no separate evaluator. Each selected axis
+must match the corresponding input extent. Generic `scalar` and `spatial[rank]` templates
+retain their existing meaning. This does not extend scalar-only formal composition or
+formal partial selection to array inputs.
+
+Source and package declaration identities encode lexical signatures and bodies before nominal
+binding, with formal references identified by their argument slots. Compiled definitions retain
+resolved type identities and normalized calculus; structural Model comparison retains nominal
+wiring without depending on freshly allocated occurrence identifiers. Arrays of finite-coordinate
+or finite-map values remain unavailable in the shared value-type owner.
+
 A pure scalar operator is applied pointwise when all its arguments are defined on the same
 support with the same activation. Compile-time scalar coefficients act as constants there;
 a run-time value on a different support or clock cannot be used. Scalars are never broadcast to

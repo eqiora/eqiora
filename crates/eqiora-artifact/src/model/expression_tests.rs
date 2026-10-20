@@ -8,7 +8,7 @@ fn formal_derivative_wire_has_one_meaning_and_rejects_displaced_value_or_changed
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let mut builder = CalculusBuilder::new([class; 2], class).unwrap();
+    let mut builder = CalculusBuilder::new(vec![class.clone(); 2], class).unwrap();
     let x = builder
         .push(CalculusNode::FormalComponent {
             formal: 0,
@@ -59,7 +59,7 @@ fn formal_derivative_wire_has_one_meaning_and_rejects_displaced_value_or_changed
 fn quotient_definition_roundtrips_and_rejects_operand_or_operation_tampering() {
     use eqiora_schema::kernel::pure_operator::{CalculusBuilder, CalculusNode, PureValueClass};
     let generic = PureValueClass::invariant_scalar();
-    let mut calculus = CalculusBuilder::new([generic; 2], generic).unwrap();
+    let mut calculus = CalculusBuilder::new(vec![generic.clone(); 2], generic).unwrap();
     let left = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,

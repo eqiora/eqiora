@@ -32,7 +32,7 @@ impl<'a> Jacobian<'a> {
             if !seen.insert(*formal) {
                 return Err(PureOperatorError::ArityMismatch);
             }
-            let selected = *calculus
+            let selected = calculus
                 .formals
                 .get(usize::from(*formal))
                 .ok_or(PureOperatorError::InvalidFormal(*formal))?;
@@ -42,7 +42,7 @@ impl<'a> Jacobian<'a> {
             {
                 return Err(PureOperatorError::FormalTypeMismatch);
             }
-            inputs.push((*formal, selected));
+            inputs.push((*formal, selected.clone()));
         }
         Ok(Self {
             calculus,
@@ -55,7 +55,7 @@ impl<'a> Jacobian<'a> {
     fn staged(&self) -> CalculusBuilder {
         CalculusBuilder {
             formals: self.calculus.formals.clone(),
-            result: self.calculus.result,
+            result: self.calculus.result.clone(),
             nodes: self.calculus.nodes.clone(),
             depths: self.calculus.depths.clone(),
         }

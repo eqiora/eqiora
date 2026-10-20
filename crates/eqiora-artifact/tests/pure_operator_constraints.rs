@@ -29,7 +29,7 @@ fn program(dimension: DimExponents, constrained: bool) -> KernelProgram {
     } else {
         class
     };
-    let mut calculus = CalculusBuilder::new([class], class).unwrap();
+    let mut calculus = CalculusBuilder::new([class.clone()], class).unwrap();
     let component = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,

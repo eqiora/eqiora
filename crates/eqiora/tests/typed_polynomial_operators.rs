@@ -47,9 +47,9 @@ fn native_conductivity() -> PureOperatorDefinition {
     let scalar = PureValueClass::invariant_scalar();
     let mut b = CalculusBuilder::new(
         [
-            scalar.with_dimension(t()),
-            scalar.with_dimension(k()),
-            scalar.with_dimension(t().pow(-1, 1).unwrap()),
+            scalar.clone().with_dimension(t()),
+            scalar.clone().with_dimension(k()),
+            scalar.clone().with_dimension(t().pow(-1, 1).unwrap()),
         ],
         scalar.with_dimension(k()),
     )

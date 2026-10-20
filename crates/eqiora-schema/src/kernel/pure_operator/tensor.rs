@@ -17,7 +17,7 @@ impl PureOperatorDefinition {
     /// Complex inputs use the same algebraic products, without conjugation.
     pub fn cross_product() -> Result<Self, PureOperatorError> {
         let vector = class(1, 3)?;
-        let mut builder = CalculusBuilder::new([vector, vector], vector)?;
+        let mut builder = CalculusBuilder::new([vector.clone(), vector.clone()], vector)?;
         let mut root = None;
         for axis in 0..3 {
             let next = (axis + 1) % 3;
@@ -168,7 +168,7 @@ impl PureOperatorDefinition {
     /// Multiply matching full tensor coordinates without contraction or broadcasting.
     pub fn componentwise_product(extent: u32, rank: u16) -> Result<Self, PureOperatorError> {
         let tensor = class(rank, extent)?;
-        let mut builder = CalculusBuilder::new([tensor, tensor], tensor)?;
+        let mut builder = CalculusBuilder::new([tensor.clone(), tensor.clone()], tensor)?;
         let axes = (0..rank).map(ComponentIndex::Result).collect::<Box<[_]>>();
         let left = builder.push(CalculusNode::FormalComponent {
             formal: 0,
@@ -208,7 +208,7 @@ impl PureOperatorDefinition {
             seen[input] = true;
             axes[input] = ComponentIndex::Result(output as u16);
         }
-        let mut builder = CalculusBuilder::new([tensor], tensor)?;
+        let mut builder = CalculusBuilder::new([tensor.clone()], tensor)?;
         let root = builder.push(CalculusNode::FormalComponent {
             formal: 0,
             axes: axes.into(),
