@@ -706,6 +706,10 @@ impl WireComponentIndex {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureCalculusNode {
+    Demand {
+        prerequisite: u32,
+        value: u32,
+    },
     Complex {
         real: u32,
         imag: u32,
@@ -781,6 +785,13 @@ pub(crate) enum WirePureCalculusNode {
 impl WirePureCalculusNode {
     pub(crate) fn encode(node: &CalculusNode) -> Self {
         match node {
+            CalculusNode::Demand {
+                prerequisite,
+                value,
+            } => Self::Demand {
+                prerequisite: prerequisite.index(),
+                value: value.index(),
+            },
             CalculusNode::Rational { value, dimension } => Self::Rational {
                 dimension: WireDimension::encode(*dimension),
                 value: value.clone(),
@@ -925,6 +936,13 @@ impl WirePureCalculusNode {
             Self::Complex { real, imag } => CalculusNode::Complex {
                 real: calculus_operand(ids, *real)?,
                 imag: calculus_operand(ids, *imag)?,
+            },
+            Self::Demand {
+                prerequisite,
+                value,
+            } => CalculusNode::Demand {
+                prerequisite: calculus_operand(ids, *prerequisite)?,
+                value: calculus_operand(ids, *value)?,
             },
             Self::BoundInput { value } => CalculusNode::BoundInput(calculus_operand(ids, *value)?),
             Self::Neg { value } => CalculusNode::Neg(calculus_operand(ids, *value)?),

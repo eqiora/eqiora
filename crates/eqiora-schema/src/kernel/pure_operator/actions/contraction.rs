@@ -33,7 +33,7 @@ pub(super) fn vjp(
     }
     let value = value.closed(caller)?;
     let seed = cotangent.closed(caller)?;
-    let coordinates = pairing::coordinates(&output)?;
+    let coordinates = coordinates(&output)?;
     let mut staged = CalculusBuilder {
         formals: caller.formals.clone(),
         result: caller.result.clone(),

@@ -86,7 +86,9 @@ impl CalculusBuilder {
             }
             // A validity predicate is retained verbatim, not differentiated.
             match &self.nodes[index] {
-                CalculusNode::Require { value, .. } => pending.push(*value),
+                CalculusNode::Require { value, .. } | CalculusNode::Demand { value, .. } => {
+                    pending.push(*value)
+                }
                 node => pending.extend(node.operands()),
             }
         }
@@ -117,7 +119,7 @@ impl CalculusBuilder {
                 | CalculusNode::Not(_)
                 | CalculusNode::And(..)
                 | CalculusNode::Or(..) => None,
-                CalculusNode::Require { condition, value } => {
+                CalculusNode::Require { value, .. } | CalculusNode::Demand { value, .. } => {
                     let value = match derivative(*value) {
                         Some(value) => value,
                         None => {
@@ -132,9 +134,16 @@ impl CalculusBuilder {
                             })?
                         }
                     };
-                    Some(staged.push(CalculusNode::Require {
-                        condition: *condition,
-                        value,
+                    Some(staged.push(match node {
+                        CalculusNode::Require { condition, .. } => CalculusNode::Require {
+                            condition: *condition,
+                            value,
+                        },
+                        CalculusNode::Demand { prerequisite, .. } => CalculusNode::Demand {
+                            prerequisite: *prerequisite,
+                            value,
+                        },
+                        _ => unreachable!("matched value prerequisite"),
                     })?)
                 }
                 CalculusNode::FormalComponent { axes, .. } if axes.is_empty() => None,

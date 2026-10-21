@@ -55,7 +55,13 @@ fn definition() -> PureOperatorDefinition {
             value: selected,
         })
         .unwrap();
-    b.finish(required).unwrap()
+    let projected = b
+        .push(CalculusNode::Demand {
+            prerequisite: x,
+            value: required,
+        })
+        .unwrap();
+    b.finish(projected).unwrap()
 }
 
 #[test]
@@ -84,6 +90,12 @@ fn mixed_calculus_wire_retains_typed_rationals_and_ordered_guard_roles() {
         json["nodes"][10],
         json!({"op":"require","condition":6,"value":9})
     );
+    // The prerequisite has area units and the returned value has length units.
+    // Demand preserves both roles without imposing an arithmetic unit relation.
+    assert_eq!(
+        json["nodes"][11],
+        json!({"op":"demand","prerequisite":0,"value":10})
+    );
     let replay: WirePureOperatorDefinition = serde_json::from_value(json).unwrap();
     assert_eq!(replay.rebuild_and_validate_digest().unwrap(), original);
 }
@@ -91,7 +103,7 @@ fn mixed_calculus_wire_retains_typed_rationals_and_ordered_guard_roles() {
 #[test]
 fn mixed_calculus_wire_rejects_invalid_types_units_references_and_identity() {
     let original = serde_json::to_value(WirePureOperatorDefinition::encode(&definition())).unwrap();
-    for mutation in 0..8 {
+    for mutation in 0..10 {
         let mut invalid = original.clone();
         match mutation {
             0 => invalid["nodes"][9]["condition"] = json!(99),
@@ -101,12 +113,14 @@ fn mixed_calculus_wire_rejects_invalid_types_units_references_and_identity() {
             4 => invalid["nodes"][1]["dimension"][1] = json!([2, 2]),
             5 => invalid["nodes"][3]["value"] = json!(0),
             6 => invalid["nodes"][2]["comparison"] = json!("less-equal"),
-            _ => {
+            7 => {
                 invalid["nodes"][1]
                     .as_object_mut()
                     .unwrap()
                     .remove("dimension");
             }
+            8 => invalid["nodes"][11]["prerequisite"] = json!(11),
+            _ => invalid["nodes"][11]["value"] = json!(3),
         }
         let rejected = match serde_json::from_value::<WirePureOperatorDefinition>(invalid) {
             Err(_) => true,

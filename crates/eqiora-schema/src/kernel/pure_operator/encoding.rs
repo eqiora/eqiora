@@ -22,6 +22,14 @@ fn push_body(bytes: &mut Vec<u8>, definition: &PureOperatorDefinition) {
     push_u32(bytes, definition.nodes.len());
     for node in &definition.nodes {
         match node {
+            CalculusNode::Demand {
+                prerequisite,
+                value,
+            } => {
+                bytes.push(18);
+                bytes.extend_from_slice(&prerequisite.index().to_be_bytes());
+                bytes.extend_from_slice(&value.index().to_be_bytes());
+            }
             CalculusNode::Require { condition, value } => {
                 bytes.push(13);
                 bytes.extend_from_slice(&condition.index().to_be_bytes());

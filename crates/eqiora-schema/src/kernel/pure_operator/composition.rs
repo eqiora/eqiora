@@ -2,11 +2,57 @@
 use super::*;
 mod argument;
 pub use argument::CalculusArgument;
+pub(super) use argument::coordinates;
 
 #[cfg(test)]
 mod typed_tests;
 
 impl CalculusBuilder {
+    /// Select a static channel while retaining the complete input value's domain.
+    /// The selected value keeps its remaining axes; every original component is
+    /// retained as a value prerequisite, including through later derivatives.
+    ///
+    /// # Errors
+    /// Rejects invalid channel indices, incompatible typed layouts and calculus
+    /// resource limits. A failure leaves the caller unchanged.
+    pub fn index(
+        &mut self,
+        argument: &CalculusArgument,
+        index: u32,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        let input = argument.value_type(self)?;
+        let output = ExpressionType::<()>::new(input.clone(), None)
+            .index(index)
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)?
+            .value_type;
+        let mut projection = Self::new(
+            [PureValueClass::from_value_type(input.clone())?],
+            PureValueClass::from_value_type(output.clone())?,
+        )?;
+        let mut complete = None;
+        for axes in coordinates(&input)? {
+            let value = projection.push(CalculusNode::FormalComponent { formal: 0, axes })?;
+            complete = Some(match complete {
+                Some(prerequisite) => projection.push(CalculusNode::Demand {
+                    prerequisite,
+                    value,
+                })?,
+                None => value,
+            });
+        }
+        let value = projection.push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: std::iter::once(ComponentIndex::Fixed(index))
+                .chain((0..output.shape().rank()).map(|axis| ComponentIndex::Result(axis as u16)))
+                .collect(),
+        })?;
+        let root = projection.push(CalculusNode::Demand {
+            prerequisite: complete.ok_or(PureOperatorError::FormalTypeMismatch)?,
+            value,
+        })?;
+        self.apply_inputs(&projection.finish(root)?, std::slice::from_ref(argument))
+    }
+
     pub(super) fn reachable_nodes(
         &self,
         root: CalculusNodeId,
@@ -155,6 +201,10 @@ impl CalculusNode {
                 value: b,
             }
             | Self::Differentiated { source: a, wrt: b }
+            | Self::Demand {
+                prerequisite: a,
+                value: b,
+            }
             | Self::Complex { real: a, imag: b }
             | Self::Add(a, b)
             | Self::Mul(a, b)

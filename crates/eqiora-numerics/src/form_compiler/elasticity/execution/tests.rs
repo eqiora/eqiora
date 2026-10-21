@@ -1,4 +1,5 @@
 use super::*;
+use eqiora_ir::PureOperatorDefinition;
 
 #[test]
 fn displacement_identity_is_visible_through_generic_tensor_applications() {

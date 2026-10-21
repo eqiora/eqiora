@@ -49,26 +49,6 @@ impl PureOperatorDefinition {
     }
 }
 
-pub(super) fn coordinates(
-    value: &ValueType,
-) -> Result<impl Iterator<Item = Box<[ComponentIndex]>>, PureOperatorError> {
-    let extents = value.shape().extents().to_vec();
-    let count = extents.iter().try_fold(1usize, |count, extent| {
-        count
-            .checked_mul(extent.get() as usize)
-            .filter(|count| *count <= MAX_NODES)
-            .ok_or(PureOperatorError::NodeLimit)
-    })?;
-    Ok((0..count).map(move |mut flat| {
-        let mut axes = vec![ComponentIndex::Fixed(0); extents.len()];
-        for (axis, extent) in axes.iter_mut().zip(&extents).rev() {
-            *axis = ComponentIndex::Fixed((flat % extent.get() as usize) as u32);
-            flat /= extent.get() as usize;
-        }
-        axes.into_boxed_slice()
-    }))
-}
-
 pub(super) fn component(
     builder: &mut CalculusBuilder,
     left: CalculusNodeId,

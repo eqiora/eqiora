@@ -142,7 +142,9 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
                 CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
                     (*arguments[usize::from(*formal)]).clone()
                 }
-                CalculusNode::BoundInput(value) => get(*value).clone(),
+                CalculusNode::BoundInput(value) | CalculusNode::Demand { value, .. } => {
+                    get(*value).clone()
+                }
                 CalculusNode::Neg(value) => get(*value).checked_neg()?,
                 CalculusNode::Add(left, right) => get(*left).checked_add(get(*right))?,
                 CalculusNode::Mul(left, right) => get(*left).checked_mul(get(*right))?,

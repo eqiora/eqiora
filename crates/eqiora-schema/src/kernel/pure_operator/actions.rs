@@ -1,4 +1,5 @@
 //! Real-linear Jacobian actions built on independent real-coordinate partials.
+use super::composition::coordinates;
 use super::*;
 use eqiora_core::{ScalarDomain, ValueType};
 #[cfg(test)]
