@@ -7,12 +7,30 @@ pub(super) use summary::AffineSummary;
 pub(super) mod value;
 pub(super) use branch::Summary;
 
+#[derive(Debug, Clone)]
 pub(super) enum SummaryFailure {
     Symbolic(SymbolicLinearityFailure),
     Numerical {
         instruction: usize,
         diagnostic: Diagnostic,
     },
+}
+impl SummaryFailure {
+    pub(super) fn into_symbolic(self) -> SymbolicLinearityFailure {
+        match self {
+            Self::Symbolic(failure) => failure,
+            Self::Numerical { instruction, .. } => {
+                SymbolicLinearityFailure::NonFiniteCoefficient { instruction }
+            }
+        }
+    }
+
+    pub(super) fn into_diagnostic(self, context: &str) -> Diagnostic {
+        match self {
+            Self::Symbolic(failure) => ir_builder_error(format!("{context}: {failure:?}")),
+            Self::Numerical { diagnostic, .. } => diagnostic,
+        }
+    }
 }
 impl From<SymbolicLinearityFailure> for SummaryFailure {
     fn from(value: SymbolicLinearityFailure) -> Self {
@@ -48,12 +66,7 @@ impl ScalarOperatorIr {
                 })
             },
         )
-        .map_err(|failure| match failure {
-            SummaryFailure::Symbolic(failure) => failure,
-            SummaryFailure::Numerical { instruction, .. } => {
-                SymbolicLinearityFailure::NonFiniteCoefficient { instruction }
-            }
-        })
+        .map_err(SummaryFailure::into_symbolic)
     }
 }
 
@@ -64,132 +77,199 @@ pub(super) fn summarize(
     resolve: impl Fn(SymbolSlot, usize) -> Result<AffineSummary, SymbolicLinearityFailure>,
 ) -> Result<Vec<Summary>, SummaryFailure> {
     let derivative_activity = contract_activity(instructions, &resolve)?;
+    let mut failure_degrees = None;
     let mut summaries: Vec<Summary> = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().copied().enumerate() {
-        if let Some(summary) = branch::summarize(instruction, &summaries, typed_constants, index)? {
-            summaries.push(summary);
-            continue;
-        }
-        let at = |id| summaries[summary_index(id, index)?].scalar(index);
-        let summary = match instruction {
-            Instruction::DerivativeLimit {
-                start,
-                len,
-                value,
-                order,
-            } => {
-                let inputs = derivative_limit::inputs(start, len, index).map_err(|diagnostic| {
-                    SummaryFailure::Numerical {
-                        instruction: index,
-                        diagnostic,
-                    }
-                })?;
-                derivative_limit::require_order(
+        let result = (|| {
+            if let Some(summary) =
+                branch::summarize(instruction, &summaries, typed_constants, index)?
+            {
+                return Ok(summary);
+            }
+            let at = |id| summaries[summary_index(id, index)?].scalar(index);
+            let summary = match instruction {
+                Instruction::DerivativeLimit {
+                    start,
+                    len,
+                    value,
                     order,
-                    u32::from(inputs.clone().any(|input| derivative_activity.0[input]))
-                        + u32::from(inputs.clone().any(|input| derivative_activity.1[input])),
-                )
-                .map_err(|_| SymbolicLinearityFailure::DerivativeUnavailable {
-                    instruction: index,
-                })?;
-                at(value)?.clone()
-            }
-            Instruction::Math(function, value) => {
-                let argument = at(value)?;
-                if argument.depends_on_selected() {
+                } => {
+                    let inputs =
+                        derivative_limit::inputs(start, len, index).map_err(|diagnostic| {
+                            SummaryFailure::Numerical {
+                                instruction: index,
+                                diagnostic,
+                            }
+                        })?;
+                    derivative_limit::require_order(
+                        order,
+                        u32::from(inputs.clone().any(|input| derivative_activity.0[input]))
+                            + u32::from(inputs.clone().any(|input| derivative_activity.1[input])),
+                    )
+                    .map_err(|_| {
+                        SymbolicLinearityFailure::DerivativeUnavailable { instruction: index }
+                    })?;
+                    at(value)?.clone()
+                }
+                Instruction::Math(function, value) => {
+                    let argument = at(value)?;
+                    if argument.depends_on_selected() {
+                        return Err(
+                            SymbolicLinearityFailure::Nonlinear { instruction: index }.into()
+                        );
+                    }
+                    let constant = argument
+                        .constant
+                        .map(|value| value.math(function))
+                        .transpose()
+                        .map_err(|diagnostic| SummaryFailure::Numerical {
+                            instruction: index,
+                            diagnostic,
+                        })?;
+                    AffineSummary::finite(
+                        constant,
+                        vec![AffineValue::constant(0.0); dimension],
+                        index,
+                    )?
+                }
+                Instruction::Select { .. }
+                | Instruction::Require { .. }
+                | Instruction::PureOperator { .. }
+                | Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
+                | Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(
+                        SymbolicLinearityFailure::InvalidProgram { instruction: index }.into(),
+                    );
+                }
+                Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
+                Instruction::Read(slot) => resolve(slot, index)?,
+                Instruction::Neg(value) => at(value)?.scaled(AffineValue::constant(-1.0), index)?,
+                Instruction::Add(left, right) => {
+                    AffineSummary::sum(at(left)?, at(right)?, 1.0, index)?
+                }
+                Instruction::Sub(left, right) => {
+                    AffineSummary::sum(at(left)?, at(right)?, -1.0, index)?
+                }
+                Instruction::Mul(left, right) => {
+                    AffineSummary::product(at(left)?, at(right)?, index)?
+                }
+                Instruction::Div(left, right) => {
+                    AffineSummary::quotient(at(left)?, at(right)?, index)?
+                }
+                Instruction::ComplexDiv {
+                    operands,
+                    imaginary,
+                } => {
+                    let [a, b, c, d] = operands;
+                    complex_quotient::affine([at(a)?, at(b)?, at(c)?, at(d)?], imaginary, index)?
+                }
+                Instruction::CoefficientJet { start, len, shape } => {
+                    let operands =
+                        coefficient_jet::operands(start, len, shape, &instructions[..index])
+                            .map_err(|diagnostic| SummaryFailure::Numerical {
+                                instruction: index,
+                                diagnostic,
+                            })?;
+                    let collect = |ids: &[Option<ValueId>]| {
+                        ids.iter()
+                            .map(|id| id.map(|id| at(id).cloned()).transpose())
+                            .collect::<Result<Vec<_>, _>>()
+                    };
+                    coefficient_jet::affine(
+                        shape,
+                        &collect(&operands.a)?,
+                        &collect(&operands.b)?,
+                        dimension,
+                        index,
+                    )?
+                }
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    output,
+                } => {
+                    let range =
+                        map_evaluation::operand_range(start, extent, index).map_err(|_| {
+                            SymbolicLinearityFailure::InvalidProgram { instruction: index }
+                        })?;
+                    let operands = summaries[range]
+                        .iter()
+                        .map(|value| value.scalar(index))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if operands.iter().any(|value| value.depends_on_selected()) {
+                        return Err(
+                            SymbolicLinearityFailure::Nonlinear { instruction: index }.into()
+                        );
+                    }
+                    let constant = operands
+                        .iter()
+                        .map(|s| s.constant)
+                        .collect::<Option<Vec<_>>>()
+                        .map(|values| AffineValue::map(&values, extent as usize, output))
+                        .transpose()
+                        .map_err(|diagnostic| SummaryFailure::Numerical {
+                            instruction: index,
+                            diagnostic,
+                        })?;
+                    AffineSummary::finite(
+                        constant,
+                        vec![AffineValue::constant(0.0); dimension],
+                        index,
+                    )?
+                }
+                Instruction::PowI(base, exponent) => at(base)?.integer_power(exponent, index)?,
+            };
+            Ok(Summary::Scalar(summary))
+        })();
+        summaries.push(match result {
+            Ok(summary) => summary,
+            // Structural nonlinearity and derivative permissions are checked in
+            // every arm. Numerical validity follows lazy branch demand instead.
+            Err(
+                failure @ (SummaryFailure::Numerical { .. }
+                | SummaryFailure::Symbolic(
+                    SymbolicLinearityFailure::NonFiniteCoefficient { .. },
+                )),
+            ) => {
+                if failure_degrees.is_none() {
+                    let mut inputs = Vec::new();
+                    for (index, instruction) in instructions.iter().enumerate() {
+                        if let Instruction::Read(slot) = instruction {
+                            inputs.resize(inputs.len().max(slot.0 as usize + 1), None);
+                            inputs[slot.0 as usize] =
+                                Some([usize::from(resolve(*slot, index)?.depends_on_selected())]);
+                        }
+                    }
+                    failure_degrees = Some(
+                        polynomial_degree::instruction_degrees(instructions, &inputs).map_err(
+                            |diagnostic| SummaryFailure::Numerical {
+                                instruction: index,
+                                diagnostic,
+                            },
+                        )?,
+                    );
+                }
+                // A failed coefficient must not hide the selected-input degree
+                // of later products, even when their branch is not selected.
+                if !failure_degrees.as_ref().expect("derived degrees")[index]
+                    .is_some_and(|[degree]| degree <= 1)
+                {
                     return Err(SymbolicLinearityFailure::Nonlinear { instruction: index }.into());
                 }
-                let constant = argument
-                    .constant
-                    .map(|value| value.math(function))
-                    .transpose()
-                    .map_err(|diagnostic| SummaryFailure::Numerical {
-                        instruction: index,
-                        diagnostic,
-                    })?;
-                AffineSummary::finite(constant, vec![AffineValue::constant(0.0); dimension], index)?
+                Summary::Failed(failure)
             }
-            Instruction::Select { .. }
-            | Instruction::Require { .. }
-            | Instruction::PureOperator { .. }
-            | Instruction::Compare(_, _, _)
-            | Instruction::Not(_)
-            | Instruction::And(_, _)
-            | Instruction::Or(_, _)
-            | Instruction::Array { .. }
-            | Instruction::Index(_, _)
-            | Instruction::TypedConstant(_)
-            | Instruction::Quotient(_, _)
-            | Instruction::Remainder(_, _)
-            | Instruction::ToReal(_)
-            | Instruction::ToInteger(_)
-            | Instruction::Ordinal(_) => {
-                return Err(SymbolicLinearityFailure::InvalidProgram { instruction: index }.into());
-            }
-            Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
-            Instruction::Read(slot) => resolve(slot, index)?,
-            Instruction::Neg(value) => at(value)?.scaled(AffineValue::constant(-1.0), index)?,
-            Instruction::Add(left, right) => AffineSummary::sum(at(left)?, at(right)?, 1.0, index)?,
-            Instruction::Sub(left, right) => {
-                AffineSummary::sum(at(left)?, at(right)?, -1.0, index)?
-            }
-            Instruction::Mul(left, right) => AffineSummary::product(at(left)?, at(right)?, index)?,
-            Instruction::Div(left, right) => AffineSummary::quotient(at(left)?, at(right)?, index)?,
-            Instruction::ComplexDiv {
-                operands,
-                imaginary,
-            } => {
-                let [a, b, c, d] = operands;
-                complex_quotient::affine([at(a)?, at(b)?, at(c)?, at(d)?], imaginary, index)?
-            }
-            Instruction::CoefficientJet { start, len, shape } => {
-                let operands = coefficient_jet::operands(start, len, shape, &instructions[..index])
-                    .map_err(|diagnostic| SummaryFailure::Numerical {
-                        instruction: index,
-                        diagnostic,
-                    })?;
-                let collect = |ids: &[Option<ValueId>]| {
-                    ids.iter()
-                        .map(|id| id.map(|id| at(id).cloned()).transpose())
-                        .collect::<Result<Vec<_>, _>>()
-                };
-                coefficient_jet::affine(
-                    shape,
-                    &collect(&operands.a)?,
-                    &collect(&operands.b)?,
-                    dimension,
-                    index,
-                )?
-            }
-            Instruction::MapInvariant {
-                start,
-                extent,
-                output,
-            } => {
-                let range = map_evaluation::operand_range(start, extent, index)
-                    .map_err(|_| SymbolicLinearityFailure::InvalidProgram { instruction: index })?;
-                let operands = summaries[range]
-                    .iter()
-                    .map(|value| value.scalar(index))
-                    .collect::<Result<Vec<_>, _>>()?;
-                if operands.iter().any(|value| value.depends_on_selected()) {
-                    return Err(SymbolicLinearityFailure::Nonlinear { instruction: index }.into());
-                }
-                let constant = operands
-                    .iter()
-                    .map(|s| s.constant)
-                    .collect::<Option<Vec<_>>>()
-                    .map(|values| AffineValue::map(&values, extent as usize, output))
-                    .transpose()
-                    .map_err(|diagnostic| SummaryFailure::Numerical {
-                        instruction: index,
-                        diagnostic,
-                    })?;
-                AffineSummary::finite(constant, vec![AffineValue::constant(0.0); dimension], index)?
-            }
-            Instruction::PowI(base, exponent) => at(base)?.integer_power(exponent, index)?,
-        };
-        summaries.push(Summary::Scalar(summary));
+            Err(failure) => return Err(failure),
+        });
     }
     Ok(summaries)
 }

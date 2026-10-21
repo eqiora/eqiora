@@ -58,20 +58,15 @@ impl ScalarInputOperatorIr {
                 })
             },
         )
-        .map_err(|failure| match failure {
-            affine_analysis::SummaryFailure::Symbolic(failure) => ir_builder_error(format!(
-                "cannot prove constant component Jacobian: {failure:?}"
-            )),
-            affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
-        })?;
+        .map_err(|failure| failure.into_diagnostic("cannot prove constant component Jacobian"))?;
         let mut coefficients = Vec::new();
         for root in &self.roots {
             let summary = summaries
                 .get(root.0 as usize)
                 .ok_or_else(|| ir_builder_error("constant Jacobian root is unavailable"))?
                 .scalar(self.instructions.len())
-                .map_err(|error| {
-                    ir_builder_error(format!("constant Jacobian root is not scalar: {error:?}"))
+                .map_err(|failure| {
+                    failure.into_diagnostic("constant Jacobian root is not scalar")
                 })?;
             coefficients.extend(summary.coefficients.iter().map(|v| v.value));
         }
@@ -176,12 +171,12 @@ impl ScalarInputOperatorIr {
                 })
             },
         )
-        .map_err(|error| match error {
-            affine_analysis::SummaryFailure::Symbolic(error) => {
-                ir_builder_error(format!("component affine proof failed: {error:?}"))
-            }
-            affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
-        })?;
+        .map_err(|failure| failure.into_diagnostic("component affine proof failed"))?;
+        for root in &self.primal_checks {
+            summaries[root.0 as usize]
+                .scalar(self.instructions.len())
+                .map_err(|failure| failure.into_diagnostic("affine primal domain is invalid"))?;
+        }
         self.roots
             .iter()
             .map(|root| {
@@ -189,9 +184,7 @@ impl ScalarInputOperatorIr {
                     .get(root.0 as usize)
                     .ok_or_else(|| ir_builder_error("affine component root is unavailable"))?
                     .scalar(self.instructions.len())
-                    .map_err(|error| {
-                        ir_builder_error(format!("affine root is not scalar: {error:?}"))
-                    })?;
+                    .map_err(|failure| failure.into_diagnostic("affine root is not scalar"))?;
                 if summary.constant.is_none() {
                     return Err(ir_builder_error(
                         "affine component offset is not fully bound",

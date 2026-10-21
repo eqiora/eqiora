@@ -92,6 +92,41 @@ def test_indexed_action_keeps_whole_value_axes(local_operator, mode):
     assert_replay(source, expected)
 
 
+@pytest.mark.parametrize("local_operator", [False, True])
+@pytest.mark.parametrize("sign", [-1, 1])
+@pytest.mark.parametrize("mode", ["partial", "second", "jvp", "vjp"])
+def test_held_branch_actions_preserve_lazy_domains_through_replay(local_operator, sign, mode):
+    q = e.lang
+    source = e.Module("main")
+    scalar = e.ValueType.real()
+
+    def action_body(x, k):
+        value = q.if_else(q.greater(k, 0), q.math.log(x), q.math.log(-x))
+        if mode == "partial":
+            return q.partial(value, wrt=x)
+        if mode == "second":
+            return q.partial(q.partial(value, wrt=x), wrt=x)
+        if mode == "jvp":
+            return q.jvp(value, wrt=(x,), tangent=(3,))
+        return q.vjp(value, wrt=x, cotangent=4)
+
+    action = source.operator(
+        "action", inputs={"x": scalar, "k": scalar}, result_type=scalar, body=action_body,
+    )
+    root = source.model("Main")
+    x = root.parameter("x", value_type=scalar)
+    k = root.parameter("k", value_type=scalar)
+    root.set_default(x, sign * 2)
+    root.set_default(k, sign)
+    field = root.field("value", role=e.FieldRole.Variable, value_type=scalar)
+    value = action(x=x, k=k) if local_operator else action_body(x, k)
+    root.relation("law", q.equation(field, value))
+    root.observable("output", field, value_type=scalar)
+    # d log(±x)/dx = 1/x and d² log(±x)/dx² = -1/x².
+    expected = {"partial": sign * 0.5, "second": -0.25, "jvp": sign * 1.5, "vjp": sign * 2}
+    assert_replay(source, expected[mode])
+
+
 def assert_replay(source, expected):
     model = e.compile(source=source, entry="Main")
     parsed = e.compile(source=source.to_eqi(), entry="Main")

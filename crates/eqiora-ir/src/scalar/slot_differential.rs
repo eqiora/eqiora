@@ -1,5 +1,7 @@
 //! Directional scalar SSA emission; source coordinates are supplied by the caller.
 use super::*;
+mod dimensions;
+mod validity;
 
 impl ScalarInputIrBuilder {
     pub(crate) fn directional_inputs(
@@ -103,7 +105,7 @@ impl ScalarInputIrBuilder {
         } else {
             slot_composition::required_instructions(&self.instructions, &[root.0])?
         };
-        let mut conditions = Vec::new();
+        let mut validity = Vec::new();
         let mut derivative_limits = Vec::new();
         if !formal {
             self.primal_checks.push(root.0);
@@ -123,6 +125,7 @@ impl ScalarInputIrBuilder {
             .collect::<Vec<_>>();
         let active = activity::numerical_activity(&instructions, &bindings)?;
         let mut directions = Vec::with_capacity(instructions.len());
+        let mut dimensions = Vec::new();
         for ((instruction, needed), is_active) in instructions
             .into_iter()
             .zip(needed)
@@ -143,27 +146,19 @@ impl ScalarInputIrBuilder {
                     order - requested,
                 ));
             }
-            if needed && formal {
-                if let Instruction::Require { condition, .. } = instruction {
-                    conditions.push(ScalarInputValueId(condition));
-                }
-                let domain = match instruction {
-                    Instruction::Math(function, input) => {
-                        function.real_domain_condition().map(|op| (op, input))
-                    }
-                    Instruction::Div(_, denominator) => {
-                        Some((eqiora_schema::kernel::ComparisonOp::NotEqual, denominator))
-                    }
-                    Instruction::PowI(input, exponent) if exponent < 0 => {
-                        Some((eqiora_schema::kernel::ComparisonOp::NotEqual, input))
-                    }
-                    _ => None,
-                };
-                if let Some((op, input)) = domain {
-                    let input = ScalarInputValueId(input);
-                    let zero = self.sub(input, input)?;
-                    conditions.push(self.compare(op, input, zero)?);
-                }
+            validity.push(if needed && formal {
+                self.formal_validity(directions.len(), &validity)?
+            } else {
+                None
+            });
+            if needed
+                && formal
+                && let Instruction::Select { condition, .. } = instruction
+                && active[condition.0 as usize]
+            {
+                return Err(ir_builder_error(
+                    "formal branch selection must be independent of the selected input",
+                ));
             }
             if !needed || !is_active {
                 directions.push(None);
@@ -192,6 +187,32 @@ impl ScalarInputIrBuilder {
                     }
                 }
                 Instruction::DerivativeLimit { value, .. } => directions[value.0 as usize],
+                Instruction::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } if formal => {
+                    match (
+                        directions[then_value.0 as usize],
+                        directions[else_value.0 as usize],
+                    ) {
+                        (None, None) => None,
+                        (Some(then_direction), Some(else_direction)) => Some(self.select(
+                            ScalarInputValueId(condition),
+                            then_direction,
+                            else_direction,
+                        )?),
+                        (then_direction, else_direction) => {
+                            let witness = then_direction.or(else_direction).expect("active branch");
+                            let zero = self.zero_like(witness, &mut dimensions)?;
+                            Some(self.select(
+                                ScalarInputValueId(condition),
+                                then_direction.unwrap_or(zero),
+                                else_direction.unwrap_or(zero),
+                            )?)
+                        }
+                    }
+                }
                 Instruction::Read(slot) => seeds.get(slot.0 as usize).copied().flatten(),
                 Instruction::CoefficientJet { start, len, shape } => {
                     let operands = coefficient_jet::operands(
@@ -274,7 +295,7 @@ impl ScalarInputIrBuilder {
             };
             // Keep validity on the returned value, so an inactive caller branch
             // never acquires an eager global check from a nested formal partial.
-            for condition in conditions.into_iter().rev() {
+            if let Some(condition) = validity[root.0.0 as usize] {
                 value = self.require(condition, value)?;
             }
             for (inputs, order) in derivative_limits.into_iter().rev() {

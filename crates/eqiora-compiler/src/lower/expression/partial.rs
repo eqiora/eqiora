@@ -236,6 +236,9 @@ impl ExpressionLowerer<'_> {
                 LoweringExpressionNode::Jvp { .. }
                 | LoweringExpressionNode::Vjp { .. }
                 | LoweringExpressionNode::Index { .. }
+                | LoweringExpressionNode::Select { .. }
+                | LoweringExpressionNode::Require { .. }
+                | LoweringExpressionNode::Not(_)
                 | LoweringExpressionNode::Complex { .. } => {
                     value.node.push_children(&mut pending);
                 }
@@ -244,6 +247,7 @@ impl ExpressionLowerer<'_> {
                     coordinate_derivative |= matches!(input(wrt), Some(Input::Coordinate(..)));
                     pending.extend([value, wrt]);
                 }
+                LoweringExpressionNode::Literal(literal) if literal.as_bool().is_some() => {}
                 LoweringExpressionNode::Literal(_) => {
                     let key = Arc::as_ptr(&value.node) as usize;
                     if let std::collections::btree_map::Entry::Vacant(entry) = literals.entry(key) {
@@ -513,6 +517,9 @@ impl ComponentCompiler<'_> {
                 formal: names[&input(expression).expect("matched independent input")],
                 axes: self.axes(names[&input(expression).expect("matched independent input")]),
             },
+            LoweringExpressionNode::Literal(literal) if literal.as_bool().is_some() => {
+                CalculusNode::Boolean(literal.as_bool().expect("matched Boolean"))
+            }
             LoweringExpressionNode::Literal(_) => CalculusNode::FormalComponent {
                 formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
                 axes: self.axes(literals[&(Arc::as_ptr(&expression.node) as usize)]),
@@ -579,6 +586,22 @@ impl ComponentCompiler<'_> {
             LoweringExpressionNode::Neg(value) => {
                 CalculusNode::Neg(self.component(value, builder, cache)?)
             }
+            LoweringExpressionNode::Not(value) => {
+                CalculusNode::Not(self.component(value, builder, cache)?)
+            }
+            LoweringExpressionNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => CalculusNode::Select {
+                condition: self.component(condition, builder, cache)?,
+                then_value: self.component(then_value, builder, cache)?,
+                else_value: self.component(else_value, builder, cache)?,
+            },
+            LoweringExpressionNode::Require { condition, value } => CalculusNode::Require {
+                condition: self.component(condition, builder, cache)?,
+                value: self.component(value, builder, cache)?,
+            },
             LoweringExpressionNode::Binary {
                 operator: BinaryOp::Pow,
                 left,
@@ -633,6 +656,15 @@ impl ComponentCompiler<'_> {
                     }
                     BinaryOp::Mul => CalculusNode::Mul(left, right),
                     BinaryOp::Div => CalculusNode::Div(left, right),
+                    BinaryOp::And => CalculusNode::And(left, right),
+                    BinaryOp::Or => CalculusNode::Or(left, right),
+                    op if crate::lower::comparison_operator(*op).is_some() => {
+                        CalculusNode::Compare(
+                            crate::lower::comparison_operator(*op).expect("matched comparison"),
+                            left,
+                            right,
+                        )
+                    }
                     _ => {
                         return Err(error(
                             file,
