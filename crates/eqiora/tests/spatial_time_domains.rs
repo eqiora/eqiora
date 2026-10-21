@@ -281,9 +281,11 @@ fn nonholomorphic_newton_time_history_refines_and_replays() {
                 }
                 amplitude = (lower + upper) / 2.;
                 for (_, _, _, values) in spatial.state_fields(accepted.state()).unwrap() {
-                    for pair in values.chunks_exact(2) {
-                        assert!((pair[0] - amplitude).abs() < 1e-10);
-                        assert!((pair[1] - 2. * amplitude).abs() < 1e-10);
+                    let (pairs, remainder) = values.as_chunks::<2>();
+                    assert!(remainder.is_empty());
+                    for [real, imaginary] in pairs {
+                        assert!((*real - amplitude).abs() < 1e-10);
+                        assert!((*imaginary - 2. * amplitude).abs() < 1e-10);
                     }
                 }
             }

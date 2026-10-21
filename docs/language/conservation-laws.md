@@ -32,23 +32,27 @@ same source AST and retains the same physical terms in Model artifacts and packa
 composition. Changing a physical term changes Model meaning even when an equation
 could otherwise be rewritten to an equivalent residual.
 
-Real scalar storage Laws on a fixed volume retain `storage c * u;` and the checked
-accumulation `derivative(c * u)`. Constant positive capacity, complete initial data
-and essential boundary data execute through the common scalar Backward Euler path.
-Its numerical profile admits Q1 on Cartesian cells and P1 on planar triangles;
-nonlinear capacity remains outside that execution profile. A separate bounded moving-volume
-profile is described below.
+Scalar storage Laws on a fixed volume retain `storage c * u;` and the checked
+accumulation `derivative(c * u)`. The current execution profile requires a constant
+positive capacity multiplying its exact State. Real and complex scalar States use
+the same typed Region assembly, Backward Euler, initialization and restart owners.
+Fixed Laws and equivalent Relations also share nonlinear source lowering; choose
+an explicit Newton policy for a nonlinear reaction such as `-math.abs2(u) * u`.
+Physical flux orientation remains part of the Law's meaning.
 
-On one fixed Cartesian Region, multiple real scalar States can share the same Backward Euler
-solve. Each Law stores a constant positive capacity times its own diffusive State. Its source
-may contain prescribed data and linear combinations of the other States on that exact support;
-for example, `source exchange * (other - u);`. Each State requires its own initial equation and
-complete essential boundary data. Initial and boundary blocks may group several equations.
-Reusable Components can borrow these exact States and contribute their Laws to the same Model.
-Focused Rust tests cover three coupled States, distinct capacities, affine sources, grouped
-nonzero boundaries, declaration order, and Plan/State replay and restart. This does not admit
-nonlinear reactions, derivatives in source terms, cross-State storage, algebraic rows without
-storage, multiple transient Regions, vector coupling or transient authored-form correspondence.
+Each State needs compatible initial and boundary data on its exact support.
+Multiple States can contribute coupled source terms through borrowed Components;
+initial and boundary blocks may group several equations. Algebraic rows are checked
+against the supplied initial or restarted State, including both parts of a complex
+value. Focused installed Python tests cover real/complex, Law/Relation and
+linear/Newton combinations on a two-element Cartesian Q1 mesh, including Field
+snapshots and Plan/State/Result replay and restart. Native tests additionally check
+time refinement and independently derived algebraic constraints.
+
+The [capability matrix](../capability-matrix.md) records the separate Q1, simplicial,
+interface and mixed-history profiles and their evidence. General nonlinear or
+cross-State storage and derivatives in source terms remain outside this storage
+profile. The prescribed moving-volume profile below has its own geometric requirements.
 
 The Cartesian Q1 path also admits an explicit first-time-derivative weak pairing:
 
