@@ -265,13 +265,13 @@ fn scalar_jacobian_actions_and_hessian_directions_match_independent_polynomial_v
             .unwrap();
         let yyy = builder.push(CalculusNode::Mul(yy, inputs[1])).unwrap();
         let f = builder.push(CalculusNode::Add(xxy, yyy)).unwrap();
-        let directions = [(0, inputs[2]), (1, inputs[3])];
-        let jv = builder.jvp(f, &directions).unwrap();
-        let vjp = builder.vjp(f, inputs[4], &[0, 1]).unwrap();
+        let directions = [(0, inputs[2].into()), (1, inputs[3].into())];
+        let jv = builder.jvp(&f.into(), &directions).unwrap();
+        let vjp = [0, 1].map(|formal| builder.vjp(&f.into(), &inputs[4].into(), formal).unwrap());
         let fx = builder.partial(f, 0).unwrap();
         let fy = builder.partial(f, 1).unwrap();
-        let hx = builder.jvp(fx, &directions).unwrap();
-        let hy = builder.jvp(fy, &directions).unwrap();
+        let hx = builder.jvp(&fx.into(), &directions).unwrap();
+        let hy = builder.jvp(&fy.into(), &directions).unwrap();
         let forward_pair = builder.push(CalculusNode::Mul(inputs[4], jv)).unwrap();
         let reverse_x = builder.push(CalculusNode::Mul(vjp[0], inputs[2])).unwrap();
         let reverse_y = builder.push(CalculusNode::Mul(vjp[1], inputs[3])).unwrap();

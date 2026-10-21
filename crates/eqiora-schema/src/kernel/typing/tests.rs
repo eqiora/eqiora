@@ -4,6 +4,32 @@ use eqiora_core::entity::kinds;
 mod complex_components;
 mod point_evaluation;
 
+#[test]
+fn derivative_dual_preserves_complete_numeric_meaning_and_support() {
+    use eqiora_core::{FiniteBasis, ScalarDomain, ValueType};
+    let source = FiniteBasis::new(Id::new(), 2).unwrap();
+    let target = FiniteBasis::new(Id::new(), 3).unwrap();
+    let unit = DimExponents::from_integers([1, 0, -1, 0, 0, 0, 0]).unwrap();
+    let reciprocal = DimExponents::from_integers([-1, 0, 1, 0, 0, 0, 0]).unwrap();
+    let map = |dimension| {
+        ExpressionType::new(
+            ValueType::linear_map(source, target, ScalarDomain::Complex, dimension).unwrap(),
+            Some(volume("body")),
+        )
+    };
+    assert_eq!(map(unit).dual().unwrap(), map(reciprocal));
+    assert_eq!(map(unit).dual().unwrap().dual().unwrap(), map(unit));
+    assert!(matches!(
+        ExpressionType::<()>::new(ValueType::boolean(), None).dual(),
+        Err(TypeViolation::ScalarDomainMismatch)
+    ));
+    let selected = map(unit);
+    let mut foreign = selected.clone();
+    foreign.support = Some(volume("foreign"));
+    assert!(selected.jvp(&selected, &foreign).is_err());
+    assert!(selected.vjp(&foreign, &selected.dual().unwrap()).is_err());
+}
+
 fn volume(name: &'static str) -> SpatialSupport<&'static str> {
     SpatialSupport::Volume {
         domain: name,

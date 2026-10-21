@@ -74,35 +74,7 @@ fn check_source_partials(composed: bool) {
             }}
         "#
         );
-        let document = ModelDocument::compile("typed-partial.eqi", &source).unwrap();
-        let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let backend = &FaerLinearSolver;
-        let solver = SolverPlan::new(
-            LinearSolver::SparseLu,
-            1e-13,
-            1e-15,
-            std::num::NonZeroUsize::new(8).unwrap(),
-        )
-        .unwrap()
-        .with_reduction(ReductionPolicy::Fast);
-        let plan = CommonAlgebraicPlan::resolve(
-            &model,
-            CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(solver, backend.provider()).unwrap(),
-            ),
-            None,
-            &[],
-            None,
-            backend,
-        )
-        .unwrap();
-        let state = plan.initial_state(&[]).unwrap();
-        let before = state.to_bytes().unwrap();
-        let result = plan.run_result(&state, backend).unwrap();
-        let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
-        let replay = CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap();
-        assert_eq!(result, replay);
-        assert_eq!(state.to_bytes().unwrap(), before);
+        let (document, plan, replay) = solve(&source);
         // At x=3, d_x[x²*conj(z)]=6*conj(z), d_xx=2*conj(z).
         // The identity solve and these integer operations are exact in binary64.
         for (name, expected) in [("first_value", first), ("second_value", second)] {
@@ -120,4 +92,45 @@ fn check_source_partials(composed: bool) {
             );
         }
     }
+}
+
+pub(super) fn solve(source: &str) -> (ModelDocument, CommonAlgebraicPlan, CommonResult) {
+    try_solve(source).unwrap()
+}
+
+pub(super) fn try_solve(
+    source: &str,
+) -> Result<(ModelDocument, CommonAlgebraicPlan, CommonResult), String> {
+    fn failure(error: impl std::fmt::Debug) -> String {
+        format!("{error:?}")
+    }
+    let document = ModelDocument::compile("typed-calculus.eqi", source).map_err(failure)?;
+    let model = ModelEnvelope::from_program(document.program()).map_err(failure)?;
+    let backend = &FaerLinearSolver;
+    let solver = SolverPlan::new(
+        LinearSolver::SparseLu,
+        1e-13,
+        1e-15,
+        std::num::NonZeroUsize::new(8).unwrap(),
+    )
+    .unwrap()
+    .with_reduction(ReductionPolicy::Fast);
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        CommonSolvePolicy::Linear(CommonLinearRequest::exact(solver, backend.provider()).unwrap()),
+        None,
+        &[],
+        None,
+        backend,
+    )
+    .map_err(failure)?;
+    let state = plan.initial_state(&[]).map_err(failure)?;
+    let before = state.to_bytes().unwrap();
+    let result = plan.run_result(&state, backend).map_err(failure)?;
+    let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    let replay =
+        CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).map_err(failure)?;
+    assert_eq!(result, replay);
+    assert_eq!(state.to_bytes().unwrap(), before);
+    Ok((document, plan, replay))
 }

@@ -7,6 +7,22 @@ pub use argument::CalculusArgument;
 mod typed_tests;
 
 impl CalculusBuilder {
+    pub(super) fn reachable_nodes(
+        &self,
+        root: CalculusNodeId,
+    ) -> Result<Vec<bool>, PureOperatorError> {
+        let end = definition_index(root, self.nodes.len())?;
+        let mut reachable = vec![false; end + 1];
+        let mut pending = vec![root];
+        while let Some(id) = pending.pop() {
+            let index = definition_index(id, reachable.len())?;
+            if !std::mem::replace(&mut reachable[index], true) {
+                pending.extend(self.nodes[index].operands());
+            }
+        }
+        Ok(reachable)
+    }
+
     /// Substitute complete typed inputs into a closed component definition.
     /// Whole-value templates retain their own result axes until projected by the
     /// callee. Scalar components already belong to the caller's result-axis context.
@@ -107,7 +123,7 @@ impl CalculusBuilder {
 
 // Physical dimensions and scalar domain belong to the component expression.
 // All other type information must survive an implicit componentwise call.
-fn compatible_component_layout(left: &PureValueClass, right: &PureValueClass) -> bool {
+pub(super) fn compatible_component_layout(left: &PureValueClass, right: &PureValueClass) -> bool {
     let layout = |value: &PureValueClass| {
         value
             .clone()

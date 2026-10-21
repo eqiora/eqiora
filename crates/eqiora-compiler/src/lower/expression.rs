@@ -359,6 +359,9 @@ impl ExpressionLowerer<'_> {
             LoweringExpressionNode::Partial { value, wrt } => {
                 self.lower_partial(expression, value, wrt)
             }
+            LoweringExpressionNode::Jvp { .. } | LoweringExpressionNode::Vjp { .. } => {
+                self.lower_action(expression)
+            }
             LoweringExpressionNode::Number(_) => {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,

@@ -77,6 +77,8 @@ impl Resolver<'_> {
     }
     fn anchor_node(&mut self, value: &LoweringExpression) -> Option<ScalarDomain> {
         match value.node.as_ref() {
+            LoweringExpressionNode::Jvp { value, .. } => self.anchor(value),
+            LoweringExpressionNode::Vjp { wrt, .. } => self.anchor(wrt),
             LoweringExpressionNode::CoordinateMapFactor { .. } => Some(ScalarDomain::Real),
             LoweringExpressionNode::Evaluate { value, .. }
             | LoweringExpressionNode::Pullback { value, .. } => self.anchor(value),
@@ -136,6 +138,28 @@ impl Resolver<'_> {
     ) -> Result<LoweringExpression, Diagnostic> {
         let file = self.file;
         let node = match expression.node.as_ref() {
+            LoweringExpressionNode::Jvp { value, directions } => LoweringExpressionNode::Jvp {
+                value: self.resolve(value, None)?,
+                directions: directions
+                    .iter()
+                    .map(|(selected, direction)| {
+                        let domain = self.anchor(selected);
+                        Ok((selected.clone(), self.resolve(direction, domain)?))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            },
+            LoweringExpressionNode::Vjp {
+                value,
+                wrt,
+                cotangent,
+            } => {
+                let domain = self.anchor(value);
+                LoweringExpressionNode::Vjp {
+                    value: self.resolve(value, None)?,
+                    wrt: wrt.clone(),
+                    cotangent: self.resolve(cotangent, domain)?,
+                }
+            }
             LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
                 LoweringExpressionNode::CoordinateMapFactor {
                     factor: *factor,

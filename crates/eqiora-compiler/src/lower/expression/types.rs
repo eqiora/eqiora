@@ -152,6 +152,22 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::Jvp { value, directions } => {
+            let mut output = infer(value)?;
+            for (selected, direction) in directions {
+                output = output
+                    .jvp(&infer(selected)?, &infer(direction)?)
+                    .map_err(violation)?;
+            }
+            Ok(output)
+        }
+        LoweringExpressionNode::Vjp {
+            value,
+            wrt,
+            cotangent,
+        } => infer(value)?
+            .vjp(&infer(wrt)?, &infer(cotangent)?)
+            .map_err(violation),
         LoweringExpressionNode::CoordinateMapFactorAction {
             value, parameter, ..
         } => super::pullback::infer_action(file, expression, value, parameter, &mut infer),

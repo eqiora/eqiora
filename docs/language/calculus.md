@@ -71,20 +71,24 @@ Ordered nested operations spell second partials, for example
 the ordered binding list remains in the graph. For this smooth polynomial the Hessian is
 `[[2*y, 2*x], [2*x, 6*y]]`. Symmetry follows from this polynomial's smoothness, not from
 sorting derivative bindings. Inputs with different dimensions produce separately typed blocks
-rather than one homogeneous matrix. Derivatives above second order are rejected.
+rather than one homogeneous matrix. Repeated polynomial partials are bounded by the calculus
+node and depth budgets, without a separate derivative-order limit.
 
 ## Typed Jacobian actions
 
-For real scalar polynomials, `jvp(value, [x, y], [dx, dy])` applies the Jacobian to an ordered
+`jvp(value, [x, y], [dx, dy])` applies the real-linear Jacobian to an ordered
 list of input directions. The two lists are structural arguments and do not build a homogeneous
-array. Each direction must have the exact
-scalar type and dimension of its selected independent binding. Repeated bindings, aliases
+array. Real and complex scalar or channel-array inputs retain their complete values. Each
+direction must have the exact type, shape and dimension of its selected independent binding.
+Repeated bindings, aliases
 used as independent inputs, and mismatched direction units are rejected. Other inputs are
-held fixed, and the result has the original output dimension.
+held fixed, and the result has the original output type.
 
-`vjp(value, x, seed)` returns the dual block for the selected input. For scalar outputs this
-uses the real dimensionless dual pairing: `seed` has reciprocal output units,
-and the returned block has reciprocal `x` units. Separate input blocks retain separate types;
+`vjp(value, x, seed)` returns the dual block for the selected input. It uses the real
+dimensionless pairing `Re(sum(conj(seed) * delta_value))`: `seed` has the output's complete
+shape and scalar domain with reciprocal output units. The returned block has `x`'s complete
+shape and scalar domain with reciprocal `x` units. Reverse actions contract every output
+component. Separate input blocks retain separate types;
 a position block and a velocity block are not packed into one spatial vector. Python spells
 these operations `lang.jvp(value, wrt=(x, y), tangent=(dx, dy))` and
 `lang.vjp(value, wrt=x, cotangent=seed)`.
@@ -94,9 +98,25 @@ A Hessian action is formed by applying `jvp` to a first partial. For
 `jvp(partial(f, wrt=x), [x,y], [dx,dy])` and
 `jvp(partial(f, wrt=y), [x,y], [dx,dy])`. This evaluates actions without requiring a dense
 Hessian. At `(x,y)=(3,5)` and `(dx,dy)=(2,-1)`, the blocks are `14` and `-18`.
-A further derivative would exceed second order and is rejected, including through aliases and
-operator composition. These actions apply to explicit expressions only; they do not
-differentiate implicit solves, unknown spatial fields, complex inputs, or nonsmooth branches.
+For a complex example, `f=z*math.conj(z)+math.complex(0,1)*z` has real Jacobian
+`[[2*a, 2*b-1], [1, 0]]` at `z=a+ib`. At `z=2+5i`, the direction `3-4i` gives
+`jvp(f,[z],[direction])=-24+3i`; the seed `7+11i` gives `vjp(f,z,seed)=39+63i`.
+Conjugate dependence is retained; these are real-linear actions, not holomorphic derivatives.
+Whole typed operator results compose with actions, and static channel indexing such as
+`jvp(z,[z],[direction])[1]` retains the value's local axes. Nested actions use the same calculus.
+
+These actions apply to admitted explicit expressions only. Array construction inside a
+differentiated expression, general conditional derivatives, implicit solves and general
+unknown-spatial-field variations remain outside this executable profile. A scalar `partial`
+selector still requires an independent real scalar. Source and derivative-domain checks remain
+in force even when the selected input is unused and the derivative is zero.
+
+Model coordinate actions use the same physical dependencies as coordinate `partial`.
+For a represented Field `u(x,y)`, `jvp(u,[x],[x])` means `partial(u,wrt=x)*x`;
+the Field is not held fixed with respect to its spatial coordinate. VJP contracts
+the corresponding coordinate partial with the seed using the same real pairing.
+The admitted first-order Field profile and its reconstruction remain authoritative;
+nested mixed Field derivatives require a supported representation and otherwise reject.
 
 For an analytic Cartesian field, a differentiated polynomial operator can bind its
 length inputs to `coordinate(0)` and `coordinate(1)` inside a spatial Observable.
