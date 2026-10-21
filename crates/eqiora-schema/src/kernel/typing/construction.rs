@@ -73,6 +73,73 @@ impl<I: Clone + Eq> ExpressionType<I> {
 }
 
 impl<I: Clone + Eq> ExpressionType<I> {
+    /// Type a real-linear forward action with a complete input tangent block.
+    /// Input identity and executable differentiability belong to the caller.
+    ///
+    /// # Errors
+    /// Rejects nonnumeric values, a direction with a different complete input
+    /// contract, or incompatible supports.
+    pub fn jvp(&self, selected: &Self, direction: &Self) -> Result<Self, TypeViolation<I>> {
+        let support = self.action_support(selected)?;
+        if direction != selected {
+            return Err(TypeViolation::DerivativeDirectionTypeMismatch {
+                expected: Box::new(selected.clone()),
+                actual: Box::new(direction.clone()),
+            });
+        }
+        Ok(Self::new(self.value_type.clone(), support))
+    }
+
+    /// Type a real-adjoint action using a dimensionless real dual pairing.
+    /// The seed retains the output's shape/domain and reciprocal units; the
+    /// returned block retains the selected input's shape/domain and reciprocal units.
+    ///
+    /// # Errors
+    /// Rejects nonnumeric values, wrong complete dual contracts, incompatible
+    /// supports, or unrepresentable reciprocal dimensions.
+    pub fn vjp(&self, selected: &Self, cotangent: &Self) -> Result<Self, TypeViolation<I>> {
+        let support = self.action_support(selected)?;
+        let dual = self.dual()?;
+        if cotangent != &dual {
+            return Err(TypeViolation::DerivativeCotangentTypeMismatch {
+                expected: Box::new(dual),
+                actual: Box::new(cotangent.clone()),
+            });
+        }
+        Ok(Self::new(selected.dual()?.value_type, support))
+    }
+
+    fn action_support(
+        &self,
+        selected: &Self,
+    ) -> Result<Option<super::SpatialSupport<I>>, TypeViolation<I>> {
+        if [self, selected].iter().any(|value| {
+            !matches!(
+                value.value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+            )
+        }) {
+            return Err(TypeViolation::ScalarDomainMismatch);
+        }
+        super::combine_additive_support(&self.support, &selected.support)
+    }
+
+    /// Retain numeric shape, domain, meaning and support with reciprocal units
+    /// for the dimensionless real dual pairing.
+    ///
+    /// # Errors
+    /// Rejects nonnumeric domains and unrepresentable reciprocal dimensions.
+    pub fn dual(&self) -> Result<Self, TypeViolation<I>> {
+        self.action_support(self)?;
+        self.dimension()
+            .pow(-1, 1)
+            .and_then(|dimension| self.value_type.clone().with_dimension(dimension).ok())
+            .map(|value_type| Self::new(value_type, self.support.clone()))
+            .ok_or(TypeViolation::DimensionOverflow {
+                operation: "derivative dual",
+            })
+    }
+
     /// Type a numeric value's partial derivative with respect to one real coordinate.
     ///
     /// The caller must establish that the selector is a coordinate symbol; this rule

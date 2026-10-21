@@ -1,5 +1,7 @@
 //! Authored formal partials use the common typed scalar evaluator.
 mod support;
+#[path = "formal_partials/typed_actions.rs"]
+mod typed_actions;
 #[path = "formal_partials/typed_inputs.rs"]
 mod typed_inputs;
 use eqiora::compiler::compile;

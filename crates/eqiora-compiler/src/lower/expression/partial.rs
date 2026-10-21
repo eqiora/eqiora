@@ -1,8 +1,9 @@
-//! Formalize explicit scalar expressions without cutting alias dependencies.
+//! Formalize explicit typed expressions without cutting their dependencies.
 use super::*;
 use eqiora_schema::kernel::pure_operator::{
-    CalculusBuilder, CalculusNode, CalculusNodeId, PureValueClass,
+    CalculusArgument, CalculusBuilder, CalculusNode, CalculusNodeId, ComponentIndex, PureValueClass,
 };
+mod coordinate_actions;
 
 pub(crate) fn result_type<I: Clone + Eq>(
     value: &ExpressionType<I>,
@@ -17,6 +18,13 @@ pub(crate) fn result_type<I: Clone + Eq>(
         }
         _ => "partial requires a numeric value and an independent real scalar",
     })
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FormalMode {
+    Value,
+    Partial,
+    TotalTime,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -75,17 +83,6 @@ impl ExpressionLowerer<'_> {
         value: &LoweringExpression,
         selected: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
-        if value
-            .referenced_names()
-            .iter()
-            .any(|name| matches!(self.bindings.get(name), Some(Binding::Observable(..))))
-        {
-            return Err(error(
-                self.file,
-                expression,
-                "partial of an Observable requires differentiation through its retained definition",
-            ));
-        }
         let value_type = types::expression_type(self.file, value, self.bindings, None)?;
         let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
         let result = result_type(&value_type, &input_type)
@@ -150,10 +147,60 @@ impl ExpressionLowerer<'_> {
         selected: &LoweringExpression,
         total_time: bool,
     ) -> Result<LoweringExpression, Diagnostic> {
+        self.formal_expression(
+            expression,
+            value,
+            selected,
+            if total_time {
+                FormalMode::TotalTime
+            } else {
+                FormalMode::Partial
+            },
+        )
+    }
+
+    pub(super) fn lower_action(
+        &mut self,
+        expression: &LoweringExpression,
+    ) -> Result<TypedExpression, Diagnostic> {
+        let selected = match expression.node.as_ref() {
+            LoweringExpressionNode::Jvp { directions, .. } => &directions[0].0,
+            LoweringExpressionNode::Vjp { wrt, .. } => wrt,
+            _ => unreachable!("action lowering"),
+        };
+        let outer_cache = std::mem::take(&mut self.cache);
+        let result = self
+            .coordinate_action(expression)
+            .and_then(|coordinate| match coordinate {
+                Some(derived) => self.lower(&derived),
+                None => self
+                    .formal_expression(expression, expression, selected, FormalMode::Value)
+                    .and_then(|derived| self.lower(&derived)),
+            });
+        self.cache = outer_cache;
+        result
+    }
+
+    fn formal_expression(
+        &self,
+        expression: &LoweringExpression,
+        value: &LoweringExpression,
+        selected: &LoweringExpression,
+        mode: FormalMode,
+    ) -> Result<LoweringExpression, Diagnostic> {
+        let total_time = mode == FormalMode::TotalTime;
+        let derive = mode != FormalMode::Value;
+        if derive {
+            require_retained_definitions(self.file, value, self.bindings)?;
+        }
         let value_type = types::expression_type(self.file, value, self.bindings, None)?;
         let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
-        let result = result_type(&value_type, &input_type)
-            .map_err(|message| error(self.file, expression, message))?;
+        let result = if derive {
+            result_type(&value_type, &input_type)
+                .map_err(|message| error(self.file, expression, message))?
+        } else {
+            value_type
+        };
         let mut inputs = vec![selected.clone()];
         let mut names = BTreeMap::from([(
             input(selected).ok_or_else(|| {
@@ -186,6 +233,12 @@ impl ExpressionLowerer<'_> {
                         inputs.push(value.clone());
                     }
                 }
+                LoweringExpressionNode::Jvp { .. }
+                | LoweringExpressionNode::Vjp { .. }
+                | LoweringExpressionNode::Index { .. }
+                | LoweringExpressionNode::Complex { .. } => {
+                    value.node.push_children(&mut pending);
+                }
                 LoweringExpressionNode::Partial { value, wrt } => {
                     nested_partial = true;
                     coordinate_derivative |= matches!(input(wrt), Some(Input::Coordinate(..)));
@@ -214,70 +267,72 @@ impl ExpressionLowerer<'_> {
                     return Err(error(
                         self.file,
                         expression,
-                        "partial admits explicit real scalar calculus and operator composition",
+                        "differentiation admits explicit numeric component calculus and operator composition",
                     ));
                 }
             }
         }
         let mut directions = Vec::new();
-        for (index, value) in inputs.iter().enumerate() {
-            if matches!(
-                value.node.as_ref(),
-                LoweringExpressionNode::CoordinateMapFactor { .. }
-            ) {
-                if !total_time {
-                    return Err(error(
-                        self.file,
-                        expression,
-                        "coordinate-map factors currently admit only first time differentiation",
-                    ));
-                }
-                directions.push(index);
-            }
-            if matches!(value.node.as_ref(), LoweringExpressionNode::Pullback { .. }) {
-                if !total_time && (!coordinate_derivative || nested_partial) {
-                    return Err(error(
-                        self.file,
-                        expression,
-                        "composed pullback differentiation requires an explicit first coordinate derivative",
-                    ));
-                }
-                directions.push(index);
-            }
-        }
-        if total_time {
+        if derive {
             for (index, value) in inputs.iter().enumerate() {
-                let name = match input(value) {
-                    Some(Input::Name(name) | Input::TimeDerivative(name, _)) => name,
-                    _ => continue,
-                };
-                if let Some(Binding::Field(_, contract)) = self.bindings.get(&name) {
-                    if nested_partial && contract.domain.is_some() {
+                if matches!(
+                    value.node.as_ref(),
+                    LoweringExpressionNode::CoordinateMapFactor { .. }
+                ) {
+                    if !total_time {
                         return Err(error(
                             self.file,
                             expression,
-                            "time differentiation of unknown Field coordinate partials requires a mixed-derivative representation",
+                            "coordinate-map factors currently admit only first time differentiation",
+                        ));
+                    }
+                    directions.push(index);
+                }
+                if matches!(value.node.as_ref(), LoweringExpressionNode::Pullback { .. }) {
+                    if !total_time && (!coordinate_derivative || nested_partial) {
+                        return Err(error(
+                            self.file,
+                            expression,
+                            "composed pullback differentiation requires an explicit first coordinate derivative",
                         ));
                     }
                     directions.push(index);
                 }
             }
-        } else if coordinate_derivative {
-            for (index, value) in inputs.iter().enumerate() {
-                if let LoweringExpressionNode::Name(name) = value.node.as_ref()
-                    && let Some(Binding::Field(_, contract)) = self.bindings.get(name)
-                    && contract.domain.is_some()
-                {
-                    if nested_partial
-                        || !matches!(contract.activation, ActivationSyntax::Continuous)
+            if total_time {
+                for (index, value) in inputs.iter().enumerate() {
+                    let name = match input(value) {
+                        Some(Input::Name(name) | Input::TimeDerivative(name, _)) => name,
+                        _ => continue,
+                    };
+                    if let Some(Binding::Field(_, contract)) = self.bindings.get(&name) {
+                        if nested_partial && contract.domain.is_some() {
+                            return Err(error(
+                                self.file,
+                                expression,
+                                "time differentiation of unknown Field coordinate partials requires a mixed-derivative representation",
+                            ));
+                        }
+                        directions.push(index);
+                    }
+                }
+            } else if coordinate_derivative {
+                for (index, value) in inputs.iter().enumerate() {
+                    if let LoweringExpressionNode::Name(name) = value.node.as_ref()
+                        && let Some(Binding::Field(_, contract)) = self.bindings.get(name)
+                        && contract.domain.is_some()
                     {
-                        return Err(error(
-                            self.file,
-                            expression,
-                            "coordinate Field derivatives require a continuous Field and the admitted first-order profile",
-                        ));
+                        if nested_partial
+                            || !matches!(contract.activation, ActivationSyntax::Continuous)
+                        {
+                            return Err(error(
+                                self.file,
+                                expression,
+                                "coordinate Field derivatives require a continuous Field and the admitted first-order profile",
+                            ));
+                        }
+                        directions.push(index);
                     }
-                    directions.push(index);
                 }
             }
         }
@@ -285,18 +340,12 @@ impl ExpressionLowerer<'_> {
             .iter()
             .map(|value| types::expression_type(self.file, value, self.bindings, None))
             .collect::<Result<Vec<_>, _>>()?;
-        let class = |dimension| {
-            PureValueClass::invariant_scalar()
-                .with_dimension(dimension)
-                .with_scalar_domain(eqiora_core::ScalarDomain::Real)
-        };
+        let class =
+            |ty: &ExpressionType<RawId>| PureValueClass::from_value_type(ty.value_type.clone());
         let mut formals = formal_types
             .iter()
             .map(|ty| {
-                result_type(ty, &input_type)
-                    .map_err(|message| error(self.file, expression, message))?;
-                class(ty.dimension())
-                    .map_err(|failure| error(self.file, expression, failure.to_string()))
+                class(ty).map_err(|failure| error(self.file, expression, failure.to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
         for index in &directions {
@@ -304,27 +353,29 @@ impl ExpressionLowerer<'_> {
             let ty = result_type(&formal_types[*index], &input_type)
                 .map_err(|message| error(self.file, expression, message))?;
             formals.push(
-                class(ty.dimension())
-                    .map_err(|failure| error(self.file, expression, failure.to_string()))?,
+                class(&ty).map_err(|failure| error(self.file, expression, failure.to_string()))?,
             );
         }
         let mut calculus = CalculusBuilder::new(
-            formals,
-            class(result.dimension())
-                .map_err(|failure| error(self.file, expression, failure.to_string()))?,
+            formals.clone(),
+            class(&result).map_err(|failure| error(self.file, expression, failure.to_string()))?,
         )
         .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-        let root = scalar(
-            self.file,
-            value,
-            &names,
-            &literals,
-            &mut calculus,
-            &mut BTreeMap::new(),
-        )?;
-        let mut derivative = calculus
-            .partial(root, 0)
-            .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+        let root = ComponentCompiler {
+            file: self.file,
+            bindings: self.bindings,
+            names: &names,
+            literals: &literals,
+            formals: &formals,
+        }
+        .component(value, &mut calculus, &mut BTreeMap::new())?;
+        let mut derivative = if derive {
+            calculus
+                .partial(root, 0)
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?
+        } else {
+            root
+        };
         // Chain the common formal derivative with each retained Field
         // or pullback derivative. Total time differentiation supplies their exact
         // rates; spatial differentiation supplies their coordinate directions.
@@ -387,133 +438,238 @@ fn input_slot(count: usize) -> Result<u16, &'static str> {
     u16::try_from(count).map_err(|_| "partial formal index overflows")
 }
 
-fn scalar(
+fn require_retained_definitions(
     file: &str,
-    expression: &LoweringExpression,
-    names: &BTreeMap<Input, u16>,
-    literals: &BTreeMap<usize, u16>,
-    builder: &mut CalculusBuilder,
-    cache: &mut BTreeMap<usize, CalculusNodeId>,
-) -> Result<CalculusNodeId, Diagnostic> {
-    let key = Arc::as_ptr(&expression.node) as usize;
-    if let Some(value) = cache.get(&key) {
-        return Ok(*value);
+    value: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<(), Diagnostic> {
+    if value
+        .referenced_names()
+        .iter()
+        .any(|name| matches!(bindings.get(name), Some(Binding::Observable(..))))
+    {
+        return Err(error(
+            file,
+            value,
+            "derivative of an Observable requires differentiation through its retained definition",
+        ));
     }
-    let node = match expression.node.as_ref() {
-        _ if input(expression).is_some() => CalculusNode::FormalComponent {
-            formal: names[&input(expression).expect("matched independent input")],
-            axes: Box::new([]),
-        },
-        LoweringExpressionNode::Literal(_) => CalculusNode::FormalComponent {
-            formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
-            axes: Box::new([]),
-        },
-        LoweringExpressionNode::Partial { value, wrt } => {
-            let root = scalar(file, value, names, literals, builder, cache)?;
-            let id = builder
-                .partial(root, names[&input(wrt).expect("validated partial input")])
-                .map_err(|failure| error(file, expression, failure.to_string()))?;
-            cache.insert(key, id);
-            return Ok(id);
+    Ok(())
+}
+
+// Model partials and actions compile complete values through the same component
+// calculus. Each nested value gets its own result axes and local component cache.
+struct ComponentCompiler<'a> {
+    file: &'a str,
+    bindings: &'a BTreeMap<String, Binding>,
+    names: &'a BTreeMap<Input, u16>,
+    literals: &'a BTreeMap<usize, u16>,
+    formals: &'a [PureValueClass],
+}
+
+impl ComponentCompiler<'_> {
+    fn axes(&self, formal: u16) -> Box<[ComponentIndex]> {
+        (0..self.formals[usize::from(formal)].rank())
+            .map(|axis| ComponentIndex::Result(axis as u16))
+            .collect()
+    }
+
+    fn argument(
+        &self,
+        expression: &LoweringExpression,
+        builder: &mut CalculusBuilder,
+        cache: &mut BTreeMap<usize, CalculusNodeId>,
+    ) -> Result<CalculusArgument, Diagnostic> {
+        let ty = types::expression_type(self.file, expression, self.bindings, None)?;
+        let class = PureValueClass::from_value_type(ty.value_type)
+            .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+        if class.is_invariant_scalar() {
+            return self.component(expression, builder, cache).map(Into::into);
         }
-        LoweringExpressionNode::Neg(value) => {
-            CalculusNode::Neg(scalar(file, value, names, literals, builder, cache)?)
+        let mut value = CalculusBuilder::new(self.formals.iter().cloned(), class)
+            .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+        let root = self.component(expression, &mut value, &mut BTreeMap::new())?;
+        value
+            .finish(root)
+            .map(Into::into)
+            .map_err(|failure| error(self.file, expression, failure.to_string()))
+    }
+
+    fn component(
+        &self,
+        expression: &LoweringExpression,
+        builder: &mut CalculusBuilder,
+        cache: &mut BTreeMap<usize, CalculusNodeId>,
+    ) -> Result<CalculusNodeId, Diagnostic> {
+        let file = self.file;
+        let names = self.names;
+        let literals = self.literals;
+        let key = Arc::as_ptr(&expression.node) as usize;
+        if let Some(value) = cache.get(&key) {
+            return Ok(*value);
         }
-        LoweringExpressionNode::Binary {
-            operator: BinaryOp::Pow,
-            left,
-            right,
-        } => {
-            let exponent = lowering_integer_literal(right)
-                .filter(|n| {
-                    *n > 0
-                        && *n
-                            <= i32::from(eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT)
-                })
-                .ok_or_else(|| {
-                    error(
-                        file,
-                        right,
-                        "polynomial exponent exceeds the positive bounded calculus range",
-                    )
-                })?;
-            let value = scalar(file, left, names, literals, builder, cache)?;
-            let mut product = value;
-            for _ in 1..exponent {
-                product = builder
-                    .push(CalculusNode::Mul(product, value))
-                    .map_err(|failure| error(file, expression, failure.to_string()))?;
-            }
-            return Ok(product);
-        }
-        LoweringExpressionNode::Call { callee, argument }
-            if crate::math::unary_function(callee).is_some() =>
-        {
-            CalculusNode::UnaryMath(
-                crate::math::unary_function(callee).expect("matched unary mathematics"),
-                scalar(file, argument, names, literals, builder, cache)?,
-            )
-        }
-        LoweringExpressionNode::Binary {
-            operator,
-            left,
-            right,
-        } => {
-            let left = scalar(file, left, names, literals, builder, cache)?;
-            let mut right = scalar(file, right, names, literals, builder, cache)?;
-            match operator {
-                BinaryOp::Add => CalculusNode::Add(left, right),
-                BinaryOp::Sub => {
-                    right = builder
-                        .push(CalculusNode::Neg(right))
-                        .map_err(|failure| error(file, expression, failure.to_string()))?;
-                    CalculusNode::Add(left, right)
-                }
-                BinaryOp::Mul => CalculusNode::Mul(left, right),
-                BinaryOp::Div => CalculusNode::Div(left, right),
-                _ => {
-                    return Err(error(
-                        file,
-                        expression,
-                        "partial arithmetic requires an admitted scalar calculus rule",
-                    ));
-                }
-            }
-        }
-        LoweringExpressionNode::PureOperator {
-            definition,
-            arguments,
-        } => {
-            let arguments = arguments
-                .iter()
-                .map(|value| scalar(file, value, names, literals, builder, cache))
-                .collect::<Result<Vec<_>, _>>()?;
-            let id = builder
-                .apply_inputs(
-                    definition,
-                    &arguments
-                        .iter()
-                        .copied()
-                        .map(Into::into)
-                        .collect::<Vec<_>>(),
+        let node = match expression.node.as_ref() {
+            _ if input(expression).is_some() => CalculusNode::FormalComponent {
+                formal: names[&input(expression).expect("matched independent input")],
+                axes: self.axes(names[&input(expression).expect("matched independent input")]),
+            },
+            LoweringExpressionNode::Literal(_) => CalculusNode::FormalComponent {
+                formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
+                axes: self.axes(literals[&(Arc::as_ptr(&expression.node) as usize)]),
+            },
+            LoweringExpressionNode::Index { value, index } => {
+                let input = types::expression_type(file, value, self.bindings, None)?;
+                let argument = self.argument(value, builder, cache)?;
+                let id = crate::pure_operator::composition::indexed_value(
+                    builder,
+                    argument,
+                    input.value_type,
+                    *index,
                 )
                 .map_err(|failure| error(file, expression, failure.to_string()))?;
-            cache.insert(key, id);
-            return Ok(id);
-        }
-        _ => {
-            return Err(error(
-                file,
-                expression,
-                "partial expression is outside the admitted real scalar calculus",
-            ));
-        }
-    };
-    let id = builder
-        .push(node)
-        .map_err(|failure| error(file, expression, failure.to_string()))?;
-    cache.insert(key, id);
-    Ok(id)
+                cache.insert(key, id);
+                return Ok(id);
+            }
+            LoweringExpressionNode::Jvp { value, directions } => {
+                for (selected, _) in directions {
+                    self.require_formal_dependencies(value, selected)?;
+                }
+                let root = self.argument(value, builder, cache)?;
+                let directions = directions
+                    .iter()
+                    .map(|(selected, direction)| {
+                        let formal = names[&input(selected).expect("validated action input")];
+                        Ok((formal, self.argument(direction, builder, cache)?))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                let id = builder
+                    .jvp(&root, &directions)
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+                cache.insert(key, id);
+                return Ok(id);
+            }
+            LoweringExpressionNode::Vjp {
+                value,
+                wrt,
+                cotangent,
+            } => {
+                self.require_formal_dependencies(value, wrt)?;
+                let root = self.argument(value, builder, cache)?;
+                let seed = self.argument(cotangent, builder, cache)?;
+                let formal = names[&input(wrt).expect("validated action input")];
+                let id = builder
+                    .vjp(&root, &seed, formal)
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+                cache.insert(key, id);
+                return Ok(id);
+            }
+            LoweringExpressionNode::Complex { real, imag } => CalculusNode::Complex {
+                real: self.component(real, builder, cache)?,
+                imag: self.component(imag, builder, cache)?,
+            },
+            LoweringExpressionNode::Partial { value, wrt } => {
+                self.require_formal_dependencies(value, wrt)?;
+                let root = self.component(value, builder, cache)?;
+                let id = builder
+                    .partial(root, names[&input(wrt).expect("validated partial input")])
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+                cache.insert(key, id);
+                return Ok(id);
+            }
+            LoweringExpressionNode::Neg(value) => {
+                CalculusNode::Neg(self.component(value, builder, cache)?)
+            }
+            LoweringExpressionNode::Binary {
+                operator: BinaryOp::Pow,
+                left,
+                right,
+            } => {
+                let exponent = lowering_integer_literal(right)
+                    .filter(|n| {
+                        *n > 0
+                            && *n
+                                <= i32::from(
+                                    eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT,
+                                )
+                    })
+                    .ok_or_else(|| {
+                        error(
+                            file,
+                            right,
+                            "polynomial exponent exceeds the positive bounded calculus range",
+                        )
+                    })?;
+                let value = self.component(left, builder, cache)?;
+                let mut product = value;
+                for _ in 1..exponent {
+                    product = builder
+                        .push(CalculusNode::Mul(product, value))
+                        .map_err(|failure| error(file, expression, failure.to_string()))?;
+                }
+                return Ok(product);
+            }
+            LoweringExpressionNode::Call { callee, argument }
+                if crate::math::unary_function(callee).is_some() =>
+            {
+                CalculusNode::UnaryMath(
+                    crate::math::unary_function(callee).expect("matched unary mathematics"),
+                    self.component(argument, builder, cache)?,
+                )
+            }
+            LoweringExpressionNode::Binary {
+                operator,
+                left,
+                right,
+            } => {
+                let left = self.component(left, builder, cache)?;
+                let mut right = self.component(right, builder, cache)?;
+                match operator {
+                    BinaryOp::Add => CalculusNode::Add(left, right),
+                    BinaryOp::Sub => {
+                        right = builder
+                            .push(CalculusNode::Neg(right))
+                            .map_err(|failure| error(file, expression, failure.to_string()))?;
+                        CalculusNode::Add(left, right)
+                    }
+                    BinaryOp::Mul => CalculusNode::Mul(left, right),
+                    BinaryOp::Div => CalculusNode::Div(left, right),
+                    _ => {
+                        return Err(error(
+                            file,
+                            expression,
+                            "differentiation requires an admitted component arithmetic rule",
+                        ));
+                    }
+                }
+            }
+            LoweringExpressionNode::PureOperator {
+                definition,
+                arguments,
+            } => {
+                let arguments = arguments
+                    .iter()
+                    .map(|value| self.argument(value, builder, cache))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let id = builder
+                    .apply_inputs(definition, &arguments)
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+                cache.insert(key, id);
+                return Ok(id);
+            }
+            _ => {
+                return Err(error(
+                    file,
+                    expression,
+                    "expression is outside the admitted numeric component calculus",
+                ));
+            }
+        };
+        let id = builder
+            .push(node)
+            .map_err(|failure| error(file, expression, failure.to_string()))?;
+        cache.insert(key, id);
+        Ok(id)
+    }
 }
 
 fn error(file: &str, expression: &LoweringExpression, message: impl Into<String>) -> Diagnostic {

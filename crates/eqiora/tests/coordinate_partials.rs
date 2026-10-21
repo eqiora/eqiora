@@ -237,8 +237,20 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         observable grad_x:m=integral(component(grad(potential),indices=(0,)),measure(square));
         observable grad_y:m=integral(component(grad(potential),indices=(1,)),measure(square));
         observable square_dx:m=integral(partial(potential*potential,wrt=x),measure(square));
+        observable forward:m^2=integral(jvp(potential,[x],[x]),measure(square));
+        observable reverse:m=integral(vjp(potential,x,0*potential+1),measure(square));
+        observable complex_reverse:m=integral(vjp(complex_response(u=potential),x,complex_seed(x=x)),measure(square));
     "#;
-    let source = format!("{}{}{}", &body[..end], declarations, &body[end..]);
+    let operators = r#"
+        operator complex_response(input u:1):array<complex<1>,2>=math.complex(u,2*u);
+        operator complex_seed(input x:m):array<complex<1>,2>=math.complex(3,5);
+    "#;
+    let source = format!(
+        "{operators}{}{}{}",
+        &body[..end],
+        declarations,
+        &body[end..]
+    );
     let (document, plan) = support::common_scalar_plan::document_and_plan_with_source(
         CommonSpatialPolicy::Q1,
         &source,
@@ -300,6 +312,27 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
             result
                 .observe(&replay, id.downcast().unwrap(), &rules, None)
                 .unwrap()
+        );
+    }
+    // D_x u*x=x*(3+2*y), while D_x u^T*1=3+2*y. These must retain
+    // the represented Field's coordinate dependence, not freeze it as a formal.
+    // Two complex outputs (1+2i)*u and seeds 3+5i give 2*13*u_x;
+    // their full real pairing integrates to 104, not a pointwise complex product.
+    for (name, expected) in [("forward", 2.), ("reverse", 4.), ("complex_reverse", 104.)] {
+        let id = document.aliases()[&format!("definition.{name}")];
+        let Some(KernelNode::Observable(observable)) = document.program().node(id) else {
+            unreachable!()
+        };
+        let rules = std::collections::HashMap::from([(
+            observable.reduction().domain().unwrap(),
+            quadrature.clone(),
+        )]);
+        let observed = result
+            .observe(&model, id.downcast().unwrap(), &rules, None)
+            .unwrap();
+        assert!(
+            (observed.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-11,
+            "{name}: {observed:?}"
         );
     }
     // d(u²)/dx=2*x*(3+2*y)² on the unit square: integral =
@@ -371,6 +404,56 @@ fn coordinate_independence_is_proved_and_unknown_higher_partials_reject() {
             errors
                 .iter()
                 .any(|error| error.message().contains("first-order profile")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn nested_coordinate_actions_do_not_freeze_represented_field_derivatives() {
+    for expression in [
+        "jvp(jvp(u,[x],[x]),[x],[x])",
+        "jvp(vjp(u,x,0*u+1),[x],[x])*x",
+    ] {
+        let source = format!(
+            "model M(){{ domain body=box(0,2,0,3); coordinate x:m on body from body[0]; variable u:1 on body; relation r on body{{ {expression}=0; }} }}"
+        );
+        let Err(errors) = ModelDocument::compile("nested-coordinate-action.eqi", &source) else {
+            panic!("an unsupported mixed Field derivative must not become zero");
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("mixed Field")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn formal_actions_do_not_freeze_retained_coordinate_maps() {
+    for (value, result_type) in [
+        ("pullback(x*x,from=(xi,eta),at=(x=p*xi,y=eta))", "m^4"),
+        ("volume_jacobian(from=(xi,eta),at=(x=p*xi,y=eta))", "m^2"),
+    ] {
+        let source = format!(
+            r#"model M() {{
+            domain reference=box(0,1,0,1); domain body=box(0,1,0,1);
+            coordinate xi:m on reference from reference[0];
+            coordinate eta:m on reference from reference[1];
+            coordinate x:m on body from body[0]; coordinate y:m on body from body[1];
+            parameter p:1=2;
+            variable anchor:1; relation retained {{ anchor=1; }}
+            observable response:{result_type}=integral(jvp({value},[p],[1]),measure(reference));
+        }}"#
+        );
+        let Err(errors) = ModelDocument::compile("map-action.eqi", &source) else {
+            panic!("a parameter-dependent coordinate map must not become a constant formal");
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("retained dependency")),
             "{errors:?}"
         );
     }

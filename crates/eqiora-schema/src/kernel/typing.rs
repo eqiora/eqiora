@@ -159,6 +159,20 @@ pub enum TypeViolation<I> {
         /// Right operand type.
         right: Box<ExpressionType<I>>,
     },
+    /// A forward direction differs from the selected input's complete contract.
+    DerivativeDirectionTypeMismatch {
+        /// Complete selected input type.
+        expected: Box<ExpressionType<I>>,
+        /// Supplied direction type.
+        actual: Box<ExpressionType<I>>,
+    },
+    /// A reverse seed differs from the output's complete real-dual contract.
+    DerivativeCotangentTypeMismatch {
+        /// Output shape/domain with reciprocal units.
+        expected: Box<ExpressionType<I>>,
+        /// Supplied cotangent type.
+        actual: Box<ExpressionType<I>>,
+    },
     /// Two spatial supports are nominally different.
     IncompatibleSupport {
         /// Left spatial support.
@@ -255,6 +269,8 @@ impl<I> TypeViolation<I> {
                 | Self::IndexOutOfBounds
                 | Self::ComplexRequiresRealComponents
                 | Self::AdditiveTypeMismatch { .. }
+                | Self::DerivativeDirectionTypeMismatch { .. }
+                | Self::DerivativeCotangentTypeMismatch { .. }
                 | Self::DimensionOverflow { .. }
                 | Self::MultiplicationRequiresScalar
                 | Self::IncompatibleFrame
@@ -299,6 +315,14 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             Self::AdditiveTypeMismatch { left, right } => write!(
                 formatter,
                 "addition/subtraction combines incompatible types {left:?} and {right:?}"
+            ),
+            Self::DerivativeDirectionTypeMismatch { expected, actual } => write!(
+                formatter,
+                "jvp direction must have the exact selected input type {expected:?}, got {actual:?}"
+            ),
+            Self::DerivativeCotangentTypeMismatch { expected, actual } => write!(
+                formatter,
+                "vjp cotangent must have the exact dual output type {expected:?}, got {actual:?}"
             ),
             Self::IncompatibleSupport { left, right } => {
                 write!(

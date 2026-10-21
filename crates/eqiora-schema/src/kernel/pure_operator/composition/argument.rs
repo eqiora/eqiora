@@ -24,7 +24,63 @@ impl From<PureOperatorDefinition> for CalculusArgument {
 }
 
 impl CalculusArgument {
-    pub(super) fn validate(
+    pub(in crate::kernel::pure_operator) fn value_type(
+        &self,
+        caller: &CalculusBuilder,
+    ) -> Result<eqiora_core::ValueType, PureOperatorError> {
+        match self {
+            Self::Scalar(root) => caller.value_type(*root),
+            Self::Value(value) => {
+                if value.formals != caller.formals {
+                    return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                let inputs = caller
+                    .formals
+                    .iter()
+                    .map(|class| {
+                        class
+                            .exact_type()
+                            .cloned()
+                            .map(|ty| ExpressionType::<()>::new(ty, None))
+                            .ok_or(PureOperatorError::FormalTypeMismatch)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(value.instantiate(&inputs)?.result_type().value_type.clone())
+            }
+        }
+    }
+
+    // A scalar may share an arena with unrelated shaped expressions. Copy only
+    // its reachable graph into its own scalar axis context, preserving bound IDs.
+    pub(in crate::kernel::pure_operator) fn closed(
+        &self,
+        caller: &CalculusBuilder,
+    ) -> Result<Self, PureOperatorError> {
+        let Self::Scalar(root) = self else {
+            self.value_type(caller)?;
+            return Ok(self.clone());
+        };
+        let mut value = CalculusBuilder::new(
+            caller.formals.clone(),
+            PureValueClass::from_value_type(caller.value_type(*root)?)?,
+        )?;
+        let end = definition_index(*root, caller.nodes.len())?;
+        let reachable = caller.reachable_nodes(*root)?;
+        let mut mapped = vec![None; reachable.len()];
+        for (index, node) in caller.nodes.iter().take(end + 1).enumerate() {
+            if reachable[index] {
+                mapped[index] =
+                    Some(value.push(node.map_operands(|id| {
+                        mapped[id.index() as usize].expect("reachable operand")
+                    }))?);
+            }
+        }
+        value
+            .finish(mapped[end].expect("reachable root"))
+            .map(Self::from)
+    }
+
+    pub(in crate::kernel::pure_operator) fn validate(
         &self,
         caller: &CalculusBuilder,
         formal: &PureValueClass,
@@ -81,7 +137,7 @@ impl CalculusArgument {
         Ok(())
     }
 
-    pub(super) fn project(
+    pub(in crate::kernel::pure_operator) fn project(
         &self,
         caller: &mut CalculusBuilder,
         axes: &[ComponentIndex],

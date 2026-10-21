@@ -5,7 +5,7 @@
 //! binding; it must not require the occurrence identities it seeds.
 
 pub(crate) mod actions;
-mod composition;
+pub(crate) mod composition;
 pub(crate) mod property;
 use std::collections::BTreeMap;
 
@@ -142,6 +142,9 @@ fn compile_local(
         }
         match expression.kind() {
             ExprKind::Partial { value, .. } => pending.push((value, depth + 1)),
+            ExprKind::Index { value, index } => {
+                pending.extend([(value.as_ref(), depth + 1), (index.as_ref(), depth + 1)]);
+            }
             ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
                 let (value, _, cotangent) = actions::vjp_arguments(file, expression, arguments)?;
                 pending.extend([(value, depth + 1), (cotangent, depth + 1)]);
@@ -332,6 +335,11 @@ fn compile_expression(
     builder: &mut CalculusBuilder,
 ) -> Result<CalculusNodeId, Diagnostic> {
     let node = match expression.kind() {
+        ExprKind::Index { .. } => {
+            return composition::compile_index(
+                file, expression, formals, sources, compiled, builder,
+            );
+        }
         ExprKind::Partial {
             value,
             wrt,
@@ -376,16 +384,19 @@ fn compile_expression(
                     "vjp selector is not an independent lexical formal",
                 )
             })?;
-            let root = compile_expression(file, value, formals, sources, compiled, builder)?;
-            let seed = compile_expression(file, cotangent, formals, sources, compiled, builder)?;
+            let root =
+                composition::compile_argument(file, value, formals, sources, compiled, builder)?;
+            let seed = composition::compile_argument(
+                file, cotangent, formals, sources, compiled, builder,
+            )?;
             return builder
-                .vjp(root, seed, &[formal])
-                .map(|blocks| blocks[0])
+                .vjp(&root, &seed, formal)
                 .map_err(|error| kernel_error(file, expression.range(), error));
         }
         ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
             let (value, bindings, directions) = actions::arguments(file, expression, arguments)?;
-            let root = compile_expression(file, value, formals, sources, compiled, builder)?;
+            let root =
+                composition::compile_argument(file, value, formals, sources, compiled, builder)?;
             let directions = bindings
                 .iter()
                 .zip(directions)
@@ -404,13 +415,14 @@ fn compile_expression(
                             "jvp selector is not an independent lexical formal",
                         )
                     })?;
-                    let direction =
-                        compile_expression(file, direction, formals, sources, compiled, builder)?;
+                    let direction = composition::compile_argument(
+                        file, direction, formals, sources, compiled, builder,
+                    )?;
                     Ok((formal, direction))
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             return builder
-                .jvp(root, &directions)
+                .jvp(&root, &directions)
                 .map_err(|error| kernel_error(file, expression.range(), error));
         }
         ExprKind::Boolean(value) => CalculusNode::Boolean(*value),

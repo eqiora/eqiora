@@ -135,23 +135,60 @@ pub(super) fn expression_type(
     bindings: &BTreeMap<String, Binding>,
     support: Option<&SpatialSupport<RawId>>,
 ) -> Result<ExpressionType<RawId>, Diagnostic> {
-    expression_type_cached(file, expression, bindings, support, &mut HashMap::new())
+    let mut cache = HashMap::new();
+    let mut pending = vec![(expression, false)];
+    let mut children = Vec::new();
+    while let Some((value, ready)) = pending.pop() {
+        let key = Arc::as_ptr(&value.node) as usize;
+        if cache.contains_key(&key) {
+            continue;
+        }
+        if ready {
+            cache.insert(
+                key,
+                expression_type_node(file, value, bindings, support, &cache),
+            );
+        } else {
+            pending.push((value, true));
+            value.node.push_children(&mut children);
+            pending.extend(children.drain(..).rev().map(|child| (child, false)));
+        }
+    }
+    cache
+        .remove(&(Arc::as_ptr(&expression.node) as usize))
+        .expect("typed root")
 }
 
-fn expression_type_cached(
+fn expression_type_node(
     file: &str,
     expression: &LoweringExpression,
     bindings: &BTreeMap<String, Binding>,
     support: Option<&SpatialSupport<RawId>>,
-    cache: &mut HashMap<usize, ExpressionType<RawId>>,
+    cache: &HashMap<usize, Result<ExpressionType<RawId>, Diagnostic>>,
 ) -> Result<ExpressionType<RawId>, Diagnostic> {
-    let key = Arc::as_ptr(&expression.node) as usize;
-    if let Some(inferred) = cache.get(&key) {
-        return Ok(inferred.clone());
-    }
-    let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
+    // Some children are contextual names, such as the clock in period(clock),
+    // rather than standalone values. Retain their result without propagating an
+    // error unless the existing parent rule requests their value type.
+    let mut infer =
+        |operand: &LoweringExpression| cache[&(Arc::as_ptr(&operand.node) as usize)].clone();
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::Jvp { value, directions } => {
+            let mut output = infer(value)?;
+            for (selected, direction) in directions {
+                output = output
+                    .jvp(&infer(selected)?, &infer(direction)?)
+                    .map_err(violation)?;
+            }
+            Ok(output)
+        }
+        LoweringExpressionNode::Vjp {
+            value,
+            wrt,
+            cotangent,
+        } => infer(value)?
+            .vjp(&infer(wrt)?, &infer(cotangent)?)
+            .map_err(violation),
         LoweringExpressionNode::CoordinateMapFactorAction {
             value, parameter, ..
         } => super::pullback::infer_action(file, expression, value, parameter, &mut infer),
@@ -575,7 +612,6 @@ fn expression_type_cached(
             "expression syntax is newer than this compiler",
         )),
     }?;
-    cache.insert(key, inferred.clone());
     Ok(inferred)
 }
 

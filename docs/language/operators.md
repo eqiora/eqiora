@@ -39,7 +39,7 @@ Local calls with scalar formal inputs compose through the existing exact calculu
 including shaped outputs when the caller satisfies the callee's component-layout contract. Lexical names and formal bindings are resolved before expansion; cycles, capture,
 unknown or missing arguments, incompatible types and excess work reject locally. Operators retain declared real-to-complex result embeddings during composition, including physical
 units and the positive-zero imaginary component that selects a complex branch. Operators cannot read hidden evolving state or invoke host callbacks. Cross-package composition inside
-operator definitions, composition with shaped formal inputs and unrestricted analytic functions
+operator definitions and unrestricted analytic functions
 remain outside this profile;
 existing qualified package calls at Model and Component use sites retain their visibility rules.
 
@@ -48,7 +48,7 @@ current Model stores the operator definition and application identity. Execution
 admitted scalar application into the ordinary expression graph and uses the existing evaluator;
 proof normalization does not authorize reassociating floating-point operations.
 
-The native scalar calculus owner exposes inspectable first and second partial derivative
+The native component calculus owner exposes inspectable first and second partial derivative
 graphs. For the example, the temperature derivatives at 20 K are 0.14 W/(m*K^2) and
 0.002 W/(m*K^3). A zero partial retains its derived dimensions, support and original source domain.
 Derivatives also reject points where their own value is undefined, such as a square-root slope at zero. Unsupported

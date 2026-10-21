@@ -1,10 +1,17 @@
-//! Typed scalar Jacobian actions built on the ordered first-partial transform.
+//! Real-linear Jacobian actions built on independent real-coordinate partials.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueType};
+#[cfg(test)]
+mod contract_tests;
+mod contraction;
+mod linearization;
+mod pairing;
+use crate::kernel::UnaryMathFunction;
+use linearization::Linearization;
 
 /// A derived map over formal slots in one calculus arena. Each domain block keeps its
-/// own units and order; the codomain is one real scalar tangent. Both actions use the
-/// dimensionless real dual pairing. The Jacobian is applied as an action; it is
+/// own units and order; the codomain is one numeric component. The forward map is
+/// applied as an action using the shared real-coordinate linearization; it is
 /// neither stored as a separate graph nor assembled as a matrix.
 struct Jacobian<'a> {
     calculus: &'a mut CalculusBuilder,
@@ -23,7 +30,7 @@ impl<'a> Jacobian<'a> {
             return Err(PureOperatorError::FormalLimit);
         }
         let output = calculus.value_type(root)?;
-        if output.scalar_domain() != ScalarDomain::Real || !output.shape().is_scalar() {
+        if !output.shape().is_scalar() {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
         let mut seen = std::collections::BTreeSet::new();
@@ -36,10 +43,7 @@ impl<'a> Jacobian<'a> {
                 .formals
                 .get(usize::from(*formal))
                 .ok_or(PureOperatorError::InvalidFormal(*formal))?;
-            if !selected.is_invariant_scalar()
-                || selected.scalar_domain() != Some(ScalarDomain::Real)
-                || selected.dimension().is_none()
-            {
+            if selected.exact_type().is_none() {
                 return Err(PureOperatorError::FormalTypeMismatch);
             }
             inputs.push((*formal, selected.clone()));
@@ -52,33 +56,38 @@ impl<'a> Jacobian<'a> {
         })
     }
 
-    fn staged(&self) -> CalculusBuilder {
-        CalculusBuilder {
-            formals: self.calculus.formals.clone(),
-            result: self.calculus.result.clone(),
-            nodes: self.calculus.nodes.clone(),
-            depths: self.calculus.depths.clone(),
-        }
-    }
-
-    fn jvp(self, directions: &[CalculusNodeId]) -> Result<CalculusNodeId, PureOperatorError> {
+    fn jvp(self, directions: &[CalculusArgument]) -> Result<CalculusNodeId, PureOperatorError> {
         if directions.len() != self.inputs.len() {
             return Err(PureOperatorError::ArityMismatch);
         }
         for ((_, selected), direction) in self.inputs.iter().zip(directions) {
-            let actual = self.calculus.value_type(*direction)?;
-            if actual.scalar_domain() != ScalarDomain::Real
-                || !actual.shape().is_scalar()
-                || selected.dimension() != Some(actual.dimension())
-            {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
+            ExpressionType::<()>::new(self.output.clone(), None)
+                .jvp(
+                    &input_type(selected),
+                    &ExpressionType::new(direction.value_type(self.calculus)?, None),
+                )
+                .map_err(action_type_error)?;
+            direction.validate(self.calculus, selected)?;
         }
-        let mut staged = self.staged();
+        let staged = self.calculus;
+        let linear = Linearization::bind(staged, self.root, &self.inputs)?;
         let mut result = None;
-        for ((formal, _), direction) in self.inputs.iter().zip(directions) {
-            let partial = staged.partial(self.root, *formal)?;
-            let action = staged.push(CalculusNode::Mul(partial, *direction))?;
+        for coordinate in &linear.coordinates {
+            let selected = self
+                .inputs
+                .iter()
+                .position(|(formal, _)| *formal == coordinate.formal)
+                .expect("selected coordinate");
+            let direction = directions[selected].project(staged, &coordinate.axes)?;
+            let direction = match coordinate.part {
+                Some(part) => staged.push(CalculusNode::UnaryMath(part, direction))?,
+                None => direction,
+            };
+            let partial = staged.push(CalculusNode::Differentiated {
+                source: linear.root,
+                wrt: coordinate.value,
+            })?;
+            let action = staged.push(CalculusNode::Mul(partial, direction))?;
             result = Some(match result {
                 Some(prior) => staged.push(CalculusNode::Add(prior, action))?,
                 None => action,
@@ -88,45 +97,28 @@ impl<'a> Jacobian<'a> {
         if staged.value_type(result)? != self.output {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        *self.calculus = staged;
-        Ok(result)
-    }
-
-    fn vjp(self, cotangent: CalculusNodeId) -> Result<Vec<CalculusNodeId>, PureOperatorError> {
-        let seed = self.calculus.value_type(cotangent)?;
-        let dual = self
-            .output
-            .dimension()
-            .pow(-1, 1)
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-        if seed.scalar_domain() != ScalarDomain::Real
-            || !seed.shape().is_scalar()
-            || seed.dimension() != dual
-        {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        let mut staged = self.staged();
-        let mut result = Vec::with_capacity(self.inputs.len());
-        for (formal, selected) in &self.inputs {
-            let partial = staged.partial(self.root, *formal)?;
-            let value = staged.push(CalculusNode::Mul(cotangent, partial))?;
-            let expected = selected
-                .dimension()
-                .expect("checked domain block")
-                .pow(-1, 1)
-                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-            if staged.value_type(value)?.dimension() != expected {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
-            result.push(value);
-        }
-        *self.calculus = staged;
         Ok(result)
     }
 }
 
+fn input_type(class: &PureValueClass) -> ExpressionType<()> {
+    ExpressionType::new(
+        class.exact_type().expect("checked exact input").clone(),
+        None,
+    )
+}
+
+fn action_type_error(error: crate::kernel::typing::TypeViolation<()>) -> PureOperatorError {
+    match error {
+        crate::kernel::typing::TypeViolation::DimensionOverflow { .. } => {
+            PureOperatorError::ResultDimensionOverflow
+        }
+        _ => PureOperatorError::FormalTypeMismatch,
+    }
+}
+
 impl CalculusBuilder {
-    /// Apply the scalar output's Jacobian to ordered, independently typed input blocks.
+    /// Apply a complete value's Jacobian to ordered, independently typed input blocks.
     /// Each direction has its selected input's units; the result has the output's units.
     /// Formals that are not selected are held fixed. No matrix is assembled.
     ///
@@ -135,39 +127,55 @@ impl CalculusBuilder {
     /// unsupported derivatives, and calculus resource limits. On error nothing is appended.
     pub fn jvp(
         &mut self,
-        root: CalculusNodeId,
-        directions: &[(u16, CalculusNodeId)],
+        value: &CalculusArgument,
+        directions: &[(u16, CalculusArgument)],
     ) -> Result<CalculusNodeId, PureOperatorError> {
         if directions.is_empty() || directions.len() > MAX_FORMALS {
             return Err(PureOperatorError::FormalLimit);
         }
+        let output = PureValueClass::from_value_type(value.value_type(self)?)?;
+        if !output.is_invariant_scalar()
+            && !composition::compatible_component_layout(&output, &self.result)
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        let mut staged = CalculusBuilder {
+            formals: self.formals.clone(),
+            result: self.result.clone(),
+            nodes: self.nodes.clone(),
+            depths: self.depths.clone(),
+        };
+        let axes = (0..output.rank())
+            .map(|axis| ComponentIndex::Result(axis as u16))
+            .collect::<Vec<_>>();
+        let root = value.project(&mut staged, &axes)?;
         let formals = directions
             .iter()
             .map(|(formal, _)| *formal)
             .collect::<Vec<_>>();
         let values = directions
             .iter()
-            .map(|(_, value)| *value)
+            .map(|(_, value)| value.clone())
             .collect::<Vec<_>>();
-        Jacobian::new(self, root, &formals)?.jvp(&values)
+        let result = Jacobian::new(&mut staged, root, &formals)?.jvp(&values)?;
+        *self = staged;
+        Ok(result)
     }
 
-    /// Pull a scalar output cotangent back through ordered, typed input blocks.
-    /// The real dual pairing is dimensionless: the seed has reciprocal output units,
-    /// and each returned block has the reciprocal units of its selected input.
-    /// Uses the same typed map and first-partial transform as `jvp`.
+    /// Pull a complete output cotangent back to one independently typed input.
+    /// The real pairing is dimensionless: seed and result have reciprocal output
+    /// and input units. Whole values retain their own axes during contraction.
     ///
     /// # Errors
-    /// Rejects empty or duplicate selections, invalid formals, a seed that is not dual
-    /// to the output, unsupported derivatives, and calculus resource limits. On error
-    /// the builder is left unchanged.
+    /// Rejects invalid selections, incomplete or incompatible numeric contracts,
+    /// unsupported derivatives, and calculus resource limits. A failure appends nothing.
     pub fn vjp(
         &mut self,
-        root: CalculusNodeId,
-        cotangent: CalculusNodeId,
-        formals: &[u16],
-    ) -> Result<Vec<CalculusNodeId>, PureOperatorError> {
-        Jacobian::new(self, root, formals)?.vjp(cotangent)
+        value: &CalculusArgument,
+        cotangent: &CalculusArgument,
+        formal: u16,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        contraction::vjp(self, value, cotangent, formal)
     }
 }
 
@@ -206,22 +214,28 @@ mod tests {
             .unwrap();
         let before = builder.nodes.clone();
         assert_eq!(
-            builder.jvp(root, &[(0, inputs[3])]),
+            builder.jvp(&root.into(), &[(0, inputs[3].into())]),
             Err(PureOperatorError::FormalTypeMismatch)
         );
         assert_eq!(builder.nodes, before);
         assert_eq!(
-            builder.jvp(root, &[(0, inputs[2]), (0, inputs[2])]),
+            builder.jvp(
+                &root.into(),
+                &[(0, inputs[2].into()), (0, inputs[2].into())]
+            ),
             Err(PureOperatorError::ArityMismatch)
         );
         assert_eq!(builder.nodes, before);
         let action = builder
-            .jvp(root, &[(0, inputs[2]), (1, inputs[3])])
+            .jvp(
+                &root.into(),
+                &[(0, inputs[2].into()), (1, inputs[3].into())],
+            )
             .unwrap();
         assert_eq!(builder.value_type(action).unwrap().dimension(), output);
         let before = builder.nodes.clone();
         assert_eq!(
-            builder.vjp(root, inputs[2], &[0, 1]),
+            builder.vjp(&root.into(), &inputs[2].into(), 0),
             Err(PureOperatorError::FormalTypeMismatch)
         );
         assert_eq!(builder.nodes, before);
@@ -231,7 +245,8 @@ mod tests {
                 dimension: output.pow(-1, 1).unwrap(),
             })
             .unwrap();
-        let cotangents = builder.vjp(root, seed, &[1, 0]).unwrap();
+        let cotangents =
+            [1, 0].map(|formal| builder.vjp(&root.into(), &seed.into(), formal).unwrap());
         assert_eq!(
             builder.value_type(cotangents[0]).unwrap().dimension(),
             speed.pow(-1, 1).unwrap()

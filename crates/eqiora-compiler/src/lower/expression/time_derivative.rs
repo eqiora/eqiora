@@ -183,6 +183,32 @@ impl ExpressionLowerer<'_> {
                 wrt.clone(),
                 value.range(),
             ),
+            LoweringExpressionNode::Jvp {
+                value: inner,
+                directions,
+            } => LoweringExpression::jvp(
+                self.expand_time_derivatives(inner, cache)?,
+                directions
+                    .iter()
+                    .map(|(selected, direction)| {
+                        Ok((
+                            selected.clone(),
+                            self.expand_time_derivatives(direction, cache)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+                value.range(),
+            ),
+            LoweringExpressionNode::Vjp {
+                value: inner,
+                wrt,
+                cotangent,
+            } => LoweringExpression::vjp(
+                self.expand_time_derivatives(inner, cache)?,
+                wrt.clone(),
+                self.expand_time_derivatives(cotangent, cache)?,
+                value.range(),
+            ),
             LoweringExpressionNode::Call { callee, argument }
                 if crate::math::unary_function(callee).is_some() =>
             {

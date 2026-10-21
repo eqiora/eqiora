@@ -104,12 +104,35 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
 
         ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
-            let expanded = crate::pure_operator::actions::expand_vjp(file, expression, arguments)?;
-            rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
+            let (value, selector, cotangent) =
+                crate::pure_operator::actions::vjp_arguments(file, expression, arguments)?;
+            let binding = crate::pure_operator::actions::binding(file, selector)?;
+            LoweringExpression::vjp(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                independent_binding(file, &binding, scope)?,
+                rewrite_expression_with_boundary_member(file, cotangent, scope, active)?,
+                expression.range(),
+            )
         }
         ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
-            let expanded = crate::pure_operator::actions::expand(file, expression, arguments)?;
-            rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
+            let (value, selectors, directions) =
+                crate::pure_operator::actions::arguments(file, expression, arguments)?;
+            let directions = selectors
+                .iter()
+                .zip(directions)
+                .map(|(selector, direction)| {
+                    let binding = crate::pure_operator::actions::binding(file, selector)?;
+                    Ok((
+                        independent_binding(file, &binding, scope)?,
+                        rewrite_expression_with_boundary_member(file, direction, scope, active)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            LoweringExpression::jvp(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                directions,
+                expression.range(),
+            )
         }
         ExprKind::CoordinateMapFactor { factor, source, at } => {
             let coordinate = |name: &eqiora_lang::NamePath| {
@@ -200,47 +223,10 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             wrt,
             holding,
         } => {
-            let independent = |binding: &NamePath| -> Result<LoweringExpression, Diagnostic> {
-                if let Some(coordinate) = scope.coordinate(binding.as_str()) {
-                    return Ok(coordinate.clone());
-                }
-                // The definition checker already excludes let aliases. Component
-                // Parameter slots are terms, and a direct binding preserves the
-                // exact parent Parameter rather than allocating another entity.
-                if let Some(parameter) = scope.parameter(binding.as_str()) {
-                    return match parameter.lineage {
-                        super::super::parameters::ParameterLineage::Parameter(identity) => {
-                            Ok(LoweringExpression::name(
-                                super::super::expand::names::internal_name(identity),
-                                binding.range(),
-                            ))
-                        }
-                        _ => Err(source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            file,
-                            binding.range(),
-                            "partial binding must retain an independent Parameter; a specialized literal or derived term is not a new independent value",
-                        )),
-                    };
-                }
-                let symbol = resolve_expression_symbol(file, binding, scope)?;
-                if !matches!(symbol.kind, SymbolKind::Parameter | SymbolKind::Field) {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        binding.range(),
-                        "partial binding must name a declared coordinate, independent Parameter or continuous state Field",
-                    ));
-                }
-                Ok(LoweringExpression::name(
-                    symbol.internal_name.clone(),
-                    binding.range(),
-                ))
-            };
-            let selected = independent(wrt)?;
+            let selected = independent_binding(file, wrt, scope)?;
             let mut seen = vec![selected.clone()];
             for binding in holding {
-                let value = independent(binding)?;
+                let value = independent_binding(file, binding, scope)?;
                 if seen.contains(&value) {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -649,4 +635,46 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
     };
     Ok(lowered)
+}
+
+fn independent_binding(
+    file: &str,
+    binding: &NamePath,
+    scope: &Scope,
+) -> Result<LoweringExpression, Diagnostic> {
+    if let Some(coordinate) = scope.coordinate(binding.as_str()) {
+        return Ok(coordinate.clone());
+    }
+    // The definition checker already excludes let aliases. Component
+    // Parameter slots are terms, and a direct binding preserves the
+    // exact parent Parameter rather than allocating another entity.
+    if let Some(parameter) = scope.parameter(binding.as_str()) {
+        return match parameter.lineage {
+            super::super::parameters::ParameterLineage::Parameter(identity) => {
+                Ok(LoweringExpression::name(
+                    super::super::expand::names::internal_name(identity),
+                    binding.range(),
+                ))
+            }
+            _ => Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                binding.range(),
+                "partial binding must retain an independent Parameter; a specialized literal or derived term is not a new independent value",
+            )),
+        };
+    }
+    let symbol = resolve_expression_symbol(file, binding, scope)?;
+    if !matches!(symbol.kind, SymbolKind::Parameter | SymbolKind::Field) {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            binding.range(),
+            "partial binding must name a declared coordinate, independent Parameter or continuous state Field",
+        ));
+    }
+    Ok(LoweringExpression::name(
+        symbol.internal_name.clone(),
+        binding.range(),
+    ))
 }

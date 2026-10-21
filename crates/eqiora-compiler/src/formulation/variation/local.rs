@@ -205,10 +205,13 @@ pub(super) fn derive(
                     input: *index,
                     order: level,
                 })?;
-                Ok((*index as u16, direction))
+                Ok((*index as u16, direction.into()))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        root = projection.builder.jvp(root, &directions).map_err(reject)?;
+        root = projection
+            .builder
+            .jvp(&root.into(), &directions)
+            .map_err(reject)?;
     }
     let definition = projection.builder.finish(root).map_err(reject)?;
     Ok(LocalVariation { definition, inputs })

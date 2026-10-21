@@ -22,6 +22,15 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 pub(super) enum LoweringExpressionNode {
+    Jvp {
+        value: LoweringExpression,
+        directions: Vec<(LoweringExpression, LoweringExpression)>,
+    },
+    Vjp {
+        value: LoweringExpression,
+        wrt: LoweringExpression,
+        cotangent: LoweringExpression,
+    },
     CoordinateMapFactorAction {
         value: LoweringExpression,
         parameter: LoweringExpression,
@@ -135,6 +144,19 @@ impl LoweringExpressionNode {
     /// Append every expression edge without losing edge-local structural parameters.
     pub(super) fn push_children<'a>(&'a self, pending: &mut Vec<&'a LoweringExpression>) {
         match self {
+            Self::Jvp { value, directions } => {
+                pending.push(value);
+                pending.extend(
+                    directions
+                        .iter()
+                        .flat_map(|(input, direction)| [input, direction]),
+                );
+            }
+            Self::Vjp {
+                value,
+                wrt,
+                cotangent,
+            } => pending.extend([value, wrt, cotangent]),
             Self::CoordinateMapFactorAction {
                 value,
                 parameter,
@@ -296,6 +318,26 @@ impl LoweringExpression {
     pub(crate) fn partial(value: Self, wrt: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Partial { value, wrt }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
+    pub(crate) fn jvp(value: Self, directions: Vec<(Self, Self)>, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Jvp { value, directions }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
+    pub(crate) fn vjp(value: Self, wrt: Self, cotangent: Self, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Vjp {
+                value,
+                wrt,
+                cotangent,
+            }),
             range,
             structural_parameters: None,
         }

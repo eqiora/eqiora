@@ -10,15 +10,22 @@ impl ExpressionChecker<'_, '_, '_> {
         let file = self.scope.file;
         let (value, selectors, directions) =
             crate::pure_operator::actions::arguments(file, expression, arguments)?;
-        let output = self.check(value)?;
+        let mut output = self.check(value)?;
         let mut seen = std::collections::BTreeSet::new();
         for (selector, direction) in selectors.iter().zip(directions) {
             let binding = crate::pure_operator::actions::binding(file, selector)?;
             let selected = self.partial_binding(&binding)?;
-            crate::lower::partial_result_type(&output, &selected).map_err(|message| {
-                source_error(codes::LANGUAGE_TYPE_ERROR, file, selector.range(), message)
-            })?;
-            if !seen.insert(binding.as_str().to_owned()) || self.check(direction)? != selected {
+            output = output
+                .jvp(&selected, &self.check(direction)?)
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        direction.range(),
+                        error.to_string(),
+                    )
+                })?;
+            if !seen.insert(binding.as_str().to_owned()) {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
@@ -41,27 +48,16 @@ impl ExpressionChecker<'_, '_, '_> {
         let output = self.check(value)?;
         let binding = crate::pure_operator::actions::binding(file, selector)?;
         let selected = self.partial_binding(&binding)?;
-        crate::lower::partial_result_type(&output, &selected).map_err(|message| {
-            source_error(codes::LANGUAGE_TYPE_ERROR, file, selector.range(), message)
-        })?;
-        let dual = output.dimension().pow(-1, 1).ok_or_else(|| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                expression.range(),
-                "vjp dual dimension overflows",
-            )
-        })?;
-        if self.check(cotangent)? != ExpressionType::scalar(dual, output.support.clone()) {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                cotangent.range(),
-                "vjp cotangent must have the exact real dual output type",
-            ));
-        }
-        let expanded = crate::pure_operator::actions::expand_vjp(file, expression, arguments)?;
-        self.check(&expanded)
+        output
+            .vjp(&selected, &self.check(cotangent)?)
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    cotangent.range(),
+                    error.to_string(),
+                )
+            })
     }
 
     pub(super) fn partial_binding(
