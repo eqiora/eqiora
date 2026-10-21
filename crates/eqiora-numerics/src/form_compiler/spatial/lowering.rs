@@ -123,27 +123,36 @@ impl<S: Coefficient> Context<'_, S> {
             ));
         }
         row = row.add(source.scale(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)))?);
-        if let Some((stored, _accumulation)) = law.storage() {
-            // Kernel admission independently proves accumulation is d(stored)/dt.
-            // This numerical slice reads exact physical storage instead of expanding
-            // the compiler's formal partial-operator application.
-            let storage = self.terms(stored, 0)?;
-            if !storage.diffusion.is_empty()
-                || !storage.transport.is_empty()
-                || !storage.storage.is_empty()
-                || storage.reaction.len() != 1
-                || !storage.reaction.contains_key(&field)
-                || storage.constant.spatial()
-                || storage.constant.evaluate(&vec![0.0; self.dimension])?
-                    != <S as From<f64>>::from(0.0)
-            {
-                return Err(super::invalid(
-                    "scalar Law storage requires one coefficient times its exact Field",
-                ));
-            }
-            row.storage = storage.reaction;
+        if let Some(capacity) = self.conservation_storage(law, field)? {
+            row.storage.insert(field, capacity);
         }
         Ok(row)
+    }
+
+    pub(in crate::form_compiler) fn conservation_storage(
+        &self,
+        law: eqiora_schema::kernel::ConservationTerms,
+        field: RawId,
+    ) -> Result<Option<Data<S>>, Diagnostic> {
+        let Some((stored, _accumulation)) = law.storage() else {
+            return Ok(None);
+        };
+        // Kernel admission independently proves accumulation is d(stored)/dt.
+        // Read the retained physical storage rather than expanding formal partials.
+        let mut storage = self.terms(stored, 0)?;
+        if !storage.diffusion.is_empty()
+            || !storage.transport.is_empty()
+            || !storage.storage.is_empty()
+            || storage.reaction.len() != 1
+            || !storage.reaction.contains_key(&field)
+            || storage.constant.spatial()
+            || storage.constant.evaluate(&vec![0.0; self.dimension])? != <S as From<f64>>::from(0.0)
+        {
+            return Err(super::invalid(
+                "scalar Law storage requires one coefficient times its exact Field",
+            ));
+        }
+        Ok(storage.reaction.remove(&field))
     }
 
     pub(super) fn terms(&self, id: ExprId, depth: usize) -> Result<Terms<S>, Diagnostic> {

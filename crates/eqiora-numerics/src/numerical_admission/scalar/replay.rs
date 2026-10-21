@@ -1,4 +1,6 @@
 use super::*;
+use crate::region_assembly::mapping::{RegionAlgebraicCoordinates, RegionDofMap};
+use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
     pub(crate) fn reaccept_static_coefficients(
@@ -99,7 +101,29 @@ impl CommonSpatialPlan {
                 "step replay requires its exact current Plan checkpoint",
             ));
         }
-        let (mapping, input) = self.scalar_step_assembly(previous, current.require_time_s()?)?;
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => {
+                self.reaccept_typed_step(equations, previous, current, nonlinear_iterations)
+            }
+            RecognizedNativeModel::ComplexSpatial(equations) => {
+                self.reaccept_typed_step(equations, previous, current, nonlinear_iterations)
+            }
+            _ => Err(invalid("step replay requires spatial equations")),
+        }
+    }
+
+    fn reaccept_typed_step<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        previous: &CommonState,
+        current: &CommonState,
+        nonlinear_iterations: Option<usize>,
+    ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
+        let (mapping, input) =
+            self.scalar_step_assembly(equations, previous, current.require_time_s()?)?;
         let values = current
             .spatial_values()
             .ok_or_else(|| invalid("step replay requires physical spatial coefficients"))?;

@@ -362,6 +362,13 @@ impl<S: Coefficient> Context<'_, S> {
                     )
                 })?
                 .scalar(self.dimension)?,
+            // A bare unbound symbol cannot acquire a prescribed value by
+            // recursively lowering itself as a pointwise expression.
+            Some(ExprNode::Symbol(_)) => {
+                return Err(super::invalid(
+                    "prescribed coefficient requires a Field, Parameter, coordinate, or model Time",
+                ));
+            }
             _ => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,
         })
     }

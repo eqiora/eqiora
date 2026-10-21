@@ -18,14 +18,11 @@ impl CommonSpatialPlan {
         self.admission.revalidate()?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
-                let (mapping, _) = self.state_assembly(time_s)?;
+                let (mapping, _) = self.state_assembly(equations, time_s)?;
                 self.initial_state_from(equations, mapping, time_s, fields)
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
-                if time_s.is_some() {
-                    return Err(invalid("complex spatial State requires a stationary Plan"));
-                }
-                let (mapping, _) = self.stationary_assembly(equations)?;
+                let (mapping, _) = self.state_assembly(equations, time_s)?;
                 self.initial_state_from(equations, mapping, time_s, fields)
             }
             _ => Err(invalid("missing spatial equations")),

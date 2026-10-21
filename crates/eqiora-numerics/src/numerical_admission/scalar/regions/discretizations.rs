@@ -203,6 +203,28 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         nonlinear: Option<NonlinearSolvePlan>,
         scaling: &eqiora_realization::SystemScaling,
     ) -> Result<(), Diagnostic> {
+        if temporal.is_some() {
+            if selected
+                .iter()
+                .flat_map(|domain| domain.field_spaces())
+                .any(|field| {
+                    !matches!(
+                        field.space().family(),
+                        SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble
+                    )
+                })
+            {
+                return Err(invalid("linear storage requires nodal Fields"));
+            }
+            if self.regions.len() != 1
+                && self
+                    .regions
+                    .iter()
+                    .any(|region| region.form.motion().is_some())
+            {
+                return Err(invalid("moving storage requires one exact Region"));
+            }
+        }
         let moment = selected
             .iter()
             .flat_map(|domain| domain.field_spaces())

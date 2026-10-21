@@ -1,5 +1,7 @@
 use super::*;
-use crate::region_assembly::mapping::{RecoveredRegionField, RegionDofMap, RegionSolveInput};
+use crate::region_assembly::mapping::{
+    RecoveredRegionField, RegionAlgebraicCoordinates, RegionDofMap, RegionSolveInput,
+};
 use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
@@ -48,29 +50,22 @@ impl CommonSpatialPlan {
             .collect()
     }
 
-    pub(super) fn state_assembly(
+    pub(super) fn state_assembly<S: Coefficient + Send + Sync>(
         &self,
+        equations: &ExecutableSpatialEquations<S>,
         time_s: Option<f64>,
     ) -> Result<
         (
-            crate::region_assembly::mapping::RegionDofMap<f64>,
-            crate::region_assembly::mapping::RegionSolveInput<f64>,
+            crate::region_assembly::mapping::RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
         ),
         Diagnostic,
     > {
         match (self.admission.temporal, time_s) {
             (Some(_), Some(time)) if time.is_finite() && time >= 0.0 => {
-                self.scalar_assembly_at(time)
+                self.scalar_assembly_at(equations, time)
             }
-            (None, None) => {
-                let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model()
-                else {
-                    return Err(invalid(
-                        "temporal state assembly requires real spatial equations",
-                    ));
-                };
-                self.stationary_assembly(equations)
-            }
+            (None, None) => self.stationary_assembly(equations),
             _ => Err(invalid(
                 "State model Time must match the Plan: absent for stationary, finite and nonnegative for transient",
             )),
@@ -118,6 +113,46 @@ impl CommonSpatialPlan {
         Ok(history)
     }
 
+    fn validate_typed_state<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        time_s: Option<f64>,
+        values: &[f64],
+    ) -> Result<(), Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
+        let (mapping, input) = self.state_assembly(equations, time_s)?;
+        let history = self.validate_state_fields(&mapping, &input, values)?;
+        let algebraic = equations
+            .regions
+            .iter()
+            .flat_map(|region| region.form.algebraic_fields())
+            .collect::<BTreeSet<_>>();
+        if time_s.is_some() && !algebraic.is_empty() {
+            match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_algebraic_state(
+                    mesh.mesh(),
+                    input,
+                    &history,
+                    &algebraic,
+                    self.linear(),
+                )?,
+                NativeMeshResources::GmshSimplicial { mesh, .. }
+                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
+                    .validate_algebraic_state(
+                        mesh.mesh(),
+                        input,
+                        &history,
+                        &algebraic,
+                        self.linear(),
+                    )?,
+                _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn scalar_state(
         &self,
         time_s: Option<f64>,
@@ -125,42 +160,10 @@ impl CommonSpatialPlan {
     ) -> Result<CommonState, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
-                let (mapping, input) = self.state_assembly(time_s)?;
-                let history = self.validate_state_fields(&mapping, &input, &values)?;
-                let algebraic = equations
-                    .regions
-                    .iter()
-                    .flat_map(|region| region.form.algebraic_fields())
-                    .collect::<BTreeSet<_>>();
-                if time_s.is_some() && !algebraic.is_empty() {
-                    match self.admission.resources() {
-                        NativeMeshResources::Cartesian { mesh, .. } => mapping
-                            .validate_algebraic_state(
-                                mesh.mesh(),
-                                input,
-                                &history,
-                                &algebraic,
-                                self.linear(),
-                            )?,
-                        NativeMeshResources::GmshSimplicial { mesh, .. }
-                        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
-                            .validate_algebraic_state(
-                                mesh.mesh(),
-                                input,
-                                &history,
-                                &algebraic,
-                                self.linear(),
-                            )?,
-                        _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
-                    }
-                }
+                self.validate_typed_state(equations, time_s, &values)?
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
-                if time_s.is_some() {
-                    return Err(invalid("complex spatial State requires a stationary Plan"));
-                }
-                let (mapping, input) = self.stationary_assembly(equations)?;
-                self.validate_state_fields(&mapping, &input, &values)?;
+                self.validate_typed_state(equations, time_s, &values)?
             }
             _ => return Err(invalid("missing spatial equations")),
         }

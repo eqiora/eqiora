@@ -60,10 +60,13 @@ fn storage_map_action_requires_the_exact_motion_and_independent_row_rates() {
         .unwrap();
     let other_inventory_rate = builder.mul(two, other_action).unwrap();
     let dag = builder.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
+    assert_eq!(
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
     for wrong in [zero, wrong_direction, wrong_parameter, other_inventory_rate] {
         assert_eq!(
-            dag.verify_time_derivative(storage, wrong),
+            dag.verify_time_derivative(storage, wrong, super::real_scalar_type),
             Err(TimeDerivativeProofError::Mismatch)
         );
     }
@@ -92,9 +95,12 @@ fn explicit_pullback_uses_simultaneous_coordinate_substitution() {
     let mapped_rate = builder.mul(scale, xi_squared).unwrap();
     let correct = builder.add(mapped_rate, one).unwrap();
     let dag = builder.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
     assert_eq!(
-        dag.verify_time_derivative(storage, one),
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(storage, one, super::real_scalar_type),
         Err(TimeDerivativeProofError::Mismatch)
     );
 }
@@ -114,7 +120,7 @@ fn mapped_derivative_storage_does_not_gain_admission_by_cancellation() {
     let zero = constant(&mut builder, 0.0);
     let dag = builder.finish([zero]).unwrap();
     assert_eq!(
-        dag.verify_time_derivative(storage, zero),
+        dag.verify_time_derivative(storage, zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::UnsupportedStorageSymbol)
     );
 }

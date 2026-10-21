@@ -1,12 +1,14 @@
 id = "language.conservation-storage-correspondence"
 status = "implemented"
-scope = "fixed-volume-real-scalar-law-exact-storage-accumulation-correspondence"
+scope = "fixed-volume-numeric-scalar-law-exact-storage-accumulation-correspondence"
 reference_kind = "independent-polynomial-derivative-checker-and-same-dimension-native-storage-falsifier"
 capabilities = ["thermal-storage-correspondence", "exact-artifact-replay", "native-storage-identity-falsifier"]
 
 [claim_boundary]
 fixed_volume = true
 real_scalar_storage = true
+complex_scalar_storage = true
+nonholomorphic_polynomial_storage = true
 independent_polynomial_derivative_replay = true
 continuous_state_eligibility = true
 transient_spatial_execution = false

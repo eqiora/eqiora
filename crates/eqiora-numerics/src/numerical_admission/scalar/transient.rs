@@ -1,18 +1,25 @@
 use super::*;
+use crate::form_compiler::region::coordinates::{self, Real};
+use crate::region_assembly::mapping::{RegionAlgebraicCoordinates, RegionDofMap};
+use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
     pub(super) fn prescribed_geometry_at(
         &self,
         time_s: f64,
     ) -> Result<Option<eqiora_meshing::FixedTopologyGeometryState<2>>, Diagnostic> {
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("geometry projection requires spatial equations"));
+        let motion = match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => equations
+                .regions
+                .iter()
+                .find_map(|region| region.form.motion()),
+            RecognizedNativeModel::ComplexSpatial(equations) => equations
+                .regions
+                .iter()
+                .find_map(|region| region.form.motion()),
+            _ => return Err(invalid("geometry projection requires spatial equations")),
         };
-        let Some(motion) = equations
-            .regions
-            .iter()
-            .find_map(|region| region.form.motion())
-        else {
+        let Some(motion) = motion else {
             return Ok(None);
         };
         let (NativeMeshResources::GmshSimplicial { mesh, .. }
@@ -28,45 +35,32 @@ impl CommonSpatialPlan {
             .map(Some)
     }
 
-    pub(super) fn scalar_assembly(
+    pub(super) fn scalar_assembly_at<S: Coefficient + Send + Sync>(
         &self,
-    ) -> Result<
-        (
-            crate::region_assembly::mapping::RegionDofMap<f64>,
-            crate::region_assembly::mapping::RegionSolveInput<f64>,
-        ),
-        Diagnostic,
-    > {
-        self.scalar_assembly_at(0.0)
-    }
-
-    pub(super) fn scalar_assembly_at(
-        &self,
+        equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
     ) -> Result<
         (
-            crate::region_assembly::mapping::RegionDofMap<f64>,
-            crate::region_assembly::mapping::RegionSolveInput<f64>,
+            crate::region_assembly::mapping::RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
         ),
         Diagnostic,
     > {
-        self.scalar_assembly_with_history(time_s, None, None)
+        self.scalar_assembly_with_history(equations, time_s, None, None)
     }
 
-    fn scalar_assembly_with_history(
+    fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
         &self,
+        equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
         previous_time_s: Option<f64>,
         previous: Option<
-            &BTreeMap<
-                eqiora_core::RawId,
-                crate::region_assembly::mapping::RecoveredRegionField<f64>,
-            >,
+            &BTreeMap<eqiora_core::RawId, crate::region_assembly::mapping::RecoveredRegionField<S>>,
         >,
     ) -> Result<
         (
-            crate::region_assembly::mapping::RegionDofMap<f64>,
-            crate::region_assembly::mapping::RegionSolveInput<f64>,
+            crate::region_assembly::mapping::RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
         ),
         Diagnostic,
     > {
@@ -74,9 +68,6 @@ impl CommonSpatialPlan {
             .admission
             .temporal
             .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar equations"));
-        };
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
@@ -107,8 +98,8 @@ impl CommonSpatialPlan {
         }
         let mut prescribed_states = BTreeMap::new();
         let boundary_value = |key: crate::region_assembly::mapping::FieldDof,
-                              law: &crate::form_compiler::region::RegionBoundaryLaw<f64>,
-                              value: f64| {
+                              law: &crate::form_compiler::region::RegionBoundaryLaw<S>,
+                              value: S| {
             let Some(state) = law.trace_field.filter(|field| *field != law.tested) else {
                 return Ok(Some(value));
             };
@@ -172,14 +163,15 @@ impl CommonSpatialPlan {
         }
     }
 
-    pub(super) fn scalar_step_assembly(
+    pub(super) fn scalar_step_assembly<S: Coefficient + Send + Sync>(
         &self,
+        equations: &ExecutableSpatialEquations<S>,
         state: &CommonState,
         next_time_s: f64,
     ) -> Result<
         (
-            crate::region_assembly::mapping::RegionDofMap<f64>,
-            crate::region_assembly::mapping::RegionSolveInput<f64>,
+            crate::region_assembly::mapping::RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
         ),
         Diagnostic,
     > {
@@ -189,17 +181,15 @@ impl CommonSpatialPlan {
         let CommonStateKind::Spatial(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
-        let (old_mapping, _) = self.scalar_assembly_at(state.require_time_s()?)?;
+        let (old_mapping, _) = self.scalar_assembly_at(equations, state.require_time_s()?)?;
         let previous = self.physical_fields(&old_mapping, values)?;
         let (mapping, mut input) = self.scalar_assembly_with_history(
+            equations,
             next_time_s,
             Some(state.require_time_s()?),
             Some(&previous),
         )?;
-        let RecognizedNativeModel::Spatial(bound) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar equations"));
-        };
-        if bound
+        if equations
             .regions
             .iter()
             .any(|region| region.form.motion().is_some())
@@ -252,69 +242,84 @@ impl CommonSpatialPlan {
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar inventory"));
-        };
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => {
+                self.advance_typed(equations, state, backend, next_time_s)
+            }
+            RecognizedNativeModel::ComplexSpatial(equations) => {
+                self.advance_typed(equations, state, backend, next_time_s)
+            }
+            _ => Err(invalid("missing spatial inventory")),
+        }
+    }
+
+    fn advance_typed<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+        next_time_s: f64,
+    ) -> Result<CommonAcceptedSpatialStep, Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
         let structure = equations.algebraic_structure(None)?;
         let checked = self
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let (mapping, input) = self.scalar_step_assembly(state, next_time_s)?;
+        let (mapping, input) = self.scalar_step_assembly(equations, state, next_time_s)?;
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
-        if self.admission.nonlinear.is_some() {
+        let (fields, residual, execution) = if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
             let output = self.solve_region_newton(&mapping, &input, &initial, request)?;
-            let values = output
-                .fields
-                .into_values()
-                .flat_map(|field| field.coefficients.into_values())
-                .collect();
-            let mut accepted = CommonAcceptedSpatialStep::new(
-                state,
-                self.scalar_state(Some(next_time_s), values)?,
-            )?;
-            accepted.residual = Some((
+            let residual = Some((
                 output.solve.residual_norm,
                 output.solve.evidence.residual_target,
             ));
-            accepted.execution = Some(super::nonlinear::newton_execution(&output.solve));
-            return Ok(accepted);
-        }
-        let current_mesh = input
-            .geometry_action
-            .as_ref()
-            .map(|action| action.current_mesh().clone());
-        let output = match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => {
-                mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?
-            }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
-                current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
-                input,
-                self.admission.linear.workers,
-                request,
-            )?,
-            _ => return Err(invalid("scalar storage requires its exact nodal Mesh")),
+            let execution = super::nonlinear::newton_execution(&output.solve);
+            (output.fields, residual, execution)
+        } else {
+            let current_mesh = input
+                .geometry_action
+                .as_ref()
+                .map(|action| action.current_mesh().clone());
+            let output = match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => {
+                    mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?
+                }
+                NativeMeshResources::GmshSimplicial { mesh, .. }
+                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
+                    current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
+                    input,
+                    self.admission.linear.workers,
+                    request,
+                )?,
+                _ => return Err(invalid("scalar storage requires its exact nodal Mesh")),
+            };
+            let execution = CommonSpatialExecution {
+                solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
+                    crate::common_result::evidence::CommonSolveEvidence::from_report(
+                        &output.solve_report,
+                    ),
+                )),
+                assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
+                    &output.assembly_report,
+                ),
+            };
+            (output.fields, None, execution)
         };
-        let values = output
-            .fields
-            .into_values()
-            .flat_map(|field| field.coefficients.into_values())
-            .collect();
+        let mut values = Vec::new();
+        for field in fields.into_values() {
+            values.extend(coordinates::values::<S, Real>(
+                &field.value_type,
+                &field.coefficients.into_values().collect::<Vec<_>>(),
+            )?);
+        }
         let mut accepted =
             CommonAcceptedSpatialStep::new(state, self.scalar_state(Some(next_time_s), values)?)?;
-        accepted.execution = Some(CommonSpatialExecution {
-            solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
-                crate::common_result::evidence::CommonSolveEvidence::from_report(
-                    &output.solve_report,
-                ),
-            )),
-            assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
-                &output.assembly_report,
-            ),
-        });
+        accepted.residual = residual;
+        accepted.execution = Some(execution);
         Ok(accepted)
     }
 }

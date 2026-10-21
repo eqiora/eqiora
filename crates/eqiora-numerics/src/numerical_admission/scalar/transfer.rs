@@ -162,7 +162,7 @@ impl CommonSpatialPlan {
         }
         // Share the physical/free-coordinate owner with stepping: interpolate
         // interior values, then apply the target's exact prescribed traces.
-        let (mapping, _) = self.state_assembly(None)?;
+        let (mapping, _) = self.state_assembly(target_equations, None)?;
         let fields = mapping.physical_fields_from_coefficients(&transferred)?;
         let free = mapping.physical_predictor(&fields)?;
         let ids = transferred.keys().copied().collect::<Vec<_>>();

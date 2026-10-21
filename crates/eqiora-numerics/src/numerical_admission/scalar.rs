@@ -203,29 +203,6 @@ impl CommonSpatialPlan {
                 "common spatial Plan admitted foreign Region mathematics",
             ));
         };
-        if admission.temporal.is_some() {
-            if admission
-                .discretizations
-                .iter()
-                .flat_map(|domain| domain.field_spaces())
-                .any(|field| {
-                    !matches!(
-                        field.space().family(),
-                        SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble
-                    )
-                })
-            {
-                return Err(invalid("linear storage requires nodal Fields"));
-            }
-            if lowered.regions.len() != 1
-                && lowered
-                    .regions
-                    .iter()
-                    .any(|region| region.form.motion().is_some())
-            {
-                return Err(invalid("moving storage requires one exact Region"));
-            }
-        }
         let fields = lowered
             .represented_fields()
             .iter()
@@ -578,18 +555,15 @@ impl CommonSpatialPlan {
             .find(|node| node.field() == field)
             .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
         if self.admission.temporal.is_some() {
-            let (mapping, _) = self.scalar_assembly()?;
-            let inventory = self.physical_field_inventory(&mapping)?;
-            let owned = inventory
-                .get(&field.erase())
-                .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;
-            return Ok(owned
-                .coefficients
-                .keys()
-                .map(|key| key.entity)
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect());
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Spatial(equations) => {
+                    self.temporal_field_entities(equations, field.erase())
+                }
+                RecognizedNativeModel::ComplexSpatial(equations) => {
+                    self.temporal_field_entities(equations, field.erase())
+                }
+                _ => Err(invalid("Field requires exact spatial equations")),
+            };
         }
         if representation.space() == Space::simplex_p1_bubble() {
             self.reauthenticate_portable_realization()?;
@@ -665,22 +639,19 @@ impl CommonSpatialPlan {
         ) = (&self.admission.spatial, self.admission.resources())
         {
             if self.admission.temporal.is_some() {
-                let (mapping, _) = self.scalar_assembly()?;
-                let inventory = self.physical_field_inventory(&mapping)?;
-                let owned = inventory
-                    .get(&field)
-                    .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;
-                let entities = owned
-                    .coefficients
-                    .keys()
-                    .map(|key| key.entity)
-                    .collect::<BTreeSet<_>>()
+                let entities = self
+                    .field_coefficient_entities(field.downcast().expect("Field"))?
                     .into_iter()
                     .map(|entity| entity.index())
                     .collect::<Vec<_>>();
+                let ty = self
+                    .fields()
+                    .find(|(id, _)| id.erase() == field)
+                    .ok_or_else(|| invalid("Field absent from exact State inventory"))?
+                    .1;
                 let mut shape = vec![entities.len()];
                 shape.extend(
-                    owned.value_type.shape().extents().iter().map(|extent| {
+                    ty.shape().extents().iter().map(|extent| {
                         usize::try_from(extent.get()).expect("portable Field extent")
                     }),
                 );

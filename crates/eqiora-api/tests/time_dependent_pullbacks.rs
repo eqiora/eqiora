@@ -264,9 +264,15 @@ fn reference_inventory_law_replays_an_independent_map_rate_correspondence() {
             unreachable!()
         };
         let (storage, accumulation) = terms.storage().unwrap();
+        let typed = replay
+            .program()
+            .typed_relation_residual(relation.id())
+            .unwrap();
         relation
             .expression()
-            .verify_time_derivative(storage, accumulation)
+            .verify_time_derivative(storage, accumulation, |id| {
+                typed.node_type(id).map(|ty| ty.value_type.clone())
+            })
             .unwrap();
 
         // The swapped directions still have the right dimensions and support.

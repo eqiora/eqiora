@@ -14,7 +14,7 @@ impl CommonSpatialPlan {
             ));
         };
         let fields = equations
-            .fields()
+            .represented_fields()
             .into_iter()
             .map(|(field, ty)| (field.downcast().expect("compiled Field identity"), ty))
             .collect::<Vec<_>>()

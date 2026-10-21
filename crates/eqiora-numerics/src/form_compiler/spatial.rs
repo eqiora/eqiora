@@ -173,15 +173,9 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             .keys()
             .map(|field| (*field, roles.fields[field].1.clone()))
             .collect::<Vec<_>>();
-        // Formal conservation storage and moving charts still need their explicit
-        // balance pullback. Ordinary equations, including scalar equations, lower
-        // through the same component-aware Region form.
-        let scalar_balance = (motion.is_some()
-            || residuals.values().any(|relation| {
-                matches!(program.node(*relation),
-                Some(KernelNode::Relation(definition))
-                    if matches!(definition.meaning(), RelationMeaning::Conservation(_)))
-            }))
+        // Only moving charts need the explicit balance pullback. Fixed Laws and
+        // Relations share the component-aware Region lowering.
+        let scalar_balance = motion.is_some()
             && kinematics.is_empty()
             && fields
                 .iter()

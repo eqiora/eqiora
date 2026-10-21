@@ -122,7 +122,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     }
 
     /// One finalized system for execution and coefficient reacceptance.
-    pub(crate) fn finalize_linear<'mesh>(
+    pub(crate) fn finalize_linear<'mesh, A: Coefficient + Send + Sync>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<S>,
@@ -130,12 +130,15 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         solver: eqiora_solver::SolverPlan,
     ) -> Result<
         (
-            crate::finalized_spatial::FinalizedLinearCore<S>,
+            crate::finalized_spatial::FinalizedLinearCore<A>,
             AssemblyReport,
-            eqiora_assembly::LinearSystem<S>,
+            eqiora_assembly::LinearSystem<A>,
         ),
         Diagnostic,
-    > {
+    >
+    where
+        Self: RegionAlgebraicCoordinates<A, S>,
+    {
         self.validate_solve_input(mesh, input)?;
         let multipliers = input
             .forms
@@ -146,18 +149,11 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             plan,
             work,
             packet_domains: _,
-        } = self.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            input.forms.clone(),
-            input.natural.clone(),
-            input.previous.as_ref(),
-            input.geometry_action.as_deref(),
-        )?;
+        } = self.prepare_numeric_assembly(mesh, input)?;
         let (mut systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
             .into_parts();
-        self.require_multiplier_closure(systems[0].matrix(), &multipliers)?;
+        self.require_numeric_multiplier_closure(systems[0].matrix(), &multipliers)?;
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
             systems[0].rhs(),
@@ -176,19 +172,23 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Execute an exact mapped region system. The caller authenticates
     /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
     /// retains physical coefficient interpretation in the recovered inventory.
-    pub(crate) fn solve<'mesh>(
+    pub(crate) fn solve<'mesh, A: Coefficient + Send + Sync>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: RegionSolveInput<S>,
         workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-    ) -> Result<RegionSolveOutput<S>, Diagnostic> {
+        request: LinearSolveRequest<'_, A>,
+    ) -> Result<RegionSolveOutput<S>, Diagnostic>
+    where
+        Self: RegionAlgebraicCoordinates<A, S>,
+    {
         let (core, assembly_report, _) =
-            self.finalize_linear(mesh, &input, workers, request.plan())?;
+            self.finalize_linear::<A>(mesh, &input, workers, request.plan())?;
         let step = kinematic_step(&input.forms)?;
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
+        let values = self.decode_coordinates(&values)?;
         let fields = if let Some(step) = &step {
             self.recover_step(
                 &values,

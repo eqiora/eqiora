@@ -576,7 +576,7 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             operator_properties,
             &linear,
-            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear)?,
+            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal)?,
         )?;
         let discretizations = self.discretizations(&spatial)?;
         if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {

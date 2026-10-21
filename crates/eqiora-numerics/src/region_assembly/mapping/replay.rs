@@ -51,18 +51,21 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     }
 }
 
-impl RegionDofMap<f64> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S>
+where
+    Self: RegionAlgebraicCoordinates<f64, S>,
+{
     pub(crate) fn validate_step_coefficients<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: &RegionSolveInput<f64>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         solver: eqiora_solver::SolverPlan,
         workers: std::num::NonZeroUsize,
     ) -> Result<(f64, f64, usize, usize), Diagnostic> {
         self.validate_solve_input(mesh, input)?;
-        let reduced = self.validated_step_point(input, fields)?;
-        let (core, assembly, _) = self.finalize_linear(mesh, input, workers, solver)?;
+        let reduced = self.encode_coordinates(&self.validated_step_point(input, fields)?)?;
+        let (core, assembly, _) = self.finalize_linear::<f64>(mesh, input, workers, solver)?;
         let (norm, target) = core.validate_coefficients(&reduced)?;
         Ok((
             norm,

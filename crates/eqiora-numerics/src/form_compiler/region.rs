@@ -4,6 +4,7 @@ use crate::spatial_expression::Coefficient;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId, ScalarDomain, ValueFrame, ValueType};
+use eqiora_schema::kernel::{KernelNode, RelationMeaning};
 use eqiora_sem::KernelProgram;
 
 use super::bilinear::Pairing;
@@ -137,7 +138,18 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let mut rows = BTreeMap::new();
         for (relation, role) in &roles.relations {
             let typed = typed_relation(program, *relation)?;
-            require_closed_dag(typed.expression(), *relation)?;
+            let law = match program.node(*relation) {
+                Some(KernelNode::Relation(definition)) => match definition.meaning() {
+                    RelationMeaning::Conservation(law) => Some(*law),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(law) = law {
+                super::spatial::require_closed_law(typed.expression(), law)?;
+            } else {
+                require_closed_dag(typed.expression(), *relation)?;
+            }
             for node_type in typed.node_types() {
                 if let Some(support) = &node_type.support
                     && (*support.domain() != domain
@@ -183,15 +195,22 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     components(&value_type, dimension)?
                 ],
             };
-            lowering::lower(
-                &context,
-                root,
-                Data::constant(dimension, <S as From<f64>>::from(1.0)),
-                &mut row,
-                0,
-            )?;
+            if let Some(law) = law {
+                lowering::conservation(&context, law, &mut row)?;
+            } else {
+                lowering::lower(
+                    &context,
+                    root,
+                    Data::constant(dimension, <S as From<f64>>::from(1.0)),
+                    &mut row,
+                    0,
+                )?;
+            }
             row.collect_coefficients();
-            row.orient_scalar_diffusion(dimension)?;
+            // Authored Laws fix the physical outward flux orientation.
+            if law.is_none() {
+                row.orient_scalar_diffusion(dimension)?;
+            }
             row.require_positive_scalar_diffusion();
             for term in &mut row.dyadics {
                 let field = roles
