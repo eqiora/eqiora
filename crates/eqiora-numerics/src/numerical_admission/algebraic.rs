@@ -142,15 +142,6 @@ impl CommonAlgebraicPlan {
                 backend,
             )?
         };
-        if complex_system.is_none()
-            && (linear.solver.algorithm() != LinearSolver::SparseLu
-                || linear.solver.preconditioner() != PreconditionerPolicy::Identity
-                || linear.solver.reduction() != ReductionPolicy::Fast)
-        {
-            return Err(invalid(
-                "finite algebraic Plan admits only exact SparseLU/Identity/Fast execution",
-            ));
-        }
         let reference = model.artifact_reference()?;
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();

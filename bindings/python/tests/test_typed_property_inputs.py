@@ -63,10 +63,10 @@ def test_value_only_inputs_keep_complete_type_and_ordinary_execution(
         relative_tolerance=1e-13,
         absolute_tolerance=1e-15,
         maximum_iterations=8,
-        algorithm=q.solve.LinearSolver.SparseLu,
+        algorithm=q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
-        reduction=q.solve.Reduction.Fast,
-        provider=q.solve.SolverProvider.faer(),
+        reduction=q.solve.Reduction.Reproducible,
+        provider=q.solve.SolverProvider.reference(),
     )
     output = model.observable("sample.output")
     parameter = model.parameter("p")

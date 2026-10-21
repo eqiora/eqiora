@@ -25,6 +25,39 @@ def run(model, *, solve=None):
     return restored, replay
 
 
+@pytest.mark.parametrize("emitted_source", [False, True])
+@pytest.mark.parametrize("provider,algorithm,reduction", [
+    ("reference", "BiConjugateGradientStabilized", "Reproducible"),
+    ("faer", "BiConjugateGradientStabilized", "Fast"),
+    ("faer", "SparseLu", "Fast"),
+])
+def test_real_finite_values_keep_the_admitted_solver_policy(
+    emitted_source, provider, algorithm, reduction,
+):
+    q = eqiora.lang
+    source = eqiora.Module("main")
+    owner = source.model("M")
+    kind = eqiora.ValueType.real()
+    x = owner.field("x", role=eqiora.FieldRole.Variable, value_type=kind)
+    y = owner.field("y", role=eqiora.FieldRole.Variable, value_type=kind)
+    owner.relation("first", q.equation(4*x+y, 6))
+    owner.relation("second", q.equation(2*x+3*y, 8))
+    owner.observable("output", x+10*y, value_type=kind)
+    model = eqiora.compile(
+        source=source.to_eqi() if emitted_source else source, entry="M",
+    )
+    solve = eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=getattr(eqiora.solve.LinearSolver, algorithm),
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=getattr(eqiora.solve.Reduction, reduction),
+        provider=getattr(eqiora.solve.SolverProvider, provider)(),
+    )
+    _, result = run(model, solve=solve)
+    # The independent solution is x=1,y=2 for both authoring routes.
+    assert result.observe(model.observable("output")).value == pytest.approx(21, abs=1e-10)
+
+
 def test_native_complex_equation_matches_source_graph_and_retains_both_parts():
     kind = eqiora.ValueType.complex()
     coefficient = eqiora.Parameter("coefficient", value_type=kind, value=1-2j)

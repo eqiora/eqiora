@@ -1,7 +1,7 @@
 //! Independent two-node conductance oracle through the ordinary finite lifecycle.
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
-use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
+use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_compiler::StaticBindingValue;
 use eqiora_numerics::{
@@ -158,6 +158,62 @@ fn incompatible_load_or_absent_reference_is_not_repaired() {
         plan.run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
             .is_err()
     );
+}
+
+#[test]
+fn reference_minres_preserves_bordered_gauge_and_load_compatibility() {
+    for load in [-6., -5.] {
+        let document = document(SOURCE, 4., load);
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let solver = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            1e-13,
+            1e-15,
+            NonZeroUsize::new(8).unwrap(),
+        )
+        .unwrap()
+        .with_reduction(ReductionPolicy::Reproducible);
+        let plan = CommonAlgebraicPlan::resolve(
+            &model,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(solver, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+            ),
+            None,
+            &[],
+            document.authored_formulation_projection().unwrap(),
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+        let initial = plan.initial_state(&[]).unwrap();
+        let solved = plan.run_result(&initial, &REFERENCE_LINEAR_SOLVER);
+        if load == -5. {
+            assert!(solved.unwrap_err().message().contains("incompatible"));
+            continue;
+        }
+        let result = solved.unwrap();
+        // 2(v1-v2)=6 with v1=4 gives (v1,v2)=(4,1); the compatible
+        // balanced load requires a zero multiplier in the bordered system.
+        for (index, expected) in [(0, 4.), (1, 1.)] {
+            let field = document.authored_formulations().next().unwrap().trials()[index];
+            let coordinate = plan
+                .symbols()
+                .iter()
+                .position(|symbol| *symbol == eqiora_schema::kernel::SymbolRef::Field(field))
+                .unwrap();
+            assert!((result.finite_values().unwrap()[coordinate] - expected).abs() < 1e-12);
+        }
+        assert!(result.original_residual_norm().unwrap() < 1e-12);
+        assert!(result.gauge_multiplier().unwrap().abs() < 1e-12);
+        assert_eq!(
+            result.solve_evidence(None, None).unwrap().algorithm(),
+            LinearSolver::MinimumResidual
+        );
+        let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan));
+        assert_eq!(
+            CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap(),
+            result
+        );
+    }
 }
 
 #[test]
