@@ -13,7 +13,9 @@ pub(super) enum ScalarPart {
 }
 
 impl ScalarPart {
-    fn for_domain(domain: eqiora_core::ScalarDomain) -> Result<&'static [Self], Diagnostic> {
+    pub(super) fn for_domain(
+        domain: eqiora_core::ScalarDomain,
+    ) -> Result<&'static [Self], Diagnostic> {
         match domain {
             eqiora_core::ScalarDomain::Real => Ok(&[Self::Real]),
             eqiora_core::ScalarDomain::Complex => Ok(&[Self::Real, Self::Imaginary]),

@@ -1,7 +1,9 @@
 //! Pointwise tensor definitions lower through the existing real scalar IR.
 use super::*;
+mod bindings;
 mod evaluation;
 mod partials;
+use bindings::ScopedValue;
 use eqiora_schema::kernel::pure_operator::{CalculusNode, CalculusNodeId};
 
 struct PureComponent<'a> {
@@ -10,8 +12,8 @@ struct PureComponent<'a> {
     component: &'a [u32],
     component_types: &'a [eqiora_core::ValueType],
     remapped: Vec<[Option<ScalarInputValueId>; 2]>,
-    formal_values: Option<Vec<ScalarInputValueId>>,
-    bound_values: Vec<(CalculusNodeId, ScalarInputValueId)>,
+    formal_values: Option<Vec<ScopedValue>>,
+    bound_values: Vec<(CalculusNodeId, ScopedValue)>,
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -56,7 +58,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         component: &[u32],
         expected_result: &ExpressionType<I>,
         part: ScalarPart,
-        formal_values: Option<Vec<ScalarInputValueId>>,
+        formal_values: Option<Vec<ScopedValue>>,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         let argument_types = arguments
             .iter()
@@ -154,23 +156,14 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 if let Some(values) = &state.formal_values {
-                    let real = values[usize::from(formal)];
-                    if part == Real {
-                        real
-                    } else {
-                        self.builder.sub(real, real)?
-                    }
+                    values[usize::from(formal)].component(&coordinates, part)?
                 } else {
                     self.lower_part(operand, &coordinates, part)?
                 }
             }
             CalculusNode::BoundInput(inner) => {
                 if let Some((_, mapped)) = state.bound_values.iter().find(|(id, _)| *id == value) {
-                    if part == Real {
-                        *mapped
-                    } else {
-                        self.builder.sub(*mapped, *mapped)?
-                    }
+                    mapped.component(&[], part)?
                 } else {
                     self.lower_calculus_component(state, inner, part)?
                 }

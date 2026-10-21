@@ -2,6 +2,10 @@
 use super::*;
 use eqiora_core::DimExponents;
 
+#[cfg(test)]
+#[path = "partials/typed_tests.rs"]
+mod typed_tests;
+
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
     pub(super) fn lower_formal_partial(
         &mut self,
@@ -33,56 +37,72 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         };
         // Capture outer values before replacing the builder. Nested partials bind
         // to their parent's independent inputs, not directly to actual arguments.
-        let mut bindings = Vec::new();
-        for (index, class) in state.definition.formals().iter().enumerate() {
-            let dimension = class
-                .dimension()
-                .ok_or_else(|| invalid_component_ir("formal input has no concrete dimension"))?;
-            let value = if let Some(values) = &state.formal_values {
-                values[index]
-            } else {
-                self.lower_part(state.arguments[index], &[], ScalarPart::Real)?
-            };
-            bindings.push((value, dimension));
+        let formals = if let Some(values) = &state.formal_values {
+            values.clone()
+        } else {
+            state
+                .arguments
+                .iter()
+                .map(|&argument| {
+                    let index = node_index(argument, self.node_types.len())?;
+                    let ty = self.node_types[index].value_type.clone();
+                    ScopedValue::new(ty, self.lower_input_coordinates(&[argument])?)
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?
+        };
+        let mut bound = state.bound_values.clone();
+        if selected_formal.is_none() && !bound.iter().any(|(node, _)| *node == wrt) {
+            let ty = state.component_types[wrt.index() as usize].clone();
+            let values = ScalarPart::for_domain(ty.scalar_domain())?
+                .iter()
+                .map(|&part| self.lower_calculus_component(state, wrt, part))
+                .collect::<Result<Vec<_>, _>>()?;
+            bound.push((wrt, ScopedValue::new(ty, values)?));
         }
-        let mut bound_nodes = Vec::new();
-        for &(node, value) in &state.bound_values {
-            bound_nodes.push(node);
-            bindings.push((value, dimension(node)?));
-        }
-        if selected_formal.is_none() && !bound_nodes.contains(&wrt) {
-            let value = self.lower_calculus_component(state, wrt, ScalarPart::Real)?;
-            bound_nodes.push(wrt);
-            bindings.push((value, dimension(wrt)?));
-        }
-        let formal_count = state.definition.formals().len();
-        let selected = selected_formal.unwrap_or_else(|| {
+        let formal_count = formals.len();
+        let selected_block = selected_formal.unwrap_or_else(|| {
             formal_count
-                + bound_nodes
+                + bound
                     .iter()
-                    .position(|node| *node == wrt)
+                    .position(|(node, _)| *node == wrt)
                     .expect("selected bound input retained")
         });
+        let mut bindings = Vec::new();
+        let mut starts = Vec::new();
+        for value in formals.iter().chain(bound.iter().map(|(_, value)| value)) {
+            starts.push(bindings.len());
+            bindings.extend(
+                value
+                    .coordinates()
+                    .iter()
+                    .map(|&coordinate| (coordinate, value.value_type().dimension())),
+            );
+        }
+        // The selected input is still one real scalar. Other blocks may have
+        // any admitted numeric shape/domain and remain independent in this scope.
+        let selected = starts[selected_block];
+        super::super::finite::charge_products(self.finite_products, bindings.len())?;
         let outer = std::mem::replace(&mut self.builder, ScalarInputIrBuilder::new());
         let result = (|| {
-            let values = bindings
+            let values = formals
                 .iter()
-                .map(|(_, dimension)| self.builder.scoped_input(*dimension))
+                .chain(bound.iter().map(|(_, value)| value))
+                .map(|value| {
+                    value.remap(|_| self.builder.scoped_input(value.value_type().dimension()))
+                })
                 .collect::<Result<Vec<_>, _>>()?;
+            let mut values = values.into_iter();
             let mut local = PureComponent {
                 definition: state.definition,
                 arguments: state.arguments,
                 component: state.component,
                 component_types: state.component_types,
                 remapped: vec![[None; 2]; state.definition.nodes().len()],
-                formal_values: Some(values[..formal_count].to_vec()),
-                bound_values: bound_nodes
-                    .into_iter()
-                    .zip(values[formal_count..].iter().copied())
-                    .collect(),
+                formal_values: Some(values.by_ref().take(formal_count).collect()),
+                bound_values: bound.iter().map(|(node, _)| *node).zip(values).collect(),
             };
             let root = self.lower_calculus_component(&mut local, source, part)?;
-            let mut seeds = vec![None; values.len()];
+            let mut seeds = vec![None; bindings.len()];
             seeds[selected] = Some(
                 self.builder
                     .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))?,

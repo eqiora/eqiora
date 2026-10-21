@@ -27,7 +27,10 @@ impl ComponentScalarization {
                     "numeric scalar projection requires real scalar arguments",
                 ));
             }
-            inputs.push(lowering.builder.scoped_input(ty.dimension())?);
+            inputs.push(ScopedValue::new(
+                ty.value_type.clone(),
+                vec![lowering.builder.scoped_input(ty.dimension())?],
+            )?);
         }
         let root = lowering.lower_pure_definition_with_inputs(
             definition,

@@ -32,13 +32,15 @@ impl PureOperatorDefinition {
 
 impl CalculusBuilder {
     /// Append a scalar partial with respect to an independent real input.
-    /// Real or complex responses retain the other formal inputs fixed.
+    /// Real or complex responses retain the other numeric formal inputs fixed,
+    /// including every component of shaped and complex inputs.
     /// The source, selected input, and derivative order remain canonical. Numerical
     /// execution and optional polynomial proof expansion use their respective owners.
     /// Explicit validity predicates are retained, never differentiated.
     ///
     /// # Errors
-    /// Rejects invalid formals, non-real inputs or unconstrained scalar types, nonsmooth values,
+    /// Rejects invalid formals, a selected input that is not a real scalar,
+    /// unresolved or nonnumeric input types, nonsmooth values,
     /// unrepresentable dimensions, and node or depth limits. Errors append nothing.
     pub fn partial(
         &mut self,
@@ -70,9 +72,11 @@ impl CalculusBuilder {
         wrt: CalculusNodeId,
     ) -> Result<(), PureOperatorError> {
         if self.formals.iter().any(|class| {
-            !class.is_invariant_scalar()
-                || class.dimension().is_none()
-                || class.scalar_domain() != Some(ScalarDomain::Real)
+            class.dimension().is_none()
+                || !matches!(
+                    class.scalar_domain(),
+                    Some(ScalarDomain::Real | ScalarDomain::Complex)
+                )
         }) {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
