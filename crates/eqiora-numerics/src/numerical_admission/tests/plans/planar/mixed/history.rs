@@ -98,6 +98,27 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 .position(|field| field.cell().is_some())
                 .unwrap();
             let pressure = 1 - velocity;
+            // Constant throughflow has zero viscous residual and divergence.
+            // With fixed inlet/wall rates, consistency requires
+            // M*u_dot + B^T*p = 0 and B*u_dot = 0. M is positive definite
+            // and this open-outlet MINI pair has full-row-rank B, so
+            // p^T*B*M^-1*B^T*p = 0 requires p=0. An arbitrary nonzero p
+            // satisfies the original divergence row but has no consistent rate.
+            let mut incompatible_rate = supplied.clone();
+            incompatible_rate[pressure] = CommonInitialField::new(
+                model.digest().unwrap(),
+                supplied[pressure].field(),
+                Some(
+                    CommonInitialValues::new(eqiora_core::ValueShape::scalar(), vec![1.0; 6])
+                        .unwrap(),
+                ),
+                None,
+            )
+            .unwrap();
+            let Err(error) = plan.initial_state(Some(0.25), incompatible_rate) else {
+                panic!("nonzero pressure has no compatible initial velocity rate");
+            };
+            assert!(error.message().contains("rate compatibility"), "{error:?}");
             for cell_values in [
                 None,
                 Some(
