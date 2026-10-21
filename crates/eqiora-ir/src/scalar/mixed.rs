@@ -43,6 +43,7 @@ pub(super) fn curvature(
     let r = |id| read(right, id, index);
     Ok(match instruction {
         Instruction::Constant(_)
+        | Instruction::Demand { .. }
         | Instruction::DerivativeLimit { .. }
         | Instruction::Read(_)
         | Instruction::Neg(_)

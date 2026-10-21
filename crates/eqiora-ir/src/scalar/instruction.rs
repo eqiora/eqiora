@@ -79,7 +79,6 @@ impl Instruction {
             self,
             Self::Select { .. }
                 | Self::Require { .. }
-                | Self::Demand { .. }
                 | Self::PureOperator { .. }
                 | Self::Compare(..)
                 | Self::Not(_)

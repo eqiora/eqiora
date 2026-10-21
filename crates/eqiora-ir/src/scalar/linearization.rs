@@ -90,7 +90,6 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             match *instruction {
                 Instruction::Select { .. }
                 | Instruction::Require { .. }
-                | Instruction::Demand { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
@@ -108,7 +107,7 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         "discrete operations cannot be differentiated",
                     ));
                 }
-                Instruction::DerivativeLimit { value, .. } => {
+                Instruction::DerivativeLimit { value, .. } | Instruction::Demand { value, .. } => {
                     accumulate(&mut adjoints, value, cotangent, index)?;
                 }
                 Instruction::Constant(_) => {}
@@ -343,7 +342,6 @@ impl ScalarLinearization<'_> {
             let mut tangent = match *instruction {
                 Instruction::Select { .. }
                 | Instruction::Require { .. }
-                | Instruction::Demand { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
@@ -362,7 +360,9 @@ impl ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => Scaled::ZERO,
-                Instruction::DerivativeLimit { value, .. } => read(&tangents, value, index)?,
+                Instruction::DerivativeLimit { value, .. } | Instruction::Demand { value, .. } => {
+                    read(&tangents, value, index)?
+                }
                 Instruction::ComplexDiv {
                     operands,
                     imaginary,

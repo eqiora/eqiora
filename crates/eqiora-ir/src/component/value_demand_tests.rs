@@ -136,11 +136,24 @@ fn demanded_values_retain_domains_without_creating_derivative_contributions() {
         .unwrap();
     assert_eq!(output, [0.]);
     for invalid in [0., -1.] {
-        assert!(
-            components
-                .linearize(|_| Some((invalid, DifferentiationRole::Parameter)))
-                .is_err()
-        );
+        assert!(components.evaluate(|_| Some(invalid)).is_err());
+        // Typed branches may reject during binding. Numerical rows validate
+        // their primal prerequisites when the shared product is evaluated.
+        if let Ok(action) =
+            components.linearize(|_| Some((invalid, DifferentiationRole::Parameter)))
+        {
+            assert!(action.primal(&mut output).is_err());
+            assert!(
+                action
+                    .jvp(RelationTangent::Parameter(&[3.]), &mut output)
+                    .is_err()
+            );
+            assert!(
+                action
+                    .vjp(&[7.], RelationCotangent::Parameter(&mut output))
+                    .is_err()
+            );
+        }
         assert!(
             components.rows()[0]
                 .bind_affine(&[], &[(components.rows()[0].symbols()[0].clone(), invalid)])

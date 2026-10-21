@@ -10,7 +10,9 @@ pub(super) fn evaluate_instructions(
     for (index, instruction) in instructions.iter().enumerate() {
         let value = match *instruction {
             Instruction::Constant(value) => value.value(),
-            Instruction::DerivativeLimit { value, .. } => read(&values, value, index)?,
+            Instruction::DerivativeLimit { value, .. } | Instruction::Demand { value, .. } => {
+                read(&values, value, index)?
+            }
             Instruction::Read(slot) => {
                 inputs
                     .get(slot_index(slot, index)?)
