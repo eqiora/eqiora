@@ -41,14 +41,17 @@ pub(super) fn conservation<S: Coefficient>(
     )?;
     // A source is pointwise. Its derivatives do not redefine the retained flux.
     components::lower(context, law.source(), negative, row, false, 0)?;
-    if let Some(coefficient) = context.conservation_storage(law, row.tested)? {
-        row.terms.push(Term {
-            trial: row.tested,
-            derivative: true,
-            pairing: Pairing::Value,
-            coefficient,
-            positive_diffusion: false,
-        });
+    if let Some((_, accumulation)) = law.storage() {
+        // Kernel admission has already proved accumulation = d(storage)/dt.
+        // Execute that exact expression through the same state/rate action as a Relation.
+        expression(
+            context,
+            accumulation,
+            Data::constant(context.dimension, <S as From<f64>>::from(1.0)),
+            row,
+            Position::Strong,
+            0,
+        )?;
     }
     Ok(())
 }

@@ -145,3 +145,12 @@ fn complex_norm_keeps_all_components_across_the_fixed_partial_boundary() {
         codes::NUMERICAL_SOLVE_FAILED
     );
 }
+
+#[test]
+fn empty_complete_equation_rejects_zero_rhs_solve_and_replayed_coordinates() {
+    let zero = core(C::new(0., 0.), C::new(0., 0.), policy(1e-3));
+    let error = zero.linear_problem().unwrap_err();
+    assert!(error.message().contains("complete spatial equation row 0"));
+    let error = zero.validate_coefficients(&[C::new(4., 7.)]).unwrap_err();
+    assert!(error.message().contains("complete spatial equation row 0"));
+}

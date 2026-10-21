@@ -1,3 +1,4 @@
+use super::evaluate::AffineInput;
 use std::num::NonZeroU16;
 
 use eqiora_compiler::compile;

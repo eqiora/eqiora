@@ -52,8 +52,13 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             initial.to_vec(),
             nonlinear,
             |values| {
-                let assembly =
-                    self.linearize(&plan, target, values, &REFERENCE_ASSEMBLY_BACKEND)?;
+                let assembly = self.linearize(
+                    &plan,
+                    target,
+                    RegionPoint::Bound(values),
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                )?;
+                crate::finalized_spatial::require_equation_rows(assembly.systems[index].matrix())?;
                 // Convergence of a primal residual does not prove multiplier closure.
                 admit(assembly.systems[index].matrix())?;
                 Ok(RegionNewtonPoint {
@@ -87,7 +92,11 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             },
             |candidate| {
                 Ok(Some(NewtonTrial {
-                    residual_norm: residual_norm(&self.residual(&plan, target, candidate)?)?,
+                    residual_norm: residual_norm(&self.residual(
+                        &plan,
+                        target,
+                        RegionPoint::Bound(candidate),
+                    )?)?,
                     linearization: None,
                 }))
             },

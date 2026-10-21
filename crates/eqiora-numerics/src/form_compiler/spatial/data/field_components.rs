@@ -1,4 +1,4 @@
-//! Exact Field/component/gradient bindings shared by spatial component actions.
+//! Exact Field value/rate/component bindings shared by spatial component actions.
 use super::*;
 use crate::form_compiler::bilinear::BasisComponent;
 use eqiora_core::ScalarDomain;
@@ -9,9 +9,33 @@ mod action;
 #[cfg(test)]
 mod tests;
 
+/// Independent tangent demands for the two physical temporal input classes.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::form_compiler) struct FieldDerivatives {
+    pub(in crate::form_compiler) current: bool,
+    pub(in crate::form_compiler) rate: bool,
+}
+
+impl FieldDerivatives {
+    #[cfg(test)]
+    pub(in crate::form_compiler) const ALL: Self = Self {
+        current: true,
+        rate: true,
+    };
+
+    fn includes(self, coordinate: &ScalarSymbolCoordinate) -> bool {
+        if matches!(coordinate.symbol(), SymbolRef::Derivative(_, _)) {
+            self.rate
+        } else {
+            self.current
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ComponentColumn {
     pub(super) field: RawId,
+    pub(super) derivative: bool,
     pub(super) component: BasisComponent,
     pub(super) scalar_domain: ScalarDomain,
     pub(super) real: Option<usize>,
@@ -64,10 +88,10 @@ impl<S: Coefficient> FieldComponent<S> {
 
     pub(in crate::form_compiler) fn columns(
         &self,
-    ) -> impl Iterator<Item = (RawId, BasisComponent)> + '_ {
+    ) -> impl Iterator<Item = (RawId, BasisComponent, bool)> + '_ {
         self.columns
             .iter()
-            .map(|column| (column.field, column.component))
+            .map(|column| (column.field, column.component, column.derivative))
     }
 
     pub(in crate::form_compiler) fn polynomial_degree(
@@ -144,7 +168,12 @@ impl<S: Coefficient> Context<'_, S> {
             .flat_map(ComponentScalarRow::symbols)
             .filter_map(|coordinate| match coordinate.symbol() {
                 SymbolRef::Field(field) if !self.coefficients.contains_key(&field.erase()) => {
-                    Some((field.erase(), field))
+                    Some(((field.erase(), false), field))
+                }
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)
+                    if !self.coefficients.contains_key(&field.erase()) =>
+                {
+                    Some(((field.erase(), true), field))
                 }
                 _ => None,
             })
@@ -164,7 +193,12 @@ impl<S: Coefficient> Context<'_, S> {
         }
         let mut selected = Vec::new();
         let mut columns = Vec::new();
-        for (_, field) in fields {
+        for ((_, derivative), field) in fields {
+            let symbol = if derivative {
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)
+            } else {
+                SymbolRef::Field(field)
+            };
             let Some(KernelNode::Field(definition)) = self.program.node(field.erase()) else {
                 return Err(super::super::invalid("component trial has no exact Field"));
             };
@@ -184,7 +218,7 @@ impl<S: Coefficient> Context<'_, S> {
                 .rows()
                 .iter()
                 .flat_map(ComponentScalarRow::symbols)
-                .filter(|coordinate| coordinate.symbol() == SymbolRef::Field(field))
+                .filter(|coordinate| coordinate.symbol() == symbol)
             {
                 let component = value_type
                     .shape()
@@ -208,10 +242,13 @@ impl<S: Coefficient> Context<'_, S> {
             }
             for ((component, imaginary), coordinate) in coordinates {
                 if columns.last().is_none_or(|column: &ComponentColumn| {
-                    column.field != field.erase() || column.component != component
+                    column.field != field.erase()
+                        || column.component != component
+                        || column.derivative != derivative
                 }) {
                     columns.push(ComponentColumn {
                         field: field.erase(),
+                        derivative,
                         component,
                         scalar_domain: value_type.scalar_domain(),
                         real: None,

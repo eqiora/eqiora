@@ -1,6 +1,6 @@
 //! Prepared parent-cell trace actions, shared by affine and Newton assembly.
 use super::coordinates::{Native, Projection};
-use super::field_point::{BoundFieldComponent, FieldPoint};
+use super::field_point::{BoundFieldComponent, FieldPoint, FieldValues};
 use super::flux::FluxTerm;
 use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, invalid};
 use crate::discrete_space::DiscreteSpace;
@@ -118,7 +118,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .iter()
             .filter_map(|term| match term {
                 FluxTerm::Component(term) => {
-                    Some(BoundFieldComponent::new(&term.value, &self.fields))
+                    Some(BoundFieldComponent::new(&term.value, &self.fields, false))
                 }
                 _ => None,
             })

@@ -197,3 +197,45 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
         );
     }
 }
+
+#[test]
+fn algebraic_snapshot_allows_zero_state_partial_of_differential_equations() {
+    // u_dot=0 has a zero State partial. The two algebraic equations still
+    // give v=13u/168 and w=u/168 on this two-element constrained mesh.
+    let source = SOURCE
+        .replace(
+            "law evolution on body { storage 1[s/m^2]*u; flux -grad(u); source -v * 1[1/m^2]; }",
+            "relation evolution on body { 1[s/m^2]*derivative(u)=0; }",
+        )
+        .replace("trace(u)=0; ", "");
+    // The pointwise evolution has no spatial flux, so only v and w require
+    // boundary laws. u's endpoint values are initial data, not extra traces.
+    for source in [source.clone(), complex_source(&source)] {
+        let (resolved, _) = coupled::resolve(&source, "Constrained").unwrap();
+        let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+        let initial = resolved
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new())
+            .unwrap();
+        let expected = initial.spatial_values().unwrap().to_vec();
+        let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
+        let run = CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2])
+            .unwrap();
+        let std::ops::ControlFlow::Continue(outputs) = run
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("complete run");
+        };
+        for (_, step) in outputs {
+            for (actual, expected) in step.state().spatial_values().unwrap().iter().zip(&expected) {
+                assert!((actual - expected).abs() < 1e-11);
+            }
+            assert_eq!(
+                CommonState::from_bytes(&step.state().to_bytes().unwrap(), &resolved).unwrap(),
+                *step.state()
+            );
+        }
+    }
+}

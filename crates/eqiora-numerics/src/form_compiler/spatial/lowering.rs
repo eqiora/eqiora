@@ -216,13 +216,17 @@ impl<S: Coefficient> Context<'_, S> {
                     super::invalid("scalar reaction requires exactly one physical component")
                 })?;
                 let mut row = Terms::data(component.offset);
-                for (field, component, coefficient) in component.terms {
+                for (field, component, derivative, coefficient) in component.terms {
                     if component != crate::form_compiler::bilinear::BasisComponent::Value(0) {
                         return Err(super::invalid(
                             "scalar reaction requires value trial coordinates",
                         ));
                     }
-                    row.reaction.insert(field, coefficient);
+                    if derivative {
+                        row.storage.insert(field, coefficient);
+                    } else {
+                        row.reaction.insert(field, coefficient);
+                    }
                 }
                 Ok(row)
             }

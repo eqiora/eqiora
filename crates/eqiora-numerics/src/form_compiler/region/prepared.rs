@@ -1,6 +1,7 @@
 //! Immutable local actions for one exact form, geometry and quadrature binding.
 
 use super::coordinates::{Native, Projection};
+use super::evaluate::AffineInput;
 use num_complex::ComplexFloat;
 use std::collections::BTreeMap;
 
@@ -13,10 +14,10 @@ use crate::affine_fem::physical_gradient;
 use crate::discrete_space::DiscreteSpace;
 use crate::spatial_expression::Coefficient;
 
+mod action;
 mod ale;
 mod components;
 mod dyadics;
-mod history;
 use components::Component;
 
 pub(crate) type CellActions<S, P = Native> =
@@ -44,7 +45,10 @@ pub(crate) struct PreparedRegionCell<S: Coefficient, P: Projection<S> = Native> 
     dimension: usize,
     fields: Vec<RegionFieldLayout>,
     coordinates: Vec<std::ops::Range<usize>>,
-    affine: LocalContribution<P::Scalar>,
+    affine: Box<LocalContribution<P::Scalar>>,
+    rate: Option<Box<LocalContribution<P::Scalar>>>,
+    step: Option<f64>,
+    independent_coordinates: bool,
     history: Vec<(RawId, usize, Vec<P::Scalar>)>,
     dyadics: Vec<Dyadic>,
     components: Vec<Component<S>>,
@@ -132,15 +136,37 @@ impl<S: Coefficient> BoundRegionForm<S> {
             geometry,
             directions.map(|(current, _)| current),
             quadrature,
+            AffineInput::Current,
         )?;
+        let (rate, rate_tangent) = if self.form.rows.iter().any(|row| {
+            row.terms
+                .iter()
+                .any(|term| term.derivative && !self.eliminations.contains_key(&term.trial))
+        }) {
+            let (value, tangent) = self.prepare_affine_actions::<P>(
+                geometry,
+                directions.map(|(current, _)| current),
+                quadrature,
+                AffineInput::Rate,
+            )?;
+            (Some(Box::new(value)), tangent.map(Box::new))
+        } else {
+            (None, None)
+        };
         let mut history = Vec::new();
         let mut history_tangent = Vec::new();
         for (field, layout) in &self.previous {
-            let (column, (matrix, matrix_tangent)) = self.history_matrix::<P>(
-                *field,
+            let trial = self.eliminations.get(field).copied().unwrap_or(*field);
+            let column = self
+                .fields
+                .iter()
+                .position(|layout| layout.field == trial)
+                .ok_or_else(|| invalid("history lacks an algebraic binding"))?;
+            let (matrix, matrix_tangent) = self.prepare_affine_actions::<P>(
                 previous_geometry,
                 directions.map(|(_, previous)| previous),
                 quadrature,
+                AffineInput::Previous(*field),
             )?;
             let range = &coordinates[column];
             if self.fields[column].range.len() != layout.range.len() {
@@ -182,7 +208,13 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut components = Vec::new();
         for (row, source) in self.form.rows.iter().enumerate() {
             for term in &source.components {
-                components.push(Component::new(row, term, &self.fields, data.len())?);
+                components.push(Component::new(
+                    row,
+                    term,
+                    &self.fields,
+                    data.len(),
+                    self.time_step().is_some(),
+                )?);
                 data.push((row, &term.coefficient));
             }
         }
@@ -299,7 +331,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let tangent = affine_tangent.map(|affine| PreparedRegionCell {
             dimension: self.form.dimension,
             fields: self.fields.clone(),
-            affine,
+            affine: Box::new(affine),
+            rate: rate_tangent,
+            step: self.time_step(),
+            // A geometry tangent is not the original physical residual.
+            independent_coordinates: false,
             coordinates: coordinates.clone(),
             history: history_tangent,
             dyadics: dyadics.clone(),
@@ -310,7 +346,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
             PreparedRegionCell {
                 dimension: self.form.dimension,
                 fields: self.fields.clone(),
-                affine,
+                affine: Box::new(affine),
+                rate,
+                step: self.time_step(),
+                independent_coordinates: self.eliminations.is_empty()
+                    && geometry == previous_geometry,
                 coordinates,
                 history,
                 dyadics,
@@ -336,7 +376,7 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
             .zip(load)
             .map(|(a, b)| *a + *b)
             .collect();
-        self.affine = LocalContribution::new(
+        *self.affine = LocalContribution::new(
             self.affine.rows(),
             self.affine.columns(),
             self.affine.matrix().to_vec(),
@@ -344,10 +384,10 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
         )?;
         Ok(())
     }
-    fn rhs(
+    fn validate_previous(
         &self,
         previous: &BTreeMap<RawId, Vec<P::Scalar>>,
-    ) -> Result<Vec<P::Scalar>, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         if previous.len() != self.history.len()
             || self.history.iter().any(|(id, count, _)| {
                 previous.get(id).is_none_or(|values| {
@@ -359,6 +399,14 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
                 "previous coefficients require exact consumed Field coverage, shape and finite values",
             ));
         }
+        Ok(())
+    }
+
+    fn rhs(
+        &self,
+        previous: &BTreeMap<RawId, Vec<P::Scalar>>,
+    ) -> Result<Vec<P::Scalar>, Diagnostic> {
+        self.validate_previous(previous)?;
         let mut rhs = self.affine.rhs().to_vec();
         for (id, count, matrix) in &self.history {
             for (value, row) in rhs.iter_mut().zip(matrix.chunks_exact(*count)) {
@@ -385,71 +433,8 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
         LocalContribution::new(
             self.affine.rows(),
             self.affine.columns(),
-            self.affine.matrix().to_vec(),
+            self.affine_matrix(self.step_pullback()),
             self.rhs(previous)?,
         )
-    }
-}
-
-impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
-    pub(crate) fn linearize(
-        &self,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-        point: &[f64],
-    ) -> Result<RegionLinearization, Diagnostic> {
-        self.action(previous, point, true)
-    }
-
-    pub(crate) fn residual(
-        &self,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-        point: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic> {
-        Ok(self.action(previous, point, false)?.residual)
-    }
-
-    fn action(
-        &self,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-        point: &[f64],
-        derivative: bool,
-    ) -> Result<RegionLinearization, Diagnostic> {
-        let count = self.affine.rows();
-        if point.len() != count || point.iter().any(|value| !value.is_finite()) {
-            return Err(invalid(
-                "nonlinear region requires a finite exact candidate point",
-            ));
-        }
-        let rhs = self.rhs(previous)?;
-        let mut action = RegionLinearization {
-            jacobian: if derivative {
-                self.affine.matrix().to_vec()
-            } else {
-                Vec::new()
-            },
-            residual: self
-                .affine
-                .matrix()
-                .chunks_exact(count)
-                .zip(&rhs)
-                .map(|(row, rhs)| row.iter().zip(point).map(|(a, b)| a * b).sum::<f64>() - rhs)
-                .collect(),
-        };
-        let physical = P::physical_point(&self.fields, &self.coordinates, point);
-        for sample in &self.samples {
-            for term in &self.components {
-                self.add_component_action(term, sample, &physical, derivative, &mut action)?;
-            }
-            self.add_dyadic_actions(sample, &physical, derivative, &mut action)?;
-        }
-        if action
-            .residual
-            .iter()
-            .chain(&action.jacobian)
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid("nonlinear region action is non-finite"));
-        }
-        Ok(action)
     }
 }

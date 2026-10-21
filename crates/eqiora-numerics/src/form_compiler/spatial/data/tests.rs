@@ -839,7 +839,8 @@ fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivative
         .unwrap();
     assert_eq!(affine.len(), 2);
     for (row, action) in affine.iter().enumerate() {
-        for (_, component, coefficient) in &action.terms {
+        for (_, component, derivative, coefficient) in &action.terms {
+            assert!(!derivative);
             let crate::form_compiler::bilinear::BasisComponent::Value(column) = component else {
                 panic!("value coefficient");
             };

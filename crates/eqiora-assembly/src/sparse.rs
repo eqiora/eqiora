@@ -155,11 +155,6 @@ impl<S: Scalar + ComplexFloat + Sync> CsrValueAssembler<S> {
                 }
             }
             row_offsets.push(values.len());
-            if row_offsets[row + 1] == row_offsets[row] {
-                return Err(assembly_failed(format!(
-                    "assembled global row {row} has no nonzero entries"
-                )));
-            }
         }
         LinearSystem::new(
             CsrMatrix::from_sorted_csr(
@@ -351,14 +346,14 @@ impl<S: Scalar + ComplexFloat + Sync> CooAssembler<S> {
     /// Finalize deterministic compressed sparse row storage.
     ///
     /// # Errors
-    /// Returns `EQ0806` if a global row has no nonzero entry.
+    /// Returns `EQ0806` if the accumulated matrix or RHS is not canonical and finite.
     pub fn finish(self) -> Result<LinearSystem<S>, Diagnostic> {
         let entry_capacity = self.rows.iter().map(Vec::len).sum();
         let mut row_offsets = Vec::with_capacity(self.size + 1);
         let mut column_indices = Vec::with_capacity(entry_capacity);
         let mut values = Vec::with_capacity(entry_capacity);
         row_offsets.push(0);
-        for (row, entries) in self.rows.into_iter().enumerate() {
+        for entries in self.rows {
             for (column, value) in entries {
                 if value != S::zero() {
                     column_indices.push(column);
@@ -366,11 +361,6 @@ impl<S: Scalar + ComplexFloat + Sync> CooAssembler<S> {
                 }
             }
             row_offsets.push(values.len());
-            if row_offsets[row + 1] == row_offsets[row] {
-                return Err(assembly_failed(format!(
-                    "assembled global row {row} has no nonzero entries"
-                )));
-            }
         }
         LinearSystem::new(
             CsrMatrix::from_sorted_csr(self.size, self.size, row_offsets, column_indices, values)?,
@@ -618,12 +608,13 @@ impl<S: Scalar + ComplexFloat + Sync> LinearSystem<S> {
     /// Admit one canonical square sparse matrix and matching finite RHS.
     ///
     /// [`CsrMatrix`] deliberately supports rectangular operators and empty
-    /// rows. A complete assembled linear system is narrower: it is square,
-    /// omits explicit zeros, and has at least one nonzero in every row.
+    /// rows. An assembled linear system is square and omits explicit zeros,
+    /// but may retain zero rows (for example, an algebraic equation's rate
+    /// partial). Assembly does not establish solvability or uniqueness.
     ///
     /// # Errors
     /// Returns `EQ0806` for a nonsquare matrix, RHS shape/value mismatch,
-    /// explicit stored zero, or structurally empty equation row.
+    /// or an explicit stored zero.
     pub fn new(matrix: CsrMatrix<S>, rhs: Vec<S>) -> Result<Self, Diagnostic> {
         if matrix.rows != matrix.columns {
             return Err(assembly_failed(format!(
@@ -643,13 +634,6 @@ impl<S: Scalar + ComplexFloat + Sync> LinearSystem<S> {
             return Err(assembly_failed(
                 "linear system CSR must omit explicit zero entries",
             ));
-        }
-        if let Some(row) =
-            (0..matrix.rows).find(|row| matrix.row_offsets[*row] == matrix.row_offsets[*row + 1])
-        {
-            return Err(assembly_failed(format!(
-                "assembled global row {row} has no nonzero entries"
-            )));
         }
         Ok(Self { matrix, rhs })
     }

@@ -74,7 +74,7 @@ fn additive_complex_diffusion_preserves_flux_phase_rebinding_and_partials() {
             let rule = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
             let local = scalar_bound(&form)
                 .unwrap()
-                .prepare_affine_actions::<Native>(&interval(), None, &rule)
+                .prepare_affine_actions::<Native>(&interval(), None, &rule, AffineInput::Current)
                 .unwrap()
                 .0;
             // On [0,6], K=a/6[[1,-1],[-1,1]], M=q[[2,1],[1,2]], load=3f.
@@ -202,7 +202,7 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
     let bound = scalar_bound(&form).unwrap();
     let rule = QuadratureRule::gauss_legendre(2).unwrap();
     let local = bound
-        .prepare_affine_actions::<Native>(&interval(), None, &rule)
+        .prepare_affine_actions::<Native>(&interval(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     // Independently on [0,6]: K=a/6[[1,-1],[-1,1]],
@@ -247,14 +247,14 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
         .unwrap();
     let rebound = scalar_bound(&rebound)
         .unwrap()
-        .prepare_affine_actions::<Native>(&interval(), None, &rule)
+        .prepare_affine_actions::<Native>(&interval(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     complex_close(rebound.matrix()[0], C::new(3., 5.));
     complex_close(rebound.matrix()[1], C::new(0., 1.));
     complex_close(
         bound
-            .prepare_affine_actions::<Native>(&interval(), None, &rule)
+            .prepare_affine_actions::<Native>(&interval(), None, &rule, AffineInput::Current)
             .map(|(primal, _)| primal)
             .unwrap()
             .matrix()[0],

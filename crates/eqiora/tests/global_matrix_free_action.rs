@@ -147,7 +147,7 @@ fn nonsymmetric_packet_projection_matches_a_hand_calculated_oracle() {
 }
 
 #[test]
-fn packet_system_construction_rejects_incomplete_or_invalid_projection() {
+fn packet_system_validates_projection_and_preserves_zero_actions() {
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
     let target = plan.target_id(0).unwrap();
     let empty = IndexedAssemblyWork::new(
@@ -217,13 +217,13 @@ fn packet_system_construction_rejects_incomplete_or_invalid_projection() {
         eqiora::diagnostic::codes::ASSEMBLY_FAILED
     );
 
-    let incomplete_plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
-    let incomplete_target = incomplete_plan.target_id(0).unwrap();
-    let missing_row = IndexedAssemblyWork::new(1, |_| {
+    let partial_plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
+    let partial_target = partial_plan.target_id(0).unwrap();
+    let zero_row = IndexedAssemblyWork::new(1, |_| {
         AssemblyPacket::new(
             LocalContribution::new(1, 1, vec![1.0], vec![0.0])?,
             vec![TargetAssemblyMap::new(
-                incomplete_target,
+                partial_target,
                 AssemblyMap::new(
                     vec![Some(DofId::new(0))],
                     vec![LocalUnknown::Free(DofId::new(0))],
@@ -231,12 +231,12 @@ fn packet_system_construction_rejects_incomplete_or_invalid_projection() {
             )],
         )
     });
-    assert_eq!(
-        PacketLinearSystem::from_work(&incomplete_plan, incomplete_target, &missing_row)
-            .unwrap_err()
-            .code(),
-        eqiora::diagnostic::codes::ASSEMBLY_FAILED
-    );
+    // A partial operator may leave a row zero: this action is diag(1,0).
+    let partial = PacketLinearSystem::from_work(&partial_plan, partial_target, &zero_row).unwrap();
+    let mut output = [f64::NAN; 2];
+    partial.operator().apply(&[2., 3.], &mut output).unwrap();
+    assert_eq!(output, [2., 0.]);
+    assert_eq!(partial.right_hand_side(), &[0., 0.]);
 
     let cancellation = IndexedAssemblyWork::new(2, |index| {
         AssemblyPacket::new(
@@ -250,12 +250,12 @@ fn packet_system_construction_rejects_incomplete_or_invalid_projection() {
             )],
         )
     });
-    assert_eq!(
-        PacketLinearSystem::from_work(&plan, target, &cancellation)
-            .unwrap_err()
-            .code(),
-        eqiora::diagnostic::codes::ASSEMBLY_FAILED
-    );
+    // The two exact contributions +1 and -1 give the zero action.
+    let zero = PacketLinearSystem::from_work(&plan, target, &cancellation).unwrap();
+    let mut output = [f64::NAN];
+    zero.operator().apply(&[3.], &mut output).unwrap();
+    assert_eq!(output, [0.]);
+    assert_eq!(zero.right_hand_side(), &[0.]);
 
     let rhs_overflow = IndexedAssemblyWork::new(2, |_| {
         AssemblyPacket::new(

@@ -5,7 +5,7 @@ use crate::form_compiler::bilinear::BasisComponent;
 
 pub(in crate::form_compiler) struct ComponentRow<S: Coefficient> {
     pub(in crate::form_compiler) offset: Data<S>,
-    pub(in crate::form_compiler) terms: Vec<(RawId, BasisComponent, Data<S>)>,
+    pub(in crate::form_compiler) terms: Vec<(RawId, BasisComponent, bool, Data<S>)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +68,14 @@ pub(in crate::form_compiler) fn project<S: Coefficient>(
                         })
                     })
             })
-            .map(|(index, column)| (column.field, column.component, data(Some(index))))
+            .map(|(index, column)| {
+                (
+                    column.field,
+                    column.component,
+                    column.derivative,
+                    data(Some(index)),
+                )
+            })
             .collect(),
     }
 }

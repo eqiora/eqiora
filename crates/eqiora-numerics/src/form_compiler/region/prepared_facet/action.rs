@@ -1,19 +1,26 @@
 //! Original constitutive validity and transport actions in numerical coordinates.
 use super::*;
+use crate::form_compiler::region::FieldPullback;
 
 impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
     pub(crate) fn linearize(&self, point: &[f64]) -> Result<RegionLinearization, Diagnostic> {
-        self.action(point, true)
+        self.action(
+            point,
+            Some(FieldPullback {
+                current: Some(1.),
+                rate: None,
+            }),
+        )
     }
 
     pub(crate) fn residual(&self, point: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        Ok(self.action(point, false)?.residual)
+        Ok(self.action(point, None)?.residual)
     }
 
-    pub(in crate::form_compiler::region) fn action(
+    pub(crate) fn action(
         &self,
         point: &[f64],
-        derivative: bool,
+        pullback: Option<FieldPullback>,
     ) -> Result<RegionLinearization, Diagnostic> {
         let count = self.affine.rows();
         if point.len() != count || point.iter().any(|value| !value.is_finite()) {
@@ -22,7 +29,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
             ));
         }
         let mut action = RegionLinearization {
-            jacobian: if derivative {
+            jacobian: if pullback.is_some() {
                 vec![0.; count * count]
             } else {
                 Vec::new()
@@ -42,7 +49,15 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
             // traction was replaced or cancels against the other side.
             // This does not request a material derivative or add a traction.
             for value in &self.constitutive {
-                let _ = value.action(&self.fields, &basis, &physical, false)?;
+                let _ = value.action(
+                    &self.fields,
+                    &basis,
+                    &FieldValues {
+                        current: &physical,
+                        rates: None,
+                    },
+                    None,
+                )?;
             }
             for (&column, &coefficient) in self.columns.iter().zip(&sample.coefficients) {
                 let trial = &self.fields[column];
@@ -74,9 +89,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
                         for coordinate in 0..test_width {
                             action.residual[row + coordinate] += P::component(residual, coordinate);
                         }
-                        if !derivative {
+                        let Some(weight) = pullback.and_then(|p| p.current) else {
                             continue;
-                        }
+                        };
                         for (b, _) in sample.values[column].iter().enumerate() {
                             let trial_value = self.transport_shape(sample, column, b);
                             for (k, normal_component) in self.normal.iter().enumerate() {
@@ -95,7 +110,8 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
                                 for input in 0..trial_width {
                                     for output in 0..test_width {
                                         action.jacobian[(row + output) * count + c + input] +=
-                                            P::component(entry * P::direction(input), output);
+                                            P::component(entry * P::direction(input), output)
+                                                * weight;
                                     }
                                 }
                             }

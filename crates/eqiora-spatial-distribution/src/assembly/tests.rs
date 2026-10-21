@@ -600,3 +600,42 @@ fn malformed_topology_and_shards_fail_closed() -> Result<(), Diagnostic> {
     }
     Ok(())
 }
+
+#[test]
+fn distributed_zero_partial_rows_survive_owner_routing_and_shard_replay() {
+    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
+    let target = plan.target_id(0).unwrap();
+    let work = IndexedAssemblyWork::for_packet_set(
+        AssemblyPacketSetIdentityV1::from_sha256([9; 32]),
+        4,
+        |packet| {
+            let dof = DofId::new(packet / 2);
+            AssemblyPacket::new(
+                LocalContribution::new(
+                    1,
+                    1,
+                    vec![if packet % 2 == 0 { 2. } else { -2. }],
+                    vec![3.],
+                )?,
+                vec![TargetAssemblyMap::new(
+                    target,
+                    AssemblyMap::new(vec![Some(dof)], vec![LocalUnknown::Free(dof)])?,
+                )],
+            )
+        },
+    );
+    let backend = LoopbackSpatialAssemblyBackend::new(layout());
+    let result = backend.assemble(&plan, &work).unwrap();
+    let system = result.system(target).unwrap();
+    assert_eq!(system.matrix().row_offsets(), &[0, 0, 0]);
+    assert!(system.matrix().values().is_empty());
+    assert_eq!(system.rhs(), &[6., 6.]);
+    let evidence = backend.accepted_evidence().unwrap().unwrap();
+    for shard in evidence.target_shards(target).unwrap() {
+        let bytes = shard.to_bytes().unwrap();
+        assert_eq!(
+            OwnedRowAssemblyResult::from_bytes(&plan, shard.plan(), &bytes).unwrap(),
+            *shard
+        );
+    }
+}

@@ -347,3 +347,41 @@ fn immutable_packet_mappings_share_canonical_storage_and_sort_without_mutating_c
     assert_eq!(packet.mappings(), mappings.as_ref());
     assert_eq!(packet.project(&plan, 0).unwrap().len(), 2);
 }
+
+#[test]
+fn partial_rows_survive_preparation_but_absent_targets_reject() {
+    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
+    let target = plan.target_id(0).unwrap();
+    let maps = vec![target_map(target, 0)];
+    let work = IndexedAssemblyWork::new(1, |_| {
+        AssemblyPacket::new(
+            LocalContribution::new(1, 1, vec![2.], vec![3.])?,
+            maps.clone(),
+        )
+    });
+    let prepared = plan.clone().prepare(vec![maps.clone()]).unwrap();
+    for selected in [&plan, &prepared] {
+        let result = REFERENCE_ASSEMBLY_BACKEND
+            .assemble(selected, &work)
+            .unwrap();
+        let system = result.system(target).unwrap();
+        assert_eq!(system.matrix().row_offsets(), &[0, 1, 1]);
+        assert_eq!(system.matrix().values(), &[2.]);
+        assert_eq!(system.rhs(), &[3., 0.]);
+    }
+    let absent = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap(); 2]).unwrap();
+    assert!(
+        REFERENCE_ASSEMBLY_BACKEND
+            .assemble(&absent, &work)
+            .unwrap_err()
+            .message()
+            .contains("omit a planned target")
+    );
+    assert!(
+        absent
+            .prepare(vec![maps])
+            .unwrap_err()
+            .message()
+            .contains("omit an assembly target")
+    );
+}

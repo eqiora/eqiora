@@ -1,7 +1,9 @@
 //! Pointwise component differentials paired with the same physical basis samples.
 use super::*;
 use crate::form_compiler::bilinear::BasisComponent;
-use crate::form_compiler::region::field_point::{BoundFieldComponent, FieldPoint};
+use crate::form_compiler::region::field_point::{
+    BoundFieldComponent, FieldPoint, FieldPullback, FieldValues,
+};
 use crate::form_compiler::region::nonlinear::ComponentTerm;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,11 +21,12 @@ impl<S: Coefficient> Component<S> {
         term: &ComponentTerm<S>,
         fields: &[RegionFieldLayout],
         coefficient: usize,
+        rates: bool,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
             row,
             test: term.test,
-            value: BoundFieldComponent::new(&term.value, fields)?,
+            value: BoundFieldComponent::new(&term.value, fields, rates)?,
             coefficient,
             parameter: term.parameter.clone(),
         })
@@ -35,8 +38,8 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         &self,
         term: &Component<S>,
         sample: &Sample<S>,
-        point: &[S],
-        derivative: bool,
+        point: &FieldValues<'_, S>,
+        pullback: Option<FieldPullback>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let basis = FieldPoint {
@@ -46,9 +49,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         };
         let (value, gradient) = if let Some(parameter) = &term.parameter {
             term.value
-                .parameter_action(&self.fields, &basis, point, parameter, derivative)?
+                .parameter_action(&self.fields, &basis, point, parameter, pullback)?
         } else {
-            term.value.action(&self.fields, &basis, point, derivative)?
+            term.value.action(&self.fields, &basis, point, pullback)?
         };
         let test = &self.fields[term.row];
         let width = P::width(&test.value_type)?;
@@ -61,8 +64,8 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
             for test_coordinate in 0..width {
                 let r = row + test_coordinate;
                 action.residual[r] += P::component(weight * value, test_coordinate);
-                if derivative {
-                    for ((column, component), partials) in
+                if pullback.is_some() {
+                    for ((column, component, _), partials) in
                         term.value.columns().iter().zip(&gradient)
                     {
                         let trial = &self.fields[*column];

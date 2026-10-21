@@ -203,7 +203,7 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
     ///
     /// # Errors
     /// Returns `EQ0806` for an invalid target, empty or drifting work, packet
-    /// evaluation/projection failure, structurally empty global row, failure
+    /// evaluation/projection failure, an absent target, failure
     /// to reserve retained storage, or non-finite accumulation. No partial
     /// system escapes.
     pub fn from_work(
@@ -244,7 +244,8 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
         packets
             .try_reserve_exact(packet_count)
             .map_err(|_| assembly_failed("packet action exceeds allocation capacity"))?;
-        let mut structural_entries = BTreeMap::<(DofId, DofId), S>::new();
+        let mut accumulated_entries = BTreeMap::<(DofId, DofId), S>::new();
+        let mut target_present = false;
 
         for packet_index in 0..packet_count {
             let packet = work.evaluate(packet_index)?;
@@ -255,6 +256,7 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
                 continue;
             };
 
+            target_present = true;
             let mut action_rows = Vec::new();
             action_rows
                 .try_reserve_exact(selected.delta().rows().len())
@@ -276,7 +278,7 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
                         assembly_failed("packet row entries exceed allocation capacity")
                     })?;
                 for &(column, coefficient) in row.entries() {
-                    let accumulated = structural_entries
+                    let accumulated = accumulated_entries
                         .entry((row.row(), column))
                         .or_insert(S::zero());
                     *accumulated = *accumulated + coefficient;
@@ -309,20 +311,10 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
                 "assembly work identity or packet count changed during packet projection",
             ));
         }
-        let mut structurally_nonempty = Vec::new();
-        structurally_nonempty
-            .try_reserve_exact(size)
-            .map_err(|_| assembly_failed("packet row gate exceeds allocation capacity"))?;
-        structurally_nonempty.resize(size, false);
-        for ((row, _), value) in structural_entries {
-            if value != S::zero() {
-                structurally_nonempty[row.index()] = true;
-            }
-        }
-        if let Some(row) = structurally_nonempty.iter().position(|present| !present) {
-            return Err(assembly_failed(format!(
-                "packet global row {row} has no nonzero entry after canonical accumulation"
-            )));
+        if !target_present {
+            return Err(assembly_failed(
+                "packet work does not contribute to the requested target",
+            ));
         }
 
         Ok(Self {
@@ -559,12 +551,12 @@ mod tests {
                 )],
             )
         });
-        assert_eq!(
+        let partial =
             PacketLinearSystem::from_work(&incomplete_plan, incomplete_target, &missing_row)
-                .unwrap_err()
-                .code(),
-            codes::ASSEMBLY_FAILED
-        );
+                .unwrap();
+        let mut action = [99.; 2];
+        partial.operator().apply(&[3., 4.], &mut action).unwrap();
+        assert_eq!(action, [3., 0.]);
 
         let two_target_plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(1).unwrap(),
@@ -604,12 +596,10 @@ mod tests {
                 )],
             )
         });
-        assert_eq!(
-            PacketLinearSystem::from_work(&plan, target, &cancellation)
-                .unwrap_err()
-                .code(),
-            codes::ASSEMBLY_FAILED
-        );
+        let cancelled = PacketLinearSystem::from_work(&plan, target, &cancellation).unwrap();
+        let mut action = [99.];
+        cancelled.operator().apply(&[3.], &mut action).unwrap();
+        assert_eq!(action, [0.]);
 
         let valid = IndexedAssemblyWork::new(1, |_| {
             AssemblyPacket::new(

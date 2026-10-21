@@ -61,7 +61,7 @@ fn translated<S: Coefficient>(program: &KernelProgram, domain: RawId, scale: S) 
         AffineGeometryLinearization::new(map.clone(), vec![2., -1.], vec![0.; 4]).unwrap();
     let rule = eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(2, 3).unwrap();
     let (primal, tangent) = bound
-        .prepare_affine_actions::<Native>(&map, Some(&direction), &rule)
+        .prepare_affine_actions::<Native>(&map, Some(&direction), &rule, AffineInput::Current)
         .unwrap();
     let tangent = tangent.unwrap();
     assert_eq!(primal.rows(), 8);

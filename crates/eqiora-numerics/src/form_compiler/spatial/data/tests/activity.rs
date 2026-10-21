@@ -139,7 +139,7 @@ fn affine_coefficient_partials_preserve_frozen_domains_and_active_zero_tangents(
         let rows = context.affine_components(*rhs, 0).unwrap().unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].terms.len(), 1);
-        let data = &rows[0].terms[0].2;
+        let data = &rows[0].terms[0].3;
         assert_eq!(data.evaluate(&[0.5]).unwrap(), 0.);
         let direction = |coordinate: &ScalarSymbolCoordinate| {
             f64::from(

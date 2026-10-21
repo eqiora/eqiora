@@ -202,7 +202,11 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
             }
             let residual = prepared
                 .work
-                .residual(&prepared.plan, target, &solved.values)
+                .residual(
+                    &prepared.plan,
+                    target,
+                    crate::region_assembly::RegionPoint::Bound(&solved.values),
+                )
                 .unwrap();
             assert!(residual.iter().all(|value| value.abs() < 1e-11));
             let mut wrong = solved.values.clone();
@@ -218,7 +222,11 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
             assert!(
                 prepared
                     .work
-                    .residual(&prepared.plan, target, &wrong)
+                    .residual(
+                        &prepared.plan,
+                        target,
+                        crate::region_assembly::RegionPoint::Bound(&wrong)
+                    )
                     .unwrap()
                     .iter()
                     .any(|value| value.abs() > 1e-6)

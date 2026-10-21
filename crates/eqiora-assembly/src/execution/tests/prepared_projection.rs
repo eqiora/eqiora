@@ -150,11 +150,23 @@ fn compiled_multi_target_projection_preserves_independent_folds_and_exact_bindin
         )
     );
     let cancellation = IndexedAssemblyWork::new(2, |i| Ok(packet(if i == 0 { 1. } else { -1. })));
-    assert!(
-        REFERENCE_ASSEMBLY_BACKEND
-            .assemble(&plan, &cancellation)
-            .is_err()
-    );
+    for selected in [&base, &plan] {
+        let result = REFERENCE_ASSEMBLY_BACKEND
+            .assemble(selected, &cancellation)
+            .unwrap();
+        for target in [reduced, full] {
+            let system = result.system(target).unwrap();
+            assert!(system.matrix().values().is_empty());
+            assert!(
+                system
+                    .matrix()
+                    .row_offsets()
+                    .iter()
+                    .all(|offset| *offset == 0)
+            );
+            assert!(system.rhs().iter().all(|value| *value == 0.));
+        }
+    }
     let projected = packet(1.).project(&plan, 0).unwrap();
     assert_eq!(
         projected[0].delta().rows()[0].entries(),

@@ -9,9 +9,9 @@ impl<S: Coefficient> FieldComponent<S> {
         &self,
         physical: &[f64],
         values: &[S],
-        derivative: bool,
+        derivatives: Option<FieldDerivatives>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
-        self.product(physical, values, None, derivative)
+        self.product(physical, values, None, derivatives)
     }
 
     /// Direct physical Parameter partial with all candidate Field coordinates fixed.
@@ -20,9 +20,9 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: &ScalarSymbolCoordinate,
-        derivative: bool,
+        derivatives: Option<FieldDerivatives>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
-        self.product(physical, values, Some(parameter), derivative)
+        self.product(physical, values, Some(parameter), derivatives)
     }
 
     fn product(
@@ -30,7 +30,7 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: Option<&ScalarSymbolCoordinate>,
-        derivative: bool,
+        derivatives: Option<FieldDerivatives>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         if self.rows.is_empty() || self.rows.len() > 2 {
             return Err(super::super::super::invalid(
@@ -42,7 +42,7 @@ impl<S: Coefficient> FieldComponent<S> {
         for row in &self.rows {
             let part = usize::from(row.is_imaginary());
             let (value, gradient) =
-                self.row_product(row, physical, values, parameter, derivative)?;
+                self.row_product(row, physical, values, parameter, derivatives)?;
             values_by_part[part] = value;
             gradients[part] = gradient;
         }
@@ -53,7 +53,7 @@ impl<S: Coefficient> FieldComponent<S> {
         };
         let value = assemble(values_by_part)?;
         let mut columns = Vec::new();
-        if derivative {
+        if derivatives.is_some() {
             for column in &self.columns {
                 let coordinate = |index: Option<usize>| -> Result<S, Diagnostic> {
                     assemble(std::array::from_fn(|part| {
@@ -75,10 +75,10 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: Option<&ScalarSymbolCoordinate>,
-        derivative: bool,
+        derivatives: Option<FieldDerivatives>,
     ) -> Result<(f64, Vec<f64>), Diagnostic> {
         let inputs = self.point(row, physical, values)?;
-        if parameter.is_none() && !derivative {
+        if parameter.is_none() && derivatives.is_none() {
             return row.evaluate(&inputs).map(|value| (value, Vec::new()));
         }
         let direction =
@@ -88,12 +88,14 @@ impl<S: Coefficient> FieldComponent<S> {
         let mut unknowns = Vec::new();
         for coordinate in row.symbols() {
             if let Some(index) = self.selected.iter().position(|value| value == coordinate) {
-                roles.push(if derivative {
-                    unknowns.push(index);
-                    DifferentiationRole::Unknown
-                } else {
-                    DifferentiationRole::Frozen
-                });
+                roles.push(
+                    if derivatives.is_some_and(|selection| selection.includes(coordinate)) {
+                        unknowns.push(index);
+                        DifferentiationRole::Unknown
+                    } else {
+                        DifferentiationRole::Frozen
+                    },
+                );
                 continue;
             }
             let input = self.binding(coordinate)?;
@@ -116,7 +118,7 @@ impl<S: Coefficient> FieldComponent<S> {
         } else {
             action.primal(&mut value)?;
         }
-        if !derivative {
+        if derivatives.is_none() {
             return Ok((value[0], Vec::new()));
         }
         let mut gradient = vec![0.; unknowns.len()];

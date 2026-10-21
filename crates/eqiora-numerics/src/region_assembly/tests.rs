@@ -4,6 +4,7 @@ use super::*;
 
 mod boundary;
 mod fixture;
+mod implicit;
 mod validation;
 use fixture::Fixture;
 

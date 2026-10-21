@@ -35,6 +35,7 @@ mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
 mod field_point;
+pub(crate) use field_point::FieldPullback;
 mod flux;
 mod lowering;
 mod nonlinear;
