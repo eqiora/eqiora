@@ -79,14 +79,12 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             bindings.insert(symbol, mapped);
         }
         let outer_bindings = std::mem::replace(&mut self.coordinate_bindings, bindings);
-        let outer_remapped = std::mem::take(&mut self.remapped);
-        let outer_maps = std::mem::take(&mut self.map_entries);
+        let outer_cache = std::mem::take(&mut self.cache);
         self.pullback_depth += 1;
         let result = self.lower_part(value, &[], part);
         self.pullback_depth -= 1;
         self.coordinate_bindings = outer_bindings;
-        self.remapped = outer_remapped;
-        self.map_entries = outer_maps;
+        self.cache = outer_cache;
         result
     }
 }

@@ -33,6 +33,12 @@ pub(super) enum Instruction {
         condition: ValueId,
         value: ValueId,
     },
+    // Evaluate the prerequisite before returning value, without arithmetic or
+    // a Boolean test. Projection cannot erase a complete value's domain.
+    Demand {
+        prerequisite: ValueId,
+        value: ValueId,
+    },
     DerivativeLimit {
         start: ValueId,
         len: u32,
@@ -73,6 +79,7 @@ impl Instruction {
             self,
             Self::Select { .. }
                 | Self::Require { .. }
+                | Self::Demand { .. }
                 | Self::PureOperator { .. }
                 | Self::Compare(..)
                 | Self::Not(_)
@@ -131,6 +138,13 @@ impl Instruction {
             },
             Self::Require { condition, value } => Self::Require {
                 condition: at(condition),
+                value: at(value),
+            },
+            Self::Demand {
+                prerequisite,
+                value,
+            } => Self::Demand {
+                prerequisite: at(prerequisite),
                 value: at(value),
             },
             Self::DerivativeLimit { .. } => return None,

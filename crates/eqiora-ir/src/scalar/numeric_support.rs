@@ -169,6 +169,7 @@ pub(super) fn validate_linearization_inputs(
             instruction,
             Instruction::Select { .. }
                 | Instruction::Require { .. }
+                | Instruction::Demand { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Array { .. }
                 | Instruction::Index(_, _)

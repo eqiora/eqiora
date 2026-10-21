@@ -148,7 +148,9 @@ impl ScalarOperatorIr {
                     | Instruction::Mul(a, b)
                     | Instruction::Div(a, b) => vec![a, b],
                     Instruction::Neg(a) | Instruction::PowI(a, _) => vec![a],
-                    Instruction::Require { value, .. } => vec![value],
+                    Instruction::Require { value, .. } | Instruction::Demand { value, .. } => {
+                        vec![value]
+                    }
                     Instruction::Select {
                         condition,
                         then_value,
@@ -205,7 +207,9 @@ impl ScalarOperatorIr {
                         }
                         _ => None,
                     },
-                    Instruction::Require { value, .. } => at(value).cloned(),
+                    Instruction::Require { value, .. } | Instruction::Demand { value, .. } => {
+                        at(value).cloned()
+                    }
                     Instruction::Select {
                         condition,
                         then_value,

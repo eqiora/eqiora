@@ -2,6 +2,19 @@
 use super::*;
 
 impl ScalarInputIrBuilder {
+    pub(crate) fn demand(
+        &mut self,
+        prerequisite: ScalarInputValueId,
+        value: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.binary(prerequisite, value, |prerequisite, value| {
+            Instruction::Demand {
+                prerequisite,
+                value,
+            }
+        })
+    }
+
     pub(super) fn typed_constant(
         &mut self,
         value: eqiora_core::ValueLiteral,

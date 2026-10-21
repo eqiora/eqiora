@@ -138,7 +138,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             .checked_pow(2)
             .ok_or_else(|| invalid_component_ir("finite map operand work exceeds usize"))?;
         charge_products(self.finite_products, work)?;
-        let start = if let Some(start) = self.map_entries.get(&operand) {
+        let start = if let Some(start) = self.cache.maps.get(&operand) {
             *start
         } else {
             let mut entries = Vec::new();
@@ -148,7 +148,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 }
             }
             let start = self.builder.map_entries(&entries)?;
-            self.map_entries.insert(operand, start);
+            self.cache.maps.insert(operand, start);
             start
         };
         let output = if operation == FiniteUnaryOperation::Inverse {

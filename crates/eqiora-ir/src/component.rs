@@ -16,6 +16,9 @@ mod pullback;
 mod pure;
 mod scalar_projection;
 mod spatial;
+mod value_demand;
+#[cfg(test)]
+mod value_demand_tests;
 
 use std::collections::HashMap;
 
@@ -391,13 +394,20 @@ enum SpatialContext<'a> {
     Reconstructed { normal: Option<&'a [f64]> },
 }
 
+// All memoized values belong to one coordinate-substitution context.
+#[derive(Default)]
+struct ComponentCache {
+    components: HashMap<(usize, Box<[u32]>, ScalarPart), ScalarInputValueId>,
+    maps: HashMap<ExprId, ScalarInputValueId>,
+    complete_values: HashMap<ExprId, ScalarInputValueId>,
+}
+
 struct ComponentDagLowering<'a, I> {
     finite_products: &'a mut usize,
     expression: &'a ExprDag,
     node_types: &'a [ExpressionType<I>],
     builder: ScalarInputIrBuilder,
-    remapped: HashMap<(usize, Box<[u32]>, ScalarPart), ScalarInputValueId>,
-    map_entries: HashMap<ExprId, ScalarInputValueId>,
+    cache: ComponentCache,
     inputs: Vec<ScalarSymbolCoordinate>,
     input_nodes: HashMap<ScalarSymbolCoordinate, ScalarInputValueId>,
     symbol_shapes: HashMap<SymbolRef, ValueShape>,
@@ -418,8 +428,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
             expression,
             node_types,
             builder: ScalarInputIrBuilder::new(),
-            remapped: HashMap::new(),
-            map_entries: HashMap::new(),
+            cache: ComponentCache::default(),
             inputs: Vec::new(),
             input_nodes: HashMap::new(),
             symbol_shapes: HashMap::new(),
@@ -452,7 +461,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
         }
         validate_component(node_type.shape(), component)?;
         let key = (index, component.into(), part);
-        if let Some(mapped) = self.remapped.get(&key) {
+        if let Some(mapped) = self.cache.components.get(&key) {
             return Ok(*mapped);
         }
 
@@ -462,12 +471,12 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
             // Embedding does not erase demanded domain checks in the real operand.
             let real = self.lower_part(value, component, ScalarPart::Real)?;
             let zero = self.builder.sub(real, real)?;
-            self.remapped.insert(key, zero);
+            self.cache.components.insert(key, zero);
             return Ok(zero);
         }
         let node = self.expression.nodes()[index].clone();
         if let Some(mapped) = self.lower_complex(&node, component, part)? {
-            self.remapped.insert(key, mapped);
+            self.cache.components.insert(key, mapped);
             return Ok(mapped);
         }
         let mapped = match node {
@@ -519,7 +528,9 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 let coordinates = std::iter::once(index)
                     .chain(component.iter().copied())
                     .collect::<Vec<_>>();
-                self.lower_part(value, &coordinates, part)?
+                let selected = self.lower_part(value, &coordinates, part)?;
+                let complete = self.complete_value(value)?;
+                self.builder.demand(complete, selected)?
             }
             ExprNode::Gradient(_) | ExprNode::CoordinatePartial { .. }
                 if matches!(self.spatial, SpatialContext::Reconstructed { .. }) =>
@@ -664,7 +675,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 ));
             }
         };
-        self.remapped.insert(key, mapped);
+        self.cache.components.insert(key, mapped);
         Ok(mapped)
     }
 
@@ -674,7 +685,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
             Box::<[u32]>::default(),
             ScalarPart::Real,
         );
-        if let Some(value) = self.remapped.get(&key) {
+        if let Some(value) = self.cache.components.get(&key) {
             return Ok(*value);
         }
         let value = match self.expression.node(id).cloned() {
@@ -732,7 +743,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 ));
             }
         };
-        self.remapped.insert(key, value);
+        self.cache.components.insert(key, value);
         Ok(value)
     }
 

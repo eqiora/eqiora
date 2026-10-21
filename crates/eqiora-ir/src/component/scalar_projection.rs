@@ -56,7 +56,8 @@ impl ComponentScalarization {
                     None
                 } else {
                     lowering
-                        .remapped
+                        .cache
+                        .components
                         .get(&(index, Box::default(), ScalarPart::Real))
                         .copied()
                 }

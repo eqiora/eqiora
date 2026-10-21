@@ -65,6 +65,7 @@ fn dependencies(
             // Only a value proven independent of every admitted derivative
             // input can annihilate a product. An active sampled zero cannot.
             Instruction::Mul(a, b) if frozen_zero(a) || frozen_zero(b) => false,
+            Instruction::Demand { value, .. } => active[value.0 as usize],
             _ => {
                 let mut depends = false;
                 let mut invalid = false;

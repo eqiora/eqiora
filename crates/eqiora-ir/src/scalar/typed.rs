@@ -232,6 +232,10 @@ impl TypedInstructions<'_> {
                         | Instruction::Ordinal(a)
                         | Instruction::Not(a) => pending.push(Frame::Demand(a)),
                         Instruction::Compare(_, a, b)
+                        | Instruction::Demand {
+                            prerequisite: a,
+                            value: b,
+                        }
                         | Instruction::Add(a, b)
                         | Instruction::Sub(a, b)
                         | Instruction::Mul(a, b)
@@ -289,7 +293,9 @@ impl TypedInstructions<'_> {
                         else_value
                     })?
                     .clone(),
-                    Instruction::Require { value, .. } => read(value)?.clone(),
+                    Instruction::Require { value, .. } | Instruction::Demand { value, .. } => {
+                        read(value)?.clone()
+                    }
                     Instruction::Math(function, value) => function.evaluate(read(value)?)?,
 
                     Instruction::PureOperator {

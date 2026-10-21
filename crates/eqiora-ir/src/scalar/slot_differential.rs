@@ -186,7 +186,9 @@ impl ScalarInputIrBuilder {
                             .transpose()?
                     }
                 }
-                Instruction::DerivativeLimit { value, .. } => directions[value.0 as usize],
+                Instruction::DerivativeLimit { value, .. } | Instruction::Demand { value, .. } => {
+                    directions[value.0 as usize]
+                }
                 Instruction::Select {
                     condition,
                     then_value,
