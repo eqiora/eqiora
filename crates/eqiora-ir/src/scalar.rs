@@ -527,7 +527,8 @@ impl ScalarOperatorIr {
         for root in &self.roots {
             coefficients.extend(
                 summaries[summary_index(*root, self.instructions.len())?]
-                    .scalar(self.instructions.len())?
+                    .scalar(self.instructions.len())
+                    .map_err(affine_analysis::SummaryFailure::into_symbolic)?
                     .coefficients
                     .iter()
                     .map(|v| v.value),
@@ -588,6 +589,7 @@ impl ScalarOperatorIr {
             let summary = summaries[summary_index(*root, self.instructions.len())
                 .map_err(BoundAffineFailure::from)?]
             .scalar(self.instructions.len())
+            .map_err(affine_analysis::SummaryFailure::into_symbolic)
             .map_err(BoundAffineFailure::from)?;
             coefficients.extend(summary.coefficients.iter().map(|v| v.value));
             offsets.push(

@@ -22,32 +22,48 @@ pub(in crate::scalar) fn evaluate(
             .collect::<Result<Vec<_>, _>>()
     };
     let (a, b) = (real(a)?, real(b)?);
-    let width = operands.shape.width();
-    let dimensions = |values: &[Option<DynQuantity>]| {
+    let dimension = dimension(
+        operands.shape,
+        &a.iter().map(|v| v.map(|v| v.dim())).collect::<Vec<_>>(),
+        &b.iter().map(|v| v.map(|v| v.dim())).collect::<Vec<_>>(),
+    )?;
+    let a = a.iter().map(|v| v.map(|v| v.value())).collect::<Vec<_>>();
+    let b = b.iter().map(|v| v.map(|v| v.value())).collect::<Vec<_>>();
+    ValueLiteral::try_from(DynQuantity::new(operands.shape.jet(&a, &b)?, dimension))
+        .map_err(|e| ir_builder_error(e.to_string()))
+}
+
+pub(in crate::scalar) fn dimension(
+    shape: Shape,
+    a: &[Option<DimExponents>],
+    b: &[Option<DimExponents>],
+) -> Result<DimExponents, Diagnostic> {
+    let width = shape.width();
+    let dimensions = |values: &[Option<DimExponents>]| {
         values
             .chunks_exact(width)
             .map(|block| {
                 let mut dimension = None;
                 for value in block.iter().flatten() {
-                    if dimension.is_some_and(|prior| prior != value.dim()) {
+                    if dimension.is_some_and(|prior| prior != *value) {
                         return Err(ir_builder_error(
                             "solve coefficient matrix entry units differ",
                         ));
                     }
-                    dimension = Some(value.dim());
+                    dimension = Some(*value);
                 }
                 Ok(dimension)
             })
             .collect::<Result<Vec<_>, Diagnostic>>()
     };
-    let (ad, bd) = (dimensions(&a)?, dimensions(&b)?);
+    let (ad, bd) = (dimensions(a)?, dimensions(b)?);
     let base = |values: &[Option<DimExponents>]| {
         values[0].ok_or_else(|| ir_builder_error("solve coefficient base has no unit witness"))
     };
     let units = |value: Option<DimExponents>| {
         value.ok_or_else(|| ir_builder_error("solve coefficient dimension overflow"))
     };
-    let mut dimension = match operands.shape {
+    let mut dimension = match shape {
         Shape::Solve { .. } => units(base(&ad)?.div(base(&bd)?))?,
         Shape::ComplexMath { function, .. } => {
             for (a, b) in ad.iter().zip(&bd) {
@@ -95,8 +111,5 @@ pub(in crate::scalar) fn evaluate(
                 .mul(axis.ok_or_else(|| ir_builder_error("solve direction has no unit witness"))?),
         )?;
     }
-    let a = a.iter().map(|v| v.map(|v| v.value())).collect::<Vec<_>>();
-    let b = b.iter().map(|v| v.map(|v| v.value())).collect::<Vec<_>>();
-    ValueLiteral::try_from(DynQuantity::new(operands.shape.jet(&a, &b)?, dimension))
-        .map_err(|e| ir_builder_error(e.to_string()))
+    Ok(dimension)
 }

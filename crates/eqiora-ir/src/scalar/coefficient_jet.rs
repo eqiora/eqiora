@@ -8,7 +8,7 @@ mod affine;
 mod complex_math;
 mod typed;
 pub(super) use affine::evaluate as affine;
-pub(super) use typed::evaluate as typed;
+pub(super) use typed::{dimension, evaluate as typed};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Shape {

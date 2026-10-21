@@ -105,6 +105,15 @@ Conjugate dependence is retained; these are real-linear actions, not holomorphic
 Whole typed operator results compose with actions, and static channel indexing such as
 `jvp(z,[z],[direction])[1]` retains the value's local axes. Nested actions use the same calculus.
 
+Conditionals over the admitted numeric inputs also compose when the predicate is
+independent of every selected input.
+For `f = if k>0 then math.log(x) else math.log(-x)`, holding `k` fixed gives
+`partial(f,wrt=x)=1/x` and `partial(partial(f,wrt=x),wrt=x)=-1/(x*x)` on
+the selected branch's domain. Only that branch's source and derivative domains are checked,
+including when the result is zero. Differentiating with respect to `k` is rejected;
+an inner zero partial does not erase the original branch dependency. Units of an absent
+branch derivative come from the typed expression, without evaluating the other branch.
+
 These actions apply to admitted explicit expressions only. Array construction inside a
 differentiated expression, general conditional derivatives, implicit solves and general
 unknown-spatial-field variations remain outside this executable profile. A scalar `partial`

@@ -36,8 +36,8 @@ pub(super) fn required_instructions(
     required_with_conditions(instructions, roots, true)
 }
 
-/// Formal differentiation retains a Require predicate verbatim, without traversing
-/// its inactive Boolean branches as separate derivative/domain obligations.
+/// Formal differentiation retains Require and Select predicates verbatim, without
+/// traversing their inactive Boolean branches as separate domain obligations.
 pub(super) fn required_derivative_instructions(
     instructions: &[Instruction],
     roots: &[ValueId],
@@ -61,12 +61,21 @@ fn required_with_conditions(
             continue;
         }
         let instruction = instructions[index];
-        if !include_conditions && let Instruction::Require { value, .. } = instruction {
-            needed[value.0 as usize] = true;
-        } else {
-            visit_instruction_operands(instructions, index, |operand| {
+        match instruction {
+            Instruction::Require { value, .. } if !include_conditions => {
+                needed[value.0 as usize] = true;
+            }
+            Instruction::Select {
+                then_value,
+                else_value,
+                ..
+            } if !include_conditions => {
+                needed[then_value.0 as usize] = true;
+                needed[else_value.0 as usize] = true;
+            }
+            _ => visit_instruction_operands(instructions, index, |operand| {
                 needed[operand.0 as usize] = true;
-            })?;
+            })?,
         }
     }
     Ok(needed)

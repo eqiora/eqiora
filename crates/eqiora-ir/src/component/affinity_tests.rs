@@ -6,6 +6,36 @@ use eqiora_schema::kernel::{
 };
 
 #[test]
+fn inactive_invalid_coefficients_cannot_hide_nonlinear_unknown_dependence() {
+    let field = SymbolRef::Field(Id::new());
+    let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let selected = ScalarSymbolCoordinate::for_value(field, &ty).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let u = b.symbol(field).unwrap();
+    let minus_one = b
+        .constant(DynQuantity::new(-1., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let invalid = b.unary_math(UnaryMathFunction::Log, minus_one).unwrap();
+    let scaled = b.mul(invalid, u).unwrap();
+    let nonlinear = b.mul(scaled, u).unwrap();
+    let condition = b
+        .constant(eqiora_core::ValueLiteral::boolean(false))
+        .unwrap();
+    let root = b.select(condition, nonlinear, u).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        b.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::new(ty.clone(), None)),
+    )
+    .unwrap();
+    let lowered = ComponentScalarization::lower(&typed).unwrap();
+    assert!(!lowered.rows()[0].affine_in(&selected).unwrap());
+    assert!(lowered.rows()[0].bind_affine(&selected, &[]).is_err());
+}
+
+#[test]
 fn affine_classification_retains_coefficients_branches_and_primal_domains() {
     let field = SymbolRef::Field(Id::new());
     let parameter = SymbolRef::Parameter(Id::new());

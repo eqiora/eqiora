@@ -37,6 +37,7 @@ impl CalculusBuilder {
     /// The source, selected input, and derivative order remain canonical. Numerical
     /// execution and optional polynomial proof expansion use their respective owners.
     /// Explicit validity predicates are retained, never differentiated.
+    /// A conditional value requires its predicate to be independent of the selected input.
     ///
     /// # Errors
     /// Rejects invalid formals, a selected input that is not a real scalar,
@@ -103,6 +104,7 @@ impl CalculusBuilder {
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
         let mut pending = vec![source];
         let mut seen = vec![false; self.nodes.len()];
+        let mut input_dependencies = None;
         while let Some(id) = pending.pop() {
             let index = definition_index(id, self.nodes.len())?;
             if std::mem::replace(&mut seen[index], true) {
@@ -114,8 +116,27 @@ impl CalculusBuilder {
             match &self.nodes[index] {
                 // Predicates retain their authored domain, including lazy branches.
                 CalculusNode::Require { value, .. } => pending.push(*value),
-                CalculusNode::Select { .. }
-                | CalculusNode::UnaryMath(crate::kernel::UnaryMathFunction::Abs, _) => {
+                CalculusNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    let dependencies = input_dependencies.get_or_insert_with(|| {
+                        let mut dependencies = Vec::with_capacity(self.nodes.len());
+                        for node in &self.nodes {
+                            dependencies.push(
+                                node == &self.nodes[wrt.index() as usize]
+                                    || node.operands().any(|id| dependencies[id.index() as usize]),
+                            );
+                        }
+                        dependencies
+                    });
+                    if dependencies[condition.index() as usize] {
+                        return Err(PureOperatorError::FormalTypeMismatch);
+                    }
+                    pending.extend([*then_value, *else_value]);
+                }
+                CalculusNode::UnaryMath(crate::kernel::UnaryMathFunction::Abs, _) => {
                     return Err(PureOperatorError::FormalTypeMismatch);
                 }
                 node => pending.extend(node.operands()),
