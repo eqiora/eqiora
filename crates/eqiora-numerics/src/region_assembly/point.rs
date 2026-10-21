@@ -16,7 +16,7 @@ pub(crate) enum RegionPoint<'a> {
         state: &'a [f64],
         rate_target: AssemblyTargetId,
         rates: &'a [f64],
-        pullback: FieldPullback,
+        pullback: FieldPullback<'a>,
     },
 }
 
@@ -128,6 +128,21 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                 pullback,
                 ..
             } => {
+                let local_weights;
+                let pullback = match pullback {
+                    FieldPullback::Coordinates(weights) => {
+                        local_weights = map
+                            .unknowns()
+                            .iter()
+                            .map(|unknown| match unknown {
+                                LocalUnknown::Free(dof) => weights[dof.index()],
+                                LocalUnknown::Fixed(_) => [None, None],
+                            })
+                            .collect::<Vec<_>>();
+                        FieldPullback::Coordinates(&local_weights)
+                    }
+                    uniform => uniform,
+                };
                 if index < self.cells.len() {
                     let rate_map = candidate_map(&cell.mappings, rate_target)?;
                     // Fixed entries contain State values. They are not time derivatives
@@ -167,10 +182,14 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
     ) -> Result<(), Diagnostic> {
         validate_values(plan, target, point.state())?;
         if let RegionPoint::Independent {
-            rate_target, rates, ..
+            rate_target,
+            rates,
+            pullback,
+            ..
         } = point
         {
             validate_values(plan, rate_target, rates)?;
+            pullback.validate(point.state().len())?;
         }
         Ok(())
     }

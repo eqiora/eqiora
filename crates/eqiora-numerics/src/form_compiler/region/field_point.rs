@@ -12,6 +12,7 @@ pub(super) struct FieldPoint<'a> {
     pub physical: &'a [f64],
     pub values: &'a [Vec<f64>],
     pub gradients: &'a [Vec<[f64; 3]>],
+    pub coordinates: &'a [std::ops::Range<usize>],
 }
 
 impl FieldPoint<'_> {
@@ -58,17 +59,49 @@ pub(super) struct FieldValues<'a, S: Coefficient> {
 /// Pull back independent physical State/rate partials into candidate coordinates.
 /// `None` leaves a partial undemanded; a zero weight still demands that partial.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct FieldPullback {
-    pub current: Option<f64>,
-    pub rate: Option<f64>,
+pub(crate) enum FieldPullback<'a> {
+    Uniform {
+        current: Option<f64>,
+        rate: Option<f64>,
+    },
+    /// Numerical column order, with independent State and rate weights.
+    Coordinates(&'a [[Option<f64>; 2]]),
 }
 
-impl FieldPullback {
-    fn derivatives(self) -> FieldDerivatives {
-        FieldDerivatives {
-            current: self.current.is_some(),
-            rate: self.rate.is_some(),
+impl FieldPullback<'_> {
+    pub(crate) fn weight(self, column: usize, derivative: bool) -> Option<f64> {
+        match self {
+            Self::Uniform { current, rate } => {
+                if derivative {
+                    rate
+                } else {
+                    current
+                }
+            }
+            Self::Coordinates(weights) => weights[column][usize::from(derivative)],
         }
+    }
+
+    pub(crate) fn validate(self, count: usize) -> Result<(), Diagnostic> {
+        let valid = match self {
+            Self::Uniform { current, rate } => {
+                [current, rate].into_iter().flatten().all(f64::is_finite)
+            }
+            Self::Coordinates(weights) => {
+                weights.len() == count
+                    && weights
+                        .iter()
+                        .flatten()
+                        .flatten()
+                        .all(|weight| weight.is_finite())
+            }
+        };
+        if !valid {
+            return Err(invalid(
+                "Field pullback requires exact finite coordinate weights",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -114,14 +147,14 @@ impl<S: Coefficient> BoundFieldComponent<S> {
         fields: &[RegionFieldLayout],
         sample: &FieldPoint<'_>,
         point: &FieldValues<'_, S>,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
-        let (value, gradient) = self.value.action(
+        let selected = self.derivatives(fields, sample, pullback);
+        self.value.action(
             sample.physical,
             &self.inputs(fields, sample, point)?,
-            pullback.map(FieldPullback::derivatives),
-        )?;
-        Ok((value, self.pullback(gradient, pullback)))
+            selected.as_deref().map(FieldDerivatives),
+        )
     }
 
     pub(super) fn parameter_action(
@@ -130,15 +163,15 @@ impl<S: Coefficient> BoundFieldComponent<S> {
         sample: &FieldPoint<'_>,
         point: &FieldValues<'_, S>,
         parameter: &eqiora_ir::ScalarSymbolCoordinate,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
-        let (value, gradient) = self.value.parameter_action(
+        let selected = self.derivatives(fields, sample, pullback);
+        self.value.parameter_action(
             sample.physical,
             &self.inputs(fields, sample, point)?,
             parameter,
-            pullback.map(FieldPullback::derivatives),
-        )?;
-        Ok((value, self.pullback(gradient, pullback)))
+            selected.as_deref().map(FieldDerivatives),
+        )
     }
 
     fn inputs(
@@ -165,21 +198,33 @@ impl<S: Coefficient> BoundFieldComponent<S> {
             .collect()
     }
 
-    fn pullback(&self, mut gradient: Vec<[S; 2]>, pullback: Option<FieldPullback>) -> Vec<[S; 2]> {
-        if let Some(pullback) = pullback {
-            for ((_, _, derivative), parts) in self.columns.iter().zip(&mut gradient) {
-                let scale = if *derivative {
-                    pullback.rate
-                } else {
-                    pullback.current
-                };
-                if let Some(scale) = scale {
-                    for part in parts {
-                        *part = *part * scale;
-                    }
-                }
-            }
-        }
-        gradient
+    fn derivatives(
+        &self,
+        fields: &[RegionFieldLayout],
+        sample: &FieldPoint<'_>,
+        pullback: Option<FieldPullback<'_>>,
+    ) -> Option<Vec<[bool; 2]>> {
+        pullback.map(|pullback| {
+            self.columns
+                .iter()
+                .map(|&(field, coordinate, derivative)| {
+                    let layout = &fields[field];
+                    let range = &sample.coordinates[field];
+                    let width = range.len() / layout.range.len();
+                    std::array::from_fn(|part| {
+                        part < width
+                            && sample.values[field].iter().enumerate().any(|(node, _)| {
+                                let (component, basis) = sample.coordinate(field, node, coordinate);
+                                let column = range.start
+                                    + (node * layout.components + component) * width
+                                    + part;
+                                // The geometric basis owns dependency. A sampled zero Field
+                                // value (or an explicit zero weight) does not freeze a partial.
+                                basis != 0. && pullback.weight(column, derivative).is_some()
+                            })
+                    })
+                })
+                .collect()
+        })
     }
 }

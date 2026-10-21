@@ -39,10 +39,11 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         term: &Component<S>,
         sample: &Sample<S>,
         point: &FieldValues<'_, S>,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let basis = FieldPoint {
+            coordinates: &self.coordinates,
             physical: &sample.physical,
             values: &sample.values,
             gradients: &sample.gradients,
@@ -64,8 +65,8 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
             for test_coordinate in 0..width {
                 let r = row + test_coordinate;
                 action.residual[r] += P::component(weight * value, test_coordinate);
-                if pullback.is_some() {
-                    for ((column, component, _), partials) in
+                if let Some(pullback) = pullback {
+                    for ((column, component, derivative), partials) in
                         term.value.columns().iter().zip(&gradient)
                     {
                         let trial = &self.fields[*column];
@@ -78,10 +79,16 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                             for (coordinate, partial) in
                                 partials.iter().take(trial_width).enumerate()
                             {
+                                let Some(direction) =
+                                    pullback.weight(column + coordinate, *derivative)
+                                else {
+                                    continue;
+                                };
                                 action.jacobian[r * count + column + coordinate] +=
                                     P::component(weight * *partial, test_coordinate)
                                         * trial.scale
-                                        * trial_basis;
+                                        * trial_basis
+                                        * direction;
                             }
                         }
                     }

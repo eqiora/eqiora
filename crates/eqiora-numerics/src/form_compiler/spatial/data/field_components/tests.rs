@@ -92,14 +92,8 @@ fn rate_partials_do_not_demand_undefined_state_partials() {
         relation r on body {u=math.sqrt(u)+p*derivative(u)*1[s];}
     }";
     let (component, program, parameters) = component_from_source::<f64>(source, "r", None);
-    let rate = Some(FieldDerivatives {
-        current: false,
-        rate: true,
-    });
-    let current = Some(FieldDerivatives {
-        current: true,
-        rate: false,
-    });
+    let rate = Some(FieldDerivatives(&[[false; 2], [true; 2]]));
+    let current = Some(FieldDerivatives(&[[true; 2], [false; 2]]));
     // R(u,v,p)=sqrt(u)+pv is defined at u=0. R_v=p and R_pv=1 exist
     // there, although R_u does not. Every query must still demand the primal.
     assert_eq!(
@@ -109,7 +103,11 @@ fn rate_partials_do_not_demand_undefined_state_partials() {
     assert!(component.action(&[0.25], &[0., 3.], current).is_err());
     assert!(
         component
-            .action(&[0.25], &[0., 3.], Some(FieldDerivatives::ALL))
+            .action(
+                &[0.25],
+                &[0., 3.],
+                Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()]))
+            )
             .is_err()
     );
     assert!(component.action(&[0.25], &[-1., 3.], rate).is_err());
@@ -130,14 +128,8 @@ fn state_partials_do_not_demand_undefined_rate_partials() {
         relation r on body {u=u+math.sqrt(derivative(u)*1[s]);}
     }";
     let (component, _, _) = component_from_source::<f64>(source, "r", None);
-    let current = Some(FieldDerivatives {
-        current: true,
-        rate: false,
-    });
-    let rate = Some(FieldDerivatives {
-        current: false,
-        rate: true,
-    });
+    let current = Some(FieldDerivatives(&[[true; 2], [false; 2]]));
+    let rate = Some(FieldDerivatives(&[[false; 2], [true; 2]]));
     assert_eq!(
         component.action(&[0.25], &[5., 0.], current).unwrap(),
         (5., vec![[1., 0.], [0., 0.]])
@@ -166,7 +158,11 @@ fn state_and_rate_are_independent_component_coordinates() {
     // The integrator, not the expression, supplies v and dv/du.
     for (u, rate) in [(3., -2.), (-1., 4.), (0., 5.)] {
         let (value, gradient) = component
-            .action(&[0.25], &[u, rate], Some(FieldDerivatives::ALL))
+            .action(
+                &[0.25],
+                &[u, rate],
+                Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+            )
             .unwrap();
         assert_eq!(value, 2. * u * rate + u * u);
         assert_eq!(gradient, [[2. * rate + 2. * u, 0.], [2. * u, 0.]]);
@@ -177,7 +173,11 @@ fn state_and_rate_are_independent_component_coordinates() {
     }
     assert!(
         component
-            .action(&[0.25], &[3.], Some(FieldDerivatives::ALL))
+            .action(
+                &[0.25],
+                &[3.],
+                Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()]))
+            )
             .is_err()
     );
 }
@@ -218,7 +218,7 @@ fn complex_storage_rates_keep_all_four_real_coordinate_partials() {
         .action(
             &[0.25],
             &[C::new(2., 3.), C::new(-1., 4.)],
-            Some(FieldDerivatives::ALL),
+            Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
         )
         .unwrap();
     assert_eq!(value, C::new(40., 60.));
@@ -240,7 +240,11 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
         let bound = component.bind_parameter_point(&point).unwrap();
         for u in [-1., 2.] {
             let (value, gradient) = bound
-                .action(&[0.25], &[u], Some(FieldDerivatives::ALL))
+                .action(
+                    &[0.25],
+                    &[u],
+                    Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+                )
                 .unwrap();
             assert_eq!(value, u + p * u * u);
             assert_eq!(gradient, [[1. + 2. * p * u, 0.]]);
@@ -287,7 +291,11 @@ fn parameter_products_do_not_request_unneeded_field_derivatives() {
     );
     assert!(
         component
-            .action(&[0.5], &[0.], Some(FieldDerivatives::ALL))
+            .action(
+                &[0.5],
+                &[0.],
+                Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()]))
+            )
             .is_err()
     );
     assert!(
@@ -476,7 +484,11 @@ fn complex_component_products_retain_independent_real_directions() {
             // f=(1+p*a)*(a+i*b)+q*(a-i*b). These are independent
             // derivatives with respect to a and b, not a complex derivative.
             let (value, gradient) = bound
-                .action(&[0.25], &[u], Some(FieldDerivatives::ALL))
+                .action(
+                    &[0.25],
+                    &[u],
+                    Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+                )
                 .unwrap();
             assert_eq!(value, C::new((1. + p * a + q) * a, (1. + p * a - q) * b));
             assert_eq!(
@@ -487,12 +499,22 @@ fn complex_component_products_retain_independent_real_directions() {
                 ]]
             );
             let (value, gradient) = bound
-                .parameter_action(&[0.25], &[u], &coordinates[0], Some(FieldDerivatives::ALL))
+                .parameter_action(
+                    &[0.25],
+                    &[u],
+                    &coordinates[0],
+                    Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+                )
                 .unwrap();
             assert_eq!(value, C::new(a * a, a * b));
             assert_eq!(gradient, [[C::new(2. * a, b), C::new(0., a)]]);
             let (value, gradient) = bound
-                .parameter_action(&[0.25], &[u], &coordinates[1], Some(FieldDerivatives::ALL))
+                .parameter_action(
+                    &[0.25],
+                    &[u],
+                    &coordinates[1],
+                    Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+                )
                 .unwrap();
             assert_eq!(value, u.conj());
             assert_eq!(gradient, [[C::new(1., 0.), C::new(0., -1.)]]);
@@ -523,7 +545,11 @@ fn real_outputs_and_imaginary_only_inputs_keep_their_coordinate_roles() {
         );
         let (component, _, _) = component_from_source::<C>(&source, "r", None);
         let (value, actual) = component
-            .action(&[0.25], &[C::new(2., -3.)], Some(FieldDerivatives::ALL))
+            .action(
+                &[0.25],
+                &[C::new(2., -3.)],
+                Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+            )
             .unwrap();
         assert_eq!(value, expected);
         assert_eq!(actual, [gradient]);
@@ -551,7 +577,11 @@ fn mixed_field_domains_preserve_real_inputs_and_complex_output_parts() {
         })
         .collect::<Vec<_>>();
     let (value, gradient) = component
-        .action(&[0.25], &values, Some(FieldDerivatives::ALL))
+        .action(
+            &[0.25],
+            &values,
+            Some(FieldDerivatives(&vec![[true; 2]; component.columns.len()])),
+        )
         .unwrap();
     assert_eq!(value, C::new(9., -12.));
     for (column, gradient) in component.columns.iter().zip(gradient) {
@@ -608,4 +638,47 @@ fn affine_real_projections_of_complex_trials_require_real_coordinates() {
             assert_eq!(image.evaluate(&[0.25]).unwrap(), expected);
         }
     }
+}
+
+#[test]
+fn complex_partial_selection_precedes_scalar_differentiation() {
+    let source = "model Material() {
+        domain body=box(0,1); parameter p:1=2; parameter q:1=0;
+        state u:complex<1> on body;
+        relation r on body {u=math.complex(math.sqrt(math.real(u)),p*math.imag(u)*math.imag(u));}
+    }";
+    let (component, program, parameters) =
+        component_from_source::<num_complex::Complex64>(source, "r", None);
+    let value = num_complex::Complex64::new(0., 3.);
+    let selection = Some(FieldDerivatives(&[[false, true]]));
+    let (primal, gradient) = component.action(&[0.25], &[value], selection).unwrap();
+    assert_eq!(primal, num_complex::Complex64::new(0., 18.));
+    assert_eq!(
+        gradient,
+        vec![[
+            num_complex::Complex64::new(0., 0.),
+            num_complex::Complex64::new(0., 12.)
+        ]]
+    );
+    assert!(
+        component
+            .action(&[0.25], &[value], Some(FieldDerivatives(&[[true, false]])))
+            .is_err()
+    );
+    let parameter = coordinates(&program, &parameters).unwrap().remove(0);
+    let (primal, gradient) = component
+        .parameter_action(&[0.25], &[value], &parameter, selection)
+        .unwrap();
+    assert_eq!(primal, num_complex::Complex64::new(0., 9.));
+    assert_eq!(gradient[0][1], num_complex::Complex64::new(0., 6.));
+    assert!(
+        component
+            .action(&[0.25], &[num_complex::Complex64::new(-1., 3.)], selection)
+            .is_err()
+    );
+    assert!(
+        component
+            .action(&[0.25], &[value], Some(FieldDerivatives(&[])))
+            .is_err()
+    );
 }

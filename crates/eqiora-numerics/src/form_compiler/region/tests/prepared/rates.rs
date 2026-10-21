@@ -54,21 +54,21 @@ fn check_nonlinear_rate_action(balance: &str) {
         };
         for (pullback, expected) in [
             (
-                FieldPullback {
+                FieldPullback::Uniform {
                     current: Some(1.),
                     rate: None,
                 },
                 20.,
             ),
             (
-                FieldPullback {
+                FieldPullback::Uniform {
                     current: None,
                     rate: Some(1.),
                 },
                 12.,
             ),
             (
-                FieldPullback {
+                FieldPullback::Uniform {
                     current: Some(2.),
                     rate: Some(-3.),
                 },
@@ -192,25 +192,29 @@ fn complex_nonlinear_rate_action_pulls_back_real_and_imaginary_history() {
     // At fixed v: J_u=[[8,-16],[24,-32]]. At fixed u: J_v=[[8,12],[12,18]].
     for (pullback, matrix) in [
         (
-            FieldPullback {
+            FieldPullback::Uniform {
                 current: Some(1.),
                 rate: None,
             },
             [8., -16., 24., -32.],
         ),
         (
-            FieldPullback {
+            FieldPullback::Uniform {
                 current: None,
                 rate: Some(1.),
             },
             [8., 12., 12., 18.],
         ),
         (
-            FieldPullback {
+            FieldPullback::Uniform {
                 current: Some(2.),
                 rate: Some(-3.),
             },
             [-8., -68., 12., -118.],
+        ),
+        (
+            FieldPullback::Coordinates(&[[Some(2.), None], [None, Some(-3.)]]),
+            [16., -36., 48., -54.],
         ),
     ] {
         let partial = nonlinear_action(&prepared, &independent, Some(pullback), 2).unwrap();
@@ -262,7 +266,7 @@ fn assembled_rate_partial_leaves_singular_state_partial_undemanded() {
     let rate = nonlinear_action(
         &prepared,
         &point,
-        Some(FieldPullback {
+        Some(FieldPullback::Uniform {
             current: None,
             rate: Some(1.),
         }),
@@ -277,7 +281,7 @@ fn assembled_rate_partial_leaves_singular_state_partial_undemanded() {
             nonlinear_action(
                 &prepared,
                 &point,
-                Some(FieldPullback {
+                Some(FieldPullback::Uniform {
                     current: Some(weight),
                     rate: None
                 }),
@@ -286,6 +290,26 @@ fn assembled_rate_partial_leaves_singular_state_partial_undemanded() {
             .is_err()
         );
     }
+    let mut weights = [[None, Some(1.)]; 3];
+    let action = nonlinear_action(
+        &prepared,
+        &point,
+        Some(FieldPullback::Coordinates(&weights)),
+        3,
+    )
+    .unwrap();
+    assert_eq!(action.residual, vec![0.; 3]);
+    assert_eq!(action.jacobian, vec![0.; 9]);
+    weights[1][0] = Some(0.);
+    assert!(
+        nonlinear_action(
+            &prepared,
+            &point,
+            Some(FieldPullback::Coordinates(&weights)),
+            3
+        )
+        .is_err()
+    );
     let invalid = FieldValues {
         current: &[-1.; 3],
         rates: Some(&[3.; 3]),
@@ -294,7 +318,7 @@ fn assembled_rate_partial_leaves_singular_state_partial_undemanded() {
         nonlinear_action(
             &prepared,
             &invalid,
-            Some(FieldPullback {
+            Some(FieldPullback::Uniform {
                 current: None,
                 rate: Some(1.)
             }),
@@ -315,7 +339,7 @@ fn nonlinear_action<
 >(
     prepared: &crate::form_compiler::region::prepared::PreparedRegionCell<S, P>,
     point: &FieldValues<'_, S>,
-    pullback: Option<FieldPullback>,
+    pullback: Option<FieldPullback<'_>>,
     count: usize,
 ) -> Result<RegionLinearization, Diagnostic> {
     let mut action = RegionLinearization {

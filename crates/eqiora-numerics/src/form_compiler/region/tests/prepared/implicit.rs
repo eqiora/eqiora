@@ -33,13 +33,24 @@ fn affine_state_and_rate_actions_are_independent_of_the_bound_step() {
             .unwrap();
         let rule = simplex_duffy_gauss_legendre(2, bound.minimum_gauss_points()).unwrap();
         let prepared = bound.prepare_cell(&geometry(), &rule).unwrap();
-        for (current, rate) in [(Some(1.), None), (None, Some(1.)), (Some(2.), Some(-3.))] {
+        let weights = [[Some(2.), None], [None, Some(-3.)], [Some(-1.), Some(4.)]];
+        for pullback in [
+            FieldPullback::Uniform {
+                current: Some(1.),
+                rate: None,
+            },
+            FieldPullback::Uniform {
+                current: None,
+                rate: Some(1.),
+            },
+            FieldPullback::Uniform {
+                current: Some(2.),
+                rate: Some(-3.),
+            },
+            FieldPullback::Coordinates(&weights),
+        ] {
             let action = prepared
-                .implicit_action(
-                    &[2.; 3],
-                    Some(&[4.; 3]),
-                    Some(FieldPullback { current, rate }),
-                )
+                .implicit_action(&[2.; 3], Some(&[4.; 3]), Some(pullback))
                 .unwrap();
             // u=6 and v=4 give R=2*4+5*6-7=31; integral of each basis is 1/6.
             for (i, gi) in GRADIENT.iter().enumerate() {
@@ -49,7 +60,9 @@ fn affine_state_and_rate_actions_are_independent_of_the_bound_step() {
                     let rate_entry = 2. * mass(i, j);
                     close(
                         action.jacobian[i * 3 + j],
-                        7. * 3. * (current.unwrap_or(0.) * state + rate.unwrap_or(0.) * rate_entry),
+                        7. * 3.
+                            * (pullback.weight(j, false).unwrap_or(0.) * state
+                                + pullback.weight(j, true).unwrap_or(0.) * rate_entry),
                     );
                 }
             }
@@ -146,26 +159,40 @@ fn complex_affine_rates_keep_real_linear_columns_before_time_pullback() {
             } else {
                 [2., -3., 3., 2.]
             };
-            for (current, rate) in [(Some(1.), None), (None, Some(1.)), (Some(2.), Some(-3.))] {
+            let weights = [[Some(2.), None], [None, Some(-3.)]];
+            for pullback in [
+                FieldPullback::Uniform {
+                    current: Some(1.),
+                    rate: None,
+                },
+                FieldPullback::Uniform {
+                    current: None,
+                    rate: Some(1.),
+                },
+                FieldPullback::Uniform {
+                    current: Some(2.),
+                    rate: Some(-3.),
+                },
+                FieldPullback::Coordinates(&weights),
+            ] {
                 let action = prepared
-                    .implicit_action(
-                        &[2. / 3., 1.],
-                        Some(&[4., -4.]),
-                        Some(FieldPullback { current, rate }),
-                    )
+                    .implicit_action(&[2. / 3., 1.], Some(&[4., -4.]), Some(pullback))
                     .unwrap();
                 for (actual, expected) in action.residual.iter().zip(expected_residual) {
                     close(*actual, expected);
                 }
-                for ((actual, state), rate_entry) in action
+                for (index, ((actual, state), rate_entry)) in action
                     .jacobian
                     .iter()
                     .zip([5., 7., -7., 5.])
                     .zip(rate_matrix)
+                    .enumerate()
                 {
                     close(
                         *actual,
-                        6. * 3. * (current.unwrap_or(0.) * state + rate.unwrap_or(0.) * rate_entry),
+                        6. * 3.
+                            * (pullback.weight(index % 2, false).unwrap_or(0.) * state
+                                + pullback.weight(index % 2, true).unwrap_or(0.) * rate_entry),
                     );
                 }
             }

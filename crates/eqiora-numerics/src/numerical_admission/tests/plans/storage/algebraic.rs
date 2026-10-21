@@ -409,3 +409,30 @@ fn algebraic_regularity_covers_complex_parts_accepted_states_and_replay() {
         );
     }
 }
+
+#[test]
+fn algebraic_initialization_only_demands_unknown_state_partials() {
+    for initial in [1, 0] {
+        // Differential u is prescribed, so the initial unknowns are its rate
+        // and the algebraic values v,w. At (u,v,w)=(0,0,0), u_dot=0 gives
+        // R=0 and the selected Jacobian is diag(M,M,M). The unused derivative
+        // of sqrt(u) with respect to the fixed u is undefined at this point.
+        let source = format!(
+            "public model Constrained(
+                support body:volume(ambient_dimension=1),
+                support left:boundary(parent=body),support right:boundary(parent=body)) {{
+                state u:1 on body in h1; state v:1 on body in h1; state w:1 on body in h1;
+                initial {{u={initial};v=0;w=0;}}
+                relation evolution on body {{1[s]*derivative(u)=math.sqrt(u);}}
+                relation first on body {{v*v+v=0;}}
+                relation second on body {{w*w+w=0;}}
+            }}"
+        );
+        let (resolved, _) = resolve_nonlinear_constraint(&source);
+        resolved
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new())
+            .expect("initialization must not demand the fixed differential State partial");
+    }
+}

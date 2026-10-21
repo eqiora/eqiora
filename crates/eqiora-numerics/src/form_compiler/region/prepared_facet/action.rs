@@ -6,7 +6,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
     pub(crate) fn linearize(&self, point: &[f64]) -> Result<RegionLinearization, Diagnostic> {
         self.action(
             point,
-            Some(FieldPullback {
+            Some(FieldPullback::Uniform {
                 current: Some(1.),
                 rate: None,
             }),
@@ -20,13 +20,16 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
     pub(crate) fn action(
         &self,
         point: &[f64],
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
     ) -> Result<RegionLinearization, Diagnostic> {
         let count = self.affine.rows();
         if point.len() != count || point.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "nonlinear natural facet requires an exact finite parent point",
             ));
+        }
+        if let Some(pullback) = pullback {
+            pullback.validate(count)?;
         }
         let mut action = RegionLinearization {
             jacobian: if pullback.is_some() {
@@ -41,6 +44,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
         let test_width = P::width(&self.fields[self.row].value_type)?;
         for sample in &self.samples {
             let basis = FieldPoint {
+                coordinates: &self.coordinates,
                 physical: &sample.physical,
                 values: &sample.values,
                 gradients: &sample.gradients,
@@ -89,7 +93,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
                         for coordinate in 0..test_width {
                             action.residual[row + coordinate] += P::component(residual, coordinate);
                         }
-                        let Some(weight) = pullback.and_then(|p| p.current) else {
+                        let Some(pullback) = pullback else {
                             continue;
                         };
                         for (b, _) in sample.values[column].iter().enumerate() {
@@ -108,6 +112,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
                                             <S as From<f64>>::from(0.)
                                         });
                                 for input in 0..trial_width {
+                                    let Some(weight) = pullback.weight(c + input, false) else {
+                                        continue;
+                                    };
                                     for output in 0..test_width {
                                         action.jacobian[(row + output) * count + c + input] +=
                                             P::component(entry * P::direction(input), output)

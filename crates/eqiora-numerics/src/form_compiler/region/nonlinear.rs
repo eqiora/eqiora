@@ -132,7 +132,7 @@ impl BoundRegionForm<f64> {
         self.prepare_natural_facet(field, cell, facet, rule, datum)?
             .action(
                 point,
-                derivative.then_some(super::FieldPullback {
+                derivative.then_some(super::FieldPullback::Uniform {
                     current: Some(1.),
                     rate: None,
                 }),
