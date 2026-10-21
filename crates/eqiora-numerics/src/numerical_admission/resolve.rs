@@ -194,9 +194,9 @@ impl ResolvedCommonPlan {
                             | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;
-                if scaling.is_some() || temporal.is_some() {
+                if scaling.is_some() {
                     return Err(invalid(
-                        "complex spatial Plan requires a steady discretization without incompressible scaling",
+                        "complex spatial Plan does not admit incompressible scaling",
                     ));
                 }
                 let selection = resolve_formulation_request(
@@ -214,19 +214,22 @@ impl ResolvedCommonPlan {
                     .any(|region| region.form.is_nonlinear());
                 let (request, nonlinear) =
                     resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
-                if equations
-                    .regions
-                    .iter()
-                    .any(|region| region.form.is_transient())
-                {
-                    return Err(invalid(
-                        "complex spatial storage has no admitted temporal execution",
-                    ));
-                }
+                let temporal = resolve_temporal_requirement(
+                    equations
+                        .regions
+                        .iter()
+                        .any(|region| region.form.is_transient()),
+                    temporal,
+                    "complex spatial form",
+                )?;
                 let properties = recognized.operator_properties(&spatial, nonlinear)?;
                 let structure = equations.algebraic_structure(None)?;
-                let domain =
-                    recognized.numerical_scalar_domain(&spatial, &system_scaling, nonlinear)?;
+                let domain = recognized.numerical_scalar_domain(
+                    &spatial,
+                    &system_scaling,
+                    nonlinear,
+                    temporal,
+                )?;
                 let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
                     super::solver_planning::resolve_complex_linear(
                         request,
@@ -249,7 +252,7 @@ impl ResolvedCommonPlan {
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
                 let admission =
-                    recognized.complete(spatial, linear, None, nonlinear, system_scaling)?;
+                    recognized.complete(spatial, linear, temporal, nonlinear, system_scaling)?;
                 CommonSpatialPlan::from_complex_admission(
                     model,
                     admission,
@@ -405,7 +408,22 @@ fn resolve_linear_requirements(
             "{mathematical_form} requires Linear solve policy"
         )));
     };
-    let temporal = match (has_storage, temporal) {
+    let temporal = resolve_temporal_requirement(has_storage, temporal, mathematical_form)?;
+    if scaling.is_some() {
+        return Err(invalid(format!(
+            "{mathematical_form} does not admit incompressible-flow scaling"
+        )));
+    }
+    resolve_linear(solve, properties, None, None, structure, backend)
+        .map(|linear| (linear, temporal))
+}
+
+fn resolve_temporal_requirement(
+    has_storage: bool,
+    temporal: Option<CommonBackwardEuler>,
+    mathematical_form: &str,
+) -> Result<Option<CommonBackwardEuler>, Diagnostic> {
+    Ok(match (has_storage, temporal) {
         (false, None) => None,
         (false, Some(_)) => {
             return Err(invalid(format!(
@@ -418,14 +436,7 @@ fn resolve_linear_requirements(
                 "{mathematical_form} with storage requires an explicit BackwardEuler policy"
             )));
         }
-    };
-    if scaling.is_some() {
-        return Err(invalid(format!(
-            "{mathematical_form} does not admit incompressible-flow scaling"
-        )));
-    }
-    resolve_linear(solve, properties, None, None, structure, backend)
-        .map(|linear| (linear, temporal))
+    })
 }
 
 fn reject_authored_scalar_form(

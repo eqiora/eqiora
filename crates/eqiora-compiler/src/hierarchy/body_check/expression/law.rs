@@ -23,14 +23,12 @@ impl ExpressionChecker<'_, '_, '_> {
                 .map_err(|error| type_error(self.scope.file, terms.source(), error))?;
         }
         for (expression, value) in [(terms.source(), &source), (terms.flux(), &flux)] {
-            if value.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-                || value.value_type.array_rank() != 0
-            {
+            if value.value_type.array_rank() != 0 {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.scope.file,
                     expression.range(),
-                    "initial scalar conservation Law requires real physical terms",
+                    "scalar conservation Law requires non-array physical terms",
                 ));
             }
         }

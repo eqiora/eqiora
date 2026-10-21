@@ -24,6 +24,35 @@ pub(super) fn lower<S: Coefficient>(
     expression(context, id, coefficient, row, Position::Strong, depth)
 }
 
+pub(super) fn conservation<S: Coefficient>(
+    context: &Context<'_, S>,
+    law: eqiora_schema::kernel::ConservationTerms,
+    row: &mut Row<S>,
+) -> Result<(), Diagnostic> {
+    let negative = Data::constant(context.dimension, <S as From<f64>>::from(-1.0));
+    // Region flux is the weak flux in -div(q); Law retains the physical +div(j).
+    expression(
+        context,
+        law.flux(),
+        negative.clone(),
+        row,
+        Position::Flux,
+        0,
+    )?;
+    // A source is pointwise. Its derivatives do not redefine the retained flux.
+    components::lower(context, law.source(), negative, row, false, 0)?;
+    if let Some(coefficient) = context.conservation_storage(law, row.tested)? {
+        row.terms.push(Term {
+            trial: row.tested,
+            derivative: true,
+            pairing: Pairing::Value,
+            coefficient,
+            positive_diffusion: false,
+        });
+    }
+    Ok(())
+}
+
 pub(super) fn boundary_flux<S: Coefficient>(
     context: &Context<'_, S>,
     id: ExprId,

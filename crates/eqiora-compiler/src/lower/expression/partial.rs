@@ -373,34 +373,33 @@ impl ExpressionLowerer<'_> {
             formals: &formals,
         }
         .component(value, &mut calculus, &mut BTreeMap::new())?;
-        let mut derivative = if derive {
+        let derivative = if !derive {
+            root
+        } else if directions.is_empty() {
             calculus
                 .partial(root, 0)
                 .map_err(|failure| error(self.file, expression, failure.to_string()))?
         } else {
-            root
-        };
-        // Chain the common formal derivative with each retained Field
-        // or pullback derivative. Total time differentiation supplies their exact
-        // rates; spatial differentiation supplies their coordinate directions.
-        // Numerical basis choice stays outside calculus.
-        for (direction, index) in directions.iter().enumerate() {
-            let coefficient = calculus
-                .partial(root, *index as u16)
-                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-            let value = calculus
-                .push(CalculusNode::FormalComponent {
-                    formal: (inputs.len() + direction) as u16,
-                    axes: Box::new([]),
+            let rates = directions
+                .iter()
+                .enumerate()
+                .map(|(direction, index)| {
+                    let formal = (inputs.len() + direction) as u16;
+                    let result = formals[usize::from(formal)].clone();
+                    let axes = (0..result.rank())
+                        .map(|axis| ComponentIndex::Result(axis as u16))
+                        .collect();
+                    let mut rate = CalculusBuilder::new(formals.iter().cloned(), result)?;
+                    let value = rate.push(CalculusNode::FormalComponent { formal, axes })?;
+                    Ok((*index as u16, rate.finish(value)?.into()))
                 })
+                .collect::<Result<Vec<_>, eqiora_schema::kernel::pure_operator::PureOperatorError>>(
+                )
                 .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-            let term = calculus
-                .push(CalculusNode::Mul(coefficient, value))
-                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-            derivative = calculus
-                .push(CalculusNode::Add(derivative, term))
-                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-        }
+            calculus
+                .total_derivative(&root.into(), 0, &rates)
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?
+        };
         let definition = calculus
             .finish(derivative)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;

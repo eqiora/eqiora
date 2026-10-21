@@ -42,10 +42,13 @@ fn independent_cubic_binomial_identity_rejects_coefficient_sign_and_field_mutati
     let missing_chain = builder.mul(scale, dx).unwrap();
     // Storage itself is deliberately not an output root or a balance ancestor.
     let dag = builder.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
+    assert_eq!(
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
     for mutation in [wrong_coefficient, wrong_sign, wrong_field, missing_chain] {
         assert_eq!(
-            dag.verify_time_derivative(storage, mutation),
+            dag.verify_time_derivative(storage, mutation, super::real_scalar_type),
             Err(TimeDerivativeProofError::Mismatch)
         );
     }
@@ -75,10 +78,13 @@ fn explicit_time_parameter_and_field_coefficients_keep_exact_symbol_identity() {
     let wrong_parameter = builder.mul(other_parameter, sum).unwrap();
     let missing_time = builder.mul(parameter, second).unwrap();
     let dag = builder.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
+    assert_eq!(
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
     for mutation in [wrong_parameter, missing_time] {
         assert_eq!(
-            dag.verify_time_derivative(storage, mutation),
+            dag.verify_time_derivative(storage, mutation, super::real_scalar_type),
             Err(TimeDerivativeProofError::Mismatch)
         );
     }
@@ -122,9 +128,12 @@ fn retained_pure_definition_keeps_exact_thirds_and_substitutes_formal_arguments(
     let rounded_one = builder.mul(three, rounded_third).unwrap();
     let rounded = builder.mul(rounded_one, correct).unwrap();
     let dag = builder.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
     assert_eq!(
-        dag.verify_time_derivative(storage, rounded),
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(storage, rounded, super::real_scalar_type),
         Err(TimeDerivativeProofError::Mismatch)
     );
 }
@@ -140,10 +149,16 @@ fn constants_cancellation_and_unrelated_dead_nodes_are_handled_without_weakening
     let unsupported_dead = builder.unary_math(UnaryMathFunction::Sin, x).unwrap();
     let hidden_unsupported = builder.mul(zero, unsupported_dead).unwrap();
     let dag = builder.finish([zero]).unwrap();
-    assert_eq!(dag.verify_time_derivative(canceled, zero), Ok(()));
-    assert_eq!(dag.verify_time_derivative(one, canceled), Ok(()));
     assert_eq!(
-        dag.verify_time_derivative(hidden_unsupported, zero),
+        dag.verify_time_derivative(canceled, zero, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(one, canceled, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(hidden_unsupported, zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::UnsupportedExpression)
     );
 }
@@ -174,18 +189,18 @@ fn unsupported_storage_symbols_and_nonsmooth_or_nonpolynomial_expressions_fail_c
     let dag = builder.finish([zero]).unwrap();
     for storage in unsupported_symbols {
         assert_eq!(
-            dag.verify_time_derivative(storage, zero),
+            dag.verify_time_derivative(storage, zero, super::real_scalar_type),
             Err(TimeDerivativeProofError::UnsupportedStorageSymbol)
         );
     }
     for storage in [require, select, division, negative_power, sqrt] {
         assert_eq!(
-            dag.verify_time_derivative(storage, zero),
+            dag.verify_time_derivative(storage, zero, super::real_scalar_type),
             Err(TimeDerivativeProofError::UnsupportedExpression)
         );
     }
     assert_eq!(
-        dag.verify_time_derivative(ExprId(u32::MAX), zero),
+        dag.verify_time_derivative(ExprId(u32::MAX), zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::InvalidExpression)
     );
 }
@@ -198,7 +213,7 @@ fn graph_and_polynomial_growth_limits_reject_before_unbounded_work() {
     let enormous = builder.powi(x, i32::MAX).unwrap();
     let dag = builder.finish([enormous]).unwrap();
     assert!(matches!(
-        dag.verify_time_derivative(enormous, zero),
+        dag.verify_time_derivative(enormous, zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::Limit
             | TimeDerivativeProofError::Polynomial(ExactPolynomialError::Limit))
     ));
@@ -209,7 +224,63 @@ fn graph_and_polynomial_growth_limits_reject_before_unbounded_work() {
     }
     let dag = builder.finish([zero]).unwrap();
     assert_eq!(
-        dag.verify_time_derivative(zero, zero),
+        dag.verify_time_derivative(zero, zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::Limit)
+    );
+}
+
+#[test]
+fn complex_storage_checks_both_coordinates_and_nonholomorphic_products_exactly() {
+    use eqiora_core::ScalarDomain;
+    // z = x+iy: d(z²)/dt = 2z*z', while d|z|²/dt = 2 Re(conj(z)*z').
+    // The two formulas differ in both conjugation and their real projection.
+    let mut builder = ExprDagBuilder::new();
+    let field = Id::new();
+    let z = builder.symbol(SymbolRef::Field(field)).unwrap();
+    let rate = builder
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let two = constant(&mut builder, 2.);
+    let square = builder.mul(z, z).unwrap();
+    let product = builder.mul(z, rate).unwrap();
+    let correct = builder.mul(two, product).unwrap();
+    let conjugate = builder.unary_math(UnaryMathFunction::Conj, z).unwrap();
+    let paired = builder.mul(conjugate, rate).unwrap();
+    let conjugated = builder.mul(two, paired).unwrap();
+    let missing_imag = builder
+        .unary_math(UnaryMathFunction::Real, correct)
+        .unwrap();
+    let wrong_sign = builder
+        .unary_math(UnaryMathFunction::Conj, correct)
+        .unwrap();
+    let norm = builder.unary_math(UnaryMathFunction::Abs2, z).unwrap();
+    let norm_rate = builder
+        .unary_math(UnaryMathFunction::Real, conjugated)
+        .unwrap();
+    let dag = builder.finish([correct, norm_rate]).unwrap();
+    let ty = |id| {
+        Some(
+            ValueType::scalar(
+                if [two, missing_imag, norm, norm_rate].contains(&id) {
+                    ScalarDomain::Real
+                } else {
+                    ScalarDomain::Complex
+                },
+                DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
+        )
+    };
+    assert_eq!(dag.verify_time_derivative(square, correct, ty), Ok(()));
+    assert_eq!(dag.verify_time_derivative(norm, norm_rate, ty), Ok(()));
+    for wrong in [conjugated, missing_imag, wrong_sign] {
+        assert_eq!(
+            dag.verify_time_derivative(square, wrong, ty),
+            Err(TimeDerivativeProofError::Mismatch)
+        );
+    }
+    assert_eq!(
+        dag.verify_time_derivative(square, correct, |_| None),
+        Err(TimeDerivativeProofError::UnsupportedExpression)
     );
 }

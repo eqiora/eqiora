@@ -267,17 +267,17 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
         (
             "source -(u-v) * 1[1/m^2]",
             "source u*v * 1[1/m^2]",
-            "nonlinear product",
+            "nonlinear Region equations require an explicit Newton policy",
         ),
         (
             "source -(u-v) * 1[1/m^2]",
             "source derivative(u) * 1[s/m^2]",
-            "source requires prescribed data or linear reaction terms",
+            "prescribed coefficient requires a Field, Parameter, coordinate, or model Time",
         ),
         (
             "source -(u-v) * 1[1/m^2]",
             "source div(grad(u))",
-            "source requires prescribed data or linear reaction terms",
+            "spatial component action requires an admitted first-gradient basis",
         ),
         (
             "storage 1[s/m^2] * u",

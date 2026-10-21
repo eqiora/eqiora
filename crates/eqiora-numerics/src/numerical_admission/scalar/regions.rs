@@ -177,9 +177,6 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 &interface_boundaries,
                 motion.map(|_| 0.0),
             )?;
-            if form.is_transient() && S::DOMAIN != eqiora_core::ScalarDomain::Real {
-                return Err(invalid("simplicial storage requires real Fields"));
-            }
             for (_, ty) in form.fields() {
                 let components = crate::form_compiler::region::components(ty, dimension)?;
                 if (components != 1 && components != dimension) || ty.scalar_domain() != S::DOMAIN {

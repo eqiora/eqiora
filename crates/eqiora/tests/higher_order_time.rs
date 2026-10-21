@@ -406,3 +406,48 @@ fn repeated_derivatives_of_fixed_parameters_do_not_create_evolving_coordinates()
         assert_eq!(pair[0].real_scalar_value().unwrap().value(), 0.);
     }
 }
+
+#[test]
+fn total_time_derivative_contracts_complex_array_rates_with_physical_units() {
+    let source = r#"model Motion() {
+        state z:array<complex<m>,2>;
+        relation rate { derivative(time()*math.abs2(z[0])+time()*math.abs2(z[1]))=42[m^2]; }
+    }"#;
+    let model = compile("complex-array-rate.eqi", source)
+        .unwrap()
+        .pop()
+        .unwrap();
+    let (transaction, model_id, symbols) = model.into_parts();
+    let relation_id = symbols.get("rate").unwrap().downcast().unwrap();
+    use eqiora::graph::{GraphStore, InMemoryGraphStore};
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = eqiora::sem::KernelProgram::from_snapshot(&store.snapshot(), model_id).unwrap();
+    let typed = program.typed_relation_residual(relation_id).unwrap();
+    let Some(KernelNode::Relation(relation)) = program.node(relation_id.erase()) else {
+        panic!("rate Relation");
+    };
+    let ir =
+        eqiora::ir::ComponentScalarization::lower_selected(&typed, relation.expression().roots())
+            .unwrap();
+    let values = ir
+        .evaluate(|coordinate| {
+            if coordinate.symbol() == SymbolRef::Time {
+                return Some(2.);
+            }
+            let components = match coordinate.symbol() {
+                SymbolRef::Field(_) => [(3., 4.), (1., -2.)],
+                SymbolRef::Derivative(_, order) if order.get() == 1 => [(5., -2.), (2., 3.)],
+                other => panic!("unexpected total derivative input {other:?}"),
+            };
+            let (real, imag) = components[coordinate.component_index()[0] as usize];
+            Some(if coordinate.is_imaginary() {
+                imag
+            } else {
+                real
+            })
+        })
+        .unwrap();
+    // |z|²=25+5=30; 2*t*Re(conj(z)·z')=4*(7-4)=12.
+    assert_eq!(values, [42., 42.]);
+}

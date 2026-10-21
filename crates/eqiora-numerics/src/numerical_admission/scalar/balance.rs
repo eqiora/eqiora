@@ -107,7 +107,13 @@ impl CommonSpatialPlan {
                 "volume balance requires the exact current Plan checkpoint",
             ));
         }
-        let (mapping, input) = self.scalar_step_assembly(previous, current.require_time_s()?)?;
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid(
+                "volume balance requires real physical coefficients",
+            ));
+        };
+        let (mapping, input) =
+            self.scalar_step_assembly(equations, previous, current.require_time_s()?)?;
         if input.geometry_action.is_some() {
             return Err(invalid("volume balance requires fixed geometry"));
         }

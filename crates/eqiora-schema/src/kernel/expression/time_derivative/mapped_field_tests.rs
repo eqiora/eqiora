@@ -93,11 +93,20 @@ fn mapped_density_retains_both_inventory_and_field_transport_rates() {
         .pullback(qt, vec![xi, eta], vec![(x, xi), (y, eta)])
         .unwrap();
     let dag = b.finish([correct]).unwrap();
-    assert_eq!(dag.verify_time_derivative(storage, correct), Ok(()));
-    assert_eq!(dag.verify_time_derivative(mapped, scalar_rate), Ok(()));
-    assert_eq!(dag.verify_time_derivative(fixed, fixed_rate), Ok(()));
     assert_eq!(
-        dag.verify_time_derivative(nested_canceled, zero),
+        dag.verify_time_derivative(storage, correct, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(mapped, scalar_rate, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(fixed, fixed_rate, super::real_scalar_type),
+        Ok(())
+    );
+    assert_eq!(
+        dag.verify_time_derivative(nested_canceled, zero, super::real_scalar_type),
         Err(TimeDerivativeProofError::UnsupportedExpression)
     );
     for wrong in [
@@ -109,7 +118,7 @@ fn mapped_density_retains_both_inventory_and_field_transport_rates() {
         wrong_axis,
     ] {
         assert_eq!(
-            dag.verify_time_derivative(storage, wrong),
+            dag.verify_time_derivative(storage, wrong, super::real_scalar_type),
             Err(TimeDerivativeProofError::Mismatch)
         );
     }
@@ -132,5 +141,8 @@ fn nested_explicit_polynomial_pullbacks_keep_their_first_rate() {
         .unwrap();
     let rate = b.mul(two, row).unwrap();
     let dag = b.finish([rate]).unwrap();
-    assert_eq!(dag.verify_time_derivative(outer, rate), Ok(()));
+    assert_eq!(
+        dag.verify_time_derivative(outer, rate, super::real_scalar_type),
+        Ok(())
+    );
 }

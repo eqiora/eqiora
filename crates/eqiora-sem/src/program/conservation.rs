@@ -1,7 +1,7 @@
 //! Admission of retained physical conservation meaning on fixed volume support.
 
 use super::*;
-use eqiora_core::{ScalarDomain, ValueFrame};
+use eqiora_core::ValueFrame;
 use eqiora_schema::kernel::ConservationTerms;
 
 pub(super) fn validate_conservation_types(
@@ -37,12 +37,6 @@ pub(super) fn validate_conservation_types(
             ));
             continue;
         };
-        if value_type.value_type.scalar_domain() != ScalarDomain::Real {
-            diagnostics.push(kernel_error(
-                owner,
-                format!("initial scalar conservation Law requires real {role}"),
-            ));
-        }
         if role != "flux"
             && (!value_type.shape().is_scalar() || value_type.frame() != ValueFrame::Invariant)
         {
@@ -65,7 +59,9 @@ pub(super) fn validate_conservation_types(
     if let Some((stored, accumulation)) = terms.storage() {
         if let Err(error) = typed
             .expression()
-            .verify_time_derivative(stored, accumulation)
+            .verify_time_derivative(stored, accumulation, |id| {
+                typed.node_type(id).map(|ty| ty.value_type.clone())
+            })
         {
             diagnostics.push(kernel_error(
                 owner,

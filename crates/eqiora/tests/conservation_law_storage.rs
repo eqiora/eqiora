@@ -52,9 +52,12 @@ fn three_dimensional_heat_storage_admits_and_replays_exact_physical_terms() {
             unreachable!()
         };
         let (storage, accumulation) = terms.storage().unwrap();
+        let typed = program.typed_relation_residual(relation.id()).unwrap();
         relation
             .expression()
-            .verify_time_derivative(storage, accumulation)
+            .verify_time_derivative(storage, accumulation, |id| {
+                typed.node_type(id).map(|ty| ty.value_type.clone())
+            })
             .unwrap();
     }
 }
@@ -68,58 +71,66 @@ fn native_storage_tampering_fails_despite_valid_balance_and_matching_dimensions(
       initial {q=1;}
       law balance on body {storage q*q; flux -diffusivity*grad(q); source 1 [1/s];}
     }"#;
-    let model = compile("storage.eqi", source).unwrap().pop().unwrap();
-    let (original, model_id, symbols) = model.into_parts();
-    let q = symbols.get("q").unwrap();
-    for tamper in [false, true] {
-        let mut transaction = Transaction::new("storage correspondence falsifier");
-        for op in original.ops() {
-            let mut op = op.clone();
-            if tamper
-                && let Op::DefineKernelNode {
-                    node: KernelNode::Relation(relation),
-                } = &op
-                && let RelationMeaning::Conservation(terms) = relation.meaning()
-            {
-                let (storage, accumulation) = terms.storage().unwrap();
-                let Some(eqiora::kernel::ExprNode::Mul(value, _)) =
-                    relation.expression().node(storage)
-                else {
-                    panic!("q*q storage")
-                };
-                assert!(
-                    matches!(relation.expression().node(*value), Some(eqiora::kernel::ExprNode::Symbol(eqiora::kernel::SymbolRef::Field(id))) if id.erase() == q)
-                );
-                let terms = ConservationTerms::new(
-                    Some((*value, accumulation)),
-                    terms.flux(),
-                    terms.source(),
-                );
-                op = Op::DefineKernelNode {
-                    node: RelationDef::conservation(
-                        relation.id(),
-                        relation.expression().clone(),
-                        terms,
-                    )
-                    .unwrap()
-                    .into(),
-                };
+    for source in [
+        source.to_owned(),
+        source
+            .replace("state q:1", "state q:complex<1>")
+            .replace("initial {q=1;}", "initial {q=math.complex(1,2);}")
+            .replace("source 1 [1/s]", "source math.complex(1,0)/1[s]"),
+    ] {
+        let model = compile("storage.eqi", &source).unwrap().pop().unwrap();
+        let (original, model_id, symbols) = model.into_parts();
+        let q = symbols.get("q").unwrap();
+        for tamper in [false, true] {
+            let mut transaction = Transaction::new("storage correspondence falsifier");
+            for op in original.ops() {
+                let mut op = op.clone();
+                if tamper
+                    && let Op::DefineKernelNode {
+                        node: KernelNode::Relation(relation),
+                    } = &op
+                    && let RelationMeaning::Conservation(terms) = relation.meaning()
+                {
+                    let (storage, accumulation) = terms.storage().unwrap();
+                    let Some(eqiora::kernel::ExprNode::Mul(value, _)) =
+                        relation.expression().node(storage)
+                    else {
+                        panic!("q*q storage")
+                    };
+                    assert!(
+                        matches!(relation.expression().node(*value), Some(eqiora::kernel::ExprNode::Symbol(eqiora::kernel::SymbolRef::Field(id))) if id.erase() == q)
+                    );
+                    let terms = ConservationTerms::new(
+                        Some((*value, accumulation)),
+                        terms.flux(),
+                        terms.source(),
+                    );
+                    op = Op::DefineKernelNode {
+                        node: RelationDef::conservation(
+                            relation.id(),
+                            relation.expression().clone(),
+                            terms,
+                        )
+                        .unwrap()
+                        .into(),
+                    };
+                }
+                transaction.push(op);
             }
-            transaction.push(op);
-        }
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction).unwrap();
-        let result = KernelProgram::from_snapshot(&store.snapshot(), model_id);
-        if tamper {
-            let errors = result.unwrap_err();
-            assert!(
-                errors.iter().any(|error| error
-                    .to_string()
-                    .contains("storage accumulation correspondence")),
-                "{errors:?}"
-            );
-        } else {
-            result.unwrap();
+            let mut store = InMemoryGraphStore::new();
+            store.commit(transaction).unwrap();
+            let result = KernelProgram::from_snapshot(&store.snapshot(), model_id);
+            if tamper {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|error| error
+                        .to_string()
+                        .contains("storage accumulation correspondence")),
+                    "{errors:?}"
+                );
+            } else {
+                result.unwrap();
+            }
         }
     }
 }
@@ -161,7 +172,15 @@ fn native_canceled_storage_still_requires_continuous_state_coordinates() {
     let expression = dag.finish([left, source]).unwrap();
     let terms = ConservationTerms::new(Some((stored, accumulation)), flux, source);
     expression
-        .verify_time_derivative(stored, accumulation)
+        .verify_time_derivative(stored, accumulation, |_| {
+            Some(
+                eqiora::ValueType::scalar(
+                    eqiora::ScalarDomain::Real,
+                    eqiora::DimExponents::DIMENSIONLESS,
+                )
+                .unwrap(),
+            )
+        })
         .unwrap();
     for variable in [false, true] {
         let mut transaction = Transaction::new("canceled storage eligibility");
@@ -202,5 +221,24 @@ fn native_canceled_storage_still_requires_continuous_state_coordinates() {
         } else {
             result.unwrap();
         }
+    }
+}
+
+#[test]
+fn complex_nonholomorphic_storage_replays_exact_coordinate_correspondence() {
+    for storage in ["q*q", "math.complex(math.abs2(q),math.imag(q))"] {
+        let source = format!(
+            r#"model M() {{
+          domain body=box(0,1);
+          state q:complex<1> on body;
+          parameter diffusivity:m^2/s=1;
+          initial {{q=math.complex(1,2);}}
+          law balance on body {{storage {storage}; flux -diffusivity*grad(q); source math.complex(1,0)/1[s];}}
+        }}"#
+        );
+        let document = eqiora::api::ModelDocument::compile("complex-storage.eqi", &source).unwrap();
+        let bytes = document.canonical_json().unwrap();
+        let replay = eqiora::api::ModelDocument::replay(&bytes).unwrap();
+        assert_eq!(bytes, replay.canonical_json().unwrap());
     }
 }

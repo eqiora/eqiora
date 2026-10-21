@@ -57,18 +57,43 @@ impl<'a> Jacobian<'a> {
         })
     }
 
-    fn jvp(self, directions: &[CalculusArgument]) -> Result<CalculusNodeId, PureOperatorError> {
+    fn jvp(
+        self,
+        directions: &[CalculusArgument],
+        parameter_dimension: DimExponents,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
         if directions.len() != self.inputs.len() {
             return Err(PureOperatorError::ArityMismatch);
         }
+        let output = self
+            .output
+            .clone()
+            .with_dimension(
+                self.output
+                    .dimension()
+                    .div(parameter_dimension)
+                    .ok_or(PureOperatorError::ResultDimensionOverflow)?,
+            )
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
         for ((_, selected), direction) in self.inputs.iter().zip(directions) {
-            ExpressionType::<()>::new(self.output.clone(), None)
+            let input = input_type(selected);
+            let rate = input
+                .value_type
+                .clone()
+                .with_dimension(
+                    input
+                        .dimension()
+                        .div(parameter_dimension)
+                        .ok_or(PureOperatorError::ResultDimensionOverflow)?,
+                )
+                .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
+            ExpressionType::<()>::new(output.clone(), None)
                 .jvp(
-                    &input_type(selected),
+                    &ExpressionType::new(rate.clone(), None),
                     &ExpressionType::new(direction.value_type(self.calculus)?, None),
                 )
                 .map_err(action_type_error)?;
-            direction.validate(self.calculus, selected)?;
+            direction.validate(self.calculus, &PureValueClass::from_value_type(rate)?)?;
         }
         let staged = self.calculus;
         let linear = Linearization::bind(staged, self.root, &self.inputs)?;
@@ -95,7 +120,7 @@ impl<'a> Jacobian<'a> {
             });
         }
         let result = result.expect("nonempty checked domain");
-        if staged.value_type(result)? != self.output {
+        if staged.value_type(result)? != output {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
         Ok(result)
@@ -131,9 +156,54 @@ impl CalculusBuilder {
         value: &CalculusArgument,
         directions: &[(u16, CalculusArgument)],
     ) -> Result<CalculusNodeId, PureOperatorError> {
-        if directions.is_empty() || directions.len() > MAX_FORMALS {
+        self.jacobian_action(value, directions, None)
+    }
+
+    /// Differentiate with respect to a real scalar coordinate, including typed rates
+    /// of dependent inputs. Each rate has its input's units divided by the coordinate's
+    /// units; complex and shaped inputs use the same real-linear action as `jvp`.
+    /// Unlisted inputs remain fixed. The output has its original units per coordinate.
+    ///
+    /// # Errors
+    /// Rejects invalid coordinates, duplicate or incompatible rates, unsupported
+    /// derivatives and resource limits. On error nothing is appended.
+    pub fn total_derivative(
+        &mut self,
+        value: &CalculusArgument,
+        coordinate: u16,
+        rates: &[(u16, CalculusArgument)],
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        self.jacobian_action(value, rates, Some(coordinate))
+    }
+
+    fn jacobian_action(
+        &mut self,
+        value: &CalculusArgument,
+        directions: &[(u16, CalculusArgument)],
+        coordinate: Option<u16>,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        let count = directions
+            .len()
+            .saturating_add(usize::from(coordinate.is_some()));
+        if count == 0 || count > MAX_FORMALS {
             return Err(PureOperatorError::FormalLimit);
         }
+        let parameter_dimension = match coordinate {
+            Some(formal) => {
+                let selected = self
+                    .formals
+                    .get(usize::from(formal))
+                    .ok_or(PureOperatorError::InvalidFormal(formal))?;
+                let ty = selected
+                    .exact_type()
+                    .ok_or(PureOperatorError::FormalTypeMismatch)?;
+                if !selected.is_invariant_scalar() || ty.scalar_domain() != ScalarDomain::Real {
+                    return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                ty.dimension()
+            }
+            None => DimExponents::DIMENSIONLESS,
+        };
         let output = PureValueClass::from_value_type(value.value_type(self)?)?;
         if !output.is_invariant_scalar()
             && !composition::compatible_component_layout(&output, &self.result)
@@ -150,6 +220,14 @@ impl CalculusBuilder {
             .map(|axis| ComponentIndex::Result(axis as u16))
             .collect::<Vec<_>>();
         let root = value.project(&mut staged, &axes)?;
+        let mut directions = directions.to_vec();
+        if let Some(coordinate) = coordinate {
+            let unit = staged.push(CalculusNode::Rational {
+                value: ExactRational::integer(1),
+                dimension: DimExponents::DIMENSIONLESS,
+            })?;
+            directions.insert(0, (coordinate, unit.into()));
+        }
         let formals = directions
             .iter()
             .map(|(formal, _)| *formal)
@@ -158,7 +236,8 @@ impl CalculusBuilder {
             .iter()
             .map(|(_, value)| value.clone())
             .collect::<Vec<_>>();
-        let result = Jacobian::new(&mut staged, root, &formals)?.jvp(&values)?;
+        let result =
+            Jacobian::new(&mut staged, root, &formals)?.jvp(&values, parameter_dimension)?;
         *self = staged;
         Ok(result)
     }

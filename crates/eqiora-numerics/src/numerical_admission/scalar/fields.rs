@@ -59,6 +59,25 @@ impl CommonSpatialPlan {
         Ok(fields.into_iter())
     }
 
+    pub(super) fn temporal_field_entities<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        field: eqiora_core::RawId,
+    ) -> Result<Vec<eqiora_meshing::MeshEntity>, Diagnostic> {
+        let (mapping, _) = self.state_assembly(equations, Some(0.0))?;
+        let inventory = self.physical_field_inventory(&mapping)?;
+        let owned = inventory
+            .get(&field)
+            .ok_or_else(|| invalid("Field absent from exact State inventory"))?;
+        Ok(owned
+            .coefficients
+            .keys()
+            .map(|key| key.entity)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect())
+    }
+
     /// Current coordinates in the exact retained simplicial Mesh's vertex order.
     /// A temporal occurrence requires its owning State; static results use None.
     /// Geometry reconstruction uses the same prescribed map as assembly.

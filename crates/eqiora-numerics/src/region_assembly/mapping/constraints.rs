@@ -4,27 +4,31 @@ use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 use eqiora_solver::SolverPlan;
 
-impl RegionDofMap<f64> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S>
+where
+    Self: RegionAlgebraicCoordinates<f64, S>,
+{
     pub(crate) fn validate_algebraic_state<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<f64>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        mut input: RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         algebraic: &BTreeSet<RawId>,
         solver: SolverPlan,
     ) -> Result<(), Diagnostic> {
         self.validate_physical(fields)?;
-        let mut values = vec![0.; self.free_count()];
+        let values = self.validated_coordinates(fields)?;
+        let coordinates = RegionRealCoordinates::new(self)?;
         let mut rows = BTreeSet::new();
         let mut stored_rows = BTreeSet::new();
         for key in self.keys() {
-            if let Some(dof) = self.free_dof(key) {
-                let (_, layout) = self.field_layout(key.field).expect("mapped Field");
-                values[dof.index()] = fields[&key.field].coefficients[&key] / layout.scale;
-                if algebraic.contains(&key.field) {
-                    rows.insert(dof.index());
-                } else {
-                    stored_rows.insert(dof.index());
+            for global in coordinates.global_coordinates(key) {
+                if let Some(row) = coordinates.free_coordinate(global) {
+                    if algebraic.contains(&key.field) {
+                        rows.insert(row);
+                    } else {
+                        stored_rows.insert(row);
+                    }
                 }
             }
         }
@@ -52,22 +56,15 @@ impl RegionDofMap<f64> {
                             field: pair.rate().erase(),
                             ..*key
                         };
-                        *value -= time.step.value()
-                            * rate.coefficients.get(&rate_key).ok_or_else(|| {
-                                invalid("algebraic snapshot lacks its exact rate coordinate")
-                            })?;
+                        *value -= *rate.coefficients.get(&rate_key).ok_or_else(|| {
+                            invalid("algebraic snapshot lacks its exact rate coordinate")
+                        })? * time.step.value();
                     }
                 }
             }
         }
-        let prepared = self.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            input.forms,
-            input.natural,
-            Some(&previous),
-            input.geometry_action.as_deref(),
-        )?;
+        input.previous = Some(previous);
+        let prepared = self.prepare_numeric_assembly(mesh, &input)?;
         let action = prepared.work.linearize(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),

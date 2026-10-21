@@ -34,6 +34,9 @@ impl ExpressionChecker<'_, '_, '_> {
                     _ => return Err(self.time_rule_error(&value)),
                 },
                 ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
+                // Ordinary typing already checks the static component index.
+                // Evolution eligibility belongs to the complete input value.
+                ExprKind::Index { value, .. } => pending.push(*value.clone()),
                 ExprKind::CoordinateMapFactor { at, .. } => {
                     pending.extend(at.iter().map(|(_, mapped)| mapped.clone()));
                 }

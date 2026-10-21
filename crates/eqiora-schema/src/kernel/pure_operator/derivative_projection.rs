@@ -147,6 +147,58 @@ impl CalculusBuilder {
                     })?)
                 }
                 CalculusNode::FormalComponent { axes, .. } if axes.is_empty() => None,
+                CalculusNode::Complex { real, imag } => {
+                    match (derivative(*real), derivative(*imag)) {
+                        (None, None) => None,
+                        (real_derivative, imag_derivative) => {
+                            let dimension = self
+                                .value_type(*real)?
+                                .dimension()
+                                .div(input_dimension)
+                                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+                            let mut component = |value| match value {
+                                Some(value) => Ok(value),
+                                None => staged.push(CalculusNode::Rational {
+                                    value: ExactRational::integer(0),
+                                    dimension,
+                                }),
+                            };
+                            let real = component(real_derivative)?;
+                            let imag = component(imag_derivative)?;
+                            Some(staged.push(CalculusNode::Complex { real, imag })?)
+                        }
+                    }
+                }
+                CalculusNode::UnaryMath(function, value) => {
+                    use crate::kernel::UnaryMathFunction;
+                    match function {
+                        UnaryMathFunction::Real
+                        | UnaryMathFunction::Imag
+                        | UnaryMathFunction::Conj => derivative(*value)
+                            .map(|value| staged.push(CalculusNode::UnaryMath(*function, value)))
+                            .transpose()?,
+                        UnaryMathFunction::Abs2 => match derivative(*value) {
+                            None => None,
+                            Some(rate) => {
+                                let conjugate = staged.push(CalculusNode::UnaryMath(
+                                    UnaryMathFunction::Conj,
+                                    *value,
+                                ))?;
+                                let product = staged.push(CalculusNode::Mul(conjugate, rate))?;
+                                let real = staged.push(CalculusNode::UnaryMath(
+                                    UnaryMathFunction::Real,
+                                    product,
+                                ))?;
+                                let two = staged.push(CalculusNode::Rational {
+                                    value: ExactRational::integer(2),
+                                    dimension: DimExponents::DIMENSIONLESS,
+                                })?;
+                                Some(staged.push(CalculusNode::Mul(two, real))?)
+                            }
+                        },
+                        _ => return Err(PureOperatorError::FormalTypeMismatch),
+                    }
+                }
                 CalculusNode::Neg(value) => derivative(*value)
                     .map(|value| staged.push(CalculusNode::Neg(value)))
                     .transpose()?,

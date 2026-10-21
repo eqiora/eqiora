@@ -152,3 +152,53 @@ fn actions_roll_back_partially_appended_work_at_the_shared_node_limit() {
     );
     assert_eq!((builder.nodes, builder.depths), before);
 }
+
+#[test]
+fn total_derivative_preserves_rate_units_shapes_and_transactional_validation() {
+    let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let speed = length.div(time).unwrap();
+    let scalar = |domain, dimension| ValueType::scalar(domain, dimension).unwrap();
+    let field = scalar(ScalarDomain::Complex, length).array(2).unwrap();
+    let rate = scalar(ScalarDomain::Complex, speed).array(2).unwrap();
+    let formals = [
+        scalar(ScalarDomain::Real, time),
+        field.clone(),
+        rate.clone(),
+        field,
+    ]
+    .map(|ty| PureValueClass::from_value_type(ty).unwrap());
+    let source = whole(&formals, 1);
+    let valid = whole(&formals, 2);
+    let wrong_units = whole(&formals, 3);
+    let result = PureValueClass::from_value_type(rate.clone()).unwrap();
+    let mut builder = CalculusBuilder::new(formals.clone(), result).unwrap();
+    let before = (builder.nodes.clone(), builder.depths.clone());
+    for (coordinate, rates) in [
+        (0, vec![(1, wrong_units)]),
+        (1, vec![(1, valid.clone())]),
+        (0, vec![(1, valid.clone()), (1, valid.clone())]),
+        (0, vec![(0, valid.clone())]),
+    ] {
+        assert!(
+            builder
+                .total_derivative(&source, coordinate, &rates)
+                .is_err()
+        );
+        assert_eq!((builder.nodes.clone(), builder.depths.clone()), before);
+    }
+    let derivative = builder.total_derivative(&source, 0, &[(1, valid)]).unwrap();
+    let definition = builder.finish(derivative).unwrap();
+    let inputs = formals
+        .iter()
+        .map(|class| ExpressionType::<()>::new(class.exact_type().unwrap().clone(), None))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        definition
+            .instantiate(&inputs)
+            .unwrap()
+            .result_type()
+            .value_type,
+        rate
+    );
+}

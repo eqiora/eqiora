@@ -32,8 +32,11 @@ impl RecognizedNativeAdmission {
         spatial: &NativeSpatialPolicy,
         scaling: &eqiora_realization::SystemScaling,
         nonlinear: Option<NonlinearSolvePlan>,
+        temporal: Option<CommonBackwardEuler>,
     ) -> Result<eqiora_core::ScalarDomain, Diagnostic> {
-        if nonlinear.is_some() {
+        // Evolving and nonlinear actions keep one real-linear coordinate layout
+        // across accepted states; physical complex values retain both channels.
+        if nonlinear.is_some() || temporal.is_some() {
             return Ok(eqiora_core::ScalarDomain::Real);
         }
         match (&self.recognized, spatial) {

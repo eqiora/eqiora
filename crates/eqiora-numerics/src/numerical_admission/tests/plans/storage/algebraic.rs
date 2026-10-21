@@ -23,13 +23,24 @@ public model Constrained(
 }
 "#;
 
+fn complex_source(source: &str) -> String {
+    source
+        .replace(": 1 on body", ": complex<1> on body")
+        .replace("4 * x", "math.complex(1,2) * 4 * x")
+}
+
 #[test]
 fn mixed_storage_preserves_algebraic_feedback_and_restart() {
     // Two half-length elements give M_ii=1/3, K_ii=4.
     // Algebraic rows: 13v=u+w, 13w=v, hence v=13u/168 and w=u/168.
     // Evolution: u' = -(12+13/168)u = -2029u/168.
     // Backward Euler with dt=1/4 multiplies u by 672/2701 each step.
-    for source in [SOURCE.to_owned(), SOURCE.replace("Constrained", "Renamed")] {
+    for source in [
+        SOURCE.to_owned(),
+        SOURCE.replace("Constrained", "Renamed"),
+        complex_source(SOURCE),
+    ] {
+        let parts = if source.contains("complex<1>") { 2 } else { 1 };
         let entry = if source.contains("model Renamed") {
             "Renamed"
         } else {
@@ -39,20 +50,23 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
         let replay = replay_plan(resolved.clone(), &REFERENCE_LINEAR_SOLVER);
         let plan = resolved.as_spatial().unwrap();
         let interior = fields.map(|field| {
-            3 * plan
-                .fields()
-                .position(|(id, _)| id.erase() == field)
-                .unwrap()
-                + 1
+            parts
+                * (3 * plan
+                    .fields()
+                    .position(|(id, _)| id.erase() == field)
+                    .unwrap()
+                    + 1)
         });
         let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
-        let mut invalid = initial.clone();
-        let CommonStateKind::Spatial(values) = &mut invalid.kind else {
-            unreachable!()
-        };
-        values[interior[1]] += 0.001;
-        let error = CommonState::from_bytes(&invalid.to_bytes().unwrap(), &replay).unwrap_err();
-        assert!(error.message().contains("algebraic"), "{}", error.message());
+        for part in 0..parts {
+            let mut invalid = initial.clone();
+            let CommonStateKind::Spatial(values) = &mut invalid.kind else {
+                unreachable!()
+            };
+            values[interior[1] + part] += 0.001;
+            let error = CommonState::from_bytes(&invalid.to_bytes().unwrap(), &replay).unwrap_err();
+            assert!(error.message().contains("algebraic"), "{}", error.message());
+        }
         let before = initial.to_bytes().unwrap();
         let run =
             CommonTransientRunRequest::from_steps(resolved, initial.clone(), 3, vec![1, 2, 3])
@@ -67,7 +81,12 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
             let state = state.state();
             let u = (672.0_f64 / 2701.0).powi(step);
             for (index, expected) in interior.into_iter().zip([u, 13.0 * u / 168.0, u / 168.0]) {
-                assert!((state.spatial_values().unwrap()[index] - expected).abs() < 1e-11);
+                for part in 0..parts {
+                    let component = if part == 0 { expected } else { 2. * expected };
+                    assert!(
+                        (state.spatial_values().unwrap()[index + part] - component).abs() < 1e-11
+                    );
+                }
             }
         }
         assert_eq!(before, initial.to_bytes().unwrap());
@@ -86,15 +105,23 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
 
 #[test]
 fn mixed_storage_rejects_inconsistent_algebraic_initial_state() {
-    let source = SOURCE.replace("v = (13/168)", "v = (14/168)");
-    for step in [0.25, 1e-12] {
-        let (resolved, _) = coupled::resolve_with_step(&source, "Constrained", step).unwrap();
-        let error = resolved
-            .as_spatial()
-            .unwrap()
-            .initial_state(Some(0.0), Vec::new())
-            .unwrap_err();
-        assert!(error.message().contains("algebraic"), "{}", error.message());
+    let imaginary_error = complex_source(SOURCE).replace(
+        "v = (13/168) * math.complex(1,2)",
+        "v = math.complex(13/168,28/168)",
+    );
+    for source in [
+        SOURCE.replace("v = (13/168)", "v = (14/168)"),
+        imaginary_error,
+    ] {
+        for step in [0.25, 1e-12] {
+            let (resolved, _) = coupled::resolve_with_step(&source, "Constrained", step).unwrap();
+            let error = resolved
+                .as_spatial()
+                .unwrap()
+                .initial_state(Some(0.0), Vec::new())
+                .unwrap_err();
+            assert!(error.message().contains("algebraic"), "{}", error.message());
+        }
     }
 }
 
