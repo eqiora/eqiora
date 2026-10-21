@@ -67,6 +67,24 @@ impl ComponentScalarRow {
         &self.symbols
     }
 
+    /// Conservative symbolic incidence of the returned row expression.
+    /// Evaluation-only prerequisites do not supply equation coefficients; all
+    /// their inputs remain in [`Self::symbols`] for evaluation and domain checks.
+    /// This is not a numerical rank or nonzero-Jacobian proof.
+    ///
+    /// # Errors
+    /// Rejects an instruction without a scalar dependency interpretation.
+    pub fn value_symbols(
+        &self,
+    ) -> Result<impl Iterator<Item = &ScalarSymbolCoordinate>, Diagnostic> {
+        let inputs = self.ir.value_inputs()?;
+        Ok(self
+            .symbols
+            .iter()
+            .zip(inputs)
+            .filter_map(|(symbol, needed)| needed.then_some(symbol)))
+    }
+
     /// Typed IR-local reads corresponding one-for-one with [`Self::symbols`].
     ///
     /// These dense slots are evaluator plumbing. Their source coordinates

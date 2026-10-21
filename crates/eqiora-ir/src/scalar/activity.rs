@@ -7,6 +7,7 @@ fn operands(
     mut visit: impl FnMut(ValueId),
 ) -> Result<(), Diagnostic> {
     match instructions[index] {
+        Instruction::Demand { value, .. } => visit(value),
         Instruction::DerivativeLimit {
             start, len, value, ..
         } => {
@@ -65,7 +66,6 @@ fn dependencies(
             // Only a value proven independent of every admitted derivative
             // input can annihilate a product. An active sampled zero cannot.
             Instruction::Mul(a, b) if frozen_zero(a) || frozen_zero(b) => false,
-            Instruction::Demand { value, .. } => active[value.0 as usize],
             _ => {
                 let mut depends = false;
                 let mut invalid = false;
@@ -87,6 +87,27 @@ fn dependencies(
         active.push(depends);
     }
     Ok(active)
+}
+
+impl ScalarInputOperatorIr {
+    pub(crate) fn value_inputs(&self) -> Result<Vec<bool>, Diagnostic> {
+        let mut needed = vec![false; self.instructions.len()];
+        let mut inputs = vec![false; self.slots.len()];
+        for root in &self.roots {
+            needed[root.0 as usize] = true;
+        }
+        for index in (0..needed.len()).rev() {
+            if !needed[index] {
+                continue;
+            }
+            if let Instruction::Read(slot) = self.instructions[index] {
+                inputs[slot.0 as usize] = true;
+            } else {
+                operands(&self.instructions, index, |id| needed[id.0 as usize] = true)?;
+            }
+        }
+        Ok(inputs)
+    }
 }
 
 impl ScalarLinearization<'_> {

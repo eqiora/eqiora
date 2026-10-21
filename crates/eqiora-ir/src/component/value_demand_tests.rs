@@ -118,6 +118,8 @@ fn demanded_values_retain_domains_without_creating_derivative_contributions() {
     )
     .unwrap();
     let components = ComponentScalarization::lower(&typed).unwrap();
+    assert_eq!(components.rows()[0].symbols().len(), 1);
+    assert_eq!(components.rows()[0].value_symbols().unwrap().count(), 0);
     let action = components
         .linearize(|_| Some((2., DifferentiationRole::Parameter)))
         .unwrap();
