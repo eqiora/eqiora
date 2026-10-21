@@ -1,5 +1,7 @@
 //! Equation-local acceptance of algebraic rows in a complete physical State.
 use super::*;
+use crate::form_compiler::region::FieldPullback;
+use crate::region_assembly::RegionPoint;
 use eqiora_assembly::{CsrMatrix, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 use eqiora_solver::SolverPlan;
@@ -75,25 +77,33 @@ where
                 form.time_binding()
                     .is_none_or(|time| time.states.is_empty())
             });
-        let point = if independent {
-            crate::region_assembly::RegionPoint::Independent {
-                state: &values,
-                rate_target: prepared.plan.target_id(1).expect("full target"),
-                rates: &rates,
-                pullback: crate::form_compiler::region::FieldPullback {
-                    current: Some(1.),
-                    rate: None,
+        let mut weights = vec![[None, None]; values.len()];
+        for &row in &rows {
+            weights[row][0] = Some(1.);
+        }
+        let independent_action = |pullback| {
+            prepared.work.linearize(
+                &prepared.plan,
+                prepared.plan.target_id(0).expect("reduced target"),
+                RegionPoint::Independent {
+                    state: &values,
+                    rate_target: prepared.plan.target_id(1).expect("full target"),
+                    rates: &rates,
+                    pullback,
                 },
-            }
-        } else {
-            crate::region_assembly::RegionPoint::Bound(&values)
+                &REFERENCE_ASSEMBLY_BACKEND,
+            )
         };
-        let action = prepared.work.linearize(
-            &prepared.plan,
-            prepared.plan.target_id(0).expect("reduced target"),
-            point,
-            &REFERENCE_ASSEMBLY_BACKEND,
-        )?;
+        let action = if independent {
+            independent_action(FieldPullback::Coordinates(&weights))?
+        } else {
+            prepared.work.linearize(
+                &prepared.plan,
+                prepared.plan.target_id(0).expect("reduced target"),
+                RegionPoint::Bound(&values),
+                &REFERENCE_ASSEMBLY_BACKEND,
+            )?
+        };
         let system = &action.systems[0];
         let matrix = system.matrix();
         let mut residual_norm: f64 = 0.;
@@ -110,7 +120,8 @@ where
         // Use the backward-error scale of the tangent equation J*x = J*x-R.
         // It reduces to |A|*|x|+|b| for affine equations. R itself comes from
         // the original local actions, never from subtracting the tangent RHS.
-        // Only algebraic equations contribute to this scale.
+        // Only algebraic equations and their unknown State columns contribute.
+        // Held differential coordinates are absorbed into the tangent RHS.
         // Stored rows and their 1/dt factors cannot hide a constraint violation.
         let target = solver.residual_target(scale_norm)?;
         if !residual_norm.is_finite() || !scale_norm.is_finite() || residual_norm > target {
@@ -121,34 +132,29 @@ where
         if independent {
             let algebraic = rows.iter().copied().collect::<Vec<_>>();
             let block = square_projection(matrix, &algebraic)?;
-            // Positive own-State capacities prove the differential block. A
-            // regular algebraic block therefore proves an index-one pencil.
+            // Positive own-State capacities and a regular algebraic block certify
+            // the unknown initial coordinates (differential rates, algebraic
+            // values), without demanding the fixed differential-State partial.
             if ConstantDerivativeMatrixProof::new(algebraic.len(), block)?.exact_rank()
                 != algebraic.len()
             {
                 // Mixed constraints can determine multipliers through dynamics
                 // even when A_A is singular. Check the full original pencil,
                 // without imposing an index-one restriction on that profile.
-                let mass = prepared.work.linearize(
-                    &prepared.plan,
-                    prepared.plan.target_id(0).expect("reduced target"),
-                    crate::region_assembly::RegionPoint::Independent {
-                        state: &values,
-                        rate_target: prepared.plan.target_id(1).expect("full target"),
-                        rates: &rates,
-                        pullback: crate::form_compiler::region::FieldPullback {
-                            current: None,
-                            rate: Some(1.),
-                        },
-                    },
-                    &REFERENCE_ASSEMBLY_BACKEND,
-                )?;
+                let state = independent_action(FieldPullback::Uniform {
+                    current: Some(1.),
+                    rate: None,
+                })?;
+                let mass = independent_action(FieldPullback::Uniform {
+                    current: None,
+                    rate: Some(1.),
+                })?;
                 let full = (0..matrix.rows()).collect::<Vec<_>>();
                 ConstantDerivativeMatrixProof::new(
                     full.len(),
                     square_projection(mass.systems[0].matrix(), &full)?,
                 )?
-                .require_regular_pencil(&square_projection(matrix, &full)?)
+                .require_regular_pencil(&square_projection(state.systems[0].matrix(), &full)?)
                 .map_err(|error| {
                     invalid(&format!(
                         "spatial State algebraic regularity: {}",

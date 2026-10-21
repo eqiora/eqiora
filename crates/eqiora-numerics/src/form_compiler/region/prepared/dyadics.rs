@@ -1,4 +1,5 @@
 //! Physical transport contractions, independent of scalar storage coordinates.
+use super::super::FieldPullback;
 use super::*;
 
 impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
@@ -6,7 +7,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         &self,
         sample: &Sample<S>,
         point: &[S],
-        pullback: Option<f64>,
+        pullback: Option<FieldPullback<'_>>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let dimension = self.dimension;
@@ -78,10 +79,12 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                                     * (directional_test * identity + value[i] * test_gradient[k])
                             };
                             for input in 0..trial_width {
+                                let Some(weight) = pullback.weight(column + input, false) else {
+                                    continue;
+                                };
                                 for output in 0..test_width {
                                     action.jacobian[(row + output) * count + column + input] +=
-                                        P::component(entry * P::direction(input), output)
-                                            * pullback;
+                                        P::component(entry * P::direction(input), output) * weight;
                                 }
                             }
                         }

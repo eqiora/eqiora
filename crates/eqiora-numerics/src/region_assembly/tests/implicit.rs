@@ -140,7 +140,7 @@ fn independent_global_rates_do_not_reuse_fixed_state_values() {
             state: &[2.; 2],
             rate_target,
             rates: &rates,
-            pullback: FieldPullback { current, rate },
+            pullback: FieldPullback::Uniform { current, rate },
         };
         let action = prepared
             .linearize(&plan, target, point, &REFERENCE_ASSEMBLY_BACKEND)
@@ -170,11 +170,45 @@ fn independent_global_rates_do_not_reuse_fixed_state_values() {
             close(*rhs, 2. * entries.iter().sum::<f64>() - primal[row]);
         }
     }
+    // Different coordinates select independent State/rate columns; the fixed
+    // boundary has no candidate direction, including in the full-target scatter.
+    let weights = [[Some(2.), None], [None, Some(-3.)]];
+    let point = RegionPoint::Independent {
+        state: &[2.; 2],
+        rate_target,
+        rates: &rates,
+        pullback: FieldPullback::Coordinates(&weights),
+    };
+    let selected = prepared
+        .linearize(&plan, target, point, &REFERENCE_ASSEMBLY_BACKEND)
+        .unwrap();
+    let full = dense(&selected.systems[1]);
+    for i in 0..3 {
+        close(full[i * 3], 0.);
+        close(full[i * 3 + 1], 2. * state_matrix[i * 3 + 1]);
+        close(full[i * 3 + 2], -3. * rate_matrix[i * 3 + 2]);
+    }
+    for (actual, expected) in selected.residuals[1].iter().zip([13., 38., 21.]) {
+        close(*actual, expected);
+    }
+    for invalid_weights in [&weights[..1], &[[None, None], [Some(f64::NAN), None]]] {
+        let point = RegionPoint::Independent {
+            pullback: FieldPullback::Coordinates(invalid_weights),
+            state: &[2.; 2],
+            rate_target,
+            rates: &rates,
+        };
+        assert!(
+            prepared
+                .linearize(&plan, target, point, &REFERENCE_ASSEMBLY_BACKEND)
+                .is_err()
+        );
+    }
     let invalid = RegionPoint::Independent {
         state: &[2.; 2],
         rate_target: target,
         rates: &[0.; 2],
-        pullback: FieldPullback {
+        pullback: FieldPullback::Uniform {
             current: None,
             rate: Some(1.),
         },
@@ -192,7 +226,7 @@ fn independent_global_rates_do_not_reuse_fixed_state_values() {
             state: &[2.; 2],
             rate_target,
             rates,
-            pullback: FieldPullback {
+            pullback: FieldPullback::Uniform {
                 current: None,
                 rate: Some(1.),
             },
@@ -215,7 +249,7 @@ fn global_rate_partial_does_not_demand_singular_state_partial() {
         state: &[0.; 2],
         rate_target: plan.target_id(1).unwrap(),
         rates: &[1.; 3],
-        pullback: FieldPullback { current, rate },
+        pullback: FieldPullback::Uniform { current, rate },
     };
     let action = prepared
         .linearize(
@@ -274,7 +308,7 @@ fn complex_global_rate_coordinates_preserve_conjugation_and_constraints() {
                 state: &[2. / 3., 1., 2. / 3., 1.],
                 rate_target: plan.target_id(1).unwrap(),
                 rates: &[4. / 3., -4. / 3., 4. / 3., -4. / 3., 4. / 3., -4. / 3.],
-                pullback: FieldPullback { current, rate },
+                pullback: FieldPullback::Uniform { current, rate },
             };
             let action = prepared
                 .linearize(&plan, target, point, &REFERENCE_ASSEMBLY_BACKEND)

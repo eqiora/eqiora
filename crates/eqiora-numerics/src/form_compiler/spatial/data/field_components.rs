@@ -9,26 +9,18 @@ mod action;
 #[cfg(test)]
 mod tests;
 
-/// Independent tangent demands for the two physical temporal input classes.
+/// Real/imaginary tangent demands in exact physical component-column order.
 #[derive(Debug, Clone, Copy)]
-pub(in crate::form_compiler) struct FieldDerivatives {
-    pub(in crate::form_compiler) current: bool,
-    pub(in crate::form_compiler) rate: bool,
-}
+pub(in crate::form_compiler) struct FieldDerivatives<'a>(
+    pub(in crate::form_compiler) &'a [[bool; 2]],
+);
 
-impl FieldDerivatives {
-    #[cfg(test)]
-    pub(in crate::form_compiler) const ALL: Self = Self {
-        current: true,
-        rate: true,
-    };
-
-    fn includes(self, coordinate: &ScalarSymbolCoordinate) -> bool {
-        if matches!(coordinate.symbol(), SymbolRef::Derivative(_, _)) {
-            self.rate
-        } else {
-            self.current
-        }
+impl FieldDerivatives<'_> {
+    fn includes(self, columns: &[ComponentColumn], index: usize) -> bool {
+        columns.iter().zip(self.0).any(|(column, parts)| {
+            (column.real == Some(index) && parts[0])
+                || (column.imaginary == Some(index) && parts[1])
+        })
     }
 }
 

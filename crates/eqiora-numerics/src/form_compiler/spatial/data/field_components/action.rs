@@ -9,7 +9,7 @@ impl<S: Coefficient> FieldComponent<S> {
         &self,
         physical: &[f64],
         values: &[S],
-        derivatives: Option<FieldDerivatives>,
+        derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.product(physical, values, None, derivatives)
     }
@@ -20,7 +20,7 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: &ScalarSymbolCoordinate,
-        derivatives: Option<FieldDerivatives>,
+        derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         self.product(physical, values, Some(parameter), derivatives)
     }
@@ -30,8 +30,13 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: Option<&ScalarSymbolCoordinate>,
-        derivatives: Option<FieldDerivatives>,
+        derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
+        if derivatives.is_some_and(|parts| parts.0.len() != self.columns.len()) {
+            return Err(super::super::super::invalid(
+                "component derivative demand lacks exact column coverage",
+            ));
+        }
         if self.rows.is_empty() || self.rows.len() > 2 {
             return Err(super::super::super::invalid(
                 "component action has no exact scalar rows",
@@ -75,7 +80,7 @@ impl<S: Coefficient> FieldComponent<S> {
         physical: &[f64],
         values: &[S],
         parameter: Option<&ScalarSymbolCoordinate>,
-        derivatives: Option<FieldDerivatives>,
+        derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(f64, Vec<f64>), Diagnostic> {
         let inputs = self.point(row, physical, values)?;
         if parameter.is_none() && derivatives.is_none() {
@@ -89,7 +94,8 @@ impl<S: Coefficient> FieldComponent<S> {
         for coordinate in row.symbols() {
             if let Some(index) = self.selected.iter().position(|value| value == coordinate) {
                 roles.push(
-                    if derivatives.is_some_and(|selection| selection.includes(coordinate)) {
+                    if derivatives.is_some_and(|selection| selection.includes(&self.columns, index))
+                    {
                         unknowns.push(index);
                         DifferentiationRole::Unknown
                     } else {

@@ -3,23 +3,28 @@ use super::super::field_point::{FieldPullback, FieldValues};
 use super::*;
 
 impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
-    pub(super) fn step_pullback(&self) -> FieldPullback {
-        FieldPullback {
+    pub(super) fn step_pullback(&self) -> FieldPullback<'static> {
+        FieldPullback::Uniform {
             current: Some(1.),
             rate: self.step.map(f64::recip),
         }
     }
 
     /// Current columns are normalized; rate columns act on physical coefficients.
-    pub(super) fn affine_matrix(&self, pullback: FieldPullback) -> Vec<P::Scalar> {
+    pub(super) fn affine_matrix(&self, pullback: FieldPullback<'_>) -> Vec<P::Scalar> {
         let zero = <P::Scalar as From<f64>>::from(0.);
         let mut matrix = self
             .affine
             .matrix()
             .iter()
-            .map(|entry| pullback.current.map_or(zero, |weight| *entry * weight))
+            .enumerate()
+            .map(|(index, entry)| {
+                pullback
+                    .weight(index % self.affine.columns(), false)
+                    .map_or(zero, |weight| *entry * weight)
+            })
             .collect::<Vec<_>>();
-        if let (Some(rate), Some(weight)) = (&self.rate, pullback.rate) {
+        if let Some(rate) = &self.rate {
             let count = self.affine.columns();
             for (row, rate_row) in matrix
                 .chunks_exact_mut(count)
@@ -27,7 +32,9 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
             {
                 for (field, range) in self.fields.iter().zip(&self.coordinates) {
                     for column in range.clone() {
-                        row[column] += rate_row[column] * (field.scale * weight);
+                        if let Some(weight) = pullback.weight(column, true) {
+                            row[column] += rate_row[column] * (field.scale * weight);
+                        }
                     }
                 }
             }
@@ -129,7 +136,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         &self,
         point: &[f64],
         rates: Option<&[f64]>,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
     ) -> Result<RegionLinearization, Diagnostic> {
         if !self.independent_coordinates {
             return Err(invalid(
@@ -144,6 +151,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
             return Err(invalid(
                 "implicit region action requires exact finite State and rate coordinates",
             ));
+        }
+        if let Some(pullback) = pullback {
+            pullback.validate(count)?;
         }
         let mut residual = self
             .affine
@@ -171,7 +181,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         &self,
         point: &[f64],
         rates: Option<&[f64]>,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let physical = P::physical_point(&self.fields, &self.coordinates, point);
@@ -191,7 +201,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
     pub(in crate::form_compiler::region) fn add_nonlinear_action(
         &self,
         point: &FieldValues<'_, S>,
-        pullback: Option<FieldPullback>,
+        pullback: Option<FieldPullback<'_>>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let count = self.affine.rows();
@@ -208,16 +218,14 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                 "nonlinear action requires exact finite State and rate coordinates",
             ));
         }
+        if let Some(pullback) = pullback {
+            pullback.validate(count)?;
+        }
         for sample in &self.samples {
             for term in &self.components {
                 self.add_component_action(term, sample, point, pullback, action)?;
             }
-            self.add_dyadic_actions(
-                sample,
-                point.current,
-                pullback.and_then(|p| p.current),
-                action,
-            )?;
+            self.add_dyadic_actions(sample, point.current, pullback, action)?;
         }
         if action
             .residual
