@@ -219,3 +219,19 @@ fn indexing_rejects_invalid_channels_and_bounded_expansion_atomically() {
         assert_eq!((caller.nodes, caller.depths), before);
     }
 }
+
+#[test]
+fn complete_index_domains_fit_existing_depth_limits_for_wide_arrays() {
+    let input = matrix(300, 1);
+    let output =
+        PureValueClass::from_value_type(scalar().exact_type().unwrap().clone().array(1).unwrap())
+            .unwrap();
+    let argument = projection(
+        input.clone(),
+        input.clone(),
+        [ComponentIndex::Result(0), ComponentIndex::Result(1)],
+    );
+    let mut caller = CalculusBuilder::new([input], output).unwrap();
+    let value = caller.index(&argument.into(), 299).unwrap();
+    caller.finish(value).unwrap();
+}

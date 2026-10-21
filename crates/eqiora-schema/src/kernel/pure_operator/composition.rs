@@ -29,16 +29,24 @@ impl CalculusBuilder {
             [PureValueClass::from_value_type(input.clone())?],
             PureValueClass::from_value_type(output.clone())?,
         )?;
-        let mut complete = None;
+        let mut prerequisites = Vec::new();
         for axes in coordinates(&input)? {
-            let value = projection.push(CalculusNode::FormalComponent { formal: 0, axes })?;
-            complete = Some(match complete {
-                Some(prerequisite) => projection.push(CalculusNode::Demand {
-                    prerequisite,
-                    value,
-                })?,
-                None => value,
-            });
+            prerequisites.push(projection.push(CalculusNode::FormalComponent { formal: 0, axes })?);
+        }
+        // Balance dependencies while retaining left-to-right demand order. A
+        // wide, shallow array must not acquire linear calculus nesting depth.
+        while prerequisites.len() > 1 {
+            prerequisites = prerequisites
+                .chunks(2)
+                .map(|pair| match pair {
+                    [prerequisite, value] => projection.push(CalculusNode::Demand {
+                        prerequisite: *prerequisite,
+                        value: *value,
+                    }),
+                    [value] => Ok(*value),
+                    _ => unreachable!("nonempty pair"),
+                })
+                .collect::<Result<_, _>>()?;
         }
         let value = projection.push(CalculusNode::FormalComponent {
             formal: 0,
@@ -47,7 +55,9 @@ impl CalculusBuilder {
                 .collect(),
         })?;
         let root = projection.push(CalculusNode::Demand {
-            prerequisite: complete.ok_or(PureOperatorError::FormalTypeMismatch)?,
+            prerequisite: *prerequisites
+                .first()
+                .ok_or(PureOperatorError::FormalTypeMismatch)?,
             value,
         })?;
         self.apply_inputs(&projection.finish(root)?, std::slice::from_ref(argument))
