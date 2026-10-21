@@ -93,7 +93,7 @@ fn complex_csr_assembly_and_shared_solver_view_distinguish_transpose_from_adjoin
 }
 
 #[test]
-fn complex_csr_scatter_failure_is_atomic_and_exact_cancellation_rejects_empty_rows() {
+fn complex_csr_scatter_failure_is_atomic_and_exact_cancellation_preserves_empty_rows() {
     let map = AssemblyMap::new(
         vec![Some(DofId::new(0))],
         vec![LocalUnknown::Free(DofId::new(0))],
@@ -111,5 +111,8 @@ fn complex_csr_scatter_failure_is_atomic_and_exact_cancellation_rejects_empty_ro
     let negative =
         LocalContribution::new(1, 1, vec![C::new(0., -f64::MAX)], vec![C::new(0., 0.)]).unwrap();
     cancelled.scatter(&map, &negative).unwrap();
-    assert!(cancelled.finish().is_err());
+    let cancelled = cancelled.finish().unwrap();
+    assert_eq!(cancelled.matrix().row_offsets(), &[0, 0]);
+    assert!(cancelled.matrix().values().is_empty());
+    assert_eq!(cancelled.rhs(), &[C::new(1., -2.)]);
 }

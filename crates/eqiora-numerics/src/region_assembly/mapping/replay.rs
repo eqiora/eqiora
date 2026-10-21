@@ -129,7 +129,7 @@ where
             super::super::newton::residual_norm(&prepared.work.residual(
                 &prepared.plan,
                 target,
-                point,
+                crate::region_assembly::RegionPoint::Bound(point),
             )?)
         };
         let initial = norm(&seed)?;
@@ -145,9 +145,10 @@ where
         let action = prepared.work.linearize(
             &prepared.plan,
             target,
-            &reduced,
+            crate::region_assembly::RegionPoint::Bound(&reduced),
             &REFERENCE_ASSEMBLY_BACKEND,
         )?;
+        crate::finalized_spatial::require_equation_rows(action.systems[0].matrix())?;
         let multipliers = input
             .forms
             .iter()

@@ -168,7 +168,8 @@ impl<S: Coefficient> PreparedRegionCell<S> {
                 "numerical pullback differs from its local equation inventory",
             ));
         }
-        self.affine = LocalContribution::new(
+        self.independent_coordinates = false;
+        *self.affine = LocalContribution::new(
             self.affine.rows(),
             self.affine.columns(),
             self.affine

@@ -5,7 +5,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Scalar};
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{
-    CanonicalCsrSystemView, ExecutionTopology, FixedOrderInnerProduct, LinearOperator,
+    CanonicalCsrSystemView, CsrStorage, ExecutionTopology, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
     SERIAL_LINEAR_EXECUTION, SolverPlan,
 };
@@ -69,6 +69,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
     }
 
     pub(crate) fn linear_problem(&self) -> Result<LinearProblem<'_, S>, Diagnostic> {
+        require_equation_rows(self.canonical_system.as_ref())?;
         self.canonical_system.linear_problem()
     }
 
@@ -127,6 +128,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
 
     /// True residual of any algebraic point, including an unsolved initial guess.
     pub(crate) fn residual_norm(&self, values: &[S]) -> Result<f64, Diagnostic> {
+        require_equation_rows(self.canonical_system.as_ref())?;
         if values.len() != self.canonical_system.rows() {
             return Err(invalid_realization(
                 "linear coefficients have the wrong shape",
@@ -161,6 +163,25 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
     pub(super) fn into_canonical_system(self) -> Arc<CanonicalCsrSystemView<S>> {
         self.canonical_system
     }
+}
+
+/// Complete spatial equations retain their nonempty-row prerequisite at
+/// numerical admission. A partial derivative or mass action need not satisfy
+/// it. This is only a necessary condition, not a rank or uniqueness proof.
+pub(crate) fn require_equation_rows<S: Scalar + ComplexFloat + Sync>(
+    matrix: &dyn CsrStorage<S>,
+) -> Result<(), Diagnostic> {
+    for (row, offsets) in matrix.row_offsets().windows(2).enumerate() {
+        if matrix.values()[offsets[0]..offsets[1]]
+            .iter()
+            .all(|value| *value == S::zero())
+        {
+            return Err(invalid_realization(format!(
+                "complete spatial equation row {row} has no nonzero entries"
+            )));
+        }
+    }
+    Ok(())
 }
 
 // Block execution is still real-only; this specialization does not widen its

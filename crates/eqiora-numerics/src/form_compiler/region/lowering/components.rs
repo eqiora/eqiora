@@ -85,13 +85,21 @@ pub(super) fn lower<S: Coefficient>(
                     <S as From<f64>>::from(-1.),
                 )));
         }
-        for (trial, component, value) in component.terms {
+        for (trial, component, derivative, value) in component.terms {
             let term = Term {
                 trial,
-                derivative: false,
-                pairing: Pairing::Components {
-                    test,
-                    trial: component,
+                derivative,
+                pairing: if row.forcing.len() == 1
+                    && trial == row.tested
+                    && test == BasisComponent::Value(0)
+                    && component == BasisComponent::Value(0)
+                {
+                    Pairing::Value
+                } else {
+                    Pairing::Components {
+                        test,
+                        trial: component,
+                    }
                 },
                 coefficient: coefficient.clone().multiply(value),
                 positive_diffusion: false,

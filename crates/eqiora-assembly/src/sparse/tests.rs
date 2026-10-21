@@ -153,7 +153,7 @@ fn duplicate_entries_preserve_scatter_summation_order() {
 }
 
 #[test]
-fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
+fn finish_eliminates_exact_zeros_and_preserves_a_cancelled_row() {
     let mut assembler = CooAssembler::<f64>::new(2).unwrap();
     let first = LocalContribution::new(2, 2, vec![3.0, 2.0, 0.0, 5.0], vec![0.0, 0.0]).unwrap();
     let second = LocalContribution::new(2, 2, vec![0.0, -2.0, 0.0, 0.0], vec![0.0, 0.0]).unwrap();
@@ -185,12 +185,10 @@ fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
     scatter_scalar(&mut cancelled_row, 0, 0, 1.0, 0.0);
     scatter_scalar(&mut cancelled_row, 0, 0, -1.0, 0.0);
     scatter_scalar(&mut cancelled_row, 1, 1, 2.0, 0.0);
-    let diagnostic = cancelled_row.finish().unwrap_err();
-    assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
-    assert_eq!(
-        diagnostic.message(),
-        "assembled global row 0 has no nonzero entries"
-    );
+    let cancelled = cancelled_row.finish().unwrap();
+    assert_eq!(cancelled.matrix().row_offsets(), &[0, 0, 1]);
+    assert_eq!(cancelled.matrix().column_indices(), &[1]);
+    assert_eq!(cancelled.matrix().values(), &[2.]);
 }
 
 #[test]
@@ -329,7 +327,7 @@ fn sorted_csr_constructor_rejects_every_broken_invariant() {
 }
 
 #[test]
-fn linear_system_constructor_enforces_complete_canonical_rows() {
+fn linear_system_constructor_enforces_shape_and_canonical_storage() {
     let rectangular = CsrMatrix::from_sorted_csr(1, 2, vec![0, 1], vec![0], vec![1.0]).unwrap();
     let wrong_rhs = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![1.0]).unwrap();
     let non_finite_rhs = wrong_rhs.clone();
@@ -340,13 +338,17 @@ fn linear_system_constructor_enforces_complete_canonical_rows() {
         LinearSystem::new(rectangular, vec![0.0]),
         LinearSystem::new(wrong_rhs, vec![]),
         LinearSystem::new(non_finite_rhs, vec![f64::NAN]),
-        LinearSystem::new(empty_row, vec![0.0, 0.0]),
         LinearSystem::new(explicit_zero, vec![0.0]),
     ];
     for result in cases {
         assert_eq!(result.unwrap_err().code(), codes::ASSEMBLY_FAILED);
     }
 
+    let partial = LinearSystem::new(empty_row, vec![0.0, 2.0]).unwrap();
+    let mut action = [99.; 2];
+    partial.matrix().apply(&[3., 4.], &mut action).unwrap();
+    assert_eq!(action, [3., 0.]);
+    assert_eq!(partial.rhs(), &[0., 2.]);
     let matrix = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![2.0]).unwrap();
     assert_eq!(LinearSystem::new(matrix, vec![3.0]).unwrap().rhs(), &[3.0]);
 }
@@ -369,4 +371,27 @@ fn compiled_csr_overflow_retains_all_prior_values() {
     let preserved = assembler.finish().unwrap();
     assert_eq!(preserved.matrix().values(), &[f64::MAX]);
     assert_eq!(preserved.rhs(), &[3.]);
+}
+
+#[test]
+fn prepared_csr_preserves_exact_cancellation_and_rhs() {
+    let topology = CsrTopology::new(1, vec![0, 1], vec![0]).unwrap();
+    let map = AssemblyMap::new(
+        vec![Some(DofId::new(0))],
+        vec![LocalUnknown::Free(DofId::new(0))],
+    )
+    .unwrap();
+    let projection = crate::projection::CompiledProjection::new(1, &map).unwrap();
+    let slots = CsrScatterSlots::new(&topology, &projection).unwrap();
+    let mut assembler = CsrValueAssembler::new(topology);
+    for value in [2., -2.] {
+        let local = LocalContribution::new(1, 1, vec![value], vec![3.]).unwrap();
+        assembler
+            .scatter_delta(&projection.project(&map, &local).unwrap(), &slots)
+            .unwrap();
+    }
+    let system = assembler.finish().unwrap();
+    assert_eq!(system.matrix().row_offsets(), &[0, 0]);
+    assert!(system.matrix().values().is_empty());
+    assert_eq!(system.rhs(), &[6.]);
 }

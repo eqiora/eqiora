@@ -142,17 +142,26 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let (eliminations, states) = state_layouts(&self.roles, &layouts, time)?;
         super::compatibility::validate(self, &layouts, &states, time)?;
         let mut previous = BTreeMap::new();
-        for term in self.rows.iter().flat_map(|row| &row.terms) {
-            if let Some(state) = states.get(&term.trial) {
-                if !term.derivative {
-                    previous.insert(term.trial, state.clone());
+        for (trial, derivative) in self.rows.iter().flat_map(|row| {
+            row.terms
+                .iter()
+                .map(|term| (term.trial, term.derivative))
+                .chain(row.components.iter().flat_map(|term| {
+                    term.value
+                        .columns()
+                        .map(|(field, _, derivative)| (field, derivative))
+                }))
+        }) {
+            if let Some(state) = states.get(&trial) {
+                if !derivative {
+                    previous.insert(trial, state.clone());
                 }
             } else {
                 let layout = layouts
                     .iter()
-                    .find(|layout| layout.field == term.trial)
+                    .find(|layout| layout.field == trial)
                     .ok_or_else(|| invalid("trial Field lacks an algebraic or state binding"))?;
-                if term.derivative {
+                if derivative {
                     if time.is_none() {
                         return Err(invalid(
                             "time derivative requires explicit Backward Euler Plan",
@@ -160,7 +169,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     }
                     let mut layout = layout.clone();
                     layout.range = 0..layout.range.len();
-                    previous.insert(term.trial, layout);
+                    previous.insert(trial, layout);
                 }
             }
         }

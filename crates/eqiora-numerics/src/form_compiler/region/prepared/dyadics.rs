@@ -6,7 +6,7 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         &self,
         sample: &Sample<S>,
         point: &[S],
-        derivative: bool,
+        pullback: Option<f64>,
         action: &mut RegionLinearization,
     ) -> Result<(), Diagnostic> {
         let dimension = self.dimension;
@@ -51,9 +51,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                     for coordinate in 0..test_width {
                         action.residual[row + coordinate] += P::component(residual, coordinate);
                     }
-                    if !derivative {
+                    let Some(pullback) = pullback else {
                         continue;
-                    }
+                    };
                     for (b, trial_value) in sample.values[term.column].iter().enumerate() {
                         let directional_trial =
                             dot(&value, &sample.gradients[term.column][b], dimension);
@@ -80,7 +80,8 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                             for input in 0..trial_width {
                                 for output in 0..test_width {
                                     action.jacobian[(row + output) * count + column + input] +=
-                                        P::component(entry * P::direction(input), output);
+                                        P::component(entry * P::direction(input), output)
+                                            * pullback;
                                 }
                             }
                         }

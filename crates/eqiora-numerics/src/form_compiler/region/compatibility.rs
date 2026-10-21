@@ -52,7 +52,7 @@ pub(super) fn validate<S: Coefficient>(
         let test = family(row.tested)?;
         for term in &row.components {
             if (term.test.requires_gradient() && !gradient(test))
-                || term.value.columns().any(|(field, component)| {
+                || term.value.columns().any(|(field, component, _)| {
                     family(field).is_err()
                         || (component.requires_gradient() && !family(field).is_ok_and(gradient))
                 })
@@ -125,6 +125,15 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
         let mut storage = BTreeMap::new();
         for row in &self.rows {
+            if row
+                .components
+                .iter()
+                .any(|term| term.value.columns().any(|(_, _, derivative)| derivative))
+            {
+                return Err(invalid(
+                    "nonlinear storage requires candidate-dependent differential State classification",
+                ));
+            }
             for term in row.terms.iter().filter(|term| term.derivative) {
                 if self.roles.relations.values().any(
                     |role| matches!(role.kind, Role::Kinematic {state,..} if state == term.trial),

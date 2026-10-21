@@ -4,14 +4,36 @@ use super::nonlinear::{
 };
 use super::residual::{mapped_local_point, scatter_residual};
 use super::*;
+use crate::form_compiler::region::{FieldPullback, RegionLinearization};
 use eqiora_assembly::{AssemblyBackend, AssemblyMap, AssemblyTargetId};
+
+/// A bound solve consumes its authenticated history; an implicit point supplies
+/// independent rates in an unconstrained target's normalized coordinates.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum RegionPoint<'a> {
+    Bound(&'a [f64]),
+    Independent {
+        state: &'a [f64],
+        rate_target: AssemblyTargetId,
+        rates: &'a [f64],
+        pullback: FieldPullback,
+    },
+}
+
+impl<'a> RegionPoint<'a> {
+    fn state(self) -> &'a [f64] {
+        match self {
+            Self::Bound(state) | Self::Independent { state, .. } => state,
+        }
+    }
+}
 
 impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegionAssembly<S, P> {
     pub(crate) fn linearize(
         &self,
         plan: &AssemblyPlan,
         target: AssemblyTargetId,
-        point: &[f64],
+        point: RegionPoint<'_>,
         backend: &dyn AssemblyBackend<f64>,
     ) -> Result<RegionAssemblyLinearization, Diagnostic> {
         self.validate_point(plan, target, point)?;
@@ -22,18 +44,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             backend,
             |index| {
                 let cell = self.packet_cell(index)?;
-                let map = candidate_map(&cell.mappings, target)?;
-                let mut local_point = mapped_local_point(map, point)?;
-                for (value, sign) in local_point.iter_mut().zip(&cell.orientation) {
-                    *value *= f64::from(*sign);
-                }
-                let action = if index < self.cells.len() {
-                    self.prepared[index].linearize(&cell.previous, &local_point)?
-                } else {
-                    self.boundary_packets[index - self.cells.len()]
-                        .1
-                        .linearize(&local_point)?
-                };
+                let (local_point, action) = self.local_action(target, point, index, true)?;
                 let residual = action
                     .residual
                     .iter()
@@ -53,33 +64,23 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         )
     }
 
-    /// Independently evaluate primal weak actions; never recover R by J*x-b.
+    /// Evaluate original weak actions; never recover R by subtracting J*x-b.
     pub(crate) fn residual(
         &self,
         plan: &AssemblyPlan,
         target: AssemblyTargetId,
-        point: &[f64],
+        point: RegionPoint<'_>,
     ) -> Result<Vec<f64>, Diagnostic> {
         self.validate_point(plan, target, point)?;
-        let mut residual = vec![0.; point.len()];
+        let mut residual = vec![0.; point.state().len()];
         for index in 0..self.packet_count() {
             let cell = self.packet_cell(index)?;
             let map = candidate_map(&cell.mappings, target)?;
-            let mut local_point = mapped_local_point(map, point)?;
-            for (value, sign) in local_point.iter_mut().zip(&cell.orientation) {
+            let (_, mut action) = self.local_action(target, point, index, false)?;
+            for (value, sign) in action.residual.iter_mut().zip(&cell.orientation) {
                 *value *= f64::from(*sign);
             }
-            let mut local = if index < self.cells.len() {
-                self.prepared[index].residual(&cell.previous, &local_point)?
-            } else {
-                self.boundary_packets[index - self.cells.len()]
-                    .1
-                    .residual(&local_point)?
-            };
-            for (value, sign) in local.iter_mut().zip(&cell.orientation) {
-                *value *= f64::from(*sign);
-            }
-            scatter_residual(&mut residual, map, &local)?;
+            scatter_residual(&mut residual, map, &action.residual)?;
         }
         if residual.iter().any(|value| !value.is_finite()) {
             return Err(invalid("Region primal residual accumulation is non-finite"));
@@ -87,21 +88,113 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         Ok(residual)
     }
 
+    fn local_action(
+        &self,
+        target: AssemblyTargetId,
+        point: RegionPoint<'_>,
+        index: usize,
+        derivative: bool,
+    ) -> Result<(Vec<f64>, RegionLinearization), Diagnostic> {
+        let cell = self.packet_cell(index)?;
+        let map = candidate_map(&cell.mappings, target)?;
+        let mut state = mapped_local_point(map, point.state())?;
+        orient(&mut state, &cell.orientation);
+        let action = match point {
+            RegionPoint::Bound(_) => {
+                if index < self.cells.len() {
+                    if derivative {
+                        self.prepared[index].linearize(&cell.previous, &state)?
+                    } else {
+                        RegionLinearization {
+                            residual: self.prepared[index].residual(&cell.previous, &state)?,
+                            jacobian: Vec::new(),
+                        }
+                    }
+                } else {
+                    let facet = &self.boundary_packets[index - self.cells.len()].1;
+                    if derivative {
+                        facet.linearize(&state)?
+                    } else {
+                        RegionLinearization {
+                            residual: facet.residual(&state)?,
+                            jacobian: Vec::new(),
+                        }
+                    }
+                }
+            }
+            RegionPoint::Independent {
+                rate_target,
+                rates,
+                pullback,
+                ..
+            } => {
+                if index < self.cells.len() {
+                    let rate_map = candidate_map(&cell.mappings, rate_target)?;
+                    // Fixed entries contain State values. They are not time derivatives
+                    // of boundary data, so a rate point must supply every coordinate.
+                    if rate_map
+                        .unknowns()
+                        .iter()
+                        .any(|value| matches!(value, LocalUnknown::Fixed(_)))
+                    {
+                        return Err(invalid(
+                            "independent rates require an unconstrained target with explicit boundary rates",
+                        ));
+                    }
+                    let mut rates = mapped_local_point(rate_map, rates)?;
+                    orient(&mut rates, &cell.orientation);
+                    let rates = self.prepared[index].physical_coefficients(&rates)?;
+                    self.prepared[index].implicit_action(
+                        &state,
+                        Some(&rates),
+                        derivative.then_some(pullback),
+                    )?
+                } else {
+                    self.boundary_packets[index - self.cells.len()]
+                        .1
+                        .action(&state, derivative.then_some(pullback))?
+                }
+            }
+        };
+        Ok((state, action))
+    }
+
     fn validate_point(
         &self,
         plan: &AssemblyPlan,
         target: AssemblyTargetId,
-        point: &[f64],
+        point: RegionPoint<'_>,
     ) -> Result<(), Diagnostic> {
-        let selected = plan
-            .target(target)
-            .ok_or_else(|| invalid("Region point has a foreign assembly target"))?;
-        if point.len() != selected.size() || point.iter().any(|value| !value.is_finite()) {
-            return Err(invalid(
-                "Region point requires exact finite target coordinates",
-            ));
+        validate_values(plan, target, point.state())?;
+        if let RegionPoint::Independent {
+            rate_target, rates, ..
+        } = point
+        {
+            validate_values(plan, rate_target, rates)?;
         }
         Ok(())
+    }
+}
+
+fn validate_values(
+    plan: &AssemblyPlan,
+    target: AssemblyTargetId,
+    point: &[f64],
+) -> Result<(), Diagnostic> {
+    let selected = plan
+        .target(target)
+        .ok_or_else(|| invalid("Region point has a foreign assembly target"))?;
+    if point.len() != selected.size() || point.iter().any(|value| !value.is_finite()) {
+        return Err(invalid(
+            "Region point requires exact finite target coordinates",
+        ));
+    }
+    Ok(())
+}
+
+fn orient(point: &mut [f64], signs: &[i8]) {
+    for (value, sign) in point.iter_mut().zip(signs) {
+        *value *= f64::from(*sign);
     }
 }
 

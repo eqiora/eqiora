@@ -18,6 +18,7 @@ mod newton;
 pub(crate) use newton::RegionNewtonSolution;
 pub(crate) mod nonlinear;
 mod point;
+pub(crate) use point::RegionPoint;
 mod reactions;
 pub(crate) mod residual;
 #[cfg(test)]

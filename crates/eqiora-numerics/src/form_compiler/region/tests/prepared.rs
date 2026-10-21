@@ -2,8 +2,10 @@ use super::*;
 
 mod ale;
 mod geometry;
+mod implicit;
 mod moving;
 mod plural_ale;
+mod rates;
 
 const HEAT: &str = "model Heat() {
  domain body = box(0, 1, 0, 1);

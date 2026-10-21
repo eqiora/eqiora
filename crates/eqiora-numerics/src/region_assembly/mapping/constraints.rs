@@ -65,10 +65,31 @@ where
         }
         input.previous = Some(previous);
         let prepared = self.prepare_numeric_assembly(mesh, &input)?;
+        // Snapshot constraint rows use the original State partial, without a
+        // step-dependent mass contribution. Transformed kinematics retain their
+        // explicit inverse recovery above; their coordinates are not independent.
+        let rates = vec![0.; coordinates.full_count()];
+        let point = if input.geometry_action.is_none()
+            && input.forms.iter().all(|(form, _)| {
+                form.time_binding()
+                    .is_none_or(|time| time.states.is_empty())
+            }) {
+            crate::region_assembly::RegionPoint::Independent {
+                state: &values,
+                rate_target: prepared.plan.target_id(1).expect("full target"),
+                rates: &rates,
+                pullback: crate::form_compiler::region::FieldPullback {
+                    current: Some(1.),
+                    rate: None,
+                },
+            }
+        } else {
+            crate::region_assembly::RegionPoint::Bound(&values)
+        };
         let action = prepared.work.linearize(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
-            &values,
+            point,
             &REFERENCE_ASSEMBLY_BACKEND,
         )?;
         let system = &action.systems[0];

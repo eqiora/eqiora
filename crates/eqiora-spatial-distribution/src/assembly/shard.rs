@@ -259,8 +259,8 @@ impl DistributedAssemblyRoutePlanV1 {
     ///
     /// # Errors
     /// Returns `EQ0806` for a missing, duplicate, foreign, wrong-destination,
-    /// or payload-mismatched route, an ownership disagreement, or a non-finite
-    /// or structurally empty accumulated row.
+    /// or payload-mismatched route, an ownership disagreement, or non-finite
+    /// accumulated data. Zero rows remain valid operator contributions.
     pub fn fold_inbox(
         &self,
         ownership: &AdmittedRowOwnership,
@@ -722,13 +722,6 @@ fn finish_shard(
                 values.push(value);
             }
         }
-        if row_offsets.last() == Some(&column_indices.len()) {
-            return Err(invalid(format!(
-                "target {} owned global row {} has no nonzero entry",
-                target.index(),
-                row.index()
-            )));
-        }
         row_offsets.push(column_indices.len());
         right_hand_side.push(
             accumulator
@@ -779,7 +772,7 @@ fn validate_shard_storage(shard: &OwnedRowAssemblyResult) -> Result<(), Diagnost
         .iter()
         .any(|row| row.index() >= shard.global_size)
         || shard.rows.windows(2).any(|pair| pair[0] >= pair[1])
-        || shard.row_offsets.windows(2).any(|pair| pair[0] >= pair[1])
+        || shard.row_offsets.windows(2).any(|pair| pair[0] > pair[1])
         || shard
             .column_indices
             .iter()

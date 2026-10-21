@@ -38,7 +38,7 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
         prepared.work.residual(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
-            values,
+            crate::region_assembly::RegionPoint::Bound(values),
         )
     }
     fn solve<P: Coefficient + Send + Sync>(

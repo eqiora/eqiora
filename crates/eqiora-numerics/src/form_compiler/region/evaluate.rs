@@ -10,6 +10,14 @@ use super::invalid;
 use super::coordinates::Projection;
 use num_complex::ComplexFloat;
 
+/// Current coefficients are normalized; rate and history coefficients are physical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AffineInput {
+    Current,
+    Rate,
+    Previous(RawId),
+}
+
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Validate local inputs without performing quadrature or constructing contributions.
     pub(crate) fn validate_cell<P: Projection<S>>(
@@ -63,11 +71,14 @@ impl<S: Coefficient> BoundRegionForm<S> {
         Ok(())
     }
 
+    /// Integrate current, rate or previous coefficients through one weak-form owner.
+    /// Loads belong to the current part; independent rates carry no time-step factor.
     pub(super) fn prepare_affine_actions<P: Projection<S>>(
         &self,
         geometry: &AffineGeometryMap,
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
+        input: AffineInput,
     ) -> Result<super::integration::IntegralActions<P::Scalar>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = super::coordinates::fields::<S, P>(&self.fields)?;
@@ -84,11 +95,25 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 let eliminated = self.eliminations.get(&term.trial);
                 let trial_field = eliminated.copied().unwrap_or(term.trial);
                 let column = indices[&trial_field];
-                let factor = match (eliminated, term.derivative) {
-                    (Some(_), true) => 1.,
-                    (Some(_), false) => self.time_step().expect("bound state step"),
-                    (None, true) => self.time_step().expect("bound derivative step").recip(),
-                    (None, false) => 1.,
+                let factor = match (input, eliminated, term.derivative) {
+                    (AffineInput::Current, None, true) => continue,
+                    (AffineInput::Current, Some(_), false) => {
+                        self.time_step().expect("bound state step")
+                    }
+                    (AffineInput::Current, _, _) => 1.,
+                    (AffineInput::Rate, None, true) => 1.,
+                    (AffineInput::Rate, _, _) => continue,
+                    (AffineInput::Previous(field), _, _) if field != term.trial => continue,
+                    (AffineInput::Previous(_), Some(_), false) => -1.,
+                    (AffineInput::Previous(_), None, true) => {
+                        self.time_step().expect("bound derivative step").recip()
+                    }
+                    (AffineInput::Previous(_), _, _) => continue,
+                };
+                let trial_scale = if input == AffineInput::Current {
+                    factor * self.fields[column].scale
+                } else {
+                    factor
                 };
                 let columns = P::columns(
                     &term.coefficient,
@@ -101,7 +126,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                             row: row_index,
                             column,
                             pairing: term.pairing,
-                            trial_scale: factor * self.fields[column].scale,
+                            trial_scale,
                             test_coordinate,
                             trial_coordinate,
                         });
@@ -127,38 +152,41 @@ impl<S: Coefficient> BoundRegionForm<S> {
              forcing_tangents,
              flux_tangents| {
                 let point_direction = direction.map(|_| point_tangent);
-                let mut component_tangents = forcing_tangents.iter_mut();
-                let mut components = forcing.iter_mut();
-                let mut flux_offset = 0;
-                for (index, row) in self.form.rows.iter().enumerate() {
-                    let width = fields[index].scalar_coordinates;
-                    for flux in &row.flux {
-                        let Some((datum, entries)) =
-                            flux.prescribed_components(self.form.dimension, row.forcing.len())?
-                        else {
-                            continue;
-                        };
-                        let (value, tangent) = evaluate_data(datum, point, point_direction)?;
-                        let scale = <S as From<f64>>::from(self.row_multipliers[index]);
-                        for entry in entries {
-                            for coordinate in 0..width {
-                                let slot = flux_offset + entry * width + coordinate;
-                                flux_load[slot] += P::component(scale * value, coordinate);
-                                if let Some(output) = flux_tangents.get_mut(slot) {
-                                    *output += P::component(scale * tangent, coordinate);
+                if input == AffineInput::Current {
+                    let mut component_tangents = forcing_tangents.iter_mut();
+                    let mut components = forcing.iter_mut();
+                    let mut flux_offset = 0;
+                    for (index, row) in self.form.rows.iter().enumerate() {
+                        let width = fields[index].scalar_coordinates;
+                        for flux in &row.flux {
+                            let Some((datum, entries)) =
+                                flux.prescribed_components(self.form.dimension, row.forcing.len())?
+                            else {
+                                continue;
+                            };
+                            let (value, tangent) = evaluate_data(datum, point, point_direction)?;
+                            let scale = <S as From<f64>>::from(self.row_multipliers[index]);
+                            for entry in entries {
+                                for coordinate in 0..width {
+                                    let slot = flux_offset + entry * width + coordinate;
+                                    flux_load[slot] += P::component(scale * value, coordinate);
+                                    if let Some(output) = flux_tangents.get_mut(slot) {
+                                        *output += P::component(scale * tangent, coordinate);
+                                    }
                                 }
                             }
                         }
-                    }
-                    flux_offset += row.forcing.len() * self.form.dimension * width;
-                    for component in &row.forcing {
-                        let (value, tangent) = evaluate_data(component, point, point_direction)?;
-                        let scale = <S as From<f64>>::from(self.row_multipliers[index]);
-                        for coordinate in 0..width {
-                            *components.next().expect("exact row component inventory") =
-                                P::component(scale * value, coordinate);
-                            if let Some(output) = component_tangents.next() {
-                                *output = P::component(scale * tangent, coordinate);
+                        flux_offset += row.forcing.len() * self.form.dimension * width;
+                        for component in &row.forcing {
+                            let (value, tangent) =
+                                evaluate_data(component, point, point_direction)?;
+                            let scale = <S as From<f64>>::from(self.row_multipliers[index]);
+                            for coordinate in 0..width {
+                                *components.next().expect("exact row component inventory") =
+                                    P::component(scale * value, coordinate);
+                                if let Some(output) = component_tangents.next() {
+                                    *output = P::component(scale * tangent, coordinate);
+                                }
                             }
                         }
                     }

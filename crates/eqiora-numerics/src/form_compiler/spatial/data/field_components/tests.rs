@@ -85,6 +85,153 @@ fn component_from_source<S: Coefficient>(
 }
 
 #[test]
+fn rate_partials_do_not_demand_undefined_state_partials() {
+    let source = "model Storage() {
+        domain body=box(0,1); parameter p:1=2; parameter q:1=0;
+        state u:1 on body;
+        relation r on body {u=math.sqrt(u)+p*derivative(u)*1[s];}
+    }";
+    let (component, program, parameters) = component_from_source::<f64>(source, "r", None);
+    let rate = Some(FieldDerivatives {
+        current: false,
+        rate: true,
+    });
+    let current = Some(FieldDerivatives {
+        current: true,
+        rate: false,
+    });
+    // R(u,v,p)=sqrt(u)+pv is defined at u=0. R_v=p and R_pv=1 exist
+    // there, although R_u does not. Every query must still demand the primal.
+    assert_eq!(
+        component.action(&[0.25], &[0., 3.], rate).unwrap(),
+        (6., vec![[0., 0.], [2., 0.]])
+    );
+    assert!(component.action(&[0.25], &[0., 3.], current).is_err());
+    assert!(
+        component
+            .action(&[0.25], &[0., 3.], Some(FieldDerivatives::ALL))
+            .is_err()
+    );
+    assert!(component.action(&[0.25], &[-1., 3.], rate).is_err());
+    let parameter = coordinates(&program, &parameters).unwrap().remove(0);
+    assert_eq!(
+        component
+            .parameter_action(&[0.25], &[0., 3.], &parameter, rate)
+            .unwrap(),
+        (3., vec![[0., 0.], [1., 0.]])
+    );
+}
+
+#[test]
+fn state_partials_do_not_demand_undefined_rate_partials() {
+    let source = "model Storage() {
+        domain body=box(0,1); parameter p:1=0; parameter q:1=0;
+        state u:1 on body;
+        relation r on body {u=u+math.sqrt(derivative(u)*1[s]);}
+    }";
+    let (component, _, _) = component_from_source::<f64>(source, "r", None);
+    let current = Some(FieldDerivatives {
+        current: true,
+        rate: false,
+    });
+    let rate = Some(FieldDerivatives {
+        current: false,
+        rate: true,
+    });
+    assert_eq!(
+        component.action(&[0.25], &[5., 0.], current).unwrap(),
+        (5., vec![[1., 0.], [0., 0.]])
+    );
+    assert!(component.action(&[0.25], &[5., 0.], rate).is_err());
+    assert!(component.action(&[0.25], &[5., -1.], current).is_err());
+}
+
+#[test]
+fn state_and_rate_are_independent_component_coordinates() {
+    let source = "model Storage() {
+        domain body=box(0,1); parameter p:1=0; parameter q:1=0;
+        state u:1 on body;
+        relation r on body {u/1[s]=derivative(u*u)+u*u/1[s];}
+    }";
+    let (component, _, _) = component_from_source::<f64>(source, "r", None);
+    let columns = component.columns().collect::<Vec<_>>();
+    assert_eq!(columns.len(), 2);
+    assert_eq!(columns[0].0, columns[1].0);
+    assert_eq!(columns[0].1, BasisComponent::Value(0));
+    assert_eq!(columns[1].1, BasisComponent::Value(0));
+    assert!(!columns[0].2);
+    assert!(columns[1].2);
+    assert!(!component.is_affine());
+    // R(u,v)=2uv+u² has independent partials R_u=2v+2u, R_v=2u.
+    // The integrator, not the expression, supplies v and dv/du.
+    for (u, rate) in [(3., -2.), (-1., 4.), (0., 5.)] {
+        let (value, gradient) = component
+            .action(&[0.25], &[u, rate], Some(FieldDerivatives::ALL))
+            .unwrap();
+        assert_eq!(value, 2. * u * rate + u * u);
+        assert_eq!(gradient, [[2. * rate + 2. * u, 0.], [2. * u, 0.]]);
+        assert_eq!(
+            component.action(&[0.25], &[u, rate], None).unwrap(),
+            (value, vec![])
+        );
+    }
+    assert!(
+        component
+            .action(&[0.25], &[3.], Some(FieldDerivatives::ALL))
+            .is_err()
+    );
+}
+
+#[test]
+fn affine_projection_keeps_state_and_rate_coefficients_separate() {
+    let source = "model Storage() {
+        domain body=box(0,1); parameter p:1=0; parameter q:1=0;
+        state u:1 on body;
+        relation r on body {u/1[s]=derivative(u)+3*u/1[s];}
+    }";
+    let (component, _, _) = component_from_source::<f64>(source, "r", None);
+    assert!(component.is_affine());
+    let row = super::super::affine::project(component);
+    assert_eq!(row.offset.evaluate(&[0.25]).unwrap(), 0.);
+    assert_eq!(row.terms.len(), 2);
+    for (_, basis, derivative, coefficient) in row.terms {
+        assert_eq!(basis, BasisComponent::Value(0));
+        assert_eq!(
+            coefficient.evaluate(&[0.25]).unwrap(),
+            if derivative { 1. } else { 3. }
+        );
+    }
+}
+
+#[test]
+fn complex_storage_rates_keep_all_four_real_coordinate_partials() {
+    use num_complex::Complex64 as C;
+    let source = "model Storage() {
+        domain body=box(0,1); parameter p:1=0; parameter q:1=0;
+        state u:complex<1> on body;
+        relation r on body {u/1[s]=derivative(math.abs2(u))*u;}
+    }";
+    let (component, _, _) = component_from_source::<C>(source, "r", None);
+    // For u=a+ib and v=c+id, R=2(ac+bd)(a+ib).
+    // At (a,b,c,d)=(2,3,-1,4), these four real partials follow directly.
+    let (value, gradient) = component
+        .action(
+            &[0.25],
+            &[C::new(2., 3.), C::new(-1., 4.)],
+            Some(FieldDerivatives::ALL),
+        )
+        .unwrap();
+    assert_eq!(value, C::new(40., 60.));
+    assert_eq!(
+        gradient,
+        [
+            [C::new(16., -6.), C::new(16., 44.)],
+            [C::new(8., 12.), C::new(12., 18.)],
+        ]
+    );
+}
+
+#[test]
 fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
     let (component, program, parameters) = component("(1+p*u)*u");
     let parameter = coordinates(&program, &parameters).unwrap().remove(0);
@@ -92,12 +239,14 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
         let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
         let bound = component.bind_parameter_point(&point).unwrap();
         for u in [-1., 2.] {
-            let (value, gradient) = bound.action(&[0.25], &[u], true).unwrap();
+            let (value, gradient) = bound
+                .action(&[0.25], &[u], Some(FieldDerivatives::ALL))
+                .unwrap();
             assert_eq!(value, u + p * u * u);
             assert_eq!(gradient, [[1. + 2. * p * u, 0.]]);
             assert_eq!(
                 bound
-                    .parameter_action(&[0.25], &[u], &parameter, false)
+                    .parameter_action(&[0.25], &[u], &parameter, None)
                     .map(|(value, _)| value)
                     .unwrap(),
                 u * u
@@ -111,13 +260,13 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
     );
     assert!(
         component
-            .parameter_action(&[0.25], &[], &parameter, false)
+            .parameter_action(&[0.25], &[], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
     assert!(
         component
-            .parameter_action(&[0.25], &[f64::NAN], &parameter, false)
+            .parameter_action(&[0.25], &[f64::NAN], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -131,15 +280,19 @@ fn parameter_products_do_not_request_unneeded_field_derivatives() {
     // Its Field differential is undefined, and the primal at u<0 is invalid.
     assert_eq!(
         component
-            .parameter_action(&[0.5], &[0.], &parameter, false)
+            .parameter_action(&[0.5], &[0.], &parameter, None)
             .map(|(value, _)| value)
             .unwrap(),
         0.
     );
-    assert!(component.action(&[0.5], &[0.], true).is_err());
     assert!(
         component
-            .parameter_action(&[0.5], &[-1.], &parameter, false)
+            .action(&[0.5], &[0.], Some(FieldDerivatives::ALL))
+            .is_err()
+    );
+    assert!(
+        component
+            .parameter_action(&[0.5], &[-1.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -152,7 +305,7 @@ fn parameter_products_keep_structural_activity_at_zero_inner_tangents() {
     // sqrt(p²)=|p| is not differentiable at zero despite d(p²)/dp=0.
     assert!(
         component
-            .parameter_action(&[0.5], &[2.], &parameter, false)
+            .parameter_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -161,7 +314,7 @@ fn parameter_products_keep_structural_activity_at_zero_inner_tangents() {
         let bound = component.bind_parameter_point(&point).unwrap();
         assert_eq!(
             bound
-                .parameter_action(&[0.5], &[2.], &parameter, false)
+                .parameter_action(&[0.5], &[2.], &parameter, None)
                 .map(|(value, _)| value)
                 .unwrap(),
             p.signum()
@@ -175,7 +328,7 @@ fn an_unconsumed_parameter_keeps_the_original_primal_domain() {
     let parameter = coordinates(&program, &parameters).unwrap().remove(1);
     assert_eq!(
         component
-            .parameter_action(&[0.5], &[2.], &parameter, false)
+            .parameter_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .unwrap(),
         0.
@@ -185,7 +338,7 @@ fn an_unconsumed_parameter_keeps_the_original_primal_domain() {
         component
             .bind_parameter_point(&invalid)
             .unwrap()
-            .parameter_action(&[0.5], &[2.], &parameter, false)
+            .parameter_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -210,7 +363,7 @@ fn prescribed_field_bindings_keep_the_parameter_chain_and_activity() {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
             let bound = component.bind_parameter_point(&point).unwrap();
             let partial = bound
-                .parameter_action(&[0.25], &[3.], &parameter, false)
+                .parameter_action(&[0.25], &[3.], &parameter, None)
                 .map(|(value, _)| value);
             if expression.starts_with("math.sqrt") {
                 // sqrt(p²*x)=|p|*sqrt(x) retains the cusp through a prescribed Field.
@@ -254,7 +407,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
             let bound = component.bind_parameter_point(&point).unwrap();
             let partial = bound
-                .parameter_action(&[0.5], &[2.], &selected[0], false)
+                .parameter_action(&[0.5], &[2.], &selected[0], None)
                 .map(|(value, _)| value);
             if profile == "first_partials" {
                 assert_eq!(partial.unwrap(), 2. * p * 4.);
@@ -269,7 +422,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             // q does not enter the property; its value-only contract suffices.
             assert_eq!(
                 bound
-                    .parameter_action(&[0.5], &[2.], &selected[1], false)
+                    .parameter_action(&[0.5], &[2.], &selected[1], None)
                     .map(|(value, _)| value)
                     .unwrap(),
                 2.
@@ -281,13 +434,13 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
         // q holds that input fixed and still has its ordinary derivative.
         assert!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[0], false)
+                .parameter_action(&[0.5], &[2.], &selected[0], None)
                 .map(|(value, _)| value)
                 .is_err()
         );
         assert_eq!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[1], false)
+                .parameter_action(&[0.5], &[2.], &selected[1], None)
                 .map(|(value, _)| value)
                 .unwrap(),
             2.
@@ -297,7 +450,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
         // A frozen property still checks its original validity domain.
         assert!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[1], false)
+                .parameter_action(&[0.5], &[2.], &selected[1], None)
                 .map(|(value, _)| value)
                 .is_err()
         );
@@ -322,7 +475,9 @@ fn complex_component_products_retain_independent_real_directions() {
             let (a, b) = (u.re, u.im);
             // f=(1+p*a)*(a+i*b)+q*(a-i*b). These are independent
             // derivatives with respect to a and b, not a complex derivative.
-            let (value, gradient) = bound.action(&[0.25], &[u], true).unwrap();
+            let (value, gradient) = bound
+                .action(&[0.25], &[u], Some(FieldDerivatives::ALL))
+                .unwrap();
             assert_eq!(value, C::new((1. + p * a + q) * a, (1. + p * a - q) * b));
             assert_eq!(
                 gradient,
@@ -332,12 +487,12 @@ fn complex_component_products_retain_independent_real_directions() {
                 ]]
             );
             let (value, gradient) = bound
-                .parameter_action(&[0.25], &[u], &coordinates[0], true)
+                .parameter_action(&[0.25], &[u], &coordinates[0], Some(FieldDerivatives::ALL))
                 .unwrap();
             assert_eq!(value, C::new(a * a, a * b));
             assert_eq!(gradient, [[C::new(2. * a, b), C::new(0., a)]]);
             let (value, gradient) = bound
-                .parameter_action(&[0.25], &[u], &coordinates[1], true)
+                .parameter_action(&[0.25], &[u], &coordinates[1], Some(FieldDerivatives::ALL))
                 .unwrap();
             assert_eq!(value, u.conj());
             assert_eq!(gradient, [[C::new(1., 0.), C::new(0., -1.)]]);
@@ -367,7 +522,9 @@ fn real_outputs_and_imaginary_only_inputs_keep_their_coordinate_roles() {
         }}"
         );
         let (component, _, _) = component_from_source::<C>(&source, "r", None);
-        let (value, actual) = component.action(&[0.25], &[C::new(2., -3.)], true).unwrap();
+        let (value, actual) = component
+            .action(&[0.25], &[C::new(2., -3.)], Some(FieldDerivatives::ALL))
+            .unwrap();
         assert_eq!(value, expected);
         assert_eq!(actual, [gradient]);
     }
@@ -393,7 +550,9 @@ fn mixed_field_domains_preserve_real_inputs_and_complex_output_parts() {
             }
         })
         .collect::<Vec<_>>();
-    let (value, gradient) = component.action(&[0.25], &values, true).unwrap();
+    let (value, gradient) = component
+        .action(&[0.25], &values, Some(FieldDerivatives::ALL))
+        .unwrap();
     assert_eq!(value, C::new(9., -12.));
     for (column, gradient) in component.columns.iter().zip(gradient) {
         let expected = if column.scalar_domain == ScalarDomain::Real {
@@ -410,7 +569,7 @@ fn mixed_field_domains_preserve_real_inputs_and_complex_output_parts() {
         .position(|column| column.scalar_domain == ScalarDomain::Real)
         .unwrap();
     invalid[real].im = 1.;
-    assert!(component.action(&[0.25], &invalid, false).is_err());
+    assert!(component.action(&[0.25], &invalid, None).is_err());
 
     let source = "model Products() {
         domain body=box(0,1);parameter p:1=0;parameter q:1=0;
@@ -419,7 +578,7 @@ fn mixed_field_domains_preserve_real_inputs_and_complex_output_parts() {
     }";
     let (component, _, _) = component_from_source::<C>(source, "r", None);
     let (value, _) = component
-        .action(&[0.25], &[C::new(-0., -0.)], false)
+        .action(&[0.25], &[C::new(-0., -0.)], None)
         .unwrap();
     assert_eq!(value.re.to_bits(), (-0_f64).to_bits());
     assert_eq!(value.im.to_bits(), (-0_f64).to_bits());
@@ -442,7 +601,7 @@ fn affine_real_projections_of_complex_trials_require_real_coordinates() {
         assert!(component.is_affine());
         let affine = crate::form_compiler::spatial::data::affine::project(component);
         assert_eq!(affine.terms.len(), 1);
-        let coefficient = &affine.terms[0].2;
+        let coefficient = &affine.terms[0].3;
         assert!(coefficient.evaluate(&[0.25]).is_err());
         let images = coefficient.coordinate_images(1).unwrap();
         for (image, expected) in images.iter().zip(expected) {

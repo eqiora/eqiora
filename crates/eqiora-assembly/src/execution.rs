@@ -692,6 +692,7 @@ pub trait AssemblyBackend<S>: fmt::Debug {
 pub struct AssemblyAccumulator<S> {
     plan: AssemblyPlan,
     assemblers: Vec<TargetAccumulator<S>>,
+    target_present: Vec<bool>,
     next_packet: usize,
 }
 
@@ -725,6 +726,7 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
         Ok(Self {
             plan: plan.clone(),
             assemblers,
+            target_present: vec![false; plan.target_count()],
             next_packet: 0,
         })
     }
@@ -808,6 +810,7 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
                         target_delta.target.0, target_count
                     ))
                 })?;
+            self.target_present[target_delta.target.0] = true;
             match assembler {
                 TargetAccumulator::Dynamic(assembler) => {
                     assembler.scatter_delta(&target_delta.delta)?
@@ -835,9 +838,12 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
     /// Finalize all targets and attach exact execution evidence.
     ///
     /// # Errors
-    /// Returns `EQ0806` if any target has an empty structural row.
+    /// Returns `EQ0806` for an incomplete prepared packet set or invalid accumulated data.
     pub fn finish(self, execution: ExecutionReport) -> Result<AssemblyResult<S>, Diagnostic> {
         self.plan.require_packet_count(self.next_packet)?;
+        if self.target_present.contains(&false) {
+            return Err(assembly_failed("assembly packets omit a planned target"));
+        }
         let target_count = self.assemblers.len();
         let systems = self
             .assemblers

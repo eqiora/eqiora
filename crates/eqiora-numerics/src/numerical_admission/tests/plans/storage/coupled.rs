@@ -272,7 +272,8 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
         (
             "source -(u-v) * 1[1/m^2]",
             "source derivative(u) * 1[s/m^2]",
-            "prescribed coefficient requires a Field, Parameter, coordinate, or model Time",
+            // The rate now lowers normally and cancels the retained storage.
+            "strictly positive constant capacity",
         ),
         (
             "source -(u-v) * 1[1/m^2]",
@@ -282,7 +283,7 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
         (
             "storage 1[s/m^2] * u",
             "storage 1[s/m^2] * v",
-            "storage requires one coefficient times its exact Field",
+            "Backward Euler requires each row to store its exact Field",
         ),
         (
             "storage 1[s/m^2] * u",

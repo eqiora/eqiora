@@ -30,12 +30,14 @@ pub(super) fn build_topology<S: Scalar + ComplexFloat + Sync>(
     packets: &[AssemblyPacketStructure<S>],
 ) -> Result<CsrTopology, Diagnostic> {
     let mut rows = vec![BTreeSet::new(); size];
+    let mut target_present = false;
     for packet in packets {
         for mapping in packet
             .mappings
             .iter()
             .filter(|mapping| mapping.target.index() == target)
         {
+            target_present = true;
             for equation in mapping.map.equations().iter().flatten() {
                 if equation.index() >= size {
                     return Err(assembly_failed("prepared equation is outside its target"));
@@ -51,15 +53,13 @@ pub(super) fn build_topology<S: Scalar + ComplexFloat + Sync>(
             }
         }
     }
+    if !target_present {
+        return Err(assembly_failed("prepared packets omit an assembly target"));
+    }
     let mut offsets = Vec::with_capacity(size + 1);
     let mut columns = Vec::new();
     offsets.push(0);
-    for (row, entries) in rows.into_iter().enumerate() {
-        if entries.is_empty() {
-            return Err(assembly_failed(format!(
-                "prepared global row {row} has no structural entry"
-            )));
-        }
+    for entries in rows {
         columns.extend(entries);
         offsets.push(columns.len());
     }
