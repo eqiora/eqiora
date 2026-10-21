@@ -1,8 +1,9 @@
 //! Equation-local acceptance of algebraic rows in a complete physical State.
 use super::*;
-use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
+use eqiora_assembly::{CsrMatrix, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 use eqiora_solver::SolverPlan;
+use eqiora_time::ConstantDerivativeMatrixProof;
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
@@ -69,11 +70,12 @@ where
         // step-dependent mass contribution. Transformed kinematics retain their
         // explicit inverse recovery above; their coordinates are not independent.
         let rates = vec![0.; coordinates.full_count()];
-        let point = if input.geometry_action.is_none()
+        let independent = input.geometry_action.is_none()
             && input.forms.iter().all(|(form, _)| {
                 form.time_binding()
                     .is_none_or(|time| time.states.is_empty())
-            }) {
+            });
+        let point = if independent {
             crate::region_assembly::RegionPoint::Independent {
                 state: &values,
                 rate_target: prepared.plan.target_id(1).expect("full target"),
@@ -96,7 +98,7 @@ where
         let matrix = system.matrix();
         let mut residual_norm: f64 = 0.;
         let mut scale_norm: f64 = 0.;
-        for row in rows {
+        for &row in &rows {
             let mut scale = system.rhs()[row].abs();
             for entry in matrix.row_offsets()[row]..matrix.row_offsets()[row + 1] {
                 let term = matrix.values()[entry] * values[matrix.column_indices()[entry]];
@@ -116,6 +118,68 @@ where
                 "spatial State algebraic residual {residual_norm:e} exceeds equation-local target {target:e}"
             )));
         }
+        if independent {
+            let algebraic = rows.iter().copied().collect::<Vec<_>>();
+            let block = square_projection(matrix, &algebraic)?;
+            // Positive own-State capacities prove the differential block. A
+            // regular algebraic block therefore proves an index-one pencil.
+            if ConstantDerivativeMatrixProof::new(algebraic.len(), block)?.exact_rank()
+                != algebraic.len()
+            {
+                // Mixed constraints can determine multipliers through dynamics
+                // even when A_A is singular. Check the full original pencil,
+                // without imposing an index-one restriction on that profile.
+                let mass = prepared.work.linearize(
+                    &prepared.plan,
+                    prepared.plan.target_id(0).expect("reduced target"),
+                    crate::region_assembly::RegionPoint::Independent {
+                        state: &values,
+                        rate_target: prepared.plan.target_id(1).expect("full target"),
+                        rates: &rates,
+                        pullback: crate::form_compiler::region::FieldPullback {
+                            current: None,
+                            rate: Some(1.),
+                        },
+                    },
+                    &REFERENCE_ASSEMBLY_BACKEND,
+                )?;
+                let full = (0..matrix.rows()).collect::<Vec<_>>();
+                ConstantDerivativeMatrixProof::new(
+                    full.len(),
+                    square_projection(mass.systems[0].matrix(), &full)?,
+                )?
+                .require_regular_pencil(&square_projection(matrix, &full)?)
+                .map_err(|error| {
+                    invalid(&format!(
+                        "spatial State algebraic regularity: {}",
+                        error.message()
+                    ))
+                })?;
+            }
+        }
         Ok(())
     }
+}
+
+fn square_projection(
+    matrix: &CsrMatrix<f64>,
+    coordinates: &[usize],
+) -> Result<Vec<f64>, Diagnostic> {
+    let dimension = coordinates.len();
+    let entries = dimension
+        .checked_mul(dimension)
+        .ok_or_else(|| invalid("algebraic regularity matrix size overflows usize"))?;
+    let mut coefficients = Vec::new();
+    coefficients
+        .try_reserve_exact(entries)
+        .map_err(|_| invalid("cannot allocate algebraic regularity matrix"))?;
+    coefficients.resize(entries, 0.);
+    for (row, &global) in coordinates.iter().enumerate() {
+        for entry in matrix.row_offsets()[global]..matrix.row_offsets()[global + 1] {
+            if let Ok(column) = coordinates.binary_search(&matrix.column_indices()[entry]) {
+                coefficients[row * dimension + column] = matrix.values()[entry];
+            }
+        }
+    }
+    Ok(coefficients)
 }

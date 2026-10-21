@@ -257,6 +257,51 @@ impl<C> ConstantDerivativeMatrixProof<C> {
         Ok(exact::residual(&matrix, rhs))
     }
 
+    /// Require a regular constant-mass pencil at the supplied State tangent.
+    ///
+    /// This proves that det(A + lambda*M) is not identically zero, using exact
+    /// binary coefficients. It does not bound the differentiation index, prove
+    /// initial consistency, or estimate conditioning.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` for an invalid State Jacobian or a singular pencil.
+    pub fn require_regular_pencil(&self, state_jacobian: &[f64]) -> Result<(), Diagnostic> {
+        let state = self.exact_state_jacobian(state_jacobian)?;
+        if self.exact_rank == self.dimension {
+            return Ok(());
+        }
+        // Invertible row/column changes put M in rank-normal form, so the
+        // determinant polynomial has degree at most rank(M). A polynomial of
+        // that degree vanishing at rank(M)+1 distinct points is identically zero.
+        // One chosen shift alone would incorrectly reject a regular pencil at
+        // an eigenvalue. Form each shifted matrix exactly, before elimination.
+        for shift in 1..=self.exact_rank + 1 {
+            let shift = BigRational::from_integer(shift.into());
+            let matrix = state
+                .iter()
+                .zip(&self.exact_coefficients)
+                .map(|(state, mass)| state + &shift * mass)
+                .collect::<Vec<_>>();
+            if exact_matrix_rank(self.dimension, &matrix) == self.dimension {
+                return Ok(());
+            }
+        }
+        Err(invalid_lowering("constant-mass State pencil is singular"))
+    }
+
+    fn exact_state_jacobian(&self, values: &[f64]) -> Result<Vec<BigRational>, Diagnostic> {
+        if values.len() != self.coefficients.len() || values.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid_lowering(
+                "regularity requires one finite square state Jacobian",
+            ));
+        }
+        Ok(values
+            .iter()
+            .map(|value| BigRational::from_float(*value).expect("validated finite Jacobian"))
+            .collect())
+    }
+
     /// Require local index-one regularity of the constant-mass residual.
     /// `state_jacobian` is the row-major Jacobian of the regular residuals
     /// with respect to values, excluding initial equations and their tangents.
@@ -266,15 +311,7 @@ impl<C> ConstantDerivativeMatrixProof<C> {
     /// Returns `EQ0705` for an invalid Jacobian or a singular/high-index block.
     pub fn require_index_one_regularity(&self, state_jacobian: &[f64]) -> Result<(), Diagnostic> {
         let n = self.dimension;
-        if state_jacobian.len() != self.coefficients.len()
-            || state_jacobian
-                .iter()
-                .any(|coefficient| !coefficient.is_finite())
-        {
-            return Err(invalid_lowering(
-                "regularity requires one finite square state Jacobian",
-            ));
-        }
+        let state = self.exact_state_jacobian(state_jacobian)?;
         if self.exact_rank == n {
             return Ok(());
         }
@@ -289,8 +326,7 @@ impl<C> ConstantDerivativeMatrixProof<C> {
             block[row * 2 * n..row * 2 * n + n].clone_from_slice(mass);
             let start = (n + row) * 2 * n;
             for column in 0..n {
-                block[start + column] = BigRational::from_float(state_jacobian[row * n + column])
-                    .expect("validated finite Jacobian");
+                block[start + column] = state[row * n + column].clone();
             }
             block[start + n..start + 2 * n].clone_from_slice(mass);
         }

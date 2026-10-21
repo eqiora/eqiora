@@ -239,3 +239,173 @@ fn algebraic_snapshot_allows_zero_state_partial_of_differential_equations() {
         }
     }
 }
+
+#[test]
+fn initial_state_requires_regular_algebraic_partition_even_at_zero_residual() {
+    for regular in [true, false] {
+        // At v=w=0 the algebraic Jacobian is diag(alpha*M, M), where
+        // M is the positive two-element Q1 mass matrix. A zero residual
+        // therefore represents an index-one point only when alpha != 0.
+        let alpha = if regular { 1 } else { 0 };
+        let source = format!(
+            "public model Constrained(
+            support body:volume(ambient_dimension=1),
+            support left:boundary(parent=body),support right:boundary(parent=body)) {{
+            state u:1 on body in h1; state v:1 on body in h1; state w:1 on body in h1;
+            initial {{u=1;v=0;w=0;}}
+            relation evolution on body {{1[s]*derivative(u)=0;}}
+            relation first on body {{v*v+{alpha}*v=0;}}
+            relation second on body {{w*w+w=0;}}
+        }}"
+        );
+        let (resolved, _) = resolve_nonlinear_constraint(&source);
+        let initial = resolved
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new());
+        if regular {
+            initial.unwrap();
+        } else {
+            let error = initial.expect_err("singular algebraic point must reject");
+            assert!(error.message().contains("regularity"), "{error:?}");
+        }
+    }
+}
+
+fn resolve_nonlinear_constraint(source: &str) -> (ResolvedCommonPlan, [eqiora_core::RawId; 3]) {
+    coupled::resolve_with_policy(
+        source,
+        "Constrained",
+        0.25,
+        CommonSolvePolicy::Newton {
+            linear: exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-13,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+            ),
+            nonlinear: NonlinearSolvePlan::new(0., 1e-11, NonZeroUsize::new(16).unwrap(), 16)
+                .unwrap(),
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn algebraic_regularity_covers_complex_parts_accepted_states_and_replay() {
+    // f(x)=x²(x-1) has roots 0 and 1, but f'(0)=0 and f'(1)=1.
+    // The second case keeps Re(v) regular and makes only Im(v) singular.
+    // The last case has algebraic blocks [[1,1],[1,2]] at (-1,1) and
+    // [[1,1],[1,1]] at (0,0), tensor M. Every singular row is nonempty.
+    for (scalar, initial_literal, constraint, singular_literal, singular_values) in [
+        ("1", "1", "v*v*(v-1)", "0", [0., 0.]),
+        (
+            "complex<1>",
+            "math.complex(1,1)",
+            "math.complex(math.real(v)*math.real(v)*(math.real(v)-1),math.imag(v)*math.imag(v)*(math.imag(v)-1))",
+            "math.complex(1,0)",
+            [1., 0.],
+        ),
+        (
+            "complex<1>",
+            "math.complex(-1,1)",
+            "math.complex(math.real(v)+math.imag(v),math.real(v)+math.imag(v)+math.imag(v)*math.imag(v)*(math.imag(v)-1))",
+            "0",
+            [0., 0.],
+        ),
+    ] {
+        let source = format!(
+            "public model Constrained(
+                support body:volume(ambient_dimension=1),
+                support left:boundary(parent=body),support right:boundary(parent=body)) {{
+                state u:{scalar} on body in h1;
+                state v:{scalar} on body in h1;
+                state w:{scalar} on body in h1;
+                initial {{u=1;v={initial_literal};w=0;}}
+                relation evolution on body {{1[s]*derivative(u)=0;}}
+                relation first on body {{{constraint}=0;}}
+                relation second on body {{w*w+w=0;}}
+            }}"
+        );
+        let (resolved, fields) = resolve_nonlinear_constraint(&source);
+        let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+        let plan = resolved.as_spatial().unwrap();
+        let parts = if scalar == "1" { 1 } else { 2 };
+        let start = 3
+            * parts
+            * plan
+                .fields()
+                .position(|(id, _)| id.erase() == fields[1])
+                .unwrap();
+        let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
+        let before = initial.to_bytes().unwrap();
+        let expected = initial.spatial_values().unwrap().to_vec();
+        let run =
+            CommonTransientRunRequest::from_steps(resolved.clone(), initial.clone(), 2, vec![1, 2])
+                .unwrap();
+        let std::ops::ControlFlow::Continue(outputs) = run
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("complete constant run");
+        };
+        assert_eq!(initial.to_bytes().unwrap(), before);
+        for state in std::iter::once(&initial).chain(outputs.iter().map(|(_, step)| step.state())) {
+            for (actual, expected) in state.spatial_values().unwrap().iter().zip(&expected) {
+                assert!((actual - expected).abs() < 1e-12);
+            }
+            assert_eq!(
+                CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
+                *state
+            );
+            let mut singular = state.clone();
+            let CommonStateKind::Spatial(values) = &mut singular.kind else {
+                unreachable!()
+            };
+            for node in 0..3 {
+                values[start + node * parts..start + (node + 1) * parts]
+                    .copy_from_slice(&singular_values[..parts]);
+            }
+            let singular_coordinates = values.to_vec();
+            let error = CommonState::from_bytes(&singular.to_bytes().unwrap(), &resolved)
+                .expect_err("zero-residual singular replay must reject");
+            assert!(
+                error.message().contains("algebraic regularity"),
+                "{error:?}"
+            );
+            // This is also the constructor used when accepting a new step.
+            let error = plan
+                .scalar_state(state.time_s(), singular_coordinates)
+                .expect_err("singular accepted point must reject");
+            assert!(
+                error.message().contains("algebraic regularity"),
+                "{error:?}"
+            );
+        }
+        let restart =
+            CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &resolved).unwrap();
+        let run =
+            CommonTransientRunRequest::from_steps(resolved.clone(), restart, 1, vec![1]).unwrap();
+        let std::ops::ControlFlow::Continue(restarted) = run
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("complete restart");
+        };
+        assert_eq!(restarted.last().unwrap().1, outputs.last().unwrap().1);
+        let source = source.replace(
+            &format!("v={initial_literal}"),
+            &format!("v={singular_literal}"),
+        );
+        let (resolved, _) = resolve_nonlinear_constraint(&source);
+        let error = resolved
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new())
+            .expect_err("singular initial constraint must reject");
+        assert!(
+            error.message().contains("algebraic regularity"),
+            "{error:?}"
+        );
+    }
+}

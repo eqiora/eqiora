@@ -35,6 +35,25 @@ pub(super) fn resolve_with_step(
     entry: &str,
     step: f64,
 ) -> Result<(ResolvedCommonPlan, [RawId; 3]), Diagnostic> {
+    resolve_with_policy(
+        source,
+        entry,
+        step,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-13,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+        )),
+    )
+}
+
+pub(super) fn resolve_with_policy(
+    source: &str,
+    entry: &str,
+    step: f64,
+    solve: CommonSolvePolicy,
+) -> Result<(ResolvedCommonPlan, [RawId; 3]), Diagnostic> {
     let geometry = cartesian_interval();
     let body = geometry.entity_set("body").unwrap();
     let bindings = [
@@ -76,12 +95,7 @@ pub(super) fn resolve_with_step(
         &model,
         cartesian_box_resources(&geometry, &[2]),
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(exact_reference_linear(
-            LinearSolver::BiConjugateGradientStabilized,
-            1e-13,
-            1e-14,
-            NonZeroUsize::new(100).unwrap(),
-        )),
+        solve,
         None,
         Some(CommonBackwardEuler::from_seconds(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
