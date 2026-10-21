@@ -28,12 +28,15 @@ pub(super) fn eliminate(matrix: &mut [Vec<BigRational>], columns: usize) -> Vec<
     pivots
 }
 
-pub(super) fn residual(matrix: &[Vec<BigRational>], rhs: &[BigRational]) -> Vec<BigRational> {
+pub(super) fn project(
+    matrix: &[Vec<BigRational>],
+    rhs: &[BigRational],
+) -> (Vec<BigRational>, Vec<BigRational>) {
     let mut reduced = matrix.to_vec();
     let basis = eliminate(&mut reduced, matrix[0].len());
     let rank = basis.len();
     if rank == 0 {
-        return rhs.to_vec();
+        return (vec![BigRational::zero(); matrix[0].len()], rhs.to_vec());
     }
     // C contains independent original columns. Exact normal equations avoid
     // introducing the floating-point condition-number square of C^T C.
@@ -63,7 +66,11 @@ pub(super) fn residual(matrix: &[Vec<BigRational>], rhs: &[BigRational]) -> Vec<
             .sum();
         solution[row] = (&gram[row][rank] - remainder) / &gram[row][row];
     }
-    matrix
+    let mut coefficients = vec![BigRational::zero(); matrix[0].len()];
+    for (&column, value) in basis.iter().zip(&solution) {
+        coefficients[column] = value.clone();
+    }
+    let residual = matrix
         .iter()
         .zip(rhs)
         .map(|(row, value)| {
@@ -74,5 +81,6 @@ pub(super) fn residual(matrix: &[Vec<BigRational>], rhs: &[BigRational]) -> Vec<
                     .map(|(&column, weight)| &row[column] * weight)
                     .sum::<BigRational>()
         })
-        .collect()
+        .collect();
+    (coefficients, residual)
 }

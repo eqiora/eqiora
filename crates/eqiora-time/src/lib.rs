@@ -34,8 +34,8 @@ pub use event_linearization::{
     EventResetLinearization, TransversalEventLinearization,
 };
 pub use lowering::{
-    ConstantDerivativeMatrixProof, DaeVariableKind, GeneralImplicitLoweringProof,
-    GeneralImplicitReason, MassMatrixRank, MonomialDerivativeRow, TimeEquationClass,
+    CompatibilityProjection, ConstantDerivativeMatrixProof, DaeVariableKind,
+    GeneralImplicitLoweringProof, GeneralImplicitReason, MassMatrixRank, TimeEquationClass,
     TimeLoweringProof,
 };
 pub use plan::{ForwardSensitivityPlan, TimeMethod, TimePlan};

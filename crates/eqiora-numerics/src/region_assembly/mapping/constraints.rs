@@ -186,8 +186,9 @@ where
                         })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let residual = ConstantDerivativeMatrixProof::new(full.len(), tangent)?
-                    .compatibility_residual(&[], &rhs)?;
+                let rate_proof = ConstantDerivativeMatrixProof::new(full.len(), tangent)?;
+                let projection = rate_proof.compatibility_projection(&[], &rhs)?;
+                let residual = projection.residual()?;
                 let norm = residual
                     .iter()
                     .fold(0_f64, |norm, value| norm.hypot(*value));
@@ -195,6 +196,47 @@ where
                 if !norm.is_finite() || !scale.is_finite() || norm > target {
                     return Err(invalid(&format!(
                         "spatial State initial rate compatibility residual {norm:e} exceeds target {target:e}"
+                    )));
+                }
+                // The exact projection certifies its own binary coefficients.
+                // Re-evaluate the rounded rate witness in the original weak
+                // equations; do not infer an actual residual from M*v + R(0).
+                let reduced_rates = projection.coefficients()?;
+                let rates = (0..coordinates.full_count())
+                    .map(|global| {
+                        coordinates
+                            .free_coordinate(global)
+                            .map_or(0., |free| reduced_rates[free])
+                    })
+                    .collect::<Vec<_>>();
+                let mut residual = prepared.work.residual(
+                    &prepared.plan,
+                    prepared.plan.target_id(0).expect("reduced target"),
+                    RegionPoint::Independent {
+                        state: &values,
+                        rate_target: prepared.plan.target_id(1).expect("full target"),
+                        rates: &rates,
+                        pullback: FieldPullback::Uniform {
+                            current: None,
+                            rate: None,
+                        },
+                    },
+                )?;
+                for &row in &rows {
+                    residual[row] = rate_proof
+                        .row(row)
+                        .expect("rate row")
+                        .iter()
+                        .zip(&reduced_rates)
+                        .map(|(a, v)| a * v)
+                        .sum();
+                }
+                let norm = residual
+                    .iter()
+                    .fold(0_f64, |norm, value| norm.hypot(*value));
+                if !norm.is_finite() || norm > target {
+                    return Err(invalid(&format!(
+                        "spatial State rounded initial rate witness residual {norm:e} exceeds target {target:e}"
                     )));
                 }
             }
