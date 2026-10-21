@@ -396,6 +396,41 @@ fn local_constant_mass_regularity_distinguishes_hidden_and_coupled_constraints()
     assert!(hidden.require_index_one_regularity(&[f64::NAN; 4]).is_err());
 }
 
+#[test]
+fn regular_pencils_distinguish_eigenvalues_hidden_constraints_and_singularity() {
+    // det(A + lambda*M) = lambda-1: the first shift is singular, but
+    // the pencil is regular. M has rank one, so two shifts suffice.
+    let mass = ConstantDerivativeMatrixProof::new(2, vec![1., 0., 0., 0.]).unwrap();
+    mass.require_regular_pencil(&[-1., 0., 0., 1.]).unwrap();
+    // det([[lambda,-1],[1,0]])=1. This hidden constraint is regular,
+    // although the separate index-one requirement must still reject it.
+    let hidden = [0., -1., 1., 0.];
+    mass.require_regular_pencil(&hidden).unwrap();
+    assert!(mass.require_index_one_regularity(&hidden).is_err());
+    // [[lambda,1,0],[0,0,lambda],[0,0,1]] is identically singular,
+    // despite full horizontal and vertical stacked ranks of M and A.
+    let singular =
+        ConstantDerivativeMatrixProof::new(3, vec![1., 0., 0., 0., 0., 1., 0., 0., 0.]).unwrap();
+    assert!(
+        singular
+            .require_regular_pencil(&[0., 1., 0., 0., 0., 0., 0., 0., 1.])
+            .is_err()
+    );
+    for state in [vec![1.], vec![f64::NAN; 4], vec![f64::INFINITY; 4]] {
+        assert!(mass.require_regular_pencil(&state).is_err());
+    }
+    // With M=0 regularity is exactly the ordinary algebraic rank condition.
+    let algebraic = ConstantDerivativeMatrixProof::new(2, vec![0.; 4]).unwrap();
+    algebraic
+        .require_regular_pencil(&[1., -1., 1., 1.])
+        .unwrap();
+    assert!(
+        algebraic
+            .require_regular_pencil(&[1., -1., 1., -1.])
+            .is_err()
+    );
+}
+
 fn exact_column(values: &[f64]) -> Vec<num_rational::BigRational> {
     values
         .iter()
