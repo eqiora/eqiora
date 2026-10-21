@@ -68,7 +68,9 @@ units, foreign conditions, and nonrepresentable normalization reject. This norma
 does not imply an unknown-space metric or a physical energy norm.
 
 Newton uses the shared component Operator IR's real-linear AD and the Plan's exact
-SparseLU/Identity/Fast provider policy. It requires strictly improving or converged interior
+admitted linear solver and provider policy. SparseLU and admitted iterative controls use
+the same residual acceptance; each linear correction must meet its own requested budget.
+It requires strictly improving or converged interior
 trial points within the requested iteration and backtracking budgets. Before publishing a
 Result, the original equations and inequalities are reevaluated and the accepted-point AD
 Jacobian must have full rank, even if the seed already has zero residual. This is local

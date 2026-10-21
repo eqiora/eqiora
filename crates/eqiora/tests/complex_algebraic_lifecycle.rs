@@ -1,4 +1,6 @@
 //! One mathematical Field retains both parts through the ordinary finite lifecycle.
+#[path = "complex_algebraic_lifecycle/solver_policy.rs"]
+mod solver_policy;
 mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
@@ -17,8 +19,8 @@ fn solve(source: &str) -> (ModelDocument, CommonAlgebraicPlan, CommonResult) {
     solve_with(source, true)
 }
 
-fn solve_with(source: &str, complex: bool) -> (ModelDocument, CommonAlgebraicPlan, CommonResult) {
-    let backend: &dyn LinearSolverBackend = if complex {
+fn solve_with(source: &str, reference: bool) -> (ModelDocument, CommonAlgebraicPlan, CommonResult) {
+    let backend: &dyn LinearSolverBackend = if reference {
         &REFERENCE_LINEAR_SOLVER
     } else {
         &FaerLinearSolver
@@ -26,7 +28,7 @@ fn solve_with(source: &str, complex: bool) -> (ModelDocument, CommonAlgebraicPla
     let document = ModelDocument::compile("complex.eqi", source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let solver = SolverPlan::new(
-        if complex {
+        if reference {
             LinearSolver::BiConjugateGradientStabilized
         } else {
             LinearSolver::SparseLu
@@ -36,7 +38,7 @@ fn solve_with(source: &str, complex: bool) -> (ModelDocument, CommonAlgebraicPla
         NonZeroUsize::new(8).unwrap(),
     )
     .unwrap()
-    .with_reduction(if complex {
+    .with_reduction(if reference {
         ReductionPolicy::Reproducible
     } else {
         ReductionPolicy::Fast

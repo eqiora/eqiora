@@ -93,21 +93,20 @@ fn value_only_properties_preserve_complex_and_shaped_inputs() {
 }
 
 fn ordinary_run(document: &ModelDocument, expected: &[(f64, f64)]) {
-    use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
-    use eqiora_backend_faer::FaerLinearSolver;
+    use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
     use eqiora_numerics::{
         CommonAlgebraicPlan, CommonLinearRequest, CommonResult, CommonSolvePolicy,
         ResolvedCommonPlan,
     };
-    let backend = &FaerLinearSolver;
+    let backend = &REFERENCE_LINEAR_SOLVER;
     let solver = SolverPlan::new(
-        LinearSolver::SparseLu,
+        LinearSolver::BiConjugateGradientStabilized,
         1e-13,
         1e-15,
         std::num::NonZeroUsize::new(8).unwrap(),
     )
     .unwrap()
-    .with_reduction(ReductionPolicy::Fast);
+    .with_reduction(ReductionPolicy::Reproducible);
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let plan = CommonAlgebraicPlan::resolve(
         &model,
