@@ -584,10 +584,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 value,
                 order,
             } => {
-                let inputs = inputs
-                    .iter()
-                    .map(|input| self.lower_part(*input, &[], ScalarPart::Real))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let inputs = self.lower_input_coordinates(&inputs)?;
                 let value = self.lower_shaped_part(value, component, part)?;
                 self.builder.derivative_limit(&inputs, value, order)?
             }
@@ -648,9 +645,6 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                     .properties()
                     .get(&value)
                     .map(|release| u32::from(release.first_partials()));
-                if derivative_order.is_some() {
-                    finite::charge_products(self.finite_products, application.arguments().len())?;
-                }
                 let mut result = self.lower_pure_definition(
                     &definition,
                     application.arguments(),
@@ -659,11 +653,7 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                     part,
                 )?;
                 if let Some(order) = derivative_order {
-                    let inputs = application
-                        .arguments()
-                        .iter()
-                        .map(|argument| self.lower_part(*argument, &[], ScalarPart::Real))
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let inputs = self.lower_input_coordinates(application.arguments())?;
                     result = self.builder.derivative_limit(&inputs, result, order)?;
                 }
                 result

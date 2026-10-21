@@ -550,3 +550,89 @@ fn pure_piecewise_math_uses_lazy_boolean_demand_and_active_derivatives() {
             .is_err()
     );
 }
+
+#[test]
+fn derivative_permissions_retain_every_complex_channel_even_for_constant_output() {
+    let symbol = SymbolRef::Parameter(Id::new());
+    let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .unwrap()
+        .array(2)
+        .unwrap();
+    use crate::{CalculusBuilder, CalculusNode, ExactRational, PureValueClass};
+    use eqiora_schema::kernel::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
+    let result = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let mut calculus = CalculusBuilder::new(
+        [PureValueClass::from_value_type(ty.clone()).unwrap()],
+        PureValueClass::from_value_type(result).unwrap(),
+    )
+    .unwrap();
+    let constant = calculus
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(9),
+            dimension: DimExponents::DIMENSIONLESS,
+        })
+        .unwrap();
+    let release = PropertyRelease::new(
+        ("org.example.Response".into(), "org.example.Measured".into()),
+        vec!["x".into()],
+        Some("single".into()),
+        PropertyDerivatives::ValueOnly,
+        ("org.example.manufactured".into(), "spdx.CC0_1_0".into()),
+        PropertyMeaning::Analytic(calculus.finish(constant).unwrap()),
+    )
+    .unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let input = builder.symbol(symbol).unwrap();
+    let root = builder.property(release, [input]).unwrap();
+    let typed = TypedResidual::<()>::infer(
+        builder.finish([root]).unwrap(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Ok::<_, ()>(ExpressionType::new(ty.clone(), None)),
+    )
+    .unwrap();
+    let rows = ComponentScalarization::lower(&typed).unwrap();
+    let coordinates = rows.rows()[0]
+        .symbols()
+        .iter()
+        .map(|coordinate| {
+            (
+                coordinate.component_index().to_vec(),
+                coordinate.is_imaginary(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        coordinates,
+        [
+            (vec![0], false),
+            (vec![0], true),
+            (vec![1], false),
+            (vec![1], true)
+        ]
+    );
+    let frozen = rows
+        .linearize(|_| Some((2., DifferentiationRole::Frozen)))
+        .unwrap();
+    let mut value = [0.];
+    frozen.primal(&mut value).unwrap();
+    assert_eq!(value, [9.]);
+    for (component, imaginary) in coordinates {
+        let error = rows
+            .linearize(|coordinate| {
+                Some((
+                    2.,
+                    if coordinate.component_index() == component
+                        && coordinate.is_imaginary() == imaginary
+                    {
+                        DifferentiationRole::Parameter
+                    } else {
+                        DifferentiationRole::Frozen
+                    },
+                ))
+            })
+            .unwrap_err();
+        assert!(error.message().contains("value-only contract"), "{error:?}");
+    }
+}
