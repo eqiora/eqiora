@@ -114,7 +114,7 @@ fn rate_partials_do_not_demand_undefined_state_partials() {
     let parameter = coordinates(&program, &parameters).unwrap().remove(0);
     assert_eq!(
         component
-            .parameter_action(&[0.25], &[0., 3.], &parameter, rate)
+            .input_action(&[0.25], &[0., 3.], &parameter, rate)
             .unwrap(),
         (3., vec![[0., 0.], [1., 0.]])
     );
@@ -250,7 +250,7 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
             assert_eq!(gradient, [[1. + 2. * p * u, 0.]]);
             assert_eq!(
                 bound
-                    .parameter_action(&[0.25], &[u], &parameter, None)
+                    .input_action(&[0.25], &[u], &parameter, None)
                     .map(|(value, _)| value)
                     .unwrap(),
                 u * u
@@ -264,13 +264,13 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
     );
     assert!(
         component
-            .parameter_action(&[0.25], &[], &parameter, None)
+            .input_action(&[0.25], &[], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
     assert!(
         component
-            .parameter_action(&[0.25], &[f64::NAN], &parameter, None)
+            .input_action(&[0.25], &[f64::NAN], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -284,7 +284,7 @@ fn parameter_products_do_not_request_unneeded_field_derivatives() {
     // Its Field differential is undefined, and the primal at u<0 is invalid.
     assert_eq!(
         component
-            .parameter_action(&[0.5], &[0.], &parameter, None)
+            .input_action(&[0.5], &[0.], &parameter, None)
             .map(|(value, _)| value)
             .unwrap(),
         0.
@@ -300,7 +300,7 @@ fn parameter_products_do_not_request_unneeded_field_derivatives() {
     );
     assert!(
         component
-            .parameter_action(&[0.5], &[-1.], &parameter, None)
+            .input_action(&[0.5], &[-1.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -313,7 +313,7 @@ fn parameter_products_keep_structural_activity_at_zero_inner_tangents() {
     // sqrt(p²)=|p| is not differentiable at zero despite d(p²)/dp=0.
     assert!(
         component
-            .parameter_action(&[0.5], &[2.], &parameter, None)
+            .input_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -322,7 +322,7 @@ fn parameter_products_keep_structural_activity_at_zero_inner_tangents() {
         let bound = component.bind_parameter_point(&point).unwrap();
         assert_eq!(
             bound
-                .parameter_action(&[0.5], &[2.], &parameter, None)
+                .input_action(&[0.5], &[2.], &parameter, None)
                 .map(|(value, _)| value)
                 .unwrap(),
             p.signum()
@@ -336,7 +336,7 @@ fn an_unconsumed_parameter_keeps_the_original_primal_domain() {
     let parameter = coordinates(&program, &parameters).unwrap().remove(1);
     assert_eq!(
         component
-            .parameter_action(&[0.5], &[2.], &parameter, None)
+            .input_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .unwrap(),
         0.
@@ -346,7 +346,7 @@ fn an_unconsumed_parameter_keeps_the_original_primal_domain() {
         component
             .bind_parameter_point(&invalid)
             .unwrap()
-            .parameter_action(&[0.5], &[2.], &parameter, None)
+            .input_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
             .is_err()
     );
@@ -371,7 +371,7 @@ fn prescribed_field_bindings_keep_the_parameter_chain_and_activity() {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
             let bound = component.bind_parameter_point(&point).unwrap();
             let partial = bound
-                .parameter_action(&[0.25], &[3.], &parameter, None)
+                .input_action(&[0.25], &[3.], &parameter, None)
                 .map(|(value, _)| value);
             if expression.starts_with("math.sqrt") {
                 // sqrt(p²*x)=|p|*sqrt(x) retains the cusp through a prescribed Field.
@@ -415,7 +415,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
             let bound = component.bind_parameter_point(&point).unwrap();
             let partial = bound
-                .parameter_action(&[0.5], &[2.], &selected[0], None)
+                .input_action(&[0.5], &[2.], &selected[0], None)
                 .map(|(value, _)| value);
             if profile == "first_partials" {
                 assert_eq!(partial.unwrap(), 2. * p * 4.);
@@ -430,7 +430,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             // q does not enter the property; its value-only contract suffices.
             assert_eq!(
                 bound
-                    .parameter_action(&[0.5], &[2.], &selected[1], None)
+                    .input_action(&[0.5], &[2.], &selected[1], None)
                     .map(|(value, _)| value)
                     .unwrap(),
                 2.
@@ -442,13 +442,13 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
         // q holds that input fixed and still has its ordinary derivative.
         assert!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[0], None)
+                .input_action(&[0.5], &[2.], &selected[0], None)
                 .map(|(value, _)| value)
                 .is_err()
         );
         assert_eq!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[1], None)
+                .input_action(&[0.5], &[2.], &selected[1], None)
                 .map(|(value, _)| value)
                 .unwrap(),
             2.
@@ -458,7 +458,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
         // A frozen property still checks its original validity domain.
         assert!(
             bound
-                .parameter_action(&[0.5], &[2.], &selected[1], None)
+                .input_action(&[0.5], &[2.], &selected[1], None)
                 .map(|(value, _)| value)
                 .is_err()
         );
@@ -499,7 +499,7 @@ fn complex_component_products_retain_independent_real_directions() {
                 ]]
             );
             let (value, gradient) = bound
-                .parameter_action(
+                .input_action(
                     &[0.25],
                     &[u],
                     &coordinates[0],
@@ -509,7 +509,7 @@ fn complex_component_products_retain_independent_real_directions() {
             assert_eq!(value, C::new(a * a, a * b));
             assert_eq!(gradient, [[C::new(2. * a, b), C::new(0., a)]]);
             let (value, gradient) = bound
-                .parameter_action(
+                .input_action(
                     &[0.25],
                     &[u],
                     &coordinates[1],
@@ -667,7 +667,7 @@ fn complex_partial_selection_precedes_scalar_differentiation() {
     );
     let parameter = coordinates(&program, &parameters).unwrap().remove(0);
     let (primal, gradient) = component
-        .parameter_action(&[0.25], &[value], &parameter, selection)
+        .input_action(&[0.25], &[value], &parameter, selection)
         .unwrap();
     assert_eq!(primal, num_complex::Complex64::new(0., 9.));
     assert_eq!(gradient[0][1], num_complex::Complex64::new(0., 6.));

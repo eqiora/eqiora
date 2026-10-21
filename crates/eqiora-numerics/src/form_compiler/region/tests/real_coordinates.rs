@@ -256,7 +256,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                         } else {
                             C::new(1., 0.)
                         };
-                        let derivative = bound.parameter_partial(&coordinate).unwrap();
+                        let derivative = bound.input_partial(&coordinate).unwrap();
                         let (partial, _) = derivative
                             .prepare_affine_actions::<Real>(&map, None, &rule, AffineInput::Current)
                             .unwrap();

@@ -68,7 +68,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         let forms = input
             .forms
             .iter()
-            .map(|(form, _)| form.parameter_partial(coordinate))
+            .map(|(form, _)| form.input_partial(coordinate))
             .collect::<Result<Vec<_>, _>>()?;
         let (partial_mapping, mut differentiated) = partial.cartesian_assembly_bound(
             mesh.mesh(),

@@ -1,4 +1,4 @@
-//! Physical Field and Parameter products use the same bound scalar IR point.
+//! Physical Field and prescribed-input products use the same bound scalar IR point.
 use super::*;
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent};
 
@@ -14,22 +14,22 @@ impl<S: Coefficient> FieldComponent<S> {
         self.product(physical, values, None, derivatives)
     }
 
-    /// Direct physical Parameter partial with all candidate Field coordinates fixed.
-    pub(in crate::form_compiler) fn parameter_action(
+    /// Direct prescribed-input partial with all candidate Field coordinates fixed.
+    pub(in crate::form_compiler) fn input_action(
         &self,
         physical: &[f64],
         values: &[S],
-        parameter: &ScalarSymbolCoordinate,
+        input_partial: &ScalarSymbolCoordinate,
         derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
-        self.product(physical, values, Some(parameter), derivatives)
+        self.product(physical, values, Some(input_partial), derivatives)
     }
 
     fn product(
         &self,
         physical: &[f64],
         values: &[S],
-        parameter: Option<&ScalarSymbolCoordinate>,
+        input_partial: Option<&ScalarSymbolCoordinate>,
         derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         if derivatives.is_some_and(|parts| parts.0.len() != self.columns.len()) {
@@ -47,7 +47,7 @@ impl<S: Coefficient> FieldComponent<S> {
         for row in &self.rows {
             let part = usize::from(row.is_imaginary());
             let (value, gradient) =
-                self.row_product(row, physical, values, parameter, derivatives)?;
+                self.row_product(row, physical, values, input_partial, derivatives)?;
             values_by_part[part] = value;
             gradients[part] = gradient;
         }
@@ -79,15 +79,15 @@ impl<S: Coefficient> FieldComponent<S> {
         row: &ComponentScalarRow,
         physical: &[f64],
         values: &[S],
-        parameter: Option<&ScalarSymbolCoordinate>,
+        input_partial: Option<&ScalarSymbolCoordinate>,
         derivatives: Option<FieldDerivatives<'_>>,
     ) -> Result<(f64, Vec<f64>), Diagnostic> {
         let inputs = self.point(row, physical, values)?;
-        if parameter.is_none() && derivatives.is_none() {
+        if input_partial.is_none() && derivatives.is_none() {
             return row.evaluate(&inputs).map(|value| (value, Vec::new()));
         }
         let direction =
-            |coordinate: &ScalarSymbolCoordinate| f64::from(Some(coordinate) == parameter);
+            |coordinate: &ScalarSymbolCoordinate| f64::from(Some(coordinate) == input_partial);
         let mut roles = Vec::with_capacity(inputs.len());
         let mut tangents = Vec::new();
         let mut unknowns = Vec::new();
@@ -105,7 +105,7 @@ impl<S: Coefficient> FieldComponent<S> {
                 continue;
             }
             let input = self.binding(coordinate)?;
-            if parameter.is_none() || input.constant_in_direction(coordinate, &direction)? {
+            if input_partial.is_none() || input.constant_in_direction(coordinate, &direction)? {
                 roles.push(DifferentiationRole::Frozen);
             } else {
                 // Structural activity survives a zero sampled inner tangent.
@@ -119,7 +119,7 @@ impl<S: Coefficient> FieldComponent<S> {
         }
         let action = row.linearize(&inputs, &roles)?;
         let mut value = [0.];
-        if parameter.is_some() {
+        if input_partial.is_some() {
             action.jvp(RelationTangent::Parameter(&tangents), &mut value)?;
         } else {
             action.primal(&mut value)?;
@@ -128,7 +128,7 @@ impl<S: Coefficient> FieldComponent<S> {
             return Ok((value[0], Vec::new()));
         }
         let mut gradient = vec![0.; unknowns.len()];
-        if parameter.is_some() {
+        if input_partial.is_some() {
             let mut field_direction = vec![0.; unknowns.len()];
             let mixed = vec![0.; tangents.len()];
             for (index, entry) in gradient.iter_mut().enumerate() {

@@ -34,9 +34,7 @@ impl<S: Coefficient> Input<S> {
     ) -> Result<bool, Diagnostic> {
         match self {
             Self::Scalar { data, .. } => data.constant_in_direction(direction),
-            Self::ParameterComponent { .. } | Self::Coordinate { .. } => {
-                Ok(direction(coordinate) == 0.)
-            }
+            Self::BoundScalar { .. } | Self::Coordinate { .. } => Ok(direction(coordinate) == 0.),
         }
     }
 }

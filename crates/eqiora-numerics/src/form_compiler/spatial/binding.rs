@@ -15,13 +15,13 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             ));
         }
         let mut partial = self.clone();
-        partial.volume = self.volume.parameter_partial(coordinate)?;
+        partial.volume = self.volume.input_partial(coordinate)?;
         for law in partial
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            law.parameter_partial(coordinate, self.dimension)?;
+            law.input_partial(coordinate, self.dimension)?;
         }
         Ok(partial)
     }

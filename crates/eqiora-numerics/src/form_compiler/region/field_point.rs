@@ -157,19 +157,19 @@ impl<S: Coefficient> BoundFieldComponent<S> {
         )
     }
 
-    pub(super) fn parameter_action(
+    pub(super) fn input_action(
         &self,
         fields: &[RegionFieldLayout],
         sample: &FieldPoint<'_>,
         point: &FieldValues<'_, S>,
-        parameter: &eqiora_ir::ScalarSymbolCoordinate,
+        input_partial: &eqiora_ir::ScalarSymbolCoordinate,
         pullback: Option<FieldPullback<'_>>,
     ) -> Result<(S, Vec<[S; 2]>), Diagnostic> {
         let selected = self.derivatives(fields, sample, pullback);
-        self.value.parameter_action(
+        self.value.input_action(
             sample.physical,
             &self.inputs(fields, sample, point)?,
-            parameter,
+            input_partial,
             selected.as_deref().map(FieldDerivatives),
         )
     }

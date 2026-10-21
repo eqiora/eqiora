@@ -14,14 +14,14 @@ pub(super) struct ComponentTerm<S: crate::spatial_expression::Coefficient> {
     pub test: BasisComponent,
     pub value: std::sync::Arc<FieldComponent<S>>,
     pub coefficient: Data<S>,
-    /// A direct Parameter partial holds the candidate Field coordinates fixed.
-    pub parameter: Option<eqiora_ir::ScalarSymbolCoordinate>,
+    /// A prescribed-input partial holds the candidate Field coordinates fixed.
+    pub input_partial: Option<eqiora_ir::ScalarSymbolCoordinate>,
 }
 
 impl<S: crate::spatial_expression::Coefficient> ComponentTerm<S> {
     pub(super) fn same_component(&self, other: &Self) -> bool {
         self.test == other.test
-            && self.parameter == other.parameter
+            && self.input_partial == other.input_partial
             && self.value.same_expression(&other.value)
     }
 

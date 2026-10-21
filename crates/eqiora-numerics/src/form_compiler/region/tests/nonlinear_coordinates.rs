@@ -86,7 +86,7 @@ fn mixed_nonlinear_cells_preserve_physical_scales_and_parameter_products() {
             .is_err()
         );
         let (partial, _) = bound
-            .parameter_partial(&coordinate)
+            .input_partial(&coordinate)
             .unwrap()
             .prepare_projected_cell_actions::<Real>(&geometry, &geometry, None, &quadrature)
             .unwrap();

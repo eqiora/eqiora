@@ -12,7 +12,7 @@ pub(super) struct Component<S: Coefficient> {
     test: BasisComponent,
     value: BoundFieldComponent<S>,
     coefficient: usize,
-    parameter: Option<eqiora_ir::ScalarSymbolCoordinate>,
+    input_partial: Option<eqiora_ir::ScalarSymbolCoordinate>,
 }
 
 impl<S: Coefficient> Component<S> {
@@ -28,7 +28,7 @@ impl<S: Coefficient> Component<S> {
             test: term.test,
             value: BoundFieldComponent::new(&term.value, fields, rates)?,
             coefficient,
-            parameter: term.parameter.clone(),
+            input_partial: term.input_partial.clone(),
         })
     }
 }
@@ -48,9 +48,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
             values: &sample.values,
             gradients: &sample.gradients,
         };
-        let (value, gradient) = if let Some(parameter) = &term.parameter {
+        let (value, gradient) = if let Some(input_partial) = &term.input_partial {
             term.value
-                .parameter_action(&self.fields, &basis, point, parameter, pullback)?
+                .input_action(&self.fields, &basis, point, input_partial, pullback)?
         } else {
             term.value.action(&self.fields, &basis, point, pullback)?
         };
