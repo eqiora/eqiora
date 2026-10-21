@@ -183,6 +183,12 @@ impl ComponentIndex {
 /// is capture-free and non-recursive by construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CalculusNode {
+    /// Evaluate a prerequisite before returning a value. The prerequisite keeps
+    /// its domain but contributes no derivative to the returned value.
+    Demand {
+        prerequisite: CalculusNodeId,
+        value: CalculusNodeId,
+    },
     /// Demand a Boolean domain condition before evaluating a complete scalar value.
     Require {
         condition: CalculusNodeId,
@@ -248,6 +254,10 @@ impl CalculusNode {
     fn operands(&self) -> impl Iterator<Item = CalculusNodeId> {
         let operands = match *self {
             Self::Require { condition, value } => [Some(condition), Some(value), None],
+            Self::Demand {
+                prerequisite,
+                value,
+            } => [Some(prerequisite), Some(value), None],
             Self::Differentiated { source, wrt } => [Some(source), Some(wrt), None],
             Self::BoundInput(value)
             | Self::Neg(value)

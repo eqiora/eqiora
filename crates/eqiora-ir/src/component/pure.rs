@@ -205,6 +205,24 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 let value = self.lower_calculus_component(state, value, part)?;
                 self.builder.require(condition, value)?
             }
+            CalculusNode::Demand {
+                prerequisite,
+                value,
+            } => {
+                let real = self.lower_calculus_component(state, prerequisite, Real)?;
+                let complete = if state.component_types[prerequisite.index() as usize]
+                    .scalar_domain()
+                    == eqiora_core::ScalarDomain::Complex
+                {
+                    let imaginary =
+                        self.lower_calculus_component(state, prerequisite, Imaginary)?;
+                    self.builder.demand(real, imaginary)?
+                } else {
+                    real
+                };
+                let value = self.lower_calculus_component(state, value, part)?;
+                self.builder.demand(complete, value)?
+            }
             CalculusNode::Complex { real, imag } => {
                 self.lower_calculus_component(state, if part == Real { real } else { imag }, Real)?
             }

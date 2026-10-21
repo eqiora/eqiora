@@ -193,3 +193,45 @@ fn failed_whole_value_expansion_restores_the_callers_arena() {
     );
     assert_eq!((caller.nodes, caller.depths), before);
 }
+
+#[test]
+fn indexing_rejects_invalid_channels_and_bounded_expansion_atomically() {
+    use ComponentIndex::Result as Axis;
+    for (rows, index, expected) in [
+        (2, 2, PureOperatorError::FormalTypeMismatch),
+        (MAX_NODES as u32, 0, PureOperatorError::NodeLimit),
+    ] {
+        let input = matrix(rows, 2);
+        let output = PureValueClass::from_value_type(
+            scalar().exact_type().unwrap().clone().array(2).unwrap(),
+        )
+        .unwrap();
+        let argument = projection(input.clone(), input.clone(), [Axis(0), Axis(1)]);
+        let mut caller = CalculusBuilder::new([input], output).unwrap();
+        caller
+            .push(CalculusNode::Rational {
+                value: ExactRational::integer(7),
+                dimension: DimExponents::DIMENSIONLESS,
+            })
+            .unwrap();
+        let before = (caller.nodes.clone(), caller.depths.clone());
+        assert_eq!(caller.index(&argument.into(), index), Err(expected));
+        assert_eq!((caller.nodes, caller.depths), before);
+    }
+}
+
+#[test]
+fn complete_index_domains_fit_existing_depth_limits_for_wide_arrays() {
+    let input = matrix(300, 1);
+    let output =
+        PureValueClass::from_value_type(scalar().exact_type().unwrap().clone().array(1).unwrap())
+            .unwrap();
+    let argument = projection(
+        input.clone(),
+        input.clone(),
+        [ComponentIndex::Result(0), ComponentIndex::Result(1)],
+    );
+    let mut caller = CalculusBuilder::new([input], output).unwrap();
+    let value = caller.index(&argument.into(), 299).unwrap();
+    caller.finish(value).unwrap();
+}

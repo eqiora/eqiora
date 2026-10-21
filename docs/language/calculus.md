@@ -105,6 +105,14 @@ Conjugate dependence is retained; these are real-linear actions, not holomorphic
 Whole typed operator results compose with actions, and static channel indexing such as
 `jvp(z,[z],[direction])[1]` retains the value's local axes. Nested actions use the same calculus.
 
+Indexing retains the complete original output's domain, even if a later derivative is zero.
+For an array-valued operator `f(x,z)=x*math.log(component(z,0))`, with
+`z:array<1,2>`, `partial(f(x=x,z=z)[0],wrt=x)` still requires both entries of `z`
+to be positive. Discarding an output component does not discard its logarithm's domain.
+Formal derivatives retain these mathematical domains without requiring an unnecessary
+numerical evaluation of the original polynomial value, which can overflow even when its
+selected derivative is finite.
+
 Conditionals over the admitted numeric inputs also compose when the predicate is
 independent of every selected input.
 For `f = if k>0 then math.log(x) else math.log(-x)`, holding `k` fixed gives

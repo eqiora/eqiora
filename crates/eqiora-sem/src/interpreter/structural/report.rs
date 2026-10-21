@@ -157,8 +157,7 @@ pub(super) fn analyze(
             let operator = ComponentScalarization::lower(&typed)?;
             for (ordinal, row) in operator.rows().iter().enumerate() {
                 let coordinates = row
-                    .symbols()
-                    .iter()
+                    .value_symbols()?
                     .filter_map(|source| {
                         normalized_symbol(source.symbol(), &plan.signal_sources)
                             .map(|symbol| Coordinate(source.with_symbol(symbol)))

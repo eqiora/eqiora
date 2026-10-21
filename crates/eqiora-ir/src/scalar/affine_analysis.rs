@@ -134,6 +134,7 @@ pub(super) fn summarize(
                 }
                 Instruction::Select { .. }
                 | Instruction::Require { .. }
+                | Instruction::Demand { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)

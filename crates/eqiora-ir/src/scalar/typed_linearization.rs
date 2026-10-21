@@ -309,6 +309,7 @@ impl typed::TypedInstructions<'_> {
                     | Instruction::And(a, b)
                     | Instruction::Or(a, b) => at(a) || at(b),
                     Instruction::Require { condition, value } => at(condition) || at(value),
+                    Instruction::Demand { value, .. } => at(value),
                     Instruction::DerivativeLimit {
                         start, len, value, ..
                     } => {
@@ -368,7 +369,9 @@ impl typed::TypedInstructions<'_> {
                 } else {
                     else_value
                 }),
-                Instruction::Require { value, .. } => Some(value),
+                Instruction::Require { value, .. } | Instruction::Demand { value, .. } => {
+                    Some(value)
+                }
                 _ => None,
             }
         };

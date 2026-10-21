@@ -80,6 +80,13 @@ fn prove(
                 .ok_or(PureOperatorError::InvalidNode)
         };
         let proof = match node {
+            CalculusNode::Demand {
+                prerequisite,
+                value,
+            } => {
+                get(*prerequisite)?;
+                get(*value)?
+            }
             CalculusNode::Require { condition, value } => {
                 boolean(&get(*condition)?)?;
                 get(*value)?

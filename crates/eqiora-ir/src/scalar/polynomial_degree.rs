@@ -35,9 +35,9 @@ pub(super) fn instruction_degrees<const N: usize>(
             // Require restricts the domain, not the value's polynomial.
             // Its predicate remains in the instruction degrees, so an
             // affine/constant proof cannot erase a selected primal guard.
-            Instruction::Require { value, .. } | Instruction::DerivativeLimit { value, .. } => {
-                at(value)
-            }
+            Instruction::Require { value, .. }
+            | Instruction::Demand { value, .. }
+            | Instruction::DerivativeLimit { value, .. } => at(value),
             Instruction::Select {
                 condition,
                 then_value,

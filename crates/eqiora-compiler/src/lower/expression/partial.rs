@@ -525,15 +525,10 @@ impl ComponentCompiler<'_> {
                 axes: self.axes(literals[&(Arc::as_ptr(&expression.node) as usize)]),
             },
             LoweringExpressionNode::Index { value, index } => {
-                let input = types::expression_type(file, value, self.bindings, None)?;
                 let argument = self.argument(value, builder, cache)?;
-                let id = crate::pure_operator::composition::indexed_value(
-                    builder,
-                    argument,
-                    input.value_type,
-                    *index,
-                )
-                .map_err(|failure| error(file, expression, failure.to_string()))?;
+                let id = builder
+                    .index(&argument, *index)
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
                 cache.insert(key, id);
                 return Ok(id);
             }

@@ -6,6 +6,8 @@ mod support;
 mod typed_actions;
 #[path = "formal_partials/typed_inputs.rs"]
 mod typed_inputs;
+#[path = "formal_partials/value_projection.rs"]
+mod value_projection;
 use eqiora::compiler::compile;
 use eqiora::graph::Op;
 use eqiora::ir::ScalarOperatorIr;

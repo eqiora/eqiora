@@ -94,6 +94,15 @@ pub(super) fn summarize(
             }
             at(value)?.clone()
         }
+        Instruction::Demand {
+            prerequisite,
+            value,
+        } => {
+            if let Summary::Failed(failure) = at(prerequisite)? {
+                return Err(failure.clone());
+            }
+            at(value)?.clone()
+        }
         Instruction::Select {
             condition,
             then_value,

@@ -40,6 +40,7 @@ impl ScalarOperatorIr {
                 }
                 Instruction::Not(a) if !depends(a) => false,
                 Instruction::Require { condition, value } if !depends(condition) => depends(value),
+                Instruction::Demand { value, .. } => depends(value),
                 Instruction::PowI(a, exponent) if exponent >= 0 || !depends(a) => {
                     exponent != 0 && depends(a)
                 }

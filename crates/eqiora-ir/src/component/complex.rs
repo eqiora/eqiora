@@ -66,14 +66,15 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
     ) -> Result<ScalarInputValueId, Diagnostic> {
         use ScalarPart::{Imaginary, Real};
         Ok(match function {
-            UnaryMathFunction::Real | UnaryMathFunction::Imag => lower(
-                self,
+            UnaryMathFunction::Real | UnaryMathFunction::Imag => {
+                let real = lower(self, Real)?;
+                let imaginary = lower(self, Imaginary)?;
                 if function == UnaryMathFunction::Real {
-                    Real
+                    self.builder.demand(imaginary, real)?
                 } else {
-                    Imaginary
-                },
-            )?,
+                    self.builder.demand(real, imaginary)?
+                }
+            }
             UnaryMathFunction::Conj => {
                 let value = lower(self, part)?;
                 if part == Imaginary {

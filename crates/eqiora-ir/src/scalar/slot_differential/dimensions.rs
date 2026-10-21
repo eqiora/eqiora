@@ -30,6 +30,7 @@ impl ScalarInputIrBuilder {
                 }),
                 Instruction::Neg(value)
                 | Instruction::Require { value, .. }
+                | Instruction::Demand { value, .. }
                 | Instruction::DerivativeLimit { value, .. }
                 | Instruction::Add(value, _)
                 | Instruction::Sub(value, _)

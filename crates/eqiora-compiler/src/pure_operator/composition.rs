@@ -3,31 +3,6 @@ use super::*;
 use eqiora_schema::kernel::pure_operator::CalculusArgument;
 use eqiora_schema::kernel::typing::ExpressionType;
 
-/// Static channel selection uses the same complete index contract and typed
-/// projection for parsed local definitions and retained Model expressions.
-pub(crate) fn indexed_value(
-    caller: &mut CalculusBuilder,
-    argument: CalculusArgument,
-    input: eqiora_core::ValueType,
-    index: u32,
-) -> Result<CalculusNodeId, PureOperatorError> {
-    let output = ExpressionType::<()>::new(input.clone(), None)
-        .index(index)
-        .map_err(|_| PureOperatorError::FormalTypeMismatch)?
-        .value_type;
-    let mut projection = CalculusBuilder::new(
-        [PureValueClass::from_value_type(input)?],
-        PureValueClass::from_value_type(output.clone())?,
-    )?;
-    let root = projection.push(CalculusNode::FormalComponent {
-        formal: 0,
-        axes: std::iter::once(ComponentIndex::Fixed(index))
-            .chain((0..output.shape().rank()).map(|axis| ComponentIndex::Result(axis as u16)))
-            .collect(),
-    })?;
-    caller.apply_inputs(&projection.finish(root)?, &[argument])
-}
-
 pub(super) fn compile_index(
     file: &str,
     expression: &Expr,
@@ -39,15 +14,6 @@ pub(super) fn compile_index(
     let ExprKind::Index { value, index } = expression.kind() else {
         unreachable!("indexed source expression")
     };
-    let class = argument_class(file, value, formals, compiled)?
-        .and_then(|class| class.exact_type().cloned())
-        .ok_or_else(|| {
-            pure_error(
-                file,
-                value.range(),
-                "channel index requires a complete array type",
-            )
-        })?;
     let index = crate::hierarchy::closed_index(index).map_err(|_| {
         pure_error(
             file,
@@ -56,7 +22,8 @@ pub(super) fn compile_index(
         )
     })?;
     let value = compile_argument(file, value, formals, sources, compiled, builder)?;
-    indexed_value(builder, value, class, index)
+    builder
+        .index(&value, index)
         .map_err(|error| kernel_error(file, expression.range(), error))
 }
 
