@@ -5,6 +5,7 @@
 //! binding; it must not require the occurrence identities it seeds.
 
 pub(crate) mod actions;
+mod composition;
 pub(crate) mod property;
 use std::collections::BTreeMap;
 
@@ -20,6 +21,11 @@ use eqiora_schema::kernel::pure_operator::{
 };
 
 use crate::diagnostics::source_error;
+
+struct FormalBindings<'a> {
+    names: BTreeMap<&'a str, u16>,
+    classes: Vec<PureValueClass>,
+}
 
 fn is_calculus_math(name: &str) -> bool {
     name == "math.complex"
@@ -232,14 +238,17 @@ fn compile_local(
         formal_rules.push(value_class(file, formal.range(), formal.value_class())?);
     }
     let mut builder = CalculusBuilder::new(
-        formal_rules,
+        formal_rules.clone(),
         value_class(file, declaration.range(), declaration.result())?,
     )
     .map_err(|error| kernel_error(file, declaration.range(), error))?;
     let root = compile_expression(
         file,
         declaration.body(),
-        &formal_names,
+        &FormalBindings {
+            names: formal_names,
+            classes: formal_rules,
+        },
         sources,
         compiled,
         &mut builder,
@@ -317,7 +326,7 @@ fn value_class(
 fn compile_expression(
     file: &str,
     expression: &Expr,
-    formals: &BTreeMap<&str, u16>,
+    formals: &FormalBindings<'_>,
     sources: &BTreeMap<&str, &PureOperatorDecl>,
     compiled: &BTreeMap<String, PureOperatorDefinition>,
     builder: &mut CalculusBuilder,
@@ -328,7 +337,7 @@ fn compile_expression(
             wrt,
             holding,
         } => {
-            let selected = *formals.get(wrt.as_str()).ok_or_else(|| {
+            let selected = *formals.names.get(wrt.as_str()).ok_or_else(|| {
                 pure_error(
                     file,
                     wrt.range(),
@@ -337,7 +346,7 @@ fn compile_expression(
             })?;
             let mut seen = std::collections::BTreeSet::new();
             for binding in holding {
-                if !formals.contains_key(binding.as_str())
+                if !formals.names.contains_key(binding.as_str())
                     || binding.as_str() == wrt.as_str()
                     || !seen.insert(binding.as_str())
                 {
@@ -360,7 +369,7 @@ fn compile_expression(
         ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
             let (value, selector, cotangent) = actions::vjp_arguments(file, expression, arguments)?;
             let binding = actions::binding(file, selector)?;
-            let formal = *formals.get(binding.as_str()).ok_or_else(|| {
+            let formal = *formals.names.get(binding.as_str()).ok_or_else(|| {
                 pure_error(
                     file,
                     selector.range(),
@@ -388,7 +397,7 @@ fn compile_expression(
                             "jvp selectors must name independent lexical formals",
                         ));
                     };
-                    let formal = *formals.get(name.as_str()).ok_or_else(|| {
+                    let formal = *formals.names.get(name.as_str()).ok_or_else(|| {
                         pure_error(
                             file,
                             binding.range(),
@@ -433,7 +442,7 @@ fn compile_expression(
             dimension: DimExponents::DIMENSIONLESS,
         },
         ExprKind::Name(name) => CalculusNode::FormalComponent {
-            formal: *formals.get(name.as_str()).ok_or_else(|| {
+            formal: *formals.names.get(name.as_str()).ok_or_else(|| {
                 pure_error(
                     file,
                     expression.range(),
@@ -563,11 +572,13 @@ fn compile_expression(
                 let arguments = ordered
                     .into_iter()
                     .map(|value| {
-                        compile_expression(file, value, formals, sources, compiled, builder)
+                        composition::compile_argument(
+                            file, value, formals, sources, compiled, builder,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 return builder
-                    .apply_scalar_inputs(definition, &arguments)
+                    .apply_inputs(definition, &arguments)
                     .map_err(|error| kernel_error(file, expression.range(), error));
             }
             let args = arguments.positional().ok_or_else(|| {
@@ -598,7 +609,7 @@ fn compile_expression(
                         ));
                     };
                     CalculusNode::FormalComponent {
-                        formal: *formals.get(name.as_str()).ok_or_else(|| {
+                        formal: *formals.names.get(name.as_str()).ok_or_else(|| {
                             pure_error(
                                 file,
                                 formal.range(),

@@ -325,17 +325,27 @@ pub(super) fn expression_domain(
     let proofs = prove(formals, nodes)?;
     Ok(proofs[definition_index(root, proofs.len())?].domain)
 }
-pub(super) fn instantiate_dimension<I>(
-    monomial: &FormalDimensionMonomial,
-    arguments: &[ExpressionType<I>],
-) -> Result<DimExponents, PureOperatorError> {
-    let mut result = monomial.fixed_dimension;
-    for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
-        result = result
-            .mul(power(argument.dimension(), exponent.clone())?)
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+impl PureOperatorDefinition {
+    /// Instantiate the body's physical dimension from ordered input dimensions.
+    /// Full value contracts are checked separately by [`Self::instantiate`].
+    ///
+    /// # Errors
+    /// Rejects wrong arity or dimensions outside the portable SI exponent range.
+    pub fn result_dimension(
+        &self,
+        arguments: &[DimExponents],
+    ) -> Result<DimExponents, PureOperatorError> {
+        if arguments.len() != self.formals.len() {
+            return Err(PureOperatorError::ArityMismatch);
+        }
+        let mut result = self.dimension.fixed_dimension;
+        for (argument, exponent) in arguments.iter().zip(self.dimension.exponents.iter()) {
+            result = result
+                .mul(power(*argument, exponent.clone())?)
+                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+        }
+        Ok(result)
     }
-    Ok(result)
 }
 fn normalized(
     formals: &[PureValueClass],
@@ -343,7 +353,7 @@ fn normalized(
 ) -> Result<(DimExponents, Vec<ExactRational>), PureOperatorError> {
     let mut fixed = monomial.fixed_dimension;
     let mut free = Vec::with_capacity(formals.len());
-    for (formal, exponent) in formals.iter().zip(monomial.exponents()) {
+    for (formal, exponent) in formals.iter().zip(monomial.exponents.iter()) {
         if let Some(dimension) = formal.dimension() {
             fixed = fixed
                 .mul(power(dimension, exponent.clone())?)

@@ -12,14 +12,21 @@ impl ExpressionLowerer<'_> {
             .iter()
             .map(|argument| self.lower(argument))
             .collect::<Result<Vec<_>, _>>()?;
-        let dimension = instantiate_pure_dimension(definition, &arguments).ok_or_else(|| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.file,
-                expression.range(),
-                "pure-operator result dimension overflows the portable SI exponent range",
+        let dimension = definition
+            .result_dimension(
+                &arguments
+                    .iter()
+                    .map(|argument| argument.dimension)
+                    .collect::<Vec<_>>(),
             )
-        })?;
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            })?;
         self.builder
             .pure_operator(definition, arguments.iter().map(|argument| argument.id))
             .map(|id| TypedExpression { id, dimension })
@@ -50,24 +57,4 @@ impl ExpressionLowerer<'_> {
         })?;
         self.lower_pure_operator(expression, &definition, arguments)
     }
-}
-
-fn instantiate_pure_dimension(
-    definition: &PureOperatorDefinition,
-    arguments: &[TypedExpression],
-) -> Option<DimExponents> {
-    if arguments.len() != definition.formals().len() {
-        return None;
-    }
-    arguments
-        .iter()
-        .zip(definition.dimension_monomial().exponents())
-        .try_fold(
-            definition.dimension_monomial().fixed_dimension(),
-            |result, (argument, exponent)| {
-                let (numerator, denominator) = exponent.to_i32_ratio()?;
-                let term = argument.dimension.pow(numerator, denominator)?;
-                result.mul(term)
-            },
-        )
 }

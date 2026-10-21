@@ -138,7 +138,11 @@ fn dyadic_product_derives_shape_support_and_product_dimension() {
     let definition = PureOperatorDefinition::dyadic_product().unwrap();
     assert_eq!(definition.formals().len(), 2);
     assert_eq!(
-        definition.dimension_monomial().exponents(),
+        definition.result_dimension(&[length, force]).unwrap(),
+        DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).unwrap()
+    );
+    assert_eq!(
+        definition.dimension.exponents.as_ref(),
         &[ExactRational::integer(1), ExactRational::integer(1)]
     );
     let application = definition
@@ -172,6 +176,12 @@ fn dyadic_product_derives_shape_support_and_product_dimension() {
 fn dyadic_product_requires_one_exact_volume_and_checked_si_dimension() {
     let definition = PureOperatorDefinition::dyadic_product().unwrap();
     let dimensionless = DimExponents::DIMENSIONLESS;
+    for arguments in [vec![], vec![dimensionless], vec![dimensionless; 3]] {
+        assert_eq!(
+            definition.result_dimension(&arguments),
+            Err(PureOperatorError::ArityMismatch)
+        );
+    }
     assert!(matches!(
         definition.instantiate(&[
             volume_vector("left", dimensionless),
@@ -182,6 +192,10 @@ fn dyadic_product_requires_one_exact_volume_and_checked_si_dimension() {
 
     let large =
         DimExponents::from_integers([0, i32::MAX, 0, 0, 0, 0, 0]).expect("bounded dimension");
+    assert_eq!(
+        definition.result_dimension(&[large, large]),
+        Err(PureOperatorError::ResultDimensionOverflow)
+    );
     assert!(matches!(
         definition.instantiate(&[volume_vector("body", large), volume_vector("body", large),]),
         Err(PureOperatorError::ResultDimensionOverflow)

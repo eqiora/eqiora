@@ -44,7 +44,7 @@ fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
     let root = builder.push(CalculusNode::Div(x, y)).unwrap();
     let quotient = builder.finish(root).unwrap();
     assert_eq!(
-        quotient.dimension_monomial().exponents(),
+        quotient.dimension.exponents.as_ref(),
         [ExactRational::integer(1), ExactRational::integer(-1)]
     );
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
@@ -67,11 +67,15 @@ fn quotient_dimensions_and_composition_follow_signed_formal_powers() {
     let x = formal(&mut outer, 0);
     let y = formal(&mut outer, 1);
     let z = formal(&mut outer, 2);
-    let inner = outer.apply_scalar_inputs(&quotient, &[y, z]).unwrap();
-    let root = outer.apply_scalar_inputs(&quotient, &[x, inner]).unwrap();
+    let inner = outer
+        .apply_inputs(&quotient, &[y.into(), z.into()])
+        .unwrap();
+    let root = outer
+        .apply_inputs(&quotient, &[x.into(), inner.into()])
+        .unwrap();
     let composed = outer.finish(root).unwrap();
     assert_eq!(
-        composed.dimension_monomial().exponents(),
+        composed.dimension.exponents.as_ref(),
         [
             ExactRational::integer(1),
             ExactRational::integer(-1),
@@ -165,8 +169,12 @@ fn square_root_uses_rational_formal_exponents_and_typed_literal_factors() {
         .unwrap();
     let definition = builder.finish(root).unwrap();
     assert_eq!(
-        definition.dimension_monomial().exponents(),
+        definition.dimension.exponents.as_ref(),
         [ExactRational::new(1, 2).unwrap()]
+    );
+    assert_eq!(
+        definition.result_dimension(&[length]).unwrap(),
+        root_dimension
     );
     assert_eq!(
         definition
@@ -184,11 +192,18 @@ fn square_root_uses_rational_formal_exponents_and_typed_literal_factors() {
         .push(CalculusNode::UnaryMath(UnaryMathFunction::Sqrt, value))
         .unwrap();
     let definition = literal_builder.finish(root).unwrap();
-    assert_eq!(definition.dimension_monomial().fixed_dimension(), length);
+    assert_eq!(definition.dimension.fixed_dimension, length);
+    assert_eq!(
+        definition
+            .result_dimension(&[DimExponents::DIMENSIONLESS])
+            .unwrap(),
+        length
+    );
     assert!(
         definition
-            .dimension_monomial()
-            .exponents()
+            .dimension
+            .exponents
+            .as_ref()
             .iter()
             .all(|power| power.is_zero())
     );

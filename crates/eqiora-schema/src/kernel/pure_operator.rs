@@ -15,6 +15,7 @@ use eqiora_core::{DimExponents, ValueFrame};
 mod actions;
 mod binary64;
 mod composition;
+pub use composition::CalculusArgument;
 mod derivative;
 mod derivative_projection;
 mod dimensions;
@@ -395,23 +396,9 @@ impl CalculusBuilder {
 /// dimension. Typed literals contribute a fixed SI factor; Kronecker deltas are
 /// dimensionless.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FormalDimensionMonomial {
+struct FormalDimensionMonomial {
     fixed_dimension: DimExponents,
     exponents: Box<[ExactRational]>,
-}
-
-impl FormalDimensionMonomial {
-    /// Fixed physical dimension factor contributed by typed literals.
-    #[must_use]
-    pub const fn fixed_dimension(&self) -> DimExponents {
-        self.fixed_dimension
-    }
-
-    /// Formal exponents in declaration order.
-    #[must_use]
-    pub const fn exponents(&self) -> &[ExactRational] {
-        &self.exponents
-    }
 }
 
 fn definition_index(id: CalculusNodeId, upper: usize) -> Result<usize, PureOperatorError> {
@@ -483,12 +470,6 @@ impl PureOperatorDefinition {
     #[must_use]
     pub const fn result_rule(&self) -> &PureValueClass {
         &self.result
-    }
-
-    /// Symbolic body dimension over formal dimensions.
-    #[must_use]
-    pub const fn dimension_monomial(&self) -> &FormalDimensionMonomial {
-        &self.dimension
     }
 
     /// Calculus nodes in topological order.

@@ -489,7 +489,14 @@ fn scalar(
                 .map(|value| scalar(file, value, names, literals, builder, cache))
                 .collect::<Result<Vec<_>, _>>()?;
             let id = builder
-                .apply_scalar_inputs(definition, &arguments)
+                .apply_inputs(
+                    definition,
+                    &arguments
+                        .iter()
+                        .copied()
+                        .map(Into::into)
+                        .collect::<Vec<_>>(),
+                )
                 .map_err(|failure| error(file, expression, failure.to_string()))?;
             cache.insert(key, id);
             return Ok(id);

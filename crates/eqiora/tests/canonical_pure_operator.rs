@@ -404,7 +404,7 @@ model Main() {
             })
             .unwrap();
         let root = derivative
-            .apply_scalar_inputs(&definition, &[input])
+            .apply_inputs(&definition, &[input.into()])
             .unwrap();
         let root = derivative.partial(root, 0).unwrap();
         let derivative = derivative.finish(root).unwrap();
@@ -445,7 +445,42 @@ model Main() {
 #[test]
 fn exact_array_signatures_compile_replay_and_execute_through_component_ir() {
     use eqiora::{ScalarDomain, ValueLiteral, ValueType};
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let fixtures = [
+        (
+            "operator swap_axes(input x:array<array<complex<m>,3>,2>):array<array<complex<m>,2>,3> = math.conj(component(x,1,0)); operator restore(input x:array<array<complex<m>,2>,3>):array<array<complex<m>,3>,2> = component(x,1,0); operator composed(input x:array<array<complex<m>,3>,2>):array<array<complex<m>,3>,2> = restore(x=swap_axes(x=x)); model Main(){variable x:array<array<complex<m>,3>,2>; variable y:array<array<complex<m>,3>,2>; relation r{y=composed(x=x);}}",
+            ValueType::scalar(ScalarDomain::Complex, length)
+                .unwrap()
+                .array(3)
+                .unwrap()
+                .array(2)
+                .unwrap(),
+            vec![
+                (1., 2.),
+                (3., 4.),
+                (5., 6.),
+                (7., 8.),
+                (9., 10.),
+                (11., 12.),
+            ],
+            vec![
+                (1., -2.),
+                (3., -4.),
+                (5., -6.),
+                (7., -8.),
+                (9., -10.),
+                (11., -12.),
+            ],
+        ),
+        (
+            "operator embed(input x:array<m^2,2>):array<complex<m^2>,2> = component(x,0); operator response(input z:array<complex<m^2>,2>):array<complex<m>,2> = math.sqrt(component(z,0)); operator composed(input x:array<m^2,2>):array<complex<m>,2> = response(z=embed(x=x)); model Main(){variable x:array<m^2,2>; variable y:array<complex<m>,2>; relation r{y=composed(x=x);}}",
+            ValueType::scalar(ScalarDomain::Real, length.pow(2, 1).unwrap())
+                .unwrap()
+                .array(2)
+                .unwrap(),
+            vec![(-4., 0.), (9., 0.)],
+            vec![(0., 2.), (3., 0.)],
+        ),
         (
             "operator swap_axes(input x:array<array<1,3>,2>):array<array<1,2>,3> = component(x,1,0); model Main(){variable x:array<array<1,3>,2>; variable y:array<array<1,2>,3>; relation r{y=swap_axes(x=x);}}",
             ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)

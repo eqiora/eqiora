@@ -9,6 +9,11 @@ use eqiora_numerics::{
 
 #[test]
 fn source_partials_keep_real_complex_and_shaped_held_inputs() {
+    check_source_partials(false);
+    check_source_partials(true);
+}
+
+fn check_source_partials(composed: bool) {
     for (ty, component, input, first, second) in [
         ("1", "z", "2", vec![(12., 0.)], vec![(4., 0.)]),
         (
@@ -33,15 +38,37 @@ fn source_partials_keep_real_complex_and_shaped_held_inputs() {
             vec![(4., -10.), (14., 8.)],
         ),
     ] {
+        let (first_call, second_call) = if composed {
+            ("composed_slope", "composed_curvature")
+        } else {
+            ("slope", "curvature")
+        };
+        // slope(x²,conj(z))=2*x²*z and curvature(x²,conj(z))=2*z.
+        let first = if composed {
+            first
+                .into_iter()
+                .map(|(r, i)| (3.0 * r, -3.0 * i))
+                .collect()
+        } else {
+            first
+        };
+        let second = if composed {
+            second.into_iter().map(|(r, i)| (r, -i)).collect()
+        } else {
+            second
+        };
         let source = format!(
             r#"
             operator slope(input x:1,input z:{ty}):{ty} =
                 partial(x*x*math.conj({component}),wrt=x,holding=(z));
             operator curvature(input x:1,input z:{ty}):{ty} =
                 partial(partial(x*x*math.conj({component}),wrt=x,holding=(z)),wrt=x,holding=(z));
+            operator conjugated(input z:{ty}):{ty} = math.conj({component});
+            operator composed_slope(input x:1,input z:{ty}):{ty} = slope(x=x*x,z=conjugated(z=z));
+            operator composed_curvature(input x:1,input z:{ty}):{ty} = curvature(x=x*x,z=conjugated(z=z));
             model M() {{ parameter x:1=3; parameter z:{ty}={input};
                 variable first:{ty}; variable second:{ty};
-                relation r {{ first=slope(x=x,z=z); second=curvature(x=x,z=z); }}
+                relation r {{ first={first_call}(x=x,z=z); second={second_call}(x=x,z=z); }}
                 observable first_value:{ty}=first;
                 observable second_value:{ty}=second;
             }}
