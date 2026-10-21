@@ -137,7 +137,7 @@ mod tests {
                 })
                 .unwrap();
             assert_eq!(
-                wrapper.apply_scalar_inputs(&callee, &[input]).unwrap_err(),
+                wrapper.apply_inputs(&callee, &[input.into()]).unwrap_err(),
                 PureOperatorError::FormalTypeMismatch
             );
             assert_eq!(wrapper.finish(input).unwrap().nodes().len(), 1);
@@ -149,7 +149,7 @@ mod tests {
                 axes: Box::new([]),
             })
             .unwrap();
-        let output = wrapper.apply_scalar_inputs(&callee, &[input]).unwrap();
+        let output = wrapper.apply_inputs(&callee, &[input.into()]).unwrap();
         assert!(wrapper.finish(output).is_ok());
         let mut invalid_result = CalculusBuilder::new([generic.clone()], real.clone()).unwrap();
         let root = invalid_result

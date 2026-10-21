@@ -39,13 +39,20 @@ pub(crate) fn compile_property(
         result.range(),
         &PureValueClassSyntax::Typed(result.clone()),
     )?;
-    let mut builder = CalculusBuilder::new(rules, result)
+    let mut builder = CalculusBuilder::new(rules.clone(), result)
         .map_err(|error| kernel_error(file, value.range(), error))?;
-    let root = compile_expression(file, value, &names, &sources, &compiled, &mut builder)?;
+    let formals = FormalBindings {
+        names,
+        classes: rules,
+    };
+    let root = compile_expression(file, value, &formals, &sources, &compiled, &mut builder)?;
     let scale = compile_expression(
         file,
         scale,
-        &BTreeMap::new(),
+        &FormalBindings {
+            names: BTreeMap::new(),
+            classes: formals.classes.clone(),
+        },
         &sources,
         &compiled,
         &mut builder,
@@ -55,7 +62,7 @@ pub(crate) fn compile_property(
         .map_err(|error| kernel_error(file, value.range(), error))?;
     let root = if let Some(validity) = validity {
         let condition =
-            compile_expression(file, validity, &names, &sources, &compiled, &mut builder)?;
+            compile_expression(file, validity, &formals, &sources, &compiled, &mut builder)?;
         builder
             .push(CalculusNode::Require {
                 condition,

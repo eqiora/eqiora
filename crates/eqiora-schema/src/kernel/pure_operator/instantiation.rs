@@ -1,5 +1,4 @@
 //! Spatial extent, domain, frame, and support checks for pure applications.
-use super::dimensions::instantiate_dimension;
 use super::*;
 
 impl PureOperatorDefinition {
@@ -58,7 +57,12 @@ impl PureOperatorDefinition {
             Some(component_types[self.root.index() as usize].scalar_domain()),
         )?
         .ok_or(PureOperatorError::FormalTypeMismatch)?;
-        let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
+        let result_dimension = self.result_dimension(
+            &arguments
+                .iter()
+                .map(ExpressionType::dimension)
+                .collect::<Vec<_>>(),
+        )?;
         if self
             .result
             .dimension()

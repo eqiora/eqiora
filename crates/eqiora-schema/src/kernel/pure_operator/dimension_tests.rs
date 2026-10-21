@@ -227,7 +227,12 @@ fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let args = (0..3)
         .map(|slot| formal(&mut outer, slot))
         .collect::<Vec<_>>();
-    let root = outer.apply_scalar_inputs(&definition, &args).unwrap();
+    let root = outer
+        .apply_inputs(
+            &definition,
+            &args.iter().copied().map(Into::into).collect::<Vec<_>>(),
+        )
+        .unwrap();
     let composed = outer.finish(root).unwrap();
     assert_eq!(composed.canonical_bytes(), definition.canonical_bytes());
     let mut wrong = CalculusBuilder::new(
@@ -238,6 +243,13 @@ fn scalar_composition_preserves_order_and_rejects_mistyped_calls() {
     let args = (0..3)
         .map(|slot| formal(&mut wrong, slot))
         .collect::<Vec<_>>();
-    assert!(wrong.apply_scalar_inputs(&definition, &args).is_err());
+    assert!(
+        wrong
+            .apply_inputs(
+                &definition,
+                &args.iter().copied().map(Into::into).collect::<Vec<_>>()
+            )
+            .is_err()
+    );
     assert_eq!(wrong.finish(args[0]).unwrap().nodes().len(), 3);
 }

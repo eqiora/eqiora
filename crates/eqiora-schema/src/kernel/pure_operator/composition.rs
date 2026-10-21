@@ -1,103 +1,106 @@
 //! Typed component composition that keeps the authored order of exact arithmetic.
 use super::*;
+mod argument;
+pub use argument::CalculusArgument;
+
+#[cfg(test)]
+mod typed_tests;
 
 impl CalculusBuilder {
-    /// Substitute checked scalar inputs into a closed component definition.
-    /// A shaped result retains the caller's exact component layout, including axes,
-    /// frame, channel rank and nominal bases; a scalar result is component-independent.
+    /// Substitute complete typed inputs into a closed component definition.
+    /// Whole-value templates retain their own result axes until projected by the
+    /// callee. Scalar components already belong to the caller's result-axis context.
+    /// A shaped result retains the caller's complete component layout.
     /// The caller resolves lexical names and rejects recursive definition graphs.
     /// No polynomial normalization or reassociation is performed.
-    pub fn apply_scalar_inputs(
+    ///
+    /// # Errors
+    /// Rejects incompatible argument contracts, foreign formal environments, result
+    /// layouts and resource limits. A failure leaves the builder unchanged.
+    pub fn apply_inputs(
         &mut self,
         definition: &PureOperatorDefinition,
-        arguments: &[CalculusNodeId],
+        arguments: &[CalculusArgument],
     ) -> Result<CalculusNodeId, PureOperatorError> {
         if arguments.len() != definition.formals.len() {
             return Err(PureOperatorError::ArityMismatch);
         }
-        if definition
-            .formals
-            .iter()
-            .any(|formal| !formal.is_invariant_scalar())
-            || (!definition.result.is_invariant_scalar()
-                && !compatible_component_layout(&definition.result, &self.result))
+        if !definition.result.is_invariant_scalar()
+            && !compatible_component_layout(&definition.result, &self.result)
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        let additional = definition
-            .nodes
-            .iter()
-            .filter(|node| !matches!(node, CalculusNode::FormalComponent { .. }))
-            .count();
+        for (argument, formal) in arguments.iter().zip(&definition.formals) {
+            argument.validate(self, formal)?;
+        }
         let retain_bindings = definition
             .nodes
             .iter()
             .any(|node| matches!(node, CalculusNode::Differentiated { .. }));
-        let additional = additional + if retain_bindings { arguments.len() } else { 0 };
-        self.nodes
-            .len()
-            .checked_add(additional)
-            .filter(|count| *count <= MAX_NODES)
-            .ok_or(PureOperatorError::NodeLimit)?;
-        for (argument, formal) in arguments.iter().zip(&definition.formals) {
-            definition_index(*argument, self.nodes.len())?;
-            let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, *argument)?;
-            validate_result_dimension(&self.formals, formal, &dimension)?;
-            if let Some(expected) = formal.scalar_domain()
-                && domains::expression_domain(&self.formals, &self.nodes, *argument)?
-                    != Some(expected)
-            {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
-        }
-        // Stage the bounded append so any failed depth/type check leaves the caller intact.
         let mut staged = Self {
             formals: self.formals.clone(),
             result: self.result.clone(),
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };
-        let arguments = arguments
-            .iter()
-            .map(|argument| {
-                if retain_bindings {
-                    staged.push(CalculusNode::BoundInput(*argument))
+        let mut components = std::collections::BTreeMap::new();
+        // Keep scalar-only composition's authored order and distinct occurrences.
+        for (formal, argument) in arguments.iter().enumerate() {
+            if let CalculusArgument::Scalar(value) = argument {
+                let value = if retain_bindings {
+                    staged.push(CalculusNode::BoundInput(*value))?
                 } else {
-                    Ok(*argument)
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                    *value
+                };
+                components.insert((formal as u16, Box::<[ComponentIndex]>::default()), value);
+            }
+        }
         let mut ids = Vec::with_capacity(definition.nodes.len());
         for node in &definition.nodes {
             let id = match node {
-                CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
-                    arguments[usize::from(*formal)]
+                CalculusNode::FormalComponent { formal, axes } => {
+                    let key = (*formal, axes.clone());
+                    if let Some(value) = components.get(&key) {
+                        *value
+                    } else {
+                        let value = arguments[usize::from(*formal)].project(&mut staged, axes)?;
+                        let value = if retain_bindings {
+                            staged.push(CalculusNode::BoundInput(value))?
+                        } else {
+                            value
+                        };
+                        components.insert(key, value);
+                        value
+                    }
                 }
-                CalculusNode::FormalComponent { .. } => {
-                    return Err(PureOperatorError::FormalTypeMismatch);
-                }
-                // The closed definition already owns the topological operand invariant.
                 node => staged.push(node.map_operands(|id| ids[id.index() as usize]))?,
             };
             ids.push(id);
         }
-        let mut root = ids[definition_index(definition.root, ids.len())?];
-        let actual = domains::expression_domain(&staged.formals, &staged.nodes, root)?;
-        let declared = domains::result_domain(definition.result.scalar_domain(), actual)?;
+        let root =
+            staged.embed_result(ids[definition.root.index() as usize], &definition.result)?;
+        derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
+        *self = staged;
+        Ok(root)
+    }
+
+    fn embed_result(
+        &mut self,
+        mut root: CalculusNodeId,
+        result: &PureValueClass,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        let actual = domains::expression_domain(&self.formals, &self.nodes, root)?;
+        let declared = domains::result_domain(result.scalar_domain(), actual)?;
         if declared == Some(eqiora_core::ScalarDomain::Complex)
             && actual == Some(eqiora_core::ScalarDomain::Real)
         {
-            // Inlining must retain the callee's declared real-to-complex embedding.
-            // Imag(real) is positive zero with the same symbolic units. Multiplying
-            // by complex one instead could change the zero's sign and a branch cut.
-            let imag = staged.push(CalculusNode::UnaryMath(
+            // Preserve declared embedding, including positive imaginary zero and units.
+            let imag = self.push(CalculusNode::UnaryMath(
                 super::super::UnaryMathFunction::Imag,
                 root,
             ))?;
-            root = staged.push(CalculusNode::Complex { real: root, imag })?;
+            root = self.push(CalculusNode::Complex { real: root, imag })?;
         }
-        derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
-        *self = staged;
         Ok(root)
     }
 }
@@ -206,7 +209,7 @@ mod tests {
                         axes: Box::new([]),
                     })
                     .unwrap();
-                let root = caller.apply_scalar_inputs(&definition, &[input]).unwrap();
+                let root = caller.apply_inputs(&definition, &[input.into()]).unwrap();
                 let result = caller.finish(root);
                 assert_eq!(result.is_ok(), admits);
                 if let Ok(result) = result {
@@ -255,7 +258,9 @@ mod tests {
                 axes: Box::new([]),
             })
             .unwrap();
-        let applied = caller.apply_scalar_inputs(&definition, &[p, p]).unwrap();
+        let applied = caller
+            .apply_inputs(&definition, &[p.into(), p.into()])
+            .unwrap();
         let CalculusNode::Differentiated { source, wrt, .. } =
             caller.nodes[applied.index() as usize]
         else {
@@ -347,7 +352,7 @@ mod tests {
                     })
                     .unwrap();
                 let before = (caller.nodes.clone(), caller.depths.clone());
-                let application = caller.apply_scalar_inputs(&definition, &[input]);
+                let application = caller.apply_inputs(&definition, &[input.into()]);
                 if caller_index == callee_index {
                     caller.finish(application.unwrap()).unwrap();
                 } else {

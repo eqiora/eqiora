@@ -34,7 +34,14 @@ fn derived(
     let arguments = (0..inputs.len())
         .map(|slot| formal(&mut builder, slot as u16))
         .collect::<Vec<_>>();
-    let mut root = builder.apply_scalar_inputs(definition, &arguments)?;
+    let mut root = builder.apply_inputs(
+        definition,
+        &arguments
+            .iter()
+            .copied()
+            .map(Into::into)
+            .collect::<Vec<_>>(),
+    )?;
     for _ in 0..order {
         root = builder.partial(root, selected)?;
     }

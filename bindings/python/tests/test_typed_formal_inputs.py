@@ -10,8 +10,9 @@ import eqiora as e
     [(False, False), (False, True), (True, False), (True, True)],
 )
 @pytest.mark.parametrize("order", [1, 2])
+@pytest.mark.parametrize("composed", [False, True])
 def test_typed_held_inputs_keep_values_replay_and_total_products(
-    shaped, complex_domain, order
+    shaped, complex_domain, order, composed
 ):
     q = e.lang
     source = e.Module("main")
@@ -29,6 +30,16 @@ def test_typed_held_inputs_keep_values_replay_and_total_products(
     derivative = source.operator(
         "partial_value", inputs={"x": real, "z": kind}, result_type=kind, body=body
     )
+    if composed:
+        original = derivative
+        conjugated = source.operator(
+            "conjugated", inputs={"z": kind}, result_type=kind,
+            body=lambda z: q.math.conj(q.component(z, 0) if shaped else z),
+        )
+        derivative = source.operator(
+            "composed_partial_value", inputs={"x": real, "z": kind}, result_type=kind,
+            body=lambda x, z: original(x=x*x, z=conjugated(z=z)),
+        )
     root = source.model("Main")
     x = root.parameter("x", value_type=real)
     z = root.parameter("z", value_type=kind)
@@ -53,6 +64,13 @@ def test_typed_held_inputs_keep_values_replay_and_total_products(
     zero_z = np.zeros_like(point_z) if shaped else (0j if complex_domain else 0.0)
     expected_x_dual = np.real(np.vdot(seed, dx))
     expected_z_dual = scale * np.conjugate(seed)
+    if composed:
+        # Substitute after taking the formal partial: f_x(x²,conj(z))=2*x²*z.
+        scale = 18 if order == 1 else 2
+        expected = scale * point_z
+        dx = 12 * point_z if order == 1 else np.zeros_like(point_z)
+        expected_x_dual = np.real(np.vdot(seed, dx))
+        expected_z_dual = scale * seed
     solve = e.solve.Linear(
         relative_tolerance=1e-13,
         absolute_tolerance=1e-15,
