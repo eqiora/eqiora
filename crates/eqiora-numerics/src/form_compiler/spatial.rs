@@ -37,7 +37,7 @@ pub(crate) struct CompiledSpatialForm<S: Coefficient> {
     volume: CompiledRegionForm<S>,
     step: Option<DynQuantity>,
     initial: BTreeMap<RawId, PrescribedDatum<S>>,
-    storage: BTreeMap<RawId, Data<S>>,
+    temporal: super::region::TemporalStructure,
     motion: Option<motion::StorageMotion>,
     kinematics: Vec<(eqiora_realization::BackwardEulerStatePair, ValueType)>,
 }
@@ -290,14 +290,19 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             }
             CompiledRegionForm::<S>::derive_at_time(program, domain, dimension, time_s)?
         };
-        let storage = volume.stored_fields()?;
+        let temporal = volume.temporal_structure()?;
+        if (motion.is_some() || !kinematics.is_empty()) && !temporal.positive_own_capacity {
+            return Err(invalid(
+                "transformed geometry/kinematic storage requires positive constant own capacities",
+            ));
+        }
         let initial_coefficients =
             coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
         let initial = temporal::initial_values(
             program,
             domain,
             dimension,
-            &storage,
+            &temporal,
             &initial_coefficients,
             &fields
                 .iter()
@@ -306,7 +311,15 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 .collect(),
             time_s.map(|_| 0.0),
         )?;
-        if motion.is_some() && storage.len() != fields.len() {
+        if motion.is_some()
+            && temporal
+                .differential
+                .iter()
+                .map(|coordinate| coordinate.field())
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != fields.len()
+        {
             return Err(invalid(
                 "moving algebraic constraints require explicit geometric State acceptance",
             ));
@@ -353,17 +366,14 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             volume,
             step: None,
             initial,
-            storage,
+            temporal,
             motion,
             kinematics,
         })
     }
 
-    pub(crate) fn algebraic_fields(&self) -> impl Iterator<Item = RawId> + '_ {
-        self.fields
-            .iter()
-            .map(|(field, _)| *field)
-            .filter(|field| !self.storage.contains_key(field))
+    pub(crate) fn temporal_structure(&self) -> &super::region::TemporalStructure {
+        &self.temporal
     }
 
     pub(crate) fn kinematics(&self) -> &[(eqiora_realization::BackwardEulerStatePair, ValueType)] {
@@ -480,7 +490,10 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn conservative_system(
         &self,
     ) -> Result<super::region::ConservativeSystem<'_, S>, Diagnostic> {
-        if !self.storage.is_empty() || self.motion.is_some() || !self.kinematics.is_empty() {
+        if !self.temporal.differential.is_empty()
+            || self.motion.is_some()
+            || !self.kinematics.is_empty()
+        {
             return Err(invalid(
                 "steady conservative assembly cannot discard storage or motion",
             ));

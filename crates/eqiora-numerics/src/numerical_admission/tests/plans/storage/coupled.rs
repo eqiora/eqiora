@@ -285,24 +285,8 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
         ),
         (
             "source -(u-v) * 1[1/m^2]",
-            "source derivative(u) * 1[s/m^2]",
-            // The rate now lowers normally and cancels the retained storage.
-            "strictly positive constant capacity",
-        ),
-        (
-            "source -(u-v) * 1[1/m^2]",
             "source div(grad(u))",
             "spatial component action requires an admitted first-gradient basis",
-        ),
-        (
-            "storage 1[s/m^2] * u",
-            "storage 1[s/m^2] * v",
-            "Backward Euler requires each row to store its exact Field",
-        ),
-        (
-            "storage 1[s/m^2] * u",
-            "storage -1[s/m^2] * u",
-            "strictly positive constant capacity",
         ),
         (
             "trace(u) = 0; trace(v) = 0; trace(w) = 0;",
@@ -323,5 +307,46 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
             "{to}: {}",
             error.message()
         );
+    }
+}
+
+#[test]
+fn coupled_storage_validates_rates_at_the_actual_initial_state() {
+    for source in [
+        SOURCE.replace(
+            "source -(u-v) * 1[1/m^2]",
+            "source derivative(u) * 1[s/m^2]",
+        ),
+        SOURCE.replace("storage 1[s/m^2] * u", "storage 1[s/m^2] * v"),
+    ] {
+        let (resolved, _) = resolve(&source, "Coupled").unwrap();
+        let Err(error) = resolved
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new())
+        else {
+            panic!("initial equations have incompatible rates");
+        };
+        assert!(error.message().contains("rate compatibility"), "{error:?}");
+    }
+    let source = SOURCE.replace("storage 1[s/m^2] * u", "storage -1[s/m^2] * u");
+    let (resolved, fields) = resolve(&source, "Coupled").unwrap();
+    let plan = resolved.as_spatial().unwrap();
+    let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
+    let step = plan
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.25)
+        .unwrap();
+    // 3 times the reduced BE equations: 9u-v=-12, -u+18v-w=4, -v+17w=0.
+    for (field, expected) in fields
+        .into_iter()
+        .zip([-449. / 341., 51. / 341., 3. / 341.])
+    {
+        let values = plan
+            .state_fields(step.state())
+            .unwrap()
+            .find(|(id, ..)| id.erase() == field)
+            .unwrap()
+            .3;
+        assert!((values[1] - expected).abs() < 1e-11);
     }
 }

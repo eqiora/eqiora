@@ -20,6 +20,8 @@ mod boundary;
 mod datum;
 pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
+mod temporal;
+pub(crate) use temporal::TemporalStructure;
 mod conservative;
 pub(crate) use boundary::RegionBoundaryLaw;
 pub(crate) use conservative::ConservativeSystem;

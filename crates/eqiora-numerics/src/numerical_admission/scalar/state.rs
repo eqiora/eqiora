@@ -124,30 +124,43 @@ impl CommonSpatialPlan {
     {
         let (mapping, input) = self.state_assembly(equations, time_s)?;
         let history = self.validate_state_fields(&mapping, &input, values)?;
-        let algebraic = equations
-            .regions
-            .iter()
-            .flat_map(|region| region.form.algebraic_fields())
-            .collect::<BTreeSet<_>>();
-        if time_s.is_some() && !algebraic.is_empty() {
+        let temporal = crate::form_compiler::region::TemporalStructure {
+            differential: equations
+                .regions
+                .iter()
+                .flat_map(|region| {
+                    region
+                        .form
+                        .temporal_structure()
+                        .differential
+                        .iter()
+                        .copied()
+                })
+                .collect(),
+            positive_own_capacity: equations
+                .regions
+                .iter()
+                .all(|region| region.form.temporal_structure().positive_own_capacity),
+        };
+        if time_s.is_some() {
             match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_algebraic_state(
+                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_temporal_state(
                     mesh.mesh(),
                     input,
                     &history,
-                    &algebraic,
+                    &temporal,
                     self.linear(),
                 )?,
                 NativeMeshResources::GmshSimplicial { mesh, .. }
                 | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
-                    .validate_algebraic_state(
+                    .validate_temporal_state(
                         mesh.mesh(),
                         input,
                         &history,
-                        &algebraic,
+                        &temporal,
                         self.linear(),
                     )?,
-                _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
+                _ => return Err(invalid("temporal State requires its exact nodal Mesh")),
             }
         }
         Ok(())

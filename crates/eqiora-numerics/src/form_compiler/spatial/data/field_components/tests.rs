@@ -634,7 +634,8 @@ fn affine_real_projections_of_complex_trials_require_real_coordinates() {
         let coefficient = &affine.terms[0].3;
         assert!(coefficient.evaluate(&[0.25]).is_err());
         let images = coefficient.coordinate_images(1).unwrap();
-        for (image, expected) in images.iter().zip(expected) {
+        for ((image, active), expected) in images.iter().zip(expected) {
+            assert_eq!(*active, expected != C::new(0., 0.));
             assert_eq!(image.evaluate(&[0.25]).unwrap(), expected);
         }
     }

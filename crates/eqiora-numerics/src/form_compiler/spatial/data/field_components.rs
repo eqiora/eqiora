@@ -86,6 +86,57 @@ impl<S: Coefficient> FieldComponent<S> {
             .map(|column| (column.field, column.component, column.derivative))
     }
 
+    pub(super) fn uses_coordinate(&self, index: usize) -> bool {
+        self.rows.iter().any(|row| {
+            row.symbols().contains(&self.selected[index])
+                && row
+                    .constant_coordinate_jacobian(std::slice::from_ref(&self.selected[index]))
+                    .map_or(true, |jacobian| {
+                        jacobian.coefficients().iter().any(|value| *value != 0.)
+                    })
+        })
+    }
+
+    pub(in crate::form_compiler) fn rate_coordinates(
+        &self,
+    ) -> Result<Vec<eqiora_core::TimeStateCoordinate>, Diagnostic> {
+        let selected = self
+            .selected
+            .iter()
+            .filter(|coordinate| matches!(coordinate.symbol(), SymbolRef::Derivative(_, _)))
+            .cloned()
+            .collect::<Vec<_>>();
+        if selected.is_empty() {
+            return Ok(Vec::new());
+        }
+        for row in &self.rows {
+            if !row.affine_in(&selected)? {
+                return Err(super::super::invalid(
+                    "nonlinear rate dependence requires an explicit initial-rate branch contract",
+                ));
+            }
+        }
+        let mut coordinates = Vec::new();
+        for column in self.columns.iter().filter(|column| column.derivative) {
+            let component = match column.component {
+                BasisComponent::Value(component) | BasisComponent::Gradient { component, .. } => {
+                    component
+                }
+            };
+            for (imaginary, index) in [(false, column.real), (true, column.imaginary)] {
+                if index.is_some_and(|index| self.uses_coordinate(index)) {
+                    coordinates.push(eqiora_core::TimeStateCoordinate::new(
+                        column.field.downcast().expect("Field column"),
+                        0,
+                        component,
+                        imaginary,
+                    ));
+                }
+            }
+        }
+        Ok(coordinates)
+    }
+
     pub(in crate::form_compiler) fn polynomial_degree(
         &self,
         value_degree: usize,

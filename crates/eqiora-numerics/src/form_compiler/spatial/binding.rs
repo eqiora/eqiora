@@ -44,13 +44,15 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         {
             law.bind_parameter_point(point)?;
         }
-        for value in bound.storage.values_mut() {
-            *value = value.bind_parameter_point(point)?;
-        }
         for value in bound.initial.values_mut() {
             value.bind_parameter_point(point)?;
         }
-        bound.validate_storage()?;
+        bound.temporal = bound.volume.temporal_structure()?;
+        if !bound.kinematics.is_empty() && !bound.temporal.positive_own_capacity {
+            return Err(super::invalid(
+                "kinematic storage requires positive constant own capacities",
+            ));
+        }
         Ok(bound)
     }
 }

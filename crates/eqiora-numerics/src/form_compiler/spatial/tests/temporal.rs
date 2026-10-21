@@ -104,7 +104,13 @@ fn vector_initial_data_retains_components_and_external_scalar_factor() {
         &program,
         domain,
         2,
-        &BTreeMap::from([(field, Data::constant(2, 1.))]),
+        &super::super::super::region::TemporalStructure {
+            differential: std::collections::HashSet::from([
+                eqiora_core::TimeStateCoordinate::new(field.downcast().unwrap(), 0, 0, false),
+                eqiora_core::TimeStateCoordinate::new(field.downcast().unwrap(), 0, 1, false),
+            ]),
+            positive_own_capacity: true,
+        },
         &coefficients,
         &BTreeSet::from([field]),
         None,
@@ -118,7 +124,7 @@ fn vector_initial_data_retains_components_and_external_scalar_factor() {
 }
 
 #[test]
-fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
+fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() {
     let source = "model VectorStorage() {
         domain body=box(0,1,0,1);
         domain left=boundary(body,axis=0,side=lower);
@@ -151,24 +157,15 @@ fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
         )
     };
     assert!(derive(source).unwrap().is_transient());
-    for (source, message) in [
-        (
-            source.replace("derivative(u)", "derivative(v)"),
-            // The whole-domain assignment still identifies each tested Field.
-            // The retained diagonal-storage owner must reject a cross-Field rate;
-            // it cannot silently treat that rate as the local Field history.
-            "store its exact Field",
-        ),
-        (
-            source.replace("1[s/m^2]", "0[s/m^2]"),
-            "strictly positive constant capacity",
-        ),
-        (
-            source.replace("1[s/m^2]", "-1[s/m^2]"),
-            "strictly positive constant capacity",
-        ),
+    for source in [
+        source.replace("derivative(u)", "derivative(v)"),
+        source.replace("1[s/m^2]", "0[s/m^2]"),
+        source.replace("1[s/m^2]", "-1[s/m^2]"),
     ] {
-        let diagnostic = derive(&source).unwrap_err();
-        assert!(diagnostic.message().contains(message), "{diagnostic:?}");
+        // These are rate-affine equations. Their actual assembled candidate
+        // decides compatibility/regularity; positivity is only a certificate.
+        let form = derive(&source).unwrap();
+        assert!(form.is_transient());
+        assert!(!form.temporal_structure().positive_own_capacity);
     }
 }
