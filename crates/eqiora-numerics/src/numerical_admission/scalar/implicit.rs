@@ -35,6 +35,32 @@ where
         })
     }
 
+    /// Assemble an exact stage Jacobian through the same local actions as JVP.
+    /// This preserves canonical CSR for the Plan's admitted linear provider;
+    /// columns are never reconstructed by expanding coordinate basis vectors.
+    pub(in crate::numerical_admission) fn linearize(
+        &self,
+        time_s: f64,
+        state: &[f64],
+        derivative: &[f64],
+        pullback: FieldPullback<'_>,
+    ) -> Result<crate::region_assembly::nonlinear::RegionAssemblyLinearization, Diagnostic> {
+        self.validate(state)?;
+        self.validate(derivative)?;
+        let (prepared, rates) = self.prepare(time_s, derivative)?;
+        prepared.work.linearize(
+            &prepared.plan,
+            prepared.plan.target_id(0).expect("reduced target"),
+            RegionPoint::Independent {
+                state,
+                rate_target: prepared.plan.target_id(1).expect("full target"),
+                rates: &rates,
+                pullback,
+            },
+            &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
+        )
+    }
+
     fn prepare(
         &self,
         time_s: f64,
