@@ -133,15 +133,7 @@ impl CommonSpatialPlan {
         if previous.is_some() {
             self.accept_step_fields(&mapping, &input, &history, None)?;
         }
-        let mut temporal = crate::form_compiler::region::TemporalStructure {
-            differential: Default::default(),
-            positive_own_capacity: true,
-        };
-        for (form, _) in &input.forms {
-            let region = form.temporal_structure()?;
-            temporal.differential.extend(region.differential);
-            temporal.positive_own_capacity &= region.positive_own_capacity;
-        }
+        let temporal = input.temporal_structure()?;
         if let Some(time_s) = time_s {
             let initial_partial = |scope| self.scalar_time_partial(equations, time_s, scope);
             match self.admission.resources() {

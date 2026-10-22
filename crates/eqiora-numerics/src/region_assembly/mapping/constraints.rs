@@ -13,23 +13,11 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
 {
-    pub(crate) fn validate_temporal_state<'mesh>(
+    /// Partition free equations using exact Field/channel and quotient ownership.
+    pub(crate) fn temporal_coordinate_partition(
         &self,
-        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        mut input: RegionSolveInput<S>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         temporal: &crate::form_compiler::region::TemporalStructure,
-        solver: SolverPlan,
-        initial_partial: impl FnOnce(
-            InputPartialScope,
-        ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
-    ) -> Result<(), Diagnostic> {
-        self.validate_prescribed_fields(fields)?;
-        // A physical State preserves signed-zero words. Essential traces were
-        // checked numerically above; reduction must not impose the distinct
-        // exact-word contract of an already normalized algebraic point.
-        let full_state = self.normalized_coefficients(fields)?;
-        let values = self.encode_coordinates(&self.constraints.restrict_action(&full_state)?)?;
+    ) -> Result<(BTreeSet<usize>, BTreeSet<usize>), Diagnostic> {
         let coordinates = RegionRealCoordinates::new(self)?;
         let mut rows = BTreeSet::new();
         let mut stored_rows = BTreeSet::new();
@@ -55,6 +43,28 @@ where
         // A trace quotient sums equation rows. Any stored contribution makes
         // the shared row differential, even when another Region is stationary.
         rows.retain(|row| !stored_rows.contains(row));
+        Ok((rows, stored_rows))
+    }
+
+    pub(crate) fn validate_temporal_state<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        mut input: RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        temporal: &crate::form_compiler::region::TemporalStructure,
+        solver: SolverPlan,
+        initial_partial: impl FnOnce(
+            InputPartialScope,
+        ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        self.validate_prescribed_fields(fields)?;
+        // A physical State preserves signed-zero words. Essential traces were
+        // checked numerically above; reduction must not impose the distinct
+        // exact-word contract of an already normalized algebraic point.
+        let full_state = self.normalized_coefficients(fields)?;
+        let values = self.encode_coordinates(&self.constraints.restrict_action(&full_state)?)?;
+        let coordinates = RegionRealCoordinates::new(self)?;
+        let (rows, stored_rows) = self.temporal_coordinate_partition(temporal)?;
         if values.is_empty() || (rows.is_empty() && temporal.positive_own_capacity) {
             return Ok(());
         }
@@ -371,7 +381,7 @@ fn tangent_equation_scale(
     scale + rhs.abs()
 }
 
-fn square_projection(
+pub(crate) fn square_projection(
     matrix: &CsrMatrix<f64>,
     coordinates: &[usize],
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -392,4 +402,22 @@ fn square_projection(
         }
     }
     Ok(coefficients)
+}
+
+impl<S: Coefficient> RegionSolveInput<S> {
+    /// Rebind the source rate inventory and sufficient mass certificate together.
+    pub(crate) fn temporal_structure(
+        &self,
+    ) -> Result<crate::form_compiler::region::TemporalStructure, Diagnostic> {
+        let mut temporal = crate::form_compiler::region::TemporalStructure {
+            differential: Default::default(),
+            positive_own_capacity: true,
+        };
+        for (form, _) in &self.forms {
+            let region = form.temporal_structure()?;
+            temporal.differential.extend(region.differential);
+            temporal.positive_own_capacity &= region.positive_own_capacity;
+        }
+        Ok(temporal)
+    }
 }

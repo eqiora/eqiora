@@ -1,5 +1,6 @@
 //! Continuous spatial equations in free real coordinates, including analytic trace rates.
 mod midpoint;
+mod rate;
 mod replay;
 mod run;
 use super::*;

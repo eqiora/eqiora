@@ -83,7 +83,7 @@ impl<'a> Occurrence<'a> {
         match (&result.payload, output_index) {
             (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) => {
                 let state = trajectory.spatial_state(index).ok_or_else(|| {
-                    invalid("observation output index is outside the spatial schedule")
+                    invalid("observation output index is outside the retained schedule")
                 })?;
                 let mut occurrence = Self::from_state(result.plan(), state)?;
                 occurrence.output_index = Some(index);

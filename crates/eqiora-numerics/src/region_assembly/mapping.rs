@@ -23,6 +23,7 @@ pub use balance::{SpatialBoundarySource, SpatialBoundaryWork};
 mod binding;
 mod cells;
 mod constraints;
+pub(crate) use constraints::square_projection;
 mod coordinates;
 pub(crate) use coordinates::RegionRealCoordinates;
 mod algebraic_coordinates;
