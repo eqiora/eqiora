@@ -3,7 +3,7 @@ use super::*;
 use eqiora_core::TimeStateCoordinate;
 use eqiora_time::TimeMethod;
 
-fn policy(plan: &ResolvedCommonPlan, method: TimeMethod, step: f64) -> CommonOdePolicy {
+pub(super) fn policy(plan: &ResolvedCommonPlan, method: TimeMethod, step: f64) -> CommonOdePolicy {
     let tolerances = plan
         .as_spatial()
         .unwrap()
@@ -31,7 +31,7 @@ fn policy(plan: &ResolvedCommonPlan, method: TimeMethod, step: f64) -> CommonOde
     CommonOdePolicy::new(method, step, 1e-10, tolerances).unwrap()
 }
 
-fn with_policy(
+pub(super) fn with_policy(
     plan: &ResolvedCommonPlan,
     policy: CommonOdePolicy,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {

@@ -99,7 +99,7 @@ where
             &input,
             solved.values,
             solved.assembly,
-            solved.evidence.residual_target,
+            solved.evidence.residual_target()?,
             initial_point,
         )?;
         Ok(CommonDifferentiationPoint::from_primal(

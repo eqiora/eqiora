@@ -1,5 +1,6 @@
 //! Independent semidiscrete residuals through the existing time-system contract.
 mod linearization;
+mod midpoint;
 mod policy;
 
 use super::*;

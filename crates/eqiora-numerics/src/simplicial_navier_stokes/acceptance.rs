@@ -114,12 +114,13 @@ pub(super) fn accept_step(
     ),
     Diagnostic,
 > {
+    let residual_target = newton.residual_target()?;
     let final_residual_norm = assembly.residual_norm()?;
     let momentum_residual_norm = assembly.momentum_residual_norm()?;
-    if !final_residual_norm.is_finite() || final_residual_norm > newton.residual_target {
+    if !final_residual_norm.is_finite() || final_residual_norm > residual_target {
         return Err(solve_failed(format!(
             "accepted nonlinear residual {final_residual_norm:e} exceeds target {:e}",
-            newton.residual_target
+            residual_target
         )));
     }
     let (full_residual, gauge_weights) = assembly.materialize_acceptance_data()?;
@@ -129,12 +130,12 @@ pub(super) fn accept_step(
         &assembly.layout.pressure_rows(),
         &gauge_weights,
         assembly.gauge_multiplier,
-        newton.residual_target,
+        residual_target,
     )?;
     let pressure_integral =
         integrate_pressure(mesh, quadrature, assembly.pressure.vertex_values())?;
     if let Some(multiplier) = assembly.gauge_multiplier {
-        require_zero_gauge_multiplier(mesh, quadrature, multiplier, newton.residual_target)?;
+        require_zero_gauge_multiplier(mesh, quadrature, multiplier, residual_target)?;
         let pressure_tolerance = 4096.0
             * f64::EPSILON
             * (1.0
@@ -144,7 +145,7 @@ pub(super) fn accept_step(
                     .iter()
                     .map(|value| value.abs())
                     .fold(0.0, f64::max));
-        if pressure_integral.abs() > pressure_tolerance + newton.residual_target {
+        if pressure_integral.abs() > pressure_tolerance + residual_target {
             return Err(invalid(format!(
                 "zero-integral pressure closure produced integral {pressure_integral:e}"
             )));
@@ -199,7 +200,7 @@ pub(super) fn accept_step(
         newton.initial_residual_norm,
         final_residual_norm,
         momentum_residual_norm,
-        newton.residual_target,
+        residual_target,
         continuity_residual_norm,
         pressure_integral,
         convective.skew_residual_norm,

@@ -375,7 +375,7 @@ impl CommonSpatialPlan {
             let output = self.solve_region_newton(&mapping, &input, &initial, request)?;
             let residual = Some((
                 output.solve.residual_norm,
-                output.solve.evidence.residual_target,
+                output.solve.evidence.residual_target()?,
             ));
             let execution = super::nonlinear::newton_execution(&output.solve);
             (output.fields, residual, execution)
