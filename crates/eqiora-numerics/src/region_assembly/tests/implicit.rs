@@ -16,6 +16,7 @@ use std::num::NonZeroU16;
 fn fixture<S: Coefficient + Send + Sync>(
     source: &str,
     fixed: Vec<Option<f64>>,
+    step: Option<f64>,
 ) -> (AssemblyPlan, PreparedRegionAssembly<S, Real>) {
     let (transaction, model, symbols) = compile("implicit-region.eqi", source)
         .unwrap()
@@ -55,20 +56,14 @@ fn fixture<S: Coefficient + Send + Sync>(
         })
         .collect();
     let reference = ReferenceCell::hypercube(1).unwrap();
-    let bound = form
-        .bind(
-            reference,
-            &fields,
-            &rows,
-            Some(&RegionTimeBinding {
-                step: DynQuantity::new(
-                    0.25,
-                    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
-                ),
-                states: Vec::new(),
-            }),
-        )
-        .unwrap();
+    let time = step.map(|step| RegionTimeBinding {
+        step: DynQuantity::new(
+            step,
+            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+        ),
+        states: Vec::new(),
+    });
+    let bound = form.bind(reference, &fields, &rows, time.as_ref()).unwrap();
     let rule =
         QuadratureRule::tensor_product_gauss_legendre(1, bound.minimum_gauss_points()).unwrap();
     let width = fixed.len() / 3;
@@ -92,7 +87,11 @@ fn fixture<S: Coefficient + Send + Sync>(
                 )
                 .unwrap(),
                 previous_geometry: None,
-                previous: BTreeMap::from([(fields[0].field, vec![0.; 2 * width])]),
+                previous: if step.is_some() {
+                    BTreeMap::from([(fields[0].field, vec![0.; 2 * width])])
+                } else {
+                    BTreeMap::new()
+                },
                 mappings: vec![
                     TargetAssemblyMap::new(
                         plan.target_id(0).unwrap(),
@@ -127,6 +126,7 @@ fn independent_global_rates_do_not_reuse_fixed_state_values() {
         relation r on body {derivative(u*u)+u*u/1[s]=0;}
     }",
         vec![Some(2.), None, None],
+        None,
     );
     let target = plan.target_id(0).unwrap();
     let rate_target = plan.target_id(1).unwrap();
@@ -243,6 +243,7 @@ fn global_rate_partial_does_not_demand_singular_state_partial() {
         relation r on body {math.sqrt(u)+1[s]*derivative(u*u)=0;}
     }",
         vec![Some(0.), None, None],
+        None,
     );
     let target = plan.target_id(0).unwrap();
     let point = |current, rate| RegionPoint::Independent {
@@ -290,6 +291,7 @@ fn complex_global_rate_coordinates_preserve_conjugation_and_constraints() {
         let (plan, prepared) = fixture::<C>(
             &source,
             vec![Some(2. / 3.), Some(1.), None, None, None, None],
+            None,
         );
         let target = plan.target_id(0).unwrap();
         let mass = [
@@ -350,6 +352,7 @@ fn zero_newton_residual_does_not_admit_an_empty_complete_equation() {
         "model Degenerate() {domain body=box(0,1); state u:1 on body;
          relation r on body {derivative(u*u)=0;}}",
         vec![Some(0.), None, None],
+        Some(0.25),
     );
     let nonlinear =
         eqiora_realization::NonlinearSolvePlan::new(0., 1e-12, std::num::NonZeroUsize::MIN, 0)
