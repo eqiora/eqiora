@@ -40,7 +40,7 @@ fn derive_with_interface(
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    CompiledSpatialForm::<f64>::derive(
+    CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         symbols.get("body").unwrap(),
         1,
@@ -52,6 +52,7 @@ fn derive_with_interface(
                 carrier: None,
             })
             .collect(),
+        None,
     )
 }
 
@@ -177,11 +178,12 @@ model ScaledDatum() {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledSpatialForm::<f64>::derive(
+    let form = CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         symbols.get("body").unwrap(),
         2,
         &BTreeSet::new(),
+        None,
     )
     .unwrap();
     let law = &form.boundary_laws()[&symbols.get("u").unwrap()][&symbols.get("top").unwrap()];

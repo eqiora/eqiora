@@ -112,11 +112,12 @@ impl<S: Coefficient> AffineData<S> {
     pub(super) fn spatial(&self) -> bool {
         self.row.bindings.iter().any(|(_, input)| input.spatial())
     }
-    pub(super) fn bind_parameter_point(
+    pub(super) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
-        let row = self.row.bind_parameter_point(point)?;
+        let point = point.into();
+        let row = self.row.bind_inputs(point)?;
         Ok(Self {
             row: Arc::new(row),
             column: self.column,

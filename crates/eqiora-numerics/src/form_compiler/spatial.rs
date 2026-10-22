@@ -14,6 +14,7 @@ mod binding;
 mod boundary;
 pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;
+pub(crate) use data::InputPoint;
 mod error_estimate;
 mod lowering;
 pub(crate) mod motion;
@@ -43,15 +44,6 @@ pub(crate) struct CompiledSpatialForm<S: Coefficient> {
 }
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
-    pub(crate) fn derive(
-        program: &KernelProgram,
-        domain: RawId,
-        dimension: usize,
-        interface_boundaries: &BTreeSet<InterfaceBoundary>,
-    ) -> Result<Self, Diagnostic> {
-        Self::derive_at_time(program, domain, dimension, interface_boundaries, None)
-    }
-
     /// Bind prescribed coefficient and boundary data at one explicit physical Time.
     /// Geometry and consecutive storage history remain the caller's responsibility.
     pub(crate) fn derive_at_time(
@@ -372,10 +364,6 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         })
     }
 
-    pub(crate) fn temporal_structure(&self) -> &super::region::TemporalStructure {
-        &self.temporal
-    }
-
     pub(crate) fn kinematics(&self) -> &[(eqiora_realization::BackwardEulerStatePair, ValueType)] {
         &self.kinematics
     }
@@ -481,9 +469,16 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         relation: RawId,
         field: RawId,
         normal: eqiora_schema::kernel::ExprId,
+        time_s: Option<f64>,
     ) -> Result<(), Diagnostic> {
-        self.volume
-            .require_boundary_flux(program, support, relation, field, normal, false)
+        self.volume.require_boundary_flux(
+            program,
+            crate::canonical_boundary::BoundaryRelationBinding::new(support, relation),
+            field,
+            normal,
+            false,
+            time_s,
+        )
     }
 
     /// Use the already compiled physical row without rebinding it as a nodal form.

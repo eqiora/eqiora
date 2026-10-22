@@ -94,3 +94,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         Ok(structure)
     }
 }
+
+impl<S: Coefficient> BoundRegionForm<S> {
+    /// Derive the snapshot certificate from its current prescribed input values.
+    pub(crate) fn temporal_structure(&self) -> Result<TemporalStructure, Diagnostic> {
+        self.form.temporal_structure()
+    }
+}

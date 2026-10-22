@@ -59,7 +59,7 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
         };
         for p in [0.5, 1., 2.] {
             let form = original
-                .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[p]).unwrap())
+                .bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[p]).unwrap())
                 .unwrap();
             let (mut fields, rows) = form
                 .si_bindings(|_| Ok(Space::continuous_lagrange(NonZeroU16::MIN)))

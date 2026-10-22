@@ -73,7 +73,7 @@ fn nonlinear_storage_regularity_covers_initial_accepted_zero_update_and_replay()
         let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
         let before = initial.to_bytes().unwrap();
         let step = plan
-            .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.25)
+            .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let start = plan
             .fields()
@@ -92,7 +92,7 @@ fn nonlinear_storage_regularity_covers_initial_accepted_zero_update_and_replay()
                 *state
             );
             let mut singular = state.clone();
-            let CommonStateKind::Spatial(values) = &mut singular.kind else {
+            let CommonStateKind::Spatial { values, .. } = &mut singular.kind else {
                 unreachable!();
             };
             for node in 0..3 {
@@ -108,11 +108,7 @@ fn nonlinear_storage_regularity_covers_initial_accepted_zero_update_and_replay()
             ));
             // R=0 and the BE tangent is nonzero here. Newton's zero-update
             // success must still pass the original source-rate State gate.
-            require_singular(plan.advance_scalar(
-                &singular,
-                &REFERENCE_LINEAR_SOLVER,
-                state.time_s().unwrap() + 0.25,
-            ));
+            require_singular(plan.advance_scalar(&singular, &REFERENCE_LINEAR_SOLVER));
         }
         assert_eq!(initial.to_bytes().unwrap(), before);
         let (resolved, _) = resolve(&source(kind, singular_literal, equation), 0.25);
@@ -156,7 +152,7 @@ fn candidate_dependent_mass_uses_the_consistent_rate_for_algebraic_partials() {
     let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
     let step = plan
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.25)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     for (field, expected) in fields.into_iter().zip([0.25, 0., 0.]) {
         for value in plan
@@ -209,7 +205,7 @@ fn one_complex_field_can_have_differential_real_and_algebraic_imaginary_parts() 
     let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
     let step = plan
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.25)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(initial.spatial_values(), step.state().spatial_values());
     let (resolved, _) = resolve(

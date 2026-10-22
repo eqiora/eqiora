@@ -116,7 +116,7 @@ impl CommonSpatialPlan {
         let point = crate::parameter_point::ParameterPoint::bind(self.kernel(), selected, &values)?;
         let mut equations = template.clone();
         for region in &mut equations.regions {
-            region.form = region.form.bind_parameter_point(&point)?;
+            region.form = region.form.bind_inputs(&point)?;
         }
         let unique = outputs
             .iter()

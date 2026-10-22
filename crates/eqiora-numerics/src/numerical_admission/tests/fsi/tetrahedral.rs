@@ -116,6 +116,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
         &model,
         resources.clone(),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        None,
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {
@@ -254,7 +255,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
     let restart =
         CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &resolved).unwrap();
     let rerun = plan
-        .advance_scalar(&restart, &REFERENCE_LINEAR_SOLVER, 0.1)
+        .advance_scalar(&restart, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(rerun.state(), outputs[1].1.state());
     let trajectory = crate::CommonTrajectory::accept_spatial_transient(request, outputs).unwrap();

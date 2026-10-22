@@ -62,11 +62,12 @@ fn mapped_form_binds_boundary_time_without_changing_initial_time() {
     // The sole PDE Region remains distinct from the map's coordinate-only target.
     let domain = *supports.keys().next().unwrap();
     assert!(
-        CompiledSpatialForm::<f64>::derive(
+        CompiledSpatialForm::<f64>::derive_at_time(
             &program,
             domain,
             2,
             &std::collections::BTreeSet::new(),
+            None
         )
         .is_err()
     );

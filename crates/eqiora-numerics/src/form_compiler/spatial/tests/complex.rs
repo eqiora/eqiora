@@ -26,7 +26,7 @@ fn complex_form(source: &str) -> Result<CompiledSpatialForm<C>, Diagnostic> {
             _ => None,
         })
         .unwrap();
-    CompiledSpatialForm::<C>::derive(&program, domain, 1, &BTreeSet::new())
+    CompiledSpatialForm::<C>::derive_at_time(&program, domain, 1, &BTreeSet::new(), None)
 }
 fn close(actual: C, expected: C) {
     assert!(

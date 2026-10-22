@@ -31,11 +31,12 @@ fn derive(source: &str) -> Result<CompiledSpatialForm<f64>, Diagnostic> {
             _ => None,
         })
         .unwrap();
-    let form = CompiledSpatialForm::<f64>::derive(
+    let form = CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         domain,
         1,
         &std::collections::BTreeSet::new(),
+        None,
     )?;
     assert_eq!(form.domain(), domain);
     Ok(form)
@@ -149,9 +150,14 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
             _ => None,
         })
         .unwrap();
-    let form =
-        CompiledSpatialForm::<f64>::derive(&program, domain, 1, &std::collections::BTreeSet::new())
-            .unwrap();
+    let form = CompiledSpatialForm::<f64>::derive_at_time(
+        &program,
+        domain,
+        1,
+        &std::collections::BTreeSet::new(),
+        None,
+    )
+    .unwrap();
     let fields = program
         .nodes()
         .filter_map(|node| match node {
@@ -168,7 +174,7 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
         .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let rebound = form
-        .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &[2.0]).unwrap())
+        .bind_inputs(&ParameterPoint::bind(&program, &fields, &[2.0]).unwrap())
         .unwrap();
     let changed_source = source.replace(
         "parameter unit: 1 / m ^ 2 = 1",
@@ -199,10 +205,7 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
             .unwrap(),
         original
     );
-    assert!(
-        form.bind_parameter_point(&ParameterPoint::default())
-            .is_err()
-    );
+    assert!(form.bind_inputs(&ParameterPoint::default()).is_err());
     assert!(ParameterPoint::bind(&program, &fields, &[f64::NAN]).is_err());
     assert!(ParameterPoint::bind(&program, &[fields[0], fields[0]], &[1.0, 2.0]).is_err());
 }
@@ -219,11 +222,12 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledSpatialForm::<f64>::derive(
+    let form = CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         symbols.get("body").unwrap(),
         1,
         &std::collections::BTreeSet::new(),
+        None,
     )
     .unwrap();
     assert_eq!(form.fields().len(), form.volume().unwrap().fields().len());
@@ -251,7 +255,7 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     ];
     for k in [0.0, 1.0] {
         let rebound = form
-            .bind_parameter_point(&ParameterPoint::bind(&program, &parameters, &[k, 1.0]).unwrap())
+            .bind_inputs(&ParameterPoint::bind(&program, &parameters, &[k, 1.0]).unwrap())
             .unwrap();
         let volume = rebound.volume().unwrap().clone();
         let error = volume

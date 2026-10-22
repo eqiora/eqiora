@@ -187,7 +187,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
             (C::new(-2., 5.), C::new(0., 0.)),
         ] {
             let form = original
-                .bind_parameter_point(
+                .bind_inputs(
                     &ParameterPoint::bind(&program, &ids, &[a.re, a.im, b.re, b.im]).unwrap(),
                 )
                 .unwrap();

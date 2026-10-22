@@ -170,10 +170,11 @@ impl<S: Coefficient> FieldComponent<S> {
         })
     }
 
-    pub(in crate::form_compiler) fn bind_parameter_point(
+    pub(in crate::form_compiler) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
+        let point = point.into();
         let mut bound = self.clone();
         bound.bindings = self
             .bindings

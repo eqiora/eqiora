@@ -167,6 +167,7 @@ fn gauge_compatibility_matches_actual_source_and_signed_boundary_loads() {
             &model,
             cartesian_box_resources(&geometry, &[4]),
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+            None,
         )
         .unwrap();
         let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {

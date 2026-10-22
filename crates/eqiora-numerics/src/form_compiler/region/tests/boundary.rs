@@ -122,7 +122,7 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
         law.evaluate(&[0.0, 0.5], &[-1.0, 0.0]).unwrap(),
         [-3.0, 0.0]
     );
-    law.bind_parameter_point(
+    law.bind_inputs(
         &ParameterPoint::bind(&program, &[ids["p0"].downcast().unwrap()], &[7.0]).unwrap(),
     )
     .unwrap();

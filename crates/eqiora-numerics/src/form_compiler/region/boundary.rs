@@ -66,11 +66,12 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
             .map_data(&|value| value.derivative(&|input| f64::from(input == coordinate), dimension))
     }
 
-    pub(crate) fn bind_parameter_point(
+    pub(crate) fn bind_inputs<'a>(
         &mut self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<(), Diagnostic> {
-        self.datum.bind_parameter_point(point)
+        let point = point.into();
+        self.datum.bind_inputs(point)
     }
 }
 
@@ -158,11 +159,13 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                             if self
                                 .require_boundary_flux(
                                     program,
-                                    boundary,
-                                    relation,
+                                    crate::canonical_boundary::BoundaryRelationBinding::new(
+                                        boundary, relation,
+                                    ),
                                     row.tested,
                                     leaf.value(),
                                     view.leaves().len() == 1,
+                                    time_s,
                                 )
                                 .is_ok()
                             {

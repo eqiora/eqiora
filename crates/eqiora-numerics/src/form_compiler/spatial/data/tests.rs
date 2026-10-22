@@ -288,7 +288,7 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     );
     assert_eq!(
         mixed_inputs
-            .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.]).unwrap(),)
+            .bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[2.]).unwrap(),)
             .unwrap()
             .evaluate(&[3.])
             .unwrap(),
@@ -312,7 +312,7 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     assert_eq!(parameter_gradient.evaluate(&[3.0]).unwrap(), 0.0);
     assert!(
         parameter_gradient
-            .bind_parameter_point(&ParameterPoint::default())
+            .bind_inputs(&ParameterPoint::default())
             .is_err()
     );
     let coordinate_node = dag
@@ -330,7 +330,7 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
         Some(0)
     );
     assert_eq!(
-        rate.bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
+        rate.bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
             .unwrap()
             .evaluate(&[3.0])
             .unwrap(),
@@ -338,16 +338,13 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     );
     assert_eq!(
         derivative
-            .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
+            .bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
             .unwrap()
             .evaluate(&[3.0])
             .unwrap(),
         2.0
     );
-    assert!(
-        rate.bind_parameter_point(&ParameterPoint::default())
-            .is_err()
-    );
+    assert!(rate.bind_inputs(&ParameterPoint::default()).is_err());
     assert!(context.data(*field, 0).is_err());
 }
 
@@ -441,9 +438,7 @@ fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
                 spatial_factor * (1. + 0.5 * t) * (1. + 0.25 * t),
             );
             let rebound = data
-                .bind_parameter_point(
-                    &ParameterPoint::bind(&program, &[parameter], &[1.0]).unwrap(),
-                )
+                .bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[1.0]).unwrap())
                 .unwrap();
             close(
                 rebound.evaluate(&[7., -3.]).unwrap(),
@@ -472,10 +467,7 @@ fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
                     0.
                 },
             );
-            assert!(
-                data.bind_parameter_point(&ParameterPoint::default())
-                    .is_err()
-            );
+            assert!(data.bind_inputs(&ParameterPoint::default()).is_err());
             if t == 1.0 {
                 let parameter_data = context
                     .data(
@@ -526,7 +518,7 @@ fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
                     15.5
                 );
                 assert!(
-                    data.bind_parameter_point(
+                    data.bind_inputs(
                         &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
                     )
                     .unwrap()
@@ -536,7 +528,7 @@ fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
                 assert!(
                     data.coordinate_derivative(0, 2)
                         .unwrap()
-                        .bind_parameter_point(
+                        .bind_inputs(
                             &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
                         )
                         .unwrap()
@@ -662,7 +654,7 @@ model ComplexCoefficient() {
         spatial_expression::lower::<C>(&program, &dag, *root, relation.id().erase(), 1).unwrap();
     let fields = tape.parameter_fields();
     let rebound = data
-        .bind_parameter_point(
+        .bind_inputs(
             &ParameterPoint::bind(
                 &program,
                 fields,
@@ -692,10 +684,7 @@ model ComplexCoefficient() {
         C::new(1.0, 0.0)
     );
     assert!(!data.same_coefficient(&rebound)); // Different bound values define different coefficient functions.
-    assert!(
-        data.bind_parameter_point(&ParameterPoint::default())
-            .is_err()
-    );
+    assert!(data.bind_inputs(&ParameterPoint::default()).is_err());
     assert!(
         ParameterPoint::bind(
             &program,
@@ -1031,7 +1020,7 @@ fn mixed_scalar_coefficient_partials_preserve_complex_directions_and_domains() {
                 parameter_partial
                     .coordinate_derivative(0, 1)
                     .unwrap()
-                    .bind_parameter_point(&ParameterPoint::default())
+                    .bind_inputs(&ParameterPoint::default())
                     .is_err()
             );
         }
@@ -1191,9 +1180,7 @@ fn complex_time_parameter_products_share_the_retained_coordinate_inputs() {
     }",
         Some(3.),
     );
-    let rebound = data
-        .bind_parameter_point(&ParameterPoint::default())
-        .unwrap();
+    let rebound = data.bind_inputs(&ParameterPoint::default()).unwrap();
     assert_eq!(rebound.evaluate(&[0.25]).unwrap(), 3.);
     assert_eq!(
         rebound

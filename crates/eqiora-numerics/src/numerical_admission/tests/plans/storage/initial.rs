@@ -154,7 +154,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
     // The constant vector has zero diffusion and the same boundary traces.
     let next = plan
-        .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, 0.25)
+        .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     for (&actual, &expected) in next.state().spatial_values().unwrap().iter().zip(&expected) {
         assert!((actual - expected).abs() < 1e-12);

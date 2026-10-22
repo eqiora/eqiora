@@ -113,7 +113,7 @@ impl CommonSpatialPlan {
             ));
         };
         let (mapping, input) =
-            self.scalar_step_assembly(equations, previous, current.require_time_s()?)?;
+            self.scalar_step_assembly(equations, previous, current.time_grid()?)?;
         if input.geometry_action.is_some() {
             return Err(invalid("volume balance requires fixed geometry"));
         }

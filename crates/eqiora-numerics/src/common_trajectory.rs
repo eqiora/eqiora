@@ -302,6 +302,7 @@ fn validate_spatial(
             "accepted spatial Trajectory differs from its exact Run request",
         ));
     }
+    let grid = initial.time_grid()?;
     let mut last = (0, initial);
     for ((step, occurrence), expected) in states.iter().zip(output_steps) {
         let state = occurrence.state();
@@ -310,10 +311,10 @@ fn validate_spatial(
             || *step == 0
             || state.state_space_identity() != initial.state_space_identity()
             || previous.state_space_identity() != initial.state_space_identity()
-            || state.require_time_s()?.to_bits()
-                != (initial.require_time_s()? + *step as f64 * step_s).to_bits()
+            || state.require_time_s()?.to_bits() != grid.advance(*step)?.time(step_s)?.to_bits()
             || previous.require_time_s()?.to_bits()
-                != (initial.require_time_s()? + (*step - 1) as f64 * step_s).to_bits()
+                != grid.advance(*step - 1)?.time(step_s)?.to_bits()
+            || (state.spatial_values().is_some() && state.time_grid()? != grid.advance(*step)?)
             || (last.0 == *step - 1 && previous.identity() != last.1.identity())
         {
             return Err(invalid(

@@ -7,6 +7,7 @@ mod initial;
 mod kinematic;
 mod nonlinear;
 mod regions;
+mod time_data;
 mod vector;
 
 #[test]
@@ -90,11 +91,14 @@ public component Heat(
             ),
         ] {
             let mut invalid = initial.clone();
-            invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());
+            invalid.kind = CommonStateKind::Spatial {
+                values: values.into_boxed_slice(),
+                previous: None,
+            };
             let error = resolved
                 .as_spatial()
                 .unwrap()
-                .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER, 0.25)
+                .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER)
                 .unwrap_err();
             assert!(error.message().contains(message), "{}", error.message());
         }

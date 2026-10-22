@@ -55,12 +55,12 @@ fn coefficient_and_material_partials_share_the_physical_weak_action() {
     let rule = QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap();
     for p in [1., 2.] {
         let point = ParameterPoint::bind(&program, &[parameter], &[p]).unwrap();
-        let primal = form.bind_parameter_point(&point).unwrap();
+        let primal = form.bind_inputs(&point).unwrap();
         for partial in [
             primal.input_partial(&coordinate).unwrap(),
             form.input_partial(&coordinate)
                 .unwrap()
-                .bind_parameter_point(&point)
+                .bind_inputs(&point)
                 .unwrap(),
         ] {
             let bound = bind(&partial);
@@ -122,14 +122,17 @@ fn time_partials_share_volume_products_and_prescribed_boundary_data() {
     .unwrap()
     .remove(0);
     let rule = QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap();
+    let initial_form = CompiledRegionForm::<f64>::derive_at_time(
+        &program,
+        symbols.get("body").unwrap(),
+        1,
+        Some(0.),
+    )
+    .unwrap();
     for t in [0., 2.] {
-        let form = CompiledRegionForm::<f64>::derive_at_time(
-            &program,
-            symbols.get("body").unwrap(),
-            1,
-            Some(t),
-        )
-        .unwrap();
+        let form = initial_form
+            .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(t))
+            .unwrap();
         let bound = bind(&form);
         let partial = bound.input_partial(&coordinate).unwrap();
         let cell = partial.prepare_cell(&geometry(), &rule).unwrap();
@@ -151,14 +154,30 @@ fn time_partials_share_volume_products_and_prescribed_boundary_data() {
                 &program,
                 symbols.get("right").unwrap(),
                 symbols.get("prescribed").unwrap(),
-                Some(t),
+                Some(0.),
             )
             .unwrap()
             .remove(0);
+        law.bind_inputs(crate::form_compiler::spatial::InputPoint::Time(t))
+            .unwrap();
         let primal = law.clone();
         law.input_partial(&coordinate, 1).unwrap();
         close(&law.evaluate(&[1.], &[]).unwrap(), &[2. * t]);
         close(&primal.evaluate(&[1.], &[]).unwrap(), &[t * t]);
+        // Partial formation and input rebinding commute at fixed geometry.
+        let early_partial = initial_form
+            .input_partial(&coordinate)
+            .unwrap()
+            .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(t))
+            .unwrap();
+        close(
+            &bind(&early_partial)
+                .prepare_cell(&geometry(), &rule)
+                .unwrap()
+                .residual(&BTreeMap::new(), &[1., 3.])
+                .unwrap(),
+            &[-2. - 8. * t, 2. + 8. * t],
+        );
     }
 }
 

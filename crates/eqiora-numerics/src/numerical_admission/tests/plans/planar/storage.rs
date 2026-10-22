@@ -291,11 +291,12 @@ public component Heat(
                 vec![1],
             )
             .unwrap();
-            let false_solution = CommonAcceptedSpatialStep::new(
-                run.state(),
-                plan.scalar_state(Some(0.25), vec![2.; 5]).unwrap(),
-            )
-            .unwrap();
+            let mut false_state = outputs[0].1.state().clone();
+            let CommonStateKind::Spatial { values, .. } = &mut false_state.kind else {
+                unreachable!();
+            };
+            values.fill(2.);
+            let false_solution = CommonAcceptedSpatialStep::new(run.state(), false_state).unwrap();
             let error = crate::CommonTrajectory::accept_spatial_transient(
                 one_output,
                 vec![(1, false_solution)],

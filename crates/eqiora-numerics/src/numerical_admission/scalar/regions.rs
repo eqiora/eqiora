@@ -23,12 +23,14 @@ impl<S: Coefficient> SpatialRegion<S> {
         domain: eqiora_core::RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
+        initial_time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive(
+        let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
             program,
             domain,
             bounds.len(),
             &std::collections::BTreeSet::new(),
+            initial_time_s,
         )?;
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
@@ -145,15 +147,23 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         domain: RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), RawId>,
+        initial_time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
-            regions: vec![SpatialRegion::new(program, domain, bounds, boundaries)?],
+            regions: vec![SpatialRegion::new(
+                program,
+                domain,
+                bounds,
+                boundaries,
+                initial_time_s,
+            )?],
             interfaces: vec![],
         })
     }
     pub(in crate::numerical_admission) fn simplicial(
         program: &KernelProgram,
         resources: &NativeMeshResources,
+        initial_time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         let supports = super::super::native::polyhedral::bind_model_support(program, resources)?;
         let dimension = resources.geometry()?.ambient_dimension();
@@ -175,7 +185,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 domain,
                 dimension,
                 &interface_boundaries,
-                motion.map(|_| 0.0),
+                initial_time_s.or_else(|| motion.map(|_| 0.0)),
             )?;
             for (_, ty) in form.fields() {
                 let components = crate::form_compiler::region::components(ty, dimension)?;
@@ -216,9 +226,14 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     .iter()
                     .find(|region| region.form.domain() == domain)
                     .ok_or_else(|| invalid("interface has no exact compiled Region"))?;
-                region
-                    .form
-                    .require_interface_flux(program, boundary, relation, field, normal)
+                region.form.require_interface_flux(
+                    program,
+                    boundary,
+                    relation,
+                    field,
+                    normal,
+                    initial_time_s,
+                )
             },
             |_, sides| {
                 super::super::native::polyhedral::validate_interface_support(
@@ -292,6 +307,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn source_regions(
         program: &KernelProgram,
         mesh: &eqiora_meshing::CartesianMesh,
+        initial_time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         let supports = crate::scalar_conservation::cartesian_region_supports(program)?;
         if supports.is_empty() {
@@ -320,11 +336,12 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     "steady Region execution requires matching spatial dimension",
                 ));
             }
-            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
                 program,
                 support.domain,
                 support.bounds.len(),
                 &interface_boundaries,
+                initial_time_s,
             )?;
             // Storage is bound after the caller selects an explicit temporal Plan.
             if !form.is_transient() {
@@ -342,9 +359,14 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     .iter()
                     .find(|region| region.form.domain() == domain)
                     .ok_or_else(|| invalid("interface has no exact compiled Region"))?;
-                region
-                    .form
-                    .require_interface_flux(program, boundary, relation, field, normal)
+                region.form.require_interface_flux(
+                    program,
+                    boundary,
+                    relation,
+                    field,
+                    normal,
+                    initial_time_s,
+                )
             },
             |source, sides| {
                 crate::scalar_conservation::interface::validate_cartesian_pair(

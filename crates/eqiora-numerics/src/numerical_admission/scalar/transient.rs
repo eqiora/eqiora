@@ -46,10 +46,10 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        self.scalar_assembly_with_history(equations, time_s, None, None)
+        self.scalar_assembly_with_history(equations, time_s, None, None, None)
     }
 
-    fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
+    pub(super) fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
@@ -57,6 +57,7 @@ impl CommonSpatialPlan {
         previous: Option<
             &BTreeMap<eqiora_core::RawId, crate::region_assembly::mapping::RecoveredRegionField<S>>,
         >,
+        partial: Option<&eqiora_ir::ScalarSymbolCoordinate>,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<S>,
@@ -89,12 +90,15 @@ impl CommonSpatialPlan {
                     )?
                 };
             }
-            if region.form.motion().is_none() && !region.form.kinematics().is_empty() {
-                region
+            if region.form.motion().is_none() {
+                region.form = region
                     .form
-                    .bind_boundary_time(self.admission.program(), time_s)?;
+                    .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(time_s))?;
             }
             region.form = region.form.bind_backward_euler(temporal.step())?;
+            if let Some(coordinate) = partial {
+                region.form = region.form.input_partial(coordinate)?;
+            }
         }
         let mut prescribed_states = BTreeMap::new();
         let boundary_value = |key: crate::region_assembly::mapping::FieldDof,
@@ -167,7 +171,7 @@ impl CommonSpatialPlan {
         &self,
         equations: &ExecutableSpatialEquations<S>,
         state: &CommonState,
-        next_time_s: f64,
+        grid: TimeGrid,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<S>,
@@ -178,16 +182,65 @@ impl CommonSpatialPlan {
         if state.state_space_identity() != self.identity() {
             return Err(invalid("scalar State belongs to a foreign exact Plan"));
         }
-        let CommonStateKind::Spatial(values) = &state.kind else {
+        if grid.previous()? != state.time_grid()? {
+            return Err(invalid(
+                "scalar step differs from its predecessor's Time grid",
+            ));
+        }
+        let step_s = self
+            .admission
+            .temporal
+            .ok_or_else(|| invalid("scalar step requires BackwardEuler"))?
+            .step()
+            .value();
+        if grid.previous()?.time(step_s)?.to_bits() != state.require_time_s()?.to_bits() {
+            return Err(invalid("scalar State differs from its retained Time grid"));
+        }
+        let CommonStateKind::Spatial { values, .. } = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
-        let (old_mapping, _) = self.scalar_assembly_at(equations, state.require_time_s()?)?;
-        let previous = self.physical_fields(&old_mapping, values)?;
+        self.scalar_history_assembly(
+            equations,
+            &SpatialHistory {
+                grid,
+                values: values.clone(),
+            },
+            grid.time(step_s)?,
+        )
+    }
+
+    pub(super) fn scalar_history_assembly<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        history: &SpatialHistory,
+        next_time_s: f64,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
+        let step_s = self
+            .admission
+            .temporal
+            .ok_or_else(|| invalid("spatial step requires BackwardEuler"))?
+            .step()
+            .value();
+        let previous_time_s = history.grid.previous()?.time(step_s)?;
+        if history.grid.time(step_s)?.to_bits() != next_time_s.to_bits() {
+            return Err(invalid(
+                "spatial State Time differs from its exact Plan time grid",
+            ));
+        }
+        let (old_mapping, old_input) = self.scalar_assembly_at(equations, previous_time_s)?;
+        let previous = self.validate_state_fields(&old_mapping, &old_input, &history.values)?;
         let (mapping, mut input) = self.scalar_assembly_with_history(
             equations,
             next_time_s,
-            Some(state.require_time_s()?),
+            Some(previous_time_s),
             Some(&previous),
+            None,
         )?;
         if equations
             .regions
@@ -208,16 +261,8 @@ impl CommonSpatialPlan {
                 .expect("scalar storage")
                 .step()
                 .value();
-            // The Run owns start + accepted_count * step. Recomputing that
-            // timestamp by repeated addition can differ by an ulp. The sealed
-            // geometry action and both forms still bind the exact Plan step.
-            if !next_time_s.is_finite() || next_time_s <= state.require_time_s()? {
-                return Err(invalid(
-                    "moving scalar action requires a later finite accepted Time",
-                ));
-            }
             let previous = self
-                .prescribed_geometry_at(state.require_time_s()?)?
+                .prescribed_geometry_at(previous_time_s)?
                 .expect("retained motion");
             let current = self
                 .prescribed_geometry_at(next_time_s)?
@@ -238,16 +283,16 @@ impl CommonSpatialPlan {
         &self,
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
-        next_time_s: f64,
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
+        let grid = state.time_grid()?.advance(1)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
-                self.advance_typed(equations, state, backend, next_time_s)
+                self.advance_typed(equations, state, backend, grid)
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
-                self.advance_typed(equations, state, backend, next_time_s)
+                self.advance_typed(equations, state, backend, grid)
             }
             _ => Err(invalid("missing spatial inventory")),
         }
@@ -258,17 +303,24 @@ impl CommonSpatialPlan {
         equations: &ExecutableSpatialEquations<S>,
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
-        next_time_s: f64,
+        grid: TimeGrid,
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic>
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
     {
+        let next_time_s = grid.time(
+            self.admission
+                .temporal
+                .expect("temporal Plan")
+                .step()
+                .value(),
+        )?;
         let structure = equations.algebraic_structure(None)?;
         let checked = self
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let (mapping, input) = self.scalar_step_assembly(equations, state, next_time_s)?;
+        let (mapping, input) = self.scalar_step_assembly(equations, state, grid)?;
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
         let (fields, residual, execution) = if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
@@ -316,8 +368,15 @@ impl CommonSpatialPlan {
                 &field.coefficients.into_values().collect::<Vec<_>>(),
             )?);
         }
-        let mut accepted =
-            CommonAcceptedSpatialStep::new(state, self.scalar_state(Some(next_time_s), values)?)?;
+        let previous = SpatialHistory {
+            grid,
+            values: state
+                .spatial_values()
+                .expect("validated spatial State")
+                .into(),
+        };
+        let current = self.spatial_state(Some(next_time_s), values, Some(previous))?;
+        let mut accepted = CommonAcceptedSpatialStep::new(state, current)?;
         accepted.residual = residual;
         accepted.execution = Some(execution);
         Ok(accepted)
@@ -341,7 +400,7 @@ impl CommonState {
     /// Field-major, node-major, component-minor coefficients of this spatial State.
     pub(crate) fn spatial_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Spatial(values) => Some(values),
+            CommonStateKind::Spatial { values, .. } => Some(values),
             _ => None,
         }
     }

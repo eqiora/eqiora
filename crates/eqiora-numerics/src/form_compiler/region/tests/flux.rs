@@ -93,7 +93,14 @@ fn check(
         typed.expression().node(normal),
         Some(ExprNode::NormalComponent { .. })
     ));
-    form.require_boundary_flux(program, ids[side], relation, ids["u"], normal, false)
+    form.require_boundary_flux(
+        program,
+        crate::canonical_boundary::BoundaryRelationBinding::new(ids[side], relation),
+        ids["u"],
+        normal,
+        false,
+        None,
+    )
 }
 
 #[test]
@@ -118,11 +125,11 @@ fn vector_stress_boundary_matches_complete_exact_operator_and_parameter_inventor
     assert!(
         form.require_boundary_flux(
             &program,
-            ids["right"],
-            ids["left_law"],
+            crate::canonical_boundary::BoundaryRelationBinding::new(ids["right"], ids["left_law"]),
             ids["u"],
             typed.expression().roots()[0],
-            false
+            false,
+            None
         )
         .is_err()
     );
@@ -444,11 +451,14 @@ model InterfaceFlux() {
             let normal = typed.expression().roots()[0];
             let result = form.require_boundary_flux(
                 &program,
-                id("contact"),
-                id(relation),
+                crate::canonical_boundary::BoundaryRelationBinding::new(
+                    id("contact"),
+                    id(relation),
+                ),
                 id(field),
                 normal,
                 false,
+                None,
             );
             if wrong_coefficient && field == "u" {
                 assert!(
@@ -463,11 +473,11 @@ model InterfaceFlux() {
             assert!(
                 form.require_boundary_flux(
                     &program,
-                    id("ar"),
-                    id(relation),
+                    crate::canonical_boundary::BoundaryRelationBinding::new(id("ar"), id(relation)),
                     id(field),
                     normal,
                     false,
+                    None
                 )
                 .is_err()
             );
@@ -476,11 +486,14 @@ model InterfaceFlux() {
                 foreign
                     .require_boundary_flux(
                         &program,
-                        id("contact"),
-                        id(relation),
+                        crate::canonical_boundary::BoundaryRelationBinding::new(
+                            id("contact"),
+                            id(relation)
+                        ),
                         id("w"),
                         normal,
                         false,
+                        None
                     )
                     .unwrap_err()
                     .message()

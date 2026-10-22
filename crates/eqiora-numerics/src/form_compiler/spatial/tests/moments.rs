@@ -61,7 +61,7 @@ fn derive<S: Coefficient>(source: &str) -> Result<CompiledSpatialForm<S>, Diagno
             _ => None,
         })
         .unwrap();
-    CompiledSpatialForm::derive(&program, domain, 3, &BTreeSet::new())
+    CompiledSpatialForm::derive_at_time(&program, domain, 3, &BTreeSet::new(), None)
 }
 
 fn bind<S: Coefficient>(
@@ -299,6 +299,7 @@ fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
             _ => None,
         })
         .collect();
-    let error = CompiledSpatialForm::<f64>::derive(&program, domain, 3, &interfaces).unwrap_err();
+    let error = CompiledSpatialForm::<f64>::derive_at_time(&program, domain, 3, &interfaces, None)
+        .unwrap_err();
     assert!(error.message().contains("duplicate Field boundary law"));
 }

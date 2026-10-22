@@ -1,6 +1,40 @@
 //! One typed input binding for scalar, component and affine coefficient expressions.
 use super::*;
 
+/// Which prescribed scalar inputs change while all other bindings stay fixed.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum InputPoint<'a> {
+    Parameters(&'a crate::parameter_point::ParameterPoint),
+    Time(f64),
+}
+
+impl<'a> From<&'a crate::parameter_point::ParameterPoint> for InputPoint<'a> {
+    fn from(point: &'a crate::parameter_point::ParameterPoint) -> Self {
+        Self::Parameters(point)
+    }
+}
+
+impl InputPoint<'_> {
+    fn value(self, coordinate: &ScalarSymbolCoordinate) -> Result<Option<f64>, Diagnostic> {
+        match (self, coordinate.symbol()) {
+            (Self::Parameters(point), SymbolRef::Parameter(parameter)) => {
+                let value = point.get(parameter).ok_or_else(|| {
+                    super::super::invalid("coefficient Parameter point omits an exact identity")
+                })?;
+                coordinate.read_value(value).map(Some)
+            }
+            (Self::Time(value), SymbolRef::Time) if value.is_finite() => Ok(Some(value)),
+            (Self::Time(_), SymbolRef::Time) => Err(super::super::invalid(
+                "coefficient Time requires a finite evaluation point",
+            )),
+            (_, SymbolRef::Parameter(_) | SymbolRef::Time) => Ok(None),
+            _ => Err(super::super::invalid(
+                "bound scalar is not a prescribed input",
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Input<S: Coefficient> {
     Scalar { data: Data<S>, imaginary: bool },
@@ -146,30 +180,17 @@ impl<S: Coefficient> Input<S> {
     pub(super) fn bind(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
-        point: &crate::parameter_point::ParameterPoint,
+        point: InputPoint<'_>,
     ) -> Result<Self, Diagnostic> {
         Ok(match self {
             Self::Coordinate { .. } => self.clone(),
             Self::Scalar { data, imaginary } => Self::Scalar {
-                data: data.bind_parameter_point(point)?,
+                data: data.bind_inputs(point)?,
                 imaginary: *imaginary,
             },
-            Self::BoundScalar { .. } => {
-                if coordinate.symbol() == SymbolRef::Time {
-                    return Ok(self.clone());
-                }
-                let SymbolRef::Parameter(parameter) = coordinate.symbol() else {
-                    return Err(super::super::invalid(
-                        "component binding is not a Parameter",
-                    ));
-                };
-                let value = point.get(parameter).ok_or_else(|| {
-                    super::super::invalid("coefficient Parameter point omits an exact identity")
-                })?;
-                Self::BoundScalar {
-                    value: coordinate.read_value(value)?,
-                }
-            }
+            Self::BoundScalar { value } => Self::BoundScalar {
+                value: point.value(coordinate)?.unwrap_or(*value),
+            },
         })
     }
     pub(super) fn derivative(

@@ -187,11 +187,12 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
                     _ => None,
                 })
                 .unwrap();
-            let form = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive_at_time(
                 &program,
                 domain,
                 3,
                 &BTreeSet::new(),
+                None,
             )
             .unwrap();
             assert_eq!(
@@ -232,6 +233,7 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
             &model,
             owner,
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+            None,
         )
         .unwrap_err();
         assert!(error.message().contains(diagnostic), "{}", error.message());
@@ -250,6 +252,7 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
             &model,
             owner,
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+            None,
         )
         .unwrap();
         for spatial in [

@@ -70,10 +70,11 @@ impl<S: Coefficient> PointwiseData<S> {
         })
     }
 
-    pub(super) fn bind_parameter_point(
+    pub(super) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
+        let point = point.into();
         let bind = |inputs: &[Input<S>]| {
             inputs
                 .iter()

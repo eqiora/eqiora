@@ -122,11 +122,11 @@ fn curl_constitutive_flux_preserves_the_green_identity_sign() {
         let law = typed_relation(&program, ids["law"]).unwrap();
         let result = form.require_boundary_flux(
             &program,
-            ids["wall"],
-            ids["law"],
+            crate::canonical_boundary::BoundaryRelationBinding::new(ids["wall"], ids["law"]),
             ids["u"],
             law.expression().roots()[0],
             false,
+            None,
         );
         assert_eq!(result.is_ok(), valid, "{flux}: {result:?}");
     }

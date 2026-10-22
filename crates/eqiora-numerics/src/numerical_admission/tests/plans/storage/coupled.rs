@@ -194,9 +194,12 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
             ),
         ] {
             let mut invalid = initial.clone();
-            invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());
+            invalid.kind = CommonStateKind::Spatial {
+                values: values.into_boxed_slice(),
+                previous: None,
+            };
             let error = plan
-                .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER, 0.25)
+                .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER)
                 .unwrap_err();
             assert!(error.message().contains(message), "{}", error.message());
         }
@@ -334,7 +337,7 @@ fn coupled_storage_validates_rates_at_the_actual_initial_state() {
     let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
     let step = plan
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.25)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     // 3 times the reduced BE equations: 9u-v=-12, -u+18v-w=4, -v+17w=0.
     for (field, expected) in fields

@@ -110,11 +110,11 @@ fn nonlinear_flux_witness_retains_fields_parameters_and_physical_coordinates() {
         let typed = typed_relation(&program, id("boundary")).unwrap();
         let result = form.require_boundary_flux(
             &program,
-            id("wall"),
-            id("boundary"),
+            crate::canonical_boundary::BoundaryRelationBinding::new(id("wall"), id("boundary")),
             id("u"),
             typed.expression().roots()[0],
             homogeneous,
+            None,
         );
         assert_eq!(result.is_ok(), admitted, "{flux}: {result:?}");
     }

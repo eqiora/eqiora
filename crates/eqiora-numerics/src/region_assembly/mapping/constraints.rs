@@ -19,13 +19,14 @@ where
         fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         temporal: &crate::form_compiler::region::TemporalStructure,
         solver: SolverPlan,
+        initial_partial: impl FnOnce() -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         self.validate_prescribed_fields(fields)?;
         // A physical State preserves signed-zero words. Essential traces were
         // checked numerically above; reduction must not impose the distinct
         // exact-word contract of an already normalized algebraic point.
-        let full = self.normalized_coefficients(fields)?;
-        let values = self.encode_coordinates(&self.constraints.restrict_action(&full)?)?;
+        let full_state = self.normalized_coefficients(fields)?;
+        let values = self.encode_coordinates(&self.constraints.restrict_action(&full_state)?)?;
         let coordinates = RegionRealCoordinates::new(self)?;
         let mut rows = BTreeSet::new();
         let mut stored_rows = BTreeSet::new();
@@ -56,6 +57,27 @@ where
         }
         // This is a snapshot, not a new step. Invert exact kinematic recovery
         // so eliminated displacement terms evaluate at the supplied State.
+        let accepted_step = input.previous.is_some();
+        let discrete_rates = input
+            .previous
+            .as_ref()
+            .map(|previous| {
+                let step = input
+                    .forms
+                    .iter()
+                    .find_map(|(form, _)| form.time_binding())
+                    .ok_or_else(|| invalid("step State lacks its temporal binding"))?
+                    .step
+                    .value();
+                let previous = self.normalized_coefficients(previous)?;
+                let rates = full_state
+                    .iter()
+                    .zip(previous)
+                    .map(|(current, old)| (*current - old) / step)
+                    .collect::<Vec<_>>();
+                coordinates.encode_full(&rates)
+            })
+            .transpose()?;
         let mut previous = fields.clone();
         for (form, _) in &input.forms {
             if let Some(time) = form.time_binding() {
@@ -84,7 +106,9 @@ where
         // Snapshot constraint rows use the original State partial, without a
         // step-dependent mass contribution. Transformed kinematics retain their
         // explicit inverse recovery above; their coordinates are not independent.
-        let rates = vec![0.; coordinates.full_count()];
+        let rates = discrete_rates
+            .clone()
+            .unwrap_or_else(|| vec![0.; coordinates.full_count()]);
         let independent = input.geometry_action.is_none()
             && input.forms.iter().all(|(form, _)| {
                 form.time_binding()
@@ -116,26 +140,32 @@ where
             // The authored rate inventory fixes the partition, even when a
             // coefficient vanishes at this particular State. Recover an actual
             // rate point before differentiating any State-dependent mass.
-            let mass = independent_action(
-                &rates,
-                FieldPullback::Uniform {
-                    current: None,
-                    rate: Some(1.),
-                },
-            )?;
             let full = (0..values.len()).collect::<Vec<_>>();
-            let mass_proof = ConstantDerivativeMatrixProof::new(
-                full.len(),
-                square_projection(mass.systems[0].matrix(), &full)?,
-            )?;
-            let rates = prepared.consistent_rates(
-                &coordinates,
-                &values,
-                &mass_proof,
-                &mass.residuals[0],
-                &BTreeSet::new(),
-                solver,
-            )?;
+            let rates = if let Some(rates) = discrete_rates {
+                rates
+            } else {
+                let (fixed, _) =
+                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let mass = independent_action(
+                    &fixed,
+                    FieldPullback::Uniform {
+                        current: None,
+                        rate: Some(1.),
+                    },
+                )?;
+                let mass_proof = ConstantDerivativeMatrixProof::new(
+                    full.len(),
+                    square_projection(mass.systems[0].matrix(), &full)?,
+                )?;
+                prepared.consistent_rates(
+                    &coordinates,
+                    (&values, &fixed),
+                    &mass_proof,
+                    &mass.residuals[0].iter().map(|v| -*v).collect::<Vec<_>>(),
+                    &BTreeSet::new(),
+                    solver,
+                )?
+            };
             for (column, weight) in weights.iter_mut().enumerate() {
                 *weight = if stored_rows.contains(&column) {
                     [None, Some(1.)]
@@ -221,7 +251,7 @@ where
                 // Mixed constraints can determine multipliers through dynamics
                 // even when A_A is singular. Check the full original pencil,
                 // without imposing an index-one restriction on that profile.
-                let state = independent_action(
+                let state_action = independent_action(
                     &rates,
                     FieldPullback::Uniform {
                         current: Some(1.),
@@ -240,19 +270,59 @@ where
                     full.len(),
                     square_projection(mass.systems[0].matrix(), &full)?,
                 )?;
-                let state = square_projection(state.systems[0].matrix(), &full)?;
+                let state = square_projection(state_action.systems[0].matrix(), &full)?;
                 mass.require_regular_pencil(&state).map_err(|error| {
                     invalid(&format!(
                         "spatial State algebraic regularity: {}",
                         error.message()
                     ))
                 })?;
-                // In this admitted autonomous, positive own-capacity profile,
-                // fixed traces have zero rates. A consistent rate must satisfy
-                // M_D*v = -R_D and the differentiated constraints J_A*v = 0.
-                // The original algebraic residual was checked above, so replace
-                // its zero mass rows rather than padding a rectangular system.
-                // Pencil regularity alone does not prove this compatibility.
+                // A step checkpoint has already passed its original discrete
+                // equations with the retained predecessor. Continuous tangent
+                // compatibility is an initialization condition, not a BE equation.
+                if accepted_step {
+                    return Ok(());
+                }
+                // Differentiate the actual prescribed inputs: fixed trace
+                // rates enter momentum, and R_A,t + J_A,fixed*g_dot enters
+                // the first constraint tangent. Both use the original actions.
+                let (fixed, mut partial) =
+                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let jacobian = state_action.systems[1].matrix();
+                for global in 0..jacobian.rows() {
+                    if let Some(row) = coordinates.free_coordinate(global) {
+                        for entry in
+                            jacobian.row_offsets()[global]..jacobian.row_offsets()[global + 1]
+                        {
+                            partial[row] +=
+                                jacobian.values()[entry] * fixed[jacobian.column_indices()[entry]];
+                        }
+                    }
+                }
+                let source = prepared.work.residual(
+                    &prepared.plan,
+                    prepared.plan.target_id(0).expect("reduced target"),
+                    RegionPoint::Independent {
+                        state: &values,
+                        rate_target: prepared.plan.target_id(1).expect("full target"),
+                        rates: &fixed,
+                        pullback: FieldPullback::Uniform {
+                            current: None,
+                            rate: None,
+                        },
+                    },
+                )?;
+                let rhs = source
+                    .iter()
+                    .enumerate()
+                    .map(|(row, residual)| {
+                        if rows.contains(&row) {
+                            -partial[row]
+                        } else {
+                            -*residual
+                        }
+                    })
+                    .collect::<Vec<_>>();
                 let mut tangent = mass.coefficients().to_vec();
                 for &row in &rows {
                     let range = row * full.len()..(row + 1) * full.len();
@@ -261,9 +331,9 @@ where
                 let rate_proof = ConstantDerivativeMatrixProof::new(full.len(), tangent)?;
                 prepared.consistent_rates(
                     &coordinates,
-                    &values,
+                    (&values, &fixed),
                     &rate_proof,
-                    &action.residuals[0],
+                    &rhs,
                     &rows,
                     solver,
                 )?;

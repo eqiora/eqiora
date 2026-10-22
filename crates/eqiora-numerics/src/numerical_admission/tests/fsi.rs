@@ -15,6 +15,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         &model,
         resources.clone(),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        None,
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {
@@ -183,11 +184,11 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
     let manual_initial = manual.initial_state(Some(0.), fields).unwrap();
     let accepted_step = automatic
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.05)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let accepted = accepted_step.state().clone();
     let scaled = manual
-        .advance_scalar(&manual_initial, &REFERENCE_LINEAR_SOLVER, 0.05)
+        .advance_scalar(&manual_initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     for (left, right) in accepted
         .spatial_values()
@@ -280,11 +281,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     let mut independently_accepted_at_four = None;
     for accepted_steps in 1..=10 {
         independently_accepted = automatic
-            .advance_scalar(
-                &independently_accepted,
-                &REFERENCE_LINEAR_SOLVER,
-                accepted_steps as f64 * 0.05,
-            )
+            .advance_scalar(&independently_accepted, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .state()
             .clone();
@@ -364,7 +361,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonState::from_bytes(
             &old_schema(
                 &initial_bytes,
-                "eqiora.common-spatial-state/v6",
+                "eqiora.common-spatial-state/v7",
                 "eqiora.common-spatial-state/v2"
             ),
             &automatic_resolved,
@@ -404,7 +401,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
     assert!(
         automatic
-            .advance_scalar(&replayed_accepted, &REFERENCE_LINEAR_SOLVER, 0.1)
+            .advance_scalar(&replayed_accepted, &REFERENCE_LINEAR_SOLVER)
             .is_ok()
     );
 

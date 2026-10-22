@@ -237,7 +237,7 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
     let parameter = coordinates(&program, &parameters).unwrap().remove(0);
     for p in [0., 3.] {
         let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
-        let bound = component.bind_parameter_point(&point).unwrap();
+        let bound = component.bind_inputs(&point).unwrap();
         for u in [-1., 2.] {
             let (value, gradient) = bound
                 .action(
@@ -257,11 +257,7 @@ fn field_parameter_products_hold_fields_fixed_and_rebind_parameters() {
             );
         }
     }
-    assert!(
-        component
-            .bind_parameter_point(&ParameterPoint::default())
-            .is_err()
-    );
+    assert!(component.bind_inputs(&ParameterPoint::default()).is_err());
     assert!(
         component
             .input_action(&[0.25], &[], &parameter, None)
@@ -319,7 +315,7 @@ fn parameter_products_keep_structural_activity_at_zero_inner_tangents() {
     );
     for p in [-2_f64, 2.] {
         let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
-        let bound = component.bind_parameter_point(&point).unwrap();
+        let bound = component.bind_inputs(&point).unwrap();
         assert_eq!(
             bound
                 .input_action(&[0.5], &[2.], &parameter, None)
@@ -344,7 +340,7 @@ fn an_unconsumed_parameter_keeps_the_original_primal_domain() {
     let invalid = ParameterPoint::bind(&program, &parameters, &[-1., 0.]).unwrap();
     assert!(
         component
-            .bind_parameter_point(&invalid)
+            .bind_inputs(&invalid)
             .unwrap()
             .input_action(&[0.5], &[2.], &parameter, None)
             .map(|(value, _)| value)
@@ -369,7 +365,7 @@ fn prescribed_field_bindings_keep_the_parameter_chain_and_activity() {
         let parameter = coordinates(&program, &parameters).unwrap().remove(0);
         for p in [-2_f64, 0., 2.] {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
-            let bound = component.bind_parameter_point(&point).unwrap();
+            let bound = component.bind_inputs(&point).unwrap();
             let partial = bound
                 .input_action(&[0.25], &[3.], &parameter, None)
                 .map(|(value, _)| value);
@@ -413,7 +409,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
         let selected = coordinates(&program, &parameters).unwrap();
         for p in [0., 1.] {
             let point = ParameterPoint::bind(&program, &parameters, &[p, 0.]).unwrap();
-            let bound = component.bind_parameter_point(&point).unwrap();
+            let bound = component.bind_inputs(&point).unwrap();
             let partial = bound
                 .input_action(&[0.5], &[2.], &selected[0], None)
                 .map(|(value, _)| value);
@@ -437,7 +433,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             );
         }
         let point = ParameterPoint::bind(&program, &parameters, &[2., 0.]).unwrap();
-        let bound = component.bind_parameter_point(&point).unwrap();
+        let bound = component.bind_inputs(&point).unwrap();
         // At p*u=4 the active p direction leaves the declared domain.
         // q holds that input fixed and still has its ordinary derivative.
         assert!(
@@ -454,7 +450,7 @@ fn material_parameter_products_obey_only_the_required_first_partial_contract() {
             2.
         );
         let point = ParameterPoint::bind(&program, &parameters, &[3., 0.]).unwrap();
-        let bound = component.bind_parameter_point(&point).unwrap();
+        let bound = component.bind_inputs(&point).unwrap();
         // A frozen property still checks its original validity domain.
         assert!(
             bound
@@ -478,7 +474,7 @@ fn complex_component_products_retain_independent_real_directions() {
     for p in [0., 3.] {
         let q = -2.;
         let point = ParameterPoint::bind(&program, &parameters, &[p, q]).unwrap();
-        let bound = component.bind_parameter_point(&point).unwrap();
+        let bound = component.bind_inputs(&point).unwrap();
         for u in [C::new(-1., 2.), C::new(2., -1.)] {
             let (a, b) = (u.re, u.im);
             // f=(1+p*a)*(a+i*b)+q*(a-i*b). These are independent

@@ -47,11 +47,17 @@ fn check<S: Coefficient>(complex: bool) {
         }
     }
     let (gains, unit) = (gains.unwrap(), unit.unwrap());
-    let form = CompiledSpatialForm::<S>::derive(&program, domain.unwrap(), 1, &Default::default())
-        .unwrap();
+    let form = CompiledSpatialForm::<S>::derive_at_time(
+        &program,
+        domain.unwrap(),
+        1,
+        &Default::default(),
+        None,
+    )
+    .unwrap();
     // A new point resets the unselected unit to the immutable Model default.
     let changed = form
-        .bind_parameter_point(&ParameterPoint::bind(&program, &[unit], &[3.]).unwrap())
+        .bind_inputs(&ParameterPoint::bind(&program, &[unit], &[3.]).unwrap())
         .unwrap();
     let values = if complex {
         vec![5., -2., -7., 3.]
@@ -59,7 +65,7 @@ fn check<S: Coefficient>(complex: bool) {
         vec![5., -7.]
     };
     let point = ParameterPoint::bind(&program, &[gains], &values).unwrap();
-    let bound = changed.bind_parameter_point(&point).unwrap();
+    let bound = changed.bind_inputs(&point).unwrap();
     assert_eq!(
         point.get(gains).unwrap().value_type(),
         program.typed_value(gains.erase()).unwrap().value_type()
