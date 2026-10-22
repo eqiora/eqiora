@@ -91,14 +91,7 @@ where
         values: &[f64],
         (partial_mapping, mut partial): (Self, RegionSolveInput<S>),
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        if partial_mapping.full_count() != self.full_count()
-            || partial_mapping.free_count() != self.free_count()
-            || !partial_mapping.keys().eq(self.keys())
-            || self.keys().any(|key| {
-                partial_mapping.global_dof(key) != self.global_dof(key)
-                    || partial_mapping.free_dof(key) != self.free_dof(key)
-            })
-        {
+        if !partial_mapping.has_same_coordinate_layout(self) {
             return Err(invalid(
                 "Time partial changed the exact Field constraint layout",
             ));

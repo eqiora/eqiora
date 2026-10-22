@@ -457,6 +457,18 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         self.globals.keys().copied()
     }
 
+    /// Input partials may change prescribed values, but not Field coordinates
+    /// or their full/free numbering and constraint membership.
+    pub(crate) fn has_same_coordinate_layout(&self, other: &Self) -> bool {
+        self.full_count() == other.full_count()
+            && self.free_count() == other.free_count()
+            && self.keys().eq(other.keys())
+            && self.keys().all(|key| {
+                self.global_dof(key) == other.global_dof(key)
+                    && self.free_dof(key) == other.free_dof(key)
+            })
+    }
+
     pub(crate) fn field_keys(&self, field: RawId) -> impl Iterator<Item = FieldDof> + '_ {
         self.keys().filter(move |key| key.field == field)
     }
