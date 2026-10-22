@@ -1,26 +1,17 @@
 //! Exact retained forward products inside the owning Result artifact.
 use super::*;
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
+use crate::time_history_artifact::WireTimeStep;
 use eqiora_core::{Id, entity::kinds};
-use eqiora_time::TimeHistoryStep;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WireParameterSensitivity {
     trajectory_identity: String,
     parameters: Vec<String>,
-    steps: Vec<WireSensitivityStep>,
+    steps: Vec<WireTimeStep>,
     outputs: Vec<Vec<f64>>,
     event_time_gradients: Vec<Vec<f64>>,
-}
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSensitivityStep {
-    start_time: f64,
-    end_time: f64,
-    start_state: Vec<f64>,
-    midpoint_state: Vec<f64>,
-    end_state: Vec<f64>,
 }
 impl WireParameterSensitivity {
     pub(super) fn from_native(value: &CommonTrajectoryParameterSensitivity) -> Self {
@@ -31,17 +22,7 @@ impl WireParameterSensitivity {
                 .iter()
                 .map(|id| id.ulid().to_string())
                 .collect(),
-            steps: value
-                .steps()
-                .iter()
-                .map(|step| WireSensitivityStep {
-                    start_time: step.start_time(),
-                    end_time: step.end_time(),
-                    start_state: step.start_state().to_vec(),
-                    midpoint_state: step.midpoint_state().to_vec(),
-                    end_state: step.end_state().to_vec(),
-                })
-                .collect(),
+            steps: value.steps().iter().map(WireTimeStep::from).collect(),
             outputs: value.outputs().to_vec(),
             event_time_gradients: value.event_time_gradients().to_vec(),
         }
@@ -67,15 +48,7 @@ impl WireParameterSensitivity {
         let steps = self
             .steps
             .iter()
-            .map(|step| {
-                TimeHistoryStep::accepted(
-                    step.start_time,
-                    step.end_time,
-                    step.start_state.clone(),
-                    step.midpoint_state.clone(),
-                    step.end_state.clone(),
-                )
-            })
+            .map(WireTimeStep::replay)
             .collect::<Result<Vec<_>, _>>()?;
         let sensitivity = CommonTrajectoryParameterSensitivity::accept_event_history(
             trajectory,
