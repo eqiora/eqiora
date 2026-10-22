@@ -37,7 +37,9 @@ fn conservative_input_partial_preserves_primal_flux_and_boundary_products() {
     )
     .unwrap()
     .remove(0);
-    let partial = form.input_partial(&coordinate).unwrap();
+    let partial = form
+        .input_partial(&coordinate, InputPartialScope::Full)
+        .unwrap();
     let mesh = CartesianMesh::from_axes(vec![vec![0., 0.5, 1.]]).unwrap();
     let reference = ReferenceCell::hypercube(1).unwrap();
     let input = |form: &CompiledSpatialForm<f64>| {

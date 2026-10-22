@@ -2,6 +2,7 @@
 use super::*;
 mod rates;
 use crate::form_compiler::region::FieldPullback;
+use crate::form_compiler::spatial::InputPartialScope;
 use crate::region_assembly::RegionPoint;
 use eqiora_assembly::{CsrMatrix, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
@@ -19,7 +20,9 @@ where
         fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         temporal: &crate::form_compiler::region::TemporalStructure,
         solver: SolverPlan,
-        initial_partial: impl FnOnce() -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
+        initial_partial: impl FnOnce(
+            InputPartialScope,
+        ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         self.validate_prescribed_fields(fields)?;
         // A physical State preserves signed-zero words. Essential traces were
@@ -148,8 +151,8 @@ where
             let rates = if let Some(rates) = discrete_rates {
                 rates
             } else {
-                let (fixed, _) =
-                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let (partial_mapping, _) = initial_partial(InputPartialScope::EssentialTraces)?;
+                let fixed = self.prescribed_rates(&partial_mapping)?;
                 let mass = independent_action(
                     &fixed,
                     FieldPullback::Uniform {
@@ -290,8 +293,12 @@ where
                 // Differentiate the actual prescribed inputs: fixed trace
                 // rates enter momentum, and R_A,t + J_A,fixed*g_dot enters
                 // the first constraint tangent. Both use the original actions.
-                let (fixed, mut partial) =
-                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let (fixed, mut partial) = self.initial_rate_data(
+                    mesh,
+                    &input,
+                    &values,
+                    initial_partial(InputPartialScope::Full)?,
+                )?;
                 let jacobian = state_action.systems[1].matrix();
                 for global in 0..jacobian.rows() {
                     if let Some(row) = coordinates.free_coordinate(global) {

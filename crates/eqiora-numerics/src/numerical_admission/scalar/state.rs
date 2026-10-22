@@ -143,14 +143,20 @@ impl CommonSpatialPlan {
             temporal.positive_own_capacity &= region.positive_own_capacity;
         }
         if let Some(time_s) = time_s {
-            let initial_partial = || {
+            let initial_partial = |scope| {
                 let time = eqiora_ir::ScalarSymbolCoordinate::for_value(
                     eqiora_schema::kernel::SymbolRef::Time,
                     &eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, TIME)
                         .expect("real scalar Time"),
                 )?
                 .remove(0);
-                self.scalar_assembly_with_history(equations, time_s, None, None, Some(&time))
+                self.scalar_assembly_with_history(
+                    equations,
+                    time_s,
+                    None,
+                    None,
+                    Some((&time, scope)),
+                )
             };
             match self.admission.resources() {
                 NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_temporal_state(

@@ -25,7 +25,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
     ) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
         let mut partial = self.equations.clone();
         for region in &mut partial.regions {
-            region.form = region.form.input_partial(coordinate)?;
+            region.form = region.form.input_partial(
+                coordinate,
+                crate::form_compiler::spatial::InputPartialScope::Full,
+            )?;
         }
         Ok(partial)
     }

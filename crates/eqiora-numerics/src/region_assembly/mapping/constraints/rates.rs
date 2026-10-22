@@ -84,6 +84,19 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
 {
+    /// Lift only the analytic derivative of prescribed traces. A rate witness
+    /// for a regular mass equation does not demand an explicit Time derivative
+    /// of volume coefficients, forcing, or natural boundary data.
+    pub(super) fn prescribed_rates(&self, partial_mapping: &Self) -> Result<Vec<f64>, Diagnostic> {
+        if !partial_mapping.has_same_coordinate_layout(self) {
+            return Err(invalid(
+                "Time partial changed the exact Field constraint layout",
+            ));
+        }
+        let fixed = partial_mapping.lift(&vec![S::zero(); self.free_count()], false)?;
+        RegionRealCoordinates::new(self)?.encode_full(&fixed)
+    }
+
     pub(super) fn initial_rate_data<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
@@ -91,16 +104,10 @@ where
         values: &[f64],
         (partial_mapping, mut partial): (Self, RegionSolveInput<S>),
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        if !partial_mapping.has_same_coordinate_layout(self) {
-            return Err(invalid(
-                "Time partial changed the exact Field constraint layout",
-            ));
-        }
+        let fixed = self.prescribed_rates(&partial_mapping)?;
         partial.retain_primal_integration(input)?;
         partial.previous = input.previous.clone();
         let coordinates = RegionRealCoordinates::new(self)?;
-        let fixed = partial_mapping.lift(&vec![S::zero(); self.free_count()], false)?;
-        let fixed = coordinates.encode_full(&fixed)?;
         let prepared = self.prepare_numeric_assembly(mesh, &partial)?;
         let residual = prepared.work.residual(
             &prepared.plan,

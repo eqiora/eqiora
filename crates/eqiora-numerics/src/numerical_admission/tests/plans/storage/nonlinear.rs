@@ -140,6 +140,54 @@ fn regular_backward_euler_tangent_does_not_certify_a_singular_state() {
 }
 
 #[test]
+fn initial_rate_does_not_require_a_time_derivative_of_regular_forcing() {
+    // At t=0 and u=1, 2*u*u_dot=sqrt(t/1[s]) has the unique rate 0.
+    // The forcing is continuous there; its undefined Time derivative is not
+    // needed to initialize this differential equation or the regular v,w rows.
+    for model in [
+        source("1", "1", "1[s]*derivative(u*u)=math.sqrt(time()/1[s]);"),
+        source("1", "1", "1[s]*derivative(u*u)-1[m^2]*div(grad(u))=0;").replace(
+            "relation first",
+            "relation left_flux on left {normal(grad(u))=math.sqrt(time()/1[s])/1[m];}
+             relation right_flux on right {normal(grad(u))=0;}
+             relation first",
+        ),
+    ] {
+        let (resolved, _) = resolve(&model, 0.25);
+        let plan = resolved.as_spatial().unwrap();
+        let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
+        assert_eq!(
+            CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap(),
+            initial
+        );
+    }
+}
+
+#[test]
+fn initial_rate_still_requires_a_defined_prescribed_trace_derivative() {
+    // An essential trace prescribes a physical State coordinate. Its derivative
+    // really is part of the rate witness, unlike the regular forcing above.
+    let model = source("1", "1", "1[s]*derivative(u*u)-1[m^2]*div(grad(u))=0;").replace(
+        "relation first",
+        "relation left_value on left {trace(u)=1+math.sqrt(time()/1[s]);}
+         relation right_value on right {trace(u)=1;}
+         relation first",
+    );
+    let (resolved, _) = resolve(&model, 0.25);
+    let error = resolved
+        .as_spatial()
+        .unwrap()
+        .initial_state(Some(0.), Vec::new())
+        .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("scalar derivative requires a positive argument"),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn candidate_dependent_mass_uses_the_consistent_rate_for_algebraic_partials() {
     // u_dot=1 and v*u_dot-laplacian(v)=0 with Neumann traces give
     // (u,v)=(t,0). At the actual rate 1 the algebraic block is K+M,

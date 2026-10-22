@@ -57,7 +57,10 @@ impl CommonSpatialPlan {
         previous: Option<
             &BTreeMap<eqiora_core::RawId, crate::region_assembly::mapping::RecoveredRegionField<S>>,
         >,
-        partial: Option<&eqiora_ir::ScalarSymbolCoordinate>,
+        partial: Option<(
+            &eqiora_ir::ScalarSymbolCoordinate,
+            crate::form_compiler::spatial::InputPartialScope,
+        )>,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<S>,
@@ -106,8 +109,8 @@ impl CommonSpatialPlan {
             {
                 region.form = region.form.bind_backward_euler(step()?)?;
             }
-            if let Some(coordinate) = partial {
-                region.form = region.form.input_partial(coordinate)?;
+            if let Some((coordinate, scope)) = partial {
+                region.form = region.form.input_partial(coordinate, scope)?;
             }
         }
         let mut prescribed_states = BTreeMap::new();
