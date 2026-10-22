@@ -8,6 +8,10 @@ use num_complex::Complex64 as C;
 mod activity;
 
 fn authored_coefficient<S: Coefficient>(source: &str) -> Data<S> {
+    authored_coefficient_at(source, None)
+}
+
+fn authored_coefficient_at<S: Coefficient>(source: &str, time_s: Option<f64>) -> Data<S> {
     let (transaction, model, _) = compile("authored-coefficient.eqi", source)
         .unwrap()
         .remove(0)
@@ -33,7 +37,7 @@ fn authored_coefficient<S: Coefficient>(source: &str) -> Data<S> {
         owner,
         dimension: 1,
         coefficients: &BTreeMap::new(),
-        time_s: None,
+        time_s,
     }
     .data(*rhs, 0)
     .unwrap()
@@ -1050,4 +1054,153 @@ fn mixed_scalar_coefficient_partials_preserve_complex_directions_and_domains() {
             }
         }
     }
+}
+
+#[test]
+fn prescribed_time_data_retains_its_exact_derivative_coordinate() {
+    let direction =
+        |coordinate: &ScalarSymbolCoordinate| f64::from(coordinate.symbol() == SymbolRef::Time);
+    for (expression, value, first, second) in [
+        ("time()/1[s]", 3., 1., 0.),
+        ("2*(time()/1[s])^2", 18., 12., 4.),
+    ] {
+        let source = format!(
+            "model TimedDatum() {{
+            domain body=box(0,1); variable u:1 on body;
+            relation prescribed on body {{u={expression};}}
+        }}"
+        );
+        let data = authored_coefficient_at::<f64>(&source, Some(3.));
+        assert_eq!(data.evaluate(&[0.25]).unwrap(), value);
+        let rate = data.derivative(&direction, 1).unwrap();
+        assert_eq!(rate.evaluate(&[0.25]).unwrap(), first, "{expression}");
+        assert_eq!(
+            rate.derivative(&direction, 1)
+                .unwrap()
+                .evaluate(&[0.25])
+                .unwrap(),
+            second
+        );
+    }
+}
+
+#[test]
+fn prescribed_time_partials_preserve_domain_and_structural_activity() {
+    let time =
+        |coordinate: &ScalarSymbolCoordinate| f64::from(coordinate.symbol() == SymbolRef::Time);
+    let parameter = |coordinate: &ScalarSymbolCoordinate| {
+        f64::from(matches!(coordinate.symbol(), SymbolRef::Parameter(_)))
+    };
+    for expression in ["math.sqrt(time()/1[s])+p", "math.sqrt((time()/1[s])^2)+p"] {
+        let source = format!(
+            "model TimedDatum() {{
+            domain body=box(0,1); parameter p:1=2; variable u:1 on body;
+            relation prescribed on body {{u={expression};}}
+        }}"
+        );
+        let data = authored_coefficient_at::<f64>(&source, Some(0.));
+        assert_eq!(data.evaluate(&[0.25]).unwrap(), 2.);
+        // Time stays frozen for a Parameter query, but a zero inner time
+        // tangent must not hide the singular derivative of sqrt(t²) at zero.
+        assert_eq!(
+            data.derivative(&parameter, 1)
+                .unwrap()
+                .evaluate(&[0.25])
+                .unwrap(),
+            1.
+        );
+        assert!(
+            data.derivative(&time, 1)
+                .unwrap()
+                .evaluate(&[0.25])
+                .is_err()
+        );
+    }
+    let data = authored_coefficient_at::<f64>(
+        "model TimedDatum() {
+        domain body=box(0,1); variable u:1 on body;
+        relation prescribed on body {u=math.sqrt(time()/1[s]);}
+    }",
+        Some(-1.),
+    );
+    assert!(data.evaluate(&[0.25]).is_err());
+    assert!(
+        data.derivative(&parameter, 1)
+            .unwrap()
+            .evaluate(&[0.25])
+            .is_err()
+    );
+}
+
+#[test]
+fn complex_time_parameter_products_share_the_retained_coordinate_inputs() {
+    let source = "model TimedDatum() {
+        domain body=box(0,1); parameter p:complex<1> = math.complex(2,3);
+        variable u:complex<1> on body;
+        relation prescribed on body {u=p*(time()/1[s])^2;}
+    }";
+    let time =
+        |coordinate: &ScalarSymbolCoordinate| f64::from(coordinate.symbol() == SymbolRef::Time);
+    for t in [0., 3.] {
+        let data = authored_coefficient_at::<C>(source, Some(t));
+        assert_eq!(data.evaluate(&[0.25]).unwrap(), C::new(2., 3.) * (t * t));
+        let rate = data.derivative(&time, 1).unwrap();
+        assert_eq!(rate.evaluate(&[0.25]).unwrap(), C::new(2., 3.) * (2. * t));
+        assert_eq!(
+            rate.derivative(&time, 1)
+                .unwrap()
+                .evaluate(&[0.25])
+                .unwrap(),
+            C::new(4., 6.)
+        );
+        for imaginary in [false, true] {
+            let parameter = |coordinate: &ScalarSymbolCoordinate| {
+                f64::from(
+                    matches!(coordinate.symbol(), SymbolRef::Parameter(_))
+                        && coordinate.is_imaginary() == imaginary,
+                )
+            };
+            let expected = if imaginary {
+                C::new(0., 2. * t)
+            } else {
+                C::new(2. * t, 0.)
+            };
+            assert_eq!(
+                rate.derivative(&parameter, 1)
+                    .unwrap()
+                    .evaluate(&[0.25])
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                data.derivative(&parameter, 1)
+                    .unwrap()
+                    .derivative(&time, 1)
+                    .unwrap()
+                    .evaluate(&[0.25])
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+    // Rebinding Parameters must leave a bound model Time intact.
+    let data = authored_coefficient_at::<f64>(
+        "model TimedDatum() {
+        domain body=box(0,1); variable u:1 on body;
+        relation prescribed on body {u=time()/1[s];}
+    }",
+        Some(3.),
+    );
+    let rebound = data
+        .bind_parameter_point(&ParameterPoint::default())
+        .unwrap();
+    assert_eq!(rebound.evaluate(&[0.25]).unwrap(), 3.);
+    assert_eq!(
+        rebound
+            .derivative(&time, 1)
+            .unwrap()
+            .evaluate(&[0.25])
+            .unwrap(),
+        1.
+    );
 }

@@ -606,9 +606,7 @@ fn classify_first_order(
             .expect("explicit ODE classification requires a full monomial matrix");
         let mut residual_rows = vec![usize::MAX; dimension];
         let mut derivative_scales = vec![0.0; dimension];
-        for (row, witness) in rows.into_iter().enumerate() {
-            let state_coordinate = witness.state_coordinate();
-            let coefficient = witness.coefficient();
+        for (row, (state_coordinate, coefficient)) in rows.into_iter().enumerate() {
             residual_rows[state_coordinate] = row;
             derivative_scales[state_coordinate] = coefficient;
         }

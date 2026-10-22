@@ -57,8 +57,8 @@ fn coefficient_and_material_partials_share_the_physical_weak_action() {
         let point = ParameterPoint::bind(&program, &[parameter], &[p]).unwrap();
         let primal = form.bind_parameter_point(&point).unwrap();
         for partial in [
-            primal.parameter_partial(&coordinate).unwrap(),
-            form.parameter_partial(&coordinate)
+            primal.input_partial(&coordinate).unwrap(),
+            form.input_partial(&coordinate)
                 .unwrap()
                 .bind_parameter_point(&point)
                 .unwrap(),
@@ -90,6 +90,78 @@ fn coefficient_and_material_partials_share_the_physical_weak_action() {
     }
 }
 
+#[test]
+fn time_partials_share_volume_products_and_prescribed_boundary_data() {
+    use eqiora_ir::ScalarSymbolCoordinate;
+    use eqiora_schema::kernel::SymbolRef;
+
+    let source = "model TimedProducts() {
+        domain body=box(0,1);
+        domain right=boundary(body,axis=0,side=upper);
+        variable u:1 on body in smooth;
+        relation balance on body {
+            -div((time()/1[s])*(1+(time()/1[s])*u)*grad(u))=0;
+        }
+        relation prescribed on right {trace(u)=(time()/1[s])^2*coordinate(0)/1[m];}
+    }";
+    let (transaction, model, symbols) = compile("time-partials.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let coordinate = ScalarSymbolCoordinate::for_value(
+        SymbolRef::Time,
+        &eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            dim([0, 0, 1, 0, 0, 0, 0]),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .remove(0);
+    let rule = QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap();
+    for t in [0., 2.] {
+        let form = CompiledRegionForm::<f64>::derive_at_time(
+            &program,
+            symbols.get("body").unwrap(),
+            1,
+            Some(t),
+        )
+        .unwrap();
+        let bound = bind(&form);
+        let partial = bound.input_partial(&coordinate).unwrap();
+        let cell = partial.prepare_cell(&geometry(), &rule).unwrap();
+        // On [0,1], u=1+2x. The integrated flux is 2t(1+2t).
+        // At fixed State its time partial is 2+8t, including at t=0.
+        close(
+            &cell.residual(&BTreeMap::new(), &[1., 3.]).unwrap(),
+            &[-2. - 8. * t, 2. + 8. * t],
+        );
+        close(
+            &cell
+                .linearize(&BTreeMap::new(), &[1., 3.])
+                .unwrap()
+                .jacobian,
+            &[1. + 2. * t, -1. - 6. * t, -1. - 2. * t, 1. + 6. * t],
+        );
+        let mut law = form
+            .boundary_laws(
+                &program,
+                symbols.get("right").unwrap(),
+                symbols.get("prescribed").unwrap(),
+                Some(t),
+            )
+            .unwrap()
+            .remove(0);
+        let primal = law.clone();
+        law.input_partial(&coordinate, 1).unwrap();
+        close(&law.evaluate(&[1.], &[]).unwrap(), &[2. * t]);
+        close(&primal.evaluate(&[1.], &[]).unwrap(), &[t * t]);
+    }
+}
+
 fn material_source(profile: &str, argument: &str, upper: &str) -> String {
     format!(
         "property contract Response(input value:1):1 {{derivatives {profile};}}
@@ -116,7 +188,7 @@ fn direct_weak_material_partial_needs_first_products_without_a_mixed_derivative(
     for profile in ["first_partials", "value_only"] {
         let (form, program, parameter) = model(&material_source(profile, "p*u", "4"));
         let coordinate = coordinates(&program, &[parameter]).unwrap().remove(0);
-        let bound = bind(&form.parameter_partial(&coordinate).unwrap());
+        let bound = bind(&form.input_partial(&coordinate).unwrap());
         let cell = bound
             .prepare_cell(
                 &geometry(),
@@ -149,7 +221,7 @@ fn parameter_partial_keeps_original_material_domain_on_replaced_natural_flux() {
         // remains demanded at volume and natural-boundary points.
         let (form, program, parameter) = model(&material_source(profile, "u", "1.99"));
         let coordinate = coordinates(&program, &[parameter]).unwrap().remove(0);
-        let bound = bind(&form.parameter_partial(&coordinate).unwrap());
+        let bound = bind(&form.input_partial(&coordinate).unwrap());
         let geometry = geometry();
         let cell = bound
             .prepare_cell(

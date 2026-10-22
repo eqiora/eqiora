@@ -4,7 +4,8 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Input<S: Coefficient> {
     Scalar { data: Data<S>, imaginary: bool },
-    ParameterComponent { value: f64 },
+    // Identity and scalar part belong to the enclosing ScalarSymbolCoordinate.
+    BoundScalar { value: f64 },
     Coordinate { axis: usize, dimension: usize },
 }
 
@@ -55,12 +56,31 @@ impl<S: Coefficient> Input<S> {
                 imaginary: false,
             });
         }
+        if coordinate.symbol() == SymbolRef::Time {
+            if !coordinate.component_index().is_empty()
+                || coordinate.is_imaginary()
+                || !coordinate.spatial_derivative_axes().is_empty()
+            {
+                return Err(super::super::invalid(
+                    "model Time requires one real scalar coordinate",
+                ));
+            }
+            let value = context
+                .time_s
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    super::super::invalid(
+                        "coefficient Time requires an explicit finite evaluation point",
+                    )
+                })?;
+            return Ok(Self::BoundScalar { value });
+        }
         if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
             let literal = context
                 .program
                 .typed_value(parameter.erase())
                 .ok_or_else(|| super::super::invalid("coefficient Parameter has no exact value"))?;
-            return Ok(Input::ParameterComponent {
+            return Ok(Input::BoundScalar {
                 value: coordinate.read_value(literal)?,
             });
         }
@@ -112,7 +132,7 @@ impl<S: Coefficient> Input<S> {
                 let value = data.evaluate(point)?;
                 Ok(if *imaginary { value.im() } else { value.re() })
             }
-            Self::ParameterComponent { value, .. } => Ok(*value),
+            Self::BoundScalar { value, .. } => Ok(*value),
             Self::Coordinate { axis, dimension } => {
                 validate_point(point, *dimension)?;
                 Ok(point[*axis])
@@ -134,7 +154,10 @@ impl<S: Coefficient> Input<S> {
                 data: data.bind_parameter_point(point)?,
                 imaginary: *imaginary,
             },
-            Self::ParameterComponent { .. } => {
+            Self::BoundScalar { .. } => {
+                if coordinate.symbol() == SymbolRef::Time {
+                    return Ok(self.clone());
+                }
                 let SymbolRef::Parameter(parameter) = coordinate.symbol() else {
                     return Err(super::super::invalid(
                         "component binding is not a Parameter",
@@ -143,7 +166,7 @@ impl<S: Coefficient> Input<S> {
                 let value = point.get(parameter).ok_or_else(|| {
                     super::super::invalid("coefficient Parameter point omits an exact identity")
                 })?;
-                Self::ParameterComponent {
+                Self::BoundScalar {
                     value: coordinate.read_value(value)?,
                 }
             }
@@ -175,7 +198,7 @@ impl<S: Coefficient> Input<S> {
                 data: data.derivative(direction, dimension)?,
                 imaginary: *imaginary,
             },
-            Self::ParameterComponent { .. } => constant(direction(coordinate)),
+            Self::BoundScalar { .. } => constant(direction(coordinate)),
         })
     }
 }

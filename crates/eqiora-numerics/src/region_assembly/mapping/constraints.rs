@@ -150,17 +150,95 @@ where
                     rate: Some(1.),
                 })?;
                 let full = (0..matrix.rows()).collect::<Vec<_>>();
-                ConstantDerivativeMatrixProof::new(
+                let mass = ConstantDerivativeMatrixProof::new(
                     full.len(),
                     square_projection(mass.systems[0].matrix(), &full)?,
-                )?
-                .require_regular_pencil(&square_projection(state.systems[0].matrix(), &full)?)
-                .map_err(|error| {
+                )?;
+                let state = square_projection(state.systems[0].matrix(), &full)?;
+                mass.require_regular_pencil(&state).map_err(|error| {
                     invalid(&format!(
                         "spatial State algebraic regularity: {}",
                         error.message()
                     ))
                 })?;
+                // In this admitted autonomous, positive own-capacity profile,
+                // fixed traces have zero rates. A consistent rate must satisfy
+                // M_D*v = -R_D and the differentiated constraints J_A*v = 0.
+                // The original algebraic residual was checked above, so replace
+                // its zero mass rows rather than padding a rectangular system.
+                // Pencil regularity alone does not prove this compatibility.
+                let mut tangent = mass.coefficients().to_vec();
+                let mut rhs = action.residuals[0]
+                    .iter()
+                    .map(|value| -*value)
+                    .collect::<Vec<_>>();
+                for &row in &rows {
+                    let range = row * full.len()..(row + 1) * full.len();
+                    tangent[range.clone()].copy_from_slice(&state[range]);
+                    rhs[row] = 0.;
+                }
+                let scale = rhs.iter().fold(0_f64, |norm, value| norm.hypot(*value));
+                let rhs = rhs
+                    .iter()
+                    .map(|value| {
+                        num_rational::BigRational::from_float(*value).ok_or_else(|| {
+                            invalid("initial rate compatibility requires finite residuals")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let rate_proof = ConstantDerivativeMatrixProof::new(full.len(), tangent)?;
+                let projection = rate_proof.compatibility_projection(&[], &rhs)?;
+                let residual = projection.residual()?;
+                let norm = residual
+                    .iter()
+                    .fold(0_f64, |norm, value| norm.hypot(*value));
+                let target = solver.residual_target(scale)?;
+                if !norm.is_finite() || !scale.is_finite() || norm > target {
+                    return Err(invalid(&format!(
+                        "spatial State initial rate compatibility residual {norm:e} exceeds target {target:e}"
+                    )));
+                }
+                // The exact projection certifies its own binary coefficients.
+                // Re-evaluate the rounded rate witness in the original weak
+                // equations; do not infer an actual residual from M*v + R(0).
+                let reduced_rates = projection.coefficients()?;
+                let rates = (0..coordinates.full_count())
+                    .map(|global| {
+                        coordinates
+                            .free_coordinate(global)
+                            .map_or(0., |free| reduced_rates[free])
+                    })
+                    .collect::<Vec<_>>();
+                let mut residual = prepared.work.residual(
+                    &prepared.plan,
+                    prepared.plan.target_id(0).expect("reduced target"),
+                    RegionPoint::Independent {
+                        state: &values,
+                        rate_target: prepared.plan.target_id(1).expect("full target"),
+                        rates: &rates,
+                        pullback: FieldPullback::Uniform {
+                            current: None,
+                            rate: None,
+                        },
+                    },
+                )?;
+                for &row in &rows {
+                    residual[row] = rate_proof
+                        .row(row)
+                        .expect("rate row")
+                        .iter()
+                        .zip(&reduced_rates)
+                        .map(|(a, v)| a * v)
+                        .sum();
+                }
+                let norm = residual
+                    .iter()
+                    .fold(0_f64, |norm, value| norm.hypot(*value));
+                if !norm.is_finite() || norm > target {
+                    return Err(invalid(&format!(
+                        "spatial State rounded initial rate witness residual {norm:e} exceeds target {target:e}"
+                    )));
+                }
             }
         }
         Ok(())

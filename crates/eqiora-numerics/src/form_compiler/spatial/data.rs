@@ -9,9 +9,9 @@ use crate::spatial_expression::{self, Coefficient, validate_coordinates as valid
 use eqiora_ir::ScalarSymbolCoordinate;
 use input::Input;
 
-/// Directions of physical coordinates and retained real Parameter components.
-/// These coefficient partials hold Time and geometry bindings fixed; geometry
-/// maps and their own Parameter dependence have separate partial actions.
+/// Directions of retained physical coordinates, Parameter components and model Time.
+/// These coefficient partials hold geometry bindings fixed; geometry maps and
+/// their motion or Parameter dependence have separate partial actions.
 type Direction<'a> = &'a dyn Fn(&ScalarSymbolCoordinate) -> f64;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +42,7 @@ enum Node<S: Coefficient> {
     Pointwise(pointwise::PointwiseData<S>),
     Affine(affine::AffineData<S>),
     Chart(Data<S>, super::motion::UniformChart),
-    // Retain primal domains and Parameter identities when an input derivative is zero.
+    // Retain primal domains and input identities when a derivative is zero.
     Derivative(Data<S>, Data<S>),
     Add(Data<S>, Data<S>),
     Mul(Data<S>, Data<S>),
@@ -305,17 +305,6 @@ impl<S: Coefficient> Context<'_, S> {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
         Ok(match self.dag.node(id) {
-            Some(ExprNode::Symbol(SymbolRef::Time)) => {
-                let time = self
-                    .time_s
-                    .filter(|value| value.is_finite())
-                    .ok_or_else(|| {
-                        super::invalid(
-                            "coefficient Time requires an explicit finite evaluation point",
-                        )
-                    })?;
-                Data::constant(self.dimension, <S as From<f64>>::from(time))
-            }
             Some(ExprNode::Constant(value)) => Data::constant(
                 self.dimension,
                 S::literal(value).ok_or_else(|| {
@@ -323,7 +312,7 @@ impl<S: Coefficient> Context<'_, S> {
                 })?,
             ),
             Some(ExprNode::Symbol(
-                symbol @ (SymbolRef::Coordinate { .. } | SymbolRef::Parameter(_)),
+                symbol @ (SymbolRef::Coordinate { .. } | SymbolRef::Parameter(_) | SymbolRef::Time),
             )) => {
                 let typed = super::super::scalar::typed_relation(self.program, self.owner)?;
                 if typed.expression() != self.dag {

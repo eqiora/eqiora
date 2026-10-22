@@ -205,7 +205,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         Ok(bound)
     }
 
-    pub(in crate::form_compiler) fn parameter_partial(
+    /// Prescribed-input partial at fixed physical Field values and geometry.
+    /// Parameter and model-Time coordinates use the same coefficient product.
+    pub(in crate::form_compiler) fn input_partial(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
@@ -213,10 +215,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             .rows
             .iter()
             .flat_map(|row| &row.components)
-            .any(|term| term.parameter.is_some())
+            .any(|term| term.input_partial.is_some())
         {
             return Err(invalid(
-                "repeated component Parameter partials require a higher-order input product",
+                "repeated component input partials require a higher-order input product",
             ));
         }
         let mut partial = self.map_data(&|value| {
@@ -227,7 +229,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         for (row, source) in partial.rows.iter_mut().zip(&self.rows) {
             row.components.extend(source.components.iter().map(|term| {
                 let mut partial = term.clone();
-                partial.parameter = Some(coordinate.clone());
+                partial.input_partial = Some(coordinate.clone());
                 partial
             }));
         }
@@ -248,12 +250,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
-    pub(crate) fn parameter_partial(
+    pub(crate) fn input_partial(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
         let mut partial = self.clone();
-        partial.form = self.form.parameter_partial(coordinate)?;
+        partial.form = self.form.input_partial(coordinate)?;
         Ok(partial)
     }
 }

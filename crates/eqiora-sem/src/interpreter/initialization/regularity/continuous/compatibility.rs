@@ -115,7 +115,7 @@ pub(super) fn validate(
             *value -= coefficient * BigRational::from_float(time).expect("finite AD result");
         }
     }
-    let residual = proof.compatibility_residual(&free, &rhs)?;
+    let residual = proof.compatibility_projection(&free, &rhs)?.residual()?;
     let scale = rhs.iter().try_fold(1.0_f64, |scale, value| {
         value
             .to_f64()

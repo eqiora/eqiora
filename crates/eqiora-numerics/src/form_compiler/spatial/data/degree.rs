@@ -32,7 +32,7 @@ impl<S: Coefficient> Input<S> {
     pub(super) fn polynomial_degree(&self) -> Option<usize> {
         match self {
             Self::Coordinate { .. } => Some(1),
-            Self::ParameterComponent { .. } => Some(0),
+            Self::BoundScalar { .. } => Some(0),
             Self::Scalar { data, .. } => data.polynomial_degree(),
         }
     }

@@ -30,24 +30,48 @@ pub enum TimeEquationClass {
     GeneralImplicitDae,
 }
 
-/// One differential row in the full monomial view used to normalize an ODE.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MonomialDerivativeRow {
-    state_coordinate: usize,
-    coefficient: f64,
+/// Exact orthogonal projection onto a derivative matrix's column space.
+///
+/// Coefficients use the original mass columns followed by additional columns.
+/// Dependent columns receive zero coefficients. This is a deterministic basic
+/// witness, not a minimum-norm solution. Residuals retain original row order.
+/// Rounding each output is explicit, so requesting only a residual does not
+/// require an unneeded coefficient to fit in binary64.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompatibilityProjection {
+    coefficients: Vec<BigRational>,
+    residual: Vec<BigRational>,
 }
 
-impl MonomialDerivativeRow {
-    /// Coordinate in [`TimeLoweringProof::state_coordinates`].
-    #[must_use]
-    pub const fn state_coordinate(self) -> usize {
-        self.state_coordinate
+impl CompatibilityProjection {
+    /// Round the basic coefficient witness to finite binary64 values.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` if a coefficient cannot be represented as finite binary64.
+    pub fn coefficients(&self) -> Result<Vec<f64>, Diagnostic> {
+        Self::rounded(&self.coefficients)
     }
 
-    /// Exact `f64` coefficient produced by scalar SSA analysis.
-    #[must_use]
-    pub const fn coefficient(self) -> f64 {
-        self.coefficient
+    /// Round the orthogonal residual in original row coordinates to binary64.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` if a residual cannot be represented as finite binary64.
+    pub fn residual(&self) -> Result<Vec<f64>, Diagnostic> {
+        Self::rounded(&self.residual)
+    }
+
+    fn rounded(values: &[BigRational]) -> Result<Vec<f64>, Diagnostic> {
+        values
+            .iter()
+            .map(|value| {
+                value
+                    .to_f64()
+                    .filter(|value| value.is_finite())
+                    .ok_or_else(|| {
+                        invalid_lowering("compatibility projection is not finite binary64")
+                    })
+            })
+            .collect()
     }
 }
 
@@ -172,61 +196,64 @@ impl<C> ConstantDerivativeMatrixProof<C> {
         self.exact_rank
     }
 
-    /// Orthogonal residual of `M a + C u = rhs` in the original row coordinates.
-    /// `additional_columns` supplies C column by column. Elimination and the
-    /// least-squares projection use exact binary rationals; only the returned
-    /// residual is rounded to binary64. The RHS is already exact so coefficient
-    /// accumulation cannot erase a constrained direction before projection.
-    /// Callers own residual scaling/tolerance.
-    /// This does not decide infinity-norm tolerance feasibility.
+    /// Orthogonal projection for `M a + C u = rhs` in original row coordinates.
+    /// `additional_columns` supplies C column by column. All elimination and
+    /// projection arithmetic is exact; the result rounds only requested outputs.
+    /// Callers own residual scaling/tolerance and recheck rounded witnesses in
+    /// their original equations. This does not decide infinity-norm feasibility.
     ///
     /// # Errors
-    /// Returns `EQ0705` for invalid dimensions, nonfinite inputs, or a residual
-    /// that cannot be represented as a finite binary64 value.
-    pub fn compatibility_residual(
+    /// Returns `EQ0705` for invalid dimensions or raw rationals with zero denominators.
+    pub fn compatibility_projection(
         &self,
         additional_columns: &[Vec<BigRational>],
         rhs: &[BigRational],
-    ) -> Result<Vec<f64>, Diagnostic> {
-        self.exact_compatibility_residual(additional_columns, rhs)?
-            .iter()
-            .map(|value| {
-                value
-                    .to_f64()
-                    .filter(|value| value.is_finite())
-                    .ok_or_else(|| {
-                        invalid_lowering("compatibility residual is not finite binary64")
-                    })
+    ) -> Result<CompatibilityProjection, Diagnostic> {
+        self.validate_compatibility_inputs(additional_columns, rhs)?;
+        let matrix = self
+            .exact_coefficients
+            .chunks_exact(self.dimension)
+            .enumerate()
+            .map(|(row, mass)| {
+                mass.iter()
+                    .cloned()
+                    .chain(additional_columns.iter().map(|column| column[row].clone()))
+                    .collect()
             })
-            .collect()
+            .collect::<Vec<Vec<_>>>();
+        let (coefficients, residual) = exact::project(&matrix, rhs);
+        Ok(CompatibilityProjection {
+            coefficients,
+            residual,
+        })
     }
 
-    /// Whether a column belongs exactly to the span of M and the additional
-    /// columns, before rounding any residual. This is not a tolerance test.
+    /// Whether a column belongs exactly to the span of M and additional columns,
+    /// before rounding any residual. This is not a tolerance test.
     ///
     /// # Errors
-    /// Returns `EQ0705` for nonfinite inputs or mismatched row dimensions.
+    /// Returns `EQ0705` for invalid raw rationals or mismatched row dimensions.
     pub fn is_compatible(
         &self,
         additional_columns: &[Vec<BigRational>],
         column: &[BigRational],
     ) -> Result<bool, Diagnostic> {
-        if column.len() != self.dimension {
-            return Err(invalid_lowering(
-                "compatibility requires a finite matching column",
-            ));
+        self.validate_compatibility_inputs(additional_columns, column)?;
+        if self.exact_rank == self.dimension {
+            return Ok(true);
         }
         Ok(self
-            .exact_compatibility_residual(additional_columns, column)?
+            .compatibility_projection(additional_columns, column)?
+            .residual
             .iter()
             .all(BigRational::is_zero))
     }
 
-    fn exact_compatibility_residual(
+    fn validate_compatibility_inputs(
         &self,
         additional_columns: &[Vec<BigRational>],
         rhs: &[BigRational],
-    ) -> Result<Vec<BigRational>, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         let n = self.dimension;
         if rhs.len() != n
             || additional_columns.iter().any(|column| column.len() != n)
@@ -240,21 +267,7 @@ impl<C> ConstantDerivativeMatrixProof<C> {
                 "compatibility requires finite matching rows",
             ));
         }
-        if self.exact_rank == n {
-            return Ok(vec![BigRational::zero(); n]);
-        }
-        let matrix = self
-            .exact_coefficients
-            .chunks_exact(n)
-            .enumerate()
-            .map(|(row, mass)| {
-                mass.iter()
-                    .cloned()
-                    .chain(additional_columns.iter().map(|column| column[row].clone()))
-                    .collect()
-            })
-            .collect::<Vec<Vec<_>>>();
-        Ok(exact::residual(&matrix, rhs))
+        Ok(())
     }
 
     /// Require a regular constant-mass pencil at the supplied State tangent.
@@ -347,9 +360,10 @@ impl ConstantDerivativeMatrixProof {
     /// Derive the monomial row view used only for explicit-ODE normalization.
     ///
     /// Returns `None` unless every row has exactly one non-zero coefficient
-    /// and every state coordinate occurs exactly once.
+    /// and every state coordinate occurs exactly once. Each pair is the
+    /// state-coordinate index and its nonzero coefficient, in residual row order.
     #[must_use]
-    pub fn monomial_rows(&self) -> Option<Vec<MonomialDerivativeRow>> {
+    pub fn monomial_rows(&self) -> Option<Vec<(usize, f64)>> {
         let mut coordinates = HashSet::with_capacity(self.dimension);
         let mut rows = Vec::with_capacity(self.dimension);
         for row in self.coefficients.chunks_exact(self.dimension) {
@@ -362,10 +376,7 @@ impl ConstantDerivativeMatrixProof {
             if nonzero.next().is_some() || !coordinates.insert(state_coordinate) {
                 return None;
             }
-            rows.push(MonomialDerivativeRow {
-                state_coordinate,
-                coefficient,
-            });
+            rows.push((state_coordinate, coefficient));
         }
         (coordinates.len() == self.dimension).then_some(rows)
     }

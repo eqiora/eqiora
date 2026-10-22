@@ -439,12 +439,59 @@ fn exact_column(values: &[f64]) -> Vec<num_rational::BigRational> {
 }
 
 #[test]
+fn compatibility_projection_returns_original_column_coefficients_and_residuals() {
+    for (matrix, rhs, coefficients, residual) in [
+        (
+            vec![1., 2., 3., 4.],
+            vec![5., 11.],
+            vec![1., 2.],
+            vec![0., 0.],
+        ),
+        (
+            vec![1., 1., 2., 2.],
+            vec![1., 0.],
+            vec![0.2, 0.],
+            vec![0.8, -0.4],
+        ),
+        (vec![0.; 4], vec![2., -3.], vec![0., 0.], vec![2., -3.]),
+    ] {
+        let proof = ConstantDerivativeMatrixProof::new(2, matrix).unwrap();
+        let projection = proof
+            .compatibility_projection(&[], &exact_column(&rhs))
+            .unwrap();
+        assert_eq!(projection.coefficients().unwrap(), coefficients);
+        assert_eq!(projection.residual().unwrap(), residual);
+    }
+    // One original independent column and one additional independent column.
+    let proof = ConstantDerivativeMatrixProof::new(2, vec![1., 2., 2., 4.]).unwrap();
+    let projection = proof
+        .compatibility_projection(&[exact_column(&[0., 1.])], &exact_column(&[3., 7.]))
+        .unwrap();
+    assert_eq!(projection.coefficients().unwrap(), vec![3., 0., 1.]);
+    assert_eq!(projection.residual().unwrap(), vec![0., 0.]);
+}
+
+#[test]
+fn residual_rounding_does_not_demand_an_unrepresentable_rate_witness() {
+    let proof = ConstantDerivativeMatrixProof::new(1, vec![f64::from_bits(1)]).unwrap();
+    let projection = proof
+        .compatibility_projection(&[], &exact_column(&[1.]))
+        .unwrap();
+    assert_eq!(projection.residual().unwrap(), vec![0.]);
+    assert!(projection.coefficients().is_err());
+    assert!(proof.is_compatible(&[], &exact_column(&[1.])).unwrap());
+}
+
+#[test]
 fn compatibility_projection_is_row_invariant_and_avoids_a_bad_basic_witness() {
     let epsilon = 2.0_f64.powi(-40);
     let delta = 2.0_f64.powi(-30);
     let mass = ConstantDerivativeMatrixProof::new(2, vec![epsilon, 0.0, 1.0, 0.0]).unwrap();
     let rhs = exact_column(&[epsilon + delta, 1.0]);
-    let residual = mass.compatibility_residual(&[], &rhs).unwrap();
+    let residual = mass
+        .compatibility_projection(&[], &rhs)
+        .and_then(|projection| projection.residual())
+        .unwrap();
     // Exact least-squares residual: [delta, -epsilon*delta]/(1+epsilon²).
     assert_eq!(
         residual,
@@ -456,12 +503,14 @@ fn compatibility_projection_is_row_invariant_and_avoids_a_bad_basic_witness() {
     let permuted = ConstantDerivativeMatrixProof::new(2, vec![1.0, 0.0, epsilon, 0.0]).unwrap();
     assert_eq!(
         permuted
-            .compatibility_residual(&[], &exact_column(&[1.0, epsilon + delta]))
+            .compatibility_projection(&[], &exact_column(&[1.0, epsilon + delta]))
+            .and_then(|projection| projection.residual())
             .unwrap(),
         vec![residual[1], residual[0]]
     );
     assert_eq!(
-        mass.compatibility_residual(&[exact_column(&[1.0, 0.0])], &rhs)
+        mass.compatibility_projection(&[exact_column(&[1.0, 0.0])], &rhs)
+            .and_then(|projection| projection.residual())
             .unwrap(),
         vec![0.0, 0.0]
     );
@@ -471,26 +520,30 @@ fn compatibility_projection_is_row_invariant_and_avoids_a_bad_basic_witness() {
 fn compatibility_projection_handles_zero_rank_and_rejects_invalid_inputs() {
     let mass = ConstantDerivativeMatrixProof::new(2, vec![0.0; 4]).unwrap();
     assert_eq!(
-        mass.compatibility_residual(&[], &exact_column(&[2.0, -3.0]))
+        mass.compatibility_projection(&[], &exact_column(&[2.0, -3.0]))
+            .and_then(|projection| projection.residual())
             .unwrap(),
         vec![2.0, -3.0]
     );
     assert!(
-        mass.compatibility_residual(&[], &exact_column(&[1.0]))
+        mass.compatibility_projection(&[], &exact_column(&[1.0]))
+            .and_then(|projection| projection.residual())
             .is_err()
     );
     assert!(
-        mass.compatibility_residual(&[exact_column(&[1.0])], &exact_column(&[1.0, 2.0]))
+        mass.compatibility_projection(&[exact_column(&[1.0])], &exact_column(&[1.0, 2.0]))
+            .and_then(|projection| projection.residual())
             .is_err()
     );
     assert!(
-        mass.compatibility_residual(
+        mass.compatibility_projection(
             &[vec![
                 num_rational::BigRational::new_raw(1.into(), 0.into());
                 2
             ]],
             &exact_column(&[1.0, 2.0])
         )
+        .and_then(|projection| projection.residual())
         .is_err()
     );
 }
@@ -504,7 +557,9 @@ fn exact_compatibility_does_not_confuse_underflow_with_column_membership() {
     let column = exact_column(&[tiny, 0.0]);
     assert!(!mass.is_compatible(&[], &column).unwrap());
     assert_eq!(
-        mass.compatibility_residual(&[], &column).unwrap(),
+        mass.compatibility_projection(&[], &column)
+            .and_then(|projection| projection.residual())
+            .unwrap(),
         vec![0.0, 0.0]
     );
     assert!(
@@ -537,7 +592,8 @@ fn exact_matrix_proof_preserves_products_and_rejects_invalid_raw_rationals() {
     assert!(ConstantDerivativeMatrixProof::from_exact(1, vec![invalid.clone()]).is_err());
     let full = ConstantDerivativeMatrixProof::new(1, vec![1.0]).unwrap();
     assert!(
-        full.compatibility_residual(&[], std::slice::from_ref(&invalid))
+        full.compatibility_projection(&[], std::slice::from_ref(&invalid))
+            .and_then(|projection| projection.residual())
             .is_err()
     );
     assert!(full.is_compatible(&[], &[invalid]).is_err());

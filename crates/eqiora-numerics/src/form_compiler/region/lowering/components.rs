@@ -61,7 +61,7 @@ pub(super) fn lower<S: Coefficient>(
                     test,
                     value,
                     coefficient: coefficient.clone(),
-                    parameter: None,
+                    input_partial: None,
                 };
                 if flux {
                     row.flux.push(FluxTerm::Component(term.clone()));

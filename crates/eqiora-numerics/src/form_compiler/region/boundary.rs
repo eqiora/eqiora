@@ -57,7 +57,7 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         self.datum.evaluate(point, normal)
     }
 
-    pub(in crate::form_compiler) fn parameter_partial(
+    pub(in crate::form_compiler) fn input_partial(
         &mut self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
         dimension: usize,
