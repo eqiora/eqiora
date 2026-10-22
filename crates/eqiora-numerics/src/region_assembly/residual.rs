@@ -1,44 +1,8 @@
 //! Local affine residual actions and their constrained gather/scatter.
 use super::invalid;
 use crate::spatial_expression::Coefficient;
-use eqiora_assembly::{
-    AssemblyMap, AssemblyPlan, AssemblyTargetId, AssemblyWork, LocalContribution, LocalUnknown,
-};
+use eqiora_assembly::{AssemblyMap, LocalContribution, LocalUnknown};
 use eqiora_core::Diagnostic;
-
-/// Evaluate affine packet actions without constructing a solvable linear system.
-/// Zero rows are valid Parameter derivatives, including a wholly zero action.
-pub(crate) fn evaluate_affine_work<S: Coefficient + Sync>(
-    plan: &AssemblyPlan,
-    target: AssemblyTargetId,
-    work: &dyn AssemblyWork<S>,
-    point: &[S],
-) -> Result<Vec<S>, Diagnostic> {
-    let selected = plan
-        .target(target)
-        .ok_or_else(|| invalid("residual action has a foreign assembly target"))?;
-    if point.len() != selected.size() || point.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "residual action requires exact finite target coordinates",
-        ));
-    }
-    let mut residual = vec![S::zero(); selected.size()];
-    for index in 0..work.packet_count() {
-        let packet = work.evaluate(index)?;
-        let map = packet
-            .mappings()
-            .iter()
-            .find(|mapping| mapping.target() == target)
-            .ok_or_else(|| invalid("affine packet omits its residual target"))?
-            .map();
-        let local = evaluate_linear_residual(packet.local(), map, point)?;
-        scatter_residual(&mut residual, map, &local)?;
-    }
-    if residual.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("affine residual accumulation is non-finite"));
-    }
-    Ok(residual)
-}
 
 pub(crate) fn evaluate_linear_residual<S: Coefficient>(
     local: &LocalContribution<S>,

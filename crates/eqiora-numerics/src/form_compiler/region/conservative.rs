@@ -299,34 +299,6 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
         Ok(value)
     }
 
-    pub(crate) fn reaction(
-        &self,
-        test: usize,
-        trial: usize,
-        point: &[f64],
-    ) -> Result<P::Scalar, Diagnostic> {
-        self.coefficient(
-            test,
-            trial,
-            |pairing, test, trial| {
-                (test == trial && pairing == Pairing::Value)
-                    || pairing
-                        == Pairing::Components {
-                            test: BasisComponent::Value(test),
-                            trial: BasisComponent::Value(trial),
-                        }
-            },
-            point,
-        )
-    }
-
-    pub(crate) fn source(&self, component: usize, point: &[f64]) -> Result<P::Scalar, Diagnostic> {
-        let (field, component, part) = self.coordinate(component)?;
-        self.rows[&field].forcing[component]
-            .evaluate(point)
-            .map(|value| P::component(value, part))
-    }
-
     fn coefficient(
         &self,
         test: usize,

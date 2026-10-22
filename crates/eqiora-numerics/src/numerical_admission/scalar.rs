@@ -80,13 +80,23 @@ impl CommonSpatialPlan {
                 else {
                     return Err(invalid("spatial reference requires real scalar equations"));
                 };
-                let (system, state) = equations
-                    .assemble_tpfa(
-                        self.admission.resources(),
-                        self.admission.operator_properties,
-                    )?
-                    .into_canonical(Some(0.))?;
-                let derived = state.assess(&system, values, evidence.multiplier, self.linear())?;
+                let system = equations.finalize_static(
+                    self.admission.linear.workers,
+                    self.linear(),
+                    self.admission.resources(),
+                    &self.admission.discretizations,
+                    &self.admission.system_scaling,
+                    LinearOperatorProperties::Symmetric,
+                )?;
+                let reference =
+                    equations.mean_reference(self.admission.resources(), &system.mapping)?;
+                let derived = crate::nullspace::assess_canonical_with_nullspace(
+                    system.core.canonical_csr_system_view(),
+                    &reference,
+                    values,
+                    evidence.multiplier,
+                    self.linear(),
+                )?;
                 if &derived != evidence {
                     return Err(invalid(
                         "scalar nullspace evidence differs from original equations and reference",

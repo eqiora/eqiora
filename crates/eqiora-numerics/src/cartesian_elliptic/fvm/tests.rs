@@ -338,10 +338,16 @@ fn solve(
     let (system, state) = assembly.into_canonical(mean)?;
     assert_eq!(system.properties(), LinearOperatorProperties::Symmetric);
     let plan = SolverPlan::new(algorithm, 1e-12, 1e-12, NonZeroUsize::new(128).unwrap())?;
-    state.solve(
+    let reference = state
+        .reference
+        .as_ref()
+        .ok_or_else(|| invalid("missing reference"))?;
+    let solved = crate::nullspace::solve_canonical_with_nullspace(
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
-        system,
-    )
+        &system,
+        reference,
+    )?;
+    state.finish_parts(solved.values, solved.report, Some(solved.evidence), system)
 }
 
 #[test]

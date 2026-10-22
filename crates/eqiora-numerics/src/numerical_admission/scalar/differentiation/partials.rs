@@ -1,7 +1,6 @@
 //! Parameter residuals retain primal quadrature and the accepted physical Jacobian.
-use super::super::regions::StaticAssembly;
 use super::*;
-use crate::region_assembly::{mapping::RegionSolveInput, residual::evaluate_affine_work};
+use crate::region_assembly::mapping::RegionSolveInput;
 use eqiora_solver::LinearOperator;
 
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
@@ -11,33 +10,13 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         coordinate: &ScalarSymbolCoordinate,
         values: &[f64],
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        match &system.assembly {
-            StaticAssembly::FiniteElement(retained) => {
-                let (full, input) = retained.as_ref();
-                self.finite_element_partial(&system.mapping, full, input, coordinate, values)
-            }
-            StaticAssembly::FiniteVolume => {
-                let partial = self.partial_equations(coordinate)?;
-                let (_, residual) = self.equations.with_tpfa_work::<S::Projection, _>(
-                    self.plan.admission.resources(),
-                    &system.mapping,
-                    LinearOperatorProperties::General,
-                    Some(&partial),
-                    |plan, work| {
-                        evaluate_affine_work(
-                            plan,
-                            plan.target_id(0).expect("TPFA target"),
-                            work,
-                            values,
-                        )
-                    },
-                )?;
-                Ok((
-                    residual,
-                    vec![0.; RegionRealCoordinates::new(&system.mapping)?.full_count()],
-                ))
-            }
-        }
+        self.mapped_parameter_partial(
+            &system.mapping,
+            &system.assembly.full,
+            &system.assembly.input,
+            coordinate,
+            values,
+        )
     }
 
     fn partial_equations(
@@ -51,7 +30,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         Ok(partial)
     }
 
-    pub(super) fn finite_element_partial<A: DifferentiationScalar>(
+    pub(super) fn mapped_parameter_partial<A: DifferentiationScalar>(
         &self,
         mapping: &RegionDofMap<S>,
         full: &eqiora_assembly::LinearSystem<A>,

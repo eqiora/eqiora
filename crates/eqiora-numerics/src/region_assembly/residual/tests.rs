@@ -1,13 +1,9 @@
 use super::*;
-use eqiora_assembly::{
-    AssemblyPacket, AssemblyTarget, DofId, IndexedAssemblyWork, TargetAssemblyMap,
-};
+use eqiora_assembly::DofId;
 use num_complex::Complex64 as C;
 
 #[test]
 fn complex_affine_actions_keep_phase_fixed_traces_and_zero_rows() {
-    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(3).unwrap()]).unwrap();
-    let target = plan.target_id(0).unwrap();
     let map = AssemblyMap::new(
         vec![Some(DofId::new(1)), None, Some(DofId::new(0))],
         vec![
@@ -32,56 +28,13 @@ fn complex_affine_actions_keep_phase_fixed_traces_and_zero_rows() {
         vec![C::new(4., -1.), C::new(0., 0.), C::new(0., 0.)],
     )
     .unwrap();
-    let work = IndexedAssemblyWork::new(2, |_| {
-        AssemblyPacket::new(
-            local.clone(),
-            vec![TargetAssemblyMap::new(target, map.clone())],
-        )
-    });
     let point = [C::new(1., 2.), C::new(-7., 8.), C::new(9., -10.)];
-    assert_eq!(
-        evaluate_affine_work(&plan, target, &work, &point).unwrap(),
-        [C::new(0., 0.), C::new(-2., 34.), C::new(0., 0.)]
-    );
-    assert!(evaluate_affine_work(&plan, target, &work, &point[..2]).is_err());
-    let foreign = AssemblyPlan::new(vec![
-        AssemblyTarget::new(3).unwrap(),
-        AssemblyTarget::new(3).unwrap(),
-    ])
-    .unwrap();
-    assert!(evaluate_affine_work(&plan, foreign.target_id(1).unwrap(), &work, &point).is_err());
-}
-
-#[test]
-fn affine_action_rejects_nonfinite_accumulation_and_missing_target() {
-    let plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(1).unwrap(),
-        AssemblyTarget::new(1).unwrap(),
-    ])
-    .unwrap();
-    let target = plan.target_id(0).unwrap();
-    let map = AssemblyMap::new(
-        vec![Some(DofId::new(0))],
-        vec![LocalUnknown::Free(DofId::new(0))],
-    )
-    .unwrap();
-    let work = IndexedAssemblyWork::new(2, |_| {
-        AssemblyPacket::new(
-            LocalContribution::new(1, 1, vec![0.], vec![-f64::MAX]).unwrap(),
-            vec![TargetAssemblyMap::new(target, map.clone())],
-        )
-    });
-    assert!(
-        evaluate_affine_work(&plan, target, &work, &[0.])
-            .unwrap_err()
-            .message()
-            .contains("accumulation is non-finite")
-    );
-    assert!(evaluate_affine_work(&plan, target, &work, &[f64::NAN]).is_err());
-    assert!(
-        evaluate_affine_work(&plan, plan.target_id(1).unwrap(), &work, &[0.])
-            .unwrap_err()
-            .message()
-            .contains("omits its residual target")
-    );
+    let action = evaluate_linear_residual(&local, &map, &point).unwrap();
+    let mut residual = vec![C::new(0., 0.); 3];
+    scatter_residual(&mut residual, &map, &action).unwrap();
+    scatter_residual(&mut residual, &map, &action).unwrap();
+    assert_eq!(residual, [C::new(0., 0.), C::new(-2., 34.), C::new(0., 0.)]);
+    assert!(evaluate_linear_residual(&local, &map, &[]).is_err());
+    assert!(evaluate_linear_residual(&local, &map, &[C::new(f64::NAN, 0.)]).is_err());
+    assert!(scatter_residual(&mut [], &map, &action).is_err());
 }

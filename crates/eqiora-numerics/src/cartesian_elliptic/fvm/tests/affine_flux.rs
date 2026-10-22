@@ -85,21 +85,19 @@ fn prescribed_flux_preserves_natural_reconstruction_and_total_balance() {
     )
     .unwrap();
     let (system, state) = assembly.into_canonical(None).unwrap();
-    let solved = state
-        .solve(
-            LinearSolveRequest::new(
-                &REFERENCE_LINEAR_SOLVER,
-                SolverPlan::new(
-                    LinearSolver::ConjugateGradient,
-                    1e-13,
-                    1e-13,
-                    NonZeroUsize::new(32).unwrap(),
-                )
-                .unwrap(),
-            ),
-            system,
+    let solved = LinearSolveRequest::new(
+        &REFERENCE_LINEAR_SOLVER,
+        SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1e-13,
+            1e-13,
+            NonZeroUsize::new(32).unwrap(),
         )
-        .unwrap();
+        .unwrap(),
+    )
+    .solve(&system.linear_problem().unwrap())
+    .unwrap();
+    let solved = state.finish(solved, system).unwrap();
     // u=1+2x, q=u'+x, -q'=-1. Right trace is 5, not u_cell+q/(K/d).
     for (actual, expected) in solved.cell_values().iter().zip([2., 4.]) {
         assert!((actual - expected).abs() < 1e-12);
@@ -139,21 +137,19 @@ fn axis_coefficients_and_prescribed_flux_keep_nonuniform_face_measures() {
     )
     .unwrap();
     let (system, state) = assembly.into_canonical(None).unwrap();
-    let solved = state
-        .solve(
-            LinearSolveRequest::new(
-                &REFERENCE_LINEAR_SOLVER,
-                SolverPlan::new(
-                    LinearSolver::ConjugateGradient,
-                    1e-13,
-                    1e-13,
-                    NonZeroUsize::new(32).unwrap(),
-                )
-                .unwrap(),
-            ),
-            system,
+    let solved = LinearSolveRequest::new(
+        &REFERENCE_LINEAR_SOLVER,
+        SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1e-13,
+            1e-13,
+            NonZeroUsize::new(32).unwrap(),
         )
-        .unwrap();
+        .unwrap(),
+    )
+    .solve(&system.linear_problem().unwrap())
+    .unwrap();
+    let solved = state.finish(solved, system).unwrap();
     for (x, actual) in solved.cell_centers().iter().zip(solved.cell_values()) {
         assert!((actual - exact(x)).abs() < 1e-11);
     }

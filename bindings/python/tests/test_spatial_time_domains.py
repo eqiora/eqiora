@@ -91,8 +91,48 @@ def _resolve(source, nonlinear, step=0.25, spatial=q.fem.Q1):
     solve = q.solve.Newton(linear=linear, relative_tolerance=0., absolute_tolerance=1e-12,
                            maximum_iterations=20, maximum_line_search_steps=16) if nonlinear else linear
     plan = q.resolve(model, mesh=mesh, spatial=spatial(),
-                     temporal=q.time.BackwardEuler(step), solve=solve)
+                     temporal=None if step is None else q.time.BackwardEuler(step), solve=solve)
     return plan
+
+
+def test_stationary_tpfa_newton_retains_cell_seed_and_result():
+    plan = _resolve("""public component Heat(
+        support body:volume(ambient_dimension=1), support left:boundary(parent=body),
+        support right:boundary(parent=body)) {
+        variable u:1 on body in smooth;
+        relation balance on body {-div(grad(u))+(u+u*u*u-2)/1[m^2]=0;}
+        relation left_value on left {trace(u)=1;}
+        relation right_value on right {trace(u)=1;}
+    }""", True, step=None, spatial=q.fvm.CellCenteredTpfa)
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    seed = q.State.initial(plan, fields=(
+        q.InitialField(plan.fields[0], cell_values=np.zeros(2)),))
+    before = seed.to_bytes()
+    result = q.run(plan, state=q.State.from_bytes(plan, before))
+    # The unique constant root u=1 has zero face flux and u+u³-2=0.
+    np.testing.assert_allclose(result.fields[0].values("cell"), [1., 1.], rtol=0, atol=1e-12)
+    assert result.initial_state.to_bytes() == before
+    assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
+    assert seed.to_bytes() == before
+
+
+def test_tpfa_integrates_polynomial_volume_load():
+    plan = _resolve("""public component Heat(
+        support body:volume(ambient_dimension=1), support left:boundary(parent=body),
+        support right:boundary(parent=body)) {
+        state u:1 on body in smooth; initial {u=0;}
+        law balance on body {
+            storage 1[s/m^2]*u; flux -grad(u); source coordinate(0)^2/1[m^4];
+        }
+        relation left_value on left {trace(u)=0;}
+        relation right_value on right {trace(u)=0;}
+    }""", False, spatial=q.fvm.CellCenteredTpfa)
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    result = q.run(plan, state=q.State.initial(plan), steps=1, output_steps=(1,))
+    # M/dt=2, K=[[6,-2],[-2,6]]; exact cell loads are (1/24,7/24).
+    np.testing.assert_allclose(result.trajectory.states[0].fields[0].values("cell"),
+                               np.array([11., 29.])/720, rtol=0, atol=1e-12)
+    assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
 
 
 @pytest.mark.parametrize("spatial", [q.fem.Q1, q.fvm.CellCenteredTpfa])

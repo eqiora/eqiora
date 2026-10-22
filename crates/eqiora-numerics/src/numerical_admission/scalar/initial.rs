@@ -147,8 +147,7 @@ impl CommonSpatialPlan {
                             let map = mesh.mesh().geometry_map(key.entity).ok_or_else(|| {
                                 invalid("initial cell is absent from its exact Mesh")
                             })?;
-                            // The selected cell-centroid discretization samples the initial datum
-                            // at the same physical point as its volume and storage actions.
+                            // Cell-constant initial coefficients sample the physical cell centroid.
                             sample(map.origin())?
                         }
                         NativeMeshResources::GmshSimplicial { mesh, .. }

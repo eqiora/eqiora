@@ -146,8 +146,6 @@ fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() 
     assert_eq!(row.fields().collect::<Vec<_>>(), vec![(ids["u"], 1)]);
     for x in [0., 2., 6.] {
         complex_close(row.diffusion(0, 0, 0, &[x]).unwrap(), C::new(6., 6.));
-        complex_close(row.reaction(0, 0, &[x]).unwrap(), C::new(3., -1.));
-        complex_close(row.source(0, &[x]).unwrap(), C::new(1., 3.));
     }
     let stored = HELMHOLTZ.replace("variable u:", "state u:").replace(
         "-div(a*grad(u)) + q*u = f;",
@@ -169,7 +167,25 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
         let (program, ids) = fixture(&source);
         let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
         let native = form.conservative_system().unwrap();
-        assert_eq!(native.reaction(0, 0, &[2.]).is_err(), conjugated);
+        let (fields, rows) = form.si_bindings(|_| Ok(Space::cell_constant())).unwrap();
+        let bound = form
+            .bind_conservative(ReferenceCell::hypercube(1).unwrap(), &fields, &rows, None)
+            .unwrap();
+        let rule = QuadratureRule::gauss_legendre(1).unwrap();
+        assert_eq!(
+            bound
+                .prepare_affine_actions::<Native>(&interval(), None, &rule, AffineInput::Current)
+                .is_err(),
+            conjugated
+        );
+        let (volume, _) = bound
+            .prepare_affine_actions::<super::super::coordinates::Real>(
+                &interval(),
+                None,
+                &rule,
+                AffineInput::Current,
+            )
+            .unwrap();
         let row = native.project::<super::super::coordinates::Real>().unwrap();
         assert_eq!(row.components(), 2);
         assert_eq!(row.fields().collect::<Vec<_>>(), vec![(ids["u"], 1)]);
@@ -180,15 +196,20 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
         } else {
             [[3., 1.], [-1., 3.]]
         };
+        // A constant test/trial pair integrates to the interval length 6.
+        for i in 0..2 {
+            assert!((volume.rhs()[i] - 6. * [1., 3.][i]).abs() < 1e-12);
+            for j in 0..2 {
+                assert!((volume.matrix()[2 * i + j] - 6. * reaction[i][j]).abs() < 1e-12);
+            }
+        }
         for x in [0., 2., 6.] {
             for i in 0..2 {
-                assert_eq!(row.source(i, &[x]).unwrap(), [1., 3.][i]);
                 for j in 0..2 {
                     assert_eq!(
                         row.diffusion(i, j, 0, &[x]).unwrap(),
                         [[6., -6.], [6., 6.]][i][j]
                     );
-                    assert_eq!(row.reaction(i, j, &[x]).unwrap(), reaction[i][j]);
                 }
             }
         }

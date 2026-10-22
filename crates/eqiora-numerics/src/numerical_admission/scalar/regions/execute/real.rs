@@ -20,7 +20,7 @@ pub(in crate::numerical_admission) struct RealStaticAssembly {
 
 struct ComplexStaticMatrices {
     reduced: CanonicalCsrSystemView<C>,
-    full: Option<eqiora_assembly::LinearSystem<C>>,
+    full: eqiora_assembly::LinearSystem<C>,
 }
 
 impl ExecutableSpatialEquations<C> {
@@ -30,35 +30,6 @@ impl ExecutableSpatialEquations<C> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
     ) -> Result<RealStaticAssembly, Diagnostic> {
-        if selected
-            .iter()
-            .flat_map(|domain| domain.field_spaces())
-            .any(|field| field.space() == Space::cell_constant())
-        {
-            let mapping = self.static_tpfa_mapping(resources, selected, scaling)?;
-            let properties = self.tpfa_operator_properties(None)?;
-            let (prepared, result) = self
-                .with_tpfa_work::<crate::form_compiler::region::coordinates::Real, _>(
-                    resources,
-                    &mapping,
-                    properties,
-                    None,
-                    |plan, work| {
-                        eqiora_assembly::AssemblyBackend::assemble(
-                            &REFERENCE_ASSEMBLY_BACKEND,
-                            plan,
-                            work,
-                        )
-                    },
-                )?;
-            let assembly = prepared.finish(result);
-            return Ok(RealStaticAssembly {
-                mapping,
-                canonical: assembly.canonical_system()?.as_ref().clone(),
-                report: assembly.assembly_report().clone(),
-                assembly: StaticAssembly::FiniteVolume,
-            });
-        }
         // A real-linear map makes no complex symmetry or definiteness promise.
         let properties = LinearOperatorProperties::General;
         let (mapping, input) = self.static_assembly(resources, selected, scaling, properties)?;
@@ -78,7 +49,7 @@ impl ExecutableSpatialEquations<C> {
         Ok(RealStaticAssembly {
             mapping,
             canonical: system,
-            assembly: StaticAssembly::FiniteElement(Box::new((full, input))),
+            assembly: StaticAssembly { full, input },
             report,
         })
     }
@@ -113,15 +84,9 @@ impl RealStaticAssembly {
         let Some(reduced) = self.canonical.complex_coordinate_system()? else {
             return Ok(None);
         };
-        let StaticAssembly::FiniteElement(retained) = &self.assembly else {
-            return Ok(Some(ComplexStaticMatrices {
-                reduced,
-                full: None,
-            }));
-        };
         let full = CanonicalCsrSystemView::new(
-            &retained.0,
-            retained.0.rhs(),
+            &self.assembly.full,
+            self.assembly.full.rhs(),
             LinearOperatorProperties::General,
         )?;
         let Some(full) = full.complex_coordinate_system()? else {
@@ -136,10 +101,7 @@ impl RealStaticAssembly {
         )?;
         Ok(Some(ComplexStaticMatrices {
             reduced,
-            full: Some(eqiora_assembly::LinearSystem::new(
-                matrix,
-                full.right_hand_side().to_vec(),
-            )?),
+            full: eqiora_assembly::LinearSystem::new(matrix, full.right_hand_side().to_vec())?,
         }))
     }
 
@@ -177,11 +139,9 @@ impl RealStaticAssembly {
                     self.mapping,
                     finalized(reduced, workers, solver),
                     self.report,
-                    match self.assembly {
-                        StaticAssembly::FiniteElement(retained) => StaticAssembly::FiniteElement(
-                            Box::new((full.expect("projected full system"), retained.1)),
-                        ),
-                        StaticAssembly::FiniteVolume => StaticAssembly::FiniteVolume,
+                    StaticAssembly {
+                        full,
+                        input: self.assembly.input,
                     },
                 ))
             }

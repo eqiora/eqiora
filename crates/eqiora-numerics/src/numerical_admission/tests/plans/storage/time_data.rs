@@ -373,3 +373,81 @@ fn tpfa_time_inputs_use_native_faces_and_common_state_history() {
         }
     }
 }
+
+#[test]
+fn tpfa_polynomial_volume_uses_the_declared_quadrature() {
+    let resolved = resolve(
+        CommonSpatialPolicy::CellCenteredTpfa,
+        "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source coordinate(0)^2/1[m^4];}",
+        "0",
+        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        false,
+    )
+    .unwrap();
+    let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+    let plan = resolved.as_spatial().unwrap();
+    assert_eq!(
+        plan.portable_realization().domains()[0]
+            .discretization()
+            .quadrature(),
+        eqiora_realization::QuadraturePolicy::GaussLegendre {
+            points_per_axis: NonZeroUsize::new(2).unwrap()
+        }
+    );
+    let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
+    let step = plan
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    // Each cell has M/dt=2; native faces give K=[[6,-2],[-2,6]].
+    // Integrating x² gives loads (1/24,7/24), hence (11,29)/720.
+    let values = step.state().spatial_values().unwrap();
+    assert_eq!(values.len(), 2);
+    for (&actual, expected) in values.iter().zip([11. / 720., 29. / 720.]) {
+        assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
+    }
+    CommonState::from_bytes(&step.state().to_bytes().unwrap(), &resolved).unwrap();
+}
+
+#[test]
+fn stationary_tpfa_newton_uses_cell_initial_state_and_common_result_replay() {
+    let resolved = resolve(
+        CommonSpatialPolicy::CellCenteredTpfa,
+        "relation balance on body {-div(grad(u))+(u+u*u*u-2)/1[m^2]=0;}",
+        "1",
+        None,
+        true,
+    )
+    .unwrap();
+    let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+    let plan = resolved.as_spatial().unwrap();
+    let assignments = plan
+        .fields()
+        .map(|(field, ty)| {
+            CommonInitialField::new(
+                resolved.model_artifact().digest().unwrap(),
+                field,
+                None,
+                Some(CommonInitialValues::new(ty.shape().clone(), vec![0.; 2]).unwrap()),
+            )
+            .unwrap()
+        })
+        .collect();
+    let initial = plan.initial_state(None, assignments).unwrap();
+    let before = initial.to_bytes().unwrap();
+    let result = plan
+        .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    assert!(result.nonlinear_iterations(None).unwrap() > 0);
+    assert_eq!(before, initial.to_bytes().unwrap());
+    let (_, values, _) = result.field_block(0, 0).unwrap();
+    assert_eq!(values.len(), 2);
+    // The constant u=1 has zero face flux and u+u³-2=0.
+    for &value in values {
+        assert!((value - 1.).abs() < 1e-12);
+    }
+    let bytes = result.to_bytes().unwrap();
+    assert_eq!(
+        crate::CommonResult::from_bytes(&bytes, &resolved).unwrap(),
+        result
+    );
+}
