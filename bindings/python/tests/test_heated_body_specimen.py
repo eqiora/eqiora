@@ -157,7 +157,9 @@ def test_transient_heat_storage_runs_and_replays_offline(tmp_path):
     offline_plan = transient_plan(offline, geometry)
     check_transient(offline, eqiora.run(offline_plan, state=eqiora.State.initial(offline_plan),
                                       steps=3, output_steps=(1, 2, 3)))
-    for capacity, heating, step in [(2, 1, 1/24), (1, 2, 1/24), (1, 1, 1/48)]:
+    for capacity, heating, step in [(2, 1, 1/24), (1, 2, 1/24), (1, 1, 1/48), (-1, 1, 1/48)]:
+        # Negative invertible capacity is admitted: c=-1, dt=1/48 gives
+        # c/(c+24*dt)=2 in the independently derived heat balance above.
         # Isolate the step-policy falsifier on the very same exact Model.
         changed = model if capacity == heating == 1 else eqiora.compile(
             path=moved / "src/main.eqi", entry="TransientHeatedBody", geometry=geometry,
@@ -176,11 +178,11 @@ def test_transient_heat_storage_runs_and_replays_offline(tmp_path):
             eqiora.run(plan, state=initial, steps=3, output_steps=outputs)
 
 
-@pytest.mark.parametrize("mutation", ["missing-capacity", "negative-capacity", "missing-storage", "missing-initial", "changed-initial", "missing-boundary", "changed-boundary"])
+@pytest.mark.parametrize("mutation", ["missing-capacity", "zero-capacity", "missing-storage", "missing-initial", "changed-initial", "missing-boundary", "changed-boundary"])
 def test_transient_heat_rejects_incomplete_or_incompatible_data(mutation):
     source = (SPECIMEN / "src/main.eqi").read_text()
     geometry, bindings = example.geometry_and_bindings()
-    bindings["capacity"] = -1.0 if mutation == "negative-capacity" else 1.0
+    bindings["capacity"] = 0.0 if mutation == "zero-capacity" else 1.0
     if mutation == "missing-capacity":
         del bindings["capacity"]
     elif mutation == "missing-storage":

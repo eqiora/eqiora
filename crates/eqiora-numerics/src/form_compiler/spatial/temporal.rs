@@ -6,7 +6,7 @@ pub(super) fn initial_values<S: Coefficient>(
     program: &KernelProgram,
     domain: RawId,
     dimension: usize,
-    storage: &BTreeMap<RawId, Data<S>>,
+    temporal: &super::super::region::TemporalStructure,
     coefficients: &BTreeMap<RawId, Components<S>>,
     initial_fields: &BTreeSet<RawId>,
     time_s: Option<f64>,
@@ -15,18 +15,10 @@ pub(super) fn initial_values<S: Coefficient>(
     if initial_fields.is_empty() {
         return Ok(values);
     }
-    for (field, capacity) in storage {
-        if capacity.spatial() || {
-            let value = capacity.evaluate(&vec![0.0; dimension])?;
-            value.im() != 0.0 || value.re() <= 0.0
-        } {
-            return Err(invalid(
-                "scalar storage requires a finite strictly positive constant capacity",
-            ));
-        }
-        if !matches!(program.node(*field), Some(KernelNode::Field(value)) if value.role() == FieldRole::State)
+    for coordinate in &temporal.differential {
+        if !matches!(program.node(coordinate.field().erase()), Some(KernelNode::Field(value)) if value.role() == FieldRole::State)
         {
-            return Err(invalid("scalar storage requires an exact State Field"));
+            return Err(invalid("spatial rate requires an exact State Field"));
         }
     }
     let initials = program
@@ -102,7 +94,7 @@ pub(super) fn initial_values<S: Coefficient>(
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn is_transient(&self) -> bool {
-        !self.storage.is_empty() || !self.kinematics.is_empty()
+        !self.temporal.differential.is_empty() || !self.kinematics.is_empty()
     }
     pub(crate) fn initial_values_at(
         &self,
@@ -125,17 +117,6 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         bound.step = Some(step);
         bound.volume()?;
         Ok(bound)
-    }
-    pub(super) fn validate_storage(&self) -> Result<(), Diagnostic> {
-        for capacity in self.storage.values() {
-            let value = capacity.evaluate(&vec![0.0; self.dimension])?;
-            if capacity.spatial() || !value.is_finite() || value.im() != 0.0 || value.re() <= 0.0 {
-                return Err(invalid(
-                    "scalar storage requires finite strictly positive constant capacity",
-                ));
-            }
-        }
-        Ok(())
     }
 }
 

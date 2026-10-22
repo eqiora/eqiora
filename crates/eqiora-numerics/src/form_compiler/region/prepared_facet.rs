@@ -148,7 +148,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         for sample in rule.points() {
             let mut physical = vec![0.; dimension];
             facet.map_point(&sample.coordinates, &mut physical)?;
-            for coefficient in coefficients.iter().flatten() {
+            for (coefficient, _) in coefficients.iter().flatten() {
                 let _ = coefficient.evaluate(&physical)?;
             }
         }

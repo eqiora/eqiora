@@ -5,6 +5,7 @@ mod coupled;
 mod displacement_boundary;
 mod initial;
 mod kinematic;
+mod nonlinear;
 mod regions;
 mod vector;
 

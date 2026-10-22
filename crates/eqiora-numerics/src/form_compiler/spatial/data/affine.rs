@@ -32,8 +32,6 @@ impl<S: Coefficient> Context<'_, S> {
 pub(in crate::form_compiler) fn project<S: Coefficient>(
     row: Arc<FieldComponent<S>>,
 ) -> ComponentRow<S> {
-    let rows = &row.rows;
-    let selected = &row.selected;
     let columns = &row.columns;
     let data = |column| {
         Data(Arc::new(Node::Affine(AffineData {
@@ -55,18 +53,7 @@ pub(in crate::form_compiler) fn project<S: Coefficient>(
                 [column.real, column.imaginary]
                     .into_iter()
                     .flatten()
-                    .any(|index| {
-                        rows.iter().any(|row| {
-                            row.symbols().contains(&selected[index])
-                                && row
-                                    .constant_coordinate_jacobian(std::slice::from_ref(
-                                        &selected[index],
-                                    ))
-                                    .map_or(true, |jacobian| {
-                                        jacobian.coefficients().iter().any(|value| *value != 0.)
-                                    })
-                        })
-                    })
+                    .any(|index| row.uses_coordinate(index))
             })
             .map(|(index, column)| {
                 (
@@ -83,11 +70,24 @@ pub(in crate::form_compiler) fn project<S: Coefficient>(
 impl<S: Coefficient> AffineData<S> {
     /// Images of the retained trial's real and imaginary coordinate directions.
     /// Offsets are values, not actions on a trial coordinate.
-    pub(super) fn coordinate_images(&self) -> Option<[Self; 2]> {
-        self.column?;
-        Some([false, true].map(|imaginary| Self {
-            input_imaginary: Some(imaginary),
-            ..self.clone()
+    pub(super) fn coordinate_images(&self) -> Option<[(Self, bool); 2]> {
+        let column = &self.row.columns[self.column?];
+        Some([false, true].map(|imaginary| {
+            (
+                Self {
+                    input_imaginary: Some(imaginary),
+                    ..self.clone()
+                },
+                if imaginary {
+                    column
+                        .imaginary
+                        .is_some_and(|index| self.row.uses_coordinate(index))
+                } else {
+                    column
+                        .real
+                        .is_some_and(|index| self.row.uses_coordinate(index))
+                },
+            )
         }))
     }
 

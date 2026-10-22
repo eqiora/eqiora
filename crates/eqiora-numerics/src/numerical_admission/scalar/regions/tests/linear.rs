@@ -452,20 +452,22 @@ model Heat() {
     let capacity = symbols.get("c").unwrap().downcast().unwrap();
     let heating = symbols.get("q").unwrap().downcast().unwrap();
     let parameters = [capacity, heating];
-    assert!(
-        form.bind_parameter_point(
-            &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[0.0, 4.0])
-                .unwrap()
-        )
-        .is_err()
-    );
-    assert!(
-        form.bind_parameter_point(
-            &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[-3.0, 4.0])
-                .unwrap()
-        )
-        .is_err()
-    );
+    for capacity in [0., -3.] {
+        let bound = form
+            .bind_parameter_point(
+                &crate::parameter_point::ParameterPoint::bind(
+                    &program,
+                    &parameters,
+                    &[capacity, 4.],
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        // Rebinding changes the certificate, not the source rate inventory.
+        // Actual State acceptance owns singularity and rate compatibility.
+        assert!(bound.is_transient());
+        assert!(!bound.temporal_structure().positive_own_capacity);
+    }
     let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
     let form = form
         .bind_backward_euler(eqiora_core::DynQuantity::new(0.25, second))

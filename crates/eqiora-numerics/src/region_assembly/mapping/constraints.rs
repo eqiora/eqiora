@@ -1,5 +1,6 @@
 //! Equation-local acceptance of algebraic rows in a complete physical State.
 use super::*;
+mod rates;
 use crate::form_compiler::region::FieldPullback;
 use crate::region_assembly::RegionPoint;
 use eqiora_assembly::{CsrMatrix, REFERENCE_ASSEMBLY_BACKEND};
@@ -11,23 +12,35 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
 {
-    pub(crate) fn validate_algebraic_state<'mesh>(
+    pub(crate) fn validate_temporal_state<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         mut input: RegionSolveInput<S>,
         fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
-        algebraic: &BTreeSet<RawId>,
+        temporal: &crate::form_compiler::region::TemporalStructure,
         solver: SolverPlan,
     ) -> Result<(), Diagnostic> {
-        self.validate_physical(fields)?;
-        let values = self.validated_coordinates(fields)?;
+        self.validate_prescribed_fields(fields)?;
+        // A physical State preserves signed-zero words. Essential traces were
+        // checked numerically above; reduction must not impose the distinct
+        // exact-word contract of an already normalized algebraic point.
+        let full = self.normalized_coefficients(fields)?;
+        let values = self.encode_coordinates(&self.constraints.restrict_action(&full)?)?;
         let coordinates = RegionRealCoordinates::new(self)?;
         let mut rows = BTreeSet::new();
         let mut stored_rows = BTreeSet::new();
         for key in self.keys() {
-            for global in coordinates.global_coordinates(key) {
+            for (part, global) in coordinates.global_coordinates(key).enumerate() {
                 if let Some(row) = coordinates.free_coordinate(global) {
-                    if algebraic.contains(&key.field) {
+                    if !temporal
+                        .differential
+                        .contains(&eqiora_core::TimeStateCoordinate::new(
+                            key.field.downcast().expect("mapped Field"),
+                            0,
+                            key.component,
+                            part != 0,
+                        ))
+                    {
                         rows.insert(row);
                     } else {
                         stored_rows.insert(row);
@@ -38,7 +51,7 @@ where
         // A trace quotient sums equation rows. Any stored contribution makes
         // the shared row differential, even when another Region is stationary.
         rows.retain(|row| !stored_rows.contains(row));
-        if rows.is_empty() {
+        if values.is_empty() || (rows.is_empty() && temporal.positive_own_capacity) {
             return Ok(());
         }
         // This is a snapshot, not a new step. Invert exact kinematic recovery
@@ -81,21 +94,92 @@ where
         for &row in &rows {
             weights[row][0] = Some(1.);
         }
-        let independent_action = |pullback| {
+        let independent_action = |rates: &[f64], pullback| {
             prepared.work.linearize(
                 &prepared.plan,
                 prepared.plan.target_id(0).expect("reduced target"),
                 RegionPoint::Independent {
                     state: &values,
                     rate_target: prepared.plan.target_id(1).expect("full target"),
-                    rates: &rates,
+                    rates,
                     pullback,
                 },
                 &REFERENCE_ASSEMBLY_BACKEND,
             )
         };
+        if !temporal.positive_own_capacity {
+            if !independent {
+                return Err(invalid(
+                    "candidate-dependent storage requires independent State/rate coordinates",
+                ));
+            }
+            // The authored rate inventory fixes the partition, even when a
+            // coefficient vanishes at this particular State. Recover an actual
+            // rate point before differentiating any State-dependent mass.
+            let mass = independent_action(
+                &rates,
+                FieldPullback::Uniform {
+                    current: None,
+                    rate: Some(1.),
+                },
+            )?;
+            let full = (0..values.len()).collect::<Vec<_>>();
+            let mass_proof = ConstantDerivativeMatrixProof::new(
+                full.len(),
+                square_projection(mass.systems[0].matrix(), &full)?,
+            )?;
+            let rates = prepared.consistent_rates(
+                &coordinates,
+                &values,
+                &mass_proof,
+                &mass.residuals[0],
+                &BTreeSet::new(),
+                solver,
+            )?;
+            for (column, weight) in weights.iter_mut().enumerate() {
+                *weight = if stored_rows.contains(&column) {
+                    [None, Some(1.)]
+                } else {
+                    [Some(1.), None]
+                };
+            }
+            let selected = independent_action(&rates, FieldPullback::Coordinates(&weights))?;
+            let matrix = selected.systems[0].matrix();
+            let reduced_rates = coordinates.restrict_action(&rates)?;
+            // The unknown coordinates are rates for D and values for A. Scale
+            // each original equation in those coordinates: a large dynamic
+            // forcing must not hide a small incompatible algebraic equation.
+            let unknowns = (0..values.len())
+                .map(|column| {
+                    if stored_rows.contains(&column) {
+                        reduced_rates[column]
+                    } else {
+                        values[column]
+                    }
+                })
+                .collect::<Vec<_>>();
+            for row in 0..matrix.rows() {
+                let residual = selected.residuals[0][row];
+                let scale = tangent_equation_scale(matrix, row, &unknowns, residual);
+                let target = solver.residual_target(scale)?;
+                if !residual.is_finite() || !scale.is_finite() || residual.abs() > target {
+                    return Err(invalid(&format!(
+                        "spatial State equation-local residual {:e} exceeds target {target:e}",
+                        residual.abs(),
+                    )));
+                }
+            }
+            let proof =
+                ConstantDerivativeMatrixProof::new(full.len(), square_projection(matrix, &full)?)?;
+            if proof.exact_rank() != full.len() {
+                return Err(invalid(
+                    "spatial State differential-rate/algebraic-State Jacobian is singular at its consistent rate",
+                ));
+            }
+            return Ok(());
+        }
         let action = if independent {
-            independent_action(FieldPullback::Coordinates(&weights))?
+            independent_action(&rates, FieldPullback::Coordinates(&weights))?
         } else {
             prepared.work.linearize(
                 &prepared.plan,
@@ -109,11 +193,7 @@ where
         let mut residual_norm: f64 = 0.;
         let mut scale_norm: f64 = 0.;
         for &row in &rows {
-            let mut scale = system.rhs()[row].abs();
-            for entry in matrix.row_offsets()[row]..matrix.row_offsets()[row + 1] {
-                let term = matrix.values()[entry] * values[matrix.column_indices()[entry]];
-                scale += term.abs();
-            }
+            let scale = tangent_equation_scale(matrix, row, &values, action.residuals[0][row]);
             residual_norm = residual_norm.hypot(action.residuals[0][row]);
             scale_norm = scale_norm.hypot(scale);
         }
@@ -141,14 +221,20 @@ where
                 // Mixed constraints can determine multipliers through dynamics
                 // even when A_A is singular. Check the full original pencil,
                 // without imposing an index-one restriction on that profile.
-                let state = independent_action(FieldPullback::Uniform {
-                    current: Some(1.),
-                    rate: None,
-                })?;
-                let mass = independent_action(FieldPullback::Uniform {
-                    current: None,
-                    rate: Some(1.),
-                })?;
+                let state = independent_action(
+                    &rates,
+                    FieldPullback::Uniform {
+                        current: Some(1.),
+                        rate: None,
+                    },
+                )?;
+                let mass = independent_action(
+                    &rates,
+                    FieldPullback::Uniform {
+                        current: None,
+                        rate: Some(1.),
+                    },
+                )?;
                 let full = (0..matrix.rows()).collect::<Vec<_>>();
                 let mass = ConstantDerivativeMatrixProof::new(
                     full.len(),
@@ -168,81 +254,40 @@ where
                 // its zero mass rows rather than padding a rectangular system.
                 // Pencil regularity alone does not prove this compatibility.
                 let mut tangent = mass.coefficients().to_vec();
-                let mut rhs = action.residuals[0]
-                    .iter()
-                    .map(|value| -*value)
-                    .collect::<Vec<_>>();
                 for &row in &rows {
                     let range = row * full.len()..(row + 1) * full.len();
                     tangent[range.clone()].copy_from_slice(&state[range]);
-                    rhs[row] = 0.;
                 }
-                let scale = rhs.iter().fold(0_f64, |norm, value| norm.hypot(*value));
-                let rhs = rhs
-                    .iter()
-                    .map(|value| {
-                        num_rational::BigRational::from_float(*value).ok_or_else(|| {
-                            invalid("initial rate compatibility requires finite residuals")
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
                 let rate_proof = ConstantDerivativeMatrixProof::new(full.len(), tangent)?;
-                let projection = rate_proof.compatibility_projection(&[], &rhs)?;
-                let residual = projection.residual()?;
-                let norm = residual
-                    .iter()
-                    .fold(0_f64, |norm, value| norm.hypot(*value));
-                let target = solver.residual_target(scale)?;
-                if !norm.is_finite() || !scale.is_finite() || norm > target {
-                    return Err(invalid(&format!(
-                        "spatial State initial rate compatibility residual {norm:e} exceeds target {target:e}"
-                    )));
-                }
-                // The exact projection certifies its own binary coefficients.
-                // Re-evaluate the rounded rate witness in the original weak
-                // equations; do not infer an actual residual from M*v + R(0).
-                let reduced_rates = projection.coefficients()?;
-                let rates = (0..coordinates.full_count())
-                    .map(|global| {
-                        coordinates
-                            .free_coordinate(global)
-                            .map_or(0., |free| reduced_rates[free])
-                    })
-                    .collect::<Vec<_>>();
-                let mut residual = prepared.work.residual(
-                    &prepared.plan,
-                    prepared.plan.target_id(0).expect("reduced target"),
-                    RegionPoint::Independent {
-                        state: &values,
-                        rate_target: prepared.plan.target_id(1).expect("full target"),
-                        rates: &rates,
-                        pullback: FieldPullback::Uniform {
-                            current: None,
-                            rate: None,
-                        },
-                    },
+                prepared.consistent_rates(
+                    &coordinates,
+                    &values,
+                    &rate_proof,
+                    &action.residuals[0],
+                    &rows,
+                    solver,
                 )?;
-                for &row in &rows {
-                    residual[row] = rate_proof
-                        .row(row)
-                        .expect("rate row")
-                        .iter()
-                        .zip(&reduced_rates)
-                        .map(|(a, v)| a * v)
-                        .sum();
-                }
-                let norm = residual
-                    .iter()
-                    .fold(0_f64, |norm, value| norm.hypot(*value));
-                if !norm.is_finite() || norm > target {
-                    return Err(invalid(&format!(
-                        "spatial State rounded initial rate witness residual {norm:e} exceeds target {target:e}"
-                    )));
-                }
             }
         }
         Ok(())
     }
+}
+
+/// Backward-error scale |J|*|x| + |J*x-R| in the selected unknown coordinates.
+fn tangent_equation_scale(
+    matrix: &CsrMatrix<f64>,
+    row: usize,
+    point: &[f64],
+    residual: f64,
+) -> f64 {
+    let mut rhs = -residual;
+    let mut scale = 0.;
+    for entry in matrix.row_offsets()[row]..matrix.row_offsets()[row + 1] {
+        let term = matrix.values()[entry] * point[matrix.column_indices()[entry]];
+        rhs += term;
+        scale += term.abs();
+    }
+    scale + rhs.abs()
 }
 
 fn square_projection(

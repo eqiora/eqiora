@@ -117,6 +117,7 @@ impl<S: Coefficient> Projection<S> for Real {
         Ok(data
             .coordinate_images(dimension)?
             .into_iter()
+            .map(|(image, _)| image)
             .take(width)
             .collect())
     }

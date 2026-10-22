@@ -329,3 +329,114 @@ fn failed_nonlinear_step_keeps_accepted_state_unchanged() {
     );
     assert_eq!(initial.to_bytes().unwrap(), before);
 }
+
+fn nonlinear_storage_history(law: bool) {
+    let balance = if law {
+        "law balance on body { storage 1[s/m^2]*u*u; flux -grad(u); source -u*u/1[m^2]; }"
+    } else {
+        "relation balance on body { 1[s/m^2]*derivative(u*u)-div(grad(u))+u*u/1[m^2]=0; }"
+    };
+    let source = format!(
+        "public component Heat(
+        support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body),support right:boundary(parent=body)) {{
+        state u:1 on body in smooth;
+        initial {{u=1;}}
+        {balance}
+        relation left_flux on left {{normal(grad(u))=0;}}
+        relation right_flux on right {{normal(grad(u))=0;}}
+        }}"
+    );
+    let mut errors = Vec::new();
+    for steps in [4, 8, 16] {
+        let dt = 1. / f64::from(steps);
+        let plan = replay_plan(resolve_source(&source, dt, newton(20)).unwrap());
+        let initial = plan
+            .as_spatial()
+            .unwrap()
+            .initial_state(Some(0.), Vec::new())
+            .unwrap();
+        let before = initial.to_bytes().unwrap();
+        let request = CommonTransientRunRequest::from_steps(
+            plan.clone(),
+            initial.clone(),
+            steps as usize,
+            (1..=steps as usize).collect(),
+        )
+        .unwrap();
+        let std::ops::ControlFlow::Continue(outputs) = request
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("complete nonlinear-storage history");
+        };
+        // d(u²)/dt=-u² gives 2u*u_dot=-u² and u(t)=exp(-t/2) on u>0.
+        // Existing State-coordinate Backward Euler sets u_dot=(u-u_old)/dt:
+        // its nonzero root is u=2*u_old/(2+dt), not u_old/sqrt(1+dt).
+        let ratio = 2. / (2. + dt);
+        for (step, (_, accepted)) in (1..=steps).zip(&outputs) {
+            let expected = ratio.powi(step);
+            for (_, _, _, values) in plan
+                .as_spatial()
+                .unwrap()
+                .state_fields(accepted.state())
+                .unwrap()
+            {
+                for value in values {
+                    assert!((*value - expected).abs() < 1e-10);
+                }
+            }
+        }
+        let last = plan
+            .as_spatial()
+            .unwrap()
+            .state_fields(outputs.last().unwrap().1.state())
+            .unwrap()
+            .next()
+            .unwrap()
+            .3[0];
+        errors.push((last - (-0.5_f64).exp()).abs());
+        let restart =
+            CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &plan).unwrap();
+        let resumed = CommonTransientRunRequest::from_steps(
+            plan.clone(),
+            restart,
+            steps as usize - 1,
+            vec![steps as usize - 1],
+        )
+        .unwrap();
+        let std::ops::ControlFlow::Continue(resumed) = resumed
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("complete nonlinear-storage restart");
+        };
+        assert_eq!(
+            resumed.last().unwrap().1.state(),
+            outputs.last().unwrap().1.state()
+        );
+        let result = CommonResult::accept_trajectory(
+            0.,
+            CommonTrajectory::accept_spatial_transient(request, outputs).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+            result
+        );
+        assert_eq!(initial.to_bytes().unwrap(), before);
+    }
+    for pair in errors.windows(2) {
+        assert!((1.7..2.2).contains(&(pair[0] / pair[1])));
+    }
+}
+
+#[test]
+fn nonlinear_law_storage_uses_state_coordinate_backward_euler() {
+    nonlinear_storage_history(true);
+}
+
+#[test]
+fn nonlinear_relation_storage_uses_state_coordinate_backward_euler() {
+    nonlinear_storage_history(false);
+}
