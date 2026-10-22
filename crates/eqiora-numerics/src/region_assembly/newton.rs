@@ -41,7 +41,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         } else {
             plan.clone().prepare(
                 (0..self.packet_count())
-                    .map(|index| Ok(self.packet_cell(index)?.mappings.clone()))
+                    .map(|index| Ok(self.packet(index)?.mappings.clone()))
                     .collect::<Result<Vec<_>, Diagnostic>>()?,
             )?
         };

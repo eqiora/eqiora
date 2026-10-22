@@ -40,12 +40,28 @@ pub(crate) struct RegionAssemblyCell<S: Coefficient> {
     pub(crate) previous: BTreeMap<RawId, Vec<S>>,
 }
 
+/// A local action owns its equation/unknown maps; it need not belong to one cell.
+#[derive(Debug, Clone, PartialEq)]
+struct PreparedRegionPacket<S: Coefficient, P: Projection<S>> {
+    domain: RawId,
+    orientation: Vec<i8>,
+    mappings: std::sync::Arc<[TargetAssemblyMap<P::Scalar>]>,
+    action: RegionPacketAction<S, P>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum RegionPacketAction<S: Coefficient, P: Projection<S>> {
+    Cell {
+        prepared: PreparedRegionCell<S, P>,
+        previous: BTreeMap<RawId, Vec<P::Scalar>>,
+    },
+    Boundary(PreparedRegionFacet<S, P>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PreparedRegionAssembly<S: Coefficient, P: Projection<S> = Native> {
     packet_set: AssemblyPacketSetIdentityV1,
-    prepared: Vec<PreparedRegionCell<S, P>>,
-    cells: Vec<RegionAssemblyCell<P::Scalar>>,
-    boundary_packets: Vec<(usize, PreparedRegionFacet<S, P>)>,
+    packets: Vec<PreparedRegionPacket<S, P>>,
 }
 
 impl<S: Coefficient + Send + Sync, P: Projection<S>> PreparedRegionAssembly<S, P>
@@ -86,9 +102,13 @@ where
                 "assembly forms must exactly cover selected cell Domains",
             ));
         }
-        let mut prepared = Vec::with_capacity(cells.len());
+        let packet_count = cells
+            .len()
+            .checked_add(boundary_packets.len())
+            .ok_or_else(|| invalid("region and boundary packet count overflows usize"))?;
+        let mut packets = Vec::with_capacity(packet_count);
         cells.sort_by_key(|cell| cell.index);
-        for (index, cell) in cells.iter().enumerate() {
+        for (index, cell) in cells.iter_mut().enumerate() {
             if cell.index != index {
                 return Err(invalid(
                     "region assembly cell indices must cover mesh packets exactly once",
@@ -113,60 +133,50 @@ where
                 ));
             }
             validate_maps(plan, local_count, &cell.mappings)?;
-            prepared.push(
-                form.prepare_projected_cell_actions::<P>(
+            let prepared = form
+                .prepare_projected_cell_actions::<P>(
                     &cell.geometry,
                     cell.previous_geometry.as_ref().unwrap_or(&cell.geometry),
                     None,
                     quadrature,
                 )?
-                .0,
-            );
+                .0;
+            packets.push(PreparedRegionPacket {
+                domain: cell_domains[index],
+                orientation: cell.orientation.clone(),
+                mappings: cell.mappings.clone(),
+                action: RegionPacketAction::Cell {
+                    prepared,
+                    previous: std::mem::take(&mut cell.previous),
+                },
+            });
         }
-        cells
-            .len()
-            .checked_add(boundary_packets.len())
-            .ok_or_else(|| invalid("region and boundary packet count overflows usize"))?;
-        for (index, facet) in &boundary_packets {
+        for (index, facet) in boundary_packets {
             let cell = cells
-                .get(*index)
+                .get(index)
                 .ok_or_else(|| invalid("natural facet has a foreign parent cell"))?;
-            facet.validate_parent(&by_domain[&cell_domains[*index]].0, &cell.geometry)?;
+            facet.validate_parent(&by_domain[&cell_domains[index]].0, &cell.geometry)?;
             validate_maps(plan, facet.affine().rows(), &cell.mappings)?;
+            packets.push(PreparedRegionPacket {
+                domain: cell_domains[index],
+                orientation: cell.orientation.clone(),
+                mappings: cell.mappings.clone(),
+                action: RegionPacketAction::Boundary(facet),
+            });
         }
         Ok(Self {
             packet_set,
-            prepared,
-            cells,
-            boundary_packets,
+            packets,
         })
     }
-    pub(crate) fn packet_domains(&self, domains: &[RawId]) -> Result<Vec<RawId>, Diagnostic> {
-        (0..self.packet_count())
-            .map(|index| {
-                domains
-                    .get(self.packet_cell(index)?.index)
-                    .copied()
-                    .ok_or_else(|| invalid("region packet has a foreign cell Domain"))
-            })
-            .collect()
+    pub(crate) fn packet_domains(&self) -> Vec<RawId> {
+        self.packets.iter().map(|packet| packet.domain).collect()
     }
 
-    fn packet_cell(
-        &self,
-        packet_index: usize,
-    ) -> Result<&RegionAssemblyCell<P::Scalar>, Diagnostic> {
-        let index = if packet_index < self.cells.len() {
-            packet_index
-        } else {
-            self.boundary_packets
-                .get(packet_index - self.cells.len())
-                .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))?
-                .0
-        };
-        self.cells
+    fn packet(&self, index: usize) -> Result<&PreparedRegionPacket<S, P>, Diagnostic> {
+        self.packets
             .get(index)
-            .ok_or_else(|| invalid("region assembly packet has a foreign parent cell"))
+            .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))
     }
 }
 
@@ -180,22 +190,18 @@ where
     }
 
     fn packet_count(&self) -> usize {
-        self.cells.len() + self.boundary_packets.len()
+        self.packets.len()
     }
 
     fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<P::Scalar>, Diagnostic> {
-        let cell = self.packet_cell(packet_index)?;
-        let local = if packet_index < self.cells.len() {
-            self.prepared[packet_index].evaluate(&cell.previous)?
-        } else {
-            self.boundary_packets[packet_index - self.cells.len()]
-                .1
-                .affine()
-                .clone()
+        let packet = self.packet(packet_index)?;
+        let local = match &packet.action {
+            RegionPacketAction::Cell { prepared, previous } => prepared.evaluate(previous)?,
+            RegionPacketAction::Boundary(facet) => facet.affine().clone(),
         };
         AssemblyPacket::new(
-            local.reoriented(&cell.orientation, &cell.orientation)?,
-            cell.mappings.clone(),
+            local.reoriented(&packet.orientation, &packet.orientation)?,
+            packet.mappings.clone(),
         )
     }
 }

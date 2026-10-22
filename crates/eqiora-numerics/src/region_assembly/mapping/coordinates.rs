@@ -336,7 +336,7 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
             cells,
             natural,
         )?;
-        let packet_domains = work.packet_domains(&self.mapping.cell_domains)?;
+        let packet_domains = work.packet_domains();
         Ok(MappedRegionAssembly {
             plan,
             work,
