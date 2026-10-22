@@ -16,12 +16,18 @@ impl PyTrajectory {
     ) -> PyResult<Self> {
         let request_identity = native.request_identity().to_owned();
         let trajectory_digest = native.identity().to_owned();
-        let states = native
-            .spatial_steps()
-            .expect("Python spatial Trajectory requires spatial native States")
-            .iter()
-            .map(|(index, step)| (*index, step.state().clone()))
-            .collect::<Vec<_>>();
+        let request = native.spatial_request().ok_or_else(|| {
+            PyRuntimeError::new_err("Python spatial Trajectory requires spatial native States")
+        })?;
+        let output_steps = if request.plan().backward_euler().is_some() {
+            Some(
+                request
+                    .output_steps()
+                    .map_err(|d| crate::error::validation_error(py, &[d]))?,
+            )
+        } else {
+            None
+        };
         let (model_digest, plan_identity, realization_digest) =
             if let Some(native) = plan.transient_native() {
                 (
@@ -43,14 +49,27 @@ impl PyTrajectory {
         let mesh = plan.mesh_handle(py);
         let mesh_ref = mesh.borrow(py);
         let mut state_lookup = BTreeMap::new();
-        let mut projected = Vec::with_capacity(states.len());
-        for (step, state) in states {
-            let step = u64::try_from(step)
-                .map_err(|_| PyOverflowError::new_err("accepted step exceeds Python u64"))?;
-            if state_lookup.insert(step, projected.len()).is_some() {
-                return Err(PyRuntimeError::new_err(
-                    "common Trajectory contains a duplicate output step",
-                ));
+        let mut projected = Vec::with_capacity(request.output_times_s().len());
+        for index in 0..request.output_times_s().len() {
+            let state = native
+                .spatial_state(index)
+                .ok_or_else(|| {
+                    PyRuntimeError::new_err("common Trajectory omitted a requested spatial State")
+                })?
+                .clone();
+            let step = output_steps
+                .as_ref()
+                .map(|steps| {
+                    u64::try_from(steps[index])
+                        .map_err(|_| PyOverflowError::new_err("accepted step exceeds Python u64"))
+                })
+                .transpose()?;
+            if let Some(step) = step {
+                if state_lookup.insert(step, projected.len()).is_some() {
+                    return Err(PyRuntimeError::new_err(
+                        "common Trajectory contains a duplicate output step",
+                    ));
+                }
             }
             let projected_state = PyState::from_common(
                 py,
@@ -98,7 +117,7 @@ impl PyState {
         Self {
             digest: state.identity().to_owned(),
             model_digest: plan.native().model_digest().to_owned(),
-            step: 0,
+            step: None,
             time_s: None,
             fields: Vec::new(),
             field_lookup: BTreeMap::new(),

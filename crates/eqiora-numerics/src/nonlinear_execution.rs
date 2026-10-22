@@ -3,8 +3,7 @@
 use eqiora_core::{Diagnostic, diagnostic::codes};
 mod stopping;
 use eqiora_solver::SolveReport;
-use stopping::NewtonConvergence;
-pub(crate) use stopping::{NewtonOptions, NewtonStopping};
+pub(crate) use stopping::{NewtonConvergence, NewtonOptions, NewtonStopping};
 
 #[derive(Debug)]
 pub(crate) struct NewtonEvidence {
@@ -98,7 +97,7 @@ pub(crate) fn solve_damped_newton<L>(
         evidence.convergence =
             options
                 .stopping
-                .convergence(residual_target, 0., initial_residual_norm);
+                .convergence(residual_target, 0., initial_residual_norm, &point, &[]);
         return Ok((current, evidence));
     }
     evidence
@@ -172,7 +171,6 @@ pub(crate) fn solve_damped_newton<L>(
             Some(linearization) => linearization,
             None => linearize(&candidate)?,
         };
-        point = candidate;
         evidence.iterations = iteration;
         evidence.linear_solves.push(report);
         let converged = trial_norm <= residual_target || small_full_correction;
@@ -201,9 +199,12 @@ pub(crate) fn solve_damped_newton<L>(
                 residual_target,
                 correction_norm.unwrap_or(0.),
                 trial_norm,
+                &point,
+                &direction,
             );
             return Ok((current, evidence));
         }
+        point = candidate;
     }
     Err(failed(format!(
         "Newton solve reached {} iterations without meeting its stopping criterion",

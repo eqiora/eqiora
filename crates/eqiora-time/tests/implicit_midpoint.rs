@@ -163,3 +163,62 @@ fn physical_rates_respect_equation_scaling_and_reject_invalid_mass_actions() {
         assert!(problem.rate(0., &[1.]).is_err());
     }
 }
+
+#[test]
+fn residual_stage_callback_shares_clocks_history_and_observation_interpolation() {
+    let solve = |outputs: Vec<f64>| {
+        let plan = TimePlan::new(
+            TimeMethod::ImplicitMidpoint,
+            0.,
+            0.25,
+            1e-10,
+            vec![1e-12],
+            outputs,
+        )
+        .unwrap();
+        let mut clocks = Vec::new();
+        let solution = ImplicitMidpointTimeBackend::new()
+            .solve_with_stages(
+                &[1.],
+                &plan,
+                TimeEquationClass::GeneralImplicitDae,
+                |start, end, state| {
+                    clocks.push((start, end));
+                    // y'=-2y gives the independently derived midpoint multiplier.
+                    let h = end - start;
+                    Ok(vec![state[0] * (1. - h) / (1. + h)])
+                },
+            )
+            .unwrap();
+        (solution, clocks)
+    };
+    let (sparse, sparse_clocks) = solve(vec![0.5]);
+    let (dense, dense_clocks) = solve(vec![0.125, 0.3, 0.5]);
+    assert_eq!(sparse_clocks, vec![(0., 0.25), (0.25, 0.5)]);
+    assert_eq!(sparse_clocks, dense_clocks);
+    assert_eq!(sparse.history(), dense.history());
+    assert!((dense.state(0).unwrap()[0] - 0.8).abs() < 1e-15);
+    assert!((dense.state(1).unwrap()[0] - 0.552).abs() < 1e-15);
+    assert!((dense.state(2).unwrap()[0] - 0.36).abs() < 1e-15);
+    for candidate in [vec![], vec![1., 2.], vec![f64::NAN]] {
+        let plan = TimePlan::new(
+            TimeMethod::ImplicitMidpoint,
+            0.,
+            0.25,
+            1e-10,
+            vec![1e-12],
+            vec![0.5],
+        )
+        .unwrap();
+        assert!(
+            ImplicitMidpointTimeBackend::new()
+                .solve_with_stages(
+                    &[1.],
+                    &plan,
+                    TimeEquationClass::GeneralImplicitDae,
+                    |_, _, _| Ok(candidate.clone()),
+                )
+                .is_err()
+        );
+    }
+}

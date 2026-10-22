@@ -118,3 +118,18 @@ impl CommonOdePolicy {
         self
     }
 }
+
+impl CommonOdePolicy {
+    pub(crate) fn require_spatial_execution_controls(&self) -> Result<(), Diagnostic> {
+        if self.events.is_some()
+            || self.forward_sensitivities.is_some()
+            || !self.conserved_norms.is_empty()
+            || !self.hermitian_parameters.is_empty()
+        {
+            return Err(invalid(
+                "spatial time execution does not yet implement event, sensitivity, norm or Hermitian controls",
+            ));
+        }
+        Ok(())
+    }
+}

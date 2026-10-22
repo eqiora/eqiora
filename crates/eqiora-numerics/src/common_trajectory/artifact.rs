@@ -11,7 +11,7 @@ use crate::common_time::request_artifact::WireTimeRequest;
 use crate::stochastic_path::run::history::artifact::WireProcessHistory;
 use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
-pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v9";
+pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v10";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -27,6 +27,16 @@ enum WireTrajectoryPayload {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         events: Vec<event_history::WireEvent>,
     },
+    SpatialTime {
+        plan_identity: String,
+        request_identity: String,
+        initial_state_base64: String,
+        until_s: f64,
+        output_times_s: Vec<f64>,
+        states_base64: Vec<String>,
+        history: Vec<WireTimeStep>,
+        execution: Vec<WireSpatialTimeStage>,
+    },
     SpatialTransient {
         plan_identity: String,
         request_identity: String,
@@ -35,6 +45,13 @@ enum WireTrajectoryPayload {
         output_steps: Vec<u64>,
         states: Vec<WireSpatialState>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireSpatialTimeStage {
+    solve: crate::common_result::artifact::WireSolveHistory,
+    convergence: crate::nonlinear_execution::NewtonConvergence,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -126,6 +143,35 @@ impl CommonTrajectory {
 impl WireCommonTrajectory {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match &trajectory.payload {
+            TrajectoryPayload::SpatialTime {
+                request,
+                states,
+                history,
+                execution,
+                ..
+            } => WireTrajectoryPayload::SpatialTime {
+                plan_identity: request.plan().identity().to_owned(),
+                request_identity: request.identity().to_owned(),
+                initial_state_base64: encode(&request.state().to_bytes()?),
+                until_s: request.until_s(),
+                output_times_s: request.output_times_s().to_vec(),
+                states_base64: states
+                    .iter()
+                    .map(|state| state.to_bytes().map(|bytes| encode(&bytes)))
+                    .collect::<Result<Vec<_>, _>>()?,
+                history: history.steps().iter().map(WireTimeStep::from).collect(),
+                execution: execution
+                    .iter()
+                    .map(|stage| {
+                        Ok(WireSpatialTimeStage {
+                            solve: crate::common_result::artifact::WireSolveHistory::from_evidence(
+                                &stage.solve,
+                            )?,
+                            convergence: stage.convergence.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            },
             TrajectoryPayload::Process { history, .. } => WireTrajectoryPayload::Process {
                 history: WireProcessHistory::capture(history)?,
             },
@@ -149,9 +195,9 @@ impl WireCommonTrajectory {
                 plan_identity: request.plan().identity().to_owned(),
                 request_identity: request.identity().to_owned(),
                 initial_state_base64: encode(&request.state().to_bytes()?),
-                accepted_steps: to_u64(request.accepted_steps().get(), "accepted step count")?,
+                accepted_steps: to_u64(request.accepted_steps()?.get(), "accepted step count")?,
                 output_steps: request
-                    .output_steps()
+                    .output_steps()?
                     .iter()
                     .map(|step| to_u64(*step, "output step"))
                     .collect::<Result<Vec<_>, _>>()?,
@@ -168,6 +214,55 @@ impl WireCommonTrajectory {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonTrajectory, Diagnostic> {
         let trajectory = match (&self.payload, plan) {
+            (
+                WireTrajectoryPayload::SpatialTime {
+                    plan_identity,
+                    request_identity,
+                    initial_state_base64,
+                    until_s,
+                    output_times_s,
+                    states_base64,
+                    history,
+                    execution,
+                },
+                plan @ ResolvedCommonPlan::Spatial(_),
+            ) => {
+                require_plan_identity(plan.identity(), plan_identity)?;
+                let initial =
+                    CommonState::from_bytes(&decode(initial_state_base64, "initial State")?, plan)?;
+                let request = CommonTransientRunRequest::from_times(
+                    plan.clone(),
+                    initial,
+                    *until_s,
+                    output_times_s.clone(),
+                )?;
+                require_request_identity(request.identity(), request_identity)?;
+                let states = states_base64
+                    .iter()
+                    .map(|bytes| CommonState::from_bytes(&decode(bytes, "output State")?, plan))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let steps = history
+                    .iter()
+                    .map(WireTimeStep::replay)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let dimension = steps
+                    .first()
+                    .ok_or_else(|| invalid("spatial time history is empty"))?
+                    .start_state()
+                    .len();
+                let history = AcceptedTimeHistory::accepted(dimension, steps, Vec::new())?;
+                let execution = execution
+                    .iter()
+                    .map(|stage| {
+                        Ok(SpatialTimeStage {
+                            solve: stage.solve.replay_metadata()?,
+                            convergence: stage.convergence.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                CommonTrajectory::accept_spatial_time(request, states, history, execution)?
+            }
+
             (WireTrajectoryPayload::Process { history }, ResolvedCommonPlan::Time(plan)) => {
                 CommonTrajectory::accept_process(history.replay(plan)?)?
             }

@@ -107,9 +107,31 @@ def test_spatial_decay_uses_the_same_temporal_policy(spatial, complex_field, met
                            if dense_output else (HORIZON,))
         final = result.trajectory.states[-1]
         assert final.time_s == HORIZON
+        assert final.step == (4 if method == "backward_euler" else None)
         actual = np.asarray(final.fields[0].values(association))
         np.testing.assert_allclose(actual, values * _amplitude(method, rate), rtol=0, atol=2e-9)
         observed.append(actual)
         assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
+        trajectory = result.trajectory
+        assert q.trajectory.Trajectory.from_bytes(plan, trajectory.to_bytes()).to_bytes() == trajectory.to_bytes()
         assert initial.to_bytes() == before
     np.testing.assert_allclose(observed[0], observed[1], rtol=0, atol=2e-9)
+    if method == "midpoint":
+        # Half-step observations use the accepted linear collocation polynomial.
+        sampled = q.run(plan, state=initial, until_s=HORIZON,
+                        output_times_s=(STEP / 2, 2 * STEP, HORIZON))
+        factor = (1 - STEP * rate / 2) / (1 + STEP * rate / 2)
+        middle = sampled.trajectory.states[0]
+        assert middle.time_s == STEP / 2
+        assert middle.step is None
+        np.testing.assert_allclose(
+            np.asarray(middle.fields[0].values(association)),
+            values * (1 + factor) / 2, rtol=0, atol=2e-9,
+        )
+        restart = q.State.from_bytes(plan, sampled.trajectory.states[1].to_bytes())
+        assert restart.step is None
+        resumed = q.run(plan, state=restart, until_s=HORIZON, output_times_s=(HORIZON,))
+        np.testing.assert_allclose(
+            np.asarray(resumed.trajectory.states[-1].fields[0].values(association)),
+            observed[0], rtol=0, atol=2e-9,
+        )

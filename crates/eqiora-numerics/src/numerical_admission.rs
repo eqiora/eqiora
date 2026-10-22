@@ -636,14 +636,9 @@ impl CommonAcceptedSpatialStep {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
     plan: ResolvedCommonPlan,
-    schedule: CommonRunSchedule,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct CommonRunSchedule {
     state: CommonState,
-    accepted_steps: NonZeroUsize,
-    output_steps: Vec<usize>,
+    until_s: f64,
+    output_times_s: Vec<f64>,
     identity: String,
 }
 

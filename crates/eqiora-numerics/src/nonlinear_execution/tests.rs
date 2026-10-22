@@ -331,7 +331,7 @@ fn small_full_correction_accepts_a_finite_trial_despite_residual_noise() {
     .unwrap();
     assert_eq!(point, 1. + 1e-8);
     assert_eq!(evidence.linear_solves.len(), 1);
-    let NewtonConvergence::Correction { weighted_norm } = evidence.convergence else {
+    let NewtonConvergence::Correction { weighted_norm, .. } = evidence.convergence else {
         panic!("correction acceptance");
     };
     assert!((weighted_norm - 0.005).abs() < 1e-15);

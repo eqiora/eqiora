@@ -9,42 +9,6 @@ struct CommonAcceptedActions {
     outputs: Vec<(usize, CommonAcceptedSpatialStep)>,
 }
 
-impl CommonRunSchedule {
-    fn new(
-        identity_domain: &[u8],
-        identity_trailer: &[u8],
-        plan_identity: &str,
-        state: CommonState,
-        accepted_steps: NonZeroUsize,
-        output_steps: Vec<usize>,
-        invalid_outputs: &'static str,
-    ) -> Result<Self, Diagnostic> {
-        if output_steps.is_empty()
-            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
-            || output_steps
-                .iter()
-                .any(|step| *step == 0 || *step > accepted_steps.get())
-        {
-            return Err(invalid(invalid_outputs));
-        }
-        let mut bytes = Vec::new();
-        push_framed(&mut bytes, plan_identity.as_bytes());
-        push_framed(&mut bytes, state.identity().as_bytes());
-        bytes.extend_from_slice(&(accepted_steps.get() as u64).to_be_bytes());
-        for output in &output_steps {
-            bytes.extend_from_slice(&(*output as u64).to_be_bytes());
-        }
-        bytes.extend_from_slice(identity_trailer);
-        let identity = domain_separated_identity(identity_domain, &bytes);
-        Ok(Self {
-            state,
-            accepted_steps,
-            output_steps,
-            identity,
-        })
-    }
-}
-
 #[allow(clippy::type_complexity)]
 fn advance_common_prepared_actions<P>(
     initial: CommonState,
@@ -90,83 +54,93 @@ fn advance_common_prepared_actions<P>(
 }
 
 impl CommonTransientRunRequest {
-    /// Canonicalize a step-count horizon and explicit accepted-step outputs.
+    /// Convert an exact fixed-grid step request to physical times once.
     pub fn from_steps(
         plan: ResolvedCommonPlan,
         state: CommonState,
         steps: usize,
         output_steps: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
-        let accepted_steps = NonZeroUsize::new(steps)
-            .ok_or_else(|| invalid("transient Run steps must be strictly positive"))?;
-        Self::new(plan, state, accepted_steps, output_steps)
+        if steps == 0
+            || output_steps.is_empty()
+            || output_steps.iter().any(|step| *step == 0 || *step > steps)
+            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid(
+                "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
+            ));
+        }
+        let dt = plan
+            .backward_euler()
+            .ok_or_else(|| invalid("fixed-grid transient Run requires BackwardEuler"))?
+            .step()
+            .value();
+        let grid = state.time_grid()?;
+        let until_s = grid.advance(steps)?.time(dt)?;
+        let outputs = output_steps
+            .into_iter()
+            .map(|step| grid.advance(step)?.time(dt))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::from_times(plan, state, until_s, outputs)
     }
 
-    /// Canonicalize an exact Backward-Euler time horizon and output-time grid.
+    /// Bind a physical horizon and observations independently of internal steps.
+    /// Backward Euler retains its exact-grid output contract.
     pub fn from_times(
         plan: ResolvedCommonPlan,
         state: CommonState,
         until_s: f64,
         output_times_s: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        if !until_s.is_finite() || until_s <= state.require_time_s()? {
-            return Err(invalid(
-                "transient Run until_s must be finite and later than State.time_s",
-            ));
-        }
-        if output_times_s.is_empty()
-            || output_times_s.iter().any(|value| !value.is_finite())
-            || output_times_s.windows(2).any(|pair| pair[0] >= pair[1])
-        {
-            return Err(invalid(
-                "output_times_s must be finite, nonempty, and strictly increasing",
-            ));
-        }
-        let step_s = plan
-            .backward_euler()
-            .ok_or_else(|| invalid("transient Run requires BackwardEuler"))?
-            .step()
-            .value();
-        let grid = state.time_grid()?;
-        let accepted_steps = grid.steps_until(until_s, step_s, "until_s")?;
-        let output_steps = output_times_s
-            .into_iter()
-            .map(|time| grid.steps_until(time, step_s, "output_times_s"))
-            .collect::<Result<Vec<_>, _>>()?;
-        Self::new(
-            plan,
-            state,
-            NonZeroUsize::new(accepted_steps)
-                .ok_or_else(|| invalid("transient Run horizon contains no accepted step"))?,
-            output_steps,
-        )
-    }
-
-    pub(super) fn new(
-        plan: ResolvedCommonPlan,
-        state: CommonState,
-        accepted_steps: NonZeroUsize,
-        output_steps: Vec<usize>,
-    ) -> Result<Self, Diagnostic> {
-        state.require_time_s()?;
-        if plan.backward_euler().is_none() {
-            return Err(invalid("fixed-grid transient Run requires BackwardEuler"));
-        }
+        let start = state.require_time_s()?;
         if state.state_space_identity() != plan.spatial_state_space_identity()? {
             return Err(invalid(
                 "transient Run State belongs to a different exact common state space",
             ));
         }
-        let schedule = CommonRunSchedule::new(
-            b"eqiora.common-transient-run-request/v1\0",
-            &1_u64.to_be_bytes(),
-            plan.identity(),
+        if !until_s.is_finite() || until_s <= start || !(until_s - start).is_finite() {
+            return Err(invalid(
+                "transient Run until_s must be finite and later than State.time_s",
+            ));
+        }
+        if output_times_s.is_empty()
+            || output_times_s
+                .iter()
+                .any(|time| !time.is_finite() || *time <= start || *time > until_s)
+            || output_times_s.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid(
+                "output_times_s must be finite, nonempty, strictly increasing, and within the Run horizon",
+            ));
+        }
+        if let Some(temporal) = plan.backward_euler() {
+            let grid = state.time_grid()?;
+            let dt = temporal.step().value();
+            grid.steps_until(until_s, dt, "until_s")?;
+            for &time in &output_times_s {
+                grid.steps_until(time, dt, "output_times_s")?;
+            }
+        } else if plan.ode_temporal().is_none() || plan.as_spatial().is_none() {
+            return Err(invalid(
+                "spatial transient Run requires its admitted temporal policy",
+            ));
+        }
+        let mut bytes = Vec::new();
+        push_framed(&mut bytes, plan.identity().as_bytes());
+        push_framed(&mut bytes, state.identity().as_bytes());
+        bytes.extend_from_slice(&until_s.to_bits().to_be_bytes());
+        for time in &output_times_s {
+            bytes.extend_from_slice(&time.to_bits().to_be_bytes());
+        }
+        let identity =
+            domain_separated_identity(b"eqiora.common-transient-run-request/v2\0", &bytes);
+        Ok(Self {
+            plan,
             state,
-            accepted_steps,
-            output_steps,
-            "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
-        )?;
-        Ok(Self { plan, schedule })
+            until_s,
+            output_times_s,
+            identity,
+        })
     }
 
     #[must_use]
@@ -175,19 +149,52 @@ impl CommonTransientRunRequest {
     }
     #[must_use]
     pub const fn state(&self) -> &CommonState {
-        &self.schedule.state
+        &self.state
     }
     #[must_use]
-    pub const fn accepted_steps(&self) -> NonZeroUsize {
-        self.schedule.accepted_steps
+    pub const fn until_s(&self) -> f64 {
+        self.until_s
     }
     #[must_use]
-    pub fn output_steps(&self) -> &[usize] {
-        &self.schedule.output_steps
+    pub fn output_times_s(&self) -> &[f64] {
+        &self.output_times_s
+    }
+    /// Exact fixed-grid count, unavailable for continuous time policies.
+    pub fn accepted_steps(&self) -> Result<NonZeroUsize, Diagnostic> {
+        let dt = self
+            .plan
+            .backward_euler()
+            .ok_or_else(|| {
+                invalid("accepted step count is determined by execution for this policy")
+            })?
+            .step()
+            .value();
+        NonZeroUsize::new(
+            self.state
+                .time_grid()?
+                .steps_until(self.until_s, dt, "until_s")?,
+        )
+        .ok_or_else(|| invalid("transient Run horizon contains no accepted step"))
+    }
+    /// Fixed-grid output ordinals, available only when observations select grid points.
+    pub fn output_steps(&self) -> Result<Vec<usize>, Diagnostic> {
+        let dt = self
+            .plan
+            .backward_euler()
+            .ok_or_else(|| {
+                invalid("observation times are not accepted-step ordinals for this policy")
+            })?
+            .step()
+            .value();
+        let grid = self.state.time_grid()?;
+        self.output_times_s
+            .iter()
+            .map(|&time| grid.steps_until(time, dt, "output_times_s"))
+            .collect()
     }
     #[must_use]
     pub fn identity(&self) -> &str {
-        &self.schedule.identity
+        &self.identity
     }
 
     /// Authenticate this exact Run once, then advance its accepted actions.
@@ -213,9 +220,9 @@ impl CommonTransientRunRequest {
                 .step()
                 .value();
             return advance_common_prepared_actions(
-                self.schedule.state.clone(),
-                self.schedule.accepted_steps.get(),
-                &self.schedule.output_steps,
+                self.state.clone(),
+                self.accepted_steps()?.get(),
+                &self.output_steps()?,
                 step_s,
                 |_| Ok(()),
                 |(), state| plan.advance_scalar(state, backend),
@@ -229,9 +236,9 @@ impl CommonTransientRunRequest {
         let start_s = self.state().require_time_s()?;
         let mut accepted = 0;
         advance_common_prepared_actions(
-            self.schedule.state.clone(),
-            self.schedule.accepted_steps.get(),
-            &self.schedule.output_steps,
+            self.state.clone(),
+            self.accepted_steps()?.get(),
+            &self.output_steps()?,
             step_s,
             |state| plan.prepare_execution(state, backend),
             |prepared, state| {

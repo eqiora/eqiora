@@ -2,6 +2,7 @@
 mod linearization;
 mod midpoint;
 mod policy;
+mod run;
 
 use super::*;
 use crate::numerical_admission::scalar::implicit::SpatialImplicitSystem;

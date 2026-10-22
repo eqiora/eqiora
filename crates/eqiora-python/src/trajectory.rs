@@ -50,7 +50,7 @@ const TRAJECTORY_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 pub(crate) struct PyState {
     digest: String,
     model_digest: String,
-    step: u64,
+    step: Option<u64>,
     time_s: Option<f64>,
     fields: Vec<Py<PyFieldSnapshot>>,
     field_lookup: BTreeMap<String, usize>,
@@ -96,9 +96,14 @@ impl PyState {
         state: eqiora_numerics::CommonInitialState<'_>,
     ) -> PyResult<Self> {
         match state {
-            eqiora_numerics::CommonInitialState::Spatial(state) => {
-                Self::from_common(py, plan, state.into_owned(), 0, None, None)
-            }
+            eqiora_numerics::CommonInitialState::Spatial(state) => Self::from_common(
+                py,
+                plan,
+                state.into_owned(),
+                plan.native().backward_euler().map(|_| 0),
+                None,
+                None,
+            ),
             eqiora_numerics::CommonInitialState::Algebraic(state) => {
                 Ok(Self::from_common_algebraic(py, plan, state.into_owned()))
             }
@@ -112,7 +117,7 @@ impl PyState {
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
         native: CommonState,
-        step: u64,
+        step: Option<u64>,
         source_request_identity: Option<&str>,
         source_trajectory_identity: Option<&str>,
     ) -> PyResult<Self> {
@@ -179,7 +184,7 @@ impl PyState {
                 py,
                 plan,
                 native,
-                accepted_steps,
+                Some(accepted_steps),
                 Some(request_identity),
                 None,
             )?,
@@ -206,7 +211,7 @@ impl PyState {
         Self {
             digest: native.identity().to_owned(),
             model_digest: native.model_digest().to_owned(),
-            step: 0,
+            step: None,
             time_s: Some(native.time_s()),
             fields: Vec::new(),
             field_lookup: BTreeMap::new(),
@@ -238,6 +243,7 @@ impl PyState {
         let native = eqiora_numerics::CommonInitialState::from_bytes(data, plan.native())
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
         let mut state = Self::from_initial(py, plan, native)?;
+        state.step = None;
         state.source_kind = Some("artifact");
         state.source_request_identity = None;
         state.source_trajectory_identity = None;
@@ -308,7 +314,14 @@ impl PyState {
             let native = linear
                 .initial_state(time_s, fields)
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
-            return Self::from_common(py, plan, native, 0, None, None);
+            return Self::from_common(
+                py,
+                plan,
+                native,
+                plan.native().backward_euler().map(|_| 0),
+                None,
+                None,
+            );
         }
         if let Some(native_plan) = plan.native().as_time() {
             if fields.is_some() {
@@ -344,7 +357,7 @@ impl PyState {
             let state = native_plan
                 .initial_state(time_s, fields)
                 .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-            return Self::from_common(py, plan, state, 0, None, None);
+            return Self::from_common(py, plan, state, Some(0), None, None);
         }
         Err(PyValueError::new_err(
             "State.initial requires an algebraic, time, or spatial transient Plan",
@@ -360,7 +373,7 @@ impl PyState {
         let state = native_plan
             .zero_state(time_s)
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-        Self::from_common(py, plan, state, 0, None, None)
+        Self::from_common(py, plan, state, Some(0), None, None)
     }
 
     /// Nodal P1 interpolation onto an authenticated refinement of the source Mesh.
@@ -378,7 +391,7 @@ impl PyState {
         let state = target
             .interpolate_state(result.native())
             .map_err(|d| crate::error::validation_error(py, &[d]))?;
-        Self::from_common(py, plan, state, 0, Some(result.plan_key_value()), None)
+        Self::from_common(py, plan, state, None, Some(result.plan_key_value()), None)
     }
 
     #[staticmethod]
@@ -431,7 +444,7 @@ impl PyState {
     }
 
     #[getter]
-    const fn step(&self) -> u64 {
+    const fn step(&self) -> Option<u64> {
         self.step
     }
 
@@ -667,7 +680,7 @@ impl PyState {
 
     fn __repr__(&self) -> String {
         format!(
-            "State(step={}, time_s={:?}, digest={:?})",
+            "State(step={:?}, time_s={:?}, digest={:?})",
             self.step, self.time_s, self.digest,
         )
     }
@@ -734,7 +747,7 @@ impl PyTrajectory {
     ) -> PyResult<Self> {
         let native = eqiora_numerics::CommonTrajectory::from_bytes(data, plan.native())
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-        if native.spatial_steps().is_none() {
+        if native.spatial_request().is_none() {
             return Err(PyValueError::new_err(
                 "Trajectory.from_bytes requires a spatial transient artifact",
             ));
@@ -781,7 +794,7 @@ impl PyTrajectory {
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
         let native = eqiora_numerics::CommonTrajectory::from_bytes(&bytes, plan.native())
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
-        if native.spatial_steps().is_none() {
+        if native.spatial_request().is_none() {
             return Err(PyValueError::new_err(
                 "Trajectory.read requires a spatial transient artifact",
             ));

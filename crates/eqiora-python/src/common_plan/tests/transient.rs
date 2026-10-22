@@ -335,7 +335,7 @@ for name, rejected in (
     ("trailing.eqtrajectory", mini_trajectory_bytes + b"\n"),
     (
         "unknown-version.eqtrajectory",
-        mini_trajectory_bytes.replace(b"common-trajectory/v9", b"common-trajectory/v10"),
+        mini_trajectory_bytes.replace(b"common-trajectory/v10", b"common-trajectory/v11"),
     ),
 ):
     rejected_path = trajectory_directory / name

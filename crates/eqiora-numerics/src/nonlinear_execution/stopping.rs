@@ -14,10 +14,17 @@ pub(crate) enum NewtonStopping<'a> {
     Correction { relative: f64, absolute: &'a [f64] },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum NewtonConvergence {
-    Residual { target: f64 },
-    Correction { weighted_norm: f64 },
+    Residual {
+        target: f64,
+    },
+    Correction {
+        weighted_norm: f64,
+        point: Vec<f64>,
+        direction: Vec<f64>,
+    },
     ExactResidualZero,
 }
 
@@ -35,7 +42,7 @@ impl From<NonlinearSolvePlan> for NewtonOptions<'_> {
 }
 
 impl NewtonOptions<'_> {
-    pub(super) fn validate(&self, dimension: usize) -> Result<(), Diagnostic> {
+    pub(crate) fn validate(&self, dimension: usize) -> Result<(), Diagnostic> {
         let valid = match self.stopping {
             NewtonStopping::Residual { relative, absolute } => {
                 relative.is_finite()
@@ -75,7 +82,7 @@ impl NewtonStopping<'_> {
         }
     }
 
-    pub(super) fn correction_norm(
+    pub(crate) fn correction_norm(
         &self,
         point: &[f64],
         direction: &[f64],
@@ -83,6 +90,17 @@ impl NewtonStopping<'_> {
         let Self::Correction { relative, absolute } = self else {
             return Ok(None);
         };
+        if point.len() != absolute.len()
+            || direction.len() != point.len()
+            || point
+                .iter()
+                .chain(direction)
+                .any(|value| !value.is_finite())
+        {
+            return Err(failed(
+                "Newton correction witness has foreign or nonfinite coordinates",
+            ));
+        }
         let mut norm = 0_f64;
         for ((value, delta), absolute) in point.iter().zip(direction).zip(*absolute) {
             let scale = absolute + relative * value.abs();
@@ -101,12 +119,21 @@ impl NewtonStopping<'_> {
         }
     }
 
-    pub(super) fn convergence(&self, target: f64, norm: f64, residual: f64) -> NewtonConvergence {
+    pub(super) fn convergence(
+        &self,
+        target: f64,
+        norm: f64,
+        residual: f64,
+        point: &[f64],
+        direction: &[f64],
+    ) -> NewtonConvergence {
         match self {
             Self::Residual { .. } => NewtonConvergence::Residual { target },
             Self::Correction { .. } if residual == 0. => NewtonConvergence::ExactResidualZero,
             Self::Correction { .. } => NewtonConvergence::Correction {
                 weighted_norm: norm,
+                point: point.to_vec(),
+                direction: direction.to_vec(),
             },
         }
     }

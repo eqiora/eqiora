@@ -112,6 +112,18 @@ impl RegionAssemblyLinearization {
         linear: LinearSolveRequest<'_>,
         workers: NonZeroUsize,
     ) -> Result<(Vec<f64>, eqiora_solver::SolveReport), Diagnostic> {
+        let core = self.correction_core(index, linear.plan(), workers)?;
+        let solution = linear.solve(&core.linear_problem()?)?;
+        core.validate_solution(&solution)?;
+        Ok(solution.into_parts())
+    }
+
+    pub(crate) fn correction_core(
+        &self,
+        index: usize,
+        solver: eqiora_solver::SolverPlan,
+        workers: NonZeroUsize,
+    ) -> Result<crate::finalized_spatial::FinalizedLinearCore<f64>, Diagnostic> {
         let system = eqiora_assembly::LinearSystem::new(
             self.systems[index].matrix().clone(),
             self.residuals[index].iter().map(|value| -*value).collect(),
@@ -121,14 +133,11 @@ impl RegionAssemblyLinearization {
             system.rhs(),
             LinearOperatorProperties::General,
         )?);
-        let core = crate::finalized_spatial::FinalizedLinearCore::new(
-            linear.plan(),
+        Ok(crate::finalized_spatial::FinalizedLinearCore::new(
+            solver,
             VectorLayoutKind::Replicated,
             Target::HostCpu { threads: workers },
             canonical,
-        );
-        let solution = linear.solve(&core.linear_problem()?)?;
-        core.validate_solution(&solution)?;
-        Ok(solution.into_parts())
+        ))
     }
 }

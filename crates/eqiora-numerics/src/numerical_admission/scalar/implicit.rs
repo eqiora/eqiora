@@ -1,5 +1,7 @@
 //! Continuous spatial equations in free real coordinates, including analytic trace rates.
 mod midpoint;
+mod replay;
+mod run;
 use super::*;
 use crate::form_compiler::region::FieldPullback;
 use crate::form_compiler::spatial::InputPartialScope;

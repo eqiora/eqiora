@@ -9,7 +9,7 @@ use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 
-const SCHEMA: &str = "eqiora.common-transient-run-request/v1";
+const SCHEMA: &str = "eqiora.common-transient-run-request/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 // A canonical Plan admits 256 MiB and a canonical spatial State admits 512 MiB.
 // Base64 expansion plus the small request header stays below this envelope bound.
@@ -23,18 +23,18 @@ pub struct RunRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireRunRequestV1 {
+struct WireRunRequest {
     schema: String,
     encoding: String,
     identity: String,
     plan_base64: String,
     state_base64: String,
-    accepted_steps: u64,
-    output_steps: Vec<u64>,
+    until_s: f64,
+    output_times_s: Vec<f64>,
 }
 
 impl RunRequest {
-    /// Prepare one normalized accepted-step request for common transient flow.
+    /// Prepare one fixed-grid spatial request and normalize it to physical times.
     pub fn from_steps(
         plan: ResolvedCommonPlan,
         state: CommonState,
@@ -44,7 +44,7 @@ impl RunRequest {
         CommonTransientRunRequest::from_steps(plan, state, steps, output_steps).map(Self::from)
     }
 
-    /// Prepare one normalized exact-time request for common transient flow.
+    /// Prepare one spatial request with a physical horizon and observation times.
     pub fn from_times(
         plan: ResolvedCommonPlan,
         state: CommonState,
@@ -74,13 +74,12 @@ impl RunRequest {
 
     /// Encode the complete Plan, initial State, and normalized schedule.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        let bytes = serde_json::to_vec(&WireRunRequestV1::from_request(&self.native)?).map_err(
-            |error| {
+        let bytes =
+            serde_json::to_vec(&WireRunRequest::from_request(&self.native)?).map_err(|error| {
                 invalid(format!(
                     "cannot encode common transient RunRequest artifact: {error}"
                 ))
-            },
-        )?;
+            })?;
         if bytes.len() > MAX_BYTES {
             return Err(invalid(format!(
                 "common transient RunRequest has {} bytes, exceeding the {MAX_BYTES} byte limit",
@@ -111,7 +110,7 @@ impl RunRequest {
                 bytes.len()
             )));
         }
-        let wire: WireRunRequestV1 = serde_json::from_slice(bytes).map_err(|error| {
+        let wire: WireRunRequest = serde_json::from_slice(bytes).map_err(|error| {
             invalid(format!("invalid common transient RunRequest JSON: {error}"))
         })?;
         wire.validate_header()?;
@@ -132,28 +131,17 @@ impl From<CommonTransientRunRequest> for RunRequest {
     }
 }
 
-impl WireRunRequestV1 {
+impl WireRunRequest {
     fn from_request(request: &CommonTransientRunRequest) -> Result<Self, Diagnostic> {
         let plan = request.plan();
-        let accepted_steps = u64::try_from(request.accepted_steps().get())
-            .map_err(|_| invalid("RunRequest horizon exceeds canonical u64 range"))?;
-        let output_steps = request
-            .output_steps()
-            .iter()
-            .copied()
-            .map(|step| {
-                u64::try_from(step)
-                    .map_err(|_| invalid("RunRequest output index exceeds canonical u64 range"))
-            })
-            .collect::<Result<_, _>>()?;
         Ok(Self {
             schema: SCHEMA.to_owned(),
             encoding: ENCODING.to_owned(),
             identity: request.identity().to_owned(),
             plan_base64: BASE64_STANDARD.encode(plan.to_bytes()?),
             state_base64: BASE64_STANDARD.encode(request.state().to_bytes()?),
-            accepted_steps,
-            output_steps,
+            until_s: request.until_s(),
+            output_times_s: request.output_times_s().to_vec(),
         })
     }
 
@@ -175,20 +163,12 @@ impl WireRunRequestV1 {
         let resolved = ResolvedCommonPlan::from_bytes(&plan_bytes, linear_backend, time_backend)?;
 
         let state = CommonState::from_bytes(&decode(&self.state_base64, "State")?, &resolved)?;
-        let accepted_steps = usize::try_from(self.accepted_steps)
-            .map_err(|_| invalid("RunRequest horizon exceeds this platform's usize range"))?;
-        let output_steps = self
-            .output_steps
-            .iter()
-            .copied()
-            .map(|step| {
-                usize::try_from(step).map_err(|_| {
-                    invalid("RunRequest output index exceeds this platform's usize range")
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let request =
-            CommonTransientRunRequest::from_steps(resolved, state, accepted_steps, output_steps)?;
+        let request = CommonTransientRunRequest::from_times(
+            resolved,
+            state,
+            self.until_s,
+            self.output_times_s.clone(),
+        )?;
         if request.identity() != self.identity {
             return Err(invalid(
                 "common transient RunRequest identity does not match its canonical content",
