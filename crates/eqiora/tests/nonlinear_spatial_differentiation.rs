@@ -100,6 +100,7 @@ fn fixture_from_document(
         None,
         &FaerLinearSolver,
         None,
+        None,
     )
     .unwrap();
     let seed = plan

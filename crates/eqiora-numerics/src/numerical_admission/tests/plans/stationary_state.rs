@@ -42,6 +42,7 @@ fn stationary_material_flux_matches_nonzero_natural_data_without_double_counting
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -177,6 +178,7 @@ fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -252,6 +254,7 @@ fn stationary_newton_retains_seed_history_and_replays_original_equations() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();

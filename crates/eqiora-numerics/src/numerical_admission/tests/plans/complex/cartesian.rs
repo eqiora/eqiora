@@ -70,6 +70,7 @@ fn scalar_domains_preserve_cartesian_field_entities_in_two_and_three_dimensions(
                     None,
                     &REFERENCE_LINEAR_SOLVER,
                     None,
+                    None,
                 )
                 .unwrap();
                 let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -191,6 +192,7 @@ fn transient_tpfa_keeps_affine_time_data_on_anisotropic_cartesian_cells() {
                     None,
                     Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
                     &REFERENCE_LINEAR_SOLVER,
+                    None,
                     None,
                 )
                 .unwrap();

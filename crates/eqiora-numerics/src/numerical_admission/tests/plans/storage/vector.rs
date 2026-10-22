@@ -49,6 +49,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
         Some(CommonBackwardEuler::from_seconds(1. / 24.).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

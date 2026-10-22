@@ -114,6 +114,7 @@ fn heat_with_spatial(
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
     .as_spatial()

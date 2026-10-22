@@ -79,6 +79,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = ResolvedCommonPlan::from_bytes(
@@ -193,6 +194,7 @@ fn select_document(
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )?;
     Ok((model, document, plan))

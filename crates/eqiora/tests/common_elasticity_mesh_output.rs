@@ -267,6 +267,7 @@ fn try_accepted_source_on_with_traction(
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         document.authored_formulation_projection().unwrap(),
     )?
     .as_spatial()

@@ -81,6 +81,7 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
                 None,
                 None,
                 &ResolveOnlyBackend,
+                None,
                 Some(&projection),
             )
             .unwrap();

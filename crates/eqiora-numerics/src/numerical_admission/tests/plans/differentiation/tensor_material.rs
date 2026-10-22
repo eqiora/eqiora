@@ -126,6 +126,7 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

@@ -32,9 +32,9 @@ mod forward_policy;
 mod temporal;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
-use temporal::{WireTemporal, temporal_request};
+use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v20";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v21";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -138,6 +138,8 @@ struct WireResolvedCommonPlan {
     spectral: Option<WireEigenRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temporal: Option<WireTemporal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    time_backend: Option<WireTimeBackend>,
     #[serde(skip_serializing_if = "Option::is_none")]
     enforcement: Option<WireEnforcement>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -374,6 +376,7 @@ impl WireResolvedCommonPlan {
                 .as_eigen()
                 .map(|plan| WireEigenRequest::from_native(plan.request())),
             temporal: temporal_request(plan),
+            time_backend: WireTimeBackend::from_plan(plan),
             enforcement: plan
                 .as_algebraic()
                 .and_then(|plan| plan.enforcement())
@@ -404,6 +407,11 @@ impl WireResolvedCommonPlan {
         {
             return Err(invalid(
                 "finite enforcement or residual scales cannot accompany a spatial or temporal Plan",
+            ));
+        }
+        if matches!(self.temporal, Some(WireTemporal::Ode { .. })) != self.time_backend.is_some() {
+            return Err(invalid(
+                "controlled temporal policy and time backend must be present together",
             ));
         }
         let time = self.family == WirePlanFamily::Time;
@@ -503,6 +511,12 @@ impl WireResolvedCommonPlan {
         linear_backend: &dyn LinearSolverBackend,
         time_backend: TimeBackendCapabilities,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
+        let admitted_time_backend = match (&self.temporal, &self.time_backend) {
+            (Some(WireTemporal::Ode { method, .. }), Some(backend)) => {
+                Some(backend.resolve(*method, time_backend)?)
+            }
+            _ => None,
+        };
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
         if self.family == WirePlanFamily::Eigen {
@@ -591,11 +605,8 @@ impl WireResolvedCommonPlan {
                         .join("; ")
                 ))
             })?;
-            let backend = if temporal.method() == eqiora_time::TimeMethod::ImplicitMidpoint {
-                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
-            } else {
-                time_backend
-            };
+            let backend = admitted_time_backend
+                .ok_or_else(|| invalid("ODE Plan omitted its time backend"))?;
             return ResolvedCommonPlan::resolve_ode(&model, &program, temporal, backend);
         }
 
@@ -676,6 +687,7 @@ impl WireResolvedCommonPlan {
             scaling,
             temporal,
             linear_backend,
+            admitted_time_backend,
             authored_formulation.as_ref(),
         )
     }

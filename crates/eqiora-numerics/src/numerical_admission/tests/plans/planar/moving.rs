@@ -180,6 +180,7 @@ fn mapped_plan_at_step(source: &str, step: f64) -> ResolvedCommonPlan {
         Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
 }

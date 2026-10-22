@@ -118,6 +118,7 @@ fn channel_fields_retain_each_real_and_complex_component() {
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap_or_else(|error| panic!("{method:?}, complex={complex}: {error:?}"));
             let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -317,6 +318,7 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap_or_else(|error| panic!("{method:?}, complex={complex}: {error:?}"));
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -400,6 +402,7 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap();

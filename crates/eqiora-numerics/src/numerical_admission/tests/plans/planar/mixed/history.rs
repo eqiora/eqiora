@@ -55,6 +55,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

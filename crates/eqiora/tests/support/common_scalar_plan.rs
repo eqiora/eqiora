@@ -128,7 +128,7 @@ pub(crate) fn plan_for_document_with_solver(
             .unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     eqiora_numerics::ResolvedCommonPlan::resolve(
-        &model, owner, spatial, solver, None, None, backend, None,
+        &model, owner, spatial, solver, None, None, backend, None, None,
     )
     .unwrap()
     .as_spatial()
@@ -334,6 +334,7 @@ fn document_and_plans_with_source(
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap()

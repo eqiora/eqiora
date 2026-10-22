@@ -65,6 +65,17 @@ where
                 Ok(candidate)
             },
         )?;
+        if self
+            .plan
+            .admission
+            .time_backend
+            .map(|backend| backend.identity())
+            != Some(solution.report().backend_identity())
+        {
+            return Err(invalid(
+                "spatial time execution backend differs from the admitted Plan",
+            ));
+        }
         let states = request
             .output_times_s()
             .iter()

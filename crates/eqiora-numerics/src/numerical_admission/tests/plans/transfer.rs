@@ -57,6 +57,7 @@ fn refined_state_interpolates_interior_and_lifts_exact_target_trace() {
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap()
         };

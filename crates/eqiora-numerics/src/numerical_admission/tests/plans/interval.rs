@@ -233,6 +233,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
             None,
             None,
             &ResolveOnlyBackend,
+            None,
             projection,
         )
     };

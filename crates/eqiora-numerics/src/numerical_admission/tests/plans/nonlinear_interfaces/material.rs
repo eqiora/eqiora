@@ -91,6 +91,7 @@ fn stationary_material_interfaces_preserve_unequal_flux_laws_and_replay() {
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);

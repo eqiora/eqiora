@@ -135,6 +135,7 @@ fn resolve_with_solve(
         temporal,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
 }
 

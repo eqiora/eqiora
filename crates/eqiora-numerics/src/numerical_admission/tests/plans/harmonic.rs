@@ -54,6 +54,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         Some(&form),
     )
     .unwrap();

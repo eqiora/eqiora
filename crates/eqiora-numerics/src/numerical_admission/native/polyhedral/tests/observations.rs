@@ -94,6 +94,7 @@ fn tetrahedral_point_observations_reconstruct_complete_real_and_complex_p1_field
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let result = plan

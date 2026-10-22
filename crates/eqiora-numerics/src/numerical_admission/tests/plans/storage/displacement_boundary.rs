@@ -37,6 +37,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
@@ -157,6 +158,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
         None,
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();

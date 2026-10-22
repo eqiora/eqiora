@@ -115,6 +115,7 @@ fn resolve(source: &str) -> Result<(ResolvedCommonPlan, BTreeMap<String, RawId>)
         None,
         &ResolveOnlyBackend,
         None,
+        None,
     )?;
     Ok((resolved, ids))
 }

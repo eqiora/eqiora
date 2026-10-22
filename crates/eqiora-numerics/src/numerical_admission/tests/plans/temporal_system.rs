@@ -73,6 +73,7 @@ fn resolve(
         Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
 }

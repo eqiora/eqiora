@@ -104,6 +104,7 @@ public component AffineStorage(
         Some(temporal.into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();
@@ -153,6 +154,7 @@ public component AffineStorage(
         Some(temporal.into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let mismatch = mismatched_plan
@@ -188,6 +190,7 @@ public component AffineStorage(
         None,
         Some(temporal.into()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();
@@ -355,6 +358,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .unwrap()
         .as_transient_flow()
@@ -486,6 +490,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
@@ -527,6 +532,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.into()),
             &PlanningFaerBackend,
+            None,
             None,
         )
         .unwrap()
@@ -591,6 +597,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(temporal.into()),
         &ResolveOnlyBackend,
         None,
+        None,
     )
     .unwrap()
     .as_transient_flow()
@@ -616,6 +623,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         )),
         Some(temporal.into()),
         &ResolveOnlyBackend,
+        None,
         None,
     )
     .unwrap()
@@ -671,6 +679,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(crate::CommonScalingRequest::Incompressible(scaling)),
         Some(temporal.into()),
         &PlanningFaerBackend,
+        None,
         None,
     )
     .unwrap();
@@ -868,6 +877,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .is_err()
     );
@@ -883,6 +893,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .is_err()
     );
@@ -896,6 +907,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             None,
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .is_err()
     );
@@ -908,6 +920,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.into()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()
@@ -925,6 +938,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .is_err()
     );
@@ -940,6 +954,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.into()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()

@@ -34,6 +34,7 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     None,
                     Some(requested.into()),
                     &REFERENCE_LINEAR_SOLVER,
+                    Some(eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES),
                     None,
                 )
                 .unwrap();

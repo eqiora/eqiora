@@ -54,6 +54,7 @@ fn resolve() -> (ResolvedCommonPlan, Vec<Vec<f64>>) {
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     (plan, vertices)

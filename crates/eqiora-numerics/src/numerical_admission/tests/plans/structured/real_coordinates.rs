@@ -147,6 +147,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);

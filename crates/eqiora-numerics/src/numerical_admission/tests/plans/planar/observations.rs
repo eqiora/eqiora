@@ -49,6 +49,7 @@ fn planar_storage_observations_select_exact_sparse_outputs() {
             Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let spatial = plan.as_spatial().unwrap();
@@ -196,6 +197,7 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
             None,
             Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap();

@@ -73,6 +73,7 @@ fn nonlinear_mini_history_preserves_consistent_pressure_through_common_newton() 
                 Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

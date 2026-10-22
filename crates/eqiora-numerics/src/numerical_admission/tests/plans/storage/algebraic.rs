@@ -166,6 +166,7 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

@@ -69,6 +69,7 @@ fn resolve_with_middle(discontinuous: bool, algebraic_middle: bool) -> ResolvedC
         Some(CommonBackwardEuler::from_seconds(1.).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
 }

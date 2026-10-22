@@ -16,7 +16,8 @@ impl ResolvedCommonPlan {
         solve: CommonSolvePolicy,
         scaling: Option<CommonScalingRequest>,
         temporal: Option<CommonTemporalPolicy>,
-        stokes_backend: &dyn LinearSolverBackend,
+        linear_backend: &dyn LinearSolverBackend,
+        time_backend: Option<eqiora_time::TimeBackendCapabilities>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let method = method.into();
@@ -29,6 +30,7 @@ impl ResolvedCommonPlan {
             ) || !matches!(solve, CommonSolvePolicy::Linear(_))
                 || scaling.is_some()
                 || temporal.is_some()
+                || time_backend.is_some()
             {
                 return Err(invalid(
                     "harmonic spatial response requires Q1 and a linear solve without time stepping or flow scaling",
@@ -48,7 +50,8 @@ impl ResolvedCommonPlan {
                 solve,
                 None,
                 None,
-                stokes_backend,
+                linear_backend,
+                None,
                 None,
             )?;
             let Self::Spatial(plan) = inner else {
@@ -108,12 +111,13 @@ impl ResolvedCommonPlan {
                     "coordinate cell-integrated equality",
                     LinearOperatorProperties::SymmetricPositiveDefinite,
                     Some(structure),
-                    stokes_backend,
+                    linear_backend,
                 )?;
                 let admission = recognized.complete(
                     NativeSpatialPolicy::CoordinateCellConstant,
                     linear,
                     temporal,
+                    time_backend,
                     None,
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;
@@ -178,10 +182,16 @@ impl ResolvedCommonPlan {
                     "linear conservation form",
                     properties,
                     Some(structure),
-                    stokes_backend,
+                    linear_backend,
                 )?;
-                let admission =
-                    recognized.complete(spatial, linear, temporal, nonlinear, system_scaling)?;
+                let admission = recognized.complete(
+                    spatial,
+                    linear,
+                    temporal,
+                    time_backend,
+                    nonlinear,
+                    system_scaling,
+                )?;
                 CommonSpatialPlan::from_admission(
                     model,
                     admission,
@@ -239,7 +249,7 @@ impl ResolvedCommonPlan {
                     super::solver_planning::resolve_complex_linear(
                         request,
                         properties,
-                        stokes_backend,
+                        linear_backend,
                     )?
                 } else {
                     super::solver_planning::resolve_linear(
@@ -248,7 +258,7 @@ impl ResolvedCommonPlan {
                         None,
                         None,
                         Some(structure.clone()),
-                        stokes_backend,
+                        linear_backend,
                     )?
                 };
                 let profile =
@@ -256,8 +266,14 @@ impl ResolvedCommonPlan {
                         .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
-                let admission =
-                    recognized.complete(spatial, linear, temporal, nonlinear, system_scaling)?;
+                let admission = recognized.complete(
+                    spatial,
+                    linear,
+                    temporal,
+                    time_backend,
+                    nonlinear,
+                    system_scaling,
+                )?;
                 CommonSpatialPlan::from_complex_admission(
                     model,
                     admission,
@@ -294,12 +310,13 @@ impl ResolvedCommonPlan {
                     None,
                     None,
                     Some(binding.algebraic_structure()?),
-                    stokes_backend,
+                    linear_backend,
                 )?;
                 let admission = recognized.complete(
                     spatial.with_scaling(scaling.scales()),
                     linear,
                     None,
+                    time_backend,
                     None,
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;
@@ -351,13 +368,14 @@ impl ResolvedCommonPlan {
                         &recognized.recognized,
                         spatial,
                     )?),
-                    stokes_backend,
+                    linear_backend,
                 )?;
                 let native_spatial = spatial.with_scaling(scaling.scales());
                 let admission = recognized.complete(
                     native_spatial,
                     linear,
                     Some(temporal.into()),
+                    time_backend,
                     Some(nonlinear),
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;

@@ -477,6 +477,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap()
         .as_spatial()

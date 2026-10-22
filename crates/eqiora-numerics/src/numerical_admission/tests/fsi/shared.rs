@@ -218,6 +218,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

@@ -103,6 +103,20 @@ impl CommonOdePolicy {
         })
     }
 
+    pub(crate) fn validate_backend(
+        &self,
+        capabilities: eqiora_time::TimeBackendCapabilities,
+    ) -> Result<(), Diagnostic> {
+        if self.method() == TimeMethod::ImplicitMidpoint
+            && capabilities.identity() != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
+        {
+            return Err(invalid(
+                "implicit midpoint requires its available host backend identity",
+            ));
+        }
+        Ok(())
+    }
+
     /// Exact numerical integration method selected by this policy.
     #[must_use]
     pub const fn method(&self) -> TimeMethod {
@@ -167,13 +181,7 @@ impl CommonOdePlan {
         capabilities: eqiora_time::TimeBackendCapabilities,
     ) -> Result<Self, Diagnostic> {
         let backend = capabilities.identity();
-        if temporal.method() == TimeMethod::ImplicitMidpoint
-            && backend != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
-        {
-            return Err(invalid(
-                "implicit midpoint requires its available host backend identity",
-            ));
-        }
+        temporal.validate_backend(capabilities)?;
         if temporal.method() == TimeMethod::ImplicitMidpoint
             && (temporal.events().is_some() || temporal.forward_sensitivities().is_some())
         {

@@ -39,6 +39,7 @@ pub(crate) fn policy_identity(
     spatial: &NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
     temporal: Option<&CommonTemporalPolicy>,
+    time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     nonlinear: Option<NonlinearSolvePlan>,
 ) -> Result<String, Diagnostic> {
     let mut bytes = Vec::new();
@@ -98,6 +99,11 @@ pub(crate) fn policy_identity(
             &mut bytes,
             &super::super::plan_artifact::temporal_policy_bytes(temporal)?,
         );
+    }
+
+    if let Some(backend) = time_backend {
+        push_framed(&mut bytes, backend.identity().id().as_bytes());
+        push_framed(&mut bytes, backend.identity().version().as_bytes());
     }
 
     if let Some(nonlinear) = nonlinear {

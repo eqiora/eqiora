@@ -73,6 +73,7 @@ fn resolve(
         step,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
 }
@@ -292,6 +293,7 @@ fn tetrahedral_boundary_coverage_and_multiplier_closure_are_required() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap_err();

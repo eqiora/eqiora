@@ -159,6 +159,7 @@ fn fixed_map_specialization_matches_fixed_domain_law() {
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let mapped = run(mapped_plan_at_step(&mapped, 0.25), 3);

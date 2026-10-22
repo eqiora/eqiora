@@ -87,6 +87,7 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);

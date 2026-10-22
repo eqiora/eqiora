@@ -1,6 +1,47 @@
 //! Exact temporal policy payload and conversion for common Plan persistence.
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireTimeBackend {
+    id: String,
+    version: String,
+}
+
+impl WireTimeBackend {
+    pub(super) fn from_plan(plan: &ResolvedCommonPlan) -> Option<Self> {
+        let identity = match plan {
+            ResolvedCommonPlan::Time(plan) => plan.as_ode()?.backend(),
+            ResolvedCommonPlan::Spatial(plan) => plan.admission.time_backend?.identity(),
+            _ => return None,
+        };
+        Some(Self {
+            id: identity.id().to_owned(),
+            version: identity.version().to_owned(),
+        })
+    }
+
+    pub(super) fn resolve(
+        &self,
+        method: WireOdeMethod,
+        available: TimeBackendCapabilities,
+    ) -> Result<TimeBackendCapabilities, Diagnostic> {
+        let backend = match method {
+            WireOdeMethod::ImplicitMidpoint => {
+                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
+            }
+            WireOdeMethod::Tsitouras45 => available,
+        };
+        let identity = backend.identity();
+        if self.id != identity.id() || self.version != identity.version() {
+            return Err(invalid(
+                "persisted time backend identity or version differs from the available implementation",
+            ));
+        }
+        Ok(backend)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WireOdeTolerance {

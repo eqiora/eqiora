@@ -168,6 +168,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
         Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

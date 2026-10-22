@@ -163,6 +163,7 @@ fn check_derivatives(
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

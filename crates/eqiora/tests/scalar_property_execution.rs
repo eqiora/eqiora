@@ -696,6 +696,7 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
     .as_spatial()

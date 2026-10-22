@@ -131,6 +131,7 @@ fn resolve_with_boundary(
         Some(CommonBackwardEuler::from_seconds(0.125).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     replay_plan(plan, &REFERENCE_LINEAR_SOLVER)

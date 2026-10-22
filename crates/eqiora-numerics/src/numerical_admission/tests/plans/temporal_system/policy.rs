@@ -35,14 +35,27 @@ pub(super) fn with_policy(
     plan: &ResolvedCommonPlan,
     policy: CommonOdePolicy,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
+    let backend = match policy.method() {
+        TimeMethod::ImplicitMidpoint => eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+        _ => TEST_TIME_BACKEND,
+    };
+    with_backend(plan, Some(policy.into()), Some(backend))
+}
+
+fn with_backend(
+    plan: &ResolvedCommonPlan,
+    temporal: Option<CommonTemporalPolicy>,
+    backend: Option<eqiora_time::TimeBackendCapabilities>,
+) -> Result<ResolvedCommonPlan, Diagnostic> {
     ResolvedCommonPlan::resolve(
         plan.model_artifact(),
         plan.authenticated_mesh().unwrap(),
         plan.canonical_method_request().unwrap(),
         plan.canonical_solve_request().unwrap(),
         plan.canonical_scaling_request(),
-        Some(policy.into()),
+        temporal,
         &REFERENCE_LINEAR_SOLVER,
+        backend,
         None,
     )
 }
@@ -196,11 +209,11 @@ fn spatial_time_plan_rejects_retired_schema_and_changed_controls() {
     let requested = policy(&base, TimeMethod::ImplicitMidpoint, 0.125);
     let plan = with_policy(&base, requested).unwrap();
     let original = String::from_utf8(plan.to_bytes().unwrap()).unwrap();
-    assert!(original.contains("eqiora.resolved-common-plan/v20"));
+    assert!(original.contains("eqiora.resolved-common-plan/v21"));
     for (before, after, diagnostic) in [
         (
+            "eqiora.resolved-common-plan/v21",
             "eqiora.resolved-common-plan/v20",
-            "eqiora.resolved-common-plan/v19",
             "schema",
         ),
         (
@@ -220,4 +233,144 @@ fn spatial_time_plan_rejects_retired_schema_and_changed_controls() {
         .unwrap_err();
         assert!(error.message().contains(diagnostic), "{error}");
     }
+}
+
+#[test]
+fn spatial_time_backend_admission_binds_identity_and_available_domains() {
+    use eqiora_time::{TimeBackendCapabilities, TimeBackendIdentity};
+    let base = resolve(
+        true,
+        CommonSpatialPolicy::Q1,
+        0.25,
+        "1[s]*derivative(u)+u=0;",
+        None,
+    );
+    let adaptive = policy(&base, TimeMethod::Tsitouras45, 0.125);
+    let resolved = with_backend(
+        &base,
+        Some(adaptive.clone().into()),
+        Some(TEST_TIME_BACKEND),
+    )
+    .unwrap();
+    let real_only = TimeBackendCapabilities::new(
+        TEST_TIME_BACKEND.identity(),
+        &[eqiora_core::ScalarDomain::Real],
+        &[eqiora_core::ScalarType::F64],
+    );
+    let wrong_precision = TimeBackendCapabilities::new(
+        TEST_TIME_BACKEND.identity(),
+        &[eqiora_core::ScalarDomain::Complex],
+        &[eqiora_core::ScalarType::F32],
+    );
+    for backend in [real_only, wrong_precision] {
+        let error = with_backend(&base, Some(adaptive.clone().into()), Some(backend)).unwrap_err();
+        assert!(error.message().contains("does not support"), "{error}");
+        let error = ResolvedCommonPlan::from_bytes(
+            &resolved.to_bytes().unwrap(),
+            &REFERENCE_LINEAR_SOLVER,
+            backend,
+        )
+        .unwrap_err();
+        assert!(error.message().contains("does not support"), "{error}");
+    }
+    for identity in [
+        TimeBackendIdentity::new("eqiora.test.other-time", "1"),
+        TimeBackendIdentity::new("eqiora.test.time", "2"),
+    ] {
+        let other = TimeBackendCapabilities::new(
+            identity,
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        );
+        let changed = with_backend(&base, Some(adaptive.clone().into()), Some(other)).unwrap();
+        assert_ne!(changed.identity(), resolved.identity());
+        let bytes = changed.to_bytes().unwrap();
+        assert_eq!(
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, other)
+                .unwrap()
+                .to_bytes()
+                .unwrap(),
+            bytes
+        );
+        let error =
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, TEST_TIME_BACKEND)
+                .unwrap_err();
+        assert!(
+            error.message().contains("time backend identity or version"),
+            "{error}"
+        );
+    }
+    for (temporal, backend, message) in [
+        (
+            Some(adaptive.into()),
+            None,
+            "requires an available time backend",
+        ),
+        (
+            Some(policy(&base, TimeMethod::ImplicitMidpoint, 0.125).into()),
+            Some(TEST_TIME_BACKEND),
+            "available host backend identity",
+        ),
+        (
+            base.backward_euler().map(Into::into),
+            Some(TEST_TIME_BACKEND),
+            "requires a controlled time policy",
+        ),
+    ] {
+        let error = with_backend(&base, temporal, backend).unwrap_err();
+        assert!(error.message().contains(message), "{error}");
+    }
+}
+
+#[test]
+fn spatial_time_backend_payload_rejects_missing_or_changed_provider() {
+    let base = resolve(
+        false,
+        CommonSpatialPolicy::Q1,
+        0.25,
+        "1[s]*derivative(u)+u=0;",
+        None,
+    );
+    let resolved = with_policy(&base, policy(&base, TimeMethod::Tsitouras45, 0.125)).unwrap();
+    let original = String::from_utf8(resolved.to_bytes().unwrap()).unwrap();
+    let provider = r#""time_backend":{"id":"eqiora.test.time","version":"1"},"#;
+    assert_eq!(original.matches(provider).count(), 1);
+    for (before, after, message) in [
+        (provider, "", "must be present together"),
+        (
+            "eqiora.test.time",
+            "eqiora.test.foreign",
+            "time backend identity or version",
+        ),
+        (
+            r#""version":"1""#,
+            r#""version":"2""#,
+            "time backend identity or version",
+        ),
+    ] {
+        assert_eq!(original.matches(before).count(), 1);
+        let changed = original.replacen(before, after, 1);
+        let error = ResolvedCommonPlan::from_bytes(
+            changed.as_bytes(),
+            &REFERENCE_LINEAR_SOLVER,
+            TEST_TIME_BACKEND,
+        )
+        .unwrap_err();
+        assert!(error.message().contains(message), "{error}");
+    }
+    let original = String::from_utf8(base.to_bytes().unwrap()).unwrap();
+    let changed = original.replacen(r#""backend":"#, &format!("{provider}\"backend\":"), 1);
+    let error = ResolvedCommonPlan::from_bytes(
+        changed.as_bytes(),
+        &REFERENCE_LINEAR_SOLVER,
+        TEST_TIME_BACKEND,
+    )
+    .unwrap_err();
+    assert!(
+        error.message().contains("must be present together"),
+        "{error}"
+    );
 }

@@ -88,6 +88,7 @@ fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let plan = plan.as_spatial().unwrap();

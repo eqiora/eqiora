@@ -37,6 +37,7 @@ fn storage_plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
         None,
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         Some(&projection),
     )
 }

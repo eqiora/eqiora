@@ -337,8 +337,15 @@ impl CommonSpatialPlan {
         accepted_authored_formulation: Option<AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
         if let Some(CommonTemporalPolicy::Ode(policy)) = &admission.temporal {
+            let backend = admission
+                .time_backend
+                .ok_or_else(|| invalid("controlled time policy omitted its admitted backend"))?;
             let mut coordinates = Vec::new();
             for (field, value_type) in &fields {
+                backend.admit_real_coordinates(
+                    value_type.scalar_domain(),
+                    eqiora_core::ScalarType::F64,
+                )?;
                 let components = value_type
                     .shape()
                     .component_count()

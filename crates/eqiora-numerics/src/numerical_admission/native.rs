@@ -420,6 +420,7 @@ pub(super) struct NativeNumericalAdmission {
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
     pub(super) temporal: Option<CommonTemporalPolicy>,
+    pub(super) time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     pub(super) nonlinear: Option<NonlinearSolvePlan>,
     pub(super) operator_properties: LinearOperatorProperties,
 }
@@ -559,9 +560,25 @@ impl RecognizedNativeAdmission {
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
         temporal: Option<CommonTemporalPolicy>,
+        time_backend: Option<eqiora_time::TimeBackendCapabilities>,
         nonlinear: Option<NonlinearSolvePlan>,
         system_scaling: eqiora_realization::SystemScaling,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
+        match (
+            temporal.as_ref().and_then(CommonTemporalPolicy::as_ode),
+            time_backend,
+        ) {
+            (Some(policy), Some(backend)) => policy.validate_backend(backend)?,
+            (Some(_), None) => {
+                return Err(invalid(
+                    "controlled time policy requires an available time backend",
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(invalid("time backend requires a controlled time policy"));
+            }
+            (None, None) => {}
+        }
         self.recognized.require_spatial_realization(&spatial)?;
         if !matches!(
             system_scaling,
@@ -604,7 +621,13 @@ impl RecognizedNativeAdmission {
                 }
             }
         }
-        let policy_identity = policy_identity(&spatial, &linear, temporal.as_ref(), nonlinear)?;
+        let policy_identity = policy_identity(
+            &spatial,
+            &linear,
+            temporal.as_ref(),
+            time_backend,
+            nonlinear,
+        )?;
         Ok(NativeNumericalAdmission {
             recognition: self,
             discretizations,
@@ -614,6 +637,7 @@ impl RecognizedNativeAdmission {
             linear,
             policy_identity,
             temporal,
+            time_backend,
             nonlinear,
         })
     }
@@ -685,6 +709,7 @@ impl NativeNumericalAdmission {
             linear,
             None,
             None,
+            None,
             eqiora_realization::SystemScaling::Dimensional,
         )
     }
@@ -700,6 +725,7 @@ impl NativeNumericalAdmission {
             self.spatial.clone(),
             self.linear.clone(),
             self.temporal.clone(),
+            self.time_backend,
             self.nonlinear,
             self.system_scaling.clone(),
         )?;

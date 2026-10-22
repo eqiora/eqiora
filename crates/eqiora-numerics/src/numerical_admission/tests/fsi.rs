@@ -63,6 +63,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
@@ -222,6 +223,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             Some(temporal.into()),
             &FsiPlanningBackend,
             None,
+            None,
         )
         .unwrap();
         assert_eq!(ranked.solver_planning_objective(), Some(objective));
@@ -252,6 +254,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         None,
         Some(temporal.into()),
         &FsiPlanningBackend,
+        None,
         None,
     )
     .unwrap();
@@ -419,6 +422,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             None,
             Some(temporal.into()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()

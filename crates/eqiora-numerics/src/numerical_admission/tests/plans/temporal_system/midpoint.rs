@@ -160,6 +160,7 @@ fn a_failed_nonlinear_midpoint_stage_preserves_the_input() {
         base.canonical_scaling_request(),
         Some(requested.into()),
         &REFERENCE_LINEAR_SOLVER,
+        Some(eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES),
         None,
     )
     .unwrap();

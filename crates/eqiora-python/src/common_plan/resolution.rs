@@ -113,11 +113,7 @@ pub(super) fn resolve_plan(
             }
             _ => {
                 let policy = ode_policy(py, &temporal_handle, &digest)?;
-                let backend = if policy.method() == eqiora::time::TimeMethod::ImplicitMidpoint {
-                    eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
-                } else {
-                    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES
-                };
+                let backend = time_backend(&policy);
                 eqiora_numerics::ResolvedCommonPlan::resolve_ode(
                     artifact, &program, policy, backend,
                 )
@@ -312,6 +308,10 @@ pub(super) fn resolve_plan(
         .ok_or_else(|| {
             PyTypeError::new_err("mesh must be an authenticated caller-owned common Mesh")
         })?;
+    let available_time_backend = temporal_native
+        .as_ref()
+        .and_then(eqiora_numerics::CommonTemporalPolicy::as_ode)
+        .map(time_backend);
     let native = eqiora_numerics::ResolvedCommonPlan::resolve(
         model_ref.artifact(),
         owner,
@@ -320,6 +320,7 @@ pub(super) fn resolve_plan(
         scaling.map(eqiora_numerics::CommonScalingRequest::Incompressible),
         temporal_native,
         &FaerLinearSolver,
+        available_time_backend,
         model_ref
             .authored_formulation_projection()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
@@ -384,4 +385,15 @@ fn ode_policy(
         ));
     }
     Ok(policy)
+}
+
+fn time_backend(
+    policy: &eqiora_numerics::CommonOdePolicy,
+) -> eqiora::time::TimeBackendCapabilities {
+    match policy.method() {
+        eqiora::time::TimeMethod::ImplicitMidpoint => {
+            eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
+        }
+        _ => eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
+    }
 }

@@ -93,6 +93,7 @@ fn resolve_on(
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         Some(&projection),
     )
 }

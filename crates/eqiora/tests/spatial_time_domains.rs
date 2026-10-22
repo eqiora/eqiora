@@ -188,6 +188,7 @@ fn resolve_source(
         Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .map_err(|e| format!("resolve: {e:?}"))
 }
