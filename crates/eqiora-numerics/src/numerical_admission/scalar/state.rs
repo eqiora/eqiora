@@ -61,7 +61,7 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        match (self.admission.temporal, time_s) {
+        match (&self.admission.temporal, time_s) {
             (Some(_), Some(time)) if time.is_finite() && time >= 0.0 => {
                 self.scalar_assembly_at(equations, time)
             }

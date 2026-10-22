@@ -474,7 +474,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             scoped.clone(),
             requested,
             scaling,
-            Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+            Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
             &REFERENCE_LINEAR_SOLVER,
             None,
         )

@@ -215,7 +215,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
             NonZeroUsize::new(20_000).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

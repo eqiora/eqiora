@@ -419,7 +419,7 @@ pub(super) struct NativeNumericalAdmission {
     pub(super) system_scaling: eqiora_realization::SystemScaling,
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
-    pub(super) temporal: Option<CommonBackwardEuler>,
+    pub(super) temporal: Option<CommonTemporalPolicy>,
     pub(super) nonlinear: Option<NonlinearSolvePlan>,
     pub(super) operator_properties: LinearOperatorProperties,
 }
@@ -558,7 +558,7 @@ impl RecognizedNativeAdmission {
         self,
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
-        temporal: Option<CommonBackwardEuler>,
+        temporal: Option<CommonTemporalPolicy>,
         nonlinear: Option<NonlinearSolvePlan>,
         system_scaling: eqiora_realization::SystemScaling,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
@@ -577,7 +577,7 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             operator_properties,
             &linear,
-            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal)?,
+            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal.as_ref())?,
         )?;
         let discretizations = self.discretizations(&spatial)?;
         if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
@@ -585,7 +585,7 @@ impl RecognizedNativeAdmission {
                 RecognizedNativeModel::Spatial(equations) => equations.validate_discretizations(
                     &discretizations,
                     &self.resources,
-                    temporal,
+                    temporal.as_ref(),
                     nonlinear,
                     &system_scaling,
                 )?,
@@ -593,7 +593,7 @@ impl RecognizedNativeAdmission {
                     .validate_discretizations(
                         &discretizations,
                         &self.resources,
-                        temporal,
+                        temporal.as_ref(),
                         nonlinear,
                         &system_scaling,
                     )?,
@@ -604,7 +604,7 @@ impl RecognizedNativeAdmission {
                 }
             }
         }
-        let policy_identity = policy_identity(&spatial, &linear, temporal, nonlinear);
+        let policy_identity = policy_identity(&spatial, &linear, temporal.as_ref(), nonlinear)?;
         Ok(NativeNumericalAdmission {
             recognition: self,
             discretizations,
@@ -694,12 +694,12 @@ impl NativeNumericalAdmission {
             self.model(),
             self.authenticated_mesh(),
             &self.spatial.request(),
-            self.temporal.map(|_| 0.),
+            self.temporal.as_ref().map(|_| 0.),
         )?
         .complete(
             self.spatial.clone(),
             self.linear.clone(),
-            self.temporal,
+            self.temporal.clone(),
             self.nonlinear,
             self.system_scaling.clone(),
         )?;

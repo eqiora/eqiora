@@ -300,7 +300,7 @@ impl PyState {
         }
         if let Some(linear) = plan.linear_native() {
             let fields = field::extract_initial_fields(fields)?;
-            let time_s = if plan.native().backward_euler().is_some() {
+            let time_s = if plan.native().is_temporal() {
                 Some(time_s.unwrap_or(0.0))
             } else {
                 time_s

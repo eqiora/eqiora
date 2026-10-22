@@ -92,9 +92,17 @@ impl CommonSpatialPlan {
         let step = || {
             self.admission
                 .temporal
+                .as_ref()
+                .ok_or_else(|| invalid("discrete spatial history requires its time policy"))?
+                .require_backward_euler()
                 .map(|temporal| temporal.step())
-                .ok_or_else(|| invalid("discrete spatial history requires its time policy"))
         };
+        // A method-dependent transform is shared by the whole coupled system;
+        // its fluid and solid Regions must agree on the exact step.
+        let bind_step = previous_time_s.is_some()
+            || equations.regions.iter().any(|region| {
+                region.form.motion().is_some() || !region.form.kinematics().is_empty()
+            });
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
@@ -124,10 +132,7 @@ impl CommonSpatialPlan {
             // Continuous, untransformed State/rate evaluation has no step.
             // Existing kinematic elimination and moving-inventory transforms
             // retain their explicit method binding until evaluated in original coordinates.
-            if previous_time_s.is_some()
-                || region.form.motion().is_some()
-                || !region.form.kinematics().is_empty()
-            {
+            if bind_step {
                 region.form = region.form.bind_backward_euler(step()?)?;
             }
             if let Some((coordinate, scope)) = partial {
@@ -225,7 +230,9 @@ impl CommonSpatialPlan {
         let step_s = self
             .admission
             .temporal
+            .as_ref()
             .ok_or_else(|| invalid("scalar step requires BackwardEuler"))?
+            .require_backward_euler()?
             .step()
             .value();
         if grid.previous()?.time(step_s)?.to_bits() != state.require_time_s()?.to_bits() {
@@ -259,7 +266,9 @@ impl CommonSpatialPlan {
         let step_s = self
             .admission
             .temporal
+            .as_ref()
             .ok_or_else(|| invalid("spatial step requires BackwardEuler"))?
+            .require_backward_euler()?
             .step()
             .value();
         let previous_time_s = history.grid.previous()?.time(step_s)?;
@@ -293,7 +302,9 @@ impl CommonSpatialPlan {
             let step = self
                 .admission
                 .temporal
+                .as_ref()
                 .expect("scalar storage")
+                .require_backward_euler()?
                 .step()
                 .value();
             let previous = self
@@ -346,7 +357,9 @@ impl CommonSpatialPlan {
         let next_time_s = grid.time(
             self.admission
                 .temporal
+                .as_ref()
                 .expect("temporal Plan")
+                .require_backward_euler()?
                 .step()
                 .value(),
         )?;

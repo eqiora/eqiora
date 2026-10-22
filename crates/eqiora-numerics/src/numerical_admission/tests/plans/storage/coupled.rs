@@ -97,7 +97,7 @@ pub(super) fn resolve_with_policy(
         CommonSpatialPolicy::Q1,
         solve,
         None,
-        Some(CommonBackwardEuler::from_seconds(step).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )?;

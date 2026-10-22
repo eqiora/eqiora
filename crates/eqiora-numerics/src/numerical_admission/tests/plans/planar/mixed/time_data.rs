@@ -51,7 +51,7 @@ fn resolve() -> (ResolvedCommonPlan, Vec<Vec<f64>>) {
             NonZeroUsize::new(1000).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

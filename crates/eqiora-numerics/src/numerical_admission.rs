@@ -4,6 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+mod temporal;
+pub use temporal::{CommonBackwardEuler, CommonTemporalPolicy};
+
 mod eigen;
 pub use eigen::{CommonEigenPlan, CommonEigenRequest};
 
@@ -195,32 +198,6 @@ pub use scalar::balance::CommonSpatialStepBalance;
 impl From<CommonSpatialPolicy> for CommonMethodRequest {
     fn from(value: CommonSpatialPolicy) -> Self {
         Self::Uniform(value)
-    }
-}
-
-/// Closed time integration policy requested from the common resolver.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommonBackwardEuler {
-    step: DynQuantity,
-}
-
-impl CommonBackwardEuler {
-    /// Construct one positive coherent-SI operator step.
-    pub fn from_seconds(step_s: f64) -> Result<Self, Diagnostic> {
-        if !step_s.is_finite() || step_s <= 0.0 || step_s.to_bits() == (-0.0_f64).to_bits() {
-            return Err(invalid(
-                "BackwardEuler step_s must be finite and strictly positive",
-            ));
-        }
-        Ok(Self {
-            step: DynQuantity::new(step_s, TIME),
-        })
-    }
-
-    /// Exact physical duration of one operator construction.
-    #[must_use]
-    pub const fn step(self) -> DynQuantity {
-        self.step
     }
 }
 

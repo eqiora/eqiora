@@ -241,7 +241,7 @@ fn transient_plan() -> CommonTransientFlowPlan {
         Some(eqiora_numerics::CommonScalingRequest::Incompressible(
             scaling,
         )),
-        Some(temporal),
+        Some(temporal.into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

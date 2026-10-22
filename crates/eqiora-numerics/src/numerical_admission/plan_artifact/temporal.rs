@@ -103,54 +103,120 @@ pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal
                 return Some(WireTemporal::Process { method });
             }
             let plan = plan.as_ode()?;
-            Some(WireTemporal::Ode {
-                method: WireOdeMethod::encode(plan.temporal().method()),
-                hermitian_parameters: plan
-                    .temporal()
-                    .hermitian_parameters
-                    .iter()
-                    .map(|p| p.ulid().to_string())
-                    .collect(),
-                conserved_norms: plan
-                    .temporal()
-                    .conserved_norms
-                    .iter()
-                    .map(WireConservedNorm::from_native)
-                    .collect(),
-                coordinates: WireTimeCoordinates::RealF64,
-                events: plan.event_policy().map(WireEventPolicy::from_native),
-                forward_sensitivities: plan
-                    .temporal()
-                    .forward_sensitivities()
-                    .map(WireForwardSensitivity::from_native),
-                initial_step_s: plan.temporal().initial_step_s(),
-                relative_tolerance: plan.temporal().relative_tolerance(),
-                absolute_tolerances: plan
-                    .temporal()
-                    .absolute_tolerances()
-                    .iter()
-                    .map(|entry| WireOdeTolerance {
-                        field_ulid: entry.0.field().ulid().to_string(),
-                        derivative_order: entry.0.derivative_order(),
-                        component: entry.0.component() as u64,
-                        imaginary: entry.0.is_imaginary(),
-                        value: entry.1,
-                    })
-                    .collect(),
-            })
+            Some(WireTemporal::from_ode(plan.temporal()))
         }
-        ResolvedCommonPlan::Spatial(plan) => {
-            plan.admission
-                .temporal
-                .map(|temporal| WireTemporal::BackwardEuler {
-                    step_s: temporal.step().value(),
-                })
+        ResolvedCommonPlan::Spatial(plan) => plan
+            .admission
+            .temporal
+            .as_ref()
+            .map(WireTemporal::from_policy),
+        ResolvedCommonPlan::TransientFlow(plan) => {
+            Some(WireTemporal::from_policy(&plan.temporal().into()))
         }
-        ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,
+    }
+}
+
+impl WireTemporal {
+    pub(super) fn from_policy(policy: &CommonTemporalPolicy) -> Self {
+        match policy {
+            CommonTemporalPolicy::BackwardEuler(policy) => Self::BackwardEuler {
+                step_s: policy.step().value(),
+            },
+            CommonTemporalPolicy::Ode(policy) => Self::from_ode(policy),
+        }
+    }
+
+    fn from_ode(policy: &CommonOdePolicy) -> Self {
+        Self::Ode {
+            method: WireOdeMethod::encode(policy.method()),
+            hermitian_parameters: policy
+                .hermitian_parameters
+                .iter()
+                .map(|p| p.ulid().to_string())
+                .collect(),
+            conserved_norms: policy
+                .conserved_norms
+                .iter()
+                .map(WireConservedNorm::from_native)
+                .collect(),
+            coordinates: WireTimeCoordinates::RealF64,
+            events: policy.events().map(WireEventPolicy::from_native),
+            forward_sensitivities: policy
+                .forward_sensitivities()
+                .map(WireForwardSensitivity::from_native),
+            initial_step_s: policy.initial_step_s(),
+            relative_tolerance: policy.relative_tolerance(),
+            absolute_tolerances: policy
+                .absolute_tolerances()
+                .iter()
+                .map(|entry| WireOdeTolerance {
+                    field_ulid: entry.0.field().ulid().to_string(),
+                    derivative_order: entry.0.derivative_order(),
+                    component: entry.0.component() as u64,
+                    imaginary: entry.0.is_imaginary(),
+                    value: entry.1,
+                })
+                .collect(),
+        }
+    }
+
+    pub(super) fn to_native(&self) -> Result<CommonTemporalPolicy, Diagnostic> {
+        if let Self::BackwardEuler { step_s } = self {
+            return CommonBackwardEuler::from_seconds(*step_s).map(Into::into);
+        }
+        let Self::Ode {
+            method,
+            coordinates: WireTimeCoordinates::RealF64,
+            initial_step_s,
+            relative_tolerance,
+            absolute_tolerances,
+            conserved_norms,
+            hermitian_parameters,
+            events,
+            forward_sensitivities,
+        } = self
+        else {
+            return Err(invalid("expected controlled continuous time policy"));
+        };
+        let tolerances = absolute_tolerances
+            .iter()
+            .map(|entry| {
+                parse_id::<kinds::Field>(&entry.field_ulid, "Field").and_then(|field| {
+                    Ok((
+                        eqiora_core::TimeStateCoordinate::new(
+                            field,
+                            entry.derivative_order,
+                            usize::try_from(entry.component)
+                                .map_err(|_| invalid("time component exceeds address space"))?,
+                            entry.imaginary,
+                        ),
+                        entry.value,
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut temporal = CommonOdePolicy::new(
+            method.decode(),
+            *initial_step_s,
+            *relative_tolerance,
+            tolerances,
+        )?;
+        for parameter in hermitian_parameters {
+            temporal = temporal
+                .with_hermitian_parameter(parse_id::<kinds::Parameter>(parameter, "Parameter")?)?;
+        }
+        for norm in conserved_norms {
+            temporal = norm.apply(temporal)?;
+        }
+        if let Some(events) = events {
+            temporal = temporal.with_event_policy(events.to_native()?);
+        }
+        if let Some(policy) = forward_sensitivities {
+            temporal = temporal.with_forward_sensitivity_policy(policy.to_native()?);
+        }
+        Ok(temporal.into())
     }
 }

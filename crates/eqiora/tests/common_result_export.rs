@@ -13,8 +13,8 @@ use eqiora::solver::{
 };
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonLinearRequest, CommonResult,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonTrajectory, CommonTransientRunRequest,
-    ResolvedCommonPlan,
+    CommonSolvePolicy, CommonSpatialPolicy, CommonTemporalPolicy, CommonTrajectory,
+    CommonTransientRunRequest, ResolvedCommonPlan,
 };
 use std::num::NonZeroUsize;
 
@@ -57,7 +57,7 @@ fn plan(rate: f64, width: f64) -> ResolvedCommonPlan {
     resolve(
         &SOURCE.replace("0.5[1/s]", &format!("{rate}[1/s]")),
         width,
-        Some(CommonBackwardEuler::from_seconds(1.).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(1.).unwrap().into()),
         Some(geometry(-10., 10.)),
     )
 }
@@ -65,7 +65,7 @@ fn plan(rate: f64, width: f64) -> ResolvedCommonPlan {
 fn resolve(
     source: &str,
     width: f64,
-    temporal: Option<CommonBackwardEuler>,
+    temporal: Option<CommonTemporalPolicy>,
     physical: Option<CanonicalGeometryV1>,
 ) -> ResolvedCommonPlan {
     let geometry = geometry(0., width);

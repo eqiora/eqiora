@@ -53,7 +53,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             };
             let mut equations = lowered.clone();
-            if let Some(temporal) = admission.temporal {
+            if let Some(CommonTemporalPolicy::BackwardEuler(temporal)) = &admission.temporal {
                 for region in &mut equations.regions {
                     region.form = region.form.bind_backward_euler(temporal.step())?;
                 }
@@ -110,7 +110,9 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
     {
         let step = admission
             .temporal
+            .as_ref()
             .ok_or_else(|| invalid("kinematic graph requires its explicit temporal Plan"))?
+            .require_backward_euler()?
             .step();
         let mut states = Vec::new();
         for region in &lowered.regions {

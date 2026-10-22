@@ -419,7 +419,7 @@ impl PyRun {
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
         if plan_ref.linear_native().is_some()
-            && plan_ref.native().backward_euler().is_some()
+            && plan_ref.native().is_temporal()
             && request.is_none()
         {
             return Err(PyTypeError::new_err(

@@ -189,7 +189,7 @@ fn transient_tpfa_keeps_affine_time_data_on_anisotropic_cartesian_cells() {
                     CommonSpatialPolicy::CellCenteredTpfa,
                     solve,
                     None,
-                    Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                    Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                 )

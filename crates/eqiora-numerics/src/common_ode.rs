@@ -237,26 +237,8 @@ impl CommonOdePlan {
             ));
         }
         let state_coordinates = program.state_coordinates();
-        let requested = temporal.absolute_tolerances();
-        if requested.len() != state_coordinates.len()
-            || requested
-                .iter()
-                .any(|entry| !state_coordinates.contains(&entry.0))
-        {
-            return Err(invalid(
-                "ODE absolute tolerances must cover exactly the admitted Model state coordinates",
-            ));
-        }
-        let ordered_absolute_tolerances = state_coordinates
-            .iter()
-            .map(|field| {
-                requested
-                    .iter()
-                    .find(|entry| entry.0 == *field)
-                    .map(|entry| entry.1)
-                    .ok_or_else(|| invalid("Tsitouras45 omitted one exact state coordinate"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let ordered_absolute_tolerances =
+            temporal.ordered_absolute_tolerances(state_coordinates)?;
         let lowering = TimeLoweringEnvelopeV3::from_proof(model, kernel, program.lowering_proof())?;
         let lowering_digest = lowering.digest()?.to_string();
         let model_id = reference.model().ulid().to_string();

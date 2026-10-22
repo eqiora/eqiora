@@ -60,7 +60,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             scoped.clone(),
             CommonSolvePolicy::Linear(requested),
             scaling,
-            Some(temporal),
+            Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
         )
@@ -219,7 +219,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
                 .unwrap(),
             ),
             None,
-            Some(temporal),
+            Some(temporal.into()),
             &FsiPlanningBackend,
             None,
         )
@@ -250,7 +250,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         scoped.clone(),
         CommonSolvePolicy::Linear(direct),
         None,
-        Some(temporal),
+        Some(temporal.into()),
         &FsiPlanningBackend,
         None,
     )
@@ -417,7 +417,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             foreign_scoped,
             CommonSolvePolicy::Linear(requested),
             None,
-            Some(temporal),
+            Some(temporal.into()),
             &ResolveOnlyBackend,
             None,
         )

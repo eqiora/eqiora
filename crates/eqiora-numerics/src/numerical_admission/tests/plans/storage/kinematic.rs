@@ -37,7 +37,7 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

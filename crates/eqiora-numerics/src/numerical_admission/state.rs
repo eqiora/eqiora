@@ -149,6 +149,9 @@ impl CommonTransientRunRequest {
         output_steps: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
         state.require_time_s()?;
+        if plan.backward_euler().is_none() {
+            return Err(invalid("fixed-grid transient Run requires BackwardEuler"));
+        }
         if state.state_space_identity() != plan.spatial_state_space_identity()? {
             return Err(invalid(
                 "transient Run State belongs to a different exact common state space",
@@ -204,7 +207,9 @@ impl CommonTransientRunRequest {
             let step_s = plan
                 .admission
                 .temporal
+                .as_ref()
                 .expect("validated temporal")
+                .require_backward_euler()?
                 .step()
                 .value();
             return advance_common_prepared_actions(

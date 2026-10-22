@@ -52,7 +52,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                     NonZeroUsize::new(1000).unwrap(),
                 )),
                 None,
-                Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
                 &REFERENCE_LINEAR_SOLVER,
                 None,
             )

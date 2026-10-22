@@ -69,7 +69,7 @@ fn nonlinear_fixed_mesh_fsi_uses_shared_residuals_interfaces_and_kinematic_histo
                 .unwrap(),
         },
         None,
-        Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

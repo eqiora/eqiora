@@ -72,8 +72,8 @@ pub use numerical_admission::{
     CommonInitialValues, CommonLinearRequest, CommonMethodRequest, CommonPressureGauge2d,
     CommonScalingRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPlan,
     CommonSpatialPolicy, CommonSpatialStepBalance, CommonState, CommonSteadyStokesPlan,
-    CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind, FormulationSelectionMode,
-    ResolvedCommonPlan,
+    CommonTemporalPolicy, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
+    FormulationSelectionMode, ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;

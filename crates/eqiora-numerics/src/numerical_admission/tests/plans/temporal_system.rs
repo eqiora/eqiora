@@ -1,4 +1,6 @@
 //! Independent semidiscrete residuals through the existing time-system contract.
+mod policy;
+
 use super::*;
 use crate::numerical_admission::scalar::implicit::SpatialImplicitSystem;
 use eqiora_time::ImplicitTimeSystem;
@@ -64,7 +66,7 @@ fn resolve(
                 .unwrap(),
         },
         None,
-        Some(CommonBackwardEuler::from_seconds(step).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )

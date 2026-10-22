@@ -72,7 +72,7 @@ public component Heat(
                 NonZeroUsize::new(100).unwrap(),
             )),
             None,
-            Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+            Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
             &REFERENCE_LINEAR_SOLVER,
             None,
         )

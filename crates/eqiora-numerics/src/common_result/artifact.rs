@@ -389,7 +389,7 @@ impl WireResultContent {
                         | WireResultFamily::Algebraic
                         | WireResultFamily::Time
                         | WireResultFamily::TransientFlow
-                ) || plan.backward_euler().is_some()
+                ) || plan.is_temporal()
                 {
                     return Err(invalid("dynamic Result family carried a static payload"));
                 }

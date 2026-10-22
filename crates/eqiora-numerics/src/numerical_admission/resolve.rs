@@ -15,7 +15,7 @@ impl ResolvedCommonPlan {
         method: impl Into<CommonMethodRequest>,
         solve: CommonSolvePolicy,
         scaling: Option<CommonScalingRequest>,
-        temporal: Option<CommonBackwardEuler>,
+        temporal: Option<CommonTemporalPolicy>,
         stokes_backend: &dyn LinearSolverBackend,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
@@ -61,8 +61,12 @@ impl ResolvedCommonPlan {
                 .map(|plan| Self::Spatial(Box::new(plan)));
         }
         let (spatial, formulation) = method.split();
-        let recognized =
-            RecognizedNativeAdmission::recognize(model, owner, &spatial, temporal.map(|_| 0.))?;
+        let recognized = RecognizedNativeAdmission::recognize(
+            model,
+            owner,
+            &spatial,
+            temporal.as_ref().map(|_| 0.),
+        )?;
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
@@ -229,7 +233,7 @@ impl ResolvedCommonPlan {
                     &spatial,
                     &system_scaling,
                     nonlinear,
-                    temporal,
+                    temporal.as_ref(),
                 )?;
                 let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
                     super::solver_planning::resolve_complex_linear(
@@ -324,9 +328,11 @@ impl ResolvedCommonPlan {
                         "transient incompressible-flow mathematics requires Newton(linear=...) policy",
                     ));
                 };
-                let temporal = temporal.ok_or_else(|| {
-                    invalid("transient incompressible-flow mathematics requires BackwardEuler")
-                })?;
+                let temporal = temporal
+                    .ok_or_else(|| {
+                        invalid("transient incompressible-flow mathematics requires BackwardEuler")
+                    })?
+                    .require_backward_euler()?;
                 let (geometry, mesh, correspondence, _) =
                     resource_artifact_digests(&recognized.resources)?;
                 let scaling = resolve_complete_manual_incompressible_scaling_2d(
@@ -351,7 +357,7 @@ impl ResolvedCommonPlan {
                 let admission = recognized.complete(
                     native_spatial,
                     linear,
-                    Some(temporal),
+                    Some(temporal.into()),
                     Some(nonlinear),
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;
@@ -402,13 +408,13 @@ fn resolve_spatial_strategy(
 fn resolve_linear_requirements(
     solve: CommonSolvePolicy,
     scaling: Option<IncompressibleScalingRequest2d>,
-    temporal: Option<CommonBackwardEuler>,
+    temporal: Option<CommonTemporalPolicy>,
     has_storage: bool,
     mathematical_form: &str,
     properties: LinearOperatorProperties,
     structure: Option<eqiora_solver::AlgebraicStructure>,
     backend: &dyn LinearSolverBackend,
-) -> Result<(NativeLinearPolicy, Option<CommonBackwardEuler>), Diagnostic> {
+) -> Result<(NativeLinearPolicy, Option<CommonTemporalPolicy>), Diagnostic> {
     let CommonSolvePolicy::Linear(solve) = solve else {
         return Err(invalid(format!(
             "{mathematical_form} requires Linear solve policy"
@@ -426,9 +432,9 @@ fn resolve_linear_requirements(
 
 fn resolve_temporal_requirement(
     has_storage: bool,
-    temporal: Option<CommonBackwardEuler>,
+    temporal: Option<CommonTemporalPolicy>,
     mathematical_form: &str,
-) -> Result<Option<CommonBackwardEuler>, Diagnostic> {
+) -> Result<Option<CommonTemporalPolicy>, Diagnostic> {
     Ok(match (has_storage, temporal) {
         (false, None) => None,
         (false, Some(_)) => {
@@ -439,7 +445,7 @@ fn resolve_temporal_requirement(
         (true, Some(temporal)) => Some(temporal),
         (true, None) => {
             return Err(invalid(format!(
-                "{mathematical_form} with storage requires an explicit BackwardEuler policy"
+                "{mathematical_form} with storage requires an explicit temporal policy"
             )));
         }
     })
