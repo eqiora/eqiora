@@ -26,7 +26,11 @@ pub(super) fn validate<S: Coefficient>(
     // Do not admit moment coordinates into those paths until they consume the
     // same oriented coefficient interpretation as the static linear operator.
     if fields.iter().any(|field| moment(field.space.family()))
-        && (time.is_some() || form.rows.iter().any(|row| row.is_nonlinear()))
+        && (time.is_some()
+            || form
+                .rows
+                .iter()
+                .any(|row| row.is_nonlinear() || row.terms.iter().any(|term| term.derivative)))
     {
         return Err(invalid(
             "moment bindings currently require static linear region forms",

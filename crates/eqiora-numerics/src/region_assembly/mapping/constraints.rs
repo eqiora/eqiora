@@ -101,7 +101,11 @@ where
                 }
             }
         }
-        input.previous = Some(previous);
+        input.previous = input
+            .forms
+            .iter()
+            .any(|(form, _)| !form.previous_fields().is_empty())
+            .then_some(previous);
         let prepared = self.prepare_numeric_assembly(mesh, &input)?;
         // Snapshot constraint rows use the original State partial, without a
         // step-dependent mass contribution. Transformed kinematics retain their

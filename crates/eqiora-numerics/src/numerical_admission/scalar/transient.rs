@@ -65,10 +65,12 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        let temporal = self
-            .admission
-            .temporal
-            .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
+        let step = || {
+            self.admission
+                .temporal
+                .map(|temporal| temporal.step())
+                .ok_or_else(|| invalid("discrete spatial history requires its time policy"))
+        };
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
@@ -78,7 +80,7 @@ impl CommonSpatialPlan {
                         region.form.domain(),
                         previous,
                         time_s,
-                        temporal.step().value(),
+                        step()?.value(),
                     )?
                 } else {
                     crate::form_compiler::spatial::CompiledSpatialForm::derive_at_time(
@@ -95,7 +97,15 @@ impl CommonSpatialPlan {
                     .form
                     .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(time_s))?;
             }
-            region.form = region.form.bind_backward_euler(temporal.step())?;
+            // Continuous, untransformed State/rate evaluation has no step.
+            // Existing kinematic elimination and moving-inventory transforms
+            // retain their explicit method binding until evaluated in original coordinates.
+            if previous_time_s.is_some()
+                || region.form.motion().is_some()
+                || !region.form.kinematics().is_empty()
+            {
+                region.form = region.form.bind_backward_euler(step()?)?;
+            }
             if let Some(coordinate) = partial {
                 region.form = region.form.input_partial(coordinate)?;
             }
@@ -126,7 +136,7 @@ impl CommonSpatialPlan {
                         .ok_or_else(|| {
                             invalid("displacement boundary lacks its exact previous coefficient")
                         })?;
-                    Ok(Some((physical - *old) / temporal.step().value()))
+                    Ok(Some((physical - *old) / step()?.value()))
                 }
             }
         };
