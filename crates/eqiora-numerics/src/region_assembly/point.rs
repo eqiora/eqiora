@@ -88,6 +88,52 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         Ok(residual)
     }
 
+    /// Apply the same local tangents without assembling a global matrix.
+    /// Prescribed coordinates have zero candidate direction; functional
+    /// orientations act on both the gathered direction and scattered equation.
+    pub(crate) fn jacobian_action(
+        &self,
+        plan: &AssemblyPlan,
+        target: AssemblyTargetId,
+        point: RegionPoint<'_>,
+        direction: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        self.validate_point(plan, target, point)?;
+        validate_values(plan, target, direction)?;
+        let mut output = vec![0.; direction.len()];
+        for index in 0..self.packet_count() {
+            let packet = self.packet(index)?;
+            let map = candidate_map(&packet.mappings, target)?;
+            let (_, action) = self.local_action(target, point, index, true)?;
+            let local_direction = map
+                .unknowns()
+                .iter()
+                .zip(&packet.orientation)
+                .map(|(unknown, sign)| match unknown {
+                    LocalUnknown::Free(dof) => direction[dof.index()] * f64::from(*sign),
+                    LocalUnknown::Fixed(_) => 0.,
+                })
+                .collect::<Vec<_>>();
+            let local = action
+                .jacobian
+                .chunks_exact(local_direction.len())
+                .zip(&packet.orientation)
+                .map(|(row, sign)| {
+                    row.iter()
+                        .zip(&local_direction)
+                        .map(|(entry, direction)| entry * direction)
+                        .sum::<f64>()
+                        * f64::from(*sign)
+                })
+                .collect::<Vec<_>>();
+            scatter_residual(&mut output, map, &local)?;
+        }
+        if output.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("Region tangent action accumulation is non-finite"));
+        }
+        Ok(output)
+    }
+
     fn local_action(
         &self,
         target: AssemblyTargetId,

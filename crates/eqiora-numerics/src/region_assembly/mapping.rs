@@ -17,6 +17,7 @@ use crate::spatial_expression::Coefficient;
 use super::invalid;
 
 mod assembly;
+pub(crate) use assembly::MappedRegionAssembly;
 mod balance;
 pub use balance::{SpatialBoundarySource, SpatialBoundaryWork};
 mod binding;

@@ -49,7 +49,28 @@ impl CommonSpatialPlan {
         self.scalar_assembly_with_history(equations, time_s, None, None, None)
     }
 
-    pub(super) fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
+    pub(super) fn scalar_time_partial<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        time_s: f64,
+        scope: crate::form_compiler::spatial::InputPartialScope,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
+        let coordinate = eqiora_ir::ScalarSymbolCoordinate::for_value(
+            eqiora_schema::kernel::SymbolRef::Time,
+            &eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, TIME)
+                .expect("real scalar Time"),
+        )?
+        .remove(0);
+        self.scalar_assembly_with_history(equations, time_s, None, None, Some((&coordinate, scope)))
+    }
+
+    fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,

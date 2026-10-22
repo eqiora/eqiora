@@ -38,13 +38,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64> + Send + Sync>
         // Retain analytic fixed-trace rates when lifting the free rate witness.
         // Round only after exact compatibility, then evaluate original R(u,v).
         let reduced_rates = projection.coefficients()?;
-        let rates = (0..coordinates.full_count())
-            .map(|global| {
-                coordinates
-                    .free_coordinate(global)
-                    .map_or(fixed_rates[global], |free| reduced_rates[free])
-            })
-            .collect::<Vec<_>>();
+        let rates = coordinates.lift_rates(&reduced_rates, fixed_rates)?;
         let mut residual = self.work.residual(
             &self.plan,
             self.plan.target_id(0).expect("reduced target"),
@@ -87,7 +81,7 @@ where
     /// Lift only the analytic derivative of prescribed traces. A rate witness
     /// for a regular mass equation does not demand an explicit Time derivative
     /// of volume coefficients, forcing, or natural boundary data.
-    pub(super) fn prescribed_rates(&self, partial_mapping: &Self) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn prescribed_rates(&self, partial_mapping: &Self) -> Result<Vec<f64>, Diagnostic> {
         if !partial_mapping.has_same_coordinate_layout(self) {
             return Err(invalid(
                 "Time partial changed the exact Field constraint layout",

@@ -46,6 +46,7 @@ pub(super) fn describe_primal(
 mod differentiation;
 mod error_estimate;
 mod fields;
+pub(super) mod implicit;
 mod initial;
 mod portable;
 use portable::resolve_common_spatial_portable;
