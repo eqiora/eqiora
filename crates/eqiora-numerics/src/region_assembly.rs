@@ -13,7 +13,9 @@ use crate::form_compiler::region::coordinates::{Native, Projection};
 use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell, PreparedRegionFacet};
 use crate::spatial_expression::Coefficient;
 
+mod conservative;
 pub(crate) mod mapping;
+pub(crate) use conservative::ConservativeFacets;
 mod newton;
 pub(crate) use newton::RegionNewtonSolution;
 pub(crate) mod nonlinear;
@@ -56,6 +58,7 @@ enum RegionPacketAction<S: Coefficient, P: Projection<S>> {
         previous: BTreeMap<RawId, Vec<P::Scalar>>,
     },
     Boundary(PreparedRegionFacet<S, P>),
+    Affine(eqiora_assembly::LocalContribution<P::Scalar>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -198,6 +201,7 @@ where
         let local = match &packet.action {
             RegionPacketAction::Cell { prepared, previous } => prepared.evaluate(previous)?,
             RegionPacketAction::Boundary(facet) => facet.affine().clone(),
+            RegionPacketAction::Affine(local) => local.clone(),
         };
         AssemblyPacket::new(
             local.reoriented(&packet.orientation, &packet.orientation)?,

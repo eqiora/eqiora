@@ -2,6 +2,7 @@
 use super::*;
 
 fn resolve(
+    spatial: CommonSpatialPolicy,
     balance: &str,
     boundary: &str,
     temporal: Option<CommonBackwardEuler>,
@@ -57,7 +58,7 @@ fn resolve(
     ResolvedCommonPlan::resolve(
         &model,
         cartesian_box_resources(&geometry, &[2]),
-        CommonSpatialPolicy::Q1,
+        spatial,
         solve,
         None,
         temporal,
@@ -74,6 +75,7 @@ fn timed_volume_and_trace_use_endpoint_history_through_replay_and_restart() {
     ] {
         for nonlinear in [false, true] {
             let resolved = resolve(
+                CommonSpatialPolicy::Q1,
                 balance,
                 "time()*time()/1[s^2]",
                 Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
@@ -111,10 +113,16 @@ fn timed_volume_and_trace_use_endpoint_history_through_replay_and_restart() {
             }
             assert_eq!(initial.to_bytes().unwrap(), before);
             assert!(
-                resolve(balance, "time()*time()/1[s^2]", None, nonlinear)
-                    .unwrap_err()
-                    .message()
-                    .contains("coefficient Time requires an explicit finite evaluation point")
+                resolve(
+                    CommonSpatialPolicy::Q1,
+                    balance,
+                    "time()*time()/1[s^2]",
+                    None,
+                    nonlinear
+                )
+                .unwrap_err()
+                .message()
+                .contains("coefficient Time requires an explicit finite evaluation point")
             );
         }
     }
@@ -123,6 +131,7 @@ fn timed_volume_and_trace_use_endpoint_history_through_replay_and_restart() {
 #[test]
 fn timed_capacity_is_certified_at_the_accepted_state_time() {
     let resolved = resolve(
+        CommonSpatialPolicy::Q1,
         "relation balance on body {(1-time()/1[s])*1[s/m^2]*derivative(u)-div(grad(u))=0;}",
         "0",
         Some(CommonBackwardEuler::from_seconds(1.).unwrap()),
@@ -207,6 +216,7 @@ fn explicit_time_in_a_singular_algebraic_block_requires_its_constraint_tangent()
 #[test]
 fn spatial_checkpoint_rejects_a_forged_step_time_even_at_equilibrium() {
     let resolved = resolve(
+        CommonSpatialPolicy::Q1,
         "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 0[1/m^2];}",
         "0",
         Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
@@ -269,6 +279,7 @@ fn spatial_checkpoint_rejects_a_forged_step_time_even_at_equilibrium() {
 #[test]
 fn spatial_checkpoint_preserves_the_original_decimal_time_grid_on_restart() {
     let resolved = resolve(
+        CommonSpatialPolicy::Q1,
         "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 0[1/m^2];}",
         "0",
         Some(CommonBackwardEuler::from_seconds(0.1).unwrap()),
@@ -325,4 +336,40 @@ fn spatial_checkpoint_preserves_the_original_decimal_time_grid_on_restart() {
             .unwrap(),
         bytes
     );
+}
+
+#[test]
+fn tpfa_time_inputs_use_native_faces_and_common_state_history() {
+    for balance in [
+        "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 2*time()/1[s*m^2];}",
+        "relation balance on body {1[s/m^2]*derivative(u)-div(grad(u))=2*time()/1[s*m^2];}",
+    ] {
+        for nonlinear in [false, true] {
+            let resolved = resolve(
+                CommonSpatialPolicy::CellCenteredTpfa,
+                balance,
+                "time()*time()/1[s^2]",
+                Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                nonlinear,
+            )
+            .unwrap();
+            let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+            let plan = resolved.as_spatial().unwrap();
+            let mut state = plan.initial_state(Some(0.), Vec::new()).unwrap();
+            // Each cell has mass 1/2 and a half-cell boundary distance 1/4.
+            // Equal cell values obey 6*u_n=2*u_old+4*t_n²+t_n.
+            for expected in [1. / 12., 5. / 18., 16. / 27.] {
+                let accepted = plan
+                    .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
+                    .unwrap();
+                let values = accepted.state().spatial_values().unwrap();
+                assert_eq!(values.len(), 2);
+                for actual in values {
+                    assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
+                }
+                state = CommonState::from_bytes(&accepted.state().to_bytes().unwrap(), &resolved)
+                    .unwrap();
+            }
+        }
+    }
 }

@@ -56,6 +56,7 @@ impl From<&RegionFieldLayout> for super::integration::IntegralField {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct BoundRegionForm<S: Coefficient> {
     pub(super) form: CompiledRegionForm<S>,
+    pub(super) conservative_flux: Option<Box<CompiledRegionForm<S>>>,
     pub(super) reference: ReferenceCell,
     pub(super) fields: Vec<RegionFieldLayout>,
     pub(super) previous: BTreeMap<RawId, RegionFieldLayout>,
@@ -174,6 +175,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
         }
         Ok(BoundRegionForm {
+            conservative_flux: None,
             form: self.clone(),
             reference,
             fields: layouts,

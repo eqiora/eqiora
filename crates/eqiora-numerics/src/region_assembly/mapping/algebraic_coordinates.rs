@@ -52,14 +52,24 @@ impl<S: Coefficient + Send + Sync> RegionAlgebraicCoordinates<S, S> for RegionDo
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<S>,
     ) -> Result<MappedRegionAssembly<S>, Diagnostic> {
-        self.prepare_assembly(
+        let mut assembled = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
             input.forms.clone(),
             input.natural.clone(),
             input.previous.as_ref(),
             input.geometry_action.as_deref(),
-        )
+        )?;
+        if let Some(faces) = &input.conservative {
+            assembled.work.append_conservative(
+                &assembled.plan,
+                &input.forms,
+                faces,
+                input.operator_properties,
+            )?;
+            assembled.packet_domains = assembled.work.packet_domains();
+        }
+        Ok(assembled)
     }
 
     fn require_numeric_multiplier_closure(

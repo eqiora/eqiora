@@ -40,7 +40,10 @@ mod fvm;
 pub(crate) use fvm::{
     FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState, finalize_elliptic_cartesian_fvm,
 };
-pub(crate) use fvm::{FvmFlux, PreparedCartesianFvmAssembly, with_elliptic_cartesian_fvm};
+pub(crate) use fvm::{
+    FvmFlux, PreparedCartesianFvmAssembly, cartesian_flux_contributions,
+    with_elliptic_cartesian_fvm,
+};
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 

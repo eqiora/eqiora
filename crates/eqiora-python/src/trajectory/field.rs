@@ -766,8 +766,11 @@ impl PyFieldSnapshot {
                 .map(|(dimension, (indices, values))| {
                     let association = match dimension {
                         0 => "vertex",
-                        _ if representation.space()
-                            == eqiora::realization::Space::simplex_p1_bubble() =>
+                        _ if matches!(
+                            representation.space().family(),
+                            eqiora::realization::SpaceFamily::SimplexP1Bubble
+                                | eqiora::realization::SpaceFamily::CellConstant
+                        ) =>
                         {
                             "cell"
                         }

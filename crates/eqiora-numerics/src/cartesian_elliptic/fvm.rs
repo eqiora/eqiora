@@ -438,34 +438,20 @@ where
         } else {
             let facet_index = packet_index - cell_count;
             let facet = &facets[facet_index];
-            match facet.kind {
-                CartesianFacetKind::Interior { left, right } => {
-                    let rows = [cell_dofs[left][facet.test], cell_dofs[right][facet.test]];
-                    let left = cell_dofs[left][facet.trial];
-                    let right = cell_dofs[right][facet.trial];
-                    let local = CartesianInteriorFlux {
-                        prescribed_flux: facet.prescribed_flux,
-                    }
-                    .evaluate(&facet.transmissibility, facet_quadrature)?;
-                    let map = AssemblyMap::new(
-                        rows.into_iter().map(Some).collect(),
-                        vec![LocalUnknown::Free(left), LocalUnknown::Free(right)],
-                    )?;
-                    (local, map)
-                }
-                CartesianFacetKind::Boundary {
-                    cell,
-                    coefficient,
-                    load,
-                    ..
-                } => {
-                    let row = cell_dofs[cell][facet.test];
-                    let column = cell_dofs[cell][facet.trial];
-                    let local = LocalContribution::new(1, 1, vec![coefficient], vec![load])?;
-                    let map = AssemblyMap::new(vec![Some(row)], vec![LocalUnknown::Free(column)])?;
-                    (local, map)
-                }
-            }
+            let packet = facet.contribution(facet_quadrature)?;
+            let map = AssemblyMap::new(
+                packet
+                    .cells
+                    .iter()
+                    .map(|&cell| Some(cell_dofs[cell][packet.test]))
+                    .collect(),
+                packet
+                    .cells
+                    .iter()
+                    .map(|&cell| LocalUnknown::Free(cell_dofs[cell][packet.trial]))
+                    .collect(),
+            )?;
+            (packet.local, map)
         };
         AssemblyPacket::new(local, vec![TargetAssemblyMap::new(target, map)])
     });
@@ -481,6 +467,74 @@ where
         },
         result,
     ))
+}
+
+/// A conservative face acts on its incident cells in one exact component order.
+pub(crate) struct CartesianFluxContribution<S> {
+    pub(crate) cells: Vec<usize>,
+    pub(crate) test: usize,
+    pub(crate) trial: usize,
+    pub(crate) local: LocalContribution<S>,
+}
+
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>>
+    CartesianFacetPacket<S>
+{
+    fn contribution(
+        &self,
+        quadrature: &QuadratureRule,
+    ) -> Result<CartesianFluxContribution<S>, Diagnostic> {
+        let (cells, local) = match self.kind {
+            CartesianFacetKind::Interior { left, right } => (
+                vec![left, right],
+                CartesianInteriorFlux {
+                    prescribed_flux: self.prescribed_flux,
+                }
+                .evaluate(&self.transmissibility, quadrature)?,
+            ),
+            CartesianFacetKind::Boundary {
+                cell,
+                coefficient,
+                load,
+                ..
+            } => (
+                vec![cell],
+                LocalContribution::new(1, 1, vec![coefficient], vec![load])?,
+            ),
+        };
+        Ok(CartesianFluxContribution {
+            cells,
+            test: self.test,
+            trial: self.trial,
+            local,
+        })
+    }
+}
+
+pub(crate) fn cartesian_flux_contributions<S>(
+    mesh: &CartesianMesh,
+    components: usize,
+    flux: FvmFlux<'_, S>,
+    quadrature: &QuadratureRule,
+    properties: LinearOperatorProperties,
+) -> Result<Vec<CartesianFluxContribution<S>>, Diagnostic>
+where
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
+{
+    let dimension = mesh.topological_dimension();
+    require_facet_rule(dimension, quadrature)?;
+    let centers = (0..mesh.entity_count(dimension).expect("mesh owns cells"))
+        .map(|cell| {
+            mesh.geometry_map(MeshEntity::new(dimension, cell))
+                .expect("Cartesian cell geometry")
+                .origin()
+                .to_vec()
+        })
+        .collect::<Vec<_>>();
+    facets::prepare(mesh, &centers, components, flux, quadrature, properties)?
+        .iter()
+        .map(|facet| facet.contribution(quadrature))
+        .collect()
 }
 
 #[cfg(test)]

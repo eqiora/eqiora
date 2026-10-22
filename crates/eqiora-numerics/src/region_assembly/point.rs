@@ -121,6 +121,14 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                         }
                     }
                 }
+                RegionPacketAction::Affine(local) => affine_action(
+                    local,
+                    &state,
+                    derivative.then_some(FieldPullback::Uniform {
+                        current: Some(1.),
+                        rate: None,
+                    }),
+                )?,
             },
             RegionPoint::Independent {
                 rate_target,
@@ -168,6 +176,9 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                     }
                     RegionPacketAction::Boundary(facet) => {
                         facet.action(&state, derivative.then_some(pullback))?
+                    }
+                    RegionPacketAction::Affine(local) => {
+                        affine_action(local, &state, derivative.then_some(pullback))?
                     }
                 }
             }
@@ -227,4 +238,30 @@ fn candidate_map(
         .find(|mapping| mapping.target() == target)
         .map(|mapping| mapping.map())
         .ok_or_else(|| invalid("Region packet omits its candidate target"))
+}
+
+fn affine_action(
+    local: &eqiora_assembly::LocalContribution<f64>,
+    state: &[f64],
+    pullback: Option<FieldPullback<'_>>,
+) -> Result<RegionLinearization, Diagnostic> {
+    let residual = super::residual::evaluate_local_residual(local, state)?;
+    let jacobian = match pullback {
+        Some(pullback) => {
+            pullback.validate(state.len())?;
+            local
+                .matrix()
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    *value
+                        * pullback
+                            .weight(index % local.columns(), false)
+                            .unwrap_or(0.)
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    Ok(RegionLinearization { residual, jacobian })
 }

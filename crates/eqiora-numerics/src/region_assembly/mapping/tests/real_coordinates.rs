@@ -81,6 +81,7 @@ fn real_coordinates_assemble_conjugated_trials_and_recover_physical_fields() {
             ));
         }
         let input = RegionSolveInput {
+            conservative: None,
             operator_properties: LinearOperatorProperties::General,
             forms: vec![(bound, QuadratureRule::gauss_legendre(2).unwrap())],
             natural: facets,

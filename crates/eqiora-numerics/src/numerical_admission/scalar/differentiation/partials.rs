@@ -89,9 +89,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             ));
         }
         // Derivatives use the primal integration rule and fixed primal trace.
-        for ((_, rule), (_, primal)) in differentiated.forms.iter_mut().zip(&input.forms) {
-            *rule = primal.clone();
-        }
+        differentiated.retain_primal_integration(input)?;
         let mut residual = S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?;
         let lift = partial_mapping.lift(&vec![S::zero(); mapping.free_count()], false)?;
         let layout = RegionRealCoordinates::new(mapping)?;

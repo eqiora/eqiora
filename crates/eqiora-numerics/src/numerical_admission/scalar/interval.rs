@@ -21,7 +21,11 @@ pub(super) fn admit(
     let [region] = lowered.regions.as_slice() else {
         return unavailable();
     };
-    if region.form.dimension() != 1 || region.form.fields().len() != 1 {
+    if region.form.dimension() != 1
+        || region.form.fields().len() != 1
+        || region.form.is_transient()
+        || region.form.is_nonlinear()
+    {
         return unavailable();
     }
     let program = admission.program();

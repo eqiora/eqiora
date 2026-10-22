@@ -30,6 +30,7 @@ impl CommonSpatialPlan {
                 mapping.recover_reactions(
                     mesh.mesh(),
                     RegionSolveInput {
+                        conservative: None,
                         operator_properties: self.admission.operator_properties,
                         forms,
                         natural,

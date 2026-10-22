@@ -18,6 +18,12 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 "TPFA requires one Region without interface quotients",
             ));
         }
+        if region.form.is_transient() {
+            if constraint.is_some() {
+                return Err(invalid("transient TPFA cannot reuse a stationary gauge"));
+            }
+            return Ok(LinearOperatorProperties::General);
+        }
         let row = region.form.conservative_system()?;
         let mut essential = false;
         for (field, _) in row.fields() {

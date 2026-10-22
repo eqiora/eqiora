@@ -71,6 +71,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             NativeMeshResources::Cartesian { mesh, .. }
                 if spaces.iter().all(|space| {
                     *space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                        || *space == Space::cell_constant()
                 }) =>
             {
                 let (mapping, mut input) =
@@ -94,6 +95,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 let (mapping, forms, natural) =
                     self.simplicial_assembly(mesh, selected, scaling)?;
                 let input = crate::region_assembly::mapping::RegionSolveInput {
+                    conservative: None,
                     operator_properties,
                     geometry_action: None,
                     forms,
@@ -197,9 +199,43 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 .map(|(cell, domain)| (eqiora_meshing::CellId::new(cell), domain)),
             &self.quotients()?,
         )?;
+        let conservative = if selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .any(|field| field.space() == Space::cell_constant())
+        {
+            let region = self.single()?;
+            if !traces.is_empty() || !self.interfaces.is_empty() {
+                return Err(invalid(
+                    "TPFA requires its exact single Region without interface quotients",
+                ));
+            }
+            let mut boundaries = BTreeMap::new();
+            for (field, _) in region.form.fields() {
+                for (&(axis, side), boundary) in &region.cartesian()?.boundaries {
+                    let law = region
+                        .form
+                        .boundary_laws()
+                        .get(field)
+                        .and_then(|laws| laws.get(boundary))
+                        .ok_or_else(|| invalid("TPFA requires complete exact boundary laws"))?;
+                    boundaries.insert((*field, axis, side), law.clone());
+                }
+            }
+            Some(Box::new(crate::region_assembly::ConservativeFacets {
+                mesh: mesh.clone(),
+                boundaries,
+                primal: None,
+            }))
+        } else {
+            None
+        };
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         for (region, form) in self.regions.iter().zip(&bound) {
+            if conservative.is_some() {
+                break;
+            }
             let support = region.cartesian()?;
             for (field, _) in region.form.fields() {
                 for (&(axis, side), boundary) in &support.boundaries {
@@ -279,7 +315,11 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         natural.extend(crate::region_assembly::mapping::prepare_interface_facets(
             mesh, &bound, &traces,
         )?);
-        let points = super::quadrature_points(reference, selected, &bound)?;
+        let points = if conservative.is_some() {
+            1
+        } else {
+            super::quadrature_points(reference, selected, &bound)?
+        };
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, points)?;
         let forms = bound
             .into_iter()
@@ -288,6 +328,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {
+                conservative,
                 operator_properties: self.finite_element_operator_properties(),
                 geometry_action: None,
                 forms,

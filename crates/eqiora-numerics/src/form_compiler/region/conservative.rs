@@ -16,24 +16,15 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn conservative_system(
         &self,
     ) -> Result<ConservativeSystem<'_, S>, Diagnostic> {
-        let rows = self
-            .rows
-            .iter()
-            .map(|row| (row.tested, row))
-            .collect::<BTreeMap<_, _>>();
-        if rows.is_empty() || rows.len() != self.rows.len() {
-            return Err(invalid(
-                "conservative assembly requires distinct tested Fields",
-            ));
-        }
-        for row in rows.values() {
+        let system = self.conservative_flux()?;
+        for row in system.rows.values() {
             let field_type = &self.roles.fields[&row.tested].1;
             if field_type.scalar_domain() != S::DOMAIN
                 || !same_component_type(field_type, &row.value_type)
                 || row.forcing.len() != components(field_type, self.dimension)?
                 || row.is_nonlinear()
                 || row.terms.iter().any(|term| {
-                    let Some(trial) = rows.get(&term.trial) else {
+                    let Some(trial) = system.rows.get(&term.trial) else {
                         return true;
                     };
                     term.derivative
@@ -73,6 +64,41 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     "conservative assembly requires steady axis-aligned-diffusion/component-reaction blocks in their exact coefficient domain",
                 ));
             }
+        }
+        Ok(system)
+    }
+
+    fn conservative_flux(&self) -> Result<ConservativeSystem<'_, S>, Diagnostic> {
+        let rows = self
+            .rows
+            .iter()
+            .map(|row| (row.tested, row))
+            .collect::<BTreeMap<_, _>>();
+        if rows.is_empty() || rows.len() != self.rows.len() {
+            return Err(invalid(
+                "conservative assembly requires distinct tested Fields",
+            ));
+        }
+        for row in rows.values() {
+            if !row.dyadics.is_empty()
+                || row
+                    .flux
+                    .iter()
+                    .any(|flux| matches!(flux, flux::FluxTerm::Component(_)))
+            {
+                return Err(invalid(
+                    "TPFA flux requires an affine axis-aligned constitutive action",
+                ));
+            }
+            if row
+                .terms
+                .iter()
+                .any(|term| term.derivative && gradient_pairing(term.pairing))
+            {
+                return Err(invalid(
+                    "TPFA flux cannot contain a differentiated spatial gradient",
+                ));
+            }
             let gradients = row
                 .terms
                 .iter()
@@ -92,6 +118,50 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
         }
         ConservativeSystem::new(rows, self.dimension)
+    }
+}
+
+impl<S: Coefficient> BoundRegionForm<S> {
+    pub(crate) fn conservative_flux(&self) -> Result<ConservativeSystem<'_, S>, Diagnostic> {
+        self.conservative_flux
+            .as_deref()
+            .ok_or_else(|| invalid("bound Region has no conservative face part"))?
+            .conservative_flux()
+    }
+}
+
+impl<S: Coefficient> CompiledRegionForm<S> {
+    /// Project one source into cell volume/rate actions and native face fluxes.
+    /// The two parts retain disjoint terms and share the existing binding/AD owners.
+    pub(in crate::form_compiler) fn bind_conservative(
+        &self,
+        reference: eqiora_meshing::ReferenceCell,
+        fields: &[RegionFieldBinding],
+        rows: &BTreeMap<RawId, eqiora_core::DynQuantity>,
+        time: Option<&RegionTimeBinding>,
+    ) -> Result<BoundRegionForm<S>, Diagnostic> {
+        self.conservative_flux()?;
+        let mut volume = self.clone();
+        let mut flux = self.clone();
+        for row in &mut volume.rows {
+            row.terms.retain(|term| !gradient_pairing(term.pairing));
+            row.flux.clear();
+        }
+        for row in &mut flux.rows {
+            row.terms.retain(|term| gradient_pairing(term.pairing));
+            row.components.clear();
+            row.dyadics.clear();
+            row.forcing.fill(Data::constant(self.dimension, S::zero()));
+        }
+        let mut bound = volume.bind(reference, fields, rows, time)?;
+        bound.conservative_flux = Some(Box::new(flux));
+        Ok(bound)
+    }
+}
+
+impl<S: Coefficient> BoundRegionForm<S> {
+    pub(crate) fn has_conservative_faces(&self) -> bool {
+        self.conservative_flux.is_some()
     }
 }
 

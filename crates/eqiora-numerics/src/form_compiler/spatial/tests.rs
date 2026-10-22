@@ -1,5 +1,6 @@
 use crate::form_compiler::region::integration::IntegralField;
 use crate::parameter_point::ParameterPoint;
+mod conservative;
 mod moments;
 mod parameters;
 use eqiora_compiler::compile;
