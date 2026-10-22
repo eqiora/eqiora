@@ -154,7 +154,7 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
     let form = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
     let original = &form.rows[0].forcing[0];
     let rebound = original
-        .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &values).unwrap())
+        .bind_inputs(&ParameterPoint::bind(&program, &fields, &values).unwrap())
         .unwrap();
     close(
         rebound.evaluate(&[0.25, 0.5]).unwrap(),
@@ -165,7 +165,7 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
         3.0 * 0.75_f64.cos(),
     );
     let reversed = original
-        .bind_parameter_point(
+        .bind_inputs(
             &ParameterPoint::bind(
                 &program,
                 &fields.iter().copied().rev().collect::<Vec<_>>(),
@@ -190,7 +190,7 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
         .collect::<Vec<_>>();
     assert!(
         original
-            .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &invalid).unwrap())
+            .bind_inputs(&ParameterPoint::bind(&program, &fields, &invalid).unwrap())
             .unwrap()
             .evaluate(&[0.25, 0.5])
             .is_err()
@@ -258,11 +258,12 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
         .prepare_cell(&geometry, &quadrature)
         .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
-    let scalar = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive(
+    let scalar = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         domain,
         2,
         &std::collections::BTreeSet::new(),
+        None,
     )
     .unwrap()
     .volume()

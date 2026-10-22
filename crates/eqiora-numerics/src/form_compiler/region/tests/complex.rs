@@ -104,7 +104,7 @@ fn additive_complex_diffusion_preserves_flux_phase_rebinding_and_partials() {
                 .unwrap();
             complex_close(
                 diffusion
-                    .bind_parameter_point(&point)
+                    .bind_inputs(&point)
                     .unwrap()
                     .evaluate(&[3.])
                     .unwrap(),
@@ -232,7 +232,7 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
     complex_close(cached.rhs()[1], C::new(3., 9.));
 
     let rebound = form
-        .bind_parameter_point(
+        .bind_inputs(
             &ParameterPoint::bind(
                 &program,
                 &[

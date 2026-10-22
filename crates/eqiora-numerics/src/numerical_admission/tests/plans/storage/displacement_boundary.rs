@@ -46,17 +46,16 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
     // Kii=4, each Kib=-2. Endpoint g=t^2 gives vb+=(g+-g)/dt.
     // (Mii+dt^2*Kii)d+=Mii*d+dt*Mii*v-2*dt*Mib*(vb+-vb)-2*dt^2*Kib*g+.
     // These exact rational values include the boundary capacity-history term.
-    for (index, (boundary_d, boundary_v, interior_d, interior_v)) in [
+    for (boundary_d, boundary_v, interior_d, interior_v) in [
         (1. / 16., 1. / 4., 1. / 112., 1. / 28.),
         (1. / 4., 3. / 4., 4. / 49., 57. / 196.),
         (9. / 16., 5. / 4., 1611. / 5488., 1163. / 1372.),
     ]
     .into_iter()
-    .enumerate()
     {
         let old = state.to_bytes().unwrap();
         let next = plan
-            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, (index + 1) as f64 * 0.25)
+            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         assert_eq!(state.to_bytes().unwrap(), old);
         state = CommonState::from_bytes(&next.state().to_bytes().unwrap(), &resolved).unwrap();
@@ -91,7 +90,14 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
                 .contains("prescribed displacement boundary")
         );
         let restarted = plan.initial_state(state.time_s(), valid).unwrap();
-        assert_eq!(restarted.to_bytes().unwrap(), state.to_bytes().unwrap());
+        assert_eq!(restarted.spatial_values(), state.spatial_values());
+        // Equal physical points can represent distinct acceptance contexts:
+        // explicit initialization has no retained discrete predecessor.
+        assert_ne!(restarted.identity(), state.identity());
+        assert_eq!(
+            CommonState::from_bytes(&restarted.to_bytes().unwrap(), &resolved).unwrap(),
+            restarted
+        );
         state = restarted;
         let values = state.spatial_values().unwrap();
         for (field_index, (field, _)) in plan.fields().enumerate() {
@@ -161,7 +167,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
     for step in 1..=3 {
         let t = step as f64 * 0.25;
         state = plan
-            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, t)
+            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .state()
             .clone();

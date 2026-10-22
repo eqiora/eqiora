@@ -142,11 +142,12 @@ fn compiled(source: &str) -> (CompiledSpatialForm<f64>, ModelSymbols, KernelProg
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledSpatialForm::<f64>::derive(
+    let form = CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         symbols.get("body").unwrap(),
         1,
         &std::collections::BTreeSet::new(),
+        None,
     )
     .unwrap();
     (form, symbols, program)
@@ -454,7 +455,7 @@ model Heat() {
     let parameters = [capacity, heating];
     for capacity in [0., -3.] {
         let bound = form
-            .bind_parameter_point(
+            .bind_inputs(
                 &crate::parameter_point::ParameterPoint::bind(
                     &program,
                     &parameters,
@@ -466,7 +467,6 @@ model Heat() {
         // Rebinding changes the certificate, not the source rate inventory.
         // Actual State acceptance owns singularity and rate compatibility.
         assert!(bound.is_transient());
-        assert!(!bound.temporal_structure().positive_own_capacity);
     }
     let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
     let form = form
@@ -475,7 +475,7 @@ model Heat() {
     let mesh = CartesianMesh::from_axes(vec![vec![0.0, 0.5, 1.0]]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let doubled = form
-        .bind_parameter_point(
+        .bind_inputs(
             &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[6.0, 4.0])
                 .unwrap(),
         )

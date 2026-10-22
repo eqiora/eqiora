@@ -31,6 +31,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
             &model,
             cartesian_box_resources(&geometry, &[4]),
             &request,
+            None,
         )
         .unwrap();
         let RecognizedNativeModel::ComplexSpatial(equations) = &recognized.recognized else {

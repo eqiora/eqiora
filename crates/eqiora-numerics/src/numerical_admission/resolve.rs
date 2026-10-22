@@ -61,7 +61,8 @@ impl ResolvedCommonPlan {
                 .map(|plan| Self::Spatial(Box::new(plan)));
         }
         let (spatial, formulation) = method.split();
-        let recognized = RecognizedNativeAdmission::recognize(model, owner, &spatial)?;
+        let recognized =
+            RecognizedNativeAdmission::recognize(model, owner, &spatial, temporal.map(|_| 0.))?;
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }

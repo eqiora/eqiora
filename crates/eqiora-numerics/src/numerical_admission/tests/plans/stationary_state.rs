@@ -393,6 +393,6 @@ fn stationary_state_owns_complete_fields_without_model_time() {
     assert!(CommonState::from_bytes(&bytes, &other).is_err());
     let obsolete = String::from_utf8(bytes)
         .unwrap()
-        .replace("common-spatial-state/v6", "common-spatial-state/v5");
+        .replace("common-spatial-state/v7", "common-spatial-state/v5");
     assert!(CommonState::from_bytes(obsolete.as_bytes(), &plan).is_err());
 }

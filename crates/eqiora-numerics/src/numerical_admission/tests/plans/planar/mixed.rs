@@ -4,6 +4,7 @@ use super::*;
 mod history;
 mod nonlinear;
 mod observations;
+mod time_data;
 
 const FLOW: &str = r#"
 public model Throughflow(

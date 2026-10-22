@@ -8,6 +8,7 @@ use eqiora_sem::KernelProgram;
 use crate::spatial_expression::{self, Coefficient, validate_coordinates as validate_point};
 use eqiora_ir::ScalarSymbolCoordinate;
 use input::Input;
+pub(crate) use input::InputPoint;
 
 /// Directions of retained physical coordinates, Parameter components and model Time.
 /// These coefficient partials hold geometry bindings fixed; geometry maps and
@@ -54,11 +55,12 @@ enum Node<S: Coefficient> {
 }
 
 impl<S: Coefficient> Data<S> {
-    pub(in crate::form_compiler) fn bind_parameter_point(
+    pub(in crate::form_compiler) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
-        let bind = |data: &Self| data.bind_parameter_point(point);
+        let point = point.into();
+        let bind = |data: &Self| data.bind_inputs(point);
         Ok(Self(Arc::new(match self.0.as_ref() {
             Node::Constant { dimension, value } => Node::Constant {
                 dimension: *dimension,
@@ -73,8 +75,8 @@ impl<S: Coefficient> Data<S> {
                 coordinate: coordinate.clone(),
                 input: input.bind(coordinate, point)?,
             },
-            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(point)?),
-            Node::Affine(data) => Node::Affine(data.bind_parameter_point(point)?),
+            Node::Pointwise(data) => Node::Pointwise(data.bind_inputs(point)?),
+            Node::Affine(data) => Node::Affine(data.bind_inputs(point)?),
             Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
             Node::Derivative(primal, tangent) => Node::Derivative(bind(primal)?, bind(tangent)?),
             Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),

@@ -256,18 +256,20 @@ pub(crate) fn select_exact_model(
 pub(crate) fn lower_scalar_candidate(
     program: &KernelProgram,
     resources: &NativeMeshResources,
+    initial_time_s: Option<f64>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
-    match lower_scalar_typed::<f64>(program, resources) {
+    match lower_scalar_typed::<f64>(program, resources, initial_time_s) {
         Ok(equations) => Ok(RecognizedNativeModel::Spatial(Box::new(equations))),
         Err(real) => {
-            let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
-                .map_err(|complex| {
-                    invalid(format!(
-                        "scalar real admission [{}]; complex admission [{}]",
-                        real.message(),
-                        complex.message()
-                    ))
-                })?;
+            let complex =
+                lower_scalar_typed::<num_complex::Complex64>(program, resources, initial_time_s)
+                    .map_err(|complex| {
+                        invalid(format!(
+                            "scalar real admission [{}]; complex admission [{}]",
+                            real.message(),
+                            complex.message()
+                        ))
+                    })?;
             Ok(RecognizedNativeModel::ComplexSpatial(Box::new(complex)))
         }
     }
@@ -276,6 +278,7 @@ pub(crate) fn lower_scalar_candidate(
 fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
+    initial_time_s: Option<f64>,
 ) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
     if matches!(
         resources,
@@ -283,7 +286,7 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     ) || resources.geometry()?.polyhedral_vertices().is_some()
         || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
     {
-        return ExecutableSpatialEquations::simplicial(program, resources);
+        return ExecutableSpatialEquations::simplicial(program, resources, initial_time_s);
     }
     let NativeMeshResources::Cartesian {
         geometry,
@@ -305,11 +308,11 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         })
         .count();
     if source_domains > 0 {
-        return ExecutableSpatialEquations::source_regions(program, mesh.mesh());
+        return ExecutableSpatialEquations::source_regions(program, mesh.mesh(), initial_time_s);
     }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    ExecutableSpatialEquations::new(program, domain, bounds, boundaries)
+    ExecutableSpatialEquations::new(program, domain, bounds, boundaries, initial_time_s)
 }
 
 pub(crate) fn require_policy_compatibility(

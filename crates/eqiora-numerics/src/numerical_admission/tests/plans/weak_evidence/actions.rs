@@ -20,7 +20,8 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
         .unwrap()
         .unwrap();
     crate::form_compiler::admit_authored_scalar_primal_form(projection, program, &derived).unwrap();
-    let form = CompiledSpatialForm::<C>::derive(program, domain, 1, &BTreeSet::new()).unwrap();
+    let form = CompiledSpatialForm::<C>::derive_at_time(program, domain, 1, &BTreeSet::new(), None)
+        .unwrap();
     let field = form.fields()[0].0;
     let law = form.boundary_laws()[&field]
         .values()

@@ -1405,7 +1405,7 @@ for invalid_sample in range(3):
 assert not hasattr(state, "boundary_force") and not hasattr(wake_state, "boundary_force")
 state_bytes = wake_state.to_bytes()
 state_wire = json.loads(state_bytes)
-assert state_wire["schema"] == "eqiora.common-spatial-state/v6"
+assert state_wire["schema"] == "eqiora.common-spatial-state/v7"
 assert "named_boundary_forces_on_domain" not in state_wire
 restored_state = package.State.from_bytes(plan, state_bytes)
 assert restored_state.to_bytes() == state_bytes

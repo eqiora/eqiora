@@ -5,14 +5,12 @@ use eqiora_core::Diagnostic;
 impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Partial coefficients and data at fixed geometry, topology and Field values.
     /// Assembly combines these with the primal constraints and boundary data.
-    pub(crate) fn parameter_partial(
+    pub(crate) fn input_partial(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
-        if self.motion().is_some() || self.is_transient() {
-            return Err(super::invalid(
-                "form Parameter partial requires its stationary geometry binding",
-            ));
+        if self.motion().is_some() {
+            return Err(super::invalid("form input partial requires fixed geometry"));
         }
         let mut partial = self.clone();
         partial.volume = self.volume.input_partial(coordinate)?;
@@ -26,26 +24,32 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         Ok(partial)
     }
 
-    pub(crate) fn bind_parameter_point(
+    pub(crate) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
+        let point = point.into();
+        if matches!(point, super::InputPoint::Time(time) if !time.is_finite()) {
+            return Err(super::invalid("form binding requires finite physical Time"));
+        }
         if self.motion().is_some() {
             return Err(super::invalid(
-                "moving form Parameter changes require rebuilding its source-bound geometry",
+                "moving form input changes require rebuilding its source-bound geometry",
             ));
         }
         let mut bound = self.clone();
-        bound.volume = self.volume.bind_parameter_point(point)?;
+        bound.volume = self.volume.bind_inputs(point)?;
         for law in bound
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            law.bind_parameter_point(point)?;
+            law.bind_inputs(point)?;
         }
-        for value in bound.initial.values_mut() {
-            value.bind_parameter_point(point)?;
+        if matches!(point, super::InputPoint::Parameters(_)) {
+            for value in bound.initial.values_mut() {
+                value.bind_inputs(point)?;
+            }
         }
         bound.temporal = bound.volume.temporal_structure()?;
         if !bound.kinematics.is_empty() && !bound.temporal.positive_own_capacity {

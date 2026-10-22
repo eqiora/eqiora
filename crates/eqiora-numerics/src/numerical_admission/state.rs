@@ -1,5 +1,7 @@
 use super::*;
+mod grid;
 use crate::prepared_execution::advance_prepared_actions;
+pub(super) use grid::TimeGrid;
 use std::ops::ControlFlow;
 
 struct CommonAcceptedActions {
@@ -125,10 +127,11 @@ impl CommonTransientRunRequest {
             .ok_or_else(|| invalid("transient Run requires BackwardEuler"))?
             .step()
             .value();
-        let accepted_steps = exact_grid_index(state.require_time_s()?, until_s, step_s, "until_s")?;
+        let grid = state.time_grid()?;
+        let accepted_steps = grid.steps_until(until_s, step_s, "until_s")?;
         let output_steps = output_times_s
             .into_iter()
-            .map(|time| exact_grid_index(state.require_time_s()?, time, step_s, "output_times_s"))
+            .map(|time| grid.steps_until(time, step_s, "output_times_s"))
             .collect::<Result<Vec<_>, _>>()?;
         Self::new(
             plan,
@@ -204,22 +207,13 @@ impl CommonTransientRunRequest {
                 .expect("validated temporal")
                 .step()
                 .value();
-            let start_s = self.state().require_time_s()?;
-            let mut accepted = 0;
             return advance_common_prepared_actions(
                 self.schedule.state.clone(),
                 self.schedule.accepted_steps.get(),
                 &self.schedule.output_steps,
-                plan.admission
-                    .temporal
-                    .expect("validated temporal")
-                    .step()
-                    .value(),
+                step_s,
                 |_| Ok(()),
-                |(), state| {
-                    accepted += 1;
-                    plan.advance_scalar(state, backend, start_s + accepted as f64 * step_s)
-                },
+                |(), state| plan.advance_scalar(state, backend),
                 stop_at_boundary,
             );
         }
@@ -246,33 +240,6 @@ impl CommonTransientRunRequest {
     }
 }
 
-fn exact_grid_index(
-    start_s: f64,
-    target_s: f64,
-    step_s: f64,
-    label: &str,
-) -> Result<usize, Diagnostic> {
-    if !target_s.is_finite() || target_s <= start_s {
-        return Err(invalid(format!(
-            "{label} values must be finite and later than State.time_s"
-        )));
-    }
-    let raw = (target_s - start_s) / step_s;
-    if !raw.is_finite() || raw < 1.0 || raw.fract() != 0.0 || raw > usize::MAX as f64 {
-        return Err(invalid(format!(
-            "{label} values must align exactly to the Plan Backward-Euler grid"
-        )));
-    }
-    let index = raw as usize;
-    let reconstructed = start_s + step_s * index as f64;
-    if reconstructed.to_bits() != target_s.to_bits() {
-        return Err(invalid(format!(
-            "{label} values must align exactly to the Plan Backward-Euler grid"
-        )));
-    }
-    Ok(index)
-}
-
 impl CommonState {
     pub(super) fn new(
         state_space_identity: String,
@@ -296,10 +263,23 @@ impl CommonState {
             None => bytes.push(0),
         }
         match &kind {
-            CommonStateKind::Spatial(values) => {
-                push_framed(&mut bytes, b"spatial-nodal/v2");
+            CommonStateKind::Spatial { values, previous } => {
+                push_framed(&mut bytes, b"spatial-nodal/v3");
+                bytes.extend_from_slice(&(values.len() as u64).to_be_bytes());
                 for value in values {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+                match previous {
+                    None => bytes.push(0),
+                    Some(previous) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&previous.grid.origin_s.to_bits().to_be_bytes());
+                        bytes.extend_from_slice(&(previous.grid.index as u64).to_be_bytes());
+                        bytes.extend_from_slice(&(previous.values.len() as u64).to_be_bytes());
+                        for value in &previous.values {
+                            bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                        }
+                    }
                 }
             }
             CommonStateKind::MiniP1(state) => {
@@ -381,7 +361,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_vertex_values(&self) -> Option<&[[f64; 2]]> {
         match &self.kind {
-            CommonStateKind::Spatial(_) => None,
+            CommonStateKind::Spatial { .. } => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
         }
@@ -390,7 +370,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_cell_values(&self) -> Option<Vec<[f64; 2]>> {
         match &self.kind {
-            CommonStateKind::Spatial(_) => None,
+            CommonStateKind::Spatial { .. } => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().cell_bubble_values().to_vec()),
             CommonStateKind::CellCentered(state) => Some(state.velocity().values().to_vec()),
         }
@@ -399,7 +379,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_vertex_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Spatial(_) => None,
+            CommonStateKind::Spatial { .. } => None,
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
         }
@@ -408,7 +388,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_cell_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Spatial(_) | CommonStateKind::MiniP1(_) => None,
+            CommonStateKind::Spatial { .. } | CommonStateKind::MiniP1(_) => None,
             CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
         }
     }
@@ -416,7 +396,7 @@ impl CommonState {
     #[cfg(test)]
     pub(super) fn method_history_values(&self) -> &[f64] {
         match &self.kind {
-            CommonStateKind::Spatial(_) | CommonStateKind::MiniP1(_) => &[],
+            CommonStateKind::Spatial { .. } | CommonStateKind::MiniP1(_) => &[],
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
         }
     }

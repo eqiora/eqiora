@@ -84,7 +84,13 @@ fn derive_geometry(
     store.commit(transaction).unwrap();
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry]).unwrap();
-    CompiledSpatialForm::derive(&program, symbols.get("body").unwrap(), 3, &BTreeSet::new())
+    CompiledSpatialForm::derive_at_time(
+        &program,
+        symbols.get("body").unwrap(),
+        3,
+        &BTreeSet::new(),
+        None,
+    )
 }
 
 #[test]

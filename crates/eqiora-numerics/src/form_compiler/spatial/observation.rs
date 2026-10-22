@@ -137,7 +137,7 @@ impl PrescribedFieldData {
     ) -> Result<(), Diagnostic> {
         for field in self.fields.values_mut() {
             for value in field.data.iter_mut().chain(&mut field.gradient) {
-                *value = value.bind_parameter_point(point)?;
+                *value = value.bind_inputs(point)?;
             }
         }
         Ok(())

@@ -500,6 +500,7 @@ impl RecognizedNativeAdmission {
         model: &ModelEnvelope,
         owner: AuthenticatedCommonMesh,
         request: &CommonSpatialRequest,
+        initial_time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
         let program = if let NativeMeshResources::Coordinates(grid) = &resources {
@@ -519,7 +520,7 @@ impl RecognizedNativeAdmission {
             let transient = lower_transient_incompressible_navier_stokes_cartesian::<2>(&program);
             let transient_geometry =
                 recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
-            let scalar = lower_scalar_candidate(&program, &resources);
+            let scalar = lower_scalar_candidate(&program, &resources, initial_time_s);
             select_exact_model(
                 &program,
                 &resources,
@@ -679,7 +680,7 @@ impl NativeNumericalAdmission {
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
-        RecognizedNativeAdmission::recognize(model, owner, &spatial.request())?.complete(
+        RecognizedNativeAdmission::recognize(model, owner, &spatial.request(), None)?.complete(
             spatial,
             linear,
             None,
@@ -693,6 +694,7 @@ impl NativeNumericalAdmission {
             self.model(),
             self.authenticated_mesh(),
             &self.spatial.request(),
+            self.temporal.map(|_| 0.),
         )?
         .complete(
             self.spatial.clone(),

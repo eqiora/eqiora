@@ -29,11 +29,12 @@ fn forms(initials: &str) -> Vec<Result<CompiledSpatialForm<f64>, Diagnostic>> {
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
     (0..2)
         .map(|index| {
-            CompiledSpatialForm::derive(
+            CompiledSpatialForm::derive_at_time(
                 &program,
                 symbols.get(&format!("body{index}")).unwrap(),
                 1,
                 &BTreeSet::new(),
+                None,
             )
         })
         .collect()
@@ -149,11 +150,12 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction).unwrap();
         let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        CompiledSpatialForm::<f64>::derive(
+        CompiledSpatialForm::<f64>::derive_at_time(
             &program,
             symbols.get("body").unwrap(),
             2,
             &BTreeSet::new(),
+            None,
         )
     };
     assert!(derive(source).unwrap().is_transient());
@@ -166,6 +168,6 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         // decides compatibility/regularity; positivity is only a certificate.
         let form = derive(&source).unwrap();
         assert!(form.is_transient());
-        assert!(!form.temporal_structure().positive_own_capacity);
+        assert!(!form.temporal.positive_own_capacity);
     }
 }

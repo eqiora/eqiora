@@ -176,18 +176,19 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
-    pub(in crate::form_compiler) fn bind_parameter_point(
+    pub(in crate::form_compiler) fn bind_inputs<'a>(
         &self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<Self, Diagnostic> {
-        let mut bound = self.map_data(&|value| value.bind_parameter_point(point))?;
+        let point = point.into();
+        let mut bound = self.map_data(&|value| value.bind_inputs(point))?;
         for row in &mut bound.rows {
             for term in &mut row.components {
-                term.value = std::sync::Arc::new(term.value.bind_parameter_point(point)?);
+                term.value = std::sync::Arc::new(term.value.bind_inputs(point)?);
             }
             for flux in &mut row.flux {
                 if let super::flux::FluxTerm::Component(term) = flux {
-                    term.value = std::sync::Arc::new(term.value.bind_parameter_point(point)?);
+                    term.value = std::sync::Arc::new(term.value.bind_inputs(point)?);
                 }
             }
         }

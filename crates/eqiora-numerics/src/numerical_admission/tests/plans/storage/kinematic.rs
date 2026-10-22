@@ -73,13 +73,13 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
     let mut rate = 0.;
     // Two half-length P1 elements give M_ii=1/3, K_ii=4, hence lambda=12.
     // Solve BE kinematics and momentum independently: d+=(d+dt*v)/(1+12dt²).
-    for step in 1..=3 {
+    for _ in 1..=3 {
         let next_d = (displacement + 0.25 * rate) / 1.75;
         let next_v = rate - 3. * next_d;
         displacement = next_d;
         rate = next_v;
         state = plan
-            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, 0.25 * step as f64)
+            .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .state()
             .clone();

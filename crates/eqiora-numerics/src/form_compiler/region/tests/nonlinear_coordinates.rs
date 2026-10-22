@@ -38,7 +38,7 @@ fn mixed_nonlinear_cells_preserve_physical_scales_and_parameter_products() {
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     for p in [0., 2.] {
         let form = form
-            .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[p]).unwrap())
+            .bind_inputs(&ParameterPoint::bind(&program, &[parameter], &[p]).unwrap())
             .unwrap();
         let (mut fields, rows) = form.si_bindings(|_| Ok(Space::cell_constant())).unwrap();
         let u = symbols.get("u").unwrap();

@@ -153,11 +153,11 @@ fn anisotropic_flux_rejects_wrong_axes_and_differentiates_nonlinear_gradients() 
     let error = form
         .require_boundary_flux(
             &program,
-            ids["wall"],
-            ids["law"],
+            crate::canonical_boundary::BoundaryRelationBinding::new(ids["wall"], ids["law"]),
             form.fields().next().unwrap().0,
             dag.node_id(normal as u32).unwrap(),
             true,
+            None,
         )
         .unwrap_err();
     assert!(error.message().contains("flux differs"), "{error:?}");

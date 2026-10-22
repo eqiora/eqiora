@@ -91,7 +91,7 @@ impl CommonSpatialPlan {
         )
     }
 
-    fn validate_state_fields<S: Coefficient + Send + Sync>(
+    pub(super) fn validate_state_fields<S: Coefficient + Send + Sync>(
         &self,
         mapping: &RegionDofMap<S>,
         input: &RegionSolveInput<S>,
@@ -118,31 +118,42 @@ impl CommonSpatialPlan {
         equations: &ExecutableSpatialEquations<S>,
         time_s: Option<f64>,
         values: &[f64],
+        previous: Option<&SpatialHistory>,
     ) -> Result<(), Diagnostic>
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
     {
-        let (mapping, input) = self.state_assembly(equations, time_s)?;
-        let history = self.validate_state_fields(&mapping, &input, values)?;
-        let temporal = crate::form_compiler::region::TemporalStructure {
-            differential: equations
-                .regions
-                .iter()
-                .flat_map(|region| {
-                    region
-                        .form
-                        .temporal_structure()
-                        .differential
-                        .iter()
-                        .copied()
-                })
-                .collect(),
-            positive_own_capacity: equations
-                .regions
-                .iter()
-                .all(|region| region.form.temporal_structure().positive_own_capacity),
+        let (mapping, input) = match previous {
+            Some(previous) => self.scalar_history_assembly(
+                equations,
+                previous,
+                time_s.ok_or_else(|| invalid("step State requires model Time"))?,
+            )?,
+            None => self.state_assembly(equations, time_s)?,
         };
-        if time_s.is_some() {
+        let history = self.validate_state_fields(&mapping, &input, values)?;
+        if previous.is_some() {
+            self.accept_step_fields(&mapping, &input, &history, None)?;
+        }
+        let mut temporal = crate::form_compiler::region::TemporalStructure {
+            differential: Default::default(),
+            positive_own_capacity: true,
+        };
+        for (form, _) in &input.forms {
+            let region = form.temporal_structure()?;
+            temporal.differential.extend(region.differential);
+            temporal.positive_own_capacity &= region.positive_own_capacity;
+        }
+        if let Some(time_s) = time_s {
+            let initial_partial = || {
+                let time = eqiora_ir::ScalarSymbolCoordinate::for_value(
+                    eqiora_schema::kernel::SymbolRef::Time,
+                    &eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, TIME)
+                        .expect("real scalar Time"),
+                )?
+                .remove(0);
+                self.scalar_assembly_with_history(equations, time_s, None, None, Some(&time))
+            };
             match self.admission.resources() {
                 NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_temporal_state(
                     mesh.mesh(),
@@ -150,6 +161,7 @@ impl CommonSpatialPlan {
                     &history,
                     &temporal,
                     self.linear(),
+                    initial_partial,
                 )?,
                 NativeMeshResources::GmshSimplicial { mesh, .. }
                 | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
@@ -159,6 +171,7 @@ impl CommonSpatialPlan {
                         &history,
                         &temporal,
                         self.linear(),
+                        initial_partial,
                     )?,
                 _ => return Err(invalid("temporal State requires its exact nodal Mesh")),
             }
@@ -171,12 +184,21 @@ impl CommonSpatialPlan {
         time_s: Option<f64>,
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
+        self.spatial_state(time_s, values, None)
+    }
+
+    pub(in crate::numerical_admission) fn spatial_state(
+        &self,
+        time_s: Option<f64>,
+        values: Vec<f64>,
+        previous: Option<SpatialHistory>,
+    ) -> Result<CommonState, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
-                self.validate_typed_state(equations, time_s, &values)?
+                self.validate_typed_state(equations, time_s, &values, previous.as_ref())?
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
-                self.validate_typed_state(equations, time_s, &values)?
+                self.validate_typed_state(equations, time_s, &values, previous.as_ref())?
             }
             _ => return Err(invalid("missing spatial equations")),
         }
@@ -185,7 +207,10 @@ impl CommonSpatialPlan {
             time_s,
             Arc::new(self.admission.model().clone()),
             Arc::new(self.admission.resources().clone()),
-            CommonStateKind::Spatial(values.into_boxed_slice()),
+            CommonStateKind::Spatial {
+                values: values.into_boxed_slice(),
+                previous,
+            },
         )
     }
 }

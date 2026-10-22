@@ -144,12 +144,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(crate) fn require_boundary_flux(
         &self,
         program: &KernelProgram,
-        boundary: RawId,
-        relation: RawId,
+        binding: crate::canonical_boundary::BoundaryRelationBinding,
         field: RawId,
         normal: ExprId,
         homogeneous: bool,
+        time_s: Option<f64>,
     ) -> Result<(), Diagnostic> {
+        let boundary = binding.boundary();
+        let relation = binding.relation();
         let owns_support = crate::canonical::boundary_parent(program, boundary)
             == Some(self.domain)
             || matches!(program.node(boundary), Some(KernelNode::Domain(definition))
@@ -179,10 +181,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         if on.erase() != boundary {
             return Err(invalid("flux witness normal has a foreign exact support"));
         }
-        let coefficients =
-            super::super::spatial::coefficients(program, self.dimension, &self.roles)?;
+        let coefficients = super::super::spatial::coefficients_at_time(
+            program,
+            self.dimension,
+            &self.roles,
+            time_s,
+        )?;
         let context = Context {
-            time_s: None,
+            time_s,
             program,
             dag: typed.expression(),
             owner: relation,

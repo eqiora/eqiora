@@ -68,7 +68,7 @@ public model DrivenWave(
             boundary_v = next_boundary_v;
             let retained = state.to_bytes().unwrap();
             let next = plan
-                .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, time)
+                .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
             assert_eq!(state.to_bytes().unwrap(), retained);
             state = CommonState::from_bytes(&next.state().to_bytes().unwrap(), &resolved).unwrap();

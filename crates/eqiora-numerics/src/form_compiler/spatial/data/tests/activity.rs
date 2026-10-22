@@ -64,27 +64,21 @@ fn coefficient_partials_distinguish_frozen_inputs_from_zero_tangents() {
                     symbols.get("q").unwrap().downcast().unwrap(),
                 ];
                 let rebound = partial
-                    .bind_parameter_point(
-                        &ParameterPoint::bind(&program, &parameters, &[2., 4.]).unwrap(),
-                    )
+                    .bind_inputs(&ParameterPoint::bind(&program, &parameters, &[2., 4.]).unwrap())
                     .unwrap();
                 assert_eq!(rebound.evaluate(&[0.5]).unwrap(), 0.5);
                 // Frozen means no derivative, not permission to erase the
                 // original real square-root domain or exact Parameter binding.
                 assert!(
                     partial
-                        .bind_parameter_point(
+                        .bind_inputs(
                             &ParameterPoint::bind(&program, &parameters, &[2., -1.]).unwrap(),
                         )
                         .unwrap()
                         .evaluate(&[0.5])
                         .is_err()
                 );
-                assert!(
-                    partial
-                        .bind_parameter_point(&ParameterPoint::default())
-                        .is_err()
-                );
+                assert!(partial.bind_inputs(&ParameterPoint::default()).is_err());
                 assert_eq!(
                     data.coordinate_derivative(0, 1)
                         .unwrap()
@@ -155,9 +149,7 @@ fn affine_coefficient_partials_preserve_frozen_domains_and_active_zero_tangents(
             ];
             for q in [0., 4., -1.] {
                 let rebound = partial
-                    .bind_parameter_point(
-                        &ParameterPoint::bind(&program, &parameters, &[2., q]).unwrap(),
-                    )
+                    .bind_inputs(&ParameterPoint::bind(&program, &parameters, &[2., q]).unwrap())
                     .unwrap();
                 if q < 0. {
                     assert!(rebound.evaluate(&[0.5]).is_err());

@@ -57,7 +57,7 @@ fn execute<S: Coefficient + Send + Sync>(
             },
         );
         let equations =
-            ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources).unwrap();
+            ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources, None).unwrap();
         let output = equations
             .finalize_static(
                 NonZeroUsize::MIN,
@@ -73,6 +73,7 @@ fn execute<S: Coefficient + Send + Sync>(
             &model,
             owner.clone(),
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+            None,
         )
         .unwrap();
         let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();

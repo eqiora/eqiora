@@ -558,9 +558,20 @@ pub struct CommonTransientFlowPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonStateKind {
-    Spatial(Box<[f64]>),
+    Spatial {
+        values: Box<[f64]>,
+        previous: Option<SpatialHistory>,
+    },
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
+}
+
+/// Immediate mathematical predecessor, never a recursive chain of States.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SpatialHistory {
+    grid: TimeGrid,
+    values: Box<[f64]>,
 }
 
 /// Opaque coherent-SI coefficients for one exact common spatial state space.
@@ -770,6 +781,7 @@ pub(super) use scalar::ExecutableSpatialEquations;
 mod solver_planning;
 mod spatial_planning;
 mod state;
+use state::TimeGrid;
 mod state_artifact;
 mod steady_stokes;
 mod transient;

@@ -1,6 +1,9 @@
 use super::*;
-use crate::region_assembly::mapping::{RegionAlgebraicCoordinates, RegionDofMap};
+use crate::region_assembly::mapping::{
+    RecoveredRegionField, RegionAlgebraicCoordinates, RegionDofMap, RegionSolveInput,
+};
 use crate::spatial_expression::Coefficient;
+use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
 impl CommonSpatialPlan {
     pub(crate) fn reaccept_static_coefficients(
@@ -101,6 +104,27 @@ impl CommonSpatialPlan {
                 "step replay requires its exact current Plan checkpoint",
             ));
         }
+        let CommonStateKind::Spatial {
+            previous: Some(history),
+            ..
+        } = &current.kind
+        else {
+            return Err(invalid(
+                "step replay requires its retained mathematical predecessor",
+            ));
+        };
+        if history.grid.previous()? != previous.time_grid()?
+            || Some(history.values.as_ref()) != previous.spatial_values()
+        {
+            return Err(invalid(
+                "step replay differs from the State's mathematical predecessor",
+            ));
+        }
+        if self.admission.nonlinear.is_some() != nonlinear_iterations.is_some() {
+            return Err(invalid(
+                "spatial iteration history differs from its Plan solve strategy",
+            ));
+        }
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
                 self.reaccept_typed_step(equations, previous, current, nonlinear_iterations)
@@ -123,54 +147,87 @@ impl CommonSpatialPlan {
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
     {
         let (mapping, input) =
-            self.scalar_step_assembly(equations, previous, current.require_time_s()?)?;
+            self.scalar_step_assembly(equations, previous, current.time_grid()?)?;
         let values = current
             .spatial_values()
             .ok_or_else(|| invalid("step replay requires physical spatial coefficients"))?;
         let fields = self.physical_fields(&mapping, values)?;
-        let solver = self.admission.linear.solver;
-        let workers = self.admission.linear.workers;
-        if self.admission.nonlinear.is_some() != nonlinear_iterations.is_some() {
-            return Err(invalid(
-                "spatial iteration history differs from its Plan solve strategy",
-            ));
-        }
-        let validate = |mesh: &eqiora_meshing::SimplicialMesh| match self.admission.nonlinear {
-            Some(nonlinear) => mapping.validate_nonlinear_coefficients(
-                mesh,
-                &input,
-                &fields,
-                input.previous.as_ref().expect("validated step history"),
-                nonlinear,
-                nonlinear_iterations.expect("validated history"),
-            ),
-            None => mapping
-                .validate_step_coefficients(mesh, &input, &fields, solver, workers)
-                .map(|(n, t, p, a)| (n, t, p, a, None)),
-        };
+        self.accept_step_fields(&mapping, &input, &fields, nonlinear_iterations)
+    }
+
+    /// Reuse the original step equation for live acceptance and standalone replay.
+    /// Iteration metadata is checked only when replaying a producer's Result.
+    pub(super) fn accept_step_fields<S: Coefficient + Send + Sync>(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>,
+        nonlinear_iterations: Option<usize>,
+    ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
         match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => match self.admission.nonlinear {
-                Some(nonlinear) => mapping.validate_nonlinear_coefficients(
-                    mesh.mesh(),
-                    &input,
-                    &fields,
-                    input.previous.as_ref().expect("validated step history"),
-                    nonlinear,
-                    nonlinear_iterations.expect("validated history"),
-                ),
-                None => mapping
-                    .validate_step_coefficients(mesh.mesh(), &input, &fields, solver, workers)
-                    .map(|(n, t, p, a)| (n, t, p, a, None)),
-            },
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                self.accept_step_on_mesh(mesh.mesh(), mapping, input, fields, nonlinear_iterations)
+            }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let current_mesh = input
                     .geometry_action
                     .as_ref()
                     .map(|action| action.current_mesh());
-                validate(current_mesh.unwrap_or_else(|| mesh.mesh()))
+                self.accept_step_on_mesh(
+                    current_mesh.unwrap_or_else(|| mesh.mesh()),
+                    mapping,
+                    input,
+                    fields,
+                    nonlinear_iterations,
+                )
             }
             _ => Err(invalid("step replay requires its exact affine mesh")),
+        }
+    }
+
+    fn accept_step_on_mesh<'mesh, S: Coefficient + Send + Sync>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        fields: &BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>,
+        nonlinear_iterations: Option<usize>,
+    ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
+        match self.admission.nonlinear {
+            Some(nonlinear) => {
+                let initial = input.previous.as_ref().expect("validated step history");
+                if let Some(iterations) = nonlinear_iterations {
+                    mapping.validate_nonlinear_coefficients(
+                        mesh, input, fields, initial, nonlinear, iterations,
+                    )
+                } else {
+                    let accepted = mapping
+                        .accept_nonlinear_coefficients(mesh, input, fields, initial, nonlinear)?;
+                    Ok((
+                        accepted.residual_norm,
+                        accepted.residual_target,
+                        accepted.assembly.report.packet_count(),
+                        accepted.assembly.report.target_count(),
+                        Some(accepted.initial.residual_norm),
+                    ))
+                }
+            }
+            None => mapping
+                .validate_step_coefficients(
+                    mesh,
+                    input,
+                    fields,
+                    self.admission.linear.solver,
+                    self.admission.linear.workers,
+                )
+                .map(|(n, t, p, a)| (n, t, p, a, None)),
         }
     }
 }

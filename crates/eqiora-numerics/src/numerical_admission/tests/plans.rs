@@ -810,7 +810,8 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let reaction = scalar_model_from_source(&geometry, &reaction_source);
     let reaction_program = replay_program(&reaction, &geometry, &[]).unwrap();
     let reaction_owner = resources(&geometry);
-    let reaction_scalar = lower_scalar_candidate(&reaction_program, &reaction_owner.resources);
+    let reaction_scalar =
+        lower_scalar_candidate(&reaction_program, &reaction_owner.resources, None);
     let reaction_transient =
         lower_transient_incompressible_navier_stokes_cartesian::<2>(&reaction_program);
     assert!(

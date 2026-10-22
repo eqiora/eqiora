@@ -158,6 +158,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                         model_geometries: plan.admission.model_geometries().to_vec(),
                     },
                     &CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered),
+                    None
                 )
                 .is_err(),
                 "a weak form cannot silently stand in for an unavailable cell-centered method"
@@ -294,7 +295,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
     let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let before = initial.to_bytes().unwrap();
     assert!(
-        plan.advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+        plan.advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
             .is_err()
     );
     assert_eq!(initial.to_bytes().unwrap(), before);
@@ -303,7 +304,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
     let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let mut accepted = plan
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     accepted.reaccept_spatial(plan).unwrap();
     let CommonSolveHistory::Newton {
@@ -326,7 +327,7 @@ fn spatial_newton_replay_rejects_foreign_solver_and_execution_metadata() {
     let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let accepted = plan
-        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let run = CommonTransientRunRequest::from_steps(resolved.clone(), initial, 1, vec![1]).unwrap();
     crate::CommonTrajectory::accept_spatial_transient(run.clone(), vec![(1, accepted.clone())])

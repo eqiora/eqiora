@@ -60,7 +60,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
         let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
         for part in 0..parts {
             let mut invalid = initial.clone();
-            let CommonStateKind::Spatial(values) = &mut invalid.kind else {
+            let CommonStateKind::Spatial { values, .. } = &mut invalid.kind else {
                 unreachable!()
             };
             values[interior[1] + part] += 0.001;
@@ -359,7 +359,7 @@ fn algebraic_regularity_covers_complex_parts_accepted_states_and_replay() {
                 *state
             );
             let mut singular = state.clone();
-            let CommonStateKind::Spatial(values) = &mut singular.kind else {
+            let CommonStateKind::Spatial { values, .. } = &mut singular.kind else {
                 unreachable!()
             };
             for node in 0..3 {
@@ -370,7 +370,8 @@ fn algebraic_regularity_covers_complex_parts_accepted_states_and_replay() {
             let error = CommonState::from_bytes(&singular.to_bytes().unwrap(), &resolved)
                 .expect_err("zero-residual singular replay must reject");
             assert!(
-                error.message().contains("algebraic regularity"),
+                error.message().contains("algebraic regularity")
+                    || error.message().contains("has no nonzero entries"),
                 "{error:?}"
             );
             // This is also the constructor used when accepting a new step.

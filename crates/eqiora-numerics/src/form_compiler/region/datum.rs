@@ -100,11 +100,12 @@ impl<S: Coefficient> PrescribedDatum<S> {
         }
     }
 
-    pub(in crate::form_compiler) fn bind_parameter_point(
+    pub(in crate::form_compiler) fn bind_inputs<'a>(
         &mut self,
-        point: &crate::parameter_point::ParameterPoint,
+        point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<(), Diagnostic> {
-        self.map_data(&|value| value.bind_parameter_point(point))
+        let point = point.into();
+        self.map_data(&|value| value.bind_inputs(point))
     }
 
     pub(in crate::form_compiler) fn map_data(

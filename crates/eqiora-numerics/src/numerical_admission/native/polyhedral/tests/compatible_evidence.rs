@@ -93,7 +93,7 @@ fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
     let plan = plan.as_spatial().unwrap();
     let field = plan.fields().next().unwrap().0;
     let equations =
-        ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources).unwrap();
+        ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources, None).unwrap();
     let NativeMeshResources::GmshSimplicial { mesh: envelope, .. } = &owner.resources else {
         unreachable!()
     };
