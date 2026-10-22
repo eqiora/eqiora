@@ -110,7 +110,9 @@ def test_stationary_tpfa_newton_retains_cell_seed_and_result():
     before = seed.to_bytes()
     result = q.run(plan, state=q.State.from_bytes(plan, before))
     # The unique constant root u=1 has zero face flux and u+u³-2=0.
-    np.testing.assert_allclose(result.fields[0].values("cell"), [1., 1.], rtol=0, atol=1e-12)
+    np.testing.assert_allclose(result.output(plan.fields[0]).values("cell"),
+                               [1., 1.], rtol=0, atol=1e-12)
+    assert result.solve.completed_iterations > 0
     assert result.initial_state.to_bytes() == before
     assert q.Result.from_bytes(plan, result.to_bytes()).to_bytes() == result.to_bytes()
     assert seed.to_bytes() == before
