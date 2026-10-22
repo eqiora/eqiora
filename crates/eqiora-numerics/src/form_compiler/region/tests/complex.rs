@@ -197,10 +197,10 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
             [[3., 1.], [-1., 3.]]
         };
         // A constant test/trial pair integrates to the interval length 6.
-        for i in 0..2 {
+        for (i, coefficients) in reaction.iter().enumerate() {
             assert!((volume.rhs()[i] - 6. * [1., 3.][i]).abs() < 1e-12);
-            for j in 0..2 {
-                assert!((volume.matrix()[2 * i + j] - 6. * reaction[i][j]).abs() < 1e-12);
+            for (j, coefficient) in coefficients.iter().enumerate() {
+                assert!((volume.matrix()[2 * i + j] - 6. * coefficient).abs() < 1e-12);
             }
         }
         for x in [0., 2., 6.] {
