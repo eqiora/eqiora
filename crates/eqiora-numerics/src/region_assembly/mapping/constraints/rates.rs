@@ -103,9 +103,7 @@ where
                 "Time partial changed the exact Field constraint layout",
             ));
         }
-        for ((_, rule), (_, primal)) in partial.forms.iter_mut().zip(&input.forms) {
-            *rule = primal.clone();
-        }
+        partial.retain_primal_integration(input)?;
         partial.previous = input.previous.clone();
         let coordinates = RegionRealCoordinates::new(self)?;
         let fixed = partial_mapping.lift(&vec![S::zero(); self.free_count()], false)?;

@@ -328,7 +328,7 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
             .iter()
             .map(|(index, facet)| Ok((*index, facet.clone().project::<Real>()?)))
             .collect::<Result<_, Diagnostic>>()?;
-        let work = PreparedRegionAssembly::<S, Real>::new(
+        let mut work = PreparedRegionAssembly::<S, Real>::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,
             input.forms.clone(),
@@ -336,7 +336,10 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
             cells,
             natural,
         )?;
-        let packet_domains = work.packet_domains(&self.mapping.cell_domains)?;
+        if let Some(faces) = &input.conservative {
+            work.append_conservative(&plan, &input.forms, faces, input.operator_properties)?;
+        }
+        let packet_domains = work.packet_domains();
         Ok(MappedRegionAssembly {
             plan,
             work,

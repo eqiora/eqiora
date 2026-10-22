@@ -14,20 +14,6 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
-        if selected
-            .iter()
-            .flat_map(|domain| domain.field_spaces())
-            .any(|field| field.space() == Space::cell_constant())
-        {
-            return self.finalize_tpfa(
-                workers,
-                solver,
-                resources,
-                selected,
-                scaling,
-                operator_properties,
-            );
-        }
         let (mapping, input) =
             self.static_assembly(resources, selected, scaling, operator_properties)?;
         let (core, assembly_report, full) = match resources {
@@ -44,7 +30,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             mapping,
             core,
             assembly_report,
-            StaticAssembly::FiniteElement(Box::new((full, input))),
+            StaticAssembly { full, input },
         ))
     }
 
@@ -71,6 +57,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             NativeMeshResources::Cartesian { mesh, .. }
                 if spaces.iter().all(|space| {
                     *space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                        || *space == Space::cell_constant()
                 }) =>
             {
                 let (mapping, mut input) =
@@ -94,6 +81,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 let (mapping, forms, natural) =
                     self.simplicial_assembly(mesh, selected, scaling)?;
                 let input = crate::region_assembly::mapping::RegionSolveInput {
+                    conservative: None,
                     operator_properties,
                     geometry_action: None,
                     forms,
@@ -197,9 +185,46 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 .map(|(cell, domain)| (eqiora_meshing::CellId::new(cell), domain)),
             &self.quotients()?,
         )?;
+        let conservative = if selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .any(|field| field.space() == Space::cell_constant())
+        {
+            let region = self.single()?;
+            if !traces.is_empty() || !self.interfaces.is_empty() {
+                return Err(invalid(
+                    "TPFA requires its exact single Region without interface quotients",
+                ));
+            }
+            let mut boundaries = BTreeMap::new();
+            for (field, _) in region.form.fields() {
+                if !region.form.requires_boundary(*field) {
+                    continue;
+                }
+                for (&(axis, side), boundary) in &region.cartesian()?.boundaries {
+                    let law = region
+                        .form
+                        .boundary_laws()
+                        .get(field)
+                        .and_then(|laws| laws.get(boundary))
+                        .ok_or_else(|| invalid("TPFA requires complete exact boundary laws"))?;
+                    boundaries.insert((*field, axis, side), law.clone());
+                }
+            }
+            Some(Box::new(crate::region_assembly::ConservativeFacets {
+                mesh: mesh.clone(),
+                boundaries,
+                primal: None,
+            }))
+        } else {
+            None
+        };
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         for (region, form) in self.regions.iter().zip(&bound) {
+            if conservative.is_some() {
+                break;
+            }
             let support = region.cartesian()?;
             for (field, _) in region.form.fields() {
                 for (&(axis, side), boundary) in &support.boundaries {
@@ -288,6 +313,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {
+                conservative,
                 operator_properties: self.finite_element_operator_properties(),
                 geometry_action: None,
                 forms,
@@ -311,14 +337,9 @@ pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient, P: 
     pub(in crate::numerical_admission) assembly: StaticAssembly<S, P>,
 }
 
-pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient, P: Coefficient = S> {
-    FiniteElement(
-        Box<(
-            eqiora_assembly::LinearSystem<S>,
-            crate::region_assembly::mapping::RegionSolveInput<P>,
-        )>,
-    ),
-    FiniteVolume,
+pub(in crate::numerical_admission) struct StaticAssembly<S: Coefficient, P: Coefficient = S> {
+    pub(in crate::numerical_admission) full: eqiora_assembly::LinearSystem<S>,
+    pub(in crate::numerical_admission) input: crate::region_assembly::mapping::RegionSolveInput<P>,
 }
 
 impl<S: Coefficient + Send + Sync, P: Coefficient + Send + Sync> StaticRegionSystem<S, P>
@@ -345,7 +366,6 @@ where
         initial: Option<&BTreeMap<RawId, Vec<P>>>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
         // Ordinary execution needs only the canonical solve and recovery map.
-        drop(self.assembly);
         let initial = initial
             .map(|values| {
                 let fields = self.mapping.physical_fields_from_coefficients(values)?;
@@ -359,6 +379,15 @@ where
         let solution = request.solve(&problem)?;
         self.core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
+        self.finish(values, solve_report, None)
+    }
+
+    fn finish(
+        self,
+        values: Vec<S>,
+        solve_report: eqiora_solver::SolveReport,
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
+    ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
         let fields = self
             .mapping
             .recover_coordinates(&values)?
@@ -376,7 +405,7 @@ where
             fields,
             solve_report,
             assembly_report: self.assembly_report,
-            nullspace: None,
+            nullspace,
         })
     }
 
@@ -408,5 +437,20 @@ where
         let reduced = self.mapping.validated_coordinates(&fields)?;
         self.core.validate_coefficients(&reduced)?;
         Ok(())
+    }
+}
+
+impl StaticRegionSystem<f64> {
+    pub(in crate::numerical_admission) fn solve_with_reference(
+        self,
+        request: LinearSolveRequest<'_>,
+        reference: &crate::nullspace::NullspaceConstraint,
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        let solved = crate::nullspace::solve_canonical_with_nullspace(
+            request,
+            self.core.canonical_csr_system_view(),
+            reference,
+        )?;
+        self.finish(solved.values, solved.report, Some(solved.evidence))
     }
 }

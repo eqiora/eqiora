@@ -17,7 +17,6 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
         initial: Option<&CommonState>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic>;
-    type Projection: crate::form_compiler::region::coordinates::Projection<Self, Scalar = f64>;
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
     fn real_system(
@@ -73,7 +72,6 @@ impl DifferentiationScalar for f64 {
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         point.accept_strategy(initial, candidate)
     }
-    type Projection = crate::form_compiler::region::coordinates::Native;
     const WIDTH: usize = 1;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
         Ok(values.to_vec())
@@ -144,7 +142,6 @@ impl DifferentiationScalar for Complex64 {
         point.accept_strategy(initial, candidate)
     }
 
-    type Projection = crate::form_compiler::region::coordinates::Real;
     const WIDTH: usize = 2;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic> {
         let (pairs, remainder) = values.as_chunks::<2>();

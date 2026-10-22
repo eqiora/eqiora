@@ -154,6 +154,7 @@ impl CommonSpatialPlan {
                 Ok((
                     mapping,
                     crate::region_assembly::mapping::RegionSolveInput {
+                        conservative: None,
                         operator_properties: bound.finite_element_operator_properties(),
                         geometry_action: None,
                         forms,

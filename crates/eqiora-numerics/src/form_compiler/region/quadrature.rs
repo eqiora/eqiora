@@ -6,7 +6,13 @@ use eqiora_realization::SpaceFamily;
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Degree of the basis products in the bound weak residual and Jacobian.
     pub(super) fn required_polynomial_exactness(&self) -> usize {
-        let mut exactness = if self
+        let constant = self
+            .fields
+            .iter()
+            .all(|layout| layout.space.family() == SpaceFamily::CellConstant);
+        let mut exactness = if constant {
+            0
+        } else if self
             .fields
             .iter()
             .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
@@ -32,7 +38,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
             exactness = exactness.max(degree);
         }
         let simplex = self.reference.family() == ReferenceCellFamily::Simplex;
-        let basis = if self
+        let basis = if constant {
+            0
+        } else if self
             .fields
             .iter()
             .any(|field| field.space.family() == SpaceFamily::SimplexP1Bubble)
@@ -42,7 +50,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             1usize
         };
         let gradient = if simplex || self.form.dimension == 1 {
-            basis - 1
+            basis.saturating_sub(1)
         } else {
             basis
         };

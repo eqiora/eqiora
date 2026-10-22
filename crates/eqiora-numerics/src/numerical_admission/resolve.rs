@@ -382,8 +382,13 @@ fn resolve_spatial_strategy(
             ));
         }
         CommonSolvePolicy::Newton { linear, nonlinear } => {
-            if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
-                return Err(invalid("Region Newton currently requires finite elements"));
+            if !matches!(
+                spatial,
+                NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
+            ) {
+                return Err(invalid(
+                    "Region Newton requires a mapped spatial discretization",
+                ));
             }
             (linear, Some(nonlinear))
         }

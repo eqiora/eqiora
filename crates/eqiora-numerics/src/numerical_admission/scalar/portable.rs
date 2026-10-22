@@ -39,7 +39,8 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
         }
     };
     let (method, quadrature) = match &admission.spatial {
-        NativeSpatialPolicy::FiniteElement(_) => {
+        NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_) => {
+            let conservative = matches!(admission.spatial, NativeSpatialPolicy::ScalarTpfa(_));
             let dimension = admission.resources().geometry()?.ambient_dimension();
             let simplex = matches!(
                 admission.resources(),
@@ -73,15 +74,20 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                     spatial_dimension: NonZeroUsize::new(dimension).unwrap(),
                     points_per_axis,
                 }
+            } else if conservative && points_per_axis.get() == 1 {
+                QuadraturePolicy::CellCentroid
             } else {
                 QuadraturePolicy::GaussLegendre { points_per_axis }
             };
-            (DiscretizationMethod::ContinuousGalerkin, quadrature)
+            (
+                if conservative {
+                    DiscretizationMethod::CellCenteredFiniteVolume
+                } else {
+                    DiscretizationMethod::ContinuousGalerkin
+                },
+                quadrature,
+            )
         }
-        NativeSpatialPolicy::ScalarTpfa(_) => (
-            DiscretizationMethod::CellCenteredFiniteVolume,
-            QuadraturePolicy::CellCentroid,
-        ),
         _ => {
             return Err(invalid(
                 "common spatial portable graph received a foreign spatial policy",

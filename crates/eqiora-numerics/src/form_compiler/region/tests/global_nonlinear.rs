@@ -114,6 +114,7 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
                 natural.push((parent.entity.index(), load));
             }
             let input = RegionSolveInput {
+                conservative: None,
                 operator_properties: LinearOperatorProperties::General,
                 forms: vec![(
                     bound,

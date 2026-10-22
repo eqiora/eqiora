@@ -6,7 +6,13 @@ pub(in crate::numerical_admission) fn quadrature_points<S: Coefficient>(
     selected: &[eqiora_realization::DomainFieldDiscretization],
     forms: &[crate::form_compiler::region::BoundRegionForm<S>],
 ) -> Result<usize, Diagnostic> {
-    let floor = if reference.family() == eqiora_meshing::ReferenceCellFamily::Simplex {
+    let floor = if selected
+        .iter()
+        .flat_map(|domain| domain.field_spaces())
+        .all(|field| field.space() == Space::cell_constant())
+    {
+        1
+    } else if reference.family() == eqiora_meshing::ReferenceCellFamily::Simplex {
         simplex_quadrature_points(reference.dimension(), selected)?
     } else {
         2

@@ -121,6 +121,7 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
         mapping.solve(
             &mesh,
             RegionSolveInput {
+                conservative: None,
                 operator_properties: LinearOperatorProperties::General,
                 forms: vec![(
                     bound.clone(),

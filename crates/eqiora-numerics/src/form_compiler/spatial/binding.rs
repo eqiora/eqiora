@@ -120,7 +120,15 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 })
             })
             .transpose()?;
-        self.volume.bind(reference, fields, rows, time.as_ref())
+        if fields
+            .iter()
+            .all(|field| field.space == eqiora_realization::Space::cell_constant())
+        {
+            self.volume
+                .bind_conservative(reference, fields, rows, time.as_ref())
+        } else {
+            self.volume.bind(reference, fields, rows, time.as_ref())
+        }
     }
 }
 

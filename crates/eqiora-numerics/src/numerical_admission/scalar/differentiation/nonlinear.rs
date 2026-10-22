@@ -160,7 +160,7 @@ where
             invalid("nonlinear sensitivity requires exact reduced and full residual targets")
         })?;
         let (partial, output) = self.output_partials(mapping, &values, |coordinate| {
-            self.finite_element_partial(mapping, &full, input, coordinate, &values)
+            self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)
         })?;
         let relation = AssembledLinearizedRelation::from_point(
             reduced.matrix().clone(),

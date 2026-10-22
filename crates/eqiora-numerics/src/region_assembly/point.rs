@@ -43,20 +43,20 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             self.packet_count(),
             backend,
             |index| {
-                let cell = self.packet_cell(index)?;
+                let packet = self.packet(index)?;
                 let (local_point, action) = self.local_action(target, point, index, true)?;
                 let residual = action
                     .residual
                     .iter()
-                    .zip(&cell.orientation)
+                    .zip(&packet.orientation)
                     .map(|(value, sign)| *value * f64::from(*sign))
                     .collect();
                 Ok(EvaluatedRegionPacket {
                     assembly: AssemblyPacket::new(
                         action
                             .into_contribution(&local_point)?
-                            .reoriented(&cell.orientation, &cell.orientation)?,
-                        cell.mappings.clone(),
+                            .reoriented(&packet.orientation, &packet.orientation)?,
+                        packet.mappings.clone(),
                     )?,
                     residual,
                 })
@@ -74,10 +74,10 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         self.validate_point(plan, target, point)?;
         let mut residual = vec![0.; point.state().len()];
         for index in 0..self.packet_count() {
-            let cell = self.packet_cell(index)?;
-            let map = candidate_map(&cell.mappings, target)?;
+            let packet = self.packet(index)?;
+            let map = candidate_map(&packet.mappings, target)?;
             let (_, mut action) = self.local_action(target, point, index, false)?;
-            for (value, sign) in action.residual.iter_mut().zip(&cell.orientation) {
+            for (value, sign) in action.residual.iter_mut().zip(&packet.orientation) {
                 *value *= f64::from(*sign);
             }
             scatter_residual(&mut residual, map, &action.residual)?;
@@ -95,23 +95,23 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         index: usize,
         derivative: bool,
     ) -> Result<(Vec<f64>, RegionLinearization), Diagnostic> {
-        let cell = self.packet_cell(index)?;
-        let map = candidate_map(&cell.mappings, target)?;
+        let packet = self.packet(index)?;
+        let map = candidate_map(&packet.mappings, target)?;
         let mut state = mapped_local_point(map, point.state())?;
-        orient(&mut state, &cell.orientation);
+        orient(&mut state, &packet.orientation);
         let action = match point {
-            RegionPoint::Bound(_) => {
-                if index < self.cells.len() {
+            RegionPoint::Bound(_) => match &packet.action {
+                RegionPacketAction::Cell { prepared, previous } => {
                     if derivative {
-                        self.prepared[index].linearize(&cell.previous, &state)?
+                        prepared.linearize(previous, &state)?
                     } else {
                         RegionLinearization {
-                            residual: self.prepared[index].residual(&cell.previous, &state)?,
+                            residual: prepared.residual(previous, &state)?,
                             jacobian: Vec::new(),
                         }
                     }
-                } else {
-                    let facet = &self.boundary_packets[index - self.cells.len()].1;
+                }
+                RegionPacketAction::Boundary(facet) => {
                     if derivative {
                         facet.linearize(&state)?
                     } else {
@@ -121,7 +121,15 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                         }
                     }
                 }
-            }
+                RegionPacketAction::Affine(local) => affine_action(
+                    local,
+                    &state,
+                    derivative.then_some(FieldPullback::Uniform {
+                        current: Some(1.),
+                        rate: None,
+                    }),
+                )?,
+            },
             RegionPoint::Independent {
                 rate_target,
                 rates,
@@ -143,31 +151,35 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                     }
                     uniform => uniform,
                 };
-                if index < self.cells.len() {
-                    let rate_map = candidate_map(&cell.mappings, rate_target)?;
-                    // Fixed entries contain State values. They are not time derivatives
-                    // of boundary data, so a rate point must supply every coordinate.
-                    if rate_map
-                        .unknowns()
-                        .iter()
-                        .any(|value| matches!(value, LocalUnknown::Fixed(_)))
-                    {
-                        return Err(invalid(
-                            "independent rates require an unconstrained target with explicit boundary rates",
-                        ));
+                match &packet.action {
+                    RegionPacketAction::Cell { prepared, .. } => {
+                        let rate_map = candidate_map(&packet.mappings, rate_target)?;
+                        // Fixed entries contain State values. They are not time derivatives
+                        // of boundary data, so a rate point must supply every coordinate.
+                        if rate_map
+                            .unknowns()
+                            .iter()
+                            .any(|value| matches!(value, LocalUnknown::Fixed(_)))
+                        {
+                            return Err(invalid(
+                                "independent rates require an unconstrained target with explicit boundary rates",
+                            ));
+                        }
+                        let mut rates = mapped_local_point(rate_map, rates)?;
+                        orient(&mut rates, &packet.orientation);
+                        let rates = prepared.physical_coefficients(&rates)?;
+                        prepared.implicit_action(
+                            &state,
+                            Some(&rates),
+                            derivative.then_some(pullback),
+                        )?
                     }
-                    let mut rates = mapped_local_point(rate_map, rates)?;
-                    orient(&mut rates, &cell.orientation);
-                    let rates = self.prepared[index].physical_coefficients(&rates)?;
-                    self.prepared[index].implicit_action(
-                        &state,
-                        Some(&rates),
-                        derivative.then_some(pullback),
-                    )?
-                } else {
-                    self.boundary_packets[index - self.cells.len()]
-                        .1
-                        .action(&state, derivative.then_some(pullback))?
+                    RegionPacketAction::Boundary(facet) => {
+                        facet.action(&state, derivative.then_some(pullback))?
+                    }
+                    RegionPacketAction::Affine(local) => {
+                        affine_action(local, &state, derivative.then_some(pullback))?
+                    }
                 }
             }
         };
@@ -226,4 +238,30 @@ fn candidate_map(
         .find(|mapping| mapping.target() == target)
         .map(|mapping| mapping.map())
         .ok_or_else(|| invalid("Region packet omits its candidate target"))
+}
+
+fn affine_action(
+    local: &eqiora_assembly::LocalContribution<f64>,
+    state: &[f64],
+    pullback: Option<FieldPullback<'_>>,
+) -> Result<RegionLinearization, Diagnostic> {
+    let residual = super::residual::evaluate_local_residual(local, state)?;
+    let jacobian = match pullback {
+        Some(pullback) => {
+            pullback.validate(state.len())?;
+            local
+                .matrix()
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    *value
+                        * pullback
+                            .weight(index % local.columns(), false)
+                            .unwrap_or(0.)
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    Ok(RegionLinearization { residual, jacobian })
 }

@@ -29,7 +29,6 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::cartesian_elliptic::CartesianBoundaryValue;
 use crate::common::FieldCoefficientLinearization;
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonOdePolicy};

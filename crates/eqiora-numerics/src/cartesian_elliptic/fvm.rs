@@ -15,17 +15,12 @@ pub(crate) struct FinalizedCartesianFvmAssembly<S = f64> {
     operator_properties: LinearOperatorProperties,
     scalar_reconstruction: Option<(CartesianMesh, Vec<Option<S>>)>,
     facets: Vec<CartesianFacetPacket<S>>,
-    cell_dofs: Vec<Vec<DofId>>,
     assembly_report: AssemblyReport,
 }
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     FinalizedCartesianFvmAssembly<S>
 {
-    pub(crate) fn assembly_report(&self) -> &AssemblyReport {
-        &self.assembly_report
-    }
-
     pub(crate) fn canonical_system(&self) -> Result<Arc<CanonicalCsrSystemView<S>>, Diagnostic> {
         Ok(Arc::new(CanonicalCsrSystemView::new(
             &self.linear_system,
@@ -40,16 +35,6 @@ impl FinalizedCartesianFvmAssembly {
         mut self,
         mean_reference: Option<f64>,
     ) -> Result<(Arc<CanonicalCsrSystemView>, FinalizedCartesianFvmState), Diagnostic> {
-        if self
-            .cell_dofs
-            .iter()
-            .enumerate()
-            .any(|(cell, dofs)| dofs.as_slice() != [DofId::new(cell)])
-        {
-            return Err(invalid(
-                "scalar TPFA reconstruction requires its canonical cell ordering",
-            ));
-        }
         let (reconstruction_mesh, reconstruction_boundary_values) =
             self.scalar_reconstruction.take().ok_or_else(|| {
                 invalid("scalar TPFA reconstruction requires exactly one Field component")
@@ -103,7 +88,6 @@ impl FinalizedCartesianFvmAssembly {
             scalar_reconstruction: _,
             facets,
             assembly_report,
-            cell_dofs: _,
         } = self;
         Ok((
             canonical_system,
@@ -152,37 +136,6 @@ impl FinalizedCartesianFvmState {
             cell_values,
             canonical_system,
         })
-    }
-
-    pub(crate) fn assess(
-        &self,
-        system: &CanonicalCsrSystemView,
-        values: &[f64],
-        multiplier: f64,
-        plan: eqiora_solver::SolverPlan,
-    ) -> Result<crate::nullspace::NullspaceEvidence, Diagnostic> {
-        let reference = self
-            .reference
-            .as_ref()
-            .ok_or_else(|| invalid("TPFA has no declared reference"))?;
-        crate::nullspace::assess_canonical_with_nullspace(
-            system, reference, values, multiplier, plan,
-        )
-    }
-
-    pub(crate) fn solve(
-        self,
-        request: LinearSolveRequest<'_>,
-        system: Arc<CanonicalCsrSystemView>,
-    ) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic> {
-        if let Some(reference) = &self.reference {
-            let solved =
-                crate::nullspace::solve_canonical_with_nullspace(request, &system, reference)?;
-            self.finish_parts(solved.values, solved.report, Some(solved.evidence), system)
-        } else {
-            let solved = request.solve(&system.linear_problem()?)?;
-            self.finish(solved, system)
-        }
     }
 
     pub(crate) fn finish(
@@ -274,84 +227,6 @@ where
     R: Fn(usize, usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
     S: Fn(usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
 {
-    let cells = mesh.entity_count(mesh.topological_dimension()).unwrap_or(0);
-    cells
-        .checked_mul(components)
-        .ok_or_else(|| invalid("Cartesian FVM DOF count overflow"))?;
-    let cell_dofs = (0..cells)
-        .map(|cell| {
-            (0..components)
-                .map(|component| DofId::new(cell * components + component))
-                .collect()
-        })
-        .collect::<Vec<Vec<_>>>();
-    let (prepared, result) = with_elliptic_cartesian_fvm(
-        mesh,
-        components,
-        &cell_dofs,
-        flux,
-        reaction,
-        source,
-        cell_quadrature,
-        facet_quadrature,
-        |plan, work| assembly.assemble(plan, work),
-        operator_properties,
-    )?;
-    Ok(prepared.finish(result))
-}
-
-/// Geometry and facet data shared by complete systems and partial residuals.
-pub(crate) struct PreparedCartesianFvmAssembly<S> {
-    mesh: CartesianMesh,
-    cell_centers: Vec<Vec<f64>>,
-    scalar_reconstruction: Option<(CartesianMesh, Vec<Option<S>>)>,
-    facets: Vec<CartesianFacetPacket<S>>,
-    cell_dofs: Vec<Vec<DofId>>,
-    operator_properties: LinearOperatorProperties,
-}
-
-impl<S: eqiora_core::Scalar + num_complex::ComplexFloat + Sync> PreparedCartesianFvmAssembly<S> {
-    pub(crate) fn finish(
-        self,
-        result: eqiora_assembly::AssemblyResult<S>,
-    ) -> FinalizedCartesianFvmAssembly<S> {
-        let (systems, assembly_report) = result.into_parts();
-        let mut systems = systems.into_iter();
-        let linear_system = systems
-            .next()
-            .expect("one-target FVM assembly returns its system");
-        debug_assert!(systems.next().is_none());
-        FinalizedCartesianFvmAssembly {
-            mesh: self.mesh,
-            cell_centers: self.cell_centers,
-            scalar_reconstruction: self.scalar_reconstruction,
-            facets: self.facets,
-            cell_dofs: self.cell_dofs,
-            operator_properties: self.operator_properties,
-            linear_system,
-            assembly_report,
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn with_elliptic_cartesian_fvm<V, R, S, T>(
-    mesh: &CartesianMesh,
-    components: usize,
-    cell_dofs: &[Vec<DofId>],
-    flux: Option<FvmFlux<'_, V>>,
-    reaction: &R,
-    source: &S,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    consume: impl FnOnce(&AssemblyPlan, &dyn eqiora_assembly::AssemblyWork<V>) -> Result<T, Diagnostic>,
-    operator_properties: LinearOperatorProperties,
-) -> Result<(PreparedCartesianFvmAssembly<V>, T), Diagnostic>
-where
-    V: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
-    R: Fn(usize, usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
-    S: Fn(usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
-{
     validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
     if flux.is_some() {
@@ -364,19 +239,13 @@ where
     let dof_count = cell_count
         .checked_mul(components)
         .ok_or_else(|| invalid("Cartesian FVM component DOF count overflow"))?;
-    if cell_dofs.len() != cell_count
-        || cell_dofs.iter().any(|row| row.len() != components)
-        || cell_dofs
-            .iter()
-            .flatten()
-            .map(|dof| dof.index())
-            .collect::<std::collections::BTreeSet<_>>()
-            != (0..dof_count).collect()
-    {
-        return Err(invalid(
-            "Cartesian FVM requires a complete exact cell/component DOF permutation",
-        ));
-    }
+    let cell_dofs = (0..cell_count)
+        .map(|cell| {
+            (0..components)
+                .map(|component| DofId::new(cell * components + component))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
     let cell_centers = (0..cell_count)
         .map(|cell_index| {
             mesh.geometry_map(MeshEntity::new(dimension, cell_index))
@@ -438,49 +307,105 @@ where
         } else {
             let facet_index = packet_index - cell_count;
             let facet = &facets[facet_index];
-            match facet.kind {
-                CartesianFacetKind::Interior { left, right } => {
-                    let rows = [cell_dofs[left][facet.test], cell_dofs[right][facet.test]];
-                    let left = cell_dofs[left][facet.trial];
-                    let right = cell_dofs[right][facet.trial];
-                    let local = CartesianInteriorFlux {
-                        prescribed_flux: facet.prescribed_flux,
-                    }
-                    .evaluate(&facet.transmissibility, facet_quadrature)?;
-                    let map = AssemblyMap::new(
-                        rows.into_iter().map(Some).collect(),
-                        vec![LocalUnknown::Free(left), LocalUnknown::Free(right)],
-                    )?;
-                    (local, map)
-                }
-                CartesianFacetKind::Boundary {
-                    cell,
-                    coefficient,
-                    load,
-                    ..
-                } => {
-                    let row = cell_dofs[cell][facet.test];
-                    let column = cell_dofs[cell][facet.trial];
-                    let local = LocalContribution::new(1, 1, vec![coefficient], vec![load])?;
-                    let map = AssemblyMap::new(vec![Some(row)], vec![LocalUnknown::Free(column)])?;
-                    (local, map)
-                }
-            }
+            let packet = facet.contribution(facet_quadrature)?;
+            let map = AssemblyMap::new(
+                packet
+                    .cells
+                    .iter()
+                    .map(|&cell| Some(cell_dofs[cell][packet.test]))
+                    .collect(),
+                packet
+                    .cells
+                    .iter()
+                    .map(|&cell| LocalUnknown::Free(cell_dofs[cell][packet.trial]))
+                    .collect(),
+            )?;
+            (packet.local, map)
         };
         AssemblyPacket::new(local, vec![TargetAssemblyMap::new(target, map)])
     });
-    let result = consume(&assembly_plan, &work)?;
-    Ok((
-        PreparedCartesianFvmAssembly {
-            mesh: mesh.clone(),
-            cell_centers,
-            scalar_reconstruction,
-            facets,
-            cell_dofs: cell_dofs.to_vec(),
-            operator_properties,
-        },
-        result,
-    ))
+    let (mut systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
+    let linear_system = systems
+        .pop()
+        .expect("one-target FVM assembly returns its system");
+    debug_assert!(systems.is_empty());
+    Ok(FinalizedCartesianFvmAssembly {
+        mesh: mesh.clone(),
+        cell_centers,
+        scalar_reconstruction,
+        facets,
+        operator_properties,
+        linear_system,
+        assembly_report,
+    })
+}
+
+/// A conservative face acts on its incident cells in one exact component order.
+pub(crate) struct CartesianFluxContribution<S> {
+    pub(crate) cells: Vec<usize>,
+    pub(crate) test: usize,
+    pub(crate) trial: usize,
+    pub(crate) local: LocalContribution<S>,
+}
+
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>>
+    CartesianFacetPacket<S>
+{
+    fn contribution(
+        &self,
+        quadrature: &QuadratureRule,
+    ) -> Result<CartesianFluxContribution<S>, Diagnostic> {
+        let (cells, local) = match self.kind {
+            CartesianFacetKind::Interior { left, right } => (
+                vec![left, right],
+                CartesianInteriorFlux {
+                    prescribed_flux: self.prescribed_flux,
+                }
+                .evaluate(&self.transmissibility, quadrature)?,
+            ),
+            CartesianFacetKind::Boundary {
+                cell,
+                coefficient,
+                load,
+                ..
+            } => (
+                vec![cell],
+                LocalContribution::new(1, 1, vec![coefficient], vec![load])?,
+            ),
+        };
+        Ok(CartesianFluxContribution {
+            cells,
+            test: self.test,
+            trial: self.trial,
+            local,
+        })
+    }
+}
+
+pub(crate) fn cartesian_flux_contributions<S>(
+    mesh: &CartesianMesh,
+    components: usize,
+    flux: FvmFlux<'_, S>,
+    quadrature: &QuadratureRule,
+    properties: LinearOperatorProperties,
+) -> Result<Vec<CartesianFluxContribution<S>>, Diagnostic>
+where
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
+{
+    let dimension = mesh.topological_dimension();
+    require_facet_rule(dimension, quadrature)?;
+    let centers = (0..mesh.entity_count(dimension).expect("mesh owns cells"))
+        .map(|cell| {
+            mesh.geometry_map(MeshEntity::new(dimension, cell))
+                .expect("Cartesian cell geometry")
+                .origin()
+                .to_vec()
+        })
+        .collect::<Vec<_>>();
+    facets::prepare(mesh, &centers, components, flux, quadrature, properties)?
+        .iter()
+        .map(|facet| facet.contribution(quadrature))
+        .collect()
 }
 
 #[cfg(test)]

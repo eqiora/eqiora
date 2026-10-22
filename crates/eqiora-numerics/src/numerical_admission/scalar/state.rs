@@ -76,11 +76,9 @@ impl CommonSpatialPlan {
         &self,
         equations: &ExecutableSpatialEquations<S>,
     ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
-        if self.admission.temporal.is_some()
-            || matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_))
-        {
+        if self.admission.temporal.is_some() {
             return Err(invalid(
-                "stationary spatial State requires a stationary nodal Plan",
+                "stationary spatial State requires a stationary Plan",
             ));
         }
         equations.static_assembly(

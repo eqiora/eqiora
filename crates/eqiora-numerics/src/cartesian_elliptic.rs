@@ -40,7 +40,7 @@ mod fvm;
 pub(crate) use fvm::{
     FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState, finalize_elliptic_cartesian_fvm,
 };
-pub(crate) use fvm::{FvmFlux, PreparedCartesianFvmAssembly, with_elliptic_cartesian_fvm};
+pub(crate) use fvm::{FvmFlux, cartesian_flux_contributions};
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
@@ -221,10 +221,6 @@ pub struct ScalarEllipticCartesianFvmSolution {
 }
 
 impl ScalarEllipticCartesianFvmSolution {
-    pub(crate) fn nullspace_evidence(&self) -> Option<&crate::nullspace::NullspaceEvidence> {
-        self.nullspace.as_ref()
-    }
-
     /// Mesh carrying the cell-centred algebraic field.
     #[must_use]
     pub const fn mesh(&self) -> &CartesianMesh {
@@ -643,7 +639,8 @@ where
         eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     let (canonical_system, state) = finalized.into_canonical(None)?;
-    state.solve(solver, canonical_system)
+    let solved = solver.solve(&canonical_system.linear_problem()?)?;
+    state.finish(solved, canonical_system)
 }
 
 pub(crate) mod support;

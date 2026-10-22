@@ -11,6 +11,7 @@ pub(super) fn check_stationary(
     length: usize,
 ) {
     let input = || RegionSolveInput {
+        conservative: None,
         operator_properties: LinearOperatorProperties::General,
         forms: forms.to_vec(),
         natural: vec![],

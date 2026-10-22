@@ -43,12 +43,37 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     /// Derived from admitted mathematics, never inferred from the selected solver.
     pub(crate) operator_properties: eqiora_solver::LinearOperatorProperties,
     pub(crate) forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
+    pub(crate) conservative: Option<Box<crate::region_assembly::ConservativeFacets<S>>>,
     pub(crate) natural: Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
     /// Exact strong boundary data for eliminated physical state coordinates.
     pub(crate) prescribed_states: BTreeMap<FieldDof, S>,
     /// Authenticated geometry history; fluxes must already have their ALE meaning.
     pub(crate) geometry_action: Option<Box<dyn RegionGeometryHistory>>,
+}
+
+impl<S: Coefficient> RegionSolveInput<S> {
+    /// Input derivatives retain the primal integration and nonlinear face operation.
+    pub(crate) fn retain_primal_integration(&mut self, primal: &Self) -> Result<(), Diagnostic> {
+        if self.forms.len() != primal.forms.len() {
+            return Err(invalid("input partial changed the Region inventory"));
+        }
+        for ((form, rule), (original, original_rule)) in self.forms.iter_mut().zip(&primal.forms) {
+            if form.domain() != original.domain() || form.fields() != original.fields() {
+                return Err(invalid("input partial changed the exact Field layout"));
+            }
+            *rule = original_rule.clone();
+        }
+        match (&mut self.conservative, &primal.conservative) {
+            (None, None) => Ok(()),
+            (Some(partial), Some(faces)) if primal.forms.len() == 1 => {
+                partial.retain_primal(&primal.forms[0].0, faces)
+            }
+            _ => Err(invalid(
+                "input partial changed the conservative face binding",
+            )),
+        }
+    }
 }
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
@@ -58,12 +83,35 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         input: &RegionSolveInput<S>,
     ) -> Result<Option<eqiora_realization::BackwardEulerStep>, Diagnostic> {
         let RegionSolveInput {
+            conservative,
             forms,
             previous,
             geometry_action,
             prescribed_states,
             ..
         } = input;
+        if forms.iter().any(|(form, _)| form.has_conservative_faces()) != conservative.is_some() {
+            return Err(invalid(
+                "conservative cell actions require their complete face binding",
+            ));
+        }
+        if let Some(faces) = conservative {
+            let dimension = faces.mesh.topological_dimension();
+            if geometry_action.is_some()
+                || !input.natural.is_empty()
+                || mesh.topological_dimension() != dimension
+                || mesh.entity_count(dimension) != faces.mesh.entity_count(dimension)
+                || (0..faces.mesh.entity_count(dimension).expect("Cartesian cells")).any(|index| {
+                    let cell = MeshEntity::new(dimension, index);
+                    mesh.geometry_map(cell) != faces.mesh.geometry_map(cell)
+                        || mesh.incidence(cell, 0) != faces.mesh.incidence(cell, 0)
+                })
+            {
+                return Err(invalid(
+                    "conservative face geometry differs from its exact static cell geometry",
+                ));
+            }
+        }
         if let Some(action) = geometry_action {
             let current = action.current_mesh();
             let dimension = current.topological_dimension();

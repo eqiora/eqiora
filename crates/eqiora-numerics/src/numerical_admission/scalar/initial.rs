@@ -4,11 +4,12 @@ use crate::region_assembly::mapping::RegionDofMap;
 use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
-    /// Construct exact nodal initial assignments. At time zero, source conditions
+    /// Construct initial coefficients in the selected Space. At time zero, source conditions
     /// fill unsupplied Fields; a Field cannot have both source and supplied data.
     /// At later times or for a stationary Plan, every Field requires explicit coefficients. Vertex values
-    /// are nodal coefficients; cell values are the selected hierarchical bubble
-    /// coefficients, not samples at cell centers.
+    /// are nodal coefficients; cell values are cell-constant or hierarchical bubble
+    /// coefficients according to the selected Space. Source data for cell constants
+    /// is sampled at the cell centroid; bubble coefficients subtract the nodal interpolant.
     pub fn initial_state(
         &self,
         time_s: Option<f64>,
@@ -50,16 +51,21 @@ impl CommonSpatialPlan {
                 .get(&field.field().erase())
                 .ok_or_else(|| invalid("InitialField is not an exact stored Plan Field"))?;
             if field.finite_value().is_some() {
-                return Err(invalid("nodal InitialField cannot use finite coordinates"));
+                return Err(invalid(
+                    "spatial InitialField cannot use finite coordinates",
+                ));
             }
             let (vertices, cells): (Vec<_>, Vec<_>) = layout
                 .coefficients
                 .keys()
                 .copied()
                 .partition(|key| key.entity.dimension() == 0);
-            if !cells.is_empty() && layout.space != Space::simplex_p1_bubble() {
+            if !cells.is_empty()
+                && layout.space != Space::simplex_p1_bubble()
+                && layout.space != Space::cell_constant()
+            {
                 return Err(invalid(
-                    "cell initial coefficients require the selected bubble Space",
+                    "cell initial coefficients require a selected cell-constant or bubble Space",
                 ));
             }
             for (data, keys) in [(field.vertex(), vertices), (field.cell(), cells)] {
@@ -72,7 +78,7 @@ impl CommonSpatialPlan {
                     continue;
                 }
                 let data = data.ok_or_else(|| {
-                    invalid("InitialField omits a selected vertex or bubble coefficient block")
+                    invalid("InitialField omits a selected vertex or cell coefficient block")
                 })?;
                 if data.shape() != layout.value_type.shape() || data.values().len() != keys.len() {
                     return Err(invalid(
@@ -114,79 +120,90 @@ impl CommonSpatialPlan {
                 })
                 .ok_or_else(|| invalid("initial Field has no exact Region"))?
                 .form;
-            let source = if time_s == Some(0.0) {
-                let sample = |point: &[f64]| -> Result<Option<S>, Diagnostic> {
-                    Ok(form
-                        .initial_values_at(point)?
-                        .get(&key.field)
-                        .and_then(|components| components.get(key.component))
-                        .copied())
-                };
-                match self.admission.resources() {
-                    NativeMeshResources::Cartesian { mesh, .. } if key.entity.dimension() == 0 => {
-                        let point =
-                            mesh.mesh().vertex_coordinates(key.entity).ok_or_else(|| {
-                                invalid("initial vertex is absent from its exact Mesh")
-                            })?;
-                        sample(&point)?
-                    }
-                    NativeMeshResources::GmshSimplicial { mesh, .. }
-                    | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-                        if key.entity.dimension() == 0 =>
-                    {
-                        let point =
-                            mesh.mesh()
-                                .vertices()
-                                .get(key.entity.index())
-                                .ok_or_else(|| {
+            let source =
+                if time_s == Some(0.0) {
+                    let sample = |point: &[f64]| -> Result<Option<S>, Diagnostic> {
+                        Ok(form
+                            .initial_values_at(point)?
+                            .get(&key.field)
+                            .and_then(|components| components.get(key.component))
+                            .copied())
+                    };
+                    match self.admission.resources() {
+                        NativeMeshResources::Cartesian { mesh, .. }
+                            if key.entity.dimension() == 0 =>
+                        {
+                            let point =
+                                mesh.mesh().vertex_coordinates(key.entity).ok_or_else(|| {
                                     invalid("initial vertex is absent from its exact Mesh")
                                 })?;
-                        sample(point)?
-                    }
-                    NativeMeshResources::GmshSimplicial { mesh, .. }
-                    | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-                        if key.entity.dimension() == mesh.dimension()
-                            && inventory[&key.field].space == Space::simplex_p1_bubble() =>
-                    {
-                        let vertices = mesh
-                            .mesh()
-                            .entity_vertices(key.entity)
-                            .ok_or_else(|| invalid("initial bubble has no exact cell vertices"))?;
-                        let count = vertices.len() as f64;
-                        let mut center = vec![0.0; mesh.dimension()];
-                        for vertex in &vertices {
-                            for (value, coordinate) in center
-                                .iter_mut()
-                                .zip(&mesh.mesh().vertices()[vertex.index()])
-                            {
-                                *value += coordinate / count;
+                            sample(&point)?
+                        }
+                        NativeMeshResources::Cartesian { mesh, .. }
+                            if key.entity.dimension() == mesh.dimension()
+                                && inventory[&key.field].space == Space::cell_constant() =>
+                        {
+                            use eqiora_meshing::MeshGeometry;
+                            let map = mesh.mesh().geometry_map(key.entity).ok_or_else(|| {
+                                invalid("initial cell is absent from its exact Mesh")
+                            })?;
+                            // Cell-constant initial coefficients sample the physical cell centroid.
+                            sample(map.origin())?
+                        }
+                        NativeMeshResources::GmshSimplicial { mesh, .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
+                            if key.entity.dimension() == 0 =>
+                        {
+                            let point = mesh.mesh().vertices().get(key.entity.index()).ok_or_else(
+                                || invalid("initial vertex is absent from its exact Mesh"),
+                            )?;
+                            sample(point)?
+                        }
+                        NativeMeshResources::GmshSimplicial { mesh, .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
+                            if key.entity.dimension() == mesh.dimension()
+                                && inventory[&key.field].space == Space::simplex_p1_bubble() =>
+                        {
+                            let vertices =
+                                mesh.mesh().entity_vertices(key.entity).ok_or_else(|| {
+                                    invalid("initial bubble has no exact cell vertices")
+                                })?;
+                            let count = vertices.len() as f64;
+                            let mut center = vec![0.0; mesh.dimension()];
+                            for vertex in &vertices {
+                                for (value, coordinate) in center
+                                    .iter_mut()
+                                    .zip(&mesh.mesh().vertices()[vertex.index()])
+                                {
+                                    *value += coordinate / count;
+                                }
+                            }
+                            if let Some(center_value) = sample(&center)? {
+                                // The normalized hierarchical bubble equals one at
+                                // the barycenter; the P1 part already contributes
+                                // the average of the vertex values there.
+                                let mut nodal_value = S::zero();
+                                for vertex in vertices {
+                                    nodal_value += sample(&mesh.mesh().vertices()[vertex.index()])?
+                                        .ok_or_else(|| {
+                                            invalid("bubble source omitted a vertex value")
+                                        })?
+                                        / count;
+                                }
+                                Some(center_value - nodal_value)
+                            } else {
+                                None
                             }
                         }
-                        if let Some(center_value) = sample(&center)? {
-                            // The normalized hierarchical bubble equals one at
-                            // the barycenter; the P1 part already contributes
-                            // the average of the vertex values there.
-                            let mut nodal_value = S::zero();
-                            for vertex in vertices {
-                                nodal_value +=
-                                    sample(&mesh.mesh().vertices()[vertex.index()])?.ok_or_else(
-                                        || invalid("bubble source omitted a vertex value"),
-                                    )? / count;
-                            }
-                            Some(center_value - nodal_value)
-                        } else {
-                            None
+                        _ => {
+                            return Err(invalid(
+                                "initial coefficient has an unsupported Mesh association",
+                            ));
                         }
                     }
-                    _ => {
-                        return Err(invalid(
-                            "initial coefficient has an unsupported Mesh association",
-                        ));
-                    }
-                }
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
             let value = match (source, supplied.get(&key).copied()) {
                 (Some(_), Some(_)) => {
                     return Err(invalid(

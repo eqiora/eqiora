@@ -257,6 +257,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
     ) -> Result<Self, Diagnostic> {
         let mut partial = self.clone();
         partial.form = self.form.input_partial(coordinate)?;
+        partial.conservative_flux = self
+            .conservative_flux
+            .as_ref()
+            .map(|flux| flux.input_partial(coordinate).map(Box::new))
+            .transpose()?;
         Ok(partial)
     }
 }

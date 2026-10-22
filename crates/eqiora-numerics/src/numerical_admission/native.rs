@@ -866,43 +866,16 @@ impl NativeNumericalAdmission {
                 )
                 .and_then(|system| system.solve(solve, initial));
         }
-        let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        match self.spatial {
-            NativeSpatialPolicy::CoordinateCellConstant => {
-                unreachable!("coordinate cells executed above")
-            }
-            NativeSpatialPolicy::FiniteElement(_) => {
-                unreachable!("finite elements executed through linear block assembly")
-            }
-            NativeSpatialPolicy::ScalarTpfa(_) => {
-                let finalized =
-                    lowered.assemble_tpfa(self.resources(), self.operator_properties)?;
-                let (system, state) =
-                    finalized.into_canonical(self.spatial.scalar_constraint().map(|_| 0.))?;
-                let solution = state.solve(solve, system)?;
-                let [(field, value_type)] = lowered.single()?.form.fields() else {
-                    return Err(invalid("TPFA requires one admitted Field"));
-                };
-                Ok(CommonLinearRunOutput {
-                    fields: vec![(
-                        field.downcast().expect("compiled Field identity"),
-                        value_type.clone(),
-                        solution.cell_values().to_vec(),
-                        eqiora_realization::Space::cell_constant(),
-                    )],
-                    nullspace: solution.nullspace_evidence().cloned(),
-                    solve_report: solution.solve_report().clone(),
-                    assembly_report: solution.assembly_report().clone(),
-                })
-            }
-            NativeSpatialPolicy::StokesMiniP1(_) => Err(invalid(
-                "scalar execution received a steady-Stokes spatial policy",
-            )),
-            NativeSpatialPolicy::TransientMiniP1(_)
-            | NativeSpatialPolicy::TransientCellCentered(_) => Err(invalid(
-                "scalar execution received a transient-flow spatial policy",
-            )),
-        }
+        let system = lowered.finalize_static(
+            self.linear.workers,
+            self.linear.solver,
+            self.resources(),
+            &self.discretizations,
+            &self.system_scaling,
+            LinearOperatorProperties::Symmetric,
+        )?;
+        let reference = lowered.mean_reference(self.resources(), &system.mapping)?;
+        system.solve_with_reference(solve, &reference)
     }
 }
 

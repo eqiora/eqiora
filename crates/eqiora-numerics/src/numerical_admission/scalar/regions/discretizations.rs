@@ -210,11 +210,13 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 .any(|field| {
                     !matches!(
                         field.space().family(),
-                        SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble
+                        SpaceFamily::ContinuousLagrange { .. }
+                            | SpaceFamily::SimplexP1Bubble
+                            | SpaceFamily::CellConstant
                     )
                 })
             {
-                return Err(invalid("linear storage requires nodal Fields"));
+                return Err(invalid("storage requires nodal or cell-constant Fields"));
             }
             if self.regions.len() != 1
                 && self

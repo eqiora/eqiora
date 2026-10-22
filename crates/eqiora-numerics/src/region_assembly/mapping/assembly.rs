@@ -35,7 +35,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         let cells = self.assembly_cells(mesh, &forms, previous, geometry_action, &plan)?;
         let work =
             PreparedRegionAssembly::<_>::new(packet_set, &plan, forms, domains, cells, natural)?;
-        let packet_domains = work.packet_domains(domains)?;
+        let packet_domains = work.packet_domains();
         Ok(MappedRegionAssembly {
             plan,
             work,
