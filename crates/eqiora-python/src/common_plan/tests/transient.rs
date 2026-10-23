@@ -335,9 +335,14 @@ for name, rejected in (
     ("trailing.eqtrajectory", mini_trajectory_bytes + b"\n"),
     (
         "unknown-version.eqtrajectory",
-        mini_trajectory_bytes.replace(b"common-trajectory/v12", b"common-trajectory/v10"),
+        mini_trajectory_bytes.replace(b"common-trajectory/v13", b"common-trajectory/v999"),
+    ),
+    (
+        "retired-version.eqtrajectory",
+        mini_trajectory_bytes.replace(b"common-trajectory/v13", b"common-trajectory/v12"),
     ),
 ):
+    assert rejected != mini_trajectory_bytes, f"hostile fixture must change bytes: {name}"
     rejected_path = trajectory_directory / name
     rejected_path.write_bytes(rejected)
     try:

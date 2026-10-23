@@ -12,7 +12,7 @@ use crate::common_time::request_artifact::WireTimeRequest;
 use crate::stochastic_path::run::history::artifact::WireProcessHistory;
 use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
-pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v12";
+pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v13";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

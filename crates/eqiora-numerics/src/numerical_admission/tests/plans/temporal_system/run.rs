@@ -222,6 +222,7 @@ fn reject_false_correction(bytes: &[u8], plan: &ResolvedCommonPlan) {
         serde_json::json!(wrong);
     false_equation["payload"]["history"][3]["midpoint_state"][0] =
         serde_json::json!(0.5 * old + 0.5 * wrong);
+    false_equation["payload"]["execution"]["stages"][3]["unknown"][0] = serde_json::json!(wrong);
     false_equation["payload"]["execution"]["stages"][3]["convergence"] = serde_json::json!({"kind":"correction","weighted_norm":0.,"point":[wrong],"direction":[0.]});
     let error =
         crate::CommonTrajectory::from_bytes(&serde_json::to_vec(&false_equation).unwrap(), plan)

@@ -56,7 +56,8 @@ fn with_backend(
         temporal,
         &REFERENCE_LINEAR_SOLVER,
         backend,
-        None,
+        plan.as_spatial()
+            .and_then(|spatial| spatial.authored_formulation.as_ref()),
     )
 }
 

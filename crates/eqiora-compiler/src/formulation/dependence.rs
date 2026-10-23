@@ -1,4 +1,4 @@
-//! Structural argument grades for the admitted complex linear weak-form profile.
+//! Structural test grades for complex weak residuals, independently of State affinity.
 //! Coefficients are not sampled, and cancellation is never assumed.
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,13 +9,12 @@ mod tests;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Argument {
-    Trial(RawId),
     Test(RawId, bool),
     Direction(String, bool),
 }
 
 // (linear, antilinear) degree per independently named argument. Degrees
-// saturate at two because the admitted profile cannot consume a higher degree.
+// saturate at two because a weak residual must be linear in its test argument.
 type Term = BTreeMap<Argument, (u8, u8)>;
 type Terms = BTreeSet<Term>;
 
@@ -26,15 +25,9 @@ fn check_complex_form(
 ) -> Result<(), Diagnostic> {
     let mut budget = 65536;
     for term in classify(value, false, domains, trials, &mut budget, 0)? {
-        let (mut tests, mut trials) = (0_u32, 0_u32);
+        let mut tests = 0_u32;
         for (argument, (linear, antilinear)) in term {
             match argument {
-                Argument::Trial(_) => {
-                    if antilinear != 0 {
-                        return Err(rejection());
-                    }
-                    trials += u32::from(linear);
-                }
                 Argument::Test(_, complex) | Argument::Direction(_, complex) => {
                     if (complex && linear != 0) || (!complex && antilinear != 0) {
                         return Err(rejection());
@@ -43,7 +36,7 @@ fn check_complex_form(
                 }
             }
         }
-        if tests != 1 || trials > 1 {
+        if tests != 1 {
             return Err(rejection());
         }
     }
@@ -51,9 +44,7 @@ fn check_complex_form(
 }
 
 fn rejection() -> Diagnostic {
-    wire::rejection(
-        "complex weak forms require conjugate-linear test dependence and linear trial dependence",
-    )
+    wire::rejection("complex weak residuals require conjugate-linear test dependence")
 }
 
 fn spend(budget: &mut usize) -> Result<(), Diagnostic> {
@@ -115,14 +106,10 @@ fn classify(
         | E::Parameter { .. }
         | E::Coordinate { .. }
         | E::LinearMap { .. } => constant(),
-        E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
-            let id = field_id(ulid)?;
-            if trials.contains(&id) {
-                atom(Argument::Trial(id), domains[&id] == ScalarDomain::Complex)
-            } else {
-                constant()
-            }
-        }
+        // Unknown State may enter nonlinearly or antilinearly. Its affinity,
+        // derivative actions and solver suitability belong to numerical admission.
+        // This traversal certifies only dependence on the independent test.
+        E::Field { .. } | E::TimeDerivative { .. } => constant(),
         E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
             let id = field_id(field_ulid)?;
             if !trials.contains(&id) {
@@ -225,12 +212,13 @@ impl AuthoredFormulationProjection {
     /// Recheck complex weak-form argument dependence against live definitions.
     ///
     /// The resolver must obtain each Field/Parameter type from the admitted Model.
-    /// Declared trial Fields are arguments; other live Fields are coefficients.
+    /// Test and variation-direction binders are the graded arguments. State and
+    /// coefficient dependence may be nonlinear or nonholomorphic.
     /// This does not authenticate supports, dimensions, restrictions, correspondence,
-    /// Hermitian symmetry, or solver suitability. Real-only and non-weak profiles
+    /// State affinity, Hermitian symmetry, or solver suitability. Real-only and non-weak profiles
     /// retain their separate admission checks. Decoding alone never calls this checker.
     /// # Errors
-    /// Rejects missing live identities, non-sesquilinear complex argument dependence,
+    /// Rejects missing live identities, non-conjugate-linear complex test dependence,
     /// and expressions exceeding the bounded structural classification inventory.
     pub fn check_complex_dependence(
         &self,

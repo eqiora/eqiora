@@ -1,7 +1,6 @@
 //! Ordinary spatial Run execution through the shared accepted-time-history owner.
 use super::*;
-use crate::common_result::evidence::CommonSolveHistory;
-use crate::common_trajectory::SpatialTimeExecution;
+use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
 use crate::form_compiler::region::coordinates::{self, Real};
 use eqiora_time::{
     ImplicitMidpointTimeBackend, InitialConditionPolicy, TimeEquationClass, TimeMethod, TimePlan,
@@ -75,22 +74,7 @@ where
         let (initial, plan) = self.prepare_run(request)?;
         let (solution, execution) = match plan.method() {
             TimeMethod::ImplicitMidpoint => {
-                let mut stages = Vec::new();
-                let solution = ImplicitMidpointTimeBackend::new().solve_with_stages(
-                    &initial,
-                    &plan,
-                    TimeEquationClass::GeneralImplicitDae,
-                    |time, next, state| {
-                        let (candidate, evidence) =
-                            self.midpoint_step(time, next - time, state, backend)?;
-                        stages.push(crate::common_trajectory::SpatialTimeStage {
-                            solve: CommonSolveHistory::from_newton(&evidence),
-                            convergence: evidence.convergence,
-                        });
-                        Ok(candidate)
-                    },
-                )?;
-                (solution, SpatialTimeExecution::Midpoint(stages))
+                return self.run_midpoint(request, backend, &initial, &plan);
             }
             TimeMethod::Tsitouras45 => {
                 self.regular_mass(plan.start_time(), &initial)?;
@@ -142,6 +126,104 @@ where
                 .cloned()
                 .ok_or_else(|| invalid("time provider omitted accepted history"))?,
             execution,
+        )
+    }
+
+    fn run_midpoint(
+        &self,
+        request: &CommonTransientRunRequest,
+        backend: &dyn LinearSolverBackend,
+        initial: &[f64],
+        full_plan: &TimePlan,
+    ) -> Result<crate::CommonTrajectory, Diagnostic> {
+        let plan = self.differential_plan(full_plan)?;
+        let mut stages = Vec::new();
+        let mut endpoints = Vec::new();
+        let mut physical_endpoints = Vec::new();
+        let mut current = initial.to_vec();
+        let solution = ImplicitMidpointTimeBackend::new().solve_with_stages(
+            &self.differential_coordinates(initial),
+            &plan,
+            TimeEquationClass::GeneralImplicitDae,
+            |time, next, differential| {
+                if self.differential_coordinates(&current) != differential {
+                    return Err(invalid(
+                        "midpoint clock differs from its accepted differential State",
+                    ));
+                }
+                let h = next - time;
+                let (unknown, evidence) = self.midpoint_step(time, h, &current, backend)?;
+                let endpoint = if self.algebraic.is_empty() {
+                    unknown.clone()
+                } else {
+                    let (fixed, seed) = self.endpoint_recovery_seed(&current, &unknown, h)?;
+                    let (recovered, evidence) =
+                        self.recover_consistent(next, h, &fixed, &seed, backend)?;
+                    let (physical, _) = self.recovery_coordinates(h, &fixed, &recovered)?;
+                    endpoints.push(SpatialTimeStage::from_newton(recovered, evidence));
+                    physical
+                };
+                stages.push(SpatialTimeStage::from_newton(unknown, evidence));
+                current = endpoint;
+                physical_endpoints.push(current.clone());
+                Ok(self.differential_coordinates(&current))
+            },
+        )?;
+        if solution.report().backend_identity() != request.time_backend_identity()?
+            || solution.times() != plan.output_times()
+        {
+            return Err(invalid(
+                "midpoint execution differs from the admitted backend or output times",
+            ));
+        }
+        let history = solution
+            .history()
+            .cloned()
+            .ok_or_else(|| invalid("midpoint omitted accepted history"))?;
+        let mut outputs = Vec::new();
+        let mut states = Vec::new();
+        for (position, &time) in request.output_times_s().iter().enumerate() {
+            let index = history
+                .steps()
+                .partition_point(|step| step.end_time() < time);
+            let step = &history.steps()[index];
+            let differential = solution
+                .state(position)
+                .ok_or_else(|| invalid("midpoint omitted a requested output"))?;
+            let fixed = self.lift_differential(differential, &physical_endpoints[index])?;
+            let physical = if self.algebraic.is_empty() {
+                fixed
+            } else {
+                let h = step.end_time() - step.start_time();
+                // Seed from an accepted endpoint, never from the preceding observation.
+                let (unknown, evidence) =
+                    self.recover_consistent(time, h, &fixed, &endpoints[index].unknown, backend)?;
+                let (physical, _) = self.recovery_coordinates(h, &fixed, &unknown)?;
+                outputs.push(SpatialTimeStage::from_newton(unknown, evidence));
+                physical
+            };
+            states.push(self.physical_state(time, &physical)?);
+        }
+        crate::CommonTrajectory::accept_spatial_time(
+            request.clone(),
+            states,
+            history,
+            SpatialTimeExecution::Midpoint {
+                stages,
+                endpoints,
+                outputs,
+            },
+        )
+    }
+
+    pub(super) fn differential_plan(&self, plan: &TimePlan) -> Result<TimePlan, Diagnostic> {
+        TimePlan::new(
+            plan.method(),
+            plan.start_time(),
+            plan.initial_step(),
+            plan.relative_tolerance(),
+            self.differential_coordinates(plan.absolute_tolerances()),
+            plan.output_times().to_vec(),
         )
     }
 
