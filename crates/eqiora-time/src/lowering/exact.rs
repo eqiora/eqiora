@@ -11,11 +11,14 @@ pub(super) fn eliminate(matrix: &mut [Vec<BigRational>], columns: usize) -> Vec<
         };
         matrix.swap(rank, pivot);
         for row in rank + 1..matrix.len() {
-            let factor = &matrix[row][column] / &matrix[rank][column];
-            if factor.is_zero() {
+            if matrix[row][column].is_zero() {
                 continue;
             }
+            let factor = &matrix[row][column] / &matrix[rank][column];
             for trailing in column..matrix[row].len() {
+                if matrix[rank][trailing].is_zero() {
+                    continue;
+                }
                 let correction = &factor * &matrix[rank][trailing];
                 matrix[row][trailing] -= correction;
             }
