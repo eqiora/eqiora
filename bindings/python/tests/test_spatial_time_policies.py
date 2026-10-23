@@ -48,7 +48,11 @@ def test_finite_decay_control(rate, complex_field, method):
         relation flow {{derivative(u)=-{rate}[1/s]*u;}}
     }}""")
     field = model.field("u")
-    plan = q.resolve(model, temporal=_temporal(method, field, complex_field))
+    plan = q.resolve(model, temporal=_temporal(method, field, complex_field), solve=(
+        q.solve.Linear(objective=q.solve.Robust, relative_tolerance=1e-12,
+                       absolute_tolerance=1e-14, maximum_iterations=100)
+        if method == "midpoint" else None
+    ))
     plan = q.Plan.from_bytes(plan.to_bytes())
     initial = q.State.initial(plan)
     before = initial.to_bytes()

@@ -6,7 +6,6 @@ use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
     CommonEigenPlan, CommonEigenRequest, CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest,
-    CommonTrajectory,
 };
 use std::num::NonZeroUsize;
 
@@ -111,6 +110,8 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                 )
                 .unwrap(),
                 ImplicitMidpointTimeBackend::CAPABILITIES,
+                Some(linear_policy()),
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
             let resolved =
@@ -127,10 +128,11 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
             );
             let state = plan.initial_state(0.).unwrap();
             let request = CommonTimeRunRequest::new(plan, state, end, vec![end]).unwrap();
-            let solution = ImplicitMidpointTimeBackend::new()
-                .solve(&request.problem().unwrap(), request.time_plan().unwrap())
+            let trajectory = request
+                .run(&eqiora::solver::REFERENCE_LINEAR_SOLVER, |_, _| {
+                    panic!("implicit execution must own its stages")
+                })
                 .unwrap();
-            let trajectory = CommonTrajectory::accept_ode(request, solution).unwrap();
             let value = trajectory
                 .time_states()
                 .unwrap()
@@ -203,6 +205,38 @@ fn constant_generator_uses_structural_proof_and_common_mass_solve() {
 }
 
 #[test]
+fn affine_stage_proof_binds_time_without_sampling_state_values() {
+    for complex in [false, true] {
+        let (ty, initial) = if complex {
+            ("complex<1>", "math.complex(1,0)")
+        } else {
+            ("1", "1")
+        };
+        for (rhs, affine) in [
+            ("-time()*x/1[s^2]+1[1/s]", true),
+            // The nonlinear correction vanishes at x=0 and x=1. Probing
+            // those points cannot justify a single linear stage solve.
+            ("(-x+x*x*x-x)/1[s]", false),
+        ] {
+            let source = format!(
+                "model Stage(){{state x:{ty}; initial{{x={initial};}} relation flow{{derivative(x)={rhs};}}}}"
+            );
+            let document = ModelDocument::compile("affine-stage.eqi", &source).unwrap();
+            let flow = FirstOrderProgram::lower(
+                document.program(),
+                document.aliases()["flow"].downcast().unwrap(),
+            )
+            .unwrap();
+            for time in [0., 0.5, 2.] {
+                assert_eq!(flow.require_affine_state_dependence(time).is_ok(), affine);
+            }
+            assert!(flow.require_affine_state_dependence(f64::NAN).is_err());
+            assert!(flow.constant_generator().is_err());
+        }
+    }
+}
+
+#[test]
 fn conserved_norm_rejects_nonhermitian_flow_and_wrong_initial_normalization() {
     let build = |parameters: &str, amplitude: f64| {
         let source = format!(
@@ -238,6 +272,8 @@ fn conserved_norm_rejects_nonhermitian_flow_and_wrong_initial_normalization() {
             document.program(),
             policy,
             ImplicitMidpointTimeBackend::CAPABILITIES,
+            Some(linear_policy()),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
     };
     let valid = build(PARAMETERS, 1.).unwrap();
@@ -297,6 +333,8 @@ fn raw_hermitian_contract_rejects_coefficients_erased_by_evolution_scaling() {
         document.program(),
         policy,
         ImplicitMidpointTimeBackend::CAPABILITIES,
+        Some(linear_policy()),
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap_err();
     assert!(
@@ -341,4 +379,21 @@ fn finite_hamiltonian_types_reject_missing_hbar_units_and_foreign_coordinate_rol
     ] {
         assert!(ModelDocument::compile("bad.eqi", &bad).is_err());
     }
+}
+
+fn linear_policy() -> eqiora_numerics::CommonSolvePolicy {
+    use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, SolverPlan};
+    eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    )
 }

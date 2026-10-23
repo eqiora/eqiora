@@ -71,6 +71,8 @@ mod tests {
             )
             .unwrap(),
             DiffsolTimeBackend::CAPABILITIES,
+            None,
+            &eqiora::solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap()
         .to_bytes()

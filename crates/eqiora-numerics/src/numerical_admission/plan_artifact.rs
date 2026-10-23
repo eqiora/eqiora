@@ -34,7 +34,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v21";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v22";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -220,9 +220,11 @@ impl ResolvedCommonPlan {
                 nonlinear: plan.nonlinear(),
                 linear,
             },
-            Self::Eigen(_) | Self::Time(_) => {
-                unreachable!("ODE Plan has no effective linear solver")
-            }
+            Self::Eigen(_) => unreachable!("eigen Plan has no effective linear solver"),
+            Self::Time(plan) => match plan.as_ode().expect("implicit ODE solver").nonlinear {
+                Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
+                None => CommonSolvePolicy::Linear(linear),
+            },
             Self::Algebraic(plan) => match plan.nonlinear() {
                 Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
                 None => CommonSolvePolicy::Linear(linear),
@@ -457,7 +459,6 @@ impl WireResolvedCommonPlan {
         if time
             != (self.mesh_base64.is_none()
                 && self.spatial.is_none()
-                && self.solve.is_none()
                 && self.realization_base64.is_none())
         {
             return Err(invalid(
@@ -576,6 +577,9 @@ impl WireResolvedCommonPlan {
         }
         if self.family == WirePlanFamily::Time {
             if let Some(WireTemporal::Process { method }) = &self.temporal {
+                if self.solve.is_some() {
+                    return Err(invalid("process Plan does not consume a solve policy"));
+                }
                 let kernel = model.to_program().map_err(|diagnostics| {
                     diagnostics
                         .into_iter()
@@ -607,7 +611,17 @@ impl WireResolvedCommonPlan {
             })?;
             let backend = admitted_time_backend
                 .ok_or_else(|| invalid("ODE Plan omitted its time backend"))?;
-            return ResolvedCommonPlan::resolve_ode(&model, &program, temporal, backend);
+            return ResolvedCommonPlan::resolve_ode(
+                &model,
+                &program,
+                temporal,
+                backend,
+                self.solve
+                    .as_ref()
+                    .map(|solve| solve.to_native(linear_backend))
+                    .transpose()?,
+                linear_backend,
+            );
         }
 
         let mesh = self
@@ -874,7 +888,7 @@ fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
     plan.canonical_solve_request().map(wire_solve)
 }
 
-pub(super) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
+pub(crate) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
     serde_json::to_vec(&wire_solve(request))
         .map_err(|error| invalid(format!("cannot encode solve controls: {error}")))
 }

@@ -209,10 +209,10 @@ fn spatial_time_plan_rejects_retired_schema_and_changed_controls() {
     let requested = policy(&base, TimeMethod::ImplicitMidpoint, 0.125);
     let plan = with_policy(&base, requested).unwrap();
     let original = String::from_utf8(plan.to_bytes().unwrap()).unwrap();
-    assert!(original.contains("eqiora.resolved-common-plan/v21"));
+    assert!(original.contains("eqiora.resolved-common-plan/v22"));
     for (before, after, diagnostic) in [
         (
-            "eqiora.resolved-common-plan/v21",
+            "eqiora.resolved-common-plan/v22",
             "eqiora.resolved-common-plan/v20",
             "schema",
         ),

@@ -58,7 +58,7 @@ fn solve(
         vec![1e-14; 6],
         outputs,
     )?;
-    ImplicitMidpointTimeBackend::new().solve(&problem, &plan)
+    ReferenceImplicitTimeBackend::new().solve_midpoint(&problem, &plan)
 }
 fn seed() -> Vec<f64> {
     vec![1., 0., 2., 0., 3., 0.]

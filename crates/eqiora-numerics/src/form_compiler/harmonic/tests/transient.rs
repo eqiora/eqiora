@@ -43,13 +43,29 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
             &program,
             controls,
             ImplicitMidpointTimeBackend::CAPABILITIES,
+            Some(crate::CommonSolvePolicy::Linear(
+                crate::CommonLinearRequest::exact(
+                    eqiora_solver::SolverPlan::new(
+                        eqiora_solver::LinearSolver::BiConjugateGradientStabilized,
+                        1e-13,
+                        1e-14,
+                        std::num::NonZeroUsize::new(100).unwrap(),
+                    )
+                    .unwrap(),
+                    eqiora_solver::REFERENCE_SOLVER_PROVIDER,
+                )
+                .unwrap(),
+            )),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
         let initial = transient.initial_state(0.).unwrap();
         assert_eq!(initial.values(), &[initial_voltage]);
         let run = CommonTimeRunRequest::new(transient, initial, 0.02, times.clone()).unwrap();
-        let solution = ImplicitMidpointTimeBackend
-            .solve(&run.problem().unwrap(), run.time_plan().unwrap())
+        let solution = run
+            .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                panic!("implicit Run owns its stages")
+            })
             .unwrap();
 
         let harmonic = resolve(&source().replace(
@@ -88,11 +104,11 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
         // Summing the contractive recurrence q=(1-delta/2)/(1+delta/2) gives <=.202*delta^2.
         // Linear sample interpolation adds <=1.21*delta^2/8. The 5e-7 V bound leaves
         // room above their <3.54e-7 V sum for binary64 arithmetic and Newton residuals.
-        for (index, &time) in solution.times().iter().enumerate() {
+        for (index, &time) in times.iter().enumerate() {
             let s = 1000. * time;
             let settled = 0.5 * (s.cos() + s.sin());
             let decaying = (initial_voltage - 0.5) * (-s).exp();
-            let numerical = solution.state(index).unwrap()[0];
+            let numerical = solution.time_states().unwrap()[index].values()[0];
             assert!(
                 (numerical - settled - decaying).abs() < 5e-7,
                 "t={time}, V0={initial_voltage}, V={numerical}"
@@ -101,7 +117,11 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
             assert!((numerical - reconstruct(time) - decaying).abs() < 5.001e-7);
         }
         // Positive R and C ensure decay; after 20 time constants its amplitude is <1.04e-9 V.
-        assert!((solution.state(times.len() - 1).unwrap()[0] - reconstruct(0.02)).abs() < 5.02e-7);
+        assert!(
+            (solution.time_states().unwrap()[times.len() - 1].values()[0] - reconstruct(0.02))
+                .abs()
+                < 5.02e-7
+        );
     }
     assert_ne!(
         identities[0], identities[1],

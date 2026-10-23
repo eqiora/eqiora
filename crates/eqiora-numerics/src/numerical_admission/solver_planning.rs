@@ -8,7 +8,7 @@ use super::*;
 
 /// Admit explicit caller intent against facts owned by mathematical admission.
 /// `Some` supplies a known diagonal fact; `None` makes no structural claim.
-pub(super) fn resolve_linear(
+pub(crate) fn resolve_linear(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,

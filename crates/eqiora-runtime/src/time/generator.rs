@@ -14,22 +14,7 @@ impl FirstOrderProgram {
     /// Rejects nonlinear or time-dependent coefficients, forcing, unbound inputs,
     /// singular mass systems, and nonfinite coefficient evaluation.
     pub fn constant_generator(&self) -> Result<Vec<f64>, Diagnostic> {
-        let mut selected = Vec::new();
-        let mut bindings = Vec::new();
-        let mut time_column = None;
-        for (coordinate, binding) in self.operator.symbols().iter().zip(&self.bindings) {
-            match binding {
-                TimeBinding::State(_) => selected.push(coordinate.clone()),
-                TimeBinding::Time => {
-                    time_column = Some(selected.len());
-                    selected.push(coordinate.clone());
-                }
-                TimeBinding::DerivativeZero => bindings.push((coordinate.clone(), 0.)),
-                TimeBinding::Parameter(index) => {
-                    bindings.push((coordinate.clone(), self.parameter_values[*index]))
-                }
-            }
-        }
+        let (selected, bindings, time_column) = self.affine_inputs(None);
         self.operator.require_homogeneous_constant(
             self.relation,
             &selected,
@@ -59,5 +44,57 @@ impl FirstOrderProgram {
             basis[column] = 0.;
         }
         Ok(result)
+    }
+
+    /// Prove affine State dependence at the supplied stage Time.
+    ///
+    /// Parameters and Time are bound inputs; State coordinates remain symbolic.
+    /// This admits time-dependent linear coefficients and forcing without using
+    /// sampled State values to infer linearity. Companion rows are affine by
+    /// their first-order lowering construction.
+    ///
+    /// # Errors
+    /// Rejects nonfinite Time, nonlinear State dependence and expressions whose
+    /// affine structure cannot be proven by the shared scalar/component IR.
+    pub fn require_affine_state_dependence(&self, time: f64) -> Result<(), Diagnostic> {
+        if !time.is_finite() {
+            return Err(invalid_time(
+                self.relation,
+                "affine stage requires finite Time",
+            ));
+        }
+        let (selected, bindings, _) = self.affine_inputs(Some(time));
+        self.operator
+            .require_affine(self.relation, &selected, &bindings)
+    }
+
+    fn affine_inputs(
+        &self,
+        time: Option<f64>,
+    ) -> (
+        Vec<eqiora_ir::ScalarSymbolCoordinate>,
+        Vec<(eqiora_ir::ScalarSymbolCoordinate, f64)>,
+        Option<usize>,
+    ) {
+        let mut selected = Vec::new();
+        let mut bindings = Vec::new();
+        let mut time_column = None;
+        for (coordinate, binding) in self.operator.symbols().iter().zip(&self.bindings) {
+            match binding {
+                TimeBinding::State(_) => selected.push(coordinate.clone()),
+                TimeBinding::Time if time.is_some() => {
+                    bindings.push((coordinate.clone(), time.expect("bound stage Time")));
+                }
+                TimeBinding::Time => {
+                    time_column = Some(selected.len());
+                    selected.push(coordinate.clone());
+                }
+                TimeBinding::DerivativeZero => bindings.push((coordinate.clone(), 0.)),
+                TimeBinding::Parameter(index) => {
+                    bindings.push((coordinate.clone(), self.parameter_values[*index]))
+                }
+            }
+        }
+        (selected, bindings, time_column)
     }
 }

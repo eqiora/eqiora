@@ -135,6 +135,8 @@ model Oscillators() {
             &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
             &[eqiora::ScalarType::F64],
         ),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     assert_eq!(plan.initial_state(0.).unwrap().values(), accepted.state());
@@ -147,8 +149,8 @@ model Oscillators() {
         vec![0.013, 0.7, 1.],
     )
     .unwrap();
-    let midpoint = eqiora::time::ImplicitMidpointTimeBackend::new()
-        .solve(&flow.time_problem().unwrap(), &midpoint_controls)
+    let midpoint = eqiora::time::ReferenceImplicitTimeBackend::new()
+        .solve_midpoint(&flow.time_problem().unwrap(), &midpoint_controls)
         .unwrap();
     let angle = 40. * (0.025_f64).atan();
     for (coordinate, actual) in flow

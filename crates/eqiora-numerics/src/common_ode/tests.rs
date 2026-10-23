@@ -215,6 +215,8 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
             ],
             &[eqiora_core::ScalarType::F64],
         ),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     let resolved = crate::ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
@@ -349,6 +351,8 @@ fn field_tolerances_are_exact_complete_and_positive() {
                 ],
                 &[eqiora_core::ScalarType::F64]
             ),
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
         .is_err()
     );
@@ -385,6 +389,8 @@ fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
             ],
             &[eqiora_core::ScalarType::F64],
         ),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
 
@@ -443,6 +449,8 @@ fn tsitouras_common_plan_rejects_a_structural_mass_matrix() {
                 ],
                 &[eqiora_core::ScalarType::F64]
             ),
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
         .is_err()
     );

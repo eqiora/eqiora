@@ -41,6 +41,33 @@ impl From<NonlinearSolvePlan> for NewtonOptions<'_> {
     }
 }
 
+impl<'a> NewtonOptions<'a> {
+    /// Time stages stop on physical coordinate corrections for Newton, or the
+    /// original linear equation residual for structurally affine admission.
+    pub(crate) fn time_stage(
+        nonlinear: Option<NonlinearSolvePlan>,
+        linear: eqiora_solver::SolverPlan,
+        relative: f64,
+        absolute: &'a [f64],
+    ) -> Self {
+        match nonlinear {
+            Some(nonlinear) => Self {
+                maximum_iterations: nonlinear.maximum_iterations(),
+                maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
+                stopping: NewtonStopping::Correction { relative, absolute },
+            },
+            None => Self {
+                maximum_iterations: NonZeroUsize::MIN,
+                maximum_line_search_steps: 0,
+                stopping: NewtonStopping::Residual {
+                    relative: linear.relative_tolerance(),
+                    absolute: linear.absolute_tolerance(),
+                },
+            },
+        }
+    }
+}
+
 impl NewtonOptions<'_> {
     pub(crate) fn validate(&self, dimension: usize) -> Result<(), Diagnostic> {
         let valid = match self.stopping {

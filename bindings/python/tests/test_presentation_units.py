@@ -104,7 +104,10 @@ def test_csv_retains_complex_component_shape_time_and_undefined_phase(tmp_path):
     plan = q.resolve(model, temporal=q.time.ImplicitMidpoint(step_s=0.25,
         relative_tolerance=1e-11, absolute_tolerances={
             (field, 0, component, imaginary): 1e-13
-            for component in range(2) for imaginary in (False, True)}))
+            for component in range(2) for imaginary in (False, True)}), solve=q.solve.Linear(
+        objective=q.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
+    ))
     result = q.run(plan, state=q.State.initial(plan), until_s=0.5, output_times_s=(0.25, 0.5))
     before = result.to_bytes()
     observations = [result.observe(model.observable("value"), output_index=index) for index in range(2)]

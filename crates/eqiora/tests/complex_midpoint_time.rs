@@ -29,10 +29,11 @@ fn run(
     outputs: Vec<f64>,
 ) -> CommonTrajectory {
     let request = CommonTimeRunRequest::new(plan, state, end, outputs).unwrap();
-    let solution = ImplicitMidpointTimeBackend::new()
-        .solve(&request.problem().unwrap(), request.time_plan().unwrap())
-        .unwrap();
-    CommonTrajectory::accept_ode(request, solution).unwrap()
+    request
+        .run(&eqiora::solver::REFERENCE_LINEAR_SOLVER, |_, _| {
+            panic!("implicit execution must own its stages")
+        })
+        .unwrap()
 }
 fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
     let model = ModelEnvelope::from_program(document.program()).unwrap();
@@ -56,6 +57,8 @@ fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
         document.program(),
         temporal,
         ImplicitMidpointTimeBackend::CAPABILITIES,
+        Some(linear_policy()),
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap()
 }
@@ -243,6 +246,8 @@ fn stale_and_nonfinite_states_and_wrong_initial_domains_fail_closed() {
         document.program(),
         bad_controls,
         ImplicitMidpointTimeBackend::CAPABILITIES,
+        Some(linear_policy()),
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap_err();
     assert!(
@@ -408,6 +413,8 @@ fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
             document.program(),
             plan.temporal().clone(),
             unsupported,
+            Some(linear_policy()),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap_err();
         assert!(error.message().contains("does not support"));
@@ -425,4 +432,40 @@ fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
         )
         .is_err()
     );
+}
+
+fn linear_policy() -> eqiora_numerics::CommonSolvePolicy {
+    use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, SolverPlan};
+    eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    )
+}
+
+#[test]
+fn midpoint_run_rejects_an_unadmitted_linear_provider_before_stage_execution() {
+    let document = ModelDocument::compile("provider.eqi", SOURCE).unwrap();
+    let plan = resolve(&document, 0.05);
+    let state = plan.initial_state(0.).unwrap();
+    let before = state.to_bytes().unwrap();
+    let request = CommonTimeRunRequest::new(plan, state.clone(), 0.1, vec![0.1]).unwrap();
+    let error = request
+        .run(&eqiora_backend_faer::FaerLinearSolver, |_, _| {
+            panic!("an implicit Run cannot fall back to an external time callback")
+        })
+        .unwrap_err();
+    assert!(
+        error.message().contains("execution backend differs"),
+        "{error}"
+    );
+    assert_eq!(state.to_bytes().unwrap(), before);
 }

@@ -33,13 +33,21 @@ impl From<CommonOdePlan> for CommonTimePlan {
 }
 
 impl CommonTimePlan {
+    /// Exact linear stage provider, absent for methods without an implicit solve.
+    pub fn linear_solver_provider(&self) -> Option<eqiora_solver::SolverProvider> {
+        self.as_ode()?.linear.as_ref().map(|linear| linear.provider)
+    }
+
     pub fn resolve_ode(
         model: &ModelEnvelope,
         kernel: &KernelProgram,
         policy: CommonOdePolicy,
         backend: TimeBackendCapabilities,
+        solve: Option<crate::CommonSolvePolicy>,
+        linear_backend: &dyn eqiora_solver::LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        CommonOdePlan::resolve(model, kernel, policy, backend).map(Into::into)
+        CommonOdePlan::resolve(model, kernel, policy, backend, solve, linear_backend)
+            .map(Into::into)
     }
 
     /// Admit Ito diffusion with one fixed dyadic refinement depth per Run horizon.

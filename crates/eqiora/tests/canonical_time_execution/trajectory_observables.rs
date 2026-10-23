@@ -63,8 +63,15 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         )],
     )
     .unwrap();
-    let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DiffsolTimeBackend::CAPABILITIES)
-        .unwrap();
+    let plan = CommonOdePlan::resolve(
+        &model,
+        &kernel,
+        temporal,
+        DiffsolTimeBackend::CAPABILITIES,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     assert_eq!(
         plan.state_coordinates().len(),
         1,
@@ -326,8 +333,15 @@ model Reset() {
         vec![(event, DynQuantity::new(1e-9, DimExponents::DIMENSIONLESS))],
     )
     .unwrap();
-    let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DiffsolTimeBackend::CAPABILITIES)
-        .unwrap();
+    let plan = CommonOdePlan::resolve(
+        &model,
+        &kernel,
+        temporal,
+        DiffsolTimeBackend::CAPABILITIES,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     let run = |outputs| {
         let request =
             CommonTimeRunRequest::new(plan.clone(), plan.initial_state(0.0).unwrap(), 0.7, outputs)
@@ -644,6 +658,8 @@ model Reset() {
             )
             .unwrap(),
         DiffsolTimeBackend::CAPABILITIES,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     let bounded_request = CommonTimeRunRequest::new(

@@ -1,7 +1,7 @@
 //! Residual-native midpoint stages use the shared Newton and canonical solver owners.
 use super::*;
 use crate::nonlinear_execution::{
-    NewtonEvidence, NewtonOptions, NewtonStopping, NewtonTrial, solve_damped_newton,
+    NewtonEvidence, NewtonOptions, NewtonTrial, solve_damped_newton, stage_merit,
 };
 use crate::region_assembly::nonlinear::RegionAssemblyLinearization;
 
@@ -56,26 +56,12 @@ where
         let linear = LinearSolveRequest::new(&checked, self.plan.linear());
         let (accepted, evidence) = solve_damped_newton(
             initial.to_vec(),
-            match nonlinear {
-                Some(nonlinear) => NewtonOptions {
-                    maximum_iterations: nonlinear.maximum_iterations(),
-                    maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
-                    stopping: NewtonStopping::Correction {
-                        relative: temporal.relative_tolerance(),
-                        absolute: &absolute,
-                    },
-                },
-                // Affine admission guarantees that one full correction solves the stage.
-                // Linear policy tolerances govern its original equation residual.
-                None => NewtonOptions {
-                    maximum_iterations: std::num::NonZeroUsize::MIN,
-                    maximum_line_search_steps: 0,
-                    stopping: NewtonStopping::Residual {
-                        relative: self.plan.linear().relative_tolerance(),
-                        absolute: self.plan.linear().absolute_tolerance(),
-                    },
-                },
-            },
+            NewtonOptions::time_stage(
+                nonlinear,
+                self.plan.linear(),
+                temporal.relative_tolerance(),
+                &absolute,
+            ),
             |endpoint| self.midpoint_point(time_s, step_s, initial, endpoint),
             |point| {
                 stage_merit(
@@ -189,33 +175,6 @@ where
             ));
         }
         Ok(absolute)
-    }
-}
-
-pub(super) fn stage_merit(
-    residual: &[f64],
-    scales: &[f64],
-    scaled: bool,
-) -> Result<f64, Diagnostic> {
-    if residual.len() != scales.len() {
-        return Err(invalid("midpoint residual and equation scaling differ"));
-    }
-    if !scaled {
-        return eqiora_solver::FixedOrderInnerProduct::norm(
-            &eqiora_solver::SERIAL_LINEAR_EXECUTION,
-            residual,
-        );
-    }
-    let norm = residual
-        .iter()
-        .zip(scales)
-        .fold(0_f64, |norm, (value, scale)| norm.hypot(value / scale));
-    if norm.is_finite() && (norm != 0. || residual.iter().all(|value| *value == 0.)) {
-        Ok(norm)
-    } else {
-        Err(invalid(
-            "midpoint scaled residual is non-finite or underflows a nonzero residual",
-        ))
     }
 }
 

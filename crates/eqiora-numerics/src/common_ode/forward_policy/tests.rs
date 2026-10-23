@@ -114,6 +114,8 @@ fn resolve(
             ],
             &[eqiora_core::ScalarType::F64],
         ),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
 }
 #[test]
@@ -132,6 +134,8 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
                 ],
                 &[eqiora_core::ScalarType::F64],
             ),
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
         let plan = resolve(&model, &kernel, temporal.clone(), entries.clone()).unwrap();
