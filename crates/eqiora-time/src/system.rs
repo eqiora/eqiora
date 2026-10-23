@@ -102,8 +102,8 @@ pub trait ImplicitTimeSystem {
 ///
 /// This extends the same lowered primal/JVP system rather than introducing a
 /// dual-number simulator or a backend-specific derivative model. Parameters
-/// are fixed at one linearization point; the two methods provide `f_p dp` and
-/// `y0_p dp` actions for arbitrary parameter directions.
+/// are fixed at one linearization point; the actions provide `f_p dp` and the
+/// initial state/rate pair's Parameter tangent for arbitrary directions.
 pub trait ParametricTimeSystem: TimeSystem {
     /// Number of scalar model parameters at this linearization point.
     fn parameter_dimension(&self) -> usize;
