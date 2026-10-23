@@ -8,7 +8,10 @@ import numpy as np
 @pytest.mark.parametrize("authored", [False, True, "derive"])
 @pytest.mark.parametrize("emitted", [False, True])
 @pytest.mark.parametrize("nonlinear", [False, True])
-def test_mixed_constant_state_executes_and_replays(authored, emitted, nonlinear):
+@pytest.mark.parametrize("driven", [False, True])
+def test_mixed_uniform_evolution_executes_and_replays(
+    authored, emitted, nonlinear, driven
+):
     q = e.lang
     module = e.Module("main")
     c = module.component("Mixed")
@@ -33,9 +36,12 @@ def test_mixed_constant_state_executes_and_replays(authored, emitted, nonlinear)
     ell2 = q.quantity(1, e.units.m**2)
     auxiliary_value = u + u**3 if nonlinear else 0
     initial_v = 2 if nonlinear else 0
+    source_rate = q.quantity(1 if driven else 0, e.units.s**-1)
     c.initial((u, 1), (v, initial_v))
     evolution = c.relation(
-        "evolution", q.equation(q.derivative(u) - D * q.div(q.grad(v)), 0), on=body
+        "evolution",
+        q.equation(q.derivative(u) - D * q.div(q.grad(v)), source_rate),
+        on=body,
     )
     auxiliary = c.relation(
         "auxiliary",
@@ -63,7 +69,7 @@ def test_mixed_constant_state_executes_and_replays(authored, emitted, nonlinear)
                             body,
                             wu * q.derivative(u) + D * q.dot(q.grad(wu), q.grad(v)),
                         ),
-                        0,
+                        q.integrate(body, wu * source_rate),
                     ),
                     auxiliary: (
                         q.integrate(
@@ -105,7 +111,10 @@ def test_mixed_constant_state_executes_and_replays(authored, emitted, nonlinear)
         preconditioner=e.solve.Preconditioner.Identity,
         reduction=e.solve.Reduction.Reproducible,
         provider=e.solve.SolverProvider.reference(),
-        relative_tolerance=1e-12,
+        # Homogeneous auxiliary rows use the absolute State residual target.
+        # Require that same absolute accuracy in the coupled linear solve;
+        # a relative target scaled by the driven row need not satisfy them.
+        relative_tolerance=0.0,
         absolute_tolerance=1e-14,
         maximum_iterations=100,
     )
@@ -125,9 +134,15 @@ def test_mixed_constant_state_executes_and_replays(authored, emitted, nonlinear)
         else linear,
     )
     result = e.run(plan, state=e.State.initial(plan), steps=1, output_steps=(1,))
+    # Uniform spatial data make both Laplacians vanish. The driven equation
+    # gives u_1 = 1 + h = 11/10 exactly under backward Euler; the nonlinear
+    # algebraic equation then requires v_1 = u_1 + u_1^3 = 2431/1000.
+    # This forces an actual Newton update, without claiming spatial convergence.
     expected = {
-        model.field("definition.u").id: 1.0,
-        model.field("definition.v").id: float(initial_v),
+        model.field("definition.u").id: 11 / 10 if driven else 1.0,
+        model.field("definition.v").id: 2431 / 1000
+        if driven and nonlinear
+        else float(initial_v),
     }
     assert len(result.trajectory.states) == 1
     for snapshot in result.trajectory.states[0].fields:
