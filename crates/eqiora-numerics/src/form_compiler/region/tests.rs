@@ -25,6 +25,7 @@ mod error_estimate;
 mod flux;
 mod global_nonlinear;
 mod input_partials;
+mod mixed_rows;
 mod moments;
 mod nonlinear;
 mod nonlinear_coordinates;

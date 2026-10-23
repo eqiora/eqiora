@@ -4,6 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Argument {
     Trial(RawId),
@@ -248,94 +251,44 @@ impl AuthoredFormulationProjection {
         let mut complex = domains
             .values()
             .any(|domain| *domain == ScalarDomain::Complex);
-        let mut pending = self
-            .equations()
-            .iter()
-            .flat_map(|(_, a, b)| [(a, 0), (b, 0)])
-            .collect::<Vec<_>>();
-        let mut budget = 65536;
-        use AuthoredFormExpressionV1 as E;
-        while let Some((value, depth)) = pending.pop() {
-            spend(&mut budget)?;
-            if depth > 128 {
-                return Err(wire::rejection(
-                    "form dependence exceeds its expression depth",
-                ));
-            }
-            let mut push = |value| pending.push((value, depth + 1));
-            let id = match value {
-                E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => Some(field_id(ulid)?),
-                E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
-                    Some(field_id(field_ulid)?)
-                }
-                E::Parameter { ulid } => {
-                    Some(Id::<kinds::Parameter>::from_ulid(canonical_id(ulid)?).erase())
-                }
-                E::Complex { real, imag } => {
-                    complex = true;
-                    push(real.as_ref());
-                    push(imag.as_ref());
-                    None
-                }
-                E::Add { left, right }
-                | E::Sub { left, right }
-                | E::Mul { left, right }
-                | E::Apply { left, right }
-                | E::Div { left, right }
-                | E::Inner { left, right }
-                | E::Cross { left, right }
-                | E::Dot { left, right }
-                | E::Frobenius { left, right } => {
-                    push(left.as_ref());
-                    push(right.as_ref());
-                    None
-                }
-                E::CoordinatePartial { value, wrt } => {
-                    push(value.as_ref());
-                    push(wrt.as_ref());
-                    None
-                }
-                E::Neg { value }
-                | E::Trace { value, .. }
-                | E::NormalTrace { value, .. }
-                | E::Gradient { value }
-                | E::Curl { value }
-                | E::TangentialTrace { value, .. }
-                | E::Divergence { value }
-                | E::SymmetricPart { value }
-                | E::Sin { value }
-                | E::Conjugate { value }
-                | E::Component { value, .. }
-                | E::Variation { value, .. }
-                | E::Integrate {
-                    integrand: value, ..
-                }
-                | E::IntervalIntegral {
-                    integrand: value, ..
-                }
-                | E::EndpointFlux { flux: value, .. }
-                | E::Pow { base: value, .. } => {
-                    push(value.as_ref());
-                    None
-                }
-                E::LinearMap {
-                    complex: domain, ..
-                } => {
-                    complex |= *domain;
-                    None
-                }
-                E::Number { .. } | E::Rational { .. } | E::Coordinate { .. } => None,
-            };
-            if let Some(id) = id {
-                let domain = match domains.entry(id) {
-                    std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
-                    std::collections::btree_map::Entry::Vacant(entry) => {
-                        *entry.insert(resolve(id)?.scalar_domain())
+        walk(
+            self.equations().iter().flat_map(|(_, a, b)| [a, b]),
+            |value| {
+                use AuthoredFormExpressionV1 as E;
+                let id = match value {
+                    E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
+                        Some(field_id(ulid)?)
                     }
+                    E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
+                        Some(field_id(field_ulid)?)
+                    }
+                    E::Parameter { ulid } => {
+                        Some(Id::<kinds::Parameter>::from_ulid(canonical_id(ulid)?).erase())
+                    }
+                    E::Complex { .. } => {
+                        complex = true;
+                        None
+                    }
+                    E::LinearMap {
+                        complex: domain, ..
+                    } => {
+                        complex |= *domain;
+                        None
+                    }
+                    _ => None,
                 };
-                complex |= domain == ScalarDomain::Complex;
-            }
-        }
+                if let Some(id) = id {
+                    let domain = match domains.entry(id) {
+                        std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            *entry.insert(resolve(id)?.scalar_domain())
+                        }
+                    };
+                    complex |= domain == ScalarDomain::Complex;
+                }
+                Ok(())
+            },
+        )?;
         if complex {
             for (_, left, right) in self.equations() {
                 check_complex_form(left, &domains, &trials)?;
@@ -344,4 +297,147 @@ impl AuthoredFormulationProjection {
         }
         Ok(())
     }
+}
+
+impl AuthoredFormulationProjection {
+    /// Recover each residual's declared test Field from its actual arguments.
+    /// Declaration order and principal differential operands never choose the row.
+    /// This does not establish source correspondence or numerical admissibility.
+    /// # Errors
+    /// Rejects missing, foreign or multiple test arguments in an equation, repeated
+    /// test rows, and direction binders outside the declared test inventory.
+    pub fn equation_test_fields(&self) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
+        let requested = self.requested_test_fields()?;
+        if self.equations().is_empty() && !requested.is_empty() {
+            return Ok(requested);
+        }
+        let declared = self
+            .test_restrictions()
+            .iter()
+            .map(|(_, field, _, _, _)| field_id(field))
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        let mut rows = BTreeMap::new();
+        let mut used = BTreeSet::new();
+        for (relation, left, right) in self.equations() {
+            let mut tests = BTreeSet::new();
+            walk([left, right], |value| {
+                match value {
+                    AuthoredFormExpressionV1::Test { field_ulid } => {
+                        tests.insert(field_id(field_ulid)?);
+                    }
+                    AuthoredFormExpressionV1::Direction { name, field_ulid } => {
+                        if !self
+                            .test_restrictions()
+                            .iter()
+                            .any(|(test, field, _, _, _)| test == name && field == field_ulid)
+                        {
+                            return Err(wire::rejection(
+                                "variation direction is not a declared test argument",
+                            ));
+                        }
+                        tests.insert(field_id(field_ulid)?);
+                    }
+                    _ => {}
+                }
+                Ok(())
+            })?;
+            if tests.len() != 1 || !tests.is_subset(&declared) {
+                return Err(wire::rejection(
+                    "each residual requires exactly one declared test Field",
+                ));
+            }
+            let tested = *tests.first().expect("one test");
+            if !used.insert(tested) {
+                return Err(wire::rejection("residual rows repeat a test Field"));
+            }
+            rows.insert(
+                Id::<kinds::Relation>::from_ulid(canonical_id(relation)?).erase(),
+                tested,
+            );
+        }
+        if used != declared {
+            return Err(wire::rejection("residual rows omit a declared test Field"));
+        }
+        if !requested.is_empty() && rows != requested {
+            return Err(wire::rejection(
+                "derived equation test arguments differ from requested associations",
+            ));
+        }
+        Ok(rows)
+    }
+}
+
+/// Shared bounded traversal for semantic queries over the existing expression vocabulary.
+fn walk<'a>(
+    roots: impl IntoIterator<Item = &'a AuthoredFormExpressionV1>,
+    mut visit: impl FnMut(&AuthoredFormExpressionV1) -> Result<(), Diagnostic>,
+) -> Result<(), Diagnostic> {
+    use AuthoredFormExpressionV1 as E;
+    let mut pending = roots
+        .into_iter()
+        .map(|value| (value, 0))
+        .collect::<Vec<_>>();
+    let mut budget = 65536;
+    while let Some((value, depth)) = pending.pop() {
+        spend(&mut budget)?;
+        if depth > 128 {
+            return Err(wire::rejection(
+                "form dependence exceeds its expression depth",
+            ));
+        }
+        visit(value)?;
+        let mut push = |value| pending.push((value, depth + 1));
+        match value {
+            E::Complex { real, imag } => {
+                push(real.as_ref());
+                push(imag.as_ref());
+            }
+            E::Add { left, right }
+            | E::Sub { left, right }
+            | E::Mul { left, right }
+            | E::Apply { left, right }
+            | E::Div { left, right }
+            | E::Inner { left, right }
+            | E::Cross { left, right }
+            | E::Dot { left, right }
+            | E::Frobenius { left, right } => {
+                push(left.as_ref());
+                push(right.as_ref());
+            }
+            E::CoordinatePartial { value, wrt } => {
+                push(value.as_ref());
+                push(wrt.as_ref());
+            }
+            E::Neg { value }
+            | E::Trace { value, .. }
+            | E::NormalTrace { value, .. }
+            | E::Gradient { value }
+            | E::Curl { value }
+            | E::TangentialTrace { value, .. }
+            | E::Divergence { value }
+            | E::SymmetricPart { value }
+            | E::Sin { value }
+            | E::Conjugate { value }
+            | E::Component { value, .. }
+            | E::Variation { value, .. }
+            | E::Integrate {
+                integrand: value, ..
+            }
+            | E::IntervalIntegral {
+                integrand: value, ..
+            }
+            | E::EndpointFlux { flux: value, .. }
+            | E::Pow { base: value, .. } => push(value.as_ref()),
+            E::Field { .. }
+            | E::TimeDerivative { .. }
+            | E::Test { .. }
+            | E::Direction { .. }
+            | E::Parameter { .. }
+            | E::LinearMap { .. }
+            | E::Number { .. }
+            | E::Rational { .. }
+            | E::Coordinate { .. } => {}
+        }
+    }
+    Ok(())
 }

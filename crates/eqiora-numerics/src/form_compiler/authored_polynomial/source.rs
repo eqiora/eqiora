@@ -49,6 +49,11 @@ impl Context<'_> {
             ExprNode::Symbol(SymbolRef::Field(field)) => {
                 self.atom(Atom::Field(field.ulid().to_string(), coordinate.to_vec()))?
             }
+            ExprNode::Symbol(SymbolRef::Derivative(field, order)) if order.get() == 1 => self
+                .atom(Atom::TimeDerivative(
+                    field.ulid().to_string(),
+                    coordinate.to_vec(),
+                ))?,
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => self.atom(Atom::Parameter(
                 parameter.ulid().to_string(),
                 coordinate.to_vec(),
@@ -153,6 +158,10 @@ impl Context<'_> {
                     .checked_mul(&self.source(typed, *right, b, depth + 1)?)
                     .ok()?
             }
+            ExprNode::PowI(base, exponent) if coordinate.is_empty() => self
+                .source(typed, *base, coordinate, depth + 1)?
+                .checked_pow(u32::try_from(*exponent).ok()?)
+                .ok()?,
             ExprNode::SymmetricPart(value) => self.source_pure(
                 typed,
                 &PureOperatorDefinition::symmetric_part().ok()?,

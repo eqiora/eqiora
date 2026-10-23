@@ -27,7 +27,7 @@ def test_installed_first_and_second_variation_authoring():
             zeta = component.test("zeta", for_=u, dimension=q.Dimension(length=1))
             value = (q.lang.integrate(body, a*eta*zeta) if profile == "ordinary_duplicate"
                      else q.lang.variation(value, wrt=u, direction=zeta, holding=(a,)))
-        component.weak_form("variation", [balance], equations=[(value, 0)])
+        component.weak_form("variation", equations={balance: (value, 0)})
         bindings = {"body": geometry.selection("body"), "a": 2.0}
         for source in (module, module.to_eqi()):
             if profile == "ordinary_duplicate":

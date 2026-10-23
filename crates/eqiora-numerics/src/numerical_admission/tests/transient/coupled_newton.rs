@@ -159,7 +159,8 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                         model_geometries: plan.admission.model_geometries().to_vec(),
                     },
                     &CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered),
-                    None
+                    None,
+                    &BTreeMap::new()
                 )
                 .is_err(),
                 "a weak form cannot silently stand in for an unavailable cell-centered method"

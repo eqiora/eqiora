@@ -64,12 +64,28 @@ impl ResolvedCommonPlan {
                 .map(|plan| Self::Spatial(Box::new(plan)));
         }
         let (spatial, formulation) = method.split();
+        let equation_tests = authored_formulation
+            .filter(|form| !form.test_restrictions().is_empty())
+            .map(AuthoredFormulationProjection::equation_test_fields)
+            .transpose()?
+            .unwrap_or_default();
         let recognized = RecognizedNativeAdmission::recognize(
             model,
             owner,
             &spatial,
             temporal.as_ref().map(|_| 0.),
+            &equation_tests,
         )?;
+        let effective_form = authored_formulation
+            .map(|form| {
+                if form.requests_weak_derivation() {
+                    crate::form_compiler::mixed::resolve(&recognized.program, form)
+                } else {
+                    Ok(form.clone())
+                }
+            })
+            .transpose()?;
+        let authored_formulation = effective_form.as_ref();
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }

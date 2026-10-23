@@ -74,4 +74,19 @@ impl Polynomial {
                 .checked_add(&self.imaginary.checked_mul(&other.real)?)?,
         })
     }
+
+    pub(super) fn checked_pow(&self, mut exponent: u32) -> Result<Self, ExactPolynomialError> {
+        let mut result = Self::constant(ExactRational::integer(1));
+        let mut base = self.clone();
+        while exponent != 0 {
+            if exponent & 1 == 1 {
+                result = result.checked_mul(&base)?;
+            }
+            exponent >>= 1;
+            if exponent != 0 {
+                base = base.checked_mul(&base)?;
+            }
+        }
+        Ok(result)
+    }
 }

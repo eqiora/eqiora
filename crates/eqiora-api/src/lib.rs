@@ -313,15 +313,23 @@ impl ModelDocument {
             Self::from_store(store, program, aliases, geometry_authority, Some(notation))?;
         document.authored_formulations = authored_formulations;
         document.source_provenance = source_provenance;
-        for form in &document.authored_formulations {
-            if form.projection().test_restrictions().len() > 1
-                && form.projection().trial_ulids().len() > 1
+        for index in 0..document.authored_formulations.len() {
+            let form = &document.authored_formulations[index];
+            if form.projection().requests_weak_derivation()
+                || (form.projection().test_restrictions().len() > 1
+                    && form.projection().trial_ulids().len() > 1)
             {
-                eqiora_numerics::check_authored_spatial_formulation(
+                let effective = eqiora_numerics::resolve_authored_spatial_formulation(
                     document.program(),
                     form.projection(),
                 )
                 .map_err(single_diagnostic)?;
+                if form.projection().requests_weak_derivation() {
+                    document.authored_formulations[index] = form
+                        .clone()
+                        .with_derived_equations(effective.equations().to_vec())
+                        .map_err(single_diagnostic)?;
+                }
             }
         }
         Ok(document)

@@ -241,6 +241,27 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
 }";
     let roles = derive(source).unwrap();
     assert_eq!(roles.relations.len(), 2);
+    let compiled = compile("explicit-constraint.eqi", source)
+        .unwrap()
+        .remove(0);
+    let tests = [("balance", "u"), ("constraint", "p")]
+        .map(|(relation, field)| {
+            (
+                compiled.symbols().get(relation).unwrap(),
+                compiled.symbols().get(field).unwrap(),
+            )
+        })
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    let domain = compiled.symbols().get("body").unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    assert_eq!(
+        EquationRoles::derive(&program, [domain]).unwrap(),
+        EquationRoles::derive_with_tests(&program, [domain], &tests).unwrap()
+    );
     let reordered = source.replace(
         "relation balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }\n relation constraint on body { div(u) = 0; }",
         "relation renamed_constraint on body { -div(u) = 0; }\n relation renamed_balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }",
@@ -481,4 +502,39 @@ fn pointwise_equation_selects_its_only_unknown_after_coefficient_resolution() {
     );
     // A bare spatial derivative must not be mistaken for a pointwise residual.
     assert!(derive(&source.replace("q*u - 3 = 0", "grad(u) = 0")).is_err());
+}
+
+#[test]
+fn explicit_rows_resolve_a_three_field_cycle_without_principal_inference() {
+    let source = THREE
+        .replace("grad(a)", "grad(a+b)")
+        .replace("grad(b)", "grad(b+c)")
+        .replace("grad(c)", "grad(c+a)");
+    assert!(derive(&source).is_err());
+    let compiled = compile("explicit-roles.eqi", &source).unwrap().remove(0);
+    let tests = [("first", "a"), ("second", "b"), ("third", "c")]
+        .map(|(relation, field)| {
+            (
+                compiled.symbols().get(relation).unwrap(),
+                compiled.symbols().get(field).unwrap(),
+            )
+        })
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    let domain = compiled.symbols().get("body").unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let roles = EquationRoles::derive_with_tests(&program, [domain], &tests).unwrap();
+    for (relation, tested) in &tests {
+        assert_eq!(
+            roles.relations[relation].kind,
+            Role::Residual { tested: *tested }
+        );
+    }
+    assert!(EquationRoles::derive_with_tests(&program, [], &tests).is_err());
+    let mut repeated = tests.clone();
+    *repeated.values_mut().next().unwrap() = *tests.values().nth(1).unwrap();
+    assert!(EquationRoles::derive_with_tests(&program, [domain], &repeated).is_err());
 }

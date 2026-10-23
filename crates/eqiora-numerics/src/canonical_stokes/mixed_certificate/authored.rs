@@ -39,7 +39,7 @@ pub(super) fn check_terms(
         || form.test_restrictions().len() != 2
         || form.implication() != "strong-implies-weak"
         || !form.assumptions().iter().map(String::as_str).eq(
-            AuthoredFormulationProjection::mixed_assumptions()
+            AuthoredFormulationProjection::required_assumptions()
                 .iter()
                 .copied(),
         )

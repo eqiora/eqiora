@@ -17,7 +17,7 @@ def test_hcurl_test_declaration_survives_python_source_compilation(complex_value
     law = owner.relation("law", q.equation(q.curl(q.curl(u)), 0), on=body)
     v = owner.test("v", for_=u, regularity="hcurl")
     test_curl = q.math.conj(q.curl(v)) if complex_values else q.curl(v)
-    owner.weak_form("weak", [law], equations=[(q.integrate(body, test_curl * q.curl(u)), 0)])
+    owner.weak_form("weak", equations={law: (q.integrate(body, test_curl * q.curl(u)), 0)})
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     geometry = graph.build(rectangle, named_topology={

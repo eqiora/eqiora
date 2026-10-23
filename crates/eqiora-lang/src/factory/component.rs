@@ -118,7 +118,13 @@ pub(super) fn checked_form(
             "harmonic requests derive their amplitude equations",
         ));
     }
-    if !harmonic && equations.is_empty() {
+    let derived = matches!(&form.2, crate::FormulationBinding::WeakTests { derivations, .. } if !derivations.is_empty());
+    if derived && !equations.is_empty() {
+        return Err(AstConstructionError::new(
+            "weak derivation requests cannot also author equations",
+        ));
+    }
+    if !harmonic && !derived && equations.is_empty() {
         return Err(AstConstructionError::new(
             "Formulation requires an equality",
         ));
@@ -178,7 +184,11 @@ pub(super) fn checked_form(
                 }
             }
         }
-        crate::FormulationBinding::WeakTests { tests } => {
+        crate::FormulationBinding::WeakTests { tests, derivations } => {
+            for (relation, test) in derivations {
+                checked_identifier(relation.clone(), "derived Relation")?;
+                checked_identifier(test.clone(), "derived test")?;
+            }
             if tests.is_empty() {
                 return Err(AstConstructionError::new(
                     "weak Formulation requires a test",
@@ -326,7 +336,7 @@ mod tests {
     }
     #[test]
     fn constructs_plural_form_and_rejects_empty_inventories() {
-        let parsed = parse("mixed.eqi", "component C() { form weak for momentum,continuity { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,v)=integrate(body,0); integrate(body,q)=integrate(body,0); } }").into_document().unwrap();
+        let parsed = parse("mixed.eqi", "component C() { form weak for momentum,continuity { test v:1 for velocity zero_on surface; test q:1 for pressure; momentum: integrate(body,v)=integrate(body,0); continuity: integrate(body,q)=integrate(body,0); } }").into_document().unwrap();
         let source = &parsed.components()[0];
         let (name, relations, equations, range) = source.formulations().next().unwrap();
         let binding = source.formulation_binding(name).unwrap();
@@ -350,7 +360,10 @@ mod tests {
             construct(
                 relations.to_vec(),
                 equations.to_vec(),
-                crate::FormulationBinding::WeakTests { tests: vec![] }
+                crate::FormulationBinding::WeakTests {
+                    tests: vec![],
+                    derivations: Vec::new()
+                }
             )
             .is_err()
         );

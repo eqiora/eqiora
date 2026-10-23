@@ -68,14 +68,52 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 
     pub(in crate::numerical_admission) fn mixed_formulation(
         &self,
+        program: &KernelProgram,
         requested: FormulationSelectionMode,
-    ) -> Option<CommonFormulationDescription> {
+        authored: Option<&AuthoredFormulationProjection>,
+    ) -> Result<Option<CommonFormulationDescription>, Diagnostic> {
         if self.finite_element_formulation() != FormulationKind::MixedGalerkin {
-            return None;
+            return Ok(None);
         }
-        Some(CommonFormulationDescription {
+        self.equation_formulation(program, requested, authored)
+            .map(Some)
+    }
+
+    pub(in crate::numerical_admission) fn authored_formulation(
+        &self,
+        program: &KernelProgram,
+        authored: &AuthoredFormulationProjection,
+    ) -> Result<CommonFormulationDescription, Diagnostic> {
+        self.equation_formulation(program, FormulationSelectionMode::Authored, Some(authored))
+    }
+
+    fn equation_formulation(
+        &self,
+        program: &KernelProgram,
+        requested: FormulationSelectionMode,
+        authored: Option<&AuthoredFormulationProjection>,
+    ) -> Result<CommonFormulationDescription, Diagnostic> {
+        if let Some(form) = authored {
+            crate::form_compiler::mixed::check(program, form)?;
+            let actual = self
+                .regions
+                .iter()
+                .flat_map(|region| region.form.equation_test_fields())
+                .collect::<BTreeMap<_, _>>();
+            if actual != form.equation_test_fields()? {
+                return Err(invalid(
+                    "compiled spatial equation/test rows differ from the authored associations",
+                ));
+            }
+        }
+        let requested = if authored.is_some() {
+            FormulationSelectionMode::Authored
+        } else {
+            requested
+        };
+        Ok(CommonFormulationDescription {
             requested,
-            kind: FormulationKind::MixedGalerkin,
+            kind: self.finite_element_formulation(),
             boundary_treatment:
                 crate::form_compiler::vocabulary::BoundaryTreatment::ExplicitTraceFluxLaws.id(),
             rule_ids: self
@@ -93,10 +131,10 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     "eqiora.formulation.exact.equation-derived-mixed-galerkin/v1"
                 }
                 FormulationSelectionMode::Authored => {
-                    unreachable!("authored mixed overrides require their own source correspondence")
+                    "eqiora.formulation.authored.equation-derived-galerkin/v1"
                 }
             }]),
-            requested_source_identity: None,
+            requested_source_identity: authored.map(|form| form.source_identity().to_owned()),
             source_relation: None,
             state_coordinates: Box::new([]),
         })

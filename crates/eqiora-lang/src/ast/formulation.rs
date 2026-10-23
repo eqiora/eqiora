@@ -81,7 +81,10 @@ pub enum FormulationBinding {
     /// Ordered global scalar Fields sharing one explicitly named finite coordinate space.
     Finite { name: String, trials: Vec<String> },
     /// Ordered tests with exact trials, optional continuum regularity, and optional zero-trace boundary restrictions.
-    WeakTests { tests: Vec<WeakTestDeclaration> },
+    WeakTests {
+        tests: Vec<WeakTestDeclaration>,
+        derivations: Vec<(String, String)>,
+    },
     /// Every ordered mathematical interval within the named parent support.
     Interval {
         name: String,

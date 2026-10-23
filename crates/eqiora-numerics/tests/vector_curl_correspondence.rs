@@ -1,7 +1,7 @@
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 use eqiora_core::Diagnostic;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
-use eqiora_numerics::check_authored_spatial_formulation;
+use eqiora_numerics::resolve_authored_spatial_formulation;
 use eqiora_sem::KernelProgram;
 
 fn source(complex: bool) -> String {
@@ -48,7 +48,7 @@ fn compile(source: &str) -> (KernelProgram, AuthoredFormulationProjection) {
 }
 fn check(source: &str) -> Result<(), Diagnostic> {
     let (program, form) = compile(source);
-    check_authored_spatial_formulation(&program, &form)
+    resolve_authored_spatial_formulation(&program, &form).map(|_| ())
 }
 
 #[test]
@@ -58,10 +58,10 @@ fn complete_real_and_complex_vector_green_identity_and_independent_component_row
         check(&source).unwrap();
         let (program, form) = compile(&source);
         let expanded = expanded_form(&form, complex, false);
-        check_authored_spatial_formulation(&program, &expanded).unwrap();
+        resolve_authored_spatial_formulation(&program, &expanded).unwrap();
         let wrong_row = expanded_form(&form, complex, true);
         assert!(
-            check_authored_spatial_formulation(&program, &wrong_row)
+            resolve_authored_spatial_formulation(&program, &wrong_row)
                 .unwrap_err()
                 .message()
                 .contains("curl Green identity")
@@ -130,8 +130,8 @@ fn boundary_completeness_and_source_identity_are_required() {
     );
     let (program, form) = compile(&source);
     let (foreign, _) = compile(&source.replace("box(0,1,0,1,0,1)", "box(0,2,0,1,0,1)"));
-    assert!(check_authored_spatial_formulation(&foreign, &form).is_err());
-    check_authored_spatial_formulation(&program, &form).unwrap();
+    assert!(resolve_authored_spatial_formulation(&foreign, &form).is_err());
+    resolve_authored_spatial_formulation(&program, &form).unwrap();
 }
 
 // The exact component reference is independently assembled at the public wire
@@ -232,7 +232,7 @@ fn units_are_checked_before_polynomial_cancellation() {
     };
     let wrong = replace_left(&form, value);
     assert!(
-        check_authored_spatial_formulation(&program, &wrong)
+        resolve_authored_spatial_formulation(&program, &wrong)
             .unwrap_err()
             .message()
             .contains("dimensions")
@@ -244,7 +244,7 @@ fn vector_energy_variation_replays_its_live_functional() {
     let source = source(false).replace("form weak for law", "observable energy:m=integral(0.5*contract(curl(u),curl(u),axes=((0,0),))+0.5*contract(u,u,axes=((0,0),))*1[1/m^2],measure(body)); form weak for law")
         .replace("integrate(body,dot(curl(eta),curl(u))+dot(eta,u)*1[1/m^2])", "variation(energy,wrt=u,direction=eta,holding=())");
     let (program, form) = compile(&source);
-    check_authored_spatial_formulation(&program, &form).unwrap();
+    resolve_authored_spatial_formulation(&program, &form).unwrap();
     let E::Variation {
         functional_ulid,
         wrt_ulid,
@@ -265,7 +265,7 @@ fn vector_energy_variation_replays_its_live_functional() {
             value: Box::new(E::Number { value: 0.0 }),
         },
     );
-    assert!(check_authored_spatial_formulation(&program, &forged).is_err());
+    assert!(resolve_authored_spatial_formulation(&program, &forged).is_err());
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn homogeneous_natural_curl_laws_discharge_their_exact_faces() {
         let (program, form) = compile(&hcurl);
         assert_eq!(form.test_restrictions()[0].4.as_deref(), Some("hcurl"));
         let replay = AuthoredFormulationProjection::decode(form.canonical_bytes()).unwrap();
-        check_authored_spatial_formulation(&program, &replay).unwrap();
+        resolve_authored_spatial_formulation(&program, &replay).unwrap();
         let mixed = original
             .replace(
                 "relation fixed0lower on b0lower {trace(u)=0;}",

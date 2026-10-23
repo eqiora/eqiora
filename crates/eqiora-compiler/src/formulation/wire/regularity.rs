@@ -23,7 +23,7 @@ enum Demand {
 }
 
 pub(super) fn check(wire: &WireForm) -> Result<(), Diagnostic> {
-    let WireBinding::WeakTests { tests } = &wire.binding else {
+    let WireBinding::WeakTests { tests, .. } = &wire.binding else {
         return Ok(());
     };
     let mut spaces = BTreeMap::new();

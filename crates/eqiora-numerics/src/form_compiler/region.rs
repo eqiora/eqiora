@@ -112,19 +112,20 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         domain: RawId,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
-        Self::derive_at_time(program, domain, dimension, None)
+        let roles = EquationRoles::derive(program, [domain])?;
+        Self::derive_with_roles(program, domain, dimension, None, roles)
     }
 
-    pub(in crate::form_compiler) fn derive_at_time(
+    pub(in crate::form_compiler) fn derive_with_roles(
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
         time_s: Option<f64>,
+        roles: EquationRoles,
     ) -> Result<Self, Diagnostic> {
         if !(1..=3).contains(&dimension) {
             return Err(invalid("region dimension must be one through three"));
         }
-        let roles = EquationRoles::derive(program, [domain])?;
         let coefficients =
             super::spatial::coefficients_at_time(program, dimension, &roles, time_s)?;
         for (field, (_, value_type)) in &roles.fields {

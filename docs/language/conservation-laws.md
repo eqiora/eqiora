@@ -217,7 +217,8 @@ nullspaces, automatic mode discovery and finite floating-network Formulations
 remain outside this interval profile.
 
 A bounded real steady 2D Stokes system may retain two weak equations in one form.
-`form weak for momentum, continuity` pairs each equation with its declared Relation;
+`form weak for momentum, continuity` uses `momentum: ... = ...;` and
+`continuity: ... = ...;` to associate weak equations with their source Relations;
 velocity and pressure have distinct named tests. The velocity test carries the exact
 complete homogeneous essential boundary, while the pressure test has no boundary
 restriction. `frobenius` contracts equal real rank-two shapes and remains distinct

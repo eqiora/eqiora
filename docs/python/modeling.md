@@ -961,16 +961,21 @@ boundary inventory; missing essential sides or extra natural sides are rejected.
 Other sides may carry explicit homogeneous natural flux laws such as
 `normal(conductivity * grad(temperature)) = 0`. Their exact constitutive flux
 discharges the boundary term without imposing a zero test trace.
-The current execution profile is steady scalar diffusion with Cartesian Q1. Tests
-vanish on essential sides even when the prescribed Field trace is nonzero.
-Nonzero natural loads require surface work and remain outside this authored profile,
-as do storage, arbitrary weak forms,
-authored integral-conservative and mixed forms remain unsupported.
+The scalar baseline executes steady diffusion with Cartesian Q1. Tests vanish on
+essential sides even when the prescribed Field trace is nonzero. The shared spatial
+row checker also admits its supported value, first-order rate and divergence terms,
+including cross-field mixed rows and matched prescribed flux work. Execution still
+requires an admitted spatial method, initialization, time policy and solver; a checked
+weak form alone does not establish those capabilities.
 
 Python uses `w = component.test("w", for_=temperature, zero_on=surface)` followed by
-`component.weak_form("weak_heat", [heat_balance], equations=[(left, right)])`. Use
+`component.weak_form("weak_heat", equations={heat_balance: (left, right)})`. Use
 `component.boundaries(left, right, bottom, top)` for an explicit boundary collection.
-The former `primal_form` and global `test(field)` entry points are removed.
+For checked derivation, supply only the relation-to-test mapping:
+`component.weak_form("weak_heat", tests={heat_balance: w})`.
+`equations=` and `tests=` are mutually exclusive. Both produce the same effective
+formulation and use the same spatial execution owner. The positional relation list,
+`primal_form` and global `test(field)` entry points are removed.
 `model.authored_formulations` exposes the form name, test name, exact trial and
 `zero_on_domain_ids`. Plan replay preserves and rechecks the same restriction.
 

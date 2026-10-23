@@ -311,12 +311,47 @@ physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v17`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v18`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked
-mixed system. Mixed correspondence still requires the complete velocity/pressure
-equation and test inventory.
+mixed system. Mixed correspondence requires the complete equation and test inventory;
+each row's actual test argument selects its association independently of declaration
+order and the principal differential operand. Spatial projections share the same
+regularity and boundary hypotheses across scalar and mixed forms. Equation and trial
+counts are bounded by the existing expression and projection-size budgets, rather than
+a fixed eight-field profile.
+
+A weak form can request the supported integration-by-parts derivation by naming
+only each equation/test association. For example, after declaring `wu` and `wv`
+inside `form mixed for evolution, auxiliary`, write:
+
+```eqi
+derive evolution using wu;
+derive auxiliary using wv;
+```
+
+For authored weak equalities with multiple owned Relations, prefix each equality
+with its source Relation, for example `auxiliary: integrate(body, wv*v)=0;`.
+Every owned Relation needs exactly one labelled equality; statement order does not
+choose the association. A form owning one Relation needs no label because its
+source equation is unambiguous.
+
+Derivation requests and authored equalities cannot be mixed in one form. Every
+owned Relation and declared test must be consumed exactly once. Source compilation
+retains the request; model admission materializes its effective equations using the
+same typed row and boundary-law owner that checks authored equations. Inspection
+and rendering expose these effective equations, while the projection retains the
+requested associations for replay. Unsupported Green identities still reject.
+
+The shared spatial correspondence checker compares value, first-order rate and
+divergence terms with the original typed equations, and reuses complete constitutive
+boundary-law admission. It checks test restrictions, physical dimensions, prescribed
+flux signs and exact residual coefficients. A spatially varying multiplier outside
+a divergence requires a product-rule proof; unsupported identities reject rather than
+silently discarding boundary terms. Correspondence alone does not prove numerical
+regularity, stability, arbitrary DAE-index support or that a requested backend can
+execute the system.
 
 The bounded exact weak-residual comparator expands first-gradient curl and 3D
 cross products through the same pure component definitions as the Model calculus.

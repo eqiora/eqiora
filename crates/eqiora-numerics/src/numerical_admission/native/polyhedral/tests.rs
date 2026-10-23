@@ -234,6 +234,7 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
             owner,
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
             None,
+            &BTreeMap::new(),
         )
         .unwrap_err();
         assert!(error.message().contains(diagnostic), "{}", error.message());
@@ -253,6 +254,7 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
             owner,
             &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
             None,
+            &BTreeMap::new(),
         )
         .unwrap();
         for spatial in [

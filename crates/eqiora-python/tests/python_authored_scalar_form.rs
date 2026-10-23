@@ -289,7 +289,7 @@ energy = component.observable("energy", k*q.contract(q.grad(u), q.grad(u), axes=
 combined = component.observable("combined", energy+energy-energy, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)))
 w = component.test("w", for_=u, dimension=eqiora.Dimension(length=1), zero_on=surface)
 first = q.variation(combined, wrt=u, direction=w, holding=(k,f))
-component.weak_form("stationary", [balance], equations=[(first,0)])
+component.weak_form("stationary", equations={balance: (first,0)})
 emitted = energy_module.to_eqi()
 assert "variation(combined" in emitted and "measure(body)" in emitted
 energy_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
@@ -381,7 +381,7 @@ heat = component.law("heat", on=body, flux=-k*q.grad(u), source=f)
 face = surface.member("face")
 component.relation("essential", q.equation(q.trace(u), q.quantity(300, eqiora.units.K)), on=face)
 w = component.test("w", for_=u, zero_on=surface)
-component.weak_form("weak_heat", [heat], equations=[(q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), q.integrate(body, w*f))])
+component.weak_form("weak_heat", equations={heat: (q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), q.integrate(body, w*f))})
 source_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
 python_model = eqiora.compile(source=module, geometry=geometry, entry="Diffusion", bindings=source_bindings)
 assert "test w: 1 for u zero_on surface;" in module.to_eqi()

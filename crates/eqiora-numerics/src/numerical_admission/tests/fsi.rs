@@ -16,6 +16,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         resources.clone(),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {

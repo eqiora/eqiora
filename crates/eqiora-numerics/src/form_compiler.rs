@@ -8,6 +8,7 @@ mod finite_typing;
 pub(crate) mod harmonic;
 pub(crate) mod integral_constraint;
 pub(crate) mod interface;
+pub(crate) mod mixed;
 mod planar_curl;
 mod vector_curl;
 pub(crate) use finite::admit_authored_finite_weak_form;
@@ -54,28 +55,34 @@ pub(crate) fn check_authored_dependence(
     })
 }
 
-/// Check a bounded authored spatial weak form against its live strong Laws.
+/// Resolve a weak derivation request or check authored equations against live strong Laws.
 ///
-/// One test/trial selects 3D vector curl-curl inspection with homogeneous full
-/// traces or natural tangential-curl laws on every Cartesian box face. Plural
-/// tests/trials select the existing real
-/// steady Stokes inspection with complete homogeneous velocity traces. Neither
-/// path selects a numerical method or proves stability or reverse implication.
-/// General spatial authoring remains available independently of this inspection.
+/// Explicit equation/test associations select the rows of the shared spatial
+/// equations. The checker authenticates volume pairings, complete boundary laws,
+/// test restrictions and physical dimensions. Existing vector curl and steady
+/// Stokes Green identities remain available for their admitted operator profiles.
+/// This inspection selects no numerical method and proves neither stability nor
+/// reverse implication.
 ///
 /// # Errors
 /// Rejects unsupported profiles, incomplete test/trial or boundary inventories,
 /// stale source identities, or authored terms that do not match the strong Laws.
-pub fn check_authored_spatial_formulation(
+pub fn resolve_authored_spatial_formulation(
     program: &eqiora_sem::KernelProgram,
     form: &eqiora_compiler::AuthoredFormulationProjection,
-) -> Result<(), eqiora_core::Diagnostic> {
+) -> Result<eqiora_compiler::AuthoredFormulationProjection, eqiora_core::Diagnostic> {
     check_field_traces(form, program)?;
-    if form.trial_ulids().len() == 1 {
-        vector_curl::check(program, form)
-    } else {
-        crate::canonical_stokes::check_authored_mixed_formulation(program, form)
-    }
+    mixed::resolve(program, form).or_else(|generic_error| {
+        if form.requests_weak_derivation() {
+            return Err(generic_error);
+        }
+        let specialized = if form.trial_ulids().len() == 1 {
+            vector_curl::check(program, form)
+        } else {
+            crate::canonical_stokes::check_authored_mixed_formulation(program, form)
+        };
+        specialized.map(|_| form.clone()).map_err(|_| generic_error)
+    })
 }
 
 /// Reauthenticate boundary operands after decoding, using the admitted Model.

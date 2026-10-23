@@ -19,7 +19,7 @@ def test_finite_weak_authoring_preserves_spectral_phase(tmp_path, owner):
     eigenvalue = component.field("lambda", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable)
     states = component.relation("states", q.equation(q.apply(h, u), eigenvalue*u))
     eta = component.test("eta", for_=u)
-    component.weak_form("weak", [states], equations=[(q.inner(eta, q.apply(h, u)), q.inner(eta, eigenvalue*u))])
+    component.weak_form("weak", equations={states: (q.inner(eta, q.apply(h, u)), q.inner(eta, eigenvalue*u))})
     models = authoring_models(module, tmp_path)
     solve = eqiora.solve.HermitianEigen(count=2, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
     identities = []
@@ -63,10 +63,10 @@ def test_spatial_weak_authoring_includes_complex_boundary_load(tmp_path, owner):
     component.relation("fixed", q.equation(q.trace(u), 1+3j), on=left)
     component.relation("natural", q.equation(q.normal(a*q.grad(u)), flux), on=right)
     eta = component.test("eta", for_=u, zero_on=left)
-    component.weak_form("weak", [balance], equations=[(
+    component.weak_form("weak", equations={balance: (
         q.integrate(body, q.inner(q.grad(eta), a*q.grad(u))+q.inner(eta, reaction*u)),
         q.integrate(body, q.inner(eta, f+slope*q.coordinate(0)))+q.integrate(right, q.inner(q.trace(eta), flux)),
-    )])
+    )})
     graph = eqiora.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 6.))
     geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})

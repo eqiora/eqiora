@@ -4,6 +4,49 @@ use eqiora_geometry::GeometryGraph;
 use std::collections::BTreeMap;
 
 #[test]
+fn weak_derivation_exposes_effective_equations_to_inspection_and_rendering() {
+    let source = "model Pair() {
+        domain body=box(0,1);
+        domain left=boundary(body,axis=0,side=lower);
+        domain right=boundary(body,axis=0,side=upper);
+        state u:1 on body in smooth; variable v:1 on body in smooth;
+        initial {u=1;v=0;}
+        relation first on body {derivative(u)-1[m^2/s]*div(grad(v))=0;}
+        relation second on body {v+1[m^2]*div(grad(u))=0;}
+        relation ul on left {normal(grad(u))=0;}
+        relation ur on right {normal(grad(u))=0;}
+        relation vl on left {normal(grad(v))=0;}
+        relation vr on right {normal(grad(v))=0;}
+        form paired for first,second {
+            test wv:1 for v; test wu:1 for u;
+            derive first using wu;
+            derive second using wv;
+        }
+    }";
+    let document = ModelDocument::compile("derived.eqi", source).unwrap();
+    let form = document
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection();
+    assert!(form.requests_weak_derivation());
+    assert_eq!(form.equations().len(), 2);
+    assert_eq!(form.equation_test_fields().unwrap().len(), 2);
+    let rendered = document
+        .render_formulations(eqiora_lang::NotationProfile::Plain)
+        .unwrap();
+    assert_eq!(rendered.len(), 1);
+    assert!(
+        rendered[0].plain().contains("integral over"),
+        "{}",
+        rendered[0].plain()
+    );
+    let rechecked =
+        eqiora_numerics::resolve_authored_spatial_formulation(document.program(), form).unwrap();
+    assert_eq!(&rechecked, form);
+}
+
+#[test]
 fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0., 1.], [0., 1.]).unwrap();
@@ -63,8 +106,8 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
         form weak for momentum,continuity {
             test v:1 for u zero_on surface;
             test q:1 for p;
-            integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v))=integrate(body,dot(v,grad(F)));
-            integrate(body,q*div(u))=0;
+            momentum: integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v))=integrate(body,dot(v,grad(F)));
+            continuity: integrate(body,q*div(u))=0;
         }
     }"#;
     let compile = |source: &str| {
@@ -78,21 +121,22 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
         .next()
         .unwrap()
         .projection();
-    eqiora_numerics::check_authored_spatial_formulation(complete.program(), full).unwrap();
+    eqiora_numerics::resolve_authored_spatial_formulation(complete.program(), full).unwrap();
     let subset = source
         .replace("momentum,continuity", "momentum")
         .replace("test q:1 for p;", "")
-        .replace("integrate(body,q*div(u))=0;", "");
+        .replace("continuity: integrate(body,q*div(u))=0;", "")
+        .replace("momentum: ", "");
     let partial = compile(&subset);
     let form = partial.authored_formulations().next().unwrap().projection();
     assert_eq!(form.trial_ulids().len(), 1);
     assert_eq!(form.equations().len(), 1);
     let error =
-        eqiora_numerics::check_authored_spatial_formulation(partial.program(), form).unwrap_err();
+        eqiora_numerics::resolve_authored_spatial_formulation(partial.program(), form).unwrap_err();
     assert!(
         error
             .message()
-            .contains("curl correspondence requires a spatial 3D Cartesian box"),
+            .contains("divergence constraint requires one unique gradient multiplier"),
         "{error:?}"
     );
 }

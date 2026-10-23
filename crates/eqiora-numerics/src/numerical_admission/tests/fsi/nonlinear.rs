@@ -21,6 +21,7 @@ fn nonlinear_fixed_mesh_fsi_uses_shared_residuals_interfaces_and_kinematic_histo
         resources.clone(),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {

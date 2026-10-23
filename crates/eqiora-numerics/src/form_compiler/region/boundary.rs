@@ -16,6 +16,7 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
     pub(crate) dependencies: BTreeSet<RawId>,
     pub(crate) operator: ExprId,
     pub(crate) datum_expression: Option<ExprId>,
+    pub(crate) datum_negative: bool,
     datum: PrescribedDatum<S>,
 }
 
@@ -195,10 +196,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             };
             let mut datum =
                 PrescribedDatum::derive(&context, &typed, &row.value_type, datum_expression)?;
-            if values
+            let datum_negative = values
                 .first()
-                .is_some_and(|value| value.sign() == operator.sign())
-            {
+                .is_some_and(|value| value.sign() == operator.sign());
+            if datum_negative {
                 let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
                 match &mut datum {
                     PrescribedDatum::Components(components) => {
@@ -219,6 +220,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 dependencies: dependencies.clone(),
                 operator: operator.value(),
                 datum_expression,
+                datum_negative,
                 datum,
             });
         }

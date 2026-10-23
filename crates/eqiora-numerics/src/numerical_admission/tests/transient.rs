@@ -418,6 +418,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             resources(&geometry),
             &CommonSpatialRequest::Uniform(policy),
             None,
+            &BTreeMap::new(),
         )
         .unwrap();
         assert_eq!(

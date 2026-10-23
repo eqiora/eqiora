@@ -117,6 +117,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
         resources.clone(),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {

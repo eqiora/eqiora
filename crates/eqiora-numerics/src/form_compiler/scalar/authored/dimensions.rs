@@ -32,12 +32,40 @@ pub(in crate::form_compiler) fn check_pairing(
     boundaries: &[RawId],
     typed: &TypedResidual<RawId>,
 ) -> Option<()> {
-    let [(name, field, _, units, _)] = projection.test_restrictions() else {
+    let [(_, field, _, _, _)] = projection.test_restrictions() else {
         return None;
     };
-    let [(_, left, right)] = projection.equations() else {
+    let [(relation, _, _)] = projection.equations() else {
         return None;
     };
+    check_row(
+        projection,
+        program,
+        domain,
+        dimensions,
+        boundaries,
+        typed,
+        (relation, field),
+    )
+}
+
+pub(in crate::form_compiler) fn check_row(
+    projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
+    domain: RawId,
+    dimensions: usize,
+    boundaries: &[RawId],
+    typed: &TypedResidual<RawId>,
+    association: (&str, &str),
+) -> Option<()> {
+    let (name, field, _, units, _) = projection
+        .test_restrictions()
+        .iter()
+        .find(|(_, field, _, _, _)| field == association.1)?;
+    let (_, left, right) = projection
+        .equations()
+        .iter()
+        .find(|(relation, _, _)| relation == association.0)?;
     let test = dimension(units)?;
     let measure = length().pow(i32::try_from(dimensions).ok()?, 1)?;
     let expected = typed
@@ -94,7 +122,7 @@ impl Context<'_> {
                 };
                 Some(field.dimension())
             }
-            E::TimeDerivative { field_ulid } if field_ulid == self.field => {
+            E::TimeDerivative { field_ulid } => {
                 let id = Id::<kinds::Field>::from_ulid(field_ulid.parse().ok()?);
                 let KernelNode::Field(field) = self.program.node(id.erase())? else {
                     return None;

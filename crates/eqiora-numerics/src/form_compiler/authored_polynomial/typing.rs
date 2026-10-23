@@ -178,6 +178,7 @@ impl Context<'_> {
                 self.shape(value, depth + 1)
             }
             E::Conjugate { value } | E::Neg { value } => self.shape(value, depth + 1),
+            E::Pow { base, .. } => self.shape(base, depth + 1)?.is_empty().then(Vec::new),
             E::Gradient { value } => {
                 let mut shape = self.shape(value, depth + 1)?;
                 shape.push(self.dimensions);
@@ -188,6 +189,7 @@ impl Context<'_> {
             | E::Coordinate { .. }
             | E::Dot { .. }
             | E::Inner { .. } => Some(vec![]),
+            E::Frobenius { .. } => Some(vec![]),
             E::Complex { real, imag } => (self.shape(real, depth + 1)?.is_empty()
                 && self.shape(imag, depth + 1)?.is_empty())
             .then(Vec::new),
@@ -241,6 +243,25 @@ impl Context<'_> {
                         .checked_mul(&self.vector(right, axis, depth + 1)?)
                         .ok()?;
                     sum = sum.checked_add(&term).ok()?;
+                }
+                Some(sum)
+            }
+            [rows, columns] => {
+                self.remaining = self.remaining.checked_sub(rows.checked_mul(*columns)?)?;
+                let mut sum = Polynomial::constant(ExactRational::integer(0));
+                for row in 0..*rows {
+                    for column in 0..*columns {
+                        let left = self.tensor(left, row, column, depth + 1)?;
+                        let left = if conjugated {
+                            left.conjugate().ok()?
+                        } else {
+                            left
+                        };
+                        let term = left
+                            .checked_mul(&self.tensor(right, row, column, depth + 1)?)
+                            .ok()?;
+                        sum = sum.checked_add(&term).ok()?;
+                    }
                 }
                 Some(sum)
             }

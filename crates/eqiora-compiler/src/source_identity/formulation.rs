@@ -4,7 +4,7 @@ use super::*;
 use crate::formulation::source::FormulationSource;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 9;
+const CANONICAL_FORMULATION_VERSION: u16 = 10;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -94,7 +94,16 @@ impl AuthoredFormSourceIdentity {
                             Ok(())
                         })?;
                     }
-                    eqiora_lang::FormulationBinding::WeakTests { tests } => {
+                    eqiora_lang::FormulationBinding::WeakTests { tests, derivations } => {
+                        budget.account_members(derivations.len(), "weak derivations")?;
+                        encoder.field(8, |e| {
+                            e.u32(as_u32(derivations.len(), "weak derivations")?)?;
+                            for (relation, test) in derivations {
+                                encode_name(e, relation, budget)?;
+                                encode_name(e, test, budget)?;
+                            }
+                            Ok(())
+                        })?;
                         budget.account_members(tests.len(), "Formulation tests")?;
                         encoder.field(6, |e| {
                             e.u16(1)?;
@@ -224,19 +233,18 @@ mod tests {
     }
     #[test]
     fn plural_identity_binds_each_relation_test_and_equality() {
-        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,v)=integrate(body,force); integrate(body,q)=integrate(body,0); } }";
+        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; momentum: integrate(body,v)=integrate(body,force); incompressibility: integrate(body,q)=integrate(body,0); } }";
         let identity = |source: &str| {
             AuthoredFormSourceIdentity::from_source(&document(source).components()[0]).unwrap()
         };
         assert_eq!(identity(source), identity(&format(&document(source))));
         for changed in [
-            source.replace("momentum,incompressibility", "momentum,other"),
+            source.replace("incompressibility", "other"),
             source.replace("momentum,incompressibility", "incompressibility,momentum"),
             source.replace("for pressure;", "for other;"),
             source.replace("test q:1", "test r:1"),
             source.replace("for pressure;", "for pressure zero_on surface;"),
             source.replace("integrate(body,0)", "integrate(body,1)"),
-            source.replace(" integrate(body,q)=integrate(body,0);", ""),
         ] {
             assert_ne!(identity(source), identity(&changed));
             assert_eq!(

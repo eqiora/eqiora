@@ -2011,8 +2011,6 @@ class Component:
             raise ModuleError("test trial must be a Field from this Component")
         if regularity is not None and (not isinstance(regularity, str) or regularity not in {"h1", "hcurl", "hdiv", "l2"}):
             raise ModuleError("test regularity must be one of: h1, hcurl, hdiv, l2")
-        if len(self._test_restrictions) >= 8:
-            raise ModuleError("weak form exceeds the 8-test limit")
         if zero_on is None:
             boundaries = ()
         elif isinstance(zero_on, BoundarySelectionSet):
@@ -2031,24 +2029,26 @@ class Component:
     def weak_form(
         self,
         name: str,
-        relations: Sequence[Relation],
         *,
-        equations: Sequence[tuple[object, object]],
+        equations: Mapping[Relation, tuple[object, object]] | None = None,
+        tests: Mapping[Relation, Expression] | None = None,
         doc: str | None = None,
     ) -> None:
-        """Attach one named weak form with ordered relations, tests, and equalities."""
+        """Author relation-keyed weak equations, or request derivation with named tests."""
         self._source._ensure_open()
-        if not isinstance(relations, Sequence) or not 1 <= len(relations) <= 8:
-            raise ModuleError("weak form requires between 1 and 8 relations")
+        if (equations is None) == (tests is None):
+            raise ModuleError("weak form requires exactly one of equations or tests")
+        selected = equations if equations is not None else tests
+        if not isinstance(selected, Mapping) or not selected:
+            raise ModuleError("weak form requires a nonempty Relation mapping")
+        relations = list(selected)
         if any(not isinstance(relation, Relation)
                or relation._component is not self._component_token for relation in relations):
             raise ModuleError("form relations must belong to this Component")
         if len({relation._name for relation in relations}) != len(relations):
             raise ModuleError("weak form relations must be distinct")
-        if not isinstance(equations, Sequence) or not 1 <= len(equations) <= 8:
-            raise ModuleError("weak form requires between 1 and 8 equations")
         pairs = []
-        for pair in equations:
+        for pair in equations.values() if equations is not None else ():
             if not isinstance(pair, tuple) or len(pair) != 2:
                 raise TypeError("weak form equations must be pairs of expressions")
             left, right = (_expression(value) for value in pair)
@@ -2057,6 +2057,13 @@ class Component:
                 if expression._owner is not None and expression._owner is not self._component_token:
                     raise ModuleError("form expressions must belong to this Component")
             pairs.append((left, right))
+        derivations = []
+        if tests is not None:
+            for relation, test in tests.items():
+                if not isinstance(test, Expression) or test._owner is not self._component_token:
+                    raise ModuleError("derived tests must belong to this Component")
+                self._closed_expression(test)
+                derivations.append((relation._name, test._ast))
         if self._formulation is not None:
             raise ModuleError("a Component admits one named form")
         total_nodes = (
@@ -2077,7 +2084,7 @@ class Component:
         self._declaration_count += 1
         native = _AstFormulation.weak(admitted, [relation._name for relation in relations],
                                       self._test_restrictions,
-                                      [(left._ast, right._ast) for left, right in pairs])
+                                      [(left._ast, right._ast) for left, right in pairs], derivations)
         self._formulation = (native, doc_lines, sum(left._nodes + right._nodes for left, right in pairs))
 
     def harmonic_form(

@@ -154,6 +154,9 @@ fn authored_first_variation_uses_the_retained_energy() {
     else {
         panic!("functional lineage must remain in the projection");
     };
+    let rows = form.projection().equation_test_fields().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows.values().next(), Some(&form.trials()[0].erase()));
     assert_eq!(directions, &["eta"]);
     assert_eq!(holding.len(), 2);
     assert_eq!(wrt_ulid, &form.trials()[0].ulid().to_string());

@@ -27,12 +27,9 @@ impl CommonSpatialPlan {
                 ));
             }
             None
-        } else if let Some(description) = equations.mixed_formulation(selection) {
-            if authored.is_some() {
-                return Err(invalid(
-                    "authored mixed Region formulation requires an admitted source correspondence",
-                ));
-            }
+        } else if let Some(description) =
+            equations.mixed_formulation(admission.program(), selection, authored)?
+        {
             Some(description)
         } else {
             match derived {
@@ -59,9 +56,11 @@ impl CommonSpatialPlan {
                         authored.map(|form| form.source_identity().to_owned());
                     Some(description)
                 }
-                None if authored.is_none() && selection == FormulationSelectionMode::Automatic => {
-                    None
-                }
+                None if authored.is_some() => Some(equations.authored_formulation(
+                    admission.program(),
+                    authored.expect("selected authored form"),
+                )?),
+                None if selection == FormulationSelectionMode::Automatic => None,
                 None => {
                     return Err(invalid(
                         "complex scalar Formulation has no admitted source correspondence",

@@ -160,11 +160,193 @@ fn scalar_context(domain: eqiora_core::ScalarDomain) -> Context<'static> {
             .collect(),
     }
 }
+
+#[test]
+fn cross_field_rates_keep_their_identity_and_component_shape() {
+    use eqiora_graph::{GraphStore, InMemoryGraphStore};
+    let compiled = eqiora_compiler::compile(
+        "rates.eqi",
+        "model Rates() { domain body=box(0,1); state u:1 on body; state v:1 on body; relation balance on body { derivative(v)+2*derivative(u)=0; } }",
+    )
+    .unwrap()
+    .remove(0);
+    let (transaction, model, symbols) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let typed =
+        crate::form_compiler::scalar::typed_relation(&program, symbols.get("balance").unwrap())
+            .unwrap();
+    let field = symbols.get("u").unwrap().ulid().to_string();
+    let other = symbols.get("v").unwrap().ulid().to_string();
+    let mut context = Context {
+        name: "eta",
+        field: &field,
+        dimensions: 1,
+        remaining: 65536,
+        supports: field_supports(&program),
+        domains: domain_supports(&program),
+        integration_domain: None,
+        symbols: symbol_types(&program),
+    };
+    let rate = |id: &str| E::TimeDerivative {
+        field_ulid: id.into(),
+    };
+    let sum = |a: E, b: E| E::Add {
+        left: Box::new(a),
+        right: Box::new(b),
+    };
+    let actual = context
+        .source(&typed, typed.expression().roots()[0], &[], 0)
+        .unwrap();
+    assert_eq!(
+        Some(actual.clone()),
+        context.scalar(
+            &sum(rate(&other), mul(E::Number { value: 2. }, rate(&field))),
+            0
+        )
+    );
+    assert_ne!(
+        Some(actual),
+        context.scalar(
+            &sum(rate(&field), mul(E::Number { value: 2. }, rate(&other))),
+            0
+        )
+    );
+    assert!(context.scalar(&rate("foreign"), 0).is_none());
+    assert!(context.vector(&rate(&field), 0, 0).is_none());
+}
+
+#[test]
+fn mixed_row_comparison_uses_the_named_equation_and_actual_test_field() {
+    use eqiora_graph::{GraphStore, InMemoryGraphStore};
+    let source = r#"public component Mixed() {
+        state u:1; state v:1; state w:1;
+        relation a { derivative(v)=0; }
+        relation b { derivative(w)=0; }
+        relation c { derivative(u)+1[1/s]*(v+v^3)=0; }
+        form weak for a,b,c {
+            test ww:1 for w; test wu:1 for u; test wv:1 for v;
+            a: wu*derivative(v)=0;
+            b: wv*derivative(w)=0;
+            c: ww*(derivative(u)+1[1/s]*(v+v^3))=0;
+        }
+    }"#;
+    let compiled =
+        eqiora_compiler::CompiledModel::compile_selected("mixed.eqi", source, "Mixed", &[])
+            .unwrap();
+    let projection = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection()
+        .clone();
+    let tests = projection.equation_test_fields().unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    for (relation, field) in &tests {
+        let typed = crate::form_compiler::scalar::typed_relation(&program, *relation).unwrap();
+        let source = E::from_expression(typed.expression(), typed.expression().roots()[0])
+            .unwrap()
+            .unwrap();
+        let relation = relation.ulid().to_string();
+        let field = field.ulid().to_string();
+        let left = mul(
+            E::Test {
+                field_ulid: field.clone(),
+            },
+            source,
+        );
+        let zero = E::Number { value: 0. };
+        assert!(matches_weak_row(
+            &projection,
+            &program,
+            1,
+            (&relation, &field),
+            &left,
+            &zero
+        ));
+        assert!(matches_weak_row(
+            &projection,
+            &program,
+            1,
+            (&relation, &field),
+            &zero,
+            &left
+        ));
+        assert!(!matches_weak_row(
+            &projection,
+            &program,
+            1,
+            (&relation, &field),
+            &zero,
+            &zero
+        ));
+        for wrong in tests
+            .values()
+            .filter(|other| other.ulid().to_string() != field)
+        {
+            assert!(!matches_weak_row(
+                &projection,
+                &program,
+                1,
+                (&relation, &wrong.ulid().to_string()),
+                &left,
+                &zero
+            ));
+        }
+        assert!(!matches_weak_row(
+            &projection,
+            &program,
+            1,
+            ("foreign", &field),
+            &left,
+            &zero
+        ));
+    }
+}
 fn complex(real: f64, imag: f64) -> E {
     E::Complex {
         real: Box::new(E::Number { value: real }),
         imag: Box::new(E::Number { value: imag }),
     }
+}
+
+#[test]
+fn nonlinear_powers_match_independent_real_and_complex_expansions() {
+    let mut context = scalar_context(eqiora_core::ScalarDomain::Real);
+    let u = E::Field { ulid: "u".into() };
+    let pow = |base: E, exponent| E::Pow {
+        base: Box::new(base),
+        exponent,
+    };
+    let add = |left: E, right: E| E::Add {
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let cube = mul(mul(u.clone(), u.clone()), u.clone());
+    let expanded = add(
+        add(
+            cube,
+            mul(E::Number { value: 3. }, mul(u.clone(), u.clone())),
+        ),
+        add(
+            mul(E::Number { value: 3. }, u.clone()),
+            E::Number { value: 1. },
+        ),
+    );
+    assert_eq!(
+        context.scalar(&pow(add(u.clone(), E::Number { value: 1. }), 3), 0),
+        context.scalar(&expanded, 0)
+    );
+    assert_eq!(
+        context.scalar(&pow(complex(1., 2.), 3), 0),
+        context.scalar(&complex(-11., -2.), 0)
+    );
+    assert!(context.scalar(&pow(u.clone(), -1), 0).is_none());
+    assert!(context.scalar(&pow(u, i32::MAX), 0).is_none());
 }
 fn inner(left: E, right: E) -> E {
     E::Inner {

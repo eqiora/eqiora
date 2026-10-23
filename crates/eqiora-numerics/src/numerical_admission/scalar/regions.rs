@@ -4,6 +4,17 @@ use eqiora_core::RawId;
 
 use super::super::native::polyhedral::SimplicialRegionSupport;
 
+fn tests_on(
+    program: &KernelProgram,
+    domain: RawId,
+    requested: &BTreeMap<RawId, RawId>,
+) -> BTreeMap<RawId, RawId> {
+    crate::canonical::relations_on(program, domain)
+        .into_iter()
+        .filter_map(|relation| requested.get(&relation).map(|tested| (relation, *tested)))
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum SpatialRegionSupport {
     Cartesian(ScalarRegionSupport),
@@ -24,13 +35,15 @@ impl<S: Coefficient> SpatialRegion<S> {
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
         initial_time_s: Option<f64>,
+        equation_tests: &BTreeMap<RawId, RawId>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
+        let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_with_tests(
             program,
             domain,
             bounds.len(),
             &std::collections::BTreeSet::new(),
             initial_time_s,
+            &tests_on(program, domain, equation_tests),
         )?;
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
@@ -142,12 +155,32 @@ pub(crate) struct ExecutableSpatialEquations<S: Coefficient> {
 }
 
 impl<S: Coefficient> ExecutableSpatialEquations<S> {
+    pub(in crate::numerical_admission) fn require_test_assignments(
+        &self,
+        requested: &BTreeMap<RawId, RawId>,
+    ) -> Result<(), Diagnostic> {
+        let actual = self
+            .regions
+            .iter()
+            .flat_map(|region| region.form.equation_test_fields())
+            .collect::<BTreeMap<_, _>>();
+        if requested
+            .iter()
+            .any(|(relation, tested)| actual.get(relation) != Some(tested))
+        {
+            return Err(invalid(
+                "explicit equation/test association was not consumed by its spatial Domain",
+            ));
+        }
+        Ok(())
+    }
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), RawId>,
         initial_time_s: Option<f64>,
+        equation_tests: &BTreeMap<RawId, RawId>,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
             regions: vec![SpatialRegion::new(
@@ -156,6 +189,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 bounds,
                 boundaries,
                 initial_time_s,
+                equation_tests,
             )?],
             interfaces: vec![],
         })
@@ -164,6 +198,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         program: &KernelProgram,
         resources: &NativeMeshResources,
         initial_time_s: Option<f64>,
+        equation_tests: &BTreeMap<RawId, RawId>,
     ) -> Result<Self, Diagnostic> {
         let supports = super::super::native::polyhedral::bind_model_support(program, resources)?;
         let dimension = resources.geometry()?.ambient_dimension();
@@ -180,12 +215,13 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         for (&domain, support) in &supports {
             let motion =
                 crate::form_compiler::spatial::motion::StorageMotion::select(program, domain)?;
-            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_with_tests(
                 program,
                 domain,
                 dimension,
                 &interface_boundaries,
                 initial_time_s.or_else(|| motion.map(|_| 0.0)),
+                &tests_on(program, domain, equation_tests),
             )?;
             for (_, ty) in form.fields() {
                 let components = crate::form_compiler::region::components(ty, dimension)?;
@@ -308,6 +344,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         program: &KernelProgram,
         mesh: &eqiora_meshing::CartesianMesh,
         initial_time_s: Option<f64>,
+        equation_tests: &BTreeMap<RawId, RawId>,
     ) -> Result<Self, Diagnostic> {
         let supports = crate::scalar_conservation::cartesian_region_supports(program)?;
         if supports.is_empty() {
@@ -336,12 +373,13 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     "steady Region execution requires matching spatial dimension",
                 ));
             }
-            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_with_tests(
                 program,
                 support.domain,
                 support.bounds.len(),
                 &interface_boundaries,
                 initial_time_s,
+                &tests_on(program, support.domain, equation_tests),
             )?;
             // Storage is bound after the caller selects an explicit temporal Plan.
             if !form.is_transient() {

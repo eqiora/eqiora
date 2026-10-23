@@ -38,18 +38,41 @@ impl EquationRoles {
         program: &KernelProgram,
         domains: impl IntoIterator<Item = RawId>,
     ) -> Result<Self, Diagnostic> {
+        Self::derive_with_tests(program, domains, &BTreeMap::new())
+    }
+
+    pub(crate) fn derive_with_tests(
+        program: &KernelProgram,
+        domains: impl IntoIterator<Item = RawId>,
+        tests: &BTreeMap<RawId, RawId>,
+    ) -> Result<Self, Diagnostic> {
         let mut roles = Self {
             fields: BTreeMap::new(),
             relations: BTreeMap::new(),
             constraints: BTreeMap::new(),
         };
         for domain in domains {
-            roles.domain(program, domain)?;
+            roles.domain(program, domain, tests)?;
+        }
+        for (relation, tested) in tests {
+            if roles.relations.get(relation).map(|role| role.kind)
+                != Some(Role::Residual { tested: *tested })
+            {
+                return Err(lowering_error(
+                    *relation,
+                    "explicit equation/test association is outside the admitted Domains",
+                ));
+            }
         }
         Ok(roles)
     }
 
-    fn domain(&mut self, program: &KernelProgram, domain: RawId) -> Result<(), Diagnostic> {
+    fn domain(
+        &mut self,
+        program: &KernelProgram,
+        domain: RawId,
+        tests: &BTreeMap<RawId, RawId>,
+    ) -> Result<(), Diagnostic> {
         let fields = continuum_fields_on(program, domain)
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -78,6 +101,9 @@ impl EquationRoles {
         }
         let mut state_rates = BTreeMap::new();
         for (id, dag) in &equations {
+            if tests.contains_key(id) {
+                continue;
+            }
             if let Some((state, rate)) = kinematic(dag, dag.roots()[0]) {
                 if !fields.contains(&state)
                     || !fields.contains(&rate)
@@ -96,7 +122,7 @@ impl EquationRoles {
         loop {
             let mut changed = false;
             for (id, dag) in &equations {
-                if self.relations.contains_key(id) {
+                if self.relations.contains_key(id) || tests.contains_key(id) {
                     continue;
                 }
                 let root = strip_sign(dag, dag.roots()[0]);
@@ -163,6 +189,22 @@ impl EquationRoles {
         let mut constraints = Vec::new();
         for (id, dag) in &equations {
             if self.relations.contains_key(id) {
+                continue;
+            }
+            if let Some(&tested) = tests.get(id) {
+                if !unknowns.contains(&tested) || trials.insert(tested, BTreeSet::new()).is_some() {
+                    return Err(lowering_error(
+                        *id,
+                        "explicit test must own one live unknown Field on this Domain",
+                    ));
+                }
+                self.insert(program, *id, domain, Role::Residual { tested }, dag)?;
+                let root = strip_sign(dag, dag.roots()[0]);
+                if let Some(ExprNode::Divergence(value)) = dag.node(root)
+                    && let Some(constrained) = field(dag, *value)
+                {
+                    self.constraints.insert(*id, (constrained, tested));
+                }
                 continue;
             }
             let root = strip_sign(dag, dag.roots()[0]);
