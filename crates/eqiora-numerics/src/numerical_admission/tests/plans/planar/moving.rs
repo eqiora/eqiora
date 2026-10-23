@@ -177,8 +177,9 @@ fn mapped_plan_at_step(source: &str, step: f64) -> ResolvedCommonPlan {
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(step).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap()

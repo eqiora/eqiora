@@ -105,6 +105,7 @@ fn resolve_with_scaling(source: &str, scale: Option<f64>) -> (ResolvedCommonPlan
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     (replay_plan(resolved, &REFERENCE_LINEAR_SOLVER), fields)

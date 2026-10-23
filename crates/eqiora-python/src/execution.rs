@@ -419,7 +419,7 @@ impl PyRun {
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
         if plan_ref.linear_native().is_some()
-            && plan_ref.native().backward_euler().is_some()
+            && plan_ref.native().is_temporal()
             && request.is_none()
         {
             return Err(PyTypeError::new_err(
@@ -477,12 +477,15 @@ impl PyRun {
             (
                 ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Spatial(_),
                 Some(CommonRunRequest::Transient(request)),
-            ) => (
-                RunIdentity::from_common_transient(&request),
-                NativeRunJob::Transient(request),
-                "eqiora-common-transient-run",
-                true,
-            ),
+            ) => {
+                let cancellable = request.plan().backward_euler().is_some();
+                (
+                    RunIdentity::from_common_transient(&request),
+                    NativeRunJob::Transient(request),
+                    "eqiora-common-transient-run",
+                    cancellable,
+                )
+            }
             (ResolvedCommonPlan::TransientFlow(_), None) => {
                 return Err(PyTypeError::new_err(
                     "transient submit requires State and one explicit horizon/output schedule family",
@@ -861,7 +864,7 @@ pub(crate) fn submit_plan(
             }
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             Some(CommonRunRequest::Time(Box::new(request), None))
-        } else if plan_ref.native().backward_euler().is_some() {
+        } else if plan_ref.native().is_temporal() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("transient submit requires state=State(...)")
             })?;

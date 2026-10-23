@@ -190,9 +190,13 @@ fn previous_data_is_exactly_consumed_physical_fields_and_checked_before_evaluati
     let (fields, rows, _) = inputs(&form, false);
     assert!(
         form.bind(ReferenceCell::simplex(2).unwrap(), &fields, &rows, None)
+            .unwrap()
+            .prepare_cell(&geometry(), &quadrature)
+            .unwrap()
+            .evaluate(&BTreeMap::new())
             .unwrap_err()
             .message()
-            .contains("explicit Backward Euler")
+            .contains("explicit State/rate point or time discretization")
     );
 }
 

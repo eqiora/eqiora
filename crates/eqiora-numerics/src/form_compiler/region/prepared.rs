@@ -208,13 +208,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut components = Vec::new();
         for (row, source) in self.form.rows.iter().enumerate() {
             for term in &source.components {
-                components.push(Component::new(
-                    row,
-                    term,
-                    &self.fields,
-                    data.len(),
-                    self.time_step().is_some(),
-                )?);
+                components.push(Component::new(row, term, &self.fields, data.len())?);
                 data.push((row, &term.coefficient));
             }
         }
@@ -425,6 +419,11 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionCell<S, P> {
         &self,
         previous: &BTreeMap<RawId, Vec<P::Scalar>>,
     ) -> Result<LocalContribution<P::Scalar>, Diagnostic> {
+        if self.rate.is_some() && self.step.is_none() {
+            return Err(invalid(
+                "rate-dependent region evaluation requires an explicit State/rate point or time discretization",
+            ));
+        }
         if !self.dyadics.is_empty() || !self.components.is_empty() {
             return Err(invalid(
                 "nonlinear region evaluation requires an explicit candidate point",

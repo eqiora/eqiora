@@ -67,6 +67,7 @@ fn planar_vector_traces_preserve_every_component() {
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
@@ -180,6 +181,7 @@ fn planar_vector_traces_preserve_every_component() {
                     None,
                     &REFERENCE_LINEAR_SOLVER,
                     None,
+                    None,
                 )
                 .unwrap_err();
                 assert!(error.message().contains(expected), "{error:?}");
@@ -193,6 +195,7 @@ fn planar_vector_traces_preserve_every_component() {
                 Some(request.clone()),
                 None,
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
             )
             .unwrap();
@@ -283,6 +286,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap();

@@ -66,6 +66,7 @@ fn spatial_integrals_reconstruct_only_requested_fields() {
                 None,
                 &REFERENCE_LINEAR_SOLVER,
                 None,
+                None,
             )
             .unwrap();
             let spatial = plan.as_spatial().unwrap();

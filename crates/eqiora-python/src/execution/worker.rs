@@ -142,7 +142,6 @@ fn execute_job(
         }
         NativeRunJob::Transient(request) => {
             let started = Instant::now();
-            let maximum_steps = request.accepted_steps().get();
             let backend = resolved_linear_backend(
                 request
                     .plan()
@@ -150,6 +149,34 @@ fn execute_job(
                     .expect("transient linear solver"),
             )?;
             let _solve = solve_phase(1).entered();
+            if request.plan().ode_temporal().is_some() {
+                let trajectory = request
+                    .run(backend, |problem, plan| {
+                        DiffsolTimeBackend::new().solve(problem, plan)
+                    })
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                shared.publish_progress(PyRunProgress {
+                    accepted_steps: trajectory
+                        .spatial_time_history()
+                        .expect("controlled spatial history")
+                        .steps()
+                        .len(),
+                    maximum_steps: None,
+                    model_time_bits: request.until_s().to_bits(),
+                });
+                let _postprocess = postprocess_phase().entered();
+                let result =
+                    CommonResult::accept_trajectory(started.elapsed().as_secs_f64(), trajectory)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                return Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                    Box::new(result),
+                    None,
+                )));
+            }
+            let maximum_steps = request
+                .accepted_steps()
+                .map_err(|diagnostic| vec![diagnostic])?
+                .get();
             let outcome = request
                 .advance_accepted_actions(backend, |accepted_steps, state| {
                     if accepted_steps > 0 {

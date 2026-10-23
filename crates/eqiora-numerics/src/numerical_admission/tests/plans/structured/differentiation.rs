@@ -76,6 +76,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let plan = resolved.as_spatial().unwrap();
@@ -451,6 +452,7 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap();

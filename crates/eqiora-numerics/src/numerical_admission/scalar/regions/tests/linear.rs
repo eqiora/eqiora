@@ -449,7 +449,8 @@ model Heat() {
         form.initial_values_at(&[0.0]).unwrap()[&symbols.get("u").unwrap()][0],
         2.0
     );
-    assert!(form.volume().is_err());
+    let continuous = form.volume().unwrap();
+    assert!(continuous.time_binding().is_none());
     let capacity = symbols.get("c").unwrap().downcast().unwrap();
     let heating = symbols.get("q").unwrap().downcast().unwrap();
     let parameters = [capacity, heating];
@@ -481,6 +482,17 @@ model Heat() {
         )
         .unwrap();
     let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
+    // Continuous binding is valid, but affine evaluation cannot discard its
+    // State/rate point or silently invent a backward-Euler step.
+    let error = continuous
+        .prepare_cell(&geometry, &quadrature)
+        .unwrap()
+        .evaluate(&BTreeMap::new())
+        .unwrap_err();
+    assert!(
+        error.message().contains("explicit State/rate point"),
+        "{error}"
+    );
     let previous = BTreeMap::from([(symbols.get("u").unwrap(), vec![2.0; 2])]);
     // Exact one-cell integrals: M=c*h/6*[[2,1],[1,2]],
     // K=1/h*[[1,-1],[-1,1]], and F=q*h/2*[1,1].

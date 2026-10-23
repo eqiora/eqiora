@@ -92,8 +92,8 @@ impl CommonTrajectoryParameterSensitivity {
             {
                 continue; // The canonical post-reset product is checked below.
             }
-            if super::history_boundary::stencil(&self.steps, state.time_s())
-                .is_some_and(|known| known != values)
+            if super::history_boundary::sample(&self.steps, state.time_s())?
+                .is_some_and(|known| known.as_slice() != values.as_slice())
             {
                 return Err(invalid(
                     "retained output sensitivity differs from its native accepted stencil",

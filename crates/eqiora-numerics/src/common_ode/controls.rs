@@ -7,6 +7,33 @@ type SensitivityControl = (
 );
 
 impl CommonOdePolicy {
+    /// Check exact coordinate ownership and return tolerances in execution order.
+    pub(crate) fn ordered_absolute_tolerances(
+        &self,
+        state_coordinates: &[eqiora_core::TimeStateCoordinate],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let requested = self.absolute_tolerances();
+        if requested.len() != state_coordinates.len()
+            || requested
+                .iter()
+                .any(|entry| !state_coordinates.contains(&entry.0))
+        {
+            return Err(invalid(
+                "absolute tolerances must cover exactly the admitted Model state coordinates",
+            ));
+        }
+        state_coordinates
+            .iter()
+            .map(|field| {
+                requested
+                    .iter()
+                    .find(|entry| entry.0 == *field)
+                    .map(|entry| entry.1)
+                    .ok_or_else(|| invalid("time policy omitted one exact state coordinate"))
+            })
+            .collect()
+    }
+
     /// Validate event controls before attaching them to an integration request.
     pub fn validate_event_controls(
         max_events: usize,
@@ -89,5 +116,20 @@ impl CommonOdePolicy {
     ) -> Self {
         self.forward_sensitivities = Some(policy);
         self
+    }
+}
+
+impl CommonOdePolicy {
+    pub(crate) fn require_spatial_execution_controls(&self) -> Result<(), Diagnostic> {
+        if self.events.is_some()
+            || self.forward_sensitivities.is_some()
+            || !self.conserved_norms.is_empty()
+            || !self.hermitian_parameters.is_empty()
+        {
+            return Err(invalid(
+                "spatial time execution does not yet implement event, sensitivity, norm or Hermitian controls",
+            ));
+        }
+        Ok(())
     }
 }

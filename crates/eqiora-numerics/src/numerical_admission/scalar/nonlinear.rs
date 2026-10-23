@@ -1,8 +1,6 @@
 //! Newton execution and acceptance share the spatial map without inventing Time.
 use super::*;
-use crate::common_result::evidence::{
-    CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory,
-};
+use crate::common_result::evidence::{CommonAssemblyEvidence, CommonSolveHistory};
 use crate::form_compiler::region::coordinates::{self, Real};
 use crate::region_assembly::mapping::{
     RecoveredRegionField, RegionAlgebraicCoordinates, RegionDofMap, RegionSolveInput,
@@ -232,16 +230,7 @@ pub(super) fn newton_execution(
     solve: &crate::region_assembly::RegionNewtonSolution,
 ) -> CommonSpatialExecution {
     CommonSpatialExecution {
-        solve: CommonSolveHistory::Newton {
-            initial_residual_norm: solve.evidence.initial_residual_norm,
-            iterations: solve.evidence.iterations,
-            linear_solves: solve
-                .evidence
-                .linear_solves
-                .iter()
-                .map(CommonSolveEvidence::from_report)
-                .collect(),
-        },
+        solve: CommonSolveHistory::from_newton(&solve.evidence),
         assembly: CommonAssemblyEvidence::from_report(&solve.assembly.report),
     }
 }

@@ -2,24 +2,39 @@ use super::CompiledSpatialForm;
 use crate::spatial_expression::Coefficient;
 use eqiora_core::Diagnostic;
 
+/// Initial rates need prescribed trace derivatives; differentiating an
+/// algebraic constraint additionally needs the complete equation partial.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InputPartialScope {
+    Full,
+    EssentialTraces,
+}
+
 impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Partial coefficients and data at fixed geometry, topology and Field values.
     /// Assembly combines these with the primal constraints and boundary data.
     pub(crate) fn input_partial(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        scope: InputPartialScope,
     ) -> Result<Self, Diagnostic> {
         if self.motion().is_some() {
             return Err(super::invalid("form input partial requires fixed geometry"));
         }
         let mut partial = self.clone();
-        partial.volume = self.volume.input_partial(coordinate)?;
+        if scope == InputPartialScope::Full {
+            partial.volume = self.volume.input_partial(coordinate)?;
+        }
         for law in partial
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            law.input_partial(coordinate, self.dimension)?;
+            if scope == InputPartialScope::Full
+                || law.quantity == crate::canonical_boundary::PhysicalBoundaryQuantity::Trace
+            {
+                law.input_partial(coordinate, self.dimension)?;
+            }
         }
         Ok(partial)
     }

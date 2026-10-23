@@ -38,13 +38,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64> + Send + Sync>
         // Retain analytic fixed-trace rates when lifting the free rate witness.
         // Round only after exact compatibility, then evaluate original R(u,v).
         let reduced_rates = projection.coefficients()?;
-        let rates = (0..coordinates.full_count())
-            .map(|global| {
-                coordinates
-                    .free_coordinate(global)
-                    .map_or(fixed_rates[global], |free| reduced_rates[free])
-            })
-            .collect::<Vec<_>>();
+        let rates = coordinates.lift_rates(&reduced_rates, fixed_rates)?;
         let mut residual = self.work.residual(
             &self.plan,
             self.plan.target_id(0).expect("reduced target"),
@@ -84,6 +78,19 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
 {
+    /// Lift only the analytic derivative of prescribed traces. A rate witness
+    /// for a regular mass equation does not demand an explicit Time derivative
+    /// of volume coefficients, forcing, or natural boundary data.
+    pub(crate) fn prescribed_rates(&self, partial_mapping: &Self) -> Result<Vec<f64>, Diagnostic> {
+        if !partial_mapping.has_same_coordinate_layout(self) {
+            return Err(invalid(
+                "Time partial changed the exact Field constraint layout",
+            ));
+        }
+        let fixed = partial_mapping.lift(&vec![S::zero(); self.free_count()], false)?;
+        RegionRealCoordinates::new(self)?.encode_full(&fixed)
+    }
+
     pub(super) fn initial_rate_data<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
@@ -91,23 +98,10 @@ where
         values: &[f64],
         (partial_mapping, mut partial): (Self, RegionSolveInput<S>),
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        if partial_mapping.full_count() != self.full_count()
-            || partial_mapping.free_count() != self.free_count()
-            || !partial_mapping.keys().eq(self.keys())
-            || self.keys().any(|key| {
-                partial_mapping.global_dof(key) != self.global_dof(key)
-                    || partial_mapping.free_dof(key) != self.free_dof(key)
-            })
-        {
-            return Err(invalid(
-                "Time partial changed the exact Field constraint layout",
-            ));
-        }
+        let fixed = self.prescribed_rates(&partial_mapping)?;
         partial.retain_primal_integration(input)?;
         partial.previous = input.previous.clone();
         let coordinates = RegionRealCoordinates::new(self)?;
-        let fixed = partial_mapping.lift(&vec![S::zero(); self.free_count()], false)?;
-        let fixed = coordinates.encode_full(&fixed)?;
         let prepared = self.prepare_numeric_assembly(mesh, &partial)?;
         let residual = prepared.work.residual(
             &prepared.plan,

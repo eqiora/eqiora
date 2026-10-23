@@ -91,6 +91,7 @@ fn check_planar_curl_pairing(strong_operator: &str, complex: bool) {
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             Some(projection),
         )
     };

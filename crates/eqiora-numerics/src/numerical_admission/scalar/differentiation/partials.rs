@@ -25,7 +25,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
     ) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
         let mut partial = self.equations.clone();
         for region in &mut partial.regions {
-            region.form = region.form.input_partial(coordinate)?;
+            region.form = region.form.input_partial(
+                coordinate,
+                crate::form_compiler::spatial::InputPartialScope::Full,
+            )?;
         }
         Ok(partial)
     }
@@ -55,14 +58,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             forms,
             |_, _, value| Ok(Some(value)),
         )?;
-        if partial_mapping.full_count() != mapping.full_count()
-            || partial_mapping.free_count() != mapping.free_count()
-            || !partial_mapping.keys().eq(mapping.keys())
-            || partial_mapping.keys().any(|key| {
-                partial_mapping.global_dof(key) != mapping.global_dof(key)
-                    || partial_mapping.free_dof(key) != mapping.free_dof(key)
-            })
-        {
+        if !partial_mapping.has_same_coordinate_layout(mapping) {
             return Err(invalid(
                 "Parameter partial changed the exact Field constraint layout",
             ));

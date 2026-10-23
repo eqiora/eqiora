@@ -29,7 +29,31 @@ fn check_nonlinear_rate_action(balance: &str) {
         *scale = DynQuantity::new(7., scale.dim());
     }
     let reference = ReferenceCell::simplex(2).unwrap();
-    assert!(form.bind(reference, &fields, &rows, None).is_err());
+    let original = form.bind(reference, &fields, &rows, None).unwrap();
+    assert!(original.previous_fields().is_empty());
+    let rule = simplex_duffy_gauss_legendre(2, 3).unwrap();
+    let prepared = original.prepare_cell(&geometry(), &rule).unwrap();
+    let action = prepared
+        .implicit_action(
+            &[2.; 3],
+            Some(&[4.; 3]),
+            Some(FieldPullback::Uniform {
+                current: Some(1.),
+                rate: Some(1.),
+            }),
+        )
+        .unwrap();
+    // u=6, v=4: R=2*u*v+u²=84; R_u+R_v=2*v+4*u=32.
+    for (i, gi) in GRADIENT.iter().enumerate() {
+        close(action.residual[i], 7. * 84. / 6.);
+        for (j, gj) in GRADIENT.iter().enumerate() {
+            close(
+                action.jacobian[i * 3 + j],
+                7. * 3. * (32. * mass(i, j) + 0.5 * (gi[0] * gj[0] + gi[1] * gj[1])),
+            );
+        }
+    }
+    assert!(prepared.linearize(&BTreeMap::new(), &[2.; 3]).is_err());
     for step in [0.25, 0.5] {
         let bound = form
             .bind(

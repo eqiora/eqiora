@@ -88,7 +88,7 @@ public component AffineStorage(
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let temporal = CommonBackwardEuler::from_seconds(0.125).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.125).unwrap();
     let linear = exact_reference_linear(
         LinearSolver::BiConjugateGradientStabilized,
         1e-11,
@@ -101,8 +101,9 @@ public component AffineStorage(
         CommonSpatialPolicy::Q1,
         CommonSolvePolicy::Linear(linear),
         None,
-        Some(temporal),
+        Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();
@@ -150,8 +151,9 @@ public component AffineStorage(
         CommonSpatialPolicy::Q1,
         CommonSolvePolicy::Linear(linear),
         None,
-        Some(temporal),
+        Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();
@@ -186,8 +188,9 @@ public component AffineStorage(
             NonZeroUsize::new(1000).unwrap(),
         )),
         None,
-        Some(temporal),
+        Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();
@@ -318,7 +321,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
     let geometry = rectangle();
     let model = transient_model();
     let step_s = 0.0001_f64;
-    let temporal = CommonBackwardEuler::from_seconds(step_s).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(step_s).unwrap();
     let scaling =
         IncompressibleScalingRequest2d::from_si(Some(0.41), Some(0.3), Some(0.09)).unwrap();
     let nonlinear =
@@ -352,8 +355,9 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
             spatial,
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .unwrap()
@@ -443,7 +447,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         ResolveOnlyBackend.provider(),
     )
     .unwrap();
-    let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.01).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
@@ -483,8 +487,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             method,
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .unwrap();
@@ -525,8 +530,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             CommonSpatialPolicy::CellCentered,
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &PlanningFaerBackend,
+            None,
             None,
         )
         .unwrap()
@@ -588,8 +594,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         CommonSpatialPolicy::MiniP1,
         newton_policy(linear, custom_nonlinear),
         Some(crate::CommonScalingRequest::Incompressible(scaling)),
-        Some(temporal),
+        Some(temporal.clone()),
         &ResolveOnlyBackend,
+        None,
         None,
     )
     .unwrap()
@@ -614,8 +621,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(crate::CommonScalingRequest::Incompressible(
             alternate_scaling,
         )),
-        Some(temporal),
+        Some(temporal.clone()),
         &ResolveOnlyBackend,
+        None,
         None,
     )
     .unwrap()
@@ -669,8 +677,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             nonlinear,
         ),
         Some(crate::CommonScalingRequest::Incompressible(scaling)),
-        Some(temporal),
+        Some(temporal.clone()),
         &PlanningFaerBackend,
+        None,
         None,
     )
     .unwrap();
@@ -725,7 +734,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
     assert_eq!(fvm.velocity_space().family(), SpaceFamily::CellConstant);
     assert_eq!(fvm.pressure_space().family(), SpaceFamily::CellConstant);
-    assert_eq!(mini.temporal().step().value().to_bits(), 0.01_f64.to_bits());
+    assert_eq!(mini.temporal().value().to_bits(), 0.01_f64.to_bits());
     assert_eq!(mini.scales().length().value().to_bits(), 1.0_f64.to_bits());
     assert_eq!(
         mini.scales().velocity().value().to_bits(),
@@ -865,8 +874,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             CommonSpatialPolicy::MiniP1,
             CommonSolvePolicy::Linear(linear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()
@@ -880,8 +890,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(crate::CommonScalingRequest::Incompressible(
                 IncompressibleScalingRequest2d::from_si(Some(1.0), None, Some(3.0)).unwrap()
             )),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()
@@ -896,6 +907,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             None,
             &ResolveOnlyBackend,
             None,
+            None,
         )
         .is_err()
     );
@@ -906,8 +918,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             CommonSpatialPolicy::MiniP1,
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()
@@ -922,8 +935,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             },
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()
@@ -938,8 +952,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             },
             newton_policy(linear, nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
-            Some(temporal),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
+            None,
             None,
         )
         .is_err()

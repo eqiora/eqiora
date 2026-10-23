@@ -2,6 +2,7 @@
 use super::*;
 mod rates;
 use crate::form_compiler::region::FieldPullback;
+use crate::form_compiler::spatial::InputPartialScope;
 use crate::region_assembly::RegionPoint;
 use eqiora_assembly::{CsrMatrix, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
@@ -12,21 +13,11 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
 {
-    pub(crate) fn validate_temporal_state<'mesh>(
+    /// Partition free equations using exact Field/channel and quotient ownership.
+    pub(crate) fn temporal_coordinate_partition(
         &self,
-        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        mut input: RegionSolveInput<S>,
-        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         temporal: &crate::form_compiler::region::TemporalStructure,
-        solver: SolverPlan,
-        initial_partial: impl FnOnce() -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
-    ) -> Result<(), Diagnostic> {
-        self.validate_prescribed_fields(fields)?;
-        // A physical State preserves signed-zero words. Essential traces were
-        // checked numerically above; reduction must not impose the distinct
-        // exact-word contract of an already normalized algebraic point.
-        let full_state = self.normalized_coefficients(fields)?;
-        let values = self.encode_coordinates(&self.constraints.restrict_action(&full_state)?)?;
+    ) -> Result<(BTreeSet<usize>, BTreeSet<usize>), Diagnostic> {
         let coordinates = RegionRealCoordinates::new(self)?;
         let mut rows = BTreeSet::new();
         let mut stored_rows = BTreeSet::new();
@@ -52,6 +43,28 @@ where
         // A trace quotient sums equation rows. Any stored contribution makes
         // the shared row differential, even when another Region is stationary.
         rows.retain(|row| !stored_rows.contains(row));
+        Ok((rows, stored_rows))
+    }
+
+    pub(crate) fn validate_temporal_state<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        mut input: RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        temporal: &crate::form_compiler::region::TemporalStructure,
+        solver: SolverPlan,
+        initial_partial: impl FnOnce(
+            InputPartialScope,
+        ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        self.validate_prescribed_fields(fields)?;
+        // A physical State preserves signed-zero words. Essential traces were
+        // checked numerically above; reduction must not impose the distinct
+        // exact-word contract of an already normalized algebraic point.
+        let full_state = self.normalized_coefficients(fields)?;
+        let values = self.encode_coordinates(&self.constraints.restrict_action(&full_state)?)?;
+        let coordinates = RegionRealCoordinates::new(self)?;
+        let (rows, stored_rows) = self.temporal_coordinate_partition(temporal)?;
         if values.is_empty() || (rows.is_empty() && temporal.positive_own_capacity) {
             return Ok(());
         }
@@ -101,7 +114,11 @@ where
                 }
             }
         }
-        input.previous = Some(previous);
+        input.previous = input
+            .forms
+            .iter()
+            .any(|(form, _)| !form.previous_fields().is_empty())
+            .then_some(previous);
         let prepared = self.prepare_numeric_assembly(mesh, &input)?;
         // Snapshot constraint rows use the original State partial, without a
         // step-dependent mass contribution. Transformed kinematics retain their
@@ -144,8 +161,8 @@ where
             let rates = if let Some(rates) = discrete_rates {
                 rates
             } else {
-                let (fixed, _) =
-                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let (partial_mapping, _) = initial_partial(InputPartialScope::EssentialTraces)?;
+                let fixed = self.prescribed_rates(&partial_mapping)?;
                 let mass = independent_action(
                     &fixed,
                     FieldPullback::Uniform {
@@ -286,8 +303,12 @@ where
                 // Differentiate the actual prescribed inputs: fixed trace
                 // rates enter momentum, and R_A,t + J_A,fixed*g_dot enters
                 // the first constraint tangent. Both use the original actions.
-                let (fixed, mut partial) =
-                    self.initial_rate_data(mesh, &input, &values, initial_partial()?)?;
+                let (fixed, mut partial) = self.initial_rate_data(
+                    mesh,
+                    &input,
+                    &values,
+                    initial_partial(InputPartialScope::Full)?,
+                )?;
                 let jacobian = state_action.systems[1].matrix();
                 for global in 0..jacobian.rows() {
                     if let Some(row) = coordinates.free_coordinate(global) {
@@ -360,7 +381,7 @@ fn tangent_equation_scale(
     scale + rhs.abs()
 }
 
-fn square_projection(
+pub(crate) fn square_projection(
     matrix: &CsrMatrix<f64>,
     coordinates: &[usize],
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -381,4 +402,22 @@ fn square_projection(
         }
     }
     Ok(coefficients)
+}
+
+impl<S: Coefficient> RegionSolveInput<S> {
+    /// Rebind the source rate inventory and sufficient mass certificate together.
+    pub(crate) fn temporal_structure(
+        &self,
+    ) -> Result<crate::form_compiler::region::TemporalStructure, Diagnostic> {
+        let mut temporal = crate::form_compiler::region::TemporalStructure {
+            differential: Default::default(),
+            positive_own_capacity: true,
+        };
+        for (form, _) in &self.forms {
+            let region = form.temporal_structure()?;
+            temporal.differential.extend(region.differential);
+            temporal.positive_own_capacity &= region.positive_own_capacity;
+        }
+        Ok(temporal)
+    }
 }

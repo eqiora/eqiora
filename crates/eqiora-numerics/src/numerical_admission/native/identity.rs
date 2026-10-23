@@ -38,9 +38,10 @@ pub(crate) fn replay_program(
 pub(crate) fn policy_identity(
     spatial: &NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
-    temporal: Option<CommonBackwardEuler>,
+    temporal: Option<&CommonTemporalPolicy>,
+    time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     nonlinear: Option<NonlinearSolvePlan>,
-) -> String {
+) -> Result<String, Diagnostic> {
     let mut bytes = Vec::new();
     push_framed(
         &mut bytes,
@@ -94,8 +95,17 @@ pub(crate) fn policy_identity(
         }
     }
     if let Some(temporal) = temporal {
-        bytes.extend_from_slice(&temporal.step().value().to_bits().to_be_bytes());
+        push_framed(
+            &mut bytes,
+            &super::super::plan_artifact::temporal_policy_bytes(temporal)?,
+        );
     }
+
+    if let Some(backend) = time_backend {
+        push_framed(&mut bytes, backend.identity().id().as_bytes());
+        push_framed(&mut bytes, backend.identity().version().as_bytes());
+    }
+
     if let Some(nonlinear) = nonlinear {
         bytes.extend_from_slice(&nonlinear.relative_tolerance().to_bits().to_be_bytes());
         bytes.extend_from_slice(&nonlinear.absolute_tolerance().to_bits().to_be_bytes());
@@ -154,7 +164,7 @@ pub(crate) fn policy_identity(
         linear.execution.implementation_version().as_bytes(),
     );
     bytes.extend_from_slice(&linear.workers.get().to_be_bytes());
-    domain_separated_identity(POLICY_DOMAIN, &bytes)
+    Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
 }
 
 pub(crate) const fn linear_solver_identity(value: LinearSolver) -> &'static [u8] {

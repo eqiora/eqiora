@@ -57,7 +57,7 @@ fn resolve(
     model: &ModelEnvelope,
     mesh: AuthenticatedCommonMesh,
     policy: CommonSpatialPolicy,
-    step: Option<CommonBackwardEuler>,
+    step: Option<CommonTemporalPolicy>,
 ) -> ResolvedCommonPlan {
     ResolvedCommonPlan::resolve(
         model,
@@ -72,6 +72,7 @@ fn resolve(
         None,
         step,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap()
@@ -142,7 +143,7 @@ fn tetrahedral_storage_uses_the_common_run_and_restart() {
             &model,
             resources(&geometry, false),
             CommonSpatialPolicy::P1,
-            Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+            Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         ),
         &REFERENCE_LINEAR_SOLVER,
     );
@@ -292,6 +293,7 @@ fn tetrahedral_boundary_coverage_and_multiplier_closure_are_required() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap_err();

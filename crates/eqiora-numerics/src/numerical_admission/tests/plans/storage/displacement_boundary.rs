@@ -34,8 +34,9 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();
@@ -155,8 +156,9 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();

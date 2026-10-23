@@ -21,12 +21,11 @@ impl<S: Coefficient> Component<S> {
         term: &ComponentTerm<S>,
         fields: &[RegionFieldLayout],
         coefficient: usize,
-        rates: bool,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
             row,
             test: term.test,
-            value: BoundFieldComponent::new(&term.value, fields, rates)?,
+            value: BoundFieldComponent::new(&term.value, fields, true)?,
             coefficient,
             input_partial: term.input_partial.clone(),
         })

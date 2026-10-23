@@ -162,12 +162,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     .iter()
                     .find(|layout| layout.field == trial)
                     .ok_or_else(|| invalid("trial Field lacks an algebraic or state binding"))?;
-                if derivative {
-                    if time.is_none() {
-                        return Err(invalid(
-                            "time derivative requires explicit Backward Euler Plan",
-                        ));
-                    }
+                // Original State/rate actions bind without a numerical time
+                // method. Only a selected secant consumes previous values.
+                if derivative && time.is_some() {
                     let mut layout = layout.clone();
                     layout.range = 0..layout.range.len();
                     previous.insert(trial, layout);

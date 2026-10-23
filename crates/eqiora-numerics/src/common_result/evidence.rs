@@ -322,3 +322,17 @@ pub(crate) enum CommonSolveHistory {
         linear_solves: Vec<CommonSolveEvidence>,
     },
 }
+
+impl CommonSolveHistory {
+    pub(crate) fn from_newton(value: &crate::nonlinear_execution::NewtonEvidence) -> Self {
+        Self::Newton {
+            initial_residual_norm: value.initial_residual_norm,
+            iterations: value.iterations,
+            linear_solves: value
+                .linear_solves
+                .iter()
+                .map(CommonSolveEvidence::from_report)
+                .collect(),
+        }
+    }
+}

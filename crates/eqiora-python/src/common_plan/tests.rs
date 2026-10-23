@@ -564,7 +564,7 @@ assert portable_q1.requested_solve == linear
 assert portable_q1.requested_solve.provider == linear.provider
 import copy, json
 plan_payload = json.loads(q1_bytes)
-assert plan_payload["schema"] == "eqiora.resolved-common-plan/v19"
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v21"
 assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
 for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
     payload = copy.deepcopy(plan_payload)
@@ -600,7 +600,7 @@ assert file_q1.to_bytes() == q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v19", b"resolved-common-plan/v999")),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v21", b"resolved-common-plan/v999")),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
@@ -1050,7 +1050,7 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v25"
+assert wire["schema"] == "eqiora.common-result/v27"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
     "continuity_residual_norm"
@@ -1522,7 +1522,7 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 import json
 wire = json.loads(result_bytes)
-assert wire["schema"] == "eqiora.common-result/v25"
+assert wire["schema"] == "eqiora.common-result/v27"
 assert "elasticity" not in wire["content"]["payload"]["acceptance"]
 for changed in (
     dict(wire, schema="eqiora.common-result/v19"),

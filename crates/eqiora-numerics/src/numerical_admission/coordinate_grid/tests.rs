@@ -299,6 +299,7 @@ fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     assert!(plan.geometry_digest().is_none());

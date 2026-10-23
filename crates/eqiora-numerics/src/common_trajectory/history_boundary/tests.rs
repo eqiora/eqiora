@@ -24,6 +24,8 @@ fn step(start: f64, end: f64, left: f64, right: f64) -> TimeHistoryStep {
         vec![left],
         vec![(left + right) * 0.5],
         vec![right],
+        vec![start, start + (end - start) * 0.5, end],
+        vec![vec![left], vec![(left + right) * 0.5], vec![right]],
     )
     .unwrap()
 }
@@ -116,7 +118,32 @@ fn exact_event_output_uses_post_reset_side_including_at_terminal() {
         assert!(validate(&history, 1.0, &[1.0]).is_err());
         assert!(validate(&history, 0.0, &[999.0]).is_err());
         assert!(validate(&history, 0.5, &[999.0]).is_err());
-        // Interior samples outside the native stencil have no stored oracle.
+        // The explicit fixture polynomial also constrains off-stencil values.
         assert!(validate(&history, 0.25, &[0.25]).is_ok());
+        assert!(validate(&history, 0.25, &[999.]).is_err());
     }
+}
+
+#[test]
+fn retained_dense_output_rejects_forged_off_stencil_samples() {
+    let dense = (
+        vec![0., 0.25, 0.5, 0.75, 1.],
+        vec![
+            vec![0.],
+            vec![1. / 256.],
+            vec![1. / 16.],
+            vec![81. / 256.],
+            vec![1.],
+        ],
+    );
+    let step =
+        TimeHistoryStep::accepted(0., 1., vec![0.], vec![1. / 16.], vec![1.], dense.0, dense.1)
+            .unwrap();
+    let sample = step.sample(0.125).unwrap();
+    // The analytic quartic value is independent; the same degree-five roundoff
+    // allowance as the primitive test separates accuracy from exact replay.
+    assert!((sample[0] - 1. / 4096.).abs() <= 128. * f64::EPSILON);
+    let history = AcceptedTimeHistory::accepted(1, vec![step], vec![]).unwrap();
+    assert!(validate(&history, 0.125, &sample).is_ok());
+    assert!(validate(&history, 0.125, &[999.]).is_err());
 }

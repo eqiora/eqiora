@@ -97,6 +97,7 @@ fn check_material_points(property: bool) {
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();

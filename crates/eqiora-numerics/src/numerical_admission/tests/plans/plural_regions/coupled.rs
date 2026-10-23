@@ -142,6 +142,7 @@ fn congruence_scaling_preserves_interface_row_orientation() {
             None,
             &ResolveOnlyBackend,
             None,
+            None,
         );
         if reversed {
             assert!(

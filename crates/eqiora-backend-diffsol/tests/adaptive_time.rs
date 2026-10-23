@@ -663,10 +663,16 @@ fn native_history_and_sensitivity_stencils_are_output_cadence_independent() {
             .iter()
             .zip(dense.sensitivity_history().unwrap().steps())
         {
-            let time = state.start_time() + 0.5 * (state.end_time() - state.start_time());
-            let expected = (-0.7 * time).exp();
-            assert_relative(state.midpoint_state()[0], expected, 2.0e-6);
-            assert_relative(sensitivity.midpoint_state()[0], -time * expected, 3.0e-6);
+            for fraction in [0.125, 0.5, 0.875] {
+                let time = state.start_time() + fraction * (state.end_time() - state.start_time());
+                let expected = (-0.7 * time).exp();
+                assert_relative(state.sample(time).unwrap()[0], expected, 2.0e-6);
+                assert_relative(
+                    sensitivity.sample(time).unwrap()[0],
+                    -time * expected,
+                    3.0e-6,
+                );
+            }
         }
     }
 }
@@ -918,5 +924,66 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
             0.2,
             2.0e-8,
         );
+    }
+}
+
+struct QuarticClock;
+impl TimeSystem for QuarticClock {
+    fn dimension(&self) -> usize {
+        1
+    }
+    fn rhs(&self, time: f64, _state: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+        output[0] = 4. * time.powi(3);
+        Ok(())
+    }
+    fn rhs_jvp(
+        &self,
+        _time: f64,
+        _state: &[f64],
+        _direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = 0.;
+        Ok(())
+    }
+}
+
+#[test]
+fn retained_dense_output_reproduces_quartic_clock_between_native_stencil_points() {
+    // Integrating y'=4t^3, y(0)=1 gives y=1+t^4 independently of the backend.
+    let problem = TimeProblem::new(
+        &QuarticClock,
+        TimeEquationClass::ExplicitOde,
+        InitialConditionPolicy::Provided,
+        vec![1.],
+    )
+    .unwrap();
+    let outputs = vec![0.03125, 0.21875, 0.625, 1.];
+    let plan = TimePlan::new(
+        TimeMethod::Tsitouras45,
+        0.,
+        0.125,
+        1e-11,
+        vec![1e-13],
+        outputs.clone(),
+    )
+    .unwrap();
+    let solution = DiffsolTimeBackend::new().solve(&problem, &plan).unwrap();
+    let history = solution.history().unwrap();
+    for step in history.steps() {
+        assert_eq!(step.dense_times().len(), 5);
+        for fraction in [0.125, 0.375, 0.875] {
+            let time = step.start_time() + fraction * (step.end_time() - step.start_time());
+            let sample = step.sample(time).unwrap()[0];
+            // Quartic continuous extension is exact in real arithmetic. This
+            // allowance covers rounded native coefficients and interpolation.
+            assert!((sample - (1. + time.powi(4))).abs() < 1e-11);
+        }
+    }
+    for (index, time) in outputs.into_iter().enumerate() {
+        let step = &history.steps()[history
+            .steps()
+            .partition_point(|step| step.end_time() < time)];
+        assert_eq!(solution.state(index).unwrap(), step.sample(time).unwrap());
     }
 }

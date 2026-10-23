@@ -419,7 +419,8 @@ pub(super) struct NativeNumericalAdmission {
     pub(super) system_scaling: eqiora_realization::SystemScaling,
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
-    pub(super) temporal: Option<CommonBackwardEuler>,
+    pub(super) temporal: Option<CommonTemporalPolicy>,
+    pub(super) time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     pub(super) nonlinear: Option<NonlinearSolvePlan>,
     pub(super) operator_properties: LinearOperatorProperties,
 }
@@ -558,10 +559,26 @@ impl RecognizedNativeAdmission {
         self,
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
-        temporal: Option<CommonBackwardEuler>,
+        temporal: Option<CommonTemporalPolicy>,
+        time_backend: Option<eqiora_time::TimeBackendCapabilities>,
         nonlinear: Option<NonlinearSolvePlan>,
         system_scaling: eqiora_realization::SystemScaling,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
+        match (
+            temporal.as_ref().and_then(CommonTemporalPolicy::as_ode),
+            time_backend,
+        ) {
+            (Some(policy), Some(backend)) => policy.validate_backend(backend)?,
+            (Some(_), None) => {
+                return Err(invalid(
+                    "controlled time policy requires an available time backend",
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(invalid("time backend requires a controlled time policy"));
+            }
+            (None, None) => {}
+        }
         self.recognized.require_spatial_realization(&spatial)?;
         if !matches!(
             system_scaling,
@@ -577,7 +594,7 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             operator_properties,
             &linear,
-            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal)?,
+            self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal.as_ref())?,
         )?;
         let discretizations = self.discretizations(&spatial)?;
         if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
@@ -585,7 +602,7 @@ impl RecognizedNativeAdmission {
                 RecognizedNativeModel::Spatial(equations) => equations.validate_discretizations(
                     &discretizations,
                     &self.resources,
-                    temporal,
+                    temporal.as_ref(),
                     nonlinear,
                     &system_scaling,
                 )?,
@@ -593,7 +610,7 @@ impl RecognizedNativeAdmission {
                     .validate_discretizations(
                         &discretizations,
                         &self.resources,
-                        temporal,
+                        temporal.as_ref(),
                         nonlinear,
                         &system_scaling,
                     )?,
@@ -604,7 +621,13 @@ impl RecognizedNativeAdmission {
                 }
             }
         }
-        let policy_identity = policy_identity(&spatial, &linear, temporal, nonlinear);
+        let policy_identity = policy_identity(
+            &spatial,
+            &linear,
+            temporal.as_ref(),
+            time_backend,
+            nonlinear,
+        )?;
         Ok(NativeNumericalAdmission {
             recognition: self,
             discretizations,
@@ -614,6 +637,7 @@ impl RecognizedNativeAdmission {
             linear,
             policy_identity,
             temporal,
+            time_backend,
             nonlinear,
         })
     }
@@ -685,6 +709,7 @@ impl NativeNumericalAdmission {
             linear,
             None,
             None,
+            None,
             eqiora_realization::SystemScaling::Dimensional,
         )
     }
@@ -694,12 +719,13 @@ impl NativeNumericalAdmission {
             self.model(),
             self.authenticated_mesh(),
             &self.spatial.request(),
-            self.temporal.map(|_| 0.),
+            self.temporal.as_ref().map(|_| 0.),
         )?
         .complete(
             self.spatial.clone(),
             self.linear.clone(),
-            self.temporal,
+            self.temporal.clone(),
+            self.time_backend,
             self.nonlinear,
             self.system_scaling.clone(),
         )?;

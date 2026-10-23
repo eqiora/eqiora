@@ -50,7 +50,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             .ok_or_else(|| invalid("Newton target is outside its Region plan"))?;
         let (accepted, evidence) = solve_damped_newton(
             initial.to_vec(),
-            nonlinear,
+            nonlinear.into(),
             |values| {
                 let assembly = self.linearize(
                     &plan,
@@ -67,30 +67,8 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                 })
             },
             |point| residual_norm(&point.assembly.residuals[index]),
-            |_, point| {
-                let system = eqiora_assembly::LinearSystem::new(
-                    point.assembly.systems[index].matrix().clone(),
-                    point.assembly.residuals[index]
-                        .iter()
-                        .map(|value| -*value)
-                        .collect(),
-                )?;
-                let canonical = Arc::new(CanonicalCsrSystemView::new(
-                    &system,
-                    system.rhs(),
-                    LinearOperatorProperties::General,
-                )?);
-                let core = crate::finalized_spatial::FinalizedLinearCore::new(
-                    linear.plan(),
-                    VectorLayoutKind::Replicated,
-                    Target::HostCpu { threads: workers },
-                    canonical,
-                );
-                let solution = linear.solve(&core.linear_problem()?)?;
-                core.validate_solution(&solution)?;
-                Ok(solution.into_parts())
-            },
-            |candidate| {
+            |_, point| point.assembly.solve_correction(index, linear, workers),
+            |candidate, _| {
                 Ok(Some(NewtonTrial {
                     residual_norm: residual_norm(&self.residual(
                         &plan,
@@ -103,7 +81,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         )?;
         // Check the retained accepted action too, not only the trial's rounded norm.
         let residual_norm = residual_norm(&accepted.assembly.residuals[index])?;
-        if residual_norm > evidence.residual_target {
+        if residual_norm > evidence.residual_target()? {
             return Err(invalid(
                 "accepted Region Newton action exceeds its residual target",
             ));
@@ -123,5 +101,43 @@ pub(super) fn residual_norm(values: &[f64]) -> Result<f64, Diagnostic> {
         Ok(norm)
     } else {
         Err(invalid("Region residual norm is non-finite"))
+    }
+}
+
+impl RegionAssemblyLinearization {
+    /// Solve J*delta = -F using the admitted provider and its exact original residual.
+    pub(crate) fn solve_correction(
+        &self,
+        index: usize,
+        linear: LinearSolveRequest<'_>,
+        workers: NonZeroUsize,
+    ) -> Result<(Vec<f64>, eqiora_solver::SolveReport), Diagnostic> {
+        let core = self.correction_core(index, linear.plan(), workers)?;
+        let solution = linear.solve(&core.linear_problem()?)?;
+        core.validate_solution(&solution)?;
+        Ok(solution.into_parts())
+    }
+
+    pub(crate) fn correction_core(
+        &self,
+        index: usize,
+        solver: eqiora_solver::SolverPlan,
+        workers: NonZeroUsize,
+    ) -> Result<crate::finalized_spatial::FinalizedLinearCore<f64>, Diagnostic> {
+        let system = eqiora_assembly::LinearSystem::new(
+            self.systems[index].matrix().clone(),
+            self.residuals[index].iter().map(|value| -*value).collect(),
+        )?;
+        let canonical = Arc::new(CanonicalCsrSystemView::new(
+            &system,
+            system.rhs(),
+            LinearOperatorProperties::General,
+        )?);
+        Ok(crate::finalized_spatial::FinalizedLinearCore::new(
+            solver,
+            VectorLayoutKind::Replicated,
+            Target::HostCpu { threads: workers },
+            canonical,
+        ))
     }
 }

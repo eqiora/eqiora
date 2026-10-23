@@ -11,6 +11,7 @@ use super::region::{BoundRegionForm, CompiledRegionForm, PrescribedDatum, Scalar
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
+pub(crate) use binding::InputPartialScope;
 mod boundary;
 pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;

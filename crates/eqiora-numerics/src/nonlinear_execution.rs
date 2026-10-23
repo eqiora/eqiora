@@ -1,15 +1,27 @@
 //! Damped Newton over an exact residual occurrence, independent of physical roles.
 
 use eqiora_core::{Diagnostic, diagnostic::codes};
-use eqiora_realization::NonlinearSolvePlan;
+mod stopping;
 use eqiora_solver::SolveReport;
+pub(crate) use stopping::{NewtonConvergence, NewtonOptions, NewtonStopping};
 
 #[derive(Debug)]
 pub(crate) struct NewtonEvidence {
     pub(crate) iterations: usize,
     pub(crate) initial_residual_norm: f64,
-    pub(crate) residual_target: f64,
+    pub(crate) convergence: NewtonConvergence,
     pub(crate) linear_solves: Vec<SolveReport>,
+}
+
+impl NewtonEvidence {
+    pub(crate) fn residual_target(&self) -> Result<f64, Diagnostic> {
+        match self.convergence {
+            NewtonConvergence::Residual { target } => Ok(target),
+            NewtonConvergence::Correction { .. } | NewtonConvergence::ExactResidualZero => Err(
+                failed("correction convergence does not establish a residual target"),
+            ),
+        }
+    }
 }
 
 /// Seed facts rederived at an accepted point, independent of a producer's history.
@@ -44,42 +56,55 @@ pub(crate) struct NewtonTrial<L> {
 /// `None` only for a recognized point-dependent admissibility failure; ordinary
 /// diagnostics propagate. Expression-domain violations are also rejected trials,
 /// only at this speculative boundary. Initial and accepted linearizations still
-/// propagate every error. Physical acceptance remains the caller's obligation.
+/// propagate every error. The trial receives the current linearization so both
+/// merits can use the same equation scaling. Correction convergence requires the
+/// full Newton step, never just a small damped update. Physical acceptance remains
+/// the caller's obligation.
 pub(crate) fn solve_damped_newton<L>(
     mut point: Vec<f64>,
-    plan: NonlinearSolvePlan,
+    options: NewtonOptions<'_>,
     mut linearize: impl FnMut(&[f64]) -> Result<L, Diagnostic>,
     mut residual_norm: impl FnMut(&L) -> Result<f64, Diagnostic>,
     mut correction: impl FnMut(&[f64], &L) -> Result<(Vec<f64>, SolveReport), Diagnostic>,
-    mut trial: impl FnMut(&[f64]) -> Result<Option<NewtonTrial<L>>, Diagnostic>,
+    mut trial: impl FnMut(&[f64], &L) -> Result<Option<NewtonTrial<L>>, Diagnostic>,
 ) -> Result<(L, NewtonEvidence), Diagnostic> {
     if point.is_empty() || point.iter().any(|value| !value.is_finite()) {
         return Err(failed("Newton requires a nonempty finite initial point"));
     }
+    options.validate(point.len())?;
     let mut current = {
         let _span = eqiora_execution::telemetry_span!(assembly("initial_linearization")).entered();
         linearize(&point)?
     };
     let initial_residual_norm = checked_norm(residual_norm(&current)?)?;
-    let residual_target = plan
-        .absolute_tolerance()
-        .max(plan.relative_tolerance() * initial_residual_norm);
+    let residual_target = options.stopping.residual_target(initial_residual_norm)?;
     let mut evidence = NewtonEvidence {
         iterations: 0,
         initial_residual_norm,
-        residual_target,
+        convergence: NewtonConvergence::Residual {
+            target: residual_target,
+        },
         linear_solves: Vec::new(),
     };
-    let mut norm = initial_residual_norm;
-    eqiora_execution::telemetry_event!("newton", 0, norm, residual_target, norm <= residual_target);
-    if norm <= residual_target {
+    eqiora_execution::telemetry_event!(
+        "newton",
+        0,
+        initial_residual_norm,
+        residual_target,
+        initial_residual_norm <= residual_target
+    );
+    if initial_residual_norm <= residual_target {
+        evidence.convergence =
+            options
+                .stopping
+                .convergence(residual_target, 0., initial_residual_norm, &point, &[]);
         return Ok((current, evidence));
     }
     evidence
         .linear_solves
-        .try_reserve_exact(plan.maximum_iterations().get())
+        .try_reserve_exact(options.maximum_iterations.get())
         .map_err(|_| failed("Newton report allocation failed"))?;
-    for iteration in 1..=plan.maximum_iterations().get() {
+    for iteration in 1..=options.maximum_iterations.get() {
         // A residual-only trial and its subsequent linearization may differ
         // by rounding. Compare against the current assembled residual.
         let previous_norm = checked_norm(residual_norm(&current)?)?;
@@ -95,10 +120,11 @@ pub(crate) fn solve_damped_newton<L>(
                 "Newton correction differs from the finite point coordinates",
             ));
         }
+        let correction_norm = options.stopping.correction_norm(&point, &direction)?;
         let mut accepted = None;
         let mut best_trial = (f64::INFINITY, 0.0);
         let mut scale = 1.0;
-        for _ in 0..=plan.maximum_line_search_steps() {
+        for _ in 0..=options.maximum_line_search_steps {
             let candidate = point
                 .iter()
                 .zip(&direction)
@@ -110,7 +136,7 @@ pub(crate) fn solve_damped_newton<L>(
             let evaluated = {
                 let _span =
                     eqiora_execution::telemetry_span!(assembly("line_search_trial")).entered();
-                match trial(&candidate) {
+                match trial(&candidate, &current) {
                     Err(error) if error.code() == codes::EXPRESSION_DOMAIN_VIOLATION => None,
                     evaluated => evaluated?,
                 }
@@ -120,14 +146,19 @@ pub(crate) fn solve_damped_newton<L>(
                 if trial_norm < best_trial.0 {
                     best_trial = (trial_norm, scale);
                 }
-                if trial_norm <= residual_target || trial_norm < previous_norm {
-                    accepted = Some((candidate, evaluated, trial_norm));
+                let small_full_correction =
+                    scale == 1.0 && correction_norm.is_some_and(|n| n <= 1.);
+                if small_full_correction
+                    || trial_norm <= residual_target
+                    || trial_norm < previous_norm
+                {
+                    accepted = Some((candidate, evaluated, trial_norm, small_full_correction));
                     break;
                 }
             }
             scale *= 0.5;
         }
-        let Some((candidate, evaluated, trial_norm)) = accepted else {
+        let Some((candidate, evaluated, trial_norm, small_full_correction)) = accepted else {
             return Err(failed(format!(
                 "Newton line search found no residual-decreasing admissible point at iteration \
                  {iteration}: previous residual {previous_norm:e}, best trial residual {:e} at scale {:e}, \
@@ -140,24 +171,44 @@ pub(crate) fn solve_damped_newton<L>(
             Some(linearization) => linearization,
             None => linearize(&candidate)?,
         };
-        point = candidate;
-        norm = trial_norm;
         evidence.iterations = iteration;
         evidence.linear_solves.push(report);
-        eqiora_execution::telemetry_event!(
-            "newton",
-            iteration,
-            norm,
-            residual_target,
-            norm <= residual_target
-        );
-        if norm <= residual_target {
+        let converged = trial_norm <= residual_target || small_full_correction;
+        match correction_norm {
+            Some(norm) if trial_norm != 0. => {
+                eqiora_execution::telemetry_event!(
+                    "newton_correction",
+                    iteration,
+                    norm,
+                    1.,
+                    converged
+                );
+            }
+            _ => {
+                eqiora_execution::telemetry_event!(
+                    "newton",
+                    iteration,
+                    trial_norm,
+                    residual_target,
+                    converged
+                );
+            }
+        }
+        if converged {
+            evidence.convergence = options.stopping.convergence(
+                residual_target,
+                correction_norm.unwrap_or(0.),
+                trial_norm,
+                &point,
+                &direction,
+            );
             return Ok((current, evidence));
         }
+        point = candidate;
     }
     Err(failed(format!(
-        "Newton solve reached {} iterations above target {residual_target:e}",
-        plan.maximum_iterations(),
+        "Newton solve reached {} iterations without meeting its stopping criterion",
+        options.maximum_iterations,
     )))
 }
 

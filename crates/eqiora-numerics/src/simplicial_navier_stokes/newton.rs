@@ -172,7 +172,7 @@ fn solve_one_step(
     )?;
     let (current, evidence) = solve_damped_newton(
         point,
-        nonlinear,
+        nonlinear.into(),
         |point| {
             assemble_step_linearization_prepared(
                 mesh,
@@ -205,7 +205,7 @@ fn solve_one_step(
                 };
             Ok(solution.into_parts())
         },
-        |candidate| {
+        |candidate, _| {
             let residual =
                 assemble_step_residual_prepared(mesh, prepared, previous, candidate, plan.clone())?;
             Ok(Some(NewtonTrial {

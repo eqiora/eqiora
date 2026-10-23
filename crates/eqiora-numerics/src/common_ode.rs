@@ -103,6 +103,20 @@ impl CommonOdePolicy {
         })
     }
 
+    pub(crate) fn validate_backend(
+        &self,
+        capabilities: eqiora_time::TimeBackendCapabilities,
+    ) -> Result<(), Diagnostic> {
+        if self.method() == TimeMethod::ImplicitMidpoint
+            && capabilities.identity() != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
+        {
+            return Err(invalid(
+                "implicit midpoint requires its available host backend identity",
+            ));
+        }
+        Ok(())
+    }
+
     /// Exact numerical integration method selected by this policy.
     #[must_use]
     pub const fn method(&self) -> TimeMethod {
@@ -167,13 +181,7 @@ impl CommonOdePlan {
         capabilities: eqiora_time::TimeBackendCapabilities,
     ) -> Result<Self, Diagnostic> {
         let backend = capabilities.identity();
-        if temporal.method() == TimeMethod::ImplicitMidpoint
-            && backend != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
-        {
-            return Err(invalid(
-                "implicit midpoint requires its available host backend identity",
-            ));
-        }
+        temporal.validate_backend(capabilities)?;
         if temporal.method() == TimeMethod::ImplicitMidpoint
             && (temporal.events().is_some() || temporal.forward_sensitivities().is_some())
         {
@@ -237,26 +245,8 @@ impl CommonOdePlan {
             ));
         }
         let state_coordinates = program.state_coordinates();
-        let requested = temporal.absolute_tolerances();
-        if requested.len() != state_coordinates.len()
-            || requested
-                .iter()
-                .any(|entry| !state_coordinates.contains(&entry.0))
-        {
-            return Err(invalid(
-                "ODE absolute tolerances must cover exactly the admitted Model state coordinates",
-            ));
-        }
-        let ordered_absolute_tolerances = state_coordinates
-            .iter()
-            .map(|field| {
-                requested
-                    .iter()
-                    .find(|entry| entry.0 == *field)
-                    .map(|entry| entry.1)
-                    .ok_or_else(|| invalid("Tsitouras45 omitted one exact state coordinate"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let ordered_absolute_tolerances =
+            temporal.ordered_absolute_tolerances(state_coordinates)?;
         let lowering = TimeLoweringEnvelopeV3::from_proof(model, kernel, program.lowering_proof())?;
         let lowering_digest = lowering.digest()?.to_string();
         let model_id = reference.model().ulid().to_string();

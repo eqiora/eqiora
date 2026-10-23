@@ -49,7 +49,28 @@ impl CommonSpatialPlan {
         self.scalar_assembly_with_history(equations, time_s, None, None, None)
     }
 
-    pub(super) fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
+    pub(super) fn scalar_time_partial<S: Coefficient + Send + Sync>(
+        &self,
+        equations: &ExecutableSpatialEquations<S>,
+        time_s: f64,
+        scope: crate::form_compiler::spatial::InputPartialScope,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
+        let coordinate = eqiora_ir::ScalarSymbolCoordinate::for_value(
+            eqiora_schema::kernel::SymbolRef::Time,
+            &eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, TIME)
+                .expect("real scalar Time"),
+        )?
+        .remove(0);
+        self.scalar_assembly_with_history(equations, time_s, None, None, Some((&coordinate, scope)))
+    }
+
+    fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
@@ -57,7 +78,10 @@ impl CommonSpatialPlan {
         previous: Option<
             &BTreeMap<eqiora_core::RawId, crate::region_assembly::mapping::RecoveredRegionField<S>>,
         >,
-        partial: Option<&eqiora_ir::ScalarSymbolCoordinate>,
+        partial: Option<(
+            &eqiora_ir::ScalarSymbolCoordinate,
+            crate::form_compiler::spatial::InputPartialScope,
+        )>,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<S>,
@@ -65,10 +89,19 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        let temporal = self
-            .admission
-            .temporal
-            .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
+        let step = || {
+            self.admission
+                .temporal
+                .as_ref()
+                .ok_or_else(|| invalid("discrete spatial history requires its time policy"))?
+                .require_backward_euler()
+        };
+        // A method-dependent transform is shared by the whole coupled system;
+        // its fluid and solid Regions must agree on the exact step.
+        let bind_step = previous_time_s.is_some()
+            || equations.regions.iter().any(|region| {
+                region.form.motion().is_some() || !region.form.kinematics().is_empty()
+            });
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
@@ -78,7 +111,7 @@ impl CommonSpatialPlan {
                         region.form.domain(),
                         previous,
                         time_s,
-                        temporal.step().value(),
+                        step()?.value(),
                     )?
                 } else {
                     crate::form_compiler::spatial::CompiledSpatialForm::derive_at_time(
@@ -95,9 +128,14 @@ impl CommonSpatialPlan {
                     .form
                     .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(time_s))?;
             }
-            region.form = region.form.bind_backward_euler(temporal.step())?;
-            if let Some(coordinate) = partial {
-                region.form = region.form.input_partial(coordinate)?;
+            // Continuous, untransformed State/rate evaluation has no step.
+            // Existing kinematic elimination and moving-inventory transforms
+            // retain their explicit method binding until evaluated in original coordinates.
+            if bind_step {
+                region.form = region.form.bind_backward_euler(step()?)?;
+            }
+            if let Some((coordinate, scope)) = partial {
+                region.form = region.form.input_partial(coordinate, scope)?;
             }
         }
         let mut prescribed_states = BTreeMap::new();
@@ -126,7 +164,7 @@ impl CommonSpatialPlan {
                         .ok_or_else(|| {
                             invalid("displacement boundary lacks its exact previous coefficient")
                         })?;
-                    Ok(Some((physical - *old) / temporal.step().value()))
+                    Ok(Some((physical - *old) / step()?.value()))
                 }
             }
         };
@@ -191,8 +229,9 @@ impl CommonSpatialPlan {
         let step_s = self
             .admission
             .temporal
+            .as_ref()
             .ok_or_else(|| invalid("scalar step requires BackwardEuler"))?
-            .step()
+            .require_backward_euler()?
             .value();
         if grid.previous()?.time(step_s)?.to_bits() != state.require_time_s()?.to_bits() {
             return Err(invalid("scalar State differs from its retained Time grid"));
@@ -225,8 +264,9 @@ impl CommonSpatialPlan {
         let step_s = self
             .admission
             .temporal
+            .as_ref()
             .ok_or_else(|| invalid("spatial step requires BackwardEuler"))?
-            .step()
+            .require_backward_euler()?
             .value();
         let previous_time_s = history.grid.previous()?.time(step_s)?;
         if history.grid.time(step_s)?.to_bits() != next_time_s.to_bits() {
@@ -259,8 +299,9 @@ impl CommonSpatialPlan {
             let step = self
                 .admission
                 .temporal
+                .as_ref()
                 .expect("scalar storage")
-                .step()
+                .require_backward_euler()?
                 .value();
             let previous = self
                 .prescribed_geometry_at(previous_time_s)?
@@ -312,8 +353,9 @@ impl CommonSpatialPlan {
         let next_time_s = grid.time(
             self.admission
                 .temporal
+                .as_ref()
                 .expect("temporal Plan")
-                .step()
+                .require_backward_euler()?
                 .value(),
         )?;
         let structure = equations.algebraic_structure(None)?;
@@ -328,7 +370,7 @@ impl CommonSpatialPlan {
             let output = self.solve_region_newton(&mapping, &input, &initial, request)?;
             let residual = Some((
                 output.solve.residual_norm,
-                output.solve.evidence.residual_target,
+                output.solve.evidence.residual_target()?,
             ));
             let execution = super::nonlinear::newton_execution(&output.solve);
             (output.fields, residual, execution)

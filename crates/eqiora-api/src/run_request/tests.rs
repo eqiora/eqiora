@@ -1,4 +1,4 @@
-use eqiora_numerics::CommonTransientFlowPlan;
+use eqiora_numerics::{CommonTemporalPolicy, CommonTransientFlowPlan};
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -8,8 +8,7 @@ use eqiora_artifact::{
 };
 use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonSolvePolicy, CommonSpatialPolicy,
-    IncompressibleScalingRequest2d,
+    AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPolicy, IncompressibleScalingRequest2d,
 };
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -65,16 +64,40 @@ fn replay_rejects_false_identity_noncanonical_and_invalid_schedule_content() {
     assert!(decode_wire(&false_identity).is_err());
 
     let mut duplicate_output: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    duplicate_output["output_steps"] = serde_json::json!([1, 1]);
-    assert!(decode_wire(&duplicate_output).is_err());
+    duplicate_output["output_times_s"] = serde_json::json!([0.01, 0.01]);
+    assert!(
+        decode_wire(&duplicate_output)
+            .unwrap_err()
+            .message()
+            .contains("output_times_s")
+    );
 
     let mut out_of_range: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    out_of_range["output_steps"] = serde_json::json!([1, 3]);
-    assert!(decode_wire(&out_of_range).is_err());
+    out_of_range["output_times_s"] = serde_json::json!([0.01, 0.03]);
+    assert!(
+        decode_wire(&out_of_range)
+            .unwrap_err()
+            .message()
+            .contains("output_times_s")
+    );
 
     let mut empty_output: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    empty_output["output_steps"] = serde_json::json!([]);
-    assert!(decode_wire(&empty_output).is_err());
+    empty_output["output_times_s"] = serde_json::json!([]);
+    assert!(
+        decode_wire(&empty_output)
+            .unwrap_err()
+            .message()
+            .contains("output_times_s")
+    );
+
+    let mut retired: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    retired["schema"] = serde_json::json!("eqiora.common-transient-run-request/v1");
+    assert!(
+        decode_wire(&retired)
+            .unwrap_err()
+            .message()
+            .contains("unknown schema")
+    );
 
     let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     unknown["unknown"] = serde_json::json!(true);
@@ -232,7 +255,7 @@ fn transient_plan() -> CommonTransientFlowPlan {
         .unwrap(),
     };
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
-    let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.01).unwrap();
     eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
@@ -241,8 +264,9 @@ fn transient_plan() -> CommonTransientFlowPlan {
         Some(eqiora_numerics::CommonScalingRequest::Incompressible(
             scaling,
         )),
-        Some(temporal),
+        Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap()

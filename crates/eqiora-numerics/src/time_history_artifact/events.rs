@@ -63,7 +63,7 @@ pub(crate) fn replay(
                 roots.events().len(),
                 event.before_state.clone(),
                 plan.state_dimensions().len(),
-                event.report.replay(plan)?,
+                event.report.replay(plan.backend())?,
             )?;
             TimeEventDiscontinuity::accepted(proposal, event.after_state.clone())
         })

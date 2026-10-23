@@ -101,6 +101,7 @@ fn solve(boundary: &str, permute: bool) -> (CommonResult, Id<kinds::Field>) {
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap();
     (

@@ -76,9 +76,12 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
     let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = &recognized.resources else {
         panic!("fixture must retain its authenticated adjacent partition");
     };
-    let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.05).unwrap();
     for region in &mut equations.regions {
-        region.form = region.form.bind_backward_euler(temporal.step()).unwrap();
+        region.form = region
+            .form
+            .bind_backward_euler(temporal.as_backward_euler().unwrap())
+            .unwrap();
     }
     let (mapping, forms, _) = equations
         .simplicial_assembly(
@@ -215,8 +218,9 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
             NonZeroUsize::new(20_000).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
     )
     .unwrap();

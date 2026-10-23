@@ -19,16 +19,17 @@ fn affine_state_and_rate_actions_are_independent_of_the_bound_step() {
     for scale in rows.values_mut() {
         *scale = DynQuantity::new(7., scale.dim());
     }
-    for step in [0.25, 2.] {
+    for step in [None, Some(0.25), Some(2.)] {
+        let time = step.map(|step| RegionTimeBinding {
+            step: DynQuantity::new(step, dim([0, 0, 1, 0, 0, 0, 0])),
+            states: Vec::new(),
+        });
         let bound = form
             .bind(
                 ReferenceCell::simplex(2).unwrap(),
                 &fields,
                 &rows,
-                Some(&RegionTimeBinding {
-                    step: DynQuantity::new(step, dim([0, 0, 1, 0, 0, 0, 0])),
-                    states: Vec::new(),
-                }),
+                time.as_ref(),
             )
             .unwrap();
         let rule = simplex_duffy_gauss_legendre(2, bound.minimum_gauss_points()).unwrap();
@@ -66,6 +67,11 @@ fn affine_state_and_rate_actions_are_independent_of_the_bound_step() {
                     );
                 }
             }
+        }
+        if step.is_none() {
+            assert!(bound.previous_fields().is_empty());
+            assert!(prepared.evaluate(&BTreeMap::new()).is_err());
+            assert!(prepared.linearize(&BTreeMap::new(), &[2.; 3]).is_err());
         }
         assert!(prepared.implicit_action(&[2.; 3], None, None).is_err());
         assert!(
@@ -135,18 +141,12 @@ fn complex_affine_rates_keep_real_linear_columns_before_time_pullback() {
         let reference = ReferenceCell::hypercube(2).unwrap();
         let map =
             AffineGeometryMap::new(reference, 2, vec![1., 1.5], vec![1., 0., 0., 1.5]).unwrap();
-        for step in [0.25, 2.] {
-            let bound = form
-                .bind(
-                    reference,
-                    &fields,
-                    &rows,
-                    Some(&RegionTimeBinding {
-                        step: DynQuantity::new(step, dim([0, 0, 1, 0, 0, 0, 0])),
-                        states: Vec::new(),
-                    }),
-                )
-                .unwrap();
+        for step in [None, Some(0.25), Some(2.)] {
+            let time = step.map(|step| RegionTimeBinding {
+                step: DynQuantity::new(step, dim([0, 0, 1, 0, 0, 0, 0])),
+                states: Vec::new(),
+            });
+            let bound = form.bind(reference, &fields, &rows, time.as_ref()).unwrap();
             let rule =
                 QuadratureRule::tensor_product_gauss_legendre(2, bound.minimum_gauss_points())
                     .unwrap();

@@ -5,7 +5,7 @@ fn resolve(
     spatial: CommonSpatialPolicy,
     balance: &str,
     boundary: &str,
-    temporal: Option<CommonBackwardEuler>,
+    temporal: Option<CommonTemporalPolicy>,
     nonlinear: bool,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let geometry = cartesian_interval();
@@ -64,6 +64,7 @@ fn resolve(
         temporal,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
 }
 
@@ -78,7 +79,7 @@ fn timed_volume_and_trace_use_endpoint_history_through_replay_and_restart() {
                 CommonSpatialPolicy::Q1,
                 balance,
                 "time()*time()/1[s^2]",
-                Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
                 nonlinear,
             )
             .unwrap();
@@ -134,7 +135,7 @@ fn timed_capacity_is_certified_at_the_accepted_state_time() {
         CommonSpatialPolicy::Q1,
         "relation balance on body {(1-time()/1[s])*1[s/m^2]*derivative(u)-div(grad(u))=0;}",
         "0",
-        Some(CommonBackwardEuler::from_seconds(1.).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(1.).unwrap()),
         false,
     )
     .unwrap();
@@ -219,7 +220,7 @@ fn spatial_checkpoint_rejects_a_forged_step_time_even_at_equilibrium() {
         CommonSpatialPolicy::Q1,
         "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 0[1/m^2];}",
         "0",
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         false,
     )
     .unwrap();
@@ -282,7 +283,7 @@ fn spatial_checkpoint_preserves_the_original_decimal_time_grid_on_restart() {
         CommonSpatialPolicy::Q1,
         "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 0[1/m^2];}",
         "0",
-        Some(CommonBackwardEuler::from_seconds(0.1).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.1).unwrap()),
         false,
     )
     .unwrap();
@@ -349,7 +350,7 @@ fn tpfa_time_inputs_use_native_faces_and_common_state_history() {
                 CommonSpatialPolicy::CellCenteredTpfa,
                 balance,
                 "time()*time()/1[s^2]",
-                Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
                 nonlinear,
             )
             .unwrap();
@@ -380,7 +381,7 @@ fn tpfa_polynomial_volume_uses_the_declared_quadrature() {
         CommonSpatialPolicy::CellCenteredTpfa,
         "law balance on body {storage 1[s/m^2]*u; flux -grad(u); source coordinate(0)^2/1[m^4];}",
         "0",
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         false,
     )
     .unwrap();

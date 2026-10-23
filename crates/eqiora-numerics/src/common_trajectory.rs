@@ -13,6 +13,8 @@ mod artifact;
 mod functional;
 pub(crate) mod history_boundary;
 mod sensitivity;
+mod spatial_time;
+pub(crate) use spatial_time::{SpatialTimeExecution, SpatialTimeStage};
 mod spectrum;
 pub use functional::{CommonTrajectoryObservation, TimeObservationInterpolation};
 pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
@@ -36,6 +38,13 @@ enum TrajectoryPayload {
         history: Box<crate::stochastic_path::run::history::ProcessHistory>,
         identity: String,
     },
+    SpatialTime {
+        request: Box<CommonTransientRunRequest>,
+        states: Vec<CommonState>,
+        history: AcceptedTimeHistory,
+        execution: SpatialTimeExecution,
+        identity: String,
+    },
     SpatialTransient {
         request: Box<CommonTransientRunRequest>,
         states: Vec<(usize, CommonAcceptedSpatialStep)>,
@@ -55,7 +64,8 @@ impl CommonTrajectory {
     /// Original spatial Run request, absent for a finite-time trajectory.
     pub fn spatial_request(&self) -> Option<&CommonTransientRunRequest> {
         match &self.payload {
-            TrajectoryPayload::SpatialTransient { request, .. } => Some(request),
+            TrajectoryPayload::SpatialTransient { request, .. }
+            | TrajectoryPayload::SpatialTime { request, .. } => Some(request),
             _ => None,
         }
     }
@@ -156,9 +166,8 @@ impl CommonTrajectory {
             .plan()
             .backward_euler()
             .ok_or_else(|| invalid("spatial trajectory requires BackwardEuler"))?
-            .step()
             .value();
-        validate_spatial(request.state(), request.output_steps(), step_s, &states)?;
+        validate_spatial(request.state(), &request.output_steps()?, step_s, &states)?;
         if let crate::ResolvedCommonPlan::Spatial(plan) = request.plan() {
             for (_, step) in &mut states {
                 step.reaccept_spatial(plan)?;
@@ -180,7 +189,8 @@ impl CommonTrajectory {
         match &self.payload {
             TrajectoryPayload::Ode { identity, .. }
             | TrajectoryPayload::Process { identity, .. }
-            | TrajectoryPayload::SpatialTransient { identity, .. } => identity,
+            | TrajectoryPayload::SpatialTransient { identity, .. }
+            | TrajectoryPayload::SpatialTime { identity, .. } => identity,
         }
     }
 
@@ -190,7 +200,8 @@ impl CommonTrajectory {
         match &self.payload {
             TrajectoryPayload::Ode { request, .. } => request.identity(),
             TrajectoryPayload::Process { history, .. } => history.request().identity(),
-            TrajectoryPayload::SpatialTransient { request, .. } => request.identity(),
+            TrajectoryPayload::SpatialTransient { request, .. }
+            | TrajectoryPayload::SpatialTime { request, .. } => request.identity(),
         }
     }
 
@@ -200,7 +211,8 @@ impl CommonTrajectory {
         match &self.payload {
             TrajectoryPayload::Ode { request, .. } => request.plan().identity(),
             TrajectoryPayload::Process { history, .. } => history.request().plan().identity(),
-            TrajectoryPayload::SpatialTransient { request, .. } => request.plan().identity(),
+            TrajectoryPayload::SpatialTransient { request, .. }
+            | TrajectoryPayload::SpatialTime { request, .. } => request.plan().identity(),
         }
     }
 
@@ -210,7 +222,9 @@ impl CommonTrajectory {
         match &self.payload {
             TrajectoryPayload::Ode { states, .. } => Some(states),
             TrajectoryPayload::Process { history, .. } => Some(history.outputs()),
-            TrajectoryPayload::SpatialTransient { .. } => None,
+            TrajectoryPayload::SpatialTransient { .. } | TrajectoryPayload::SpatialTime { .. } => {
+                None
+            }
         }
     }
 
@@ -219,7 +233,9 @@ impl CommonTrajectory {
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
         match &self.payload {
             TrajectoryPayload::Ode { history, .. } => Some(history),
-            TrajectoryPayload::SpatialTransient { .. } | TrajectoryPayload::Process { .. } => None,
+            TrajectoryPayload::SpatialTransient { .. }
+            | TrajectoryPayload::SpatialTime { .. }
+            | TrajectoryPayload::Process { .. } => None,
         }
     }
 
@@ -227,7 +243,9 @@ impl CommonTrajectory {
     #[must_use]
     pub fn spatial_steps(&self) -> Option<&[(usize, CommonAcceptedSpatialStep)]> {
         match &self.payload {
-            TrajectoryPayload::Ode { .. } | TrajectoryPayload::Process { .. } => None,
+            TrajectoryPayload::Ode { .. }
+            | TrajectoryPayload::Process { .. }
+            | TrajectoryPayload::SpatialTime { .. } => None,
             TrajectoryPayload::SpatialTransient { states, .. } => Some(states),
         }
     }
@@ -255,8 +273,8 @@ impl CommonTrajectory {
             .ok_or_else(|| invalid("boundary force requires a transient flow Plan"))?;
         validate_spatial(
             request.state(),
-            request.output_steps(),
-            plan.temporal().step().value(),
+            &request.output_steps()?,
+            plan.temporal().value(),
             states,
         )?;
         plan.boundary_force(step.previous_state(), step.state(), name)

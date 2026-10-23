@@ -28,6 +28,78 @@ fn dense(system: &LinearSystem<f64>) -> Vec<f64> {
 }
 
 #[test]
+fn matrix_free_tangents_preserve_orientation_and_zero_fixed_directions() {
+    for reversed in [false, true] {
+        let mut fixture = Fixture::new(3, reversed);
+        let n = fixture.rhs.len();
+        let sign = |global: usize| if global.is_multiple_of(2) { 1. } else { -1. };
+        let full_target = fixture.plan.target_id(1).unwrap();
+        for cell in &mut fixture.cells {
+            let full = cell
+                .mappings
+                .iter()
+                .find(|map| map.target() == full_target)
+                .unwrap();
+            for (orientation, unknown) in cell.orientation.iter_mut().zip(full.map().unknowns()) {
+                let LocalUnknown::Free(dof) = unknown else {
+                    unreachable!()
+                };
+                *orientation = if sign(dof.index()) > 0. { 1 } else { -1 };
+            }
+        }
+        let free = fixture
+            .fixed
+            .iter()
+            .enumerate()
+            .filter_map(|(i, value)| value.is_none().then_some(i))
+            .collect::<Vec<_>>();
+        let direction = free
+            .iter()
+            .map(|i| 0.25 + *i as f64 / 7.)
+            .collect::<Vec<_>>();
+        let prepared = fixture.prepare().unwrap();
+        let actual = prepared
+            .jacobian_action(
+                &fixture.plan,
+                fixture.plan.target_id(0).unwrap(),
+                RegionPoint::Bound(&vec![2.; free.len()]),
+                &direction,
+            )
+            .unwrap();
+        // The fixture's weak-integral oracle is independent of assembly.
+        // Reversing functional signs gives D*A*D; fixed values never enter J*v.
+        for (row, &global_row) in free.iter().enumerate() {
+            let expected = free
+                .iter()
+                .zip(&direction)
+                .map(|(&column, value)| {
+                    sign(global_row)
+                        * fixture.matrix[global_row * n + column]
+                        * sign(column)
+                        * value
+                })
+                .sum::<f64>();
+            close(actual[row], expected);
+        }
+        for invalid in [
+            &direction[..direction.len() - 1],
+            &vec![f64::NAN; direction.len()],
+        ] {
+            assert!(
+                prepared
+                    .jacobian_action(
+                        &fixture.plan,
+                        fixture.plan.target_id(0).unwrap(),
+                        RegionPoint::Bound(&vec![2.; free.len()]),
+                        invalid,
+                    )
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn domain_reactions_keep_only_selected_rows_from_exact_packet_ownership() {
     let fixture = Fixture::new(3, true);
     let prepared = fixture.prepare().unwrap();

@@ -102,7 +102,7 @@ impl TimePlan {
         self.validate_dimension(problem.dimension())
     }
 
-    fn validate_dimension(&self, dimension: usize) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_dimension(&self, dimension: usize) -> Result<(), Diagnostic> {
         if self.absolute_tolerances.len() != dimension {
             return Err(invalid_plan(
                 "time-plan must provide exactly one absolute tolerance per state",

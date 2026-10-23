@@ -122,6 +122,7 @@ fn chain_plan(model: &ModelEnvelope, count: usize) -> Result<ResolvedCommonPlan,
         None,
         &ResolveOnlyBackend,
         None,
+        None,
     )
 }
 
@@ -456,6 +457,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
             None,
             None,
             supplied,
+            None,
             None,
         )
         .unwrap();

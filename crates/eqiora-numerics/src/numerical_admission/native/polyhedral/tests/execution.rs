@@ -93,6 +93,7 @@ fn execute<S: Coefficient + Send + Sync>(
                 linear.clone(),
                 None,
                 None,
+                None,
                 eqiora_realization::SystemScaling::Dimensional,
             )
             .unwrap();
@@ -165,6 +166,7 @@ fn execute<S: Coefficient + Send + Sync>(
             None,
             &REFERENCE_LINEAR_SOLVER,
             None,
+            None,
         )
         .unwrap();
         let bytes = public.to_bytes().unwrap();
@@ -229,7 +231,7 @@ fn execute<S: Coefficient + Send + Sync>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v25", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v27", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"
@@ -243,7 +245,7 @@ fn execute<S: Coefficient + Send + Sync>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v19",
+            "eqiora.resolved-common-plan/v21",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
@@ -262,6 +264,7 @@ fn execute<S: Coefficient + Send + Sync>(
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap();
@@ -308,7 +311,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let other = NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(other_policy));
         assert_ne!(
             native.policy_identity,
-            policy_identity(&other, &linear, None, None)
+            policy_identity(&other, &linear, None, None, None).unwrap()
         );
         assert!(
             recognized
@@ -316,6 +319,7 @@ fn execute<S: Coefficient + Send + Sync>(
                 .complete(
                     other.clone(),
                     linear.clone(),
+                    None,
                     None,
                     None,
                     eqiora_realization::SystemScaling::Dimensional
@@ -342,6 +346,7 @@ fn execute<S: Coefficient + Send + Sync>(
                             unsupported
                         )),
                         linear.clone(),
+                        None,
                         None,
                         None,
                         eqiora_realization::SystemScaling::Dimensional

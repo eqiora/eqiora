@@ -109,6 +109,7 @@ fn resolve(
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
+        None,
     )
     .unwrap()
 }

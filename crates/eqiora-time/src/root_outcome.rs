@@ -159,7 +159,18 @@ mod tests {
         .unwrap();
         let history = AcceptedTimeHistory::accepted(
             1,
-            vec![TimeHistoryStep::accepted(0.0, 1.0, vec![1.0], vec![0.5], vec![0.0]).unwrap()],
+            vec![
+                TimeHistoryStep::accepted(
+                    0.0,
+                    1.0,
+                    vec![1.0],
+                    vec![0.5],
+                    vec![0.0],
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![1.0], vec![0.5], vec![0.0]],
+                )
+                .unwrap(),
+            ],
             vec![],
         )
         .unwrap();
@@ -169,7 +180,18 @@ mod tests {
         assert!(prefix.sensitivity_history().is_none());
         let tangent = AcceptedTimeHistory::accepted(
             1,
-            vec![TimeHistoryStep::accepted(0.0, 1.0, vec![0.0], vec![0.5], vec![1.0]).unwrap()],
+            vec![
+                TimeHistoryStep::accepted(
+                    0.0,
+                    1.0,
+                    vec![0.0],
+                    vec![0.5],
+                    vec![1.0],
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![0.0], vec![0.5], vec![1.0]],
+                )
+                .unwrap(),
+            ],
             vec![],
         )
         .unwrap();
@@ -196,7 +218,18 @@ mod tests {
         );
         let shifted = AcceptedTimeHistory::accepted(
             1,
-            vec![TimeHistoryStep::accepted(0.0, 0.75, vec![0.0], vec![0.375], vec![0.75]).unwrap()],
+            vec![
+                TimeHistoryStep::accepted(
+                    0.0,
+                    0.75,
+                    vec![0.0],
+                    vec![0.375],
+                    vec![0.75],
+                    vec![0.0, 0.375, 0.75],
+                    vec![vec![0.0], vec![0.375], vec![0.75]],
+                )
+                .unwrap(),
+            ],
             vec![],
         )
         .unwrap();
@@ -206,7 +239,18 @@ mod tests {
         assert!(TimeRootOutcome::localized(root.clone(), history.clone(), Some(at_event)).is_err());
         let wrong_history = AcceptedTimeHistory::accepted(
             1,
-            vec![TimeHistoryStep::accepted(0.0, 1.0, vec![1.0], vec![0.5], vec![0.1]).unwrap()],
+            vec![
+                TimeHistoryStep::accepted(
+                    0.0,
+                    1.0,
+                    vec![1.0],
+                    vec![0.5],
+                    vec![0.1],
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![1.0], vec![0.5], vec![0.1]],
+                )
+                .unwrap(),
+            ],
             vec![],
         )
         .unwrap();

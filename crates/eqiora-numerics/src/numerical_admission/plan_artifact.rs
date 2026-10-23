@@ -32,9 +32,9 @@ mod forward_policy;
 mod temporal;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
-use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
+use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v19";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v21";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -138,6 +138,8 @@ struct WireResolvedCommonPlan {
     spectral: Option<WireEigenRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temporal: Option<WireTemporal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    time_backend: Option<WireTimeBackend>,
     #[serde(skip_serializing_if = "Option::is_none")]
     enforcement: Option<WireEnforcement>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -251,24 +253,41 @@ impl ResolvedCommonPlan {
             .map(CommonScalingRequest::Incompressible)
     }
 
+    /// Whether this Plan's States carry physical model Time.
+    #[must_use]
+    pub const fn is_temporal(&self) -> bool {
+        match self {
+            Self::Time(_) | Self::TransientFlow(_) => true,
+            Self::Spatial(plan) => plan.admission.temporal.is_some(),
+            Self::Eigen(_) | Self::Algebraic(_) | Self::SteadyStokes(_) => false,
+        }
+    }
+
     /// Backward-Euler policy owned by a spatial transient Plan.
     #[must_use]
-    pub const fn backward_euler(&self) -> Option<CommonBackwardEuler> {
+    pub const fn backward_euler(&self) -> Option<DynQuantity> {
         match self {
-            Self::Spatial(plan) => plan.admission.temporal,
+            Self::Spatial(plan) => match &plan.admission.temporal {
+                Some(policy) => policy.as_backward_euler(),
+                None => None,
+            },
             Self::TransientFlow(plan) => Some(plan.temporal()),
             Self::Eigen(_) | Self::Algebraic(_) | Self::Time(_) | Self::SteadyStokes(_) => None,
         }
     }
 
-    /// Numerical time policy owned by a no-Mesh ODE Plan.
+    /// Controls for continuous time integration, independent of Mesh ownership.
     #[must_use]
     pub fn ode_temporal(&self) -> Option<&CommonOdePolicy> {
         match self {
             Self::Time(plan) => plan.as_ode().map(|plan| plan.temporal()),
+            Self::Spatial(plan) => plan
+                .admission
+                .temporal
+                .as_ref()
+                .and_then(CommonTemporalPolicy::as_ode),
             Self::Eigen(_)
             | Self::Algebraic(_)
-            | Self::Spatial(_)
             | Self::SteadyStokes(_)
             | Self::TransientFlow(_) => None,
         }
@@ -357,6 +376,7 @@ impl WireResolvedCommonPlan {
                 .as_eigen()
                 .map(|plan| WireEigenRequest::from_native(plan.request())),
             temporal: temporal_request(plan),
+            time_backend: WireTimeBackend::from_plan(plan),
             enforcement: plan
                 .as_algebraic()
                 .and_then(|plan| plan.enforcement())
@@ -387,6 +407,11 @@ impl WireResolvedCommonPlan {
         {
             return Err(invalid(
                 "finite enforcement or residual scales cannot accompany a spatial or temporal Plan",
+            ));
+        }
+        if matches!(self.temporal, Some(WireTemporal::Ode { .. })) != self.time_backend.is_some() {
+            return Err(invalid(
+                "controlled temporal policy and time backend must be present together",
             ));
         }
         let time = self.family == WirePlanFamily::Time;
@@ -439,12 +464,20 @@ impl WireResolvedCommonPlan {
                 "resolved common Plan has an incoherent ODE/spatial root shape",
             ));
         }
-        if time
-            != matches!(
-                self.temporal,
+        let compatible_temporal = matches!(
+            (&self.family, &self.temporal),
+            (
+                WirePlanFamily::Time,
                 Some(WireTemporal::Ode { .. } | WireTemporal::Process { .. })
-            )
-        {
+            ) | (
+                WirePlanFamily::Spatial,
+                None | Some(WireTemporal::BackwardEuler { .. } | WireTemporal::Ode { .. })
+            ) | (
+                WirePlanFamily::TransientFlow,
+                Some(WireTemporal::BackwardEuler { .. })
+            ) | (WirePlanFamily::SteadyStokes, None)
+        );
+        if !compatible_temporal {
             return Err(invalid(
                 "resolved common Plan has an incompatible temporal policy",
             ));
@@ -478,6 +511,12 @@ impl WireResolvedCommonPlan {
         linear_backend: &dyn LinearSolverBackend,
         time_backend: TimeBackendCapabilities,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
+        let admitted_time_backend = match (&self.temporal, &self.time_backend) {
+            (Some(WireTemporal::Ode { method, .. }), Some(backend)) => {
+                Some(backend.resolve(*method, time_backend)?)
+            }
+            _ => None,
+        };
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
         if self.family == WirePlanFamily::Eigen {
@@ -546,58 +585,16 @@ impl WireResolvedCommonPlan {
                 return crate::CommonTimePlan::resolve_process(&model, &kernel, *method)
                     .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)));
             }
-            let Some(WireTemporal::Ode {
-                method,
-                coordinates: WireTimeCoordinates::RealF64,
-                initial_step_s,
-                relative_tolerance,
-                absolute_tolerances,
-                conserved_norms,
-                hermitian_parameters,
-                events,
-                forward_sensitivities,
-            }) = &self.temporal
-            else {
-                return Err(invalid("ODE Plan omitted its method policy"));
+            let temporal = self
+                .temporal
+                .as_ref()
+                .ok_or_else(|| invalid("ODE Plan omitted its method policy"))?
+                .to_native()?;
+            let Some(temporal) = temporal.as_ode().cloned() else {
+                return Err(invalid(
+                    "ODE Plan requires a controlled continuous time policy",
+                ));
             };
-            let tolerances = absolute_tolerances
-                .iter()
-                .map(|entry| {
-                    parse_id::<kinds::Field>(&entry.field_ulid, "Field").and_then(|field| {
-                        Ok((
-                            eqiora_core::TimeStateCoordinate::new(
-                                field,
-                                entry.derivative_order,
-                                usize::try_from(entry.component)
-                                    .map_err(|_| invalid("time component exceeds address space"))?,
-                                entry.imaginary,
-                            ),
-                            entry.value,
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut temporal = CommonOdePolicy::new(
-                method.decode(),
-                *initial_step_s,
-                *relative_tolerance,
-                tolerances,
-            )?;
-            for parameter in hermitian_parameters {
-                temporal = temporal.with_hermitian_parameter(parse_id::<kinds::Parameter>(
-                    parameter,
-                    "Parameter",
-                )?)?;
-            }
-            for norm in conserved_norms {
-                temporal = norm.apply(temporal)?;
-            }
-            if let Some(events) = events {
-                temporal = temporal.with_event_policy(events.to_native()?);
-            }
-            if let Some(policy) = forward_sensitivities {
-                temporal = temporal.with_forward_sensitivity_policy(policy.to_native()?);
-            }
             let program = model.to_program().map_err(|diagnostics| {
                 invalid(format!(
                     "persisted ODE Model did not replay: {}",
@@ -608,11 +605,8 @@ impl WireResolvedCommonPlan {
                         .join("; ")
                 ))
             })?;
-            let backend = if temporal.method() == eqiora_time::TimeMethod::ImplicitMidpoint {
-                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
-            } else {
-                time_backend
-            };
+            let backend = admitted_time_backend
+                .ok_or_else(|| invalid("ODE Plan omitted its time backend"))?;
             return ResolvedCommonPlan::resolve_ode(&model, &program, temporal, backend);
         }
 
@@ -673,15 +667,11 @@ impl WireResolvedCommonPlan {
                 .flatten()
                 .map(CommonScalingRequest::Incompressible)
         };
-        let temporal = match self.temporal {
-            None => None,
-            Some(WireTemporal::BackwardEuler { step_s }) => {
-                Some(CommonBackwardEuler::from_seconds(step_s)?)
-            }
-            Some(WireTemporal::Ode { .. } | WireTemporal::Process { .. }) => {
-                return Err(invalid("spatial Plan carries an ODE temporal policy"));
-            }
-        };
+        let temporal = self
+            .temporal
+            .as_ref()
+            .map(WireTemporal::to_native)
+            .transpose()?;
         let authored_formulation = self
             .authored_formulation_base64
             .as_deref()
@@ -697,6 +687,7 @@ impl WireResolvedCommonPlan {
             scaling,
             temporal,
             linear_backend,
+            admitted_time_backend,
             authored_formulation.as_ref(),
         )
     }
@@ -936,4 +927,9 @@ pub(super) fn finite_enforcement_bytes(
 ) -> Result<Vec<u8>, Diagnostic> {
     serde_json::to_vec(&enforcement.map(WireEnforcement::from_native))
         .map_err(|error| invalid(format!("cannot encode finite enforcement intent: {error}")))
+}
+
+pub(super) fn temporal_policy_bytes(policy: &CommonTemporalPolicy) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&WireTemporal::from_policy(policy))
+        .map_err(|error| invalid(format!("cannot encode temporal policy: {error}")))
 }

@@ -61,7 +61,7 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        match (self.admission.temporal, time_s) {
+        match (&self.admission.temporal, time_s) {
             (Some(_), Some(time)) if time.is_finite() && time >= 0.0 => {
                 self.scalar_assembly_at(equations, time)
             }
@@ -133,25 +133,9 @@ impl CommonSpatialPlan {
         if previous.is_some() {
             self.accept_step_fields(&mapping, &input, &history, None)?;
         }
-        let mut temporal = crate::form_compiler::region::TemporalStructure {
-            differential: Default::default(),
-            positive_own_capacity: true,
-        };
-        for (form, _) in &input.forms {
-            let region = form.temporal_structure()?;
-            temporal.differential.extend(region.differential);
-            temporal.positive_own_capacity &= region.positive_own_capacity;
-        }
+        let temporal = input.temporal_structure()?;
         if let Some(time_s) = time_s {
-            let initial_partial = || {
-                let time = eqiora_ir::ScalarSymbolCoordinate::for_value(
-                    eqiora_schema::kernel::SymbolRef::Time,
-                    &eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, TIME)
-                        .expect("real scalar Time"),
-                )?
-                .remove(0);
-                self.scalar_assembly_with_history(equations, time_s, None, None, Some(&time))
-            };
+            let initial_partial = |scope| self.scalar_time_partial(equations, time_s, scope);
             match self.admission.resources() {
                 NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_temporal_state(
                     mesh.mesh(),

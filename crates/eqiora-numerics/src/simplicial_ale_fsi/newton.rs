@@ -436,7 +436,7 @@ fn solve_one_step_prepared<const D: usize>(
     };
     let (current, evidence) = solve_damped_newton(
         point,
-        plan.nonlinear(),
+        plan.nonlinear().into(),
         &linearize,
         |current| current.residual_norm(),
         |point, current| {
@@ -469,7 +469,7 @@ fn solve_one_step_prepared<const D: usize>(
                 report,
             ))
         },
-        |candidate| match linearize(candidate) {
+        |candidate, _| match linearize(candidate) {
             Ok(assembled) => Ok(Some(NewtonTrial {
                 residual_norm: assembled.residual_norm()?,
                 linearization: Some(assembled),

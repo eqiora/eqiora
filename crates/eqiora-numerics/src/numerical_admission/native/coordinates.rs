@@ -32,7 +32,7 @@ impl RecognizedNativeAdmission {
         spatial: &NativeSpatialPolicy,
         scaling: &eqiora_realization::SystemScaling,
         nonlinear: Option<NonlinearSolvePlan>,
-        temporal: Option<CommonBackwardEuler>,
+        temporal: Option<&CommonTemporalPolicy>,
     ) -> Result<eqiora_core::ScalarDomain, Diagnostic> {
         // Evolving and nonlinear actions keep one real-linear coordinate layout
         // across accepted states; physical complex values retain both channels.

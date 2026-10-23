@@ -1,3 +1,4 @@
+use eqiora_numerics::CommonTemporalPolicy;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -9,8 +10,8 @@ use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora::realization::{SolveRoot, TransformationNode};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonInitialField, CommonInitialValues,
-    CommonMethodRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonInitialField, CommonInitialValues, CommonMethodRequest,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
     common::PhysicalBoundaryDisposition, fsi::FixedReferenceFsiCartesianModel2d,
     fsi::lower_fixed_reference_fsi_cartesian_2d,
 };
@@ -474,8 +475,9 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             scoped.clone(),
             requested,
             scaling,
-            Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+            Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
         )
         .unwrap()

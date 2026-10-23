@@ -204,6 +204,11 @@ impl CommonTrajectory {
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let interval = interval::TimeObservationInterval::new(self, interval_s)?;
         let value = match &self.payload {
+            TrajectoryPayload::SpatialTime { .. } => {
+                return Err(invalid(
+                    "continuous spatial trajectory functionals are not yet implemented",
+                ));
+            }
             TrajectoryPayload::Process { .. } => {
                 return Err(invalid(
                     "stochastic trajectory has no admitted smooth time interpolant",

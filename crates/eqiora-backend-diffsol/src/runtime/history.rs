@@ -1,7 +1,7 @@
 //! Copy accepted native stencils while their dense output remains available.
 use super::continuation::Control;
 use super::*;
-use diffsol::OdeEquations;
+use diffsol::{MatrixCommon, OdeEquations, Tableau};
 use eqiora_time::{AcceptedTimeHistory, TimeCheckpoint, TimeHistoryStep};
 use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
@@ -244,6 +244,20 @@ where
         let middle = solver
             .interpolate(midpoint)
             .map_err(|error| map_failure(failures, "capture native Diffsol midpoint", error))?;
+        let degree = match plan.method() {
+            TimeMethod::Tsitouras45 => Tableau::<NalgebraMat<f64>>::tsit45(Default::default())
+                .beta()
+                .expect("native Tsitouras continuous extension")
+                .ncols(),
+            TimeMethod::Bdf => solver.order(),
+            _ => return Err(solve_failed("unsupported native dense-output method")),
+        };
+        let dense = capture_polynomial(start_time, end_time, degree, |time| {
+            solver
+                .interpolate(time)
+                .map(|state| collect_vector(&state))
+                .map_err(|error| map_failure(failures, "capture native dense output", error))
+        })?;
         steps.push(TimeHistoryStep::accepted(
             start_time,
             end_time,
@@ -253,6 +267,8 @@ where
                 || collect_vector(solver.state().y),
                 |proposal| proposal.state().to_vec(),
             ),
+            dense.0,
+            dense.1,
         )?);
         if parameters > 0 {
             let middle = solver.interpolate_sens(midpoint).map_err(|error| {
@@ -269,38 +285,32 @@ where
             } else {
                 solver.state().s.to_vec()
             };
+            let dense = capture_polynomial(start_time, end_time, degree, |time| {
+                solver
+                    .interpolate_sens(time)
+                    .map(|states| flatten(&states))
+                    .map_err(|error| {
+                        map_failure(failures, "capture native sensitivity dense output", error)
+                    })
+            })?;
             sensitivity_steps.push(TimeHistoryStep::accepted(
                 start_time,
                 end_time,
                 start_sensitivity,
                 flatten(&middle),
                 flatten(&end_sensitivity),
+                dense.0,
+                dense.1,
             )?);
         }
         while sample < times.len()
             && (times[sample] < end_time || (proposal.is_none() && times[sample] == end_time))
         {
             let step = steps.last().expect("captured native step");
-            if let Some(state) = stencil_state(step, times[sample]) {
-                values.extend_from_slice(state);
-            } else {
-                let state = solver.interpolate(times[sample]).map_err(|error| {
-                    map_failure(failures, "sample native Diffsol history", error)
-                })?;
-                values.extend(collect_vector(&state));
-            }
+            values.extend(step.sample(times[sample])?);
             if parameters > 0 {
                 let step = sensitivity_steps.last().expect("captured sensitivity step");
-                let interpolated;
-                let state = if let Some(state) = stencil_state(step, times[sample]) {
-                    state
-                } else {
-                    let native = solver.interpolate_sens(times[sample]).map_err(|error| {
-                        map_failure(failures, "sample native Diffsol sensitivities", error)
-                    })?;
-                    interpolated = flatten(&native);
-                    &interpolated
-                };
+                let state = step.sample(times[sample])?;
                 if state.len() != parameters * dimension {
                     return Err(solve_failed("unexpected native sensitivity count"));
                 }
@@ -389,16 +399,29 @@ fn report(problem: &TimeProblem<'_>, plan: &TimePlan) -> TimeExecutionReport {
     )
 }
 
-// Native endpoint state and dense-output evaluation can differ by a rounding bit.
-// A requested retained timestamp has one authoritative value in both projections.
-fn stencil_state(step: &TimeHistoryStep, time: f64) -> Option<&[f64]> {
-    if time == step.start_time() {
-        Some(step.start_state())
-    } else if time == step.end_time() {
-        Some(step.end_state())
-    } else if time == step.start_time() + (step.end_time() - step.start_time()) * 0.5 {
-        Some(step.midpoint_state())
-    } else {
-        None
+fn capture_polynomial(
+    start: f64,
+    end: f64,
+    degree: usize,
+    mut sample: impl FnMut(f64) -> Result<Vec<f64>, Diagnostic>,
+) -> Result<(Vec<f64>, Vec<Vec<f64>>), Diagnostic> {
+    if degree == 0 {
+        return Err(solve_failed(
+            "native dense output omitted its polynomial degree",
+        ));
     }
+    let times = (0..=degree)
+        .map(|index| {
+            if index == degree {
+                end
+            } else {
+                start + (end - start) * (index as f64 / degree as f64)
+            }
+        })
+        .collect::<Vec<_>>();
+    let states = times
+        .iter()
+        .map(|&time| sample(time))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((times, states))
 }

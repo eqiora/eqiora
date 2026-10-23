@@ -68,6 +68,33 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
         self.ranges.last().map_or(0, |range| range.end)
     }
 
+    pub(crate) fn free_count(&self) -> usize {
+        self.constraints.free_count()
+    }
+
+    /// Independent rates use analytic prescribed trace rates, never the fixed
+    /// State values retained in the coordinate map.
+    pub(crate) fn lift_rates(
+        &self,
+        reduced: &[f64],
+        prescribed: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        if prescribed.len() != self.full_count()
+            || prescribed.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "prescribed rates require exact finite full coordinates",
+            ));
+        }
+        let mut full = self.constraints.lift_direction(reduced)?;
+        for (global, value) in full.iter_mut().enumerate() {
+            if self.free_coordinate(global).is_none() {
+                *value = prescribed[global];
+            }
+        }
+        Ok(full)
+    }
+
     pub(crate) fn global_coordinates(&self, key: FieldDof) -> Range<usize> {
         self.ranges[self.mapping.global_dof(key).expect("mapped Field DOF")].clone()
     }

@@ -70,8 +70,9 @@ fn nonlinear_mini_history_preserves_consistent_pressure_through_common_newton() 
                     .unwrap(),
                 },
                 None,
-                Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+                Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
             )
             .unwrap();

@@ -5,7 +5,7 @@ impl PyState {
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
         native: CommonState,
-        step: u64,
+        step: Option<u64>,
         source_request_identity: Option<&str>,
         source_trajectory_identity: Option<&str>,
     ) -> PyResult<Self> {

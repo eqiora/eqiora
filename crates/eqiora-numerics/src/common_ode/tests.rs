@@ -256,8 +256,16 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
     let history = eqiora_time::AcceptedTimeHistory::accepted(
         1,
         vec![
-            eqiora_time::TimeHistoryStep::accepted(0.0, 0.2, vec![1.0], vec![0.9], vec![0.8])
-                .unwrap(),
+            eqiora_time::TimeHistoryStep::accepted(
+                0.0,
+                0.2,
+                vec![1.0],
+                vec![0.9],
+                vec![0.8],
+                vec![0.0, 0.1, 0.2],
+                vec![vec![1.0], vec![0.9], vec![0.8]],
+            )
+            .unwrap(),
         ],
         vec![],
     )
