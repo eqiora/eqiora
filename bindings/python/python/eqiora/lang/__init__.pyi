@@ -394,7 +394,7 @@ class Component:
         phase_s: Fraction | int = 0, doc: str | None = None,
     ) -> Clock: ...
     def initial(self, *equations: tuple[object, object], left: object = None,
-                right: object = None, doc: str | None = None) -> None:
+                right: object = None, on: Support | None = None, doc: str | None = None) -> None:
         """Add initial equations: several with explicit sides, or one left/right pair.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.initial``.

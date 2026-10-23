@@ -22,6 +22,22 @@ and finite Gaussian error bounds. Non-Cartesian product factors, product-domain 
 realizations, transient radial diffusion, nonpolynomial integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
+## Coordinates in initial conditions
+
+Use an explicit support for spatial coordinate data, for example
+`initial on body { u = 1 + coordinate(0)/1[m]; }` for a dimensionless Field
+on a one-dimensional Cartesian body. In Python authoring the same declaration is
+`component.initial((u, profile), on=body)`. The support supplies the usual coordinate
+axis, unit and Field-support checks; it does not make initial equations assignments.
+Unscoped `initial { ... }` continues to allow finite conditions and equations on
+different supports without an implicit choice of coordinate domain.
+
+Compiled initial equations keep their individual support. Spatial State construction
+uses the selected representation's existing sampling: nodal coefficients for Q1,
+cell-centroid values for cell-constant TPFA, and the existing bubble coefficient rule
+where selected. A centroid sample is not a general cell-average integration claim.
+This does not add a solver for general coupled spatial initialization equations.
+
 ## Explicit coordinate pullbacks
 
 `pullback(value, from=(xi, eta), at=(x=2*xi+eta, y=3*eta))` composes an

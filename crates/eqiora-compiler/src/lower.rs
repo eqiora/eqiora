@@ -842,7 +842,10 @@ pub(crate) fn lower_typed_model(
                     if !initial && !probability {
                         edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
                     }
-                    if let Some(domain_name) = domain {
+                    // Initial equations retain support on their typed roots. An
+                    // authored `on` supplies lowering context (including coordinate
+                    // symbols), not a runtime AppliesOn edge for the whole block.
+                    if !initial && let Some(domain_name) = domain {
                         let Binding::Domain(domain, _) = bindings[domain_name].clone() else {
                             unreachable!("Relation Domain was resolved while lowering");
                         };

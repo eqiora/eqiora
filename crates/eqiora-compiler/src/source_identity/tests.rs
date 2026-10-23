@@ -601,3 +601,14 @@ fn resource_limits_fail_closed() {
     };
     assert!(LocalSourceIdentity::from_document_with_limits(&mixed_bindings, bindings).is_err());
 }
+
+#[test]
+fn initial_support_is_bound_without_pinning_unrelated_source_bytes() {
+    let source = "model M() { domain body=box(0,1); state u:1 on body;
+        initial on body {u=0;} relation flow on body {derivative(u)=0[1/s];} }";
+    assert_eq!(identity(source), identity(&format(&document(source))));
+    assert_ne!(
+        identity(source),
+        identity(&source.replace("initial on body", "initial"))
+    );
+}

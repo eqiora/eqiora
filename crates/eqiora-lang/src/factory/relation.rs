@@ -8,6 +8,7 @@ impl SourceAstFactory {
     /// # Errors
     /// Rejects empty conditions, malformed expressions, and invalid byte ranges.
     pub fn initial(
+        domain: Option<String>,
         equations: Vec<RelationCondition>,
         range: TextRange,
     ) -> Result<crate::ast::InitialDecl, AstConstructionError> {
@@ -27,6 +28,9 @@ impl SourceAstFactory {
             checked_range(equation.range())?;
         }
         Ok(crate::ast::InitialDecl {
+            domain: domain
+                .map(|name| checked_identifier(name, "initialization Domain"))
+                .transpose()?,
             comments: Default::default(),
             equations,
             range: checked_range(range)?,

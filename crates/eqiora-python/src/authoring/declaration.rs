@@ -382,6 +382,7 @@ impl PyAstDeclaration {
 
     #[staticmethod]
     fn initial(
+        support: Option<String>,
         equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
         ordinal: u32,
     ) -> PyResult<Self> {
@@ -399,7 +400,7 @@ impl PyAstDeclaration {
             .collect::<PyResult<_>>()?;
         Ok(Self {
             value: Declaration::Item(ComponentItem::Initial(
-                Ast::initial(equations, range).map_err(syntax_error)?,
+                Ast::initial(support, equations, range).map_err(syntax_error)?,
             )),
         })
     }
