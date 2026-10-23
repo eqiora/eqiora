@@ -54,6 +54,11 @@ remain outside that formal profile; nested differentiation rechecks the retained
 dependencies. A derivative computed at one point does not make the same branch valid at
 another point.
 
+Prescribed Time-dependent conditional forcing also uses this value evaluator in ordinary
+spatial Backward Euler execution. It is evaluated at the method's requested times; crossing a
+threshold between steps does not insert or locate an event. Source equation-role discovery
+retains both branches and the predicate, without selecting a test space from a sampled branch.
+
 A piecewise value creates no history, hysteresis, reset, or crossing detection; use an explicit
 event for those. General nonsmooth solves, complex ordering, analytic functions beyond this
 catalog, and automatic event insertion are not provided.

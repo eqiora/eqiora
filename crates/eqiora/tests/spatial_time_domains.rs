@@ -446,3 +446,121 @@ fn nonlinear_relation_storage_uses_state_coordinate_backward_euler() {
 #[cfg(feature = "diffsol")]
 #[path = "spatial_time_domains/adaptive.rs"]
 mod adaptive;
+
+#[test]
+fn maxwell_internal_field_uses_ordinary_accepted_state_and_restart() {
+    // tau=dt=1 s: backward Euler gives h_next=(h_previous+strain)/2.
+    // Switching at 1.5 s probes endpoint forcing, not event localization.
+    // This probes an explicit internal Field, not a material-release history contract.
+    let template = r#"public component Heat(
+        support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body),support right:boundary(parent=body)) {
+        state h:1 on body in h1;
+        initial {h=0;}
+        relation relaxation on body {1[s]*derivative(h)+h=STRAIN;}
+    }"#;
+    for (strain, expected_history) in [
+        ("1", [0.5, 0.75, 0.875]),
+        ("(if time()<1.5[s] then 1 else 0)", [0.5, 0.25, 0.125]),
+        (
+            "(if (time()<1.5[s] and not (time()<0[s])) or time()>3.5[s] then 1 else 0)",
+            [0.5, 0.25, 0.125],
+        ),
+        (
+            "math.clamp((if time()<1.5[s] then 1 else 0),0,1)",
+            [0.5, 0.25, 0.125],
+        ),
+    ] {
+        let source = template.replace("STRAIN", strain);
+        let plan =
+            replay_plan(resolve_source(&source, 1., CommonSolvePolicy::Linear(linear())).unwrap());
+        let spatial = plan.as_spatial().unwrap();
+        let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
+        let before = initial.to_bytes().unwrap();
+        let run =
+            CommonTransientRunRequest::from_steps(plan.clone(), initial.clone(), 3, vec![1, 2, 3])
+                .unwrap();
+        let std::ops::ControlFlow::Continue(steps) = run
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("unexpected stop")
+        };
+        for ((_, step), expected) in steps.iter().zip(expected_history) {
+            let fields = spatial
+                .state_fields(step.state())
+                .unwrap()
+                .collect::<Vec<_>>();
+            assert_eq!(fields.len(), 1);
+            for &h in fields[0].3 {
+                assert!((h - expected).abs() < 1e-12, "{h} != {expected}");
+            }
+        }
+        assert_eq!(initial.to_bytes().unwrap(), before);
+        let restart =
+            CommonState::from_bytes(&steps[0].1.state().to_bytes().unwrap(), &plan).unwrap();
+        let resumed =
+            CommonTransientRunRequest::from_steps(plan.clone(), restart, 2, vec![2]).unwrap();
+        let std::ops::ControlFlow::Continue(tail) = resumed
+            .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+            .unwrap()
+        else {
+            panic!("unexpected stop")
+        };
+        assert_eq!(tail[0].1.state(), steps[2].1.state());
+        let result = CommonResult::accept_trajectory(
+            0.,
+            CommonTrajectory::accept_spatial_transient(run, steps).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
+            result
+        );
+    }
+}
+
+#[test]
+fn prescribed_branch_failure_keeps_the_accepted_spatial_state() {
+    let source = r#"public component Heat(
+        support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body),support right:boundary(parent=body)) {
+        state h:1 on body in h1;
+        initial {h=0;}
+        relation relaxation on body {
+            1[s]*derivative(h)+h=
+                if time()<1.5[s] then 1 else math.log(1-time()/1[s]);
+        }
+    }"#;
+    let plan =
+        replay_plan(resolve_source(source, 1., CommonSolvePolicy::Linear(linear())).unwrap());
+    let initial = plan
+        .as_spatial()
+        .unwrap()
+        .initial_state(Some(0.), Vec::new())
+        .unwrap();
+    let first = CommonTransientRunRequest::from_steps(plan.clone(), initial, 1, vec![1]).unwrap();
+    // The inactive log(0) at t=1 must not be demanded.
+    let std::ops::ControlFlow::Continue(steps) = first
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("unexpected stop")
+    };
+    let accepted = steps[0].1.state().clone();
+    let bytes = accepted.to_bytes().unwrap();
+    let next =
+        CommonTransientRunRequest::from_steps(plan.clone(), accepted.clone(), 1, vec![1]).unwrap();
+    let Err(error) = next.advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false) else {
+        panic!("the active logarithm must reject its invalid domain")
+    };
+    assert!(error.message().contains("domain"), "{error:?}");
+    assert_eq!(accepted.to_bytes().unwrap(), bytes);
+    // A recovered State fails at the same active invalid branch, not at replay.
+    let recovered = CommonState::from_bytes(&bytes, &plan).unwrap();
+    let retry = CommonTransientRunRequest::from_steps(plan, recovered, 1, vec![1]).unwrap();
+    let Err(error) = retry.advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false) else {
+        panic!("replay must retain the active logarithm domain")
+    };
+    assert!(error.message().contains("domain"), "{error:?}");
+}

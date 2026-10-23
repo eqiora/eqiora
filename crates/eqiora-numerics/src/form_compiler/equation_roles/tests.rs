@@ -538,3 +538,22 @@ fn explicit_rows_resolve_a_three_field_cycle_without_principal_inference() {
     *repeated.values_mut().next().unwrap() = *tests.values().nth(1).unwrap();
     assert!(EquationRoles::derive_with_tests(&program, [domain], &repeated).is_err());
 }
+
+#[test]
+fn conditional_fluxes_preserve_all_possible_principal_roles() {
+    let source = THREE.replace(
+        "-div(grad(a))",
+        "-div(if time()<1[s] then grad(a) else grad(b))",
+    );
+    assert_eq!(
+        signature(&derive(&source).unwrap()),
+        signature(&derive(THREE).unwrap())
+    );
+    // Selecting either branch at a sampled time cannot choose a test-space
+    // pairing. Both assignments remain possible for the complete expression.
+    let ambiguous = source.replace(
+        "-div(grad(b))",
+        "-div(if time()<1[s] then grad(b) else grad(a))",
+    );
+    assert!(derive(&ambiguous).is_err());
+}
