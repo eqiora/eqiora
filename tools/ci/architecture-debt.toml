@@ -250,7 +250,7 @@ ceiling = 8
 [[public_surface]]
 crate = "eqiora-backend-sundials"
 ceiling = 1
-# #1563: one residual-native adapter consumes existing ImplicitDaeProblem/history.
+# #1563: one residual-native adapter consumes existing ImplicitDaeProblem.
 # Identity stays associated with the adapter; native handles and bindings are private.
 
 [[public_surface]]
