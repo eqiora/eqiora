@@ -43,8 +43,11 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
             &program,
             controls,
             ImplicitMidpointTimeBackend::CAPABILITIES,
-            Some(crate::CommonSolvePolicy::Linear(
-                crate::CommonLinearRequest::exact(
+            // Preserve the reference trajectory's coordinate-correction contract.
+            // Re-evaluating (V_next - V)/h has a roundoff floor proportional to
+            // eps*|V|/h; a voltage tolerance is not a derivative residual tolerance.
+            Some(crate::CommonSolvePolicy::Newton {
+                linear: crate::CommonLinearRequest::exact(
                     eqiora_solver::SolverPlan::new(
                         eqiora_solver::LinearSolver::BiConjugateGradientStabilized,
                         1e-13,
@@ -55,7 +58,14 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
                     eqiora_solver::REFERENCE_SOLVER_PROVIDER,
                 )
                 .unwrap(),
-            )),
+                nonlinear: eqiora_realization::NonlinearSolvePlan::new(
+                    0.,
+                    1e-14,
+                    std::num::NonZeroUsize::new(8).unwrap(),
+                    8,
+                )
+                .unwrap(),
+            }),
             &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
