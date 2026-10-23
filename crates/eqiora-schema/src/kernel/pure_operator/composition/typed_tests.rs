@@ -235,3 +235,73 @@ fn complete_index_domains_fit_existing_depth_limits_for_wide_arrays() {
     let value = caller.index(&argument.into(), 299).unwrap();
     caller.finish(value).unwrap();
 }
+
+#[test]
+fn constructed_arrays_keep_width_separate_from_formal_count_and_fail_atomically() {
+    let output =
+        PureValueClass::from_value_type(scalar().exact_type().unwrap().clone().array(300).unwrap())
+            .unwrap();
+    let mut caller = CalculusBuilder::new([scalar()], output).unwrap();
+    let input = caller
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let before = (caller.nodes.clone(), caller.depths.clone());
+    assert_eq!(
+        caller.array(&[]),
+        Err(PureOperatorError::FormalTypeMismatch)
+    );
+    assert_eq!((caller.nodes.clone(), caller.depths.clone()), before);
+    assert_eq!(
+        caller.array(&vec![CalculusArgument::from(input); MAX_NODES + 1]),
+        Err(PureOperatorError::NodeLimit)
+    );
+    assert_eq!((caller.nodes.clone(), caller.depths.clone()), before);
+    let values = vec![CalculusArgument::from(input); 300];
+    let root = caller.array(&values).unwrap();
+    let mut full = CalculusBuilder {
+        formals: caller.formals.clone(),
+        result: caller.result.clone(),
+        nodes: caller.nodes.clone(),
+        depths: caller.depths.clone(),
+    };
+    caller.finish(root).unwrap();
+    while full.nodes.len() < MAX_NODES {
+        full.push(CalculusNode::Rational {
+            value: ExactRational::integer(0),
+            dimension: DimExponents::DIMENSIONLESS,
+        })
+        .unwrap();
+    }
+    let before = (full.nodes.clone(), full.depths.clone());
+    assert_eq!(full.array(&values), Err(PureOperatorError::NodeLimit));
+    assert_eq!((full.nodes, full.depths), before);
+}
+
+#[test]
+fn constructed_array_embeds_each_element_in_the_common_scalar_domain() {
+    let real = PureValueClass::from_value_type(
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+    )
+    .unwrap();
+    let output =
+        PureValueClass::from_value_type(scalar().exact_type().unwrap().clone().array(2).unwrap())
+            .unwrap();
+    let mut caller = CalculusBuilder::new([real, scalar()], output).unwrap();
+    let a = caller
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let b = caller
+        .push(CalculusNode::FormalComponent {
+            formal: 1,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let root = caller.array(&[a.into(), b.into()]).unwrap();
+    caller.finish(root).unwrap();
+}

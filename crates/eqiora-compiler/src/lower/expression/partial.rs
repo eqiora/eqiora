@@ -233,7 +233,8 @@ impl ExpressionLowerer<'_> {
                         inputs.push(value.clone());
                     }
                 }
-                LoweringExpressionNode::Jvp { .. }
+                LoweringExpressionNode::Array(_)
+                | LoweringExpressionNode::Jvp { .. }
                 | LoweringExpressionNode::Vjp { .. }
                 | LoweringExpressionNode::Index { .. }
                 | LoweringExpressionNode::Select { .. }
@@ -523,6 +524,17 @@ impl ComponentCompiler<'_> {
                 formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
                 axes: self.axes(literals[&(Arc::as_ptr(&expression.node) as usize)]),
             },
+            LoweringExpressionNode::Array(elements) => {
+                let arguments = elements
+                    .iter()
+                    .map(|value| self.argument(value, builder, cache))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let id = builder
+                    .array(&arguments)
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+                cache.insert(key, id);
+                return Ok(id);
+            }
             LoweringExpressionNode::Index { value, index } => {
                 let argument = self.argument(value, builder, cache)?;
                 let id = builder

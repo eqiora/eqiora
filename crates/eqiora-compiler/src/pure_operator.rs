@@ -141,6 +141,9 @@ fn compile_local(
             ));
         }
         match expression.kind() {
+            ExprKind::Array(values) => {
+                pending.extend(values.iter().map(|value| (value, depth + 1)));
+            }
             ExprKind::Partial { value, .. } => pending.push((value, depth + 1)),
             ExprKind::Index { value, index } => {
                 pending.extend([(value.as_ref(), depth + 1), (index.as_ref(), depth + 1)]);
@@ -335,6 +338,17 @@ fn compile_expression(
     builder: &mut CalculusBuilder,
 ) -> Result<CalculusNodeId, Diagnostic> {
     let node = match expression.kind() {
+        ExprKind::Array(elements) => {
+            let arguments = elements
+                .iter()
+                .map(|value| {
+                    composition::compile_argument(file, value, formals, sources, compiled, builder)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return builder
+                .array(&arguments)
+                .map_err(|error| kernel_error(file, expression.range(), error));
+        }
         ExprKind::Index { .. } => {
             return composition::compile_index(
                 file, expression, formals, sources, compiled, builder,
