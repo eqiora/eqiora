@@ -13,6 +13,9 @@ use crate::region_assembly::mapping::{
 use crate::spatial_expression::Coefficient;
 use eqiora_time::ImplicitTimeSystem;
 
+type RealRegionAssembly<S> =
+    MappedRegionAssembly<S, <RegionDofMap<S> as RegionAlgebraicCoordinates<f64, S>>::Projection>;
+
 pub(in crate::numerical_admission) struct SpatialImplicitSystem<'a, S: Coefficient> {
     plan: &'a CommonSpatialPlan,
     equations: &'a ExecutableSpatialEquations<S>,
@@ -69,16 +72,7 @@ where
         &self,
         time_s: f64,
         derivative: &[f64],
-    ) -> Result<
-        (
-            MappedRegionAssembly<
-                S,
-                <RegionDofMap<S> as RegionAlgebraicCoordinates<f64, S>>::Projection,
-            >,
-            Vec<f64>,
-        ),
-        Diagnostic,
-    > {
+    ) -> Result<(RealRegionAssembly<S>, Vec<f64>), Diagnostic> {
         let (mapping, input) = self.plan.scalar_assembly_at(self.equations, time_s)?;
         if !mapping.has_same_coordinate_layout(&self.mapping) {
             return Err(invalid(

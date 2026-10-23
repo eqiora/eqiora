@@ -32,7 +32,7 @@ fn matrix_free_tangents_preserve_orientation_and_zero_fixed_directions() {
     for reversed in [false, true] {
         let mut fixture = Fixture::new(3, reversed);
         let n = fixture.rhs.len();
-        let sign = |global: usize| if global % 2 == 0 { 1. } else { -1. };
+        let sign = |global: usize| if global.is_multiple_of(2) { 1. } else { -1. };
         let full_target = fixture.plan.target_id(1).unwrap();
         for cell in &mut fixture.cells {
             let full = cell
