@@ -91,6 +91,16 @@ fn mixed_step_products_preserve_certified_operator_properties() {
             let product = plan
                 .linearize_step(&steps[0].1, &[parameter], &fields)
                 .unwrap();
+            let reopened = plan
+                .validate_differentiated_step_values(
+                    &steps[0].1,
+                    &[parameter],
+                    None,
+                    &fields,
+                    product.relation().accepted_unknowns(),
+                )
+                .unwrap();
+            assert_eq!(reopened, product);
             assert_eq!(
                 product.relation().state_jacobian().properties(),
                 if paired {

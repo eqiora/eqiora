@@ -98,6 +98,16 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             spatial.linear(),
             &[time, 23. * time / 26., time],
         );
+        let reopened = spatial
+            .validate_differentiated_step_values(
+                step,
+                &[parameter],
+                Some(&[3.]),
+                &[field],
+                changed.linearization().relation().accepted_unknowns(),
+            )
+            .unwrap();
+        check_products(&reopened, spatial.linear(), &[time, 23. * time / 26., time]);
         // Independent mass/stiffness recurrence with the p=2 predecessor held:
         // y_1=23*3/26; y_2=((1/3)*(23/13)+(1/6)*2+(23/6)*6)/(13/3).
         let expected = [
@@ -170,6 +180,30 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
         assert!((value - 2.).abs() < 1e-10);
     }
     check_products(changed.linearization(), spatial.linear(), &[1. / 13.; 3]);
+    let reopened = spatial
+        .validate_differentiated_step_values(
+            &steps[0].1,
+            &[parameter],
+            Some(&[10.]),
+            &[field],
+            changed.linearization().relation().accepted_unknowns(),
+        )
+        .unwrap();
+    check_products(&reopened, spatial.linear(), &[1. / 13.; 3]);
+    reopened
+        .validate_nonlinear_update_count(changed.nonlinear_iterations().unwrap())
+        .unwrap();
+    assert!(reopened.validate_nonlinear_update_count(0).is_err());
+    let error = spatial
+        .validate_differentiated_step_values(
+            &steps[0].1,
+            &[parameter],
+            Some(&[10.]),
+            &[field],
+            &[1.; 3],
+        )
+        .unwrap_err();
+    assert!(error.message().contains("residual"), "{error:?}");
     assert!(changed.nonlinear_iterations().unwrap() > 0);
     assert!(!changed.linear_solves().is_empty());
     assert!(

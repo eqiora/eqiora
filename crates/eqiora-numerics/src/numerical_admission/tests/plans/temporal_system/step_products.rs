@@ -130,6 +130,28 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                             &REFERENCE_LINEAR_SOLVER,
                         )
                         .unwrap();
+                    let restored = plan
+                        .validate_differentiated_step_values(
+                            step,
+                            &[parameter],
+                            Some(&[3.]),
+                            &[field],
+                            evaluated.linearization().relation().accepted_unknowns(),
+                        )
+                        .unwrap();
+                    assert_eq!(&restored, evaluated.linearization());
+                    let mut altered = restored.relation().accepted_unknowns().to_vec();
+                    altered[0] += 0.125;
+                    let error = plan
+                        .validate_differentiated_step_values(
+                            step,
+                            &[parameter],
+                            Some(&[3.]),
+                            &[field],
+                            &altered,
+                        )
+                        .unwrap_err();
+                    assert!(error.message().contains("residual"), "{error:?}");
                     assert_eq!(evaluated.linear_solves().len(), 1);
                     assert_eq!(evaluated.linear_solves()[0].solver_plan(), plan.linear());
                     assert_eq!(evaluated.linearization().relation().design_values(), &[3.]);

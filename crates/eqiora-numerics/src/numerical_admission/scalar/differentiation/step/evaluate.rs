@@ -91,6 +91,7 @@ where
                 &input,
                 values,
                 solved.solve_report.residual_target(),
+                None,
             )?;
             (linearization, Primal::Affine(solved.solve_report))
         };

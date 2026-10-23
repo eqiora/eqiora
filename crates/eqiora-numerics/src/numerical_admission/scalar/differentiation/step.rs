@@ -5,6 +5,7 @@ use crate::region_assembly::{
     mapping::{RegionAlgebraicCoordinates, RegionSolveInput},
 };
 mod evaluate;
+mod replay;
 
 impl CommonSpatialPlan {
     /// Linearize one accepted backward-Euler step at the canonical Model point.
@@ -140,6 +141,7 @@ where
             &input,
             values,
             step.residual.expect("reaccepted step").1,
+            None,
         )
     }
 
@@ -149,6 +151,7 @@ where
         input: &RegionSolveInput<S>,
         values: Vec<f64>,
         target: f64,
+        initial: Option<crate::nonlinear_execution::NewtonInitialPoint>,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let coordinates = RegionRealCoordinates::new(mapping)?;
         let prepared = match self.plan.admission.resources() {
@@ -171,6 +174,6 @@ where
             RegionPoint::Bound(&values),
             &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
         )?;
-        self.assembled_linearization(mapping, input, values, assembly, target, None)
+        self.assembled_linearization(mapping, input, values, assembly, target, initial)
     }
 }
