@@ -151,7 +151,6 @@ fn global_coordinate_weak_form_preserves_model_test_type_and_canonical_replay() 
 fn global_weak_typing_rejects_wrong_conjugation_basis_and_spatial_operations() {
     for source in [
         SOURCE.replace("inner(eta,h*u)", "inner(h*u,eta)"),
-        SOURCE.replace("inner(eta,h*u)", "inner(eta,math.conj(h*u))"),
         SOURCE.replace("test eta:1 for u;", "test eta:1 for u zero_on boundary;"),
         SOURCE.replace("inner(eta,h*u)", "inner(grad(eta),grad(h*u))"),
         SOURCE
@@ -172,6 +171,9 @@ fn global_weak_typing_rejects_wrong_conjugation_basis_and_spatial_operations() {
 #[test]
 fn finite_coordinate_scaling_uses_shared_value_type_rules() {
     for source in [
+        // State conjugation is well typed; only test dependence is graded here.
+        // This replacement also changes the strong Relation to match the form.
+        SOURCE.replace("h*u", "math.conj(h*u)"),
         SOURCE.replace("h*u", "u*h"),
         SOURCE.replace("h*u", "u/h"),
         SOURCE.replace(
@@ -204,9 +206,11 @@ fn finite_map_application_retains_complex_coefficients_and_nominal_endpoints() {
             .unwrap()
             .contains("apply")
     );
+    // A conjugated State remains well typed through its nominal map endpoints.
+    // Strong/weak correspondence and Hermitian operator admission are separate.
+    compile(&source.replace("apply(h,u)", "apply(h,math.conj(u))")).unwrap();
     for wrong in [
         source.replace("inner(eta,apply(h,u))", "inner(apply(h,u),eta)"),
-        source.replace("inner(eta,apply(h,u))", "inner(eta,apply(h,math.conj(u)))"),
         source.replace("inner(eta,apply(h,u))", "inner(eta,apply(u,h))"),
         source
             .replace(

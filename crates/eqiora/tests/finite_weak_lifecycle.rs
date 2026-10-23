@@ -133,6 +133,10 @@ fn real_and_complex_weak_forms_execute_and_replay_with_exact_authored_identity()
 #[test]
 fn correspondence_does_not_admit_changed_coefficients_or_infer_hermitian_structure() {
     for wrong in [
+        // Conjugating State is well typed, but changing only the weak equation
+        // must reject here against the unchanged original strong Relation.
+        SOURCE.replace("inner(eta,apply(h,u))", "inner(eta,math.conj(apply(h,u)))"),
+        SOURCE.replace("inner(eta,apply(h,u))", "inner(eta,apply(h,math.conj(u)))"),
         SOURCE.replace("inner(eta,apply(h,u))", "inner(eta,2*apply(h,u))"),
         SOURCE.replace(
             "inner(eta,apply(h,u))",
