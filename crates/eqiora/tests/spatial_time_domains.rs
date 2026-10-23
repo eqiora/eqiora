@@ -120,6 +120,14 @@ fn resolve_source(
     step: f64,
     solve: CommonSolvePolicy,
 ) -> Result<ResolvedCommonPlan, String> {
+    resolve_source_document(source, step, solve).map(|(_, plan)| plan)
+}
+
+fn resolve_source_document(
+    source: &str,
+    step: f64,
+    solve: CommonSolvePolicy,
+) -> Result<(ModelDocument, ResolvedCommonPlan), String> {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0., 1.]).unwrap();
     let sides = interval.boundaries();
@@ -180,7 +188,7 @@ fn resolve_source(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    ResolvedCommonPlan::resolve(
+    let plan = ResolvedCommonPlan::resolve(
         &ModelEnvelope::from_program(document.program()).unwrap(),
         owner,
         CommonSpatialPolicy::Q1,
@@ -191,7 +199,8 @@ fn resolve_source(
         None,
         None,
     )
-    .map_err(|e| format!("resolve: {e:?}"))
+    .map_err(|e| format!("resolve: {e:?}"))?;
+    Ok((document, plan))
 }
 fn linear() -> CommonLinearRequest {
     let solver = SolverPlan::new(
@@ -564,3 +573,6 @@ fn prescribed_branch_failure_keeps_the_accepted_spatial_state() {
     };
     assert!(error.message().contains("domain"), "{error:?}");
 }
+
+#[path = "spatial_time_domains/material.rs"]
+mod material;
