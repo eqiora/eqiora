@@ -3,7 +3,7 @@
 use eqiora_backend_diffsol::DiffsolTimeBackend;
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_time::{
-    InitialConditionPolicy, TimeEquationClass, TimeMethod, TimePlan, TimeProblem, TimeSystem,
+    ImplicitDaeInitialization, TimeEquationClass, TimeMethod, TimePlan, TimeProblem, TimeSystem,
 };
 
 struct FailingDecay {
@@ -48,8 +48,7 @@ fn callback_failure_precedes_native_history_acceptance() {
             let problem = TimeProblem::new(
                 &system,
                 TimeEquationClass::ExplicitOde,
-                InitialConditionPolicy::Provided,
-                vec![1.0],
+                ImplicitDaeInitialization::accepted(vec![1.0], vec![-1.0]).unwrap(),
             )
             .unwrap();
             let plan = TimePlan::new(method, 0.0, 1e-3, 1e-8, vec![1e-10], vec![1.0]).unwrap();

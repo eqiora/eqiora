@@ -297,7 +297,7 @@ fn exact_jacobian(
         let Some(column) = coordinate(symbol, variables, context) else {
             continue;
         };
-        for (atom, coefficients) in operator.additive_terms(inputs, symbol)? {
+        for (atom, coefficients) in operator.additive_terms(inputs, &[symbol])? {
             let linearization = atom.linearize_typed(
                 std::slice::from_ref(&inputs[slot]),
                 &[DifferentiationRole::Unknown],

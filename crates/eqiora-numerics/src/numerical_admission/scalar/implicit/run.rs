@@ -3,8 +3,7 @@ use super::*;
 use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
 use crate::form_compiler::region::coordinates::{self, Real};
 use eqiora_time::{
-    ImplicitMidpointTimeBackend, InitialConditionPolicy, TimeEquationClass, TimeMethod, TimePlan,
-    TimeProblem, TimeSolution,
+    ImplicitMidpointTimeBackend, TimeEquationClass, TimeMethod, TimePlan, TimeProblem, TimeSolution,
 };
 
 impl CommonTransientRunRequest {
@@ -82,10 +81,10 @@ where
                     implicit: self,
                     backend,
                 };
-                let problem = TimeProblem::new(
+                let problem = TimeProblem::from_state(
                     &system,
                     TimeEquationClass::ExplicitOde,
-                    InitialConditionPolicy::Provided,
+                    plan.start_time(),
                     initial,
                 )?;
                 let solution = solve(&problem, &plan)?;

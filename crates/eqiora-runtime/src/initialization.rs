@@ -1,9 +1,13 @@
+mod constraints;
+use constraints::{ConstraintAction, linearized_constraint_actions};
+
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig};
 use eqiora_time::ImplicitDaeInitialization;
+use num_rational::BigRational;
+use num_traits::Signed;
 
 use crate::time::invalid_time;
 
@@ -97,12 +101,6 @@ pub(crate) fn require_zero_parameter_tangent(
     relation: Id<kinds::Relation>,
     initial_time: f64,
 ) -> Result<(), Diagnostic> {
-    let unsupported = || {
-        invalid_time(
-            relation,
-            "initial constraints do not prove a unique zero initial-state Parameter tangent",
-        )
-    };
     let initial = initialize(
         kernel,
         fields,
@@ -111,7 +109,6 @@ pub(crate) fn require_zero_parameter_tangent(
         ReferenceConfig::new(0.0, 1.0)?,
     )?;
     let n = fields.len();
-    let width = 2 * n + parameters.len();
     let rows = linearized_constraints(
         kernel,
         fields,
@@ -121,11 +118,219 @@ pub(crate) fn require_zero_parameter_tangent(
         &initial,
         true,
     )?;
-    let derivative_rank = rank(&rows, n..2 * n)?;
-    if rank(&rows, 0..2 * n)? != n + derivative_rank || rank(&rows, n..width)? != derivative_rank {
-        return Err(unsupported());
+    require_zero_state_parameter_tangent(&rows, n, parameters.len(), relation)
+}
+
+fn require_zero_state_parameter_tangent(
+    rows: &[Vec<f64>],
+    n: usize,
+    parameters: usize,
+    relation: Id<kinds::Relation>,
+) -> Result<(), Diagnostic> {
+    let derivative_rank = rank(rows, n..2 * n)?;
+    if rank(rows, 0..2 * n)? != n + derivative_rank
+        || rank(rows, n..2 * n + parameters)? != derivative_rank
+    {
+        return Err(invalid_time(
+            relation,
+            "initial constraints do not prove a unique zero initial-state Parameter tangent",
+        ));
     }
     Ok(())
+}
+
+/// Differentiate the same initial equations, preserving the zero unused-rate convention.
+pub(crate) fn initial_rate_parameter_tangent(
+    kernel: &KernelProgram,
+    fields: &[eqiora_core::TimeStateCoordinate],
+    parameters: &[Id<kinds::Parameter>],
+    relation: Id<kinds::Relation>,
+    time: f64,
+    initial: &ImplicitDaeInitialization,
+    direction: &[f64],
+) -> Result<Vec<f64>, Diagnostic> {
+    let n = fields.len();
+    if initial.state().len() != n
+        || direction.len() != parameters.len()
+        || direction.iter().any(|value| !value.is_finite())
+    {
+        return Err(invalid_time(
+            relation,
+            "initial rate Parameter action has invalid shape or values",
+        ));
+    }
+    let rows = linearized_constraints(kernel, fields, parameters, relation, time, initial, true)?;
+    require_zero_state_parameter_tangent(&rows, n, parameters.len(), relation)?;
+    let authored = fields
+        .iter()
+        .map(|coordinate| {
+            kernel.nodes().any(|node| match node {
+                KernelNode::Relation(definition) => {
+                    definition.expression().nodes().iter().any(|node| {
+                        matches!(node, ExprNode::Symbol(SymbolRef::Derivative(field, order))
+                    if *field == coordinate.field() && order.get() > coordinate.derivative_order())
+                    })
+                }
+                _ => false,
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut action_rows = Vec::new();
+    let mut rhs = Vec::new();
+    for row in &rows {
+        let mut mass = row[n..2 * n].to_vec();
+        mass.resize(2 * n, 0.0);
+        action_rows.push(mass);
+        rhs.push(
+            -row[2 * n..]
+                .iter()
+                .zip(direction)
+                .map(|(&a, &b)| exact(a) * exact(b))
+                .sum::<BigRational>(),
+        );
+    }
+    // Demand time compatibility only for rate directions that the continuous
+    // equations leave undetermined. In particular a full-rank rate
+    // block needs no time derivative of forcing at a table knot or branch.
+    // Unused adapter rates have their existing zero convention.
+    let mut determined_rows = action_rows.clone();
+    let mut determined_rhs = rhs.clone();
+    for (index, &active) in authored.iter().enumerate() {
+        if !active {
+            let mut row = vec![0.0; 2 * n];
+            row[index] = 1.0;
+            determined_rows.push(row);
+            determined_rhs.push(exact(0.0));
+        }
+    }
+    let continuous_rows =
+        linearized_constraints(kernel, fields, parameters, relation, time, initial, false)?;
+    // Initial equations may fix otherwise free rates at only one Parameter
+    // value. They cannot erase the continuous constraint's tangent condition.
+    // Skip that condition only when the continuous mass block itself fixes
+    // every authored rate; unused algebraic rates remain existential.
+    if rank(&continuous_rows, n..2 * n)? == authored.iter().filter(|&&active| active).count() {
+        let mut values = solve_initial_action(&determined_rows, &determined_rhs, relation)?;
+        values.truncate(n);
+        return Ok(values);
+    }
+    let mass = matrix_proof(&continuous_rows, n..2 * n)?;
+    let (continuous, _) = linearized_constraint_actions(
+        kernel,
+        fields,
+        parameters,
+        relation,
+        (time, initial),
+        ConstraintAction::Time {
+            mass: &mass,
+            mixed: None,
+        },
+    )?;
+    // Recover the physical time direction, including algebraic coordinates
+    // whose adapter rates are unused. For constant M, differentiating F=0
+    // gives A*r + M*a + F_t=0. The acceleration is only an elimination
+    // variable: the existing exact projection owns this compatibility solve.
+    let mut physical_rows = Vec::new();
+    let mut physical_rhs = Vec::new();
+    for row in &continuous {
+        let mut mass = row[n..2 * n].to_vec();
+        mass.resize(2 * n, 0.0);
+        physical_rows.push(mass);
+        physical_rhs.push(
+            row[n..2 * n]
+                .iter()
+                .zip(initial.derivative())
+                .map(|(&a, &b)| exact(a) * exact(b))
+                .sum(),
+        );
+        physical_rows.push(row[..2 * n].to_vec());
+        physical_rhs.push(-exact(*row.last().expect("time column")));
+    }
+    for (index, &active) in authored.iter().enumerate() {
+        if active {
+            let mut row = vec![0.0; 2 * n];
+            row[index] = 1.0;
+            physical_rows.push(row);
+            physical_rhs.push(exact(initial.derivative()[index]));
+        }
+    }
+    let physical = solve_initial_action(&physical_rows, &physical_rhs, relation)?;
+    let (_, mixed) = linearized_constraint_actions(
+        kernel,
+        fields,
+        parameters,
+        relation,
+        (time, initial),
+        ConstraintAction::Time {
+            mass: &mass,
+            mixed: Some((&physical[..n], direction)),
+        },
+    )?;
+    // Differentiate both F=0 and its time compatibility equation. With
+    // parameter-independent M and the certified zero initial state tangent:
+    // M*q=-F_p*dp; A*q+M*b=-D²F[(r,1),dp].
+    for (row, value) in continuous.iter().zip(mixed) {
+        action_rows.push(row[..2 * n].to_vec());
+        rhs.push(-exact(value));
+    }
+    let mut values = solve_initial_action(&action_rows, &rhs, relation)?;
+    values.truncate(n);
+    for (value, active) in values.iter_mut().zip(authored) {
+        if !active {
+            *value = 0.0;
+        }
+    }
+    Ok(values)
+}
+
+fn exact(value: f64) -> BigRational {
+    BigRational::from_float(value).expect("validated finite initial Jacobian")
+}
+
+fn solve_initial_action(
+    rows: &[Vec<f64>],
+    rhs: &[BigRational],
+    relation: Id<kinds::Relation>,
+) -> Result<Vec<f64>, Diagnostic> {
+    let width = rows.first().map_or(0, Vec::len);
+    let matrix = matrix_proof(rows, 0..width)?;
+    // The auxiliary acceleration may be free, but the physical rate/action
+    // must be uniquely fixed. A basic column witness alone cannot prove this.
+    let n = width / 2;
+    if matrix.exact_rank() != n + rank(rows, n..width)? {
+        return Err(invalid_time(
+            relation,
+            "initial compatibility equations do not determine a unique rate action",
+        ));
+    }
+    let mut padded_rhs = rhs.to_vec();
+    padded_rhs.resize(matrix.dimension(), BigRational::from_integer(0.into()));
+    let mut values = matrix
+        .compatibility_projection(&[], &padded_rhs)?
+        .coefficients()?;
+    values.truncate(width);
+    // Check rounded coefficients in the original rows. Each correctly rounded
+    // coefficient's error is bounded by epsilon*|q| + one minimum subnormal.
+    // All products/sums here are exact, so no row-scale tolerance is invented.
+    let epsilon = exact(f64::EPSILON);
+    let tiny = exact(f64::from_bits(1));
+    for (row, target) in rows.iter().zip(rhs) {
+        let mut residual = -target;
+        let mut bound = BigRational::from_integer(0.into());
+        for (&coefficient, &value) in row.iter().zip(&values) {
+            let coefficient = exact(coefficient);
+            let value = exact(value);
+            residual += &coefficient * &value;
+            bound += coefficient.abs() * (&epsilon * value.abs() + &tiny);
+        }
+        if residual.abs() > bound {
+            return Err(invalid_time(
+                relation,
+                "rounded initial rate Parameter tangent leaves the original initial equations",
+            ));
+        }
+    }
+    Ok(values)
 }
 
 /// At a fresh initial point, a constant-mass system needs its algebraic
@@ -200,114 +405,21 @@ fn linearized_constraints(
     initial: &ImplicitDaeInitialization,
     include_initial: bool,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    let unsupported = || {
-        invalid_time(
-            relation,
-            "initial constraint linearization contains an unsupported symbol",
-        )
-    };
-    let n = fields.len();
-    let width = 2 * n + parameters.len();
-    let mut rows = Vec::new();
-    for node in kernel.nodes() {
-        let KernelNode::Relation(definition) = node else {
-            continue;
-        };
-        if definition.id() != relation && !(include_initial && definition.is_initial()) {
-            continue;
-        }
-        let typed = kernel
-            .typed_relation_residual(definition.id())
-            .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
-        let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
-        let mut inputs = Vec::new();
-        let mut roles = Vec::new();
-        let mut coordinates = Vec::new();
-        for symbol in operator.symbols() {
-            let (value, coordinate) = match symbol {
-                SymbolRef::Field(field) => {
-                    let index = fields
-                        .iter()
-                        .position(|candidate| {
-                            *candidate == eqiora_core::TimeStateCoordinate::new(*field, 0, 0, false)
-                        })
-                        .ok_or_else(unsupported)?;
-                    (initial.state()[index], Some(index))
-                }
-                SymbolRef::Derivative(field, order) => {
-                    if let Some(index) = fields.iter().position(|candidate| {
-                        *candidate
-                            == eqiora_core::TimeStateCoordinate::new(*field, order.get(), 0, false)
-                    }) {
-                        (initial.state()[index], Some(index))
-                    } else {
-                        let index = fields
-                            .iter()
-                            .position(|candidate| {
-                                *candidate
-                                    == eqiora_core::TimeStateCoordinate::new(
-                                        *field,
-                                        order.get() - 1,
-                                        0,
-                                        false,
-                                    )
-                            })
-                            .ok_or_else(unsupported)?;
-                        (initial.derivative()[index], Some(n + index))
-                    }
-                }
-                SymbolRef::Parameter(parameter) => {
-                    let value = kernel
-                        .value(parameter.erase())
-                        .ok_or_else(unsupported)?
-                        .value();
-                    let coordinate = parameters
-                        .iter()
-                        .position(|candidate| candidate == parameter)
-                        .map(|index| 2 * n + index);
-                    (value, coordinate)
-                }
-                SymbolRef::Time => (initial_time, None),
-                _ => return Err(unsupported()),
-            };
-            inputs.push(value);
-            roles.push(if coordinate.is_some() {
-                DifferentiationRole::Unknown
-            } else {
-                DifferentiationRole::Frozen
-            });
-            if let Some(coordinate) = coordinate {
-                coordinates.push(coordinate);
-            }
-        }
-        let linearization = operator.linearize(&inputs, &roles)?;
-        let mut block = vec![vec![0.0; width]; operator.residual_count()];
-        for (local, coordinate) in coordinates.iter().copied().enumerate() {
-            let mut direction = vec![0.0; coordinates.len()];
-            direction[local] = 1.0;
-            let mut output = vec![0.0; block.len()];
-            linearization.jvp(RelationTangent::Unknown(&direction), &mut output)?;
-            for (row, value) in block.iter_mut().zip(output) {
-                row[coordinate] = value;
-            }
-        }
-        rows.extend(block);
-    }
-    for (coordinate, source) in fields.iter().enumerate() {
-        let (field, order) = (source.field(), source.derivative_order());
-        if let Some(next) = fields.iter().position(|candidate| {
-            *candidate == eqiora_core::TimeStateCoordinate::new(field, order + 1, 0, false)
-        }) {
-            let mut row = vec![0.; width];
-            row[n + coordinate] = 1.;
-            row[next] = -1.;
-            rows.push(row);
-        }
-    }
-    Ok(rows)
+    Ok(linearized_constraint_actions(
+        kernel,
+        fields,
+        parameters,
+        relation,
+        (initial_time, initial),
+        ConstraintAction::Jacobian { include_initial },
+    )?
+    .0)
 }
 
-fn rank(rows: &[Vec<f64>], columns: std::ops::Range<usize>) -> Result<usize, Diagnostic> {
+fn matrix_proof(
+    rows: &[Vec<f64>],
+    columns: std::ops::Range<usize>,
+) -> Result<eqiora_time::ConstantDerivativeMatrixProof, Diagnostic> {
     // Padding changes neither column span nor rank and reuses the existing
     // exact binary-rational matrix proof rather than a second rank threshold.
     let size = rows.len().max(columns.len());
@@ -317,7 +429,11 @@ fn rank(rows: &[Vec<f64>], columns: std::ops::Range<usize>) -> Result<usize, Dia
             square[row * size + column] = values[source];
         }
     }
-    Ok(eqiora_time::ConstantDerivativeMatrixProof::new(size, square)?.exact_rank())
+    eqiora_time::ConstantDerivativeMatrixProof::new(size, square)
+}
+
+fn rank(rows: &[Vec<f64>], columns: std::ops::Range<usize>) -> Result<usize, Diagnostic> {
+    Ok(matrix_proof(rows, columns)?.exact_rank())
 }
 
 #[cfg(test)]

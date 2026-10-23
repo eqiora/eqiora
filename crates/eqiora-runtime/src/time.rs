@@ -17,8 +17,8 @@ use eqiora_ir::{
 use eqiora_schema::kernel::{ActivationKind, KernelNode, SymbolRef};
 use eqiora_time::{
     ConstantDerivativeMatrixProof, ForwardSensitivityProblem, ImplicitDaeInitialization,
-    InitialConditionPolicy, MassParameterDependence, ParametricTimeSystem, TimeEquationClass,
-    TimeLoweringProof, TimeProblem, TimeSystem,
+    MassParameterDependence, ParametricTimeSystem, TimeEquationClass, TimeLoweringProof,
+    TimeProblem, TimeSystem,
 };
 
 use eqiora_sem::{KernelProgram, ReferenceConfig};
@@ -163,12 +163,6 @@ impl FirstOrderProgram {
         self.proof.equation_class()
     }
 
-    /// Initial-condition meaning required by the proven equation class.
-    #[must_use]
-    pub const fn initial_condition_policy(&self) -> InitialConditionPolicy {
-        self.proof.initial_condition_policy()
-    }
-
     /// Construct the sole backend-neutral time problem from this projection.
     ///
     /// # Errors
@@ -177,10 +171,7 @@ impl FirstOrderProgram {
         TimeProblem::new(
             self,
             self.equation_class(),
-            self.initial_condition_policy(),
-            self.initialize(0.0, ReferenceConfig::new(0.0, 1.0)?)?
-                .state()
-                .to_vec(),
+            self.initialize(0.0, ReferenceConfig::new(0.0, 1.0)?)?,
         )
     }
 
@@ -197,10 +188,7 @@ impl FirstOrderProgram {
         ForwardSensitivityProblem::new(
             self,
             self.equation_class(),
-            self.initial_condition_policy(),
-            self.initialize(initial_time, ReferenceConfig::new(0.0, 1.0)?)?
-                .state()
-                .to_vec(),
+            self.initialize(initial_time, ReferenceConfig::new(0.0, 1.0)?)?,
         )
     }
 
@@ -356,6 +344,27 @@ impl ParametricTimeSystem for FirstOrderProgram {
             "initial Parameter direction",
         )?;
         output.fill(0.0);
+        Ok(())
+    }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        time: f64,
+        initial: &ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        self.require_parameter_action_shape(time, initial.state(), direction, output)?;
+        let tangent = super::initialization::initial_rate_parameter_tangent(
+            &self.kernel,
+            &self.state_coordinates,
+            &self.parameter_fields,
+            self.relation,
+            time,
+            initial,
+            direction,
+        )?;
+        output.copy_from_slice(&tangent);
         Ok(())
     }
 }

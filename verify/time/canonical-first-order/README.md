@@ -8,7 +8,8 @@ optional Diffsol adapter.
 The explicit fixture proves a full monomial derivative Jacobian and is
 normalized to `y_dot = f`. The index-one fixture proves a constant monomial
 Jacobian with an exact algebraic zero row, remains a rank-deficient mass
-matrix, and enters BDF with consistent initialization.
+matrix, and enters BDF with the complete pair accepted by the common
+initializer. The adapter reports `Provided` and preserves both State and rate.
 
 Two further fixtures prove complete dense constant matrices. One is full rank;
 the other is singular despite having no literal zero row. Eqiora interprets

@@ -135,10 +135,6 @@ fn lowering_proof_derives_equation_class_from_exact_matrix() {
             rank: MassMatrixRank::RankDeficient
         }
     );
-    assert_eq!(
-        proof.initial_condition_policy(),
-        InitialConditionPolicy::SolveConsistent
-    );
 }
 
 #[test]
@@ -201,10 +197,10 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
 
 #[test]
 fn general_residual_cannot_be_smuggled_through_mass_matrix_contract() {
-    let error = TimeProblem::new(
+    let error = TimeProblem::from_state(
         &ScalarDecay,
         TimeEquationClass::GeneralImplicitDae,
-        InitialConditionPolicy::Provided,
+        0.0,
         vec![1.0],
     )
     .unwrap_err();
@@ -212,28 +208,24 @@ fn general_residual_cannot_be_smuggled_through_mass_matrix_contract() {
 }
 
 #[test]
-fn rank_deficient_mass_matrix_requires_consistency_policy() {
-    let error = TimeProblem::new(
+fn rank_deficient_mass_matrix_requires_an_initial_pair() {
+    let error = TimeProblem::from_state(
         &ScalarDecay,
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::RankDeficient,
         },
-        InitialConditionPolicy::Provided,
+        0.0,
         vec![1.0],
     )
     .unwrap_err();
-    assert!(error.message().contains("consistent"));
+    assert!(error.message().contains("uniquely determined derivative"));
 }
 
 #[test]
 fn plan_separates_adaptive_step_from_requested_samples() {
-    let problem = TimeProblem::new(
-        &ScalarDecay,
-        TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.0],
-    )
-    .unwrap();
+    let problem =
+        TimeProblem::from_state(&ScalarDecay, TimeEquationClass::ExplicitOde, 0.0, vec![1.0])
+            .unwrap();
     let plan = TimePlan::new(
         TimeMethod::Tsitouras45,
         0.0,

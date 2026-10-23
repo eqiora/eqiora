@@ -111,10 +111,10 @@ impl CommonTimeRunRequest {
             self.ode_plan()?.ordered_absolute_tolerances.clone(),
             remaining.to_vec(),
         )?;
-        let problem = TimeProblem::new(
+        let problem = TimeProblem::from_state(
             &self.ode_plan()?.program,
             TimeEquationClass::ExplicitOde,
-            InitialConditionPolicy::Provided,
+            time,
             state,
         )?;
         Ok((problem, plan))

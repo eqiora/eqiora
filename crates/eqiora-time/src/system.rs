@@ -102,8 +102,8 @@ pub trait ImplicitTimeSystem {
 ///
 /// This extends the same lowered primal/JVP system rather than introducing a
 /// dual-number simulator or a backend-specific derivative model. Parameters
-/// are fixed at one linearization point; the two methods provide `f_p dp` and
-/// `y0_p dp` actions for arbitrary parameter directions.
+/// are fixed at one linearization point; the actions provide `f_p dp` and the
+/// initial state/rate pair's Parameter tangent for arbitrary directions.
 pub trait ParametricTimeSystem: TimeSystem {
     /// Number of scalar model parameters at this linearization point.
     fn parameter_dimension(&self) -> usize;
@@ -140,6 +140,23 @@ pub trait ParametricTimeSystem: TimeSystem {
     fn initial_parameter_jvp(
         &self,
         time: f64,
+        parameter_direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic>;
+
+    /// Evaluate the Parameter tangent of the accepted initial derivative.
+    ///
+    /// The initial-data owner supplies this alongside `initial_parameter_jvp`;
+    /// a time provider must not infer algebraic coordinates from mass diagonals
+    /// or solve a second initial-value problem. Unused derivative coordinates
+    /// follow the same convention as the supplied initial pair.
+    ///
+    /// # Errors
+    /// Returns a stable diagnostic for an invalid or unproved initial tangent.
+    fn initial_derivative_parameter_jvp(
+        &self,
+        time: f64,
+        initial: &crate::ImplicitDaeInitialization,
         parameter_direction: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic>;

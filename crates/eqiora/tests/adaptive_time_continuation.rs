@@ -7,7 +7,7 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::runtime::FirstOrderProgram;
-use eqiora::time::{InitialConditionPolicy, TimeMethod, TimeProblem, TimeSystem};
+use eqiora::time::{TimeMethod, TimeProblem, TimeSystem};
 use eqiora::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_numerics::{
     CommonOdePlan, CommonOdePolicy, CommonTimeCheckpoint, CommonTimeRunRequest, CommonTrajectory,
@@ -117,8 +117,10 @@ fn stop(request: &CommonTimeRunRequest, time: f64) -> CommonTimeCheckpoint {
             let problem = TimeProblem::new(
                 &system,
                 problem.equation_class(),
-                InitialConditionPolicy::Provided,
-                problem.initial_state().to_vec(),
+                eqiora::time::ImplicitDaeInitialization::accepted(
+                    problem.initial_state().to_vec(),
+                    problem.initial_derivative().to_vec(),
+                )?,
             )?;
             DiffsolTimeBackend::new().advance(&problem, plan, roots, saved, &token, None)
         })

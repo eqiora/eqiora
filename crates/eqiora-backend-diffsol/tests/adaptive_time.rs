@@ -4,10 +4,10 @@ use eqiora_backend_diffsol::DiffsolTimeBackend;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_time::{
-    ForwardSensitivityPlan, ForwardSensitivityProblem, InitialConditionPolicy, MassMatrixRank,
-    MassParameterDependence, ParametricTimeSystem, RegisteredRootProblem, RootActivationGroup,
-    RootFunctions, RootRegistrationId, RootRegistrationProof, TimeEquationClass, TimeMethod,
-    TimePlan, TimeProblem, TimeSystem,
+    ForwardSensitivityPlan, ForwardSensitivityProblem, ImplicitDaeInitialization,
+    InitialConditionPolicy, MassMatrixRank, MassParameterDependence, ParametricTimeSystem,
+    RegisteredRootProblem, RootActivationGroup, RootFunctions, RootRegistrationId,
+    RootRegistrationProof, TimeEquationClass, TimeMethod, TimePlan, TimeProblem, TimeSystem,
 };
 
 struct NonStiffDecay;
@@ -196,6 +196,17 @@ impl ParametricTimeSystem for ParametricDecay {
         output[0] = 0.0;
         Ok(())
     }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        _time: f64,
+        initial: &eqiora_time::ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = -initial.state()[0] * direction[0];
+        Ok(())
+    }
 }
 
 impl TimeSystem for ParametricMassDecay {
@@ -261,6 +272,17 @@ impl ParametricTimeSystem for ParametricMassDecay {
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
         output[0] = 0.0;
+        Ok(())
+    }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        _time: f64,
+        initial: &eqiora_time::ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = -initial.state()[0] * direction[0] / 2.0;
         Ok(())
     }
 }
@@ -334,14 +356,26 @@ impl ParametricTimeSystem for ParametricIndexOne {
         output.fill(0.0);
         Ok(())
     }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        _time: f64,
+        initial: &eqiora_time::ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = -initial.state()[1] * direction[0];
+        output[1] = 0.0;
+        Ok(())
+    }
 }
 
 #[test]
 fn tsitouras45_converges_on_smooth_nonstiff_ode() {
-    let problem = TimeProblem::new(
+    let problem = TimeProblem::from_state(
         &NonStiffDecay,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
+        0.0,
         vec![1.0],
     )
     .unwrap();
@@ -370,10 +404,10 @@ fn tsitouras45_converges_on_smooth_nonstiff_ode() {
 
 #[test]
 fn bdf_resolves_a_stiff_tracking_mode() {
-    let problem = TimeProblem::new(
+    let problem = TimeProblem::from_state(
         &StiffTracking,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
+        0.0,
         vec![1.0],
     )
     .unwrap();
@@ -395,14 +429,13 @@ fn bdf_resolves_a_stiff_tracking_mode() {
 }
 
 #[test]
-fn bdf_makes_rank_deficient_mass_matrix_initial_guess_consistent() {
+fn bdf_preserves_the_common_rank_deficient_initial_pair() {
     let problem = TimeProblem::new(
         &IndexOneConstraint,
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::RankDeficient,
         },
-        InitialConditionPolicy::SolveConsistent,
-        vec![0.0, 0.0],
+        ImplicitDaeInitialization::accepted(vec![0.0, 1.0], vec![1.0, 0.0]).unwrap(),
     )
     .unwrap();
     let output_times = vec![1.0e-4, 0.1, 0.5, 1.0];
@@ -419,7 +452,7 @@ fn bdf_makes_rank_deficient_mass_matrix_initial_guess_consistent() {
     let solution = DiffsolTimeBackend::new().solve(&problem, &plan).unwrap();
     assert_eq!(
         solution.report().initial_condition(),
-        InitialConditionPolicy::SolveConsistent
+        InitialConditionPolicy::Provided
     );
     for (sample, time) in output_times.into_iter().enumerate() {
         let state = solution.state(sample).unwrap();
@@ -436,8 +469,7 @@ fn forward_parameter_jvp_drives_tsitouras_and_bdf_sensitivities() {
     let problem = ForwardSensitivityProblem::new(
         &system,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0], vec![-system.parameters[0]]).unwrap(),
     )
     .unwrap();
     let sensitivity_plan = ForwardSensitivityPlan::new(1.0e-8, vec![1.0e-10]).unwrap();
@@ -481,8 +513,8 @@ fn bdf_forward_sensitivity_requires_and_uses_parameter_independent_mass() {
             TimeEquationClass::MassMatrix {
                 rank: MassMatrixRank::Full,
             },
-            InitialConditionPolicy::Provided,
-            vec![1.0],
+            ImplicitDaeInitialization::accepted(vec![1.0], vec![-unproven.parameters[0] / 2.0])
+                .unwrap(),
         )
         .is_err()
     );
@@ -496,8 +528,7 @@ fn bdf_forward_sensitivity_requires_and_uses_parameter_independent_mass() {
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::Full,
         },
-        InitialConditionPolicy::Provided,
-        vec![1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0], vec![-full.parameters[0] / 2.0]).unwrap(),
     )
     .unwrap();
     let output_times = vec![0.1, 0.5, 1.0, 2.0];
@@ -538,8 +569,8 @@ fn bdf_forward_sensitivity_requires_and_uses_parameter_independent_mass() {
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::RankDeficient,
         },
-        InitialConditionPolicy::SolveConsistent,
-        vec![1.0, 1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0, 1.0], vec![-singular.parameters[0], 0.0])
+            .unwrap(),
     )
     .unwrap();
     let singular_plan = TimePlan::new(
@@ -579,13 +610,9 @@ fn root_is_only_a_proposal_and_reset_restarts_explicitly() {
         ])
         .unwrap();
         let roots = RegisteredRootProblem::new(registration, proof, &ZeroState).unwrap();
-        let problem = TimeProblem::new(
-            &UnitFall,
-            TimeEquationClass::ExplicitOde,
-            InitialConditionPolicy::Provided,
-            vec![1.0],
-        )
-        .unwrap();
+        let problem =
+            TimeProblem::from_state(&UnitFall, TimeEquationClass::ExplicitOde, 0.0, vec![1.0])
+                .unwrap();
         let first_plan =
             TimePlan::new(method, 0.0, 1.0e-3, 1.0e-9, vec![1.0e-11], vec![2.0]).unwrap();
         let first = DiffsolTimeBackend::new()
@@ -601,7 +628,7 @@ fn root_is_only_a_proposal_and_reset_restarts_explicitly() {
         // This is the Eqiora-owned reset/commit boundary. Diffsol never sees a
         // reset callback and therefore cannot decide event ordering semantics.
         let restarted = problem
-            .restart(InitialConditionPolicy::Provided, vec![0.5])
+            .restart(ImplicitDaeInitialization::accepted(vec![0.5], vec![-1.0]).unwrap())
             .unwrap();
         let second_plan = TimePlan::new(
             method,
@@ -637,8 +664,7 @@ fn native_history_and_sensitivity_stencils_are_output_cadence_independent() {
     let problem = ForwardSensitivityProblem::new(
         &system,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0], vec![-system.parameters[0]]).unwrap(),
     )
     .unwrap();
     let sensitivity_plan = ForwardSensitivityPlan::new(1.0e-8, vec![1.0e-10]).unwrap();
@@ -683,8 +709,7 @@ fn samples_at_retained_stencil_times_are_bit_exact() {
     let problem = ForwardSensitivityProblem::new(
         &system,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0], vec![-system.parameters[0]]).unwrap(),
     )
     .unwrap();
     let sensitivity_plan = ForwardSensitivityPlan::new(1.0e-8, vec![1.0e-10]).unwrap();
@@ -744,13 +769,9 @@ fn localized_history_is_cut_natively_and_defers_event_time_output() {
         let roots =
             RegisteredRootProblem::new(RootRegistrationId::from_sha256([9; 32]), proof, &ZeroState)
                 .unwrap();
-        let problem = TimeProblem::new(
-            &UnitFall,
-            TimeEquationClass::ExplicitOde,
-            InitialConditionPolicy::Provided,
-            vec![1.0],
-        )
-        .unwrap();
+        let problem =
+            TimeProblem::from_state(&UnitFall, TimeEquationClass::ExplicitOde, 0.0, vec![1.0])
+                .unwrap();
         let solve = |times| {
             let plan = TimePlan::new(method, 0.0, 1.0e-3, 1.0e-9, vec![1.0e-11], times).unwrap();
             DiffsolTimeBackend::new()
@@ -833,6 +854,18 @@ impl ParametricTimeSystem for ParametricRamp {
         output[0] = 0.0;
         Ok(())
     }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        _time: f64,
+        initial: &eqiora_time::ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        let _ = initial;
+        output[0] = direction[0];
+        Ok(())
+    }
 }
 impl RootFunctions for ParametricRamp {
     fn count(&self) -> usize {
@@ -859,8 +892,7 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
     let problem = ForwardSensitivityProblem::new(
         &system,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![0.25],
+        ImplicitDaeInitialization::accepted(vec![0.25], vec![system.parameters[0]]).unwrap(),
     )
     .unwrap();
     let incomplete = ForwardSensitivityPlan::new(1.0e-9, vec![1.0e-11]).unwrap();
@@ -951,13 +983,9 @@ impl TimeSystem for QuarticClock {
 #[test]
 fn retained_dense_output_reproduces_quartic_clock_between_native_stencil_points() {
     // Integrating y'=4t^3, y(0)=1 gives y=1+t^4 independently of the backend.
-    let problem = TimeProblem::new(
-        &QuarticClock,
-        TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.],
-    )
-    .unwrap();
+    let problem =
+        TimeProblem::from_state(&QuarticClock, TimeEquationClass::ExplicitOde, 0.0, vec![1.])
+            .unwrap();
     let outputs = vec![0.03125, 0.21875, 0.625, 1.];
     let plan = TimePlan::new(
         TimeMethod::Tsitouras45,

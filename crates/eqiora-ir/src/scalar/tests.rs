@@ -499,7 +499,7 @@ fn additive_terms_preserve_singular_atoms_and_canonicalize_across_roots() {
     let squared = builder.powi(root, 2).unwrap();
     let ir = ScalarOperatorIr::lower(&builder.finish([root, twice, squared]).unwrap()).unwrap();
     let terms = ir
-        .additive_terms(std::slice::from_ref(&point), symbol)
+        .additive_terms(std::slice::from_ref(&point), &[symbol])
         .unwrap();
     assert_eq!(terms.len(), 2);
     assert_eq!(
@@ -527,7 +527,7 @@ fn additive_terms_preserve_singular_atoms_and_canonicalize_across_roots() {
     let root = other.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
     let other = ScalarOperatorIr::lower(&other.finish([root]).unwrap()).unwrap();
     assert_eq!(
-        other.additive_terms(&[point], symbol).unwrap()[0].0,
+        other.additive_terms(&[point], &[symbol]).unwrap()[0].0,
         terms[0].0
     );
 }
@@ -573,7 +573,7 @@ fn additive_terms_follow_the_live_scalar_branch_without_demanding_the_other_arm(
             })
             .collect::<Vec<_>>()
     };
-    let terms = ir.additive_terms(&inputs(true), selected).unwrap();
+    let terms = ir.additive_terms(&inputs(true), &[selected]).unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(
         terms[0].1,
@@ -584,7 +584,7 @@ fn additive_terms_follow_the_live_scalar_branch_without_demanding_the_other_arm(
         .evaluate_value_trace(&atom.roots, &mut |_| Some(x_value.clone()))
         .unwrap();
     assert_eq!(values.as_slice(), std::slice::from_ref(&x_value));
-    assert!(ir.additive_terms(&inputs(false), selected).is_err());
+    assert!(ir.additive_terms(&inputs(false), &[selected]).is_err());
 }
 
 #[test]
@@ -602,7 +602,7 @@ fn additive_terms_retain_active_guard_boundaries_and_original_domains() {
     let branch = builder.select(condition, x, zero).unwrap();
     let ir = ScalarOperatorIr::lower(&builder.finish([branch]).unwrap()).unwrap();
     let terms = ir
-        .additive_terms(std::slice::from_ref(&point), symbol)
+        .additive_terms(std::slice::from_ref(&point), &[symbol])
         .unwrap();
     assert_eq!(terms.len(), 1);
     assert!(
@@ -621,7 +621,7 @@ fn additive_terms_retain_active_guard_boundaries_and_original_domains() {
     let ir = ScalarOperatorIr::lower(&builder.finish([canceled]).unwrap()).unwrap();
     let negative =
         ValueLiteral::try_from(DynQuantity::new(-1.0, DimExponents::DIMENSIONLESS)).unwrap();
-    assert!(ir.additive_terms(&[negative], symbol).is_err());
+    assert!(ir.additive_terms(&[negative], &[symbol]).is_err());
 }
 
 #[test]
@@ -650,7 +650,7 @@ fn additive_coefficients_do_not_erase_nonzero_dependence_by_rounding() {
     let small = builder.mul(tiny, g).unwrap();
     let smaller = builder.mul(tiny, small).unwrap();
     let ir = ScalarOperatorIr::lower(&builder.finish([canceled, smaller]).unwrap()).unwrap();
-    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    let terms = ir.additive_terms(&[point], &[symbol]).unwrap();
     let tiny = BigRational::from_float(tiny_value).unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(
@@ -696,7 +696,7 @@ fn additive_coefficients_preserve_frozen_grouping_and_shared_dags() {
             .unwrap(),
     )
     .unwrap();
-    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    let terms = ir.additive_terms(&[point], &[symbol]).unwrap();
     let tenth = BigRational::from_float(0.1).unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(
@@ -727,7 +727,7 @@ fn additive_coefficients_bound_shared_squaring_growth() {
     }
     let root = builder.mul(coefficient, x).unwrap();
     let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
-    let error = ir.additive_terms(&[point], symbol).unwrap_err();
+    let error = ir.additive_terms(&[point], &[symbol]).unwrap_err();
     assert!(format!("{error:?}").contains("exact coefficient budget exceeded"));
 }
 
@@ -755,7 +755,7 @@ fn additive_coefficients_do_not_expand_opaque_or_canceled_frozen_subtrees() {
     let canceled = builder.sub(scaled, scaled).unwrap();
     let ir =
         ScalarOperatorIr::lower(&builder.finish([opaque, coefficient, canceled]).unwrap()).unwrap();
-    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    let terms = ir.additive_terms(&[point], &[symbol]).unwrap();
     assert_eq!(terms.len(), 1);
     assert_eq!(
         terms[0].1,
@@ -819,7 +819,7 @@ fn additive_atoms_retain_the_complete_property_derivative_contract() {
                 .iter()
                 .map(|s| literal(if *s == selected { 2. } else { 3. }))
                 .collect::<Vec<_>>();
-            let terms = ir.additive_terms(&inputs, selected).unwrap();
+            let terms = ir.additive_terms(&inputs, &[selected]).unwrap();
             assert_eq!(terms.len(), 1);
             let (atom, coefficient) = terms.into_iter().next().unwrap();
             assert_eq!(
@@ -859,4 +859,62 @@ fn additive_atoms_retain_the_complete_property_derivative_contract() {
         }
         assert_eq!(atoms[0], atoms[1]);
     }
+}
+
+#[test]
+fn additive_terms_keep_joint_dependence_and_canonicalize_reachable_inputs() {
+    use eqiora_core::ValueLiteral;
+    let x = SymbolRef::Field(Id::<kinds::Field>::new());
+    let p = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let unused = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    let build = |reverse: bool| {
+        let mut builder = ExprDagBuilder::new();
+        if reverse {
+            builder.symbol(unused).unwrap();
+            builder.symbol(x).unwrap();
+        }
+        let parameter = builder.symbol(p).unwrap();
+        let field = builder.symbol(x).unwrap();
+        let product = builder.mul(parameter, field).unwrap();
+        ScalarOperatorIr::lower(&builder.finish([product]).unwrap()).unwrap()
+    };
+    let literal = |value| {
+        ValueLiteral::try_from(DynQuantity::new(value, DimExponents::DIMENSIONLESS)).unwrap()
+    };
+    let mut atoms = Vec::new();
+    for reverse in [false, true] {
+        let operator = build(reverse);
+        let point = operator
+            .symbols()
+            .iter()
+            .map(|symbol| literal(if *symbol == x { 2.0 } else { 0.0 }))
+            .collect::<Vec<_>>();
+        let terms = operator.additive_terms(&point, &[x, p, unused]).unwrap();
+        assert_eq!(terms.len(), 1);
+        assert_eq!(
+            terms[0].1,
+            vec![num_rational::BigRational::from_integer(1.into())]
+        );
+        let atom = &terms[0].0;
+        assert_eq!(atom.symbols(), &[p, x]);
+        let linearization = atom
+            .linearize(&[0.0, 2.0], &[DifferentiationRole::Unknown; 2])
+            .unwrap();
+        let mut output = [0.0];
+        linearization
+            .jvp(RelationTangent::Unknown(&[1.0, 0.0]), &mut output)
+            .unwrap();
+        assert_eq!(output, [2.0]);
+        linearization
+            .mixed_jvp(
+                RelationTangent::Unknown(&[1.0, 0.0]),
+                RelationTangent::Unknown(&[0.0, 1.0]),
+                RelationTangent::Unknown(&[0.0, 0.0]),
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(output, [1.0]);
+        atoms.push(atom.clone());
+    }
+    assert_eq!(atoms[0], atoms[1]);
 }

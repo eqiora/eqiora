@@ -1098,6 +1098,8 @@ dependencies = [
  "eqiora-schema",
  "eqiora-sem",
  "eqiora-time",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]
