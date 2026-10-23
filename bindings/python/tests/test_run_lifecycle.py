@@ -141,6 +141,9 @@ def test_cancellation_claim_stops_at_the_available_adapter_boundary() -> None:
     plan = eqiora.resolve(model, temporal=eqiora.time.ImplicitMidpoint(
         step_s=0.01, relative_tolerance=1e-9,
         absolute_tolerances={(field, 0, 0, False): 1e-11},
+    ), solve=eqiora.solve.Linear(
+        objective=eqiora.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
     ))
     submitted = submit_decay(plan, eqiora.State.initial(plan))
     # Only the admitted adaptive Tsitouras profile retains continuation data.

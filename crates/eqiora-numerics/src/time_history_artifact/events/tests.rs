@@ -59,6 +59,8 @@ fn fixture(max_events: usize) -> CommonOdePlan {
             ],
             &[eqiora_core::ScalarType::F64],
         ),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap()
 }

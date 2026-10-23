@@ -2,9 +2,9 @@
 use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
 use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
+use crate::nonlinear_execution::stage_merit;
 use crate::nonlinear_execution::{NewtonConvergence, NewtonOptions, NewtonStopping};
 use eqiora_time::{AcceptedTimeHistory, ImplicitMidpointTimeBackend, TimeHistoryStep};
-use midpoint::stage_merit;
 
 impl CommonTransientRunRequest {
     pub(crate) fn validate_spatial_time(

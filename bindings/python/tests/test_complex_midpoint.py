@@ -30,7 +30,10 @@ def test_midpoint_complex_plan_samples_and_accepted_restart(complex_parameter):
     tolerances.update({(u, 0, 0, False): 1e-14, (v, 0, 0, False): 1e-14})
     temporal = eqiora.time.ImplicitMidpoint(step_s=0.05, relative_tolerance=1e-12,
                                           absolute_tolerances=tolerances)
-    plan = eqiora.resolve(model, temporal=temporal)
+    plan = eqiora.resolve(model, temporal=temporal, solve=eqiora.solve.Linear(
+        objective=eqiora.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
+    ))
     plan = eqiora.Plan.from_bytes(plan.to_bytes())
     assert plan.capability.scalar_type == "f64"
     assert plan.capability.value_representation == "real-coordinates"

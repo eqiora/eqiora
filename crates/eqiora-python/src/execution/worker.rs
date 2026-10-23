@@ -352,19 +352,15 @@ fn execute_job(
                             DiffsolTimeBackend::new().solve_until_root(problem, roots, plan)
                         })
                     } else {
-                        request
-                            .problem()
-                            .and_then(|problem| {
-                                if request.time_plan()?.method()
-                                    == eqiora::time::TimeMethod::ImplicitMidpoint
-                                {
-                                    eqiora::time::ImplicitMidpointTimeBackend::new()
-                                        .solve(&problem, request.time_plan()?)
-                                } else {
-                                    DiffsolTimeBackend::new().solve(&problem, request.time_plan()?)
-                                }
-                            })
-                            .and_then(|solution| CommonTrajectory::accept_ode(*request, solution))
+                        let backend = request
+                            .plan()
+                            .linear_solver_provider()
+                            .map(resolved_linear_backend)
+                            .transpose()?
+                            .unwrap_or(&FaerLinearSolver);
+                        request.run(backend, |problem, plan| {
+                            DiffsolTimeBackend::new().solve(problem, plan)
+                        })
                     }
                     .map(|trajectory| (trajectory, None))
                 }

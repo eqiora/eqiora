@@ -30,6 +30,20 @@ fn deterministic_plan_rejects_stochastic_models_before_selecting_a_flow() {
                 document.program(),
                 policy,
                 ImplicitMidpointTimeBackend::CAPABILITIES,
+                Some(eqiora_numerics::CommonSolvePolicy::Linear(
+                    eqiora_numerics::CommonLinearRequest::exact(
+                        eqiora_solver::SolverPlan::new(
+                            eqiora_solver::LinearSolver::BiConjugateGradientStabilized,
+                            1e-12,
+                            1e-14,
+                            std::num::NonZeroUsize::new(100).unwrap(),
+                        )
+                        .unwrap(),
+                        eqiora_solver::REFERENCE_SOLVER_PROVIDER,
+                    )
+                    .unwrap(),
+                )),
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )
             .unwrap_err();
             assert!(

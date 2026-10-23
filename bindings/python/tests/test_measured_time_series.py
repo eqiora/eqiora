@@ -111,6 +111,9 @@ def test_measured_force_drives_common_trajectory_and_replays(measured_model, ste
     plan = q.resolve(model, temporal=q.time.ImplicitMidpoint(
         step_s=step, relative_tolerance=1e-11,
         absolute_tolerances={(velocity, 0, 0, False): 1e-13},
+    ), solve=q.solve.Linear(
+        objective=q.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
     ))
     times = tuple(step * index for index in range(1, round(1 / step) + 1))
     result = q.run(plan, state=q.State.initial(plan), until_s=1.0, output_times_s=times)

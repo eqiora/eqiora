@@ -49,22 +49,26 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
                 .collect(),
         )
         .unwrap();
-        let plan =
-            CommonOdePlan::resolve(&model, document.program(), temporal, capabilities).unwrap();
+        let plan = CommonOdePlan::resolve(
+            &model,
+            document.program(),
+            temporal,
+            capabilities,
+            (method == TimeMethod::ImplicitMidpoint).then(linear_policy),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
         let request = |outputs| {
             CommonTimeRunRequest::new(plan.clone(), plan.initial_state(0.).unwrap(), 1., outputs)
                 .unwrap()
         };
         let run = |outputs| {
             let request = request(outputs);
-            let problem = request.problem().unwrap();
-            let solution = if method == TimeMethod::ImplicitMidpoint {
-                ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan().unwrap())
-            } else {
-                DiffsolTimeBackend::new().solve(&problem, request.time_plan().unwrap())
-            }
-            .unwrap();
-            CommonTrajectory::accept_ode(request, solution).unwrap()
+            request
+                .run(&eqiora::solver::REFERENCE_LINEAR_SOLVER, |problem, plan| {
+                    DiffsolTimeBackend::new().solve(problem, plan)
+                })
+                .unwrap()
         };
         let sparse = run(vec![0.25]);
         let dense = run(vec![0.125, 0.25, 0.5, 0.875, 1.]);
@@ -260,4 +264,21 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
             assert_eq!(value.interval_s(), [0.125, 0.875]);
         }
     }
+}
+
+fn linear_policy() -> eqiora_numerics::CommonSolvePolicy {
+    use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, SolverPlan};
+    eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    )
 }

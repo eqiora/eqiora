@@ -111,6 +111,25 @@ impl TimeOperator {
                 Ok(())
             }
         };
+        self.check_bound_affine(relation, selected, bindings, check)
+    }
+
+    pub(super) fn require_affine(
+        &self,
+        relation: Id<kinds::Relation>,
+        selected: &[ScalarSymbolCoordinate],
+        bindings: &[(ScalarSymbolCoordinate, f64)],
+    ) -> Result<(), Diagnostic> {
+        self.check_bound_affine(relation, selected, bindings, |_, _| Ok(()))
+    }
+
+    fn check_bound_affine(
+        &self,
+        relation: Id<kinds::Relation>,
+        selected: &[ScalarSymbolCoordinate],
+        bindings: &[(ScalarSymbolCoordinate, f64)],
+        check: impl Fn(&[f64], &[f64]) -> Result<(), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
         match &self.profile {
             Profile::Scalar(operator) => {
                 let selected = selected
@@ -126,9 +145,7 @@ impl TimeOperator {
                     .map_err(|error| {
                         invalid_time(
                             relation,
-                            format!(
-                                "constant generator requires a structural affine proof: {error:?}"
-                            ),
+                            format!("time equations require a structural affine proof: {error:?}"),
                         )
                     })?;
                 check(affine.coefficients(), affine.offsets())

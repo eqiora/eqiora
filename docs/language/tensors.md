@@ -475,7 +475,9 @@ plan = eqiora.resolve(model, temporal=policy)
 ```
 
 `Tsitouras45` and `ImplicitMidpoint` both provide these methods, which return a new
-policy. `with_hermitian_parameter` checks the whole bound matrix before any division
+policy. For `ImplicitMidpoint`, also pass an explicit `solve=eqiora.solve.Linear(...)`
+for affine dynamics, or `solve=eqiora.solve.Newton(...)` for nonlinear dynamics.
+The admitted solver and provider are retained by Plan serialization. `with_hermitian_parameter` checks the whole bound matrix before any division
 by hbar or other numerical scaling, so small unequal conjugate entries cannot be
 scaled away first. It checks the bound binary64 Parameter, not the symbolic
 expression that produced it, and the Parameter must belong to the same Model. The

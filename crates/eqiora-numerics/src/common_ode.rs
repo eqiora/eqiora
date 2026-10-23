@@ -23,6 +23,7 @@ use crate::CommonTimeCheckpoint;
 pub(crate) use checkpoint::AdaptiveCheckpoint;
 mod hermitian;
 mod history;
+mod midpoint;
 mod norm;
 pub(crate) use norm::ConservedNorm;
 mod events;
@@ -158,6 +159,8 @@ pub struct CommonOdePlan {
     model_id: String,
     model_revision: u64,
     backend: TimeBackendIdentity,
+    pub(crate) nonlinear: Option<eqiora_realization::NonlinearSolvePlan>,
+    pub(crate) linear: Option<crate::numerical_admission::NativeLinearPolicy>,
 }
 
 impl CommonOdePlan {
@@ -179,7 +182,36 @@ impl CommonOdePlan {
         kernel: &KernelProgram,
         temporal: CommonOdePolicy,
         capabilities: eqiora_time::TimeBackendCapabilities,
+        solve: Option<crate::CommonSolvePolicy>,
+        linear_backend: &dyn eqiora_solver::LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
+        let linear = match (temporal.method(), solve) {
+            (TimeMethod::ImplicitMidpoint, Some(solve)) => {
+                let request = match solve {
+                    crate::CommonSolvePolicy::Linear(linear)
+                    | crate::CommonSolvePolicy::Newton { linear, .. } => linear,
+                };
+                Some(crate::numerical_admission::solver_planning::resolve_linear(
+                    request,
+                    eqiora_solver::LinearOperatorProperties::General,
+                    None,
+                    None,
+                    None,
+                    linear_backend,
+                )?)
+            }
+            (TimeMethod::Tsitouras45, None) => None,
+            (TimeMethod::ImplicitMidpoint, None) => {
+                return Err(invalid(
+                    "implicit midpoint requires an explicit Linear or Newton solve policy",
+                ));
+            }
+            _ => {
+                return Err(invalid(
+                    "explicit time integration does not consume a solve policy",
+                ));
+            }
+        };
         let backend = capabilities.identity();
         temporal.validate_backend(capabilities)?;
         if temporal.method() == TimeMethod::ImplicitMidpoint
@@ -293,7 +325,24 @@ impl CommonOdePlan {
         push(&mut identity, backend.id().as_bytes());
         push(&mut identity, backend.version().as_bytes());
         push(&mut identity, b"host-serial");
-        let identity = digest(b"eqiora.common-ode-plan/v2\0", &identity);
+        if let Some(solve) = solve {
+            push(
+                &mut identity,
+                &crate::numerical_admission::plan_artifact::solve_intent_bytes(solve)?,
+            );
+        }
+        if let Some(linear) = &linear {
+            push(
+                &mut identity,
+                &crate::numerical_admission::plan_artifact::solve_intent_bytes(
+                    crate::CommonSolvePolicy::Linear(crate::CommonLinearRequest::exact(
+                        linear.solver,
+                        linear.provider,
+                    )?),
+                )?,
+            );
+        }
+        let identity = digest(b"eqiora.common-ode-plan/v3\0", &identity);
 
         let mut plan = Self {
             model: Arc::new(model.clone()),
@@ -309,6 +358,11 @@ impl CommonOdePlan {
             model_id,
             model_revision,
             backend,
+            nonlinear: match solve {
+                Some(crate::CommonSolvePolicy::Newton { nonlinear, .. }) => Some(nonlinear),
+                _ => None,
+            },
+            linear,
         };
         plan.admit_forward_policy(kernel)?;
         plan.admit_hermitian_parameters(kernel)?;

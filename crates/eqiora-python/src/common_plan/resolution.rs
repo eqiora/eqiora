@@ -78,11 +78,20 @@ pub(super) fn resolve_plan(
     if mesh.is_none() && spatial.is_none() && temporal_handle.is_some() {
         let temporal_handle = temporal_handle.take().expect("present temporal policy");
         if formulation.is_some_and(|value| !value.is_none())
-            || solve.is_some()
             || scaling.is_some_and(|value| !value.is_none())
         {
             return Err(PyTypeError::new_err(
-                "no-Mesh time resolve accepts only model and temporal policy",
+                "no-Mesh time resolve accepts model, temporal and its consumed solve policy",
+            ));
+        }
+        let solve_policy = solve.map(|value| solve_policy(py, value)).transpose()?;
+        if matches!(
+            temporal_handle,
+            TemporalHandle::EulerMaruyama(_) | TemporalHandle::PoissonEvents(_)
+        ) && solve_policy.is_some()
+        {
+            return Err(PyTypeError::new_err(
+                "stochastic time policies do not consume solve",
             ));
         }
         let model_ref = model.borrow(py);
@@ -115,19 +124,28 @@ pub(super) fn resolve_plan(
                 let policy = ode_policy(py, &temporal_handle, &digest)?;
                 let backend = time_backend(&policy);
                 eqiora_numerics::ResolvedCommonPlan::resolve_ode(
-                    artifact, &program, policy, backend,
+                    artifact,
+                    &program,
+                    policy,
+                    backend,
+                    solve_policy.as_ref().map(|(native, _)| *native),
+                    &FaerLinearSolver,
                 )
             }
         }
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let resolved_solve = native
+            .effective_solver()
+            .map(|_| resolved_solve::resolved_solve_from_native(py, &native))
+            .transpose()?;
         drop(model_ref);
         return Ok(PyPlan {
             native,
             model,
             mesh: None,
             spatial: None,
-            requested_solve: None,
-            solve: None,
+            requested_solve: solve_policy.map(|(_, handle)| handle),
+            solve: resolved_solve,
             temporal: Some(temporal_handle),
         });
     }
@@ -260,27 +278,7 @@ pub(super) fn resolve_plan(
             unreachable!("Python constructs exact method requests only in this match")
         }
     };
-    let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
-    {
-        let native = linear.borrow(py).native;
-        (
-            CommonSolvePolicy::Linear(native),
-            RequestedSolveHandle::Linear(linear),
-        )
-    } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
-        let newton_ref = newton.borrow(py);
-        let linear = newton_ref.linear.borrow(py).native;
-        let native = CommonSolvePolicy::Newton {
-            nonlinear: newton_ref.native,
-            linear,
-        };
-        drop(newton_ref);
-        (native, RequestedSolveHandle::Newton(newton))
-    } else {
-        return Err(PyTypeError::new_err(
-            "solve must be eqiora.solve.Linear or eqiora.solve.Newton",
-        ));
-    };
+    let (solve_native, requested_solve_handle) = solve_policy(py, solve)?;
     let model_ref = model.borrow(py);
     let temporal_native = temporal_handle
         .as_ref()
@@ -401,4 +399,30 @@ fn time_backend(
         }
         _ => eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
     }
+}
+
+fn solve_policy(
+    py: Python<'_>,
+    solve: &Bound<'_, PyAny>,
+) -> PyResult<(CommonSolvePolicy, RequestedSolveHandle)> {
+    Ok(if let Ok(linear) = solve.extract::<Py<PyLinear>>() {
+        let native = linear.borrow(py).native;
+        (
+            CommonSolvePolicy::Linear(native),
+            RequestedSolveHandle::Linear(linear),
+        )
+    } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
+        let newton_ref = newton.borrow(py);
+        let linear = newton_ref.linear.borrow(py).native;
+        let native = CommonSolvePolicy::Newton {
+            nonlinear: newton_ref.native,
+            linear,
+        };
+        drop(newton_ref);
+        (native, RequestedSolveHandle::Newton(newton))
+    } else {
+        return Err(PyTypeError::new_err(
+            "solve must be eqiora.solve.Linear or eqiora.solve.Newton",
+        ));
+    })
 }

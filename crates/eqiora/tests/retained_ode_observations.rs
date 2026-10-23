@@ -7,9 +7,7 @@ use eqiora::artifact::ModelEnvelope;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
-use eqiora_numerics::{
-    CommonOdePlan, CommonOdePolicy, CommonResult, CommonTimeRunRequest, CommonTrajectory,
-};
+use eqiora_numerics::{CommonOdePlan, CommonOdePolicy, CommonResult, CommonTimeRunRequest};
 
 #[test]
 fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
@@ -49,8 +47,15 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
                 .collect(),
         )
         .unwrap();
-        let plan =
-            CommonOdePlan::resolve(&model, document.program(), temporal, capabilities).unwrap();
+        let plan = CommonOdePlan::resolve(
+            &model,
+            document.program(),
+            temporal,
+            capabilities,
+            (method == TimeMethod::ImplicitMidpoint).then(linear_policy),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
         let times = vec![0.125, 0.3, 0.875];
         let request = CommonTimeRunRequest::new(
             plan.clone(),
@@ -59,14 +64,11 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
             times.clone(),
         )
         .unwrap();
-        let problem = request.problem().unwrap();
-        let solution = if method == TimeMethod::ImplicitMidpoint {
-            ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan().unwrap())
-        } else {
-            DiffsolTimeBackend::new().solve(&problem, request.time_plan().unwrap())
-        }
-        .unwrap();
-        let trajectory = CommonTrajectory::accept_ode(request, solution).unwrap();
+        let trajectory = request
+            .run(&eqiora::solver::REFERENCE_LINEAR_SOLVER, |problem, plan| {
+                DiffsolTimeBackend::new().solve(problem, plan)
+            })
+            .unwrap();
         let result = CommonResult::accept_trajectory(0., trajectory).unwrap();
         let bytes = result.to_bytes().unwrap();
         let replay = CommonResult::from_bytes(&bytes, result.plan()).unwrap();
@@ -110,4 +112,21 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
             assert!((terminal.value().real_scalar_value().unwrap().value() - 4.).abs() < 2e-12);
         }
     }
+}
+
+fn linear_policy() -> eqiora_numerics::CommonSolvePolicy {
+    use eqiora::solver::{LinearSolver, REFERENCE_SOLVER_PROVIDER, SolverPlan};
+    eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    )
 }

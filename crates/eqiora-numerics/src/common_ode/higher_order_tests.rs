@@ -35,7 +35,15 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         CommonOdePolicy::new(eqiora_time::TimeMethod::Tsitouras45, 0.01, 1e-9, entries).unwrap()
     };
     let temporal = policy(vec![tolerance(1, 2e-11), tolerance(0, 1e-11)]);
-    let plan = CommonOdePlan::resolve(&model, &kernel, temporal.clone(), backend).unwrap();
+    let plan = CommonOdePlan::resolve(
+        &model,
+        &kernel,
+        temporal.clone(),
+        backend,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     assert_eq!(
         plan.state_coordinates().collect::<Vec<_>>(),
         [
@@ -82,15 +90,24 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         );
     }
     assert!(
-        CommonOdePlan::resolve(&model, &kernel, policy(vec![tolerance(0, 1e-11)]), backend)
-            .is_err()
+        CommonOdePlan::resolve(
+            &model,
+            &kernel,
+            policy(vec![tolerance(0, 1e-11)]),
+            backend,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
     );
     assert!(
         CommonOdePlan::resolve(
             &model,
             &kernel,
             policy(vec![tolerance(0, 1e-11), tolerance(2, 2e-11)]),
-            backend
+            backend,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
         .is_err()
     );
@@ -122,7 +139,15 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         .clone()
         .with_forward_sensitivities(1e-9, sensitivities.clone())
         .unwrap();
-    let sensitive = CommonOdePlan::resolve(&model, &kernel, sensitive, backend).unwrap();
+    let sensitive = CommonOdePlan::resolve(
+        &model,
+        &kernel,
+        sensitive,
+        backend,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     let resolved = crate::ResolvedCommonPlan::Time(Box::new((sensitive).into()));
     assert_eq!(
         crate::ResolvedCommonPlan::from_bytes(
@@ -138,5 +163,15 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
     let wrong = temporal
         .with_forward_sensitivities(1e-9, wrong_units)
         .unwrap();
-    assert!(CommonOdePlan::resolve(&model, &kernel, wrong, backend).is_err());
+    assert!(
+        CommonOdePlan::resolve(
+            &model,
+            &kernel,
+            wrong,
+            backend,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
+    );
 }

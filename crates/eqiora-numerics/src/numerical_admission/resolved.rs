@@ -141,34 +141,41 @@ impl ResolvedCommonPlan {
         }
     }
 
-    /// Effective linear solve for a spatial Plan.
+    /// Effective linear solve, including implicit finite-time stages.
     #[must_use]
-    pub const fn effective_solver(&self) -> Option<SolverPlan> {
+    pub fn effective_solver(&self) -> Option<SolverPlan> {
         match self {
             Self::Algebraic(plan) => Some(plan.linear()),
-            Self::Eigen(_) | Self::Time(_) => None,
+            Self::Eigen(_) => None,
+            Self::Time(plan) => plan.as_ode()?.linear.as_ref().map(|linear| linear.solver),
             Self::Spatial(plan) => Some(plan.linear()),
             Self::SteadyStokes(plan) => Some(plan.linear()),
             Self::TransientFlow(plan) => Some(plan.linear()),
         }
     }
 
-    /// Exact spatial solver release, including its declared library inventory.
+    /// Exact linear solver release, including its declared library inventory.
     #[must_use]
-    pub const fn linear_solver_provider(&self) -> Option<SolverProvider> {
+    pub fn linear_solver_provider(&self) -> Option<SolverProvider> {
         match self {
             Self::Algebraic(plan) => Some(plan.solver_provider()),
-            Self::Eigen(_) | Self::Time(_) => None,
+            Self::Eigen(_) => None,
+            Self::Time(plan) => plan.linear_solver_provider(),
             Self::Spatial(plan) => Some(plan.admission.linear.provider),
             Self::SteadyStokes(plan) => Some(plan.admission.linear.provider),
             Self::TransientFlow(plan) => Some(plan.admission.linear.provider),
         }
     }
 
-    pub(crate) const fn linear_execution_provider(&self) -> Option<(ExecutionProvider, usize)> {
+    pub(crate) fn linear_execution_provider(&self) -> Option<(ExecutionProvider, usize)> {
         match self {
             Self::Algebraic(plan) => Some((plan.linear.execution, 1)),
-            Self::Eigen(_) | Self::Time(_) => None,
+            Self::Eigen(_) => None,
+            Self::Time(plan) => plan
+                .as_ode()?
+                .linear
+                .as_ref()
+                .map(|linear| (linear.execution, linear.workers.get())),
             Self::Spatial(plan) => Some((
                 plan.admission.linear.execution,
                 plan.admission.linear.workers.get(),
@@ -186,10 +193,15 @@ impl ResolvedCommonPlan {
 
     /// Linear operator class owned by the resolved capability.
     #[must_use]
-    pub const fn operator_properties(&self) -> Option<LinearOperatorProperties> {
+    pub fn operator_properties(&self) -> Option<LinearOperatorProperties> {
         match self {
             Self::Algebraic(_) => Some(LinearOperatorProperties::General),
-            Self::Eigen(_) | Self::Time(_) => None,
+            Self::Eigen(_) => None,
+            Self::Time(plan) => plan
+                .as_ode()?
+                .linear
+                .as_ref()
+                .map(|_| LinearOperatorProperties::General),
             Self::Spatial(plan) => Some(plan.admission.operator_properties),
             Self::SteadyStokes(_) => Some(LinearOperatorProperties::SymmetricIndefinite),
             Self::TransientFlow(_) => Some(LinearOperatorProperties::General),
@@ -222,10 +234,11 @@ impl ResolvedCommonPlan {
         }
     }
 
-    const fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
+    fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
         match self {
             Self::Algebraic(plan) => Some(&plan.linear),
-            Self::Eigen(_) | Self::Time(_) => None,
+            Self::Eigen(_) => None,
+            Self::Time(plan) => plan.as_ode()?.linear.as_ref(),
             Self::Spatial(plan) => Some(&plan.admission.linear),
             Self::SteadyStokes(plan) => Some(&plan.admission.linear),
             Self::TransientFlow(plan) => Some(&plan.admission.linear),
@@ -234,7 +247,7 @@ impl ResolvedCommonPlan {
 
     /// Program-controlled solver-planning objective when one was requested.
     #[must_use]
-    pub const fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
+    pub fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
         match self.linear_policy() {
             Some(linear) => linear.planning_objective,
             None => None,
@@ -243,7 +256,7 @@ impl ResolvedCommonPlan {
 
     /// Versioned solver-planning policy identity, when applicable.
     #[must_use]
-    pub const fn solver_planning_policy_id(&self) -> Option<&'static str> {
+    pub fn solver_planning_policy_id(&self) -> Option<&'static str> {
         match self.linear_policy() {
             Some(linear) => linear.planning_policy_id,
             None => None,
@@ -252,7 +265,7 @@ impl ResolvedCommonPlan {
 
     /// Selected solver candidate identity, when planning was requested.
     #[must_use]
-    pub const fn selected_solver_candidate_id(&self) -> Option<&'static str> {
+    pub fn selected_solver_candidate_id(&self) -> Option<&'static str> {
         match self.linear_policy() {
             Some(linear) => linear.selected_candidate_id,
             None => None,
@@ -261,7 +274,7 @@ impl ResolvedCommonPlan {
 
     /// Evidence case attached to the selected solver candidate.
     #[must_use]
-    pub const fn selected_solver_evidence_case(&self) -> Option<&'static str> {
+    pub fn selected_solver_evidence_case(&self) -> Option<&'static str> {
         match self.linear_policy() {
             Some(linear) => linear.selected_evidence_case,
             None => None,

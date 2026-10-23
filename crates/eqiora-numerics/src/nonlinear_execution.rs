@@ -228,3 +228,30 @@ fn failed(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn stage_merit(
+    residual: &[f64],
+    scales: &[f64],
+    scaled: bool,
+) -> Result<f64, Diagnostic> {
+    if residual.len() != scales.len() {
+        return Err(failed("midpoint residual and equation scaling differ"));
+    }
+    if !scaled {
+        return eqiora_solver::FixedOrderInnerProduct::norm(
+            &eqiora_solver::SERIAL_LINEAR_EXECUTION,
+            residual,
+        );
+    }
+    let norm = residual
+        .iter()
+        .zip(scales)
+        .fold(0_f64, |norm, (value, scale)| norm.hypot(value / scale));
+    if norm.is_finite() && (norm != 0. || residual.iter().all(|value| *value == 0.)) {
+        Ok(norm)
+    } else {
+        Err(failed(
+            "midpoint scaled residual is non-finite or underflows a nonzero residual",
+        ))
+    }
+}

@@ -446,8 +446,10 @@ impl ResolvedCommonPlan {
         kernel: &KernelProgram,
         temporal: CommonOdePolicy,
         backend: TimeBackendCapabilities,
+        solve: Option<CommonSolvePolicy>,
+        linear_backend: &dyn LinearSolverBackend,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
-        crate::CommonTimePlan::resolve_ode(model, kernel, temporal, backend)
+        crate::CommonTimePlan::resolve_ode(model, kernel, temporal, backend, solve, linear_backend)
             .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)))
     }
 }
@@ -741,15 +743,18 @@ mod derived;
 mod elasticity;
 mod execution;
 mod formulation;
+mod linear_policy;
 mod mesh_artifact;
 mod native;
+
+pub(crate) use linear_policy::{NativeLinearPolicy, ProfileCheckedBackend};
 mod observation;
-mod plan_artifact;
+pub(crate) mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
 pub(super) use scalar::ExecutableSpatialEquations;
-mod solver_planning;
+pub(crate) mod solver_planning;
 mod spatial_planning;
 mod state;
 use state::TimeGrid;

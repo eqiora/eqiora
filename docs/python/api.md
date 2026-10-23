@@ -5787,6 +5787,10 @@ class Tsitouras45:
 
 Implicit midpoint rule with a fixed step and per-coordinate Newton tolerances.
 
+Resolution requires an explicit `solve.Linear` or `solve.Newton` policy.
+Linear requires structurally affine State dependence at each stage. Newton
+uses its iteration and line-search budgets with these per-coordinate
+correction tolerances; its residual tolerances do not control time stages.
 The tolerances control the Newton corrections, not the time-discretization
 error. Output samples are interpolated from the collocation polynomial of
 each completed step, so requesting outputs does not change the steps.

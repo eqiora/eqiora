@@ -65,6 +65,8 @@ fn fixture(
         document.program(),
         policy,
         DiffsolTimeBackend::CAPABILITIES,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     CommonTimeRunRequest::new(

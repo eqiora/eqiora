@@ -103,6 +103,8 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
         )
         .unwrap(),
         eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
+        None,
+        &eqiora::solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     let bytes = String::from_utf8(plan.to_bytes().unwrap()).unwrap();

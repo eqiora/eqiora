@@ -20,6 +20,9 @@ def test_retained_ode_outputs_preserve_complex_shape_rates_time_and_replay():
         step_s=0.25, relative_tolerance=1e-11,
         absolute_tolerances={(field, 0, component, imaginary): 1e-13
                              for component in range(2) for imaginary in (False, True)},
+    ), solve=q.solve.Linear(
+        objective=q.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
     ))
     plan = q.Plan.from_bytes(plan.to_bytes())
     times = (0.125, 0.3, 0.875)

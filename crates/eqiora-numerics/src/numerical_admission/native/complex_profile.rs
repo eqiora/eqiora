@@ -1,4 +1,5 @@
 use super::*;
+use crate::numerical_admission::linear_policy::ProfileCheckedPreparedLinear;
 use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, HostSerialSolverProfile};
 use num_complex::Complex64 as C;
 

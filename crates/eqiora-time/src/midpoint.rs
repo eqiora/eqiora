@@ -1,14 +1,13 @@
 //! Implicit midpoint in the common real-coordinate time lifecycle.
 use crate::diagnostic::{invalid_plan, time_solve_failed};
 use crate::{
-    AcceptedTimeHistory, InitialConditionPolicy, MassMatrixRank, TimeBackendIdentity,
-    TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan, TimeProblem,
-    TimeSolution,
+    AcceptedTimeHistory, InitialConditionPolicy, TimeBackendIdentity, TimeEquationClass,
+    TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan, TimeSolution,
 };
 use eqiora_core::Diagnostic;
 
 const MAX_STEPS: usize = 1_000_000;
-/// Fixed-step implicit midpoint over the ordinary RHS/JVP and mass actions.
+/// Fixed-step implicit-midpoint clocks and history with caller-admitted stage solves.
 ///
 /// Complex values use their declared real coordinates; no norm projection or
 /// rescaling is performed. Requested observations use the linear collocation
@@ -34,85 +33,6 @@ impl ImplicitMidpointTimeBackend {
     #[must_use]
     pub const fn new() -> Self {
         Self
-    }
-
-    /// Integrate from the supplied accepted state with the Plan's fixed step.
-    /// The final step alone is shortened to the last requested time (the Run
-    /// horizon). Tolerances control Newton corrections, not temporal truncation
-    /// error. The returned history owns every accepted collocation stencil.
-    ///
-    /// # Errors
-    /// Rejects unsupported methods, singular mass/DAE profiles, nonfinite
-    /// callbacks, failed Newton solves, and unrepresentable times or storage.
-    pub fn solve(
-        &self,
-        problem: &TimeProblem<'_>,
-        plan: &TimePlan,
-    ) -> Result<TimeSolution, Diagnostic> {
-        plan.validate_for(problem)?;
-        if plan.method() != TimeMethod::ImplicitMidpoint {
-            return Err(invalid_plan(
-                "implicit-midpoint backend requires the ImplicitMidpoint method",
-            ));
-        }
-        if !matches!(
-            problem.equation_class(),
-            TimeEquationClass::ExplicitOde
-                | TimeEquationClass::MassMatrix {
-                    rank: MassMatrixRank::Full
-                }
-        ) || problem.initial_condition() != InitialConditionPolicy::Provided
-        {
-            return Err(invalid_plan(
-                "implicit midpoint requires an ODE with a provided consistent state",
-            ));
-        }
-        self.solve_with_stages(
-            problem.initial_state(),
-            plan,
-            problem.equation_class(),
-            |time, next_time, state| {
-                let n = problem.dimension();
-                let step = next_time - time;
-                let middle_time = time + step / 2.;
-                let mut candidate = state.to_vec();
-                crate::reference_implicit::newton(
-                    &mut candidate,
-                    plan.absolute_tolerances(),
-                    plan.relative_tolerance(),
-                    |next, residual| {
-                        let middle = midpoint(state, next);
-                        let difference = next
-                            .iter()
-                            .zip(state)
-                            .map(|(b, a)| b - a)
-                            .collect::<Vec<_>>();
-                        mass(problem, middle_time, &difference, residual)?;
-                        let mut rhs = vec![0.; n];
-                        problem.system().rhs(middle_time, &middle, &mut rhs)?;
-                        for (value, rhs) in residual.iter_mut().zip(rhs) {
-                            *value -= step * rhs;
-                        }
-                        Ok(())
-                    },
-                    |next, direction, output| {
-                        mass(problem, middle_time, direction, output)?;
-                        let mut rhs = vec![0.; n];
-                        problem.system().rhs_jvp(
-                            middle_time,
-                            &midpoint(state, next),
-                            direction,
-                            &mut rhs,
-                        )?;
-                        for (value, rhs) in output.iter_mut().zip(rhs) {
-                            *value -= step / 2. * rhs;
-                        }
-                        Ok(())
-                    },
-                )?;
-                Ok(candidate)
-            },
-        )
     }
 
     /// Integrate an already admitted residual formulation with its stage solver.
@@ -261,21 +181,8 @@ fn has_linear_dense_output(step: &TimeHistoryStep) -> bool {
         && step.dense_states()[0] == step.start_state()
         && step.dense_states()[1] == step.end_state()
 }
-fn midpoint(a: &[f64], b: &[f64]) -> Vec<f64> {
+pub(crate) fn midpoint(a: &[f64], b: &[f64]) -> Vec<f64> {
     a.iter().zip(b).map(|(a, b)| 0.5 * a + 0.5 * b).collect()
-}
-fn mass(
-    problem: &TimeProblem<'_>,
-    time: f64,
-    direction: &[f64],
-    output: &mut [f64],
-) -> Result<(), Diagnostic> {
-    if problem.equation_class() == TimeEquationClass::ExplicitOde {
-        output.copy_from_slice(direction);
-        Ok(())
-    } else {
-        problem.system().mass_action(time, direction, output)
-    }
 }
 
 fn step_count(plan: &TimePlan) -> Result<usize, Diagnostic> {

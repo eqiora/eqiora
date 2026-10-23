@@ -1,3 +1,4 @@
+mod midpoint;
 use crate::diagnostic::{invalid_plan, time_solve_failed};
 use crate::{
     DaeVariableKind, ImplicitDaeInitialization, ImplicitDaeProblem, InitialConditionPolicy,

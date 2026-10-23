@@ -14,6 +14,7 @@ fn python_hamiltonian_contracts_execute_replay_and_reject_foreign_handles() -> P
         locals.set_item("eqiora", &module)?;
         py.run(c_str!(r#"
 import math
+linear = eqiora.solve.Linear(objective=eqiora.solve.Robust, relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
 source = """space S=orthonormal(up,down); model M(){
  parameter hbar:J*s=1[J*s];
  parameter H:map<complex<J>,S,S>=linear_map(S,S,[[0,2[J]],[2[J],0]]);
@@ -28,12 +29,12 @@ base = eqiora.time.ImplicitMidpoint(step_s=0.01,relative_tolerance=1e-12,
     absolute_tolerances={(psi,0,c,i):1e-14 for c in range(2) for i in (False,True)})
 policy = base.with_hermitian_parameter(h).with_conserved_norm(
     [psi], target=1.0,tolerance=1e-10,dimension=eqiora.Dimension())
-plan = eqiora.resolve(model,temporal=policy)
+plan = eqiora.resolve(model,solve=linear,temporal=policy)
 original_bytes = plan.to_bytes()
 plan = eqiora.Plan.from_bytes(original_bytes)
 assert plan.to_bytes() == original_bytes
 # Rehydrated policy must retain both declarations when reused by the resolver.
-assert eqiora.resolve(model,temporal=plan.temporal).to_bytes() == original_bytes
+assert eqiora.resolve(model,solve=linear,temporal=plan.temporal).to_bytes() == original_bytes
 initial = eqiora.State.initial(plan)
 result = eqiora.run(plan,state=initial,until_s=0.2,output_times_s=(0.2,))
 state = eqiora.State.from_result(plan,result,time_s=0.2)
@@ -44,12 +45,12 @@ assert abs(value[0]-math.cos(angle)) < 1e-11
 assert abs(value[1]+1j*math.sin(angle)) < 1e-11
 assert abs(result.observe_terminal(model.observable("norm")).value-1) < 1e-11
 # Contracts are immutable and alter exact Plan/State-space identity.
-unconstrained = eqiora.resolve(model,temporal=base)
+unconstrained = eqiora.resolve(model,solve=linear,temporal=base)
 assert unconstrained.to_bytes() != original_bytes
 foreign = eqiora.compile(source=source.replace("2[J]","3[J]"))
 for invalid in (
-    lambda: eqiora.resolve(model,temporal=base.with_hermitian_parameter(foreign.parameter("H"))),
-    lambda: eqiora.resolve(model,temporal=base.with_conserved_norm([foreign.field("psi")],target=1.0,tolerance=1e-10,dimension=eqiora.Dimension())),
+    lambda: eqiora.resolve(model,solve=linear,temporal=base.with_hermitian_parameter(foreign.parameter("H"))),
+    lambda: eqiora.resolve(model,solve=linear,temporal=base.with_conserved_norm([foreign.field("psi")],target=1.0,tolerance=1e-10,dimension=eqiora.Dimension())),
     lambda: eqiora.State.from_bytes(unconstrained,state.to_bytes()),
     lambda: base.with_conserved_norm([psi,psi],target=1.0,tolerance=1e-10,dimension=eqiora.Dimension()),
 ):
@@ -91,7 +92,7 @@ model M() {{
         absolute_tolerances={(f,0,c,i):1e-14 for c in range(2) for i in (False,True)})
     temporal = temporal.with_hermitian_parameter(m.parameter("H")).with_hermitian_parameter(m.parameter("P"))
     temporal = temporal.with_conserved_norm([f],target=1.0,tolerance=1e-10,dimension=eqiora.Dimension())
-    pl = eqiora.resolve(m,temporal=temporal)
+    pl = eqiora.resolve(m,solve=linear,temporal=temporal)
     res = eqiora.run(pl,state=eqiora.State.initial(pl),until_s=0.2,output_times_s=(0.2,))
     st = eqiora.State.from_result(pl,res,time_s=0.2)
     expected = (math.cos(angle),-1j*math.sin(angle))

@@ -83,13 +83,25 @@ fn backend() -> eqiora_time::TimeBackendCapabilities {
 fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry() {
     let (model, kernel) = fixture(BALL);
     let controls = temporal(&kernel);
-    assert!(CommonOdePlan::resolve(&model, &kernel, controls.clone(), backend()).is_err());
+    assert!(
+        CommonOdePlan::resolve(
+            &model,
+            &kernel,
+            controls.clone(),
+            backend(),
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
+    );
     let policy = CommonEventPolicy::new(8, entries(&kernel)).unwrap();
     let plan = CommonOdePlan::resolve(
         &model,
         &kernel,
         controls.clone().with_event_policy(policy.clone()),
         backend(),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     assert_eq!(plan.state_coordinates().len(), 2);
@@ -117,6 +129,8 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
         &kernel,
         controls.with_event_policy(CommonEventPolicy::new(9, entries(&kernel)).unwrap()),
         backend(),
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     assert_ne!(plan.identity(), changed.identity());
@@ -193,7 +207,9 @@ fn event_policy_rejects_missing_foreign_dimension_and_group_tolerance_drift() {
                 &model,
                 &kernel,
                 controls.clone().with_event_policy(policy),
-                backend()
+                backend(),
+                None,
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER
             )
             .is_err()
         );
@@ -205,7 +221,9 @@ fn event_policy_rejects_missing_foreign_dimension_and_group_tolerance_drift() {
             &smooth_model,
             &smooth_kernel,
             temporal(&smooth_kernel).with_event_policy(CommonEventPolicy::new(8, exact).unwrap()),
-            backend()
+            backend(),
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
         .is_err()
     );

@@ -23,7 +23,10 @@ def test_quadratic_time_window_preserves_units_history_and_replay(method):
         if method == "midpoint"
         else q.time.Tsitouras45(initial_step_s=0.25, relative_tolerance=1e-11, absolute_tolerances=tolerances)
     )
-    plan = q.resolve(model, temporal=temporal)
+    plan = q.resolve(model, temporal=temporal, solve=(q.solve.Linear(
+        objective=q.solve.Robust, relative_tolerance=1e-12,
+        absolute_tolerance=1e-14, maximum_iterations=100,
+    ) if method == "midpoint" else None))
     result = q.run(plan, state=q.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
     dense = q.run(plan, state=q.State.initial(plan), until_s=1.0, output_times_s=(0.125, 0.5, 0.875, 1.0))
     observable = model.observable("square")
