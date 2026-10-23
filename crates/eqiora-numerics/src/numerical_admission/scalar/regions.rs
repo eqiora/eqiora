@@ -164,12 +164,21 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
             .iter()
             .flat_map(|region| region.form.equation_test_fields())
             .collect::<BTreeMap<_, _>>();
-        if requested
-            .iter()
-            .any(|(relation, tested)| actual.get(relation) != Some(tested))
-        {
+        if requested.iter().any(|(relation, tested)| {
+            actual.get(relation) != Some(tested)
+                && !self.interfaces.iter().any(|interface| {
+                    // Interface rows belong to the compiled trace quotient, not a volume
+                    // equation. The authored pairing is checked by interface::admit.
+                    matches!(
+                        interface.source(),
+                        eqiora_realization::ConformingTraceSource::RelationEquality {
+                            relation: owner, ..
+                        } if owner.erase() == *relation
+                    ) && interface.sides().iter().any(|side| side.field() == *tested)
+                })
+        }) {
             return Err(invalid(
-                "explicit equation/test association was not consumed by its spatial Domain",
+                "explicit equation/test association was not consumed by its spatial Domain or interface",
             ));
         }
         Ok(())

@@ -95,6 +95,29 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
                 panic!("linear equations")
             };
             let mut interfaces = equations.interfaces.clone();
+            for interface in &interfaces {
+                let eqiora_realization::ConformingTraceSource::RelationEquality {
+                    relation, ..
+                } = interface.source()
+                else {
+                    panic!("physical continuity relation")
+                };
+                let foreign_field = interfaces
+                    .iter()
+                    .flat_map(|other| other.sides())
+                    .map(|side| side.field())
+                    .find(|field| interface.sides().iter().all(|side| side.field() != *field))
+                    .expect("another field pair on the same interface");
+                assert!(
+                    equations
+                        .require_test_assignments(&BTreeMap::from([(
+                            relation.erase(),
+                            foreign_field,
+                        )]))
+                        .is_err(),
+                    "a shared physical support must not authorize another continuity row's test"
+                );
+            }
             for _ in 0..2 {
                 crate::form_compiler::interface::admit(&projection, &program, &interfaces).unwrap();
                 interfaces.reverse();
