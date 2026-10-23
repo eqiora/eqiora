@@ -75,6 +75,18 @@ pub(in crate::form_compiler) fn coefficient_dependencies(
             ExprNode::PureOperatorApplication(application) => {
                 pending.extend(application.arguments())
             }
+            node @ (ExprNode::Select { .. }
+            | ExprNode::Require { .. }
+            | ExprNode::Compare(..)
+            | ExprNode::Not(_)
+            | ExprNode::And(..)
+            | ExprNode::Or(..)) => {
+                node.try_for_each_operand(|operand| {
+                    pending.push(operand);
+                    Ok::<_, std::convert::Infallible>(())
+                })
+                .expect("infallible operand visitor");
+            }
             ExprNode::Array { elements } => pending.extend(elements),
             ExprNode::Index { value, .. } => pending.push(*value),
             _ => return None,
@@ -169,6 +181,20 @@ pub(super) fn principal(
             ExprNode::Pullback { value, at, .. } => {
                 pending.push((*value, in_divergence));
                 pending.extend(at.iter().map(|(_, mapped)| (*mapped, in_divergence)));
+            }
+            node @ (ExprNode::Select { .. }
+            | ExprNode::Require { .. }
+            | ExprNode::Compare(..)
+            | ExprNode::Not(_)
+            | ExprNode::And(..)
+            | ExprNode::Or(..)) => {
+                // Roles conservatively include every branch and predicate.
+                // Lazy evaluation and admissible derivatives belong downstream.
+                node.try_for_each_operand(|operand| {
+                    pending.push((operand, in_divergence));
+                    Ok::<_, std::convert::Infallible>(())
+                })
+                .expect("infallible operand visitor");
             }
             ExprNode::Array { elements } => {
                 pending.extend(elements.iter().map(|id| (*id, in_divergence)));
