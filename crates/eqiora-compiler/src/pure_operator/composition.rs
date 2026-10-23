@@ -31,20 +31,60 @@ fn argument_class(
     file: &str,
     expression: &Expr,
     formals: &FormalBindings<'_>,
+    sources: &BTreeMap<&str, &PureOperatorDecl>,
     compiled: &BTreeMap<String, PureOperatorDefinition>,
 ) -> Result<Option<PureValueClass>, Diagnostic> {
     match expression.kind() {
+        ExprKind::Array(elements) => {
+            let inputs = elements
+                .iter()
+                .map(|element| {
+                    let class = argument_class(file, element, formals, sources, compiled)?;
+                    let value_type =
+                        if let Some(ty) = class.as_ref().and_then(PureValueClass::exact_type) {
+                            ty.clone()
+                        } else {
+                            if class.is_some_and(|class| !class.is_invariant_scalar()) {
+                                return Err(pure_error(
+                                    file,
+                                    element.range(),
+                                    "array elements require concrete component layouts",
+                                ));
+                            }
+                            // Generic scalar results acquire units and domain from their
+                            // actual arguments, using the existing calculus type proof.
+                            let mut value = CalculusBuilder::new(
+                                formals.classes.clone(),
+                                PureValueClass::invariant_scalar(),
+                            )
+                            .map_err(|error| kernel_error(file, element.range(), error))?;
+                            let root = compile_expression(
+                                file, element, formals, sources, compiled, &mut value,
+                            )?;
+                            value
+                                .value_type(root)
+                                .map_err(|error| kernel_error(file, element.range(), error))?
+                        };
+                    Ok(ExpressionType::<()>::new(value_type, None))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let output = ExpressionType::array(&inputs)
+                .map_err(|error| pure_error(file, expression.range(), error.to_string()))?;
+            PureValueClass::from_value_type(output.value_type)
+                .map(Some)
+                .map_err(|error| kernel_error(file, expression.range(), error))
+        }
         ExprKind::Name(name) => Ok(formals
             .names
             .get(name.as_str())
             .map(|index| formals.classes[usize::from(*index)].clone())),
         ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
             let (value, _, _) = actions::arguments(file, expression, arguments)?;
-            argument_class(file, value, formals, compiled)
+            argument_class(file, value, formals, sources, compiled)
         }
         ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
             let (_, selected, _) = actions::vjp_arguments(file, expression, arguments)?;
-            let Some(input) = argument_class(file, selected, formals, compiled)?
+            let Some(input) = argument_class(file, selected, formals, sources, compiled)?
                 .and_then(|class| class.exact_type().cloned())
             else {
                 return Ok(None);
@@ -60,7 +100,7 @@ fn argument_class(
             .get(callee.as_str())
             .map(|definition| definition.result_rule().clone())),
         ExprKind::Index { value, index } => {
-            let Some(input) = argument_class(file, value, formals, compiled)?
+            let Some(input) = argument_class(file, value, formals, sources, compiled)?
                 .and_then(|class| class.exact_type().cloned())
             else {
                 return Ok(None);
@@ -95,7 +135,7 @@ pub(super) fn compile_argument(
         ExprKind::Name(name) => formals.names.get(name.as_str()).copied(),
         _ => None,
     };
-    let class = argument_class(file, expression, formals, compiled)?;
+    let class = argument_class(file, expression, formals, sources, compiled)?;
     let Some(class) = class.filter(|class| !class.is_invariant_scalar()) else {
         return compile_expression(file, expression, formals, sources, compiled, builder)
             .map(CalculusArgument::Scalar);
