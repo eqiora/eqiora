@@ -5,7 +5,16 @@ import numpy as np
 import pytest
 
 
-def _problem(spatial, complex_field, mixed_rows):
+def _problem(
+    spatial,
+    complex_field,
+    mixed_rows,
+    *,
+    authored_initial=True,
+    feedback=False,
+    cells=2,
+    step_s=0.1,
+):
     module = q.Module("main")
     component = module.component("Mixed")
     body = component.volume("body", dimensions=1)
@@ -25,8 +34,10 @@ def _problem(spatial, complex_field, mixed_rows):
     u, z = fields
     initial_u = 1 + 2j if complex_field else 1.0
     # z=|u|² exercises real-linear complex derivatives as well as real constraints.
-    component.initial((u, initial_u), (z, abs(initial_u) ** 2))
-    dynamic = q.lang.quantity(1, q.units.s) * q.lang.derivative(u) - 1
+    if authored_initial:
+        component.initial((u, initial_u), (z, abs(initial_u) ** 2))
+    rate = q.lang.quantity(1, q.units.s) * q.lang.derivative(u)
+    dynamic = rate + z if feedback else rate - 1
     constraint = z - q.lang.math.abs2(u)
     evolution = component.relation(
         "evolution",
@@ -68,7 +79,7 @@ def _problem(spatial, complex_field, mixed_rows):
         },
     )
     mesh = q.meshing.generate(
-        q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(2,)))
+        q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(cells,)))
     )
     fields = [model.field("definition." + name) for name in ("u", "z")]
     linear = q.solve.Linear(
@@ -85,7 +96,7 @@ def _problem(spatial, complex_field, mixed_rows):
         mesh=mesh,
         spatial=spatial(),
         temporal=q.time.ImplicitMidpoint(
-            step_s=0.1,
+            step_s=step_s,
             relative_tolerance=1e-10,
             absolute_tolerances={
                 (field, 0, 0, imaginary): 1e-12
