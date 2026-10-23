@@ -33,13 +33,127 @@ impl CalculusBuilder {
         for axes in coordinates(&input)? {
             prerequisites.push(projection.push(CalculusNode::FormalComponent { formal: 0, axes })?);
         }
+        let prerequisite = projection.demand_all(prerequisites)?;
+        let value = projection.push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: std::iter::once(ComponentIndex::Fixed(index))
+                .chain((0..output.shape().rank()).map(|axis| ComponentIndex::Result(axis as u16)))
+                .collect(),
+        })?;
+        let root = projection.push(CalculusNode::Demand {
+            prerequisite,
+            value,
+        })?;
+        self.apply_inputs(&projection.finish(root)?, std::slice::from_ref(argument))
+    }
+
+    /// Construct an outer array axis from complete typed element values.
+    /// Every element remains demanded, including after indexing or differentiation.
+    ///
+    /// # Errors
+    /// Rejects incompatible element types or calculus resource limits. A failure
+    /// leaves the caller unchanged.
+    pub fn array(
+        &mut self,
+        arguments: &[CalculusArgument],
+    ) -> Result<CalculusNodeId, PureOperatorError> {
+        // Every channel needs selector nodes, even when its value aliases another.
+        // Reject an impossible expansion before allocating the input-type inventory.
+        if arguments.len() > MAX_NODES {
+            return Err(PureOperatorError::NodeLimit);
+        }
+        let inputs = arguments
+            .iter()
+            .map(|argument| {
+                argument
+                    .value_type(self)
+                    .map(|ty| ExpressionType::<()>::new(ty, None))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let output = ExpressionType::array(&inputs)
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)?
+            .value_type;
+        let result = PureValueClass::from_value_type(output)?;
+        if !compatible_component_layout(&result, &self.result) {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        let mut staged = Self {
+            formals: self.formals.clone(),
+            result: self.result.clone(),
+            nodes: self.nodes.clone(),
+            depths: self.depths.clone(),
+        };
+        let mut prerequisites = Vec::new();
+        for (argument, input) in arguments.iter().zip(&inputs) {
+            for axes in coordinates(&input.value_type)? {
+                prerequisites.push(argument.project(&mut staged, &axes)?);
+            }
+        }
+        let prerequisite = staged.demand_all(prerequisites)?;
+        let one = staged.push(CalculusNode::Rational {
+            value: ExactRational::integer(1),
+            dimension: DimExponents::DIMENSIONLESS,
+        })?;
+        let mut selections = Vec::new();
+        for (index, (argument, input)) in arguments.iter().zip(&inputs).enumerate() {
+            let axes = (0..input.shape().rank())
+                .map(|axis| ComponentIndex::Result((axis + 1) as u16))
+                .collect::<Vec<_>>();
+            let value = argument.project(&mut staged, &axes)?;
+            let value = staged.embed_result(value, &result)?;
+            let delta = staged.push(CalculusNode::KroneckerDelta(
+                ComponentIndex::Result(0),
+                ComponentIndex::Fixed(index as u32),
+            ))?;
+            let condition = staged.push(CalculusNode::Compare(
+                super::super::ComparisonOp::Equal,
+                delta,
+                one,
+            ))?;
+            selections.push((condition, value));
+        }
+        // Selection and eager demand both stay logarithmic in array width.
+        while selections.len() > 1 {
+            selections = selections
+                .chunks(2)
+                .map(|pair| match pair {
+                    [(left, then_value), (right, else_value)] => Ok((
+                        staged.push(CalculusNode::Or(*left, *right))?,
+                        staged.push(CalculusNode::Select {
+                            condition: *left,
+                            then_value: *then_value,
+                            else_value: *else_value,
+                        })?,
+                    )),
+                    [value] => Ok(*value),
+                    _ => unreachable!("nonempty pair"),
+                })
+                .collect::<Result<_, PureOperatorError>>()?;
+        }
+        let root = staged.push(CalculusNode::Demand {
+            prerequisite,
+            value: selections
+                .first()
+                .ok_or(PureOperatorError::FormalTypeMismatch)?
+                .1,
+        })?;
+        let root = staged.embed_result(root, &result)?;
+        derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
+        *self = staged;
+        Ok(root)
+    }
+
+    fn demand_all(
+        &mut self,
+        mut prerequisites: Vec<CalculusNodeId>,
+    ) -> Result<CalculusNodeId, PureOperatorError> {
         // Balance dependencies while retaining left-to-right demand order. A
         // wide, shallow array must not acquire linear calculus nesting depth.
         while prerequisites.len() > 1 {
             prerequisites = prerequisites
                 .chunks(2)
                 .map(|pair| match pair {
-                    [prerequisite, value] => projection.push(CalculusNode::Demand {
+                    [prerequisite, value] => self.push(CalculusNode::Demand {
                         prerequisite: *prerequisite,
                         value: *value,
                     }),
@@ -48,19 +162,10 @@ impl CalculusBuilder {
                 })
                 .collect::<Result<_, _>>()?;
         }
-        let value = projection.push(CalculusNode::FormalComponent {
-            formal: 0,
-            axes: std::iter::once(ComponentIndex::Fixed(index))
-                .chain((0..output.shape().rank()).map(|axis| ComponentIndex::Result(axis as u16)))
-                .collect(),
-        })?;
-        let root = projection.push(CalculusNode::Demand {
-            prerequisite: *prerequisites
-                .first()
-                .ok_or(PureOperatorError::FormalTypeMismatch)?,
-            value,
-        })?;
-        self.apply_inputs(&projection.finish(root)?, std::slice::from_ref(argument))
+        prerequisites
+            .first()
+            .copied()
+            .ok_or(PureOperatorError::FormalTypeMismatch)
     }
 
     pub(super) fn reachable_nodes(
