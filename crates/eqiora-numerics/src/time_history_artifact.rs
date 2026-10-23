@@ -1,7 +1,8 @@
 //! One canonical wire representation of native time steps, reports and resets.
 use eqiora_core::Diagnostic;
 use eqiora_time::{
-    InitialConditionPolicy, TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod,
+    InitialConditionPolicy, TimeDenseOutput, TimeEquationClass, TimeExecutionReport,
+    TimeHistoryStep, TimeMethod,
 };
 use serde::{Deserialize, Serialize};
 pub(crate) mod events;
@@ -14,6 +15,14 @@ pub(crate) struct WireTimeStep {
     start_state: Vec<f64>,
     midpoint_state: Vec<f64>,
     end_state: Vec<f64>,
+    dense_output: WireDenseOutput,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireDenseOutput {
+    times: Vec<f64>,
+    states: Vec<Vec<f64>>,
 }
 
 impl From<&TimeHistoryStep> for WireTimeStep {
@@ -24,6 +33,10 @@ impl From<&TimeHistoryStep> for WireTimeStep {
             start_state: step.start_state().to_vec(),
             midpoint_state: step.midpoint_state().to_vec(),
             end_state: step.end_state().to_vec(),
+            dense_output: WireDenseOutput {
+                times: step.dense_output().times().to_vec(),
+                states: step.dense_output().states().to_vec(),
+            },
         }
     }
 }
@@ -35,6 +48,10 @@ impl WireTimeStep {
             self.start_state.clone(),
             self.midpoint_state.clone(),
             self.end_state.clone(),
+            TimeDenseOutput::from_samples(
+                self.dense_output.times.clone(),
+                self.dense_output.states.clone(),
+            )?,
         )
     }
 }
@@ -102,4 +119,45 @@ impl WireReport {
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_REALIZATION, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dense_history_codec_preserves_samples_and_rejects_malformed_polynomials() {
+        let step = TimeHistoryStep::accepted(
+            0.,
+            1.,
+            vec![0.],
+            vec![0.25],
+            vec![1.],
+            TimeDenseOutput::from_samples(vec![0., 0.5, 1.], vec![vec![0.], vec![0.25], vec![1.]])
+                .unwrap(),
+        )
+        .unwrap();
+        let encoded = serde_json::to_value(WireTimeStep::from(&step)).unwrap();
+        let decoded: WireTimeStep = serde_json::from_value(encoded.clone()).unwrap();
+        let replayed = decoded.replay().unwrap();
+        assert_eq!(replayed, step);
+        assert_eq!(replayed.sample(0.125).unwrap(), vec![1. / 64.]);
+        let mut missing = encoded.clone();
+        missing.as_object_mut().unwrap().remove("dense_output");
+        assert!(serde_json::from_value::<WireTimeStep>(missing).is_err());
+        for dense in [
+            serde_json::Value::Null,
+            serde_json::json!({"times": [0., 0.5, 0.5], "states": [[0.], [0.25], [1.]]}),
+            serde_json::json!({"times": [0., 0.5, 2.], "states": [[0.], [0.25], [1.]]}),
+            serde_json::json!({"times": [0., 1.], "states": [[0., 0.], [1., 1.]]}),
+            serde_json::json!({"times": [0., 1.], "states": [[0.], [1.]], "unknown": 0}),
+            serde_json::json!({"times": [0., 1.]}),
+        ] {
+            let mut forged = encoded.clone();
+            forged["dense_output"] = dense;
+            if let Ok(wire) = serde_json::from_value::<WireTimeStep>(forged) {
+                assert!(wire.replay().is_err());
+            }
+        }
+    }
 }

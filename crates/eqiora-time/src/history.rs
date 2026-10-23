@@ -2,10 +2,13 @@
 use crate::RootProposal;
 use crate::diagnostic::time_solve_failed;
 use eqiora_core::Diagnostic;
+mod dense;
+pub use dense::TimeDenseOutput;
 
 /// One accepted interval with its solver-native midpoint value.
 ///
-/// These three states are a quadrature stencil, not a general dense interpolant.
+/// The three states preserve exact native boundary/quadrature values; the separate
+/// polynomial supplies off-stencil interpolation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimeHistoryStep {
     start_time: f64,
@@ -13,10 +16,11 @@ pub struct TimeHistoryStep {
     start_state: Vec<f64>,
     midpoint_state: Vec<f64>,
     end_state: Vec<f64>,
+    dense_output: TimeDenseOutput,
 }
 
 impl TimeHistoryStep {
-    /// Accept a finite, consistently shaped native step stencil.
+    /// Accept a native step stencil and its captured dense polynomial.
     /// # Errors
     /// Rejects empty or inconsistent state shapes and non-increasing times.
     pub fn accepted(
@@ -25,6 +29,7 @@ impl TimeHistoryStep {
         start_state: Vec<f64>,
         midpoint_state: Vec<f64>,
         end_state: Vec<f64>,
+        dense_output: TimeDenseOutput,
     ) -> Result<Self, Diagnostic> {
         if !start_time.is_finite()
             || !end_time.is_finite()
@@ -42,14 +47,53 @@ impl TimeHistoryStep {
                 "accepted time step has invalid interval, state shape, or values",
             ));
         }
+        if dense_output.times()[0] != start_time
+            || dense_output.times().last().copied() != Some(end_time)
+            || dense_output.states()[0].len() != start_state.len()
+        {
+            return Err(time_solve_failed(
+                "dense output differs from its accepted step interval or coordinates",
+            ));
+        }
         Ok(Self {
             start_time,
             end_time,
             start_state,
             midpoint_state,
             end_state,
+            dense_output,
         })
     }
+    /// Captured native polynomial on the accepted interval.
+    #[must_use]
+    pub const fn dense_output(&self) -> &TimeDenseOutput {
+        &self.dense_output
+    }
+
+    /// Exact retained quadrature or endpoint value, if this is its timestamp.
+    #[must_use]
+    pub fn stencil_state(&self, time: f64) -> Option<&[f64]> {
+        if time == self.start_time {
+            Some(&self.start_state)
+        } else if time == self.end_time {
+            Some(&self.end_state)
+        } else if time == self.start_time + (self.end_time - self.start_time) * 0.5 {
+            Some(&self.midpoint_state)
+        } else {
+            None
+        }
+    }
+
+    /// Sample the accepted step, preserving exact retained boundary/stencil values.
+    /// # Errors
+    /// Rejects extrapolation or non-finite polynomial evaluation.
+    pub fn sample(&self, time: f64) -> Result<Vec<f64>, Diagnostic> {
+        if let Some(state) = self.stencil_state(time) {
+            return Ok(state.to_vec());
+        }
+        self.dense_output.sample(time)
+    }
+
     /// Exact beginning of the accepted step.
     #[must_use]
     pub const fn start_time(&self) -> f64 {
@@ -218,6 +262,11 @@ mod tests {
             vec![left],
             vec![(left + right) * 0.5],
             vec![right],
+            crate::TimeDenseOutput::from_samples(
+                vec![start, start + (end - start) * 0.5, end],
+                vec![vec![left], vec![(left + right) * 0.5], vec![right]],
+            )
+            .unwrap(),
         )
         .unwrap()
     }

@@ -2,8 +2,8 @@
 use crate::diagnostic::{invalid_plan, time_solve_failed};
 use crate::{
     AcceptedTimeHistory, InitialConditionPolicy, MassMatrixRank, TimeBackendIdentity,
-    TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan, TimeProblem,
-    TimeSolution,
+    TimeDenseOutput, TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan,
+    TimeProblem, TimeSolution,
 };
 use eqiora_core::Diagnostic;
 
@@ -178,6 +178,10 @@ impl ImplicitMidpointTimeBackend {
                 state.clone(),
                 midpoint(&state, &candidate),
                 candidate.clone(),
+                TimeDenseOutput::from_samples(
+                    vec![time, next_time],
+                    vec![state.clone(), candidate.clone()],
+                )?,
             )?;
             while sample < plan.output_times().len() && plan.output_times()[sample] <= next_time {
                 let output = plan.output_times()[sample];
@@ -226,6 +230,7 @@ impl ImplicitMidpointTimeBackend {
         }
         for (index, step) in history.steps().iter().enumerate() {
             if step.end_time().to_bits() != step_end(plan, index, count).to_bits()
+                || !has_linear_dense_output(step)
                 || step.midpoint_state() != midpoint(step.start_state(), step.end_state())
             {
                 return Err(invalid_plan(
@@ -243,29 +248,21 @@ impl ImplicitMidpointTimeBackend {
         if !time.is_finite()
             || time < step.start_time()
             || time > step.end_time()
+            || !has_linear_dense_output(step)
             || step.midpoint_state() != midpoint(step.start_state(), step.end_state())
         {
             return Err(invalid_plan(
                 "midpoint sample requires its exact interval and linear stencil",
             ));
         }
-        if time == step.start_time() {
-            return Ok(step.start_state().to_vec());
-        }
-        if time == step.end_time() {
-            return Ok(step.end_state().to_vec());
-        }
-        if time == step.start_time() + (step.end_time() - step.start_time()) / 2. {
-            return Ok(step.midpoint_state().to_vec());
-        }
-        let weight = (time - step.start_time()) / (step.end_time() - step.start_time());
-        Ok(step
-            .start_state()
-            .iter()
-            .zip(step.end_state())
-            .map(|(a, b)| (1. - weight) * a + weight * b)
-            .collect())
+        step.sample(time)
     }
+}
+fn has_linear_dense_output(step: &TimeHistoryStep) -> bool {
+    let dense = step.dense_output();
+    dense.times() == [step.start_time(), step.end_time()]
+        && dense.states()[0] == step.start_state()
+        && dense.states()[1] == step.end_state()
 }
 fn midpoint(a: &[f64], b: &[f64]) -> Vec<f64> {
     a.iter().zip(b).map(|(a, b)| 0.5 * a + 0.5 * b).collect()

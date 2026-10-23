@@ -208,6 +208,8 @@ fn reject_false_correction(bytes: &[u8], plan: &ResolvedCommonPlan) {
         .unwrap()
         + 0.01;
     false_equation["payload"]["history"][3]["end_state"][0] = serde_json::json!(wrong);
+    false_equation["payload"]["history"][3]["dense_output"]["states"][1][0] =
+        serde_json::json!(wrong);
     false_equation["payload"]["history"][3]["midpoint_state"][0] =
         serde_json::json!(0.5 * old + 0.5 * wrong);
     false_equation["payload"]["execution"][3]["convergence"] = serde_json::json!({"kind":"correction","weighted_norm":0.,"point":[wrong],"direction":[0.]});

@@ -86,7 +86,21 @@ fn typed_fixture(
         .collect();
     let history = AcceptedTimeHistory::accepted(
         1,
-        vec![TimeHistoryStep::accepted(0., 4., vec![0.], vec![0.], vec![0.]).unwrap()],
+        vec![
+            TimeHistoryStep::accepted(
+                0.,
+                4.,
+                vec![0.],
+                vec![0.],
+                vec![0.],
+                eqiora_time::TimeDenseOutput::from_samples(
+                    vec![0., 2., 4.],
+                    vec![vec![0.], vec![0.], vec![0.]],
+                )
+                .unwrap(),
+            )
+            .unwrap(),
+        ],
         vec![],
     )
     .unwrap();

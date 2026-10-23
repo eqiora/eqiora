@@ -323,7 +323,7 @@ fn stationary_newton_retains_seed_history_and_replays_original_equations() {
     );
     let obsolete = String::from_utf8(bytes)
         .unwrap()
-        .replace("common-result/v25", "common-result/v24");
+        .replace("common-result/v26", "common-result/v24");
     assert!(crate::CommonResult::from_bytes(obsolete.as_bytes(), &plan).is_err());
 }
 

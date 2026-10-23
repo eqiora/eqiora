@@ -375,7 +375,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonTrajectory::from_bytes(
             &old_schema(
                 &trajectory_bytes,
-                "eqiora.common-trajectory/v10",
+                "eqiora.common-trajectory/v11",
                 "eqiora.common-trajectory/v4"
             ),
             &automatic_resolved,
@@ -386,7 +386,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonResult::from_bytes(
             &old_schema(
                 &result_bytes,
-                "eqiora.common-result/v25",
+                "eqiora.common-result/v26",
                 "eqiora.common-result/v15"
             ),
             &automatic_resolved,

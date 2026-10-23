@@ -4,7 +4,7 @@ use super::{digest, invalid};
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-const SCHEMA: &str = "eqiora.common-time-checkpoint/v1";
+const SCHEMA: &str = "eqiora.common-time-checkpoint/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Serialize, Deserialize)]

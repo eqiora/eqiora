@@ -1,4 +1,4 @@
-//! Check only retained native states; a quadrature stencil is not an interpolant.
+//! Validate outputs against retained native stencils and captured dense polynomials.
 use super::*;
 
 pub(crate) fn validate(
@@ -11,11 +11,11 @@ pub(crate) fn validate(
     // Requested output at an event always observes the committed reset side,
     // including a reset at the terminal instant with no following interval.
     let known = if let Some(event) = event.filter(|event| event.proposal().time() == time) {
-        Some(event.after_state())
+        Some(event.after_state().to_vec())
     } else {
-        stencil(history.steps(), time)
+        sample(history.steps(), time)?
     };
-    if known.is_some_and(|known| known != values) {
+    if known.is_some_and(|known| known.as_slice() != values) {
         return Err(invalid(
             "ODE output State differs from the retained native history state at the same exact time",
         ));
@@ -23,20 +23,14 @@ pub(crate) fn validate(
     Ok(())
 }
 
-pub(super) fn stencil(steps: &[eqiora_time::TimeHistoryStep], time: f64) -> Option<&[f64]> {
-    steps
-        .get(steps.partition_point(|step| step.end_time() < time))
-        .and_then(|step| {
-            if time == step.start_time() {
-                Some(step.start_state())
-            } else if time == step.end_time() {
-                Some(step.end_state())
-            } else if time == step.start_time() + (step.end_time() - step.start_time()) * 0.5 {
-                Some(step.midpoint_state())
-            } else {
-                None
-            }
-        })
+pub(super) fn sample(
+    steps: &[eqiora_time::TimeHistoryStep],
+    time: f64,
+) -> Result<Option<Vec<f64>>, Diagnostic> {
+    let Some(step) = steps.get(steps.partition_point(|step| step.end_time() < time)) else {
+        return Ok(None);
+    };
+    step.sample(time).map(Some)
 }
 
 #[cfg(test)]
