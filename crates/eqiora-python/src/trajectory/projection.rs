@@ -64,12 +64,12 @@ impl PyTrajectory {
                         .map_err(|_| PyOverflowError::new_err("accepted step exceeds Python u64"))
                 })
                 .transpose()?;
-            if let Some(step) = step {
-                if state_lookup.insert(step, projected.len()).is_some() {
-                    return Err(PyRuntimeError::new_err(
-                        "common Trajectory contains a duplicate output step",
-                    ));
-                }
+            if let Some(step) = step
+                && state_lookup.insert(step, projected.len()).is_some()
+            {
+                return Err(PyRuntimeError::new_err(
+                    "common Trajectory contains a duplicate output step",
+                ));
             }
             let projected_state = PyState::from_common(
                 py,
