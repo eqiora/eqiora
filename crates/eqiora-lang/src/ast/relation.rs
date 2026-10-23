@@ -6,12 +6,19 @@ use eqiora_schema::kernel::RelationConditionKind;
 /// Simultaneous mathematical conditions used only for fresh initialization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InitialDecl {
+    pub(crate) domain: Option<String>,
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) equations: Vec<RelationCondition>,
     pub(crate) range: TextRange,
 }
 
 impl InitialDecl {
+    /// Optional spatial support of every initialization equation in this block.
+    #[must_use]
+    pub fn domain(&self) -> Option<&str> {
+        self.domain.as_deref()
+    }
+
     /// Conditions in authored order; their semantics are simultaneous.
     #[must_use]
     pub fn equations(&self) -> &[RelationCondition] {

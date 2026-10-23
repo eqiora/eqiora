@@ -37,5 +37,8 @@ pub(super) fn encode_initial(
             })
         })?;
     }
+    if let Some(domain) = declaration.domain() {
+        encoder.field(2, |encoder| encode_name(encoder, domain, budget))?;
+    }
     Ok(())
 }

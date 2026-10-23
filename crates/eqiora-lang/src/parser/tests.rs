@@ -843,3 +843,19 @@ fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
     .expect("complete scope permits later dimensions");
     assert!(crate::format(&later).contains("public dimension Length = m;"));
 }
+
+#[test]
+fn initial_domain_survives_format_and_reparse() {
+    let source = "model M() { domain body=box(0,1); state u:1 on body;
+        initial on body { u=coordinate(0)/1[m]; } }";
+    let document = parse("initial-domain.eqi", source).into_document().unwrap();
+    let formatted = crate::formatter::format(&document);
+    let replay = parse("initial-domain.eqi", &formatted)
+        .into_document()
+        .unwrap();
+    let Item::Initial(initial) = &replay.models()[0].items()[2] else {
+        panic!("initial");
+    };
+    assert_eq!(initial.domain(), Some("body"));
+    assert_eq!(initial.equations().len(), 1);
+}

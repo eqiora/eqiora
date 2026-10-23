@@ -37,9 +37,17 @@ pub(super) fn validate_initial_expression(
     scope: &DefinitionScope<'_, '_>,
     declaration: &eqiora_lang::InitialDecl,
 ) -> Result<(), Vec<Diagnostic>> {
+    let relation_support = declaration
+        .domain()
+        .map(|domain| {
+            scope.spatial_support(domain).ok_or_else(|| {
+                vec![scope.wrong_local_kind(declaration.range(), domain, "initialization Domain")]
+            })
+        })
+        .transpose()?;
     let mut checker = ExpressionChecker {
         scope,
-        relation_support: None,
+        relation_support,
         family_scope: None,
         allow_discrete_symbols: true,
         initial: true,
@@ -55,7 +63,21 @@ pub(super) fn validate_initial_expression(
     let errors: Vec<_> = declaration
         .equations()
         .iter()
-        .filter_map(|equation| checker.check_equation(equation).err())
+        .filter_map(|equation| {
+            checker
+                .check_equation(equation)
+                .and_then(|inferred| {
+                    if let Some(support) = &checker.relation_support {
+                        typing::residual(&inferred, Some(support))
+                            .map_err(|error| type_error(scope.file, equation.left(), error))
+                    } else {
+                        // An unscoped initial block may contain independent roots
+                        // on different supports; each root keeps its own support.
+                        Ok(())
+                    }
+                })
+                .err()
+        })
         .collect();
     if errors.is_empty() {
         Ok(())

@@ -171,3 +171,16 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         assert!(!form.temporal.positive_own_capacity);
     }
 }
+
+#[test]
+fn initial_coordinates_use_the_explicit_region_of_each_block() {
+    let initial = "initial on body0 { u0=coordinate(0)/1[m]; }
+                   initial on body1 { u1=2*coordinate(0)/1[m]; }";
+    for (form, (point, expected)) in forms(initial).into_iter().zip([(0.5, 0.5), (1.5, 3.0)]) {
+        let form = form.unwrap();
+        assert_eq!(
+            form.initial_values_at(&[point]).unwrap(),
+            BTreeMap::from([(form.fields()[0].0, vec![expected])])
+        );
+    }
+}

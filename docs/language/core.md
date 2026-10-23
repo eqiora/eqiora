@@ -338,6 +338,10 @@ block contains simultaneous mathematical initialization equations. It is neither
 assignment program nor a collection of solver guesses. Restart consumes accepted State and
 does not execute initialization again. Numerical guesses, scales, time steps, and output
 schedules belong to the numerical/execution interface.
+For spatial coordinate data, `initial on body { u = coordinate(0)/1[m]; }`
+uses the declared support for axis and Field-support checks. The typed initial
+equations retain their own supports; an unscoped block may still group equations
+on different domains. See [coordinate initialization](coordinates.md#coordinates-in-initial-conditions).
 
 Clock identity is nominal and exact. Two clocks with equal periods are not interchangeable.
 An activation must resolve to an admitted typed clock or event. Crossing activation boundaries

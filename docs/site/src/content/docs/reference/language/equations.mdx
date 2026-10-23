@@ -31,6 +31,10 @@ and `at tick` for a relation activated by a periodic clock.
 has the solution $x(t)=\exp(-t)$ with the default rate of 1/s.
 `initial` supplies the mathematical initial equation; a solver's initial guess
 or time step does not replace it.
+A spatial block can name its support: `initial on body { u = 1 + coordinate(0)/1[m]; }`.
+Python authoring uses `component.initial((u, profile), on=body)`. The existing
+coordinate axis and support checks apply; this does not request a separate
+initialization solver.
 
 The [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
 continues through `State.initial(plan)` and execution. To continue an existing run,

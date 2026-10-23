@@ -15,6 +15,16 @@ pub(super) enum ParsedRelation {
 impl Parser<'_> {
     pub(super) fn parse_initial(&mut self) -> Option<InitialDecl> {
         let start = self.expect_keyword("initial")?.range().start();
+        let domain = if self.at_keyword("on") {
+            self.bump();
+            Some(
+                self.expect_identifier("initialization Domain")?
+                    .text()
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
         self.expect(TokenKind::LeftBrace, "`{` before initialization equations")?;
         let mut equations = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
@@ -33,6 +43,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(InitialDecl {
+            domain,
             comments: Default::default(),
             equations,
             range: TextRange::new(start, end),

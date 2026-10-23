@@ -265,6 +265,7 @@ impl super::ModelDeclarations {
                     range,
                 }),
                 DraftDeclaration::Initial(residuals) => Item::Initial(crate::ast::InitialDecl {
+                    domain: None,
                     comments: Default::default(),
                     equations: residuals
                         .iter()

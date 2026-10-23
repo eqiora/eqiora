@@ -449,7 +449,11 @@ fn format_initial(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    output.push_str("initial {\n");
+    output.push_str("initial");
+    if let Some(domain) = declaration.domain() {
+        write!(output, " on {domain}").expect("String write");
+    }
+    output.push_str(" {\n");
     for equation in declaration.equations() {
         write_indent(output, indent + 2);
         format_expression(equation.left(), 0, output);

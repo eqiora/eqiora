@@ -1388,7 +1388,7 @@ class Component:
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
         self._events: list[tuple[Event, Expression, str, int, tuple[str, ...]]] = []
-        self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
+        self._initials: list[tuple[Support | None, tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._coordinates: list[tuple[str, object, Support, object, tuple[str, ...]]] = []
@@ -1643,13 +1643,16 @@ class Component:
         return clock
 
     def initial(self, *equations: tuple[object, object],
-                left: object = None, right: object = None, doc: str | None = None) -> None:
+                left: object = None, right: object = None, on: Support | None = None,
+                doc: str | None = None) -> None:
         """Add initial equations: several with explicit sides, or one left/right pair.
 
         The equations hold simultaneously; they are neither initial guesses nor
-        assignments applied in order.
+        assignments applied in order. ``on`` supplies an explicit spatial support
+        for coordinate expressions in this block.
         """
         self._source._ensure_open()
+        support = None if on is None else self._support(on)
         if (left is None) != (right is None):
             raise TypeError("initial requires both left and right")
         if left is not None and equations:
@@ -1663,7 +1666,7 @@ class Component:
             self._closed_expression(value)
         if any(value._owner is not None and value._owner is not self._component_token for value in expressions):
             raise ModuleError("initial expressions must belong to this Component")
-        total_nodes = sum(value._nodes for equations, _ in self._initials for pair in equations for value in pair)
+        total_nodes = sum(value._nodes for _, equations, _ in self._initials for pair in equations for value in pair)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
@@ -1671,7 +1674,7 @@ class Component:
         if self._declaration_count >= _MAX_DECLARATIONS:
             raise ModuleError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         self._declaration_count += 1
-        self._initials.append((pairs, doc_lines))
+        self._initials.append((support, pairs, doc_lines))
 
     def volume(
         self,
@@ -2261,8 +2264,9 @@ class Component:
         for event, guard, direction, priority, doc in self._events:
             add(event._name, doc, lambda n: _AstDeclaration.event(
                 event._name, guard._ast, direction, priority, n))
-        for equations, doc in self._initials:
+        for support, equations, doc in self._initials:
             add("", doc, lambda n: _AstDeclaration.initial(
+                None if support is None else support._name,
                 [(left._ast, right._ast) for left, right in equations], n))
         for name, support, pairs, clock, doc in self._relations:
             add(name, doc, lambda n: _boundaries.relation_declaration(

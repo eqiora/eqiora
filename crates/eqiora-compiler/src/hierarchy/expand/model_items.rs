@@ -28,7 +28,20 @@ impl RootExpansion<'_, '_> {
                     self.items.push(FlatItemBlueprint::Relation {
                         name: internal_name(identity.entity.full),
                         activation: eqiora_lang::ActivationSyntax::Continuous,
-                        domain: None,
+                        domain: declaration
+                            .domain()
+                            .map(|name| {
+                                resolve_local_kind(
+                                    self.model.file,
+                                    declaration.range(),
+                                    scope,
+                                    name,
+                                    |kind| matches!(kind, SymbolKind::Domain),
+                                    "initialization Domain",
+                                )
+                                .map(|symbol| symbol.internal_name.clone())
+                            })
+                            .transpose()?,
                         body: equations.into(),
                         initial: true,
                         range: declaration.range(),
