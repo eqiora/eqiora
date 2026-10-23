@@ -2,8 +2,8 @@
 use crate::diagnostic::{invalid_plan, time_solve_failed};
 use crate::{
     AcceptedTimeHistory, InitialConditionPolicy, MassMatrixRank, TimeBackendIdentity,
-    TimeDenseOutput, TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan,
-    TimeProblem, TimeSolution,
+    TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod, TimePlan, TimeProblem,
+    TimeSolution,
 };
 use eqiora_core::Diagnostic;
 
@@ -178,10 +178,8 @@ impl ImplicitMidpointTimeBackend {
                 state.clone(),
                 midpoint(&state, &candidate),
                 candidate.clone(),
-                TimeDenseOutput::from_samples(
-                    vec![time, next_time],
-                    vec![state.clone(), candidate.clone()],
-                )?,
+                vec![time, next_time],
+                vec![state.clone(), candidate.clone()],
             )?;
             while sample < plan.output_times().len() && plan.output_times()[sample] <= next_time {
                 let output = plan.output_times()[sample];
@@ -259,10 +257,9 @@ impl ImplicitMidpointTimeBackend {
     }
 }
 fn has_linear_dense_output(step: &TimeHistoryStep) -> bool {
-    let dense = step.dense_output();
-    dense.times() == [step.start_time(), step.end_time()]
-        && dense.states()[0] == step.start_state()
-        && dense.states()[1] == step.end_state()
+    step.dense_times() == [step.start_time(), step.end_time()]
+        && step.dense_states()[0] == step.start_state()
+        && step.dense_states()[1] == step.end_state()
 }
 fn midpoint(a: &[f64], b: &[f64]) -> Vec<f64> {
     a.iter().zip(b).map(|(a, b)| 0.5 * a + 0.5 * b).collect()

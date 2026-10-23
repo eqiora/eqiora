@@ -1,8 +1,7 @@
 //! One canonical wire representation of native time steps, reports and resets.
 use eqiora_core::Diagnostic;
 use eqiora_time::{
-    InitialConditionPolicy, TimeDenseOutput, TimeEquationClass, TimeExecutionReport,
-    TimeHistoryStep, TimeMethod,
+    InitialConditionPolicy, TimeEquationClass, TimeExecutionReport, TimeHistoryStep, TimeMethod,
 };
 use serde::{Deserialize, Serialize};
 pub(crate) mod events;
@@ -34,8 +33,8 @@ impl From<&TimeHistoryStep> for WireTimeStep {
             midpoint_state: step.midpoint_state().to_vec(),
             end_state: step.end_state().to_vec(),
             dense_output: WireDenseOutput {
-                times: step.dense_output().times().to_vec(),
-                states: step.dense_output().states().to_vec(),
+                times: step.dense_times().to_vec(),
+                states: step.dense_states().to_vec(),
             },
         }
     }
@@ -48,10 +47,8 @@ impl WireTimeStep {
             self.start_state.clone(),
             self.midpoint_state.clone(),
             self.end_state.clone(),
-            TimeDenseOutput::from_samples(
-                self.dense_output.times.clone(),
-                self.dense_output.states.clone(),
-            )?,
+            self.dense_output.times.clone(),
+            self.dense_output.states.clone(),
         )
     }
 }
@@ -101,15 +98,15 @@ impl WireReport {
     }
     pub(crate) fn replay(
         &self,
-        plan: &crate::CommonOdePlan,
+        backend: eqiora_time::TimeBackendIdentity,
     ) -> Result<TimeExecutionReport, Diagnostic> {
-        if self.backend != plan.backend().id() || self.backend_version != plan.backend().version() {
+        if self.backend != backend.id() || self.backend_version != backend.version() {
             return Err(invalid(
                 "native time report backend differs from the exact ODE Plan",
             ));
         }
         Ok(TimeExecutionReport::new(
-            plan.backend(),
+            backend,
             TimeMethod::Tsitouras45,
             TimeEquationClass::ExplicitOde,
             InitialConditionPolicy::Provided,
@@ -133,8 +130,8 @@ mod tests {
             vec![0.],
             vec![0.25],
             vec![1.],
-            TimeDenseOutput::from_samples(vec![0., 0.5, 1.], vec![vec![0.], vec![0.25], vec![1.]])
-                .unwrap(),
+            vec![0., 0.5, 1.],
+            vec![vec![0.], vec![0.25], vec![1.]],
         )
         .unwrap();
         let encoded = serde_json::to_value(WireTimeStep::from(&step)).unwrap();

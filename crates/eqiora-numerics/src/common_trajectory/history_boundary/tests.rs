@@ -24,11 +24,8 @@ fn step(start: f64, end: f64, left: f64, right: f64) -> TimeHistoryStep {
         vec![left],
         vec![(left + right) * 0.5],
         vec![right],
-        eqiora_time::TimeDenseOutput::from_samples(
-            vec![start, start + (end - start) * 0.5, end],
-            vec![vec![left], vec![(left + right) * 0.5], vec![right]],
-        )
-        .unwrap(),
+        vec![start, start + (end - start) * 0.5, end],
+        vec![vec![left], vec![(left + right) * 0.5], vec![right]],
     )
     .unwrap()
 }
@@ -129,7 +126,7 @@ fn exact_event_output_uses_post_reset_side_including_at_terminal() {
 
 #[test]
 fn retained_dense_output_rejects_forged_off_stencil_samples() {
-    let dense = eqiora_time::TimeDenseOutput::from_samples(
+    let dense = (
         vec![0., 0.25, 0.5, 0.75, 1.],
         vec![
             vec![0.],
@@ -138,10 +135,10 @@ fn retained_dense_output_rejects_forged_off_stencil_samples() {
             vec![81. / 256.],
             vec![1.],
         ],
-    )
-    .unwrap();
+    );
     let step =
-        TimeHistoryStep::accepted(0., 1., vec![0.], vec![1. / 16.], vec![1.], dense).unwrap();
+        TimeHistoryStep::accepted(0., 1., vec![0.], vec![1. / 16.], vec![1.], dense.0, dense.1)
+            .unwrap();
     let sample = step.sample(0.125).unwrap();
     // The analytic quartic value is independent; the same degree-five roundoff
     // allowance as the primitive test separates accuracy from exact replay.

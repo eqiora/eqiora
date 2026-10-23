@@ -1,16 +1,26 @@
 //! Ordinary spatial Run execution through the shared accepted-time-history owner.
 use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
+use crate::common_trajectory::SpatialTimeExecution;
 use crate::form_compiler::region::coordinates::{self, Real};
-use eqiora_time::{ImplicitMidpointTimeBackend, TimeEquationClass, TimePlan};
+use eqiora_time::{
+    ImplicitMidpointTimeBackend, InitialConditionPolicy, TimeEquationClass, TimeMethod, TimePlan,
+    TimeProblem, TimeSolution,
+};
 
 impl CommonTransientRunRequest {
     /// Execute the admitted spatial time policy and return its accepted trajectory.
     /// Observations never choose internal steps for continuous time policies.
-    pub fn run(
+    /// `solve` supplies the admitted external provider for an explicit adaptive
+    /// problem; implicit midpoint uses the shared production stage solver.
+    pub fn run<F>(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<crate::CommonTrajectory, Diagnostic> {
+        solve: F,
+    ) -> Result<crate::CommonTrajectory, Diagnostic>
+    where
+        F: FnOnce(&TimeProblem<'_>, &TimePlan) -> Result<TimeSolution, Diagnostic>,
+    {
         if self.plan().backward_euler().is_some() {
             let states = self
                 .advance_accepted_actions(backend, |_, _| false)?
@@ -27,16 +37,25 @@ impl CommonTransientRunRequest {
         match plan.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
                 SpatialImplicitSystem::new(plan, equations, self.state().require_time_s()?)?
-                    .run(self, backend)
+                    .run(self, backend, solve)
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
                 SpatialImplicitSystem::new(plan, equations, self.state().require_time_s()?)?
-                    .run(self, backend)
+                    .run(self, backend, solve)
             }
             _ => Err(invalid(
                 "continuous spatial Run requires original spatial equations",
             )),
         }
+    }
+    pub(crate) fn time_backend_identity(
+        &self,
+    ) -> Result<eqiora_time::TimeBackendIdentity, Diagnostic> {
+        self.plan()
+            .as_spatial()
+            .and_then(|plan| plan.admission.time_backend)
+            .map(|backend| backend.identity())
+            .ok_or_else(|| invalid("continuous spatial Run requires its admitted time backend"))
     }
 }
 
@@ -44,36 +63,62 @@ impl<S: Coefficient + Send + Sync> SpatialImplicitSystem<'_, S>
 where
     RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
 {
-    fn run(
+    fn run<F>(
         &self,
         request: &CommonTransientRunRequest,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<crate::CommonTrajectory, Diagnostic> {
+        solve: F,
+    ) -> Result<crate::CommonTrajectory, Diagnostic>
+    where
+        F: FnOnce(&TimeProblem<'_>, &TimePlan) -> Result<TimeSolution, Diagnostic>,
+    {
         let (initial, plan) = self.prepare_run(request)?;
-        let mut execution = Vec::new();
-        let solution = ImplicitMidpointTimeBackend::new().solve_with_stages(
-            &initial,
-            &plan,
-            TimeEquationClass::GeneralImplicitDae,
-            |time, next, state| {
-                let (candidate, evidence) =
-                    self.midpoint_step(time, next - time, state, backend)?;
-                execution.push(crate::common_trajectory::SpatialTimeStage {
-                    solve: CommonSolveHistory::from_newton(&evidence),
-                    convergence: evidence.convergence,
-                });
-                Ok(candidate)
-            },
-        )?;
-        if self
-            .plan
-            .admission
-            .time_backend
-            .map(|backend| backend.identity())
-            != Some(solution.report().backend_identity())
+        let (solution, execution) = match plan.method() {
+            TimeMethod::ImplicitMidpoint => {
+                let mut stages = Vec::new();
+                let solution = ImplicitMidpointTimeBackend::new().solve_with_stages(
+                    &initial,
+                    &plan,
+                    TimeEquationClass::GeneralImplicitDae,
+                    |time, next, state| {
+                        let (candidate, evidence) =
+                            self.midpoint_step(time, next - time, state, backend)?;
+                        stages.push(crate::common_trajectory::SpatialTimeStage {
+                            solve: CommonSolveHistory::from_newton(&evidence),
+                            convergence: evidence.convergence,
+                        });
+                        Ok(candidate)
+                    },
+                )?;
+                (solution, SpatialTimeExecution::Midpoint(stages))
+            }
+            TimeMethod::Tsitouras45 => {
+                self.regular_mass(plan.start_time(), &initial)?;
+                let system = super::rate::SpatialRateSystem {
+                    implicit: self,
+                    backend,
+                };
+                let problem = TimeProblem::new(
+                    &system,
+                    TimeEquationClass::ExplicitOde,
+                    InitialConditionPolicy::Provided,
+                    initial,
+                )?;
+                let solution = solve(&problem, &plan)?;
+                let execution = SpatialTimeExecution::Adaptive(solution.report());
+                (solution, execution)
+            }
+            _ => {
+                return Err(invalid(
+                    "spatial execution has no implementation for this temporal method",
+                ));
+            }
+        };
+        if solution.report().backend_identity() != request.time_backend_identity()?
+            || solution.times() != plan.output_times()
         {
             return Err(invalid(
-                "spatial time execution backend differs from the admitted Plan",
+                "spatial time execution differs from the admitted backend or requested output times",
             ));
         }
         let states = request
@@ -85,7 +130,7 @@ where
                     time,
                     solution
                         .state(index)
-                        .ok_or_else(|| invalid("midpoint omitted one requested output"))?,
+                        .ok_or_else(|| invalid("time provider omitted one requested output"))?,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -95,7 +140,7 @@ where
             solution
                 .history()
                 .cloned()
-                .ok_or_else(|| invalid("midpoint omitted accepted history"))?,
+                .ok_or_else(|| invalid("time provider omitted accepted history"))?,
             execution,
         )
     }

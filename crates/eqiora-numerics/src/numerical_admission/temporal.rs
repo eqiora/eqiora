@@ -1,75 +1,56 @@
 //! Time method selection independent of the spatial representation.
 use super::*;
 
-/// Fixed-step backward-Euler controls requested from the common resolver.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommonBackwardEuler {
-    step: DynQuantity,
+/// Deterministic time method and its validated method-specific controls.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonTemporalPolicy(TemporalControls);
+
+#[derive(Debug, Clone, PartialEq)]
+enum TemporalControls {
+    BackwardEuler(DynQuantity),
+    Ode(CommonOdePolicy),
 }
 
-impl CommonBackwardEuler {
-    /// Construct one positive coherent-SI operator step.
-    pub fn from_seconds(step_s: f64) -> Result<Self, Diagnostic> {
+impl CommonTemporalPolicy {
+    /// Construct one positive coherent-SI backward-Euler operator step.
+    pub fn backward_euler(step_s: f64) -> Result<Self, Diagnostic> {
         if !step_s.is_finite() || step_s <= 0.0 || step_s.to_bits() == (-0.0_f64).to_bits() {
             return Err(invalid(
                 "BackwardEuler step_s must be finite and strictly positive",
             ));
         }
-        Ok(Self {
-            step: DynQuantity::new(step_s, TIME),
-        })
+        Ok(Self(TemporalControls::BackwardEuler(DynQuantity::new(
+            step_s, TIME,
+        ))))
     }
 
-    /// Exact physical duration of one operator construction.
+    /// Exact operator duration, only when backward Euler was requested.
     #[must_use]
-    pub const fn step(self) -> DynQuantity {
-        self.step
-    }
-}
-
-/// Deterministic time method and its method-specific numerical controls.
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommonTemporalPolicy {
-    /// Fixed-step backward Euler, including exact discrete history.
-    BackwardEuler(CommonBackwardEuler),
-    /// Controlled integration of the continuous State/rate equations.
-    Ode(CommonOdePolicy),
-}
-
-impl CommonTemporalPolicy {
-    /// Fixed-step controls, only when backward Euler was requested.
-    #[must_use]
-    pub const fn as_backward_euler(&self) -> Option<CommonBackwardEuler> {
-        match self {
-            Self::BackwardEuler(policy) => Some(*policy),
-            Self::Ode(_) => None,
+    pub const fn as_backward_euler(&self) -> Option<DynQuantity> {
+        match &self.0 {
+            TemporalControls::BackwardEuler(step) => Some(*step),
+            TemporalControls::Ode(_) => None,
         }
     }
 
     /// Controls for integration of continuous equations.
     #[must_use]
     pub const fn as_ode(&self) -> Option<&CommonOdePolicy> {
-        match self {
-            Self::Ode(policy) => Some(policy),
-            Self::BackwardEuler(_) => None,
+        match &self.0 {
+            TemporalControls::Ode(policy) => Some(policy),
+            TemporalControls::BackwardEuler(_) => None,
         }
     }
 
-    pub(super) fn require_backward_euler(&self) -> Result<CommonBackwardEuler, Diagnostic> {
+    pub(super) fn require_backward_euler(&self) -> Result<DynQuantity, Diagnostic> {
         self.as_backward_euler().ok_or_else(|| {
             invalid("discrete backward-Euler history requires a BackwardEuler policy")
         })
     }
 }
 
-impl From<CommonBackwardEuler> for CommonTemporalPolicy {
-    fn from(policy: CommonBackwardEuler) -> Self {
-        Self::BackwardEuler(policy)
-    }
-}
-
 impl From<CommonOdePolicy> for CommonTemporalPolicy {
     fn from(policy: CommonOdePolicy) -> Self {
-        Self::Ode(policy)
+        Self(TemporalControls::Ode(policy))
     }
 }

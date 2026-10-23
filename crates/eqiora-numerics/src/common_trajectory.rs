@@ -14,7 +14,7 @@ mod functional;
 pub(crate) mod history_boundary;
 mod sensitivity;
 mod spatial_time;
-pub(crate) use spatial_time::SpatialTimeStage;
+pub(crate) use spatial_time::{SpatialTimeExecution, SpatialTimeStage};
 mod spectrum;
 pub use functional::{CommonTrajectoryObservation, TimeObservationInterpolation};
 pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
@@ -42,7 +42,7 @@ enum TrajectoryPayload {
         request: Box<CommonTransientRunRequest>,
         states: Vec<CommonState>,
         history: AcceptedTimeHistory,
-        execution: Vec<SpatialTimeStage>,
+        execution: SpatialTimeExecution,
         identity: String,
     },
     SpatialTransient {
@@ -166,7 +166,6 @@ impl CommonTrajectory {
             .plan()
             .backward_euler()
             .ok_or_else(|| invalid("spatial trajectory requires BackwardEuler"))?
-            .step()
             .value();
         validate_spatial(request.state(), &request.output_steps()?, step_s, &states)?;
         if let crate::ResolvedCommonPlan::Spatial(plan) = request.plan() {
@@ -275,7 +274,7 @@ impl CommonTrajectory {
         validate_spatial(
             request.state(),
             &request.output_steps()?,
-            plan.temporal().step().value(),
+            plan.temporal().value(),
             states,
         )?;
         plan.boundary_force(step.previous_state(), step.state(), name)

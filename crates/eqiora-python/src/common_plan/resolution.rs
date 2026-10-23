@@ -285,7 +285,12 @@ pub(super) fn resolve_plan(
     let temporal_native = temporal_handle
         .as_ref()
         .map(|handle| match handle {
-            TemporalHandle::BackwardEuler(value) => Ok(value.borrow(py).native.into()),
+            TemporalHandle::BackwardEuler(value) => {
+                eqiora_numerics::CommonTemporalPolicy::backward_euler(
+                    value.borrow(py).native.value(),
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            }
             TemporalHandle::Tsitouras45(_) | TemporalHandle::ImplicitMidpoint(_) => {
                 let digest = model_ref
                     .artifact()

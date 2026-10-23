@@ -151,7 +151,9 @@ fn execute_job(
             let _solve = solve_phase(1).entered();
             if request.plan().ode_temporal().is_some() {
                 let trajectory = request
-                    .run(backend)
+                    .run(backend, |problem, plan| {
+                        DiffsolTimeBackend::new().solve(problem, plan)
+                    })
                     .map_err(|diagnostic| vec![diagnostic])?;
                 shared.publish_progress(PyRunProgress {
                     accepted_steps: trajectory

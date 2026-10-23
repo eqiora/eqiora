@@ -143,7 +143,7 @@ fn tetrahedral_storage_uses_the_common_run_and_restart() {
             &model,
             resources(&geometry, false),
             CommonSpatialPolicy::P1,
-            Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
+            Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         ),
         &REFERENCE_LINEAR_SOLVER,
     );

@@ -95,7 +95,6 @@ impl CommonSpatialPlan {
                 .as_ref()
                 .ok_or_else(|| invalid("discrete spatial history requires its time policy"))?
                 .require_backward_euler()
-                .map(|temporal| temporal.step())
         };
         // A method-dependent transform is shared by the whole coupled system;
         // its fluid and solid Regions must agree on the exact step.
@@ -233,7 +232,6 @@ impl CommonSpatialPlan {
             .as_ref()
             .ok_or_else(|| invalid("scalar step requires BackwardEuler"))?
             .require_backward_euler()?
-            .step()
             .value();
         if grid.previous()?.time(step_s)?.to_bits() != state.require_time_s()?.to_bits() {
             return Err(invalid("scalar State differs from its retained Time grid"));
@@ -269,7 +267,6 @@ impl CommonSpatialPlan {
             .as_ref()
             .ok_or_else(|| invalid("spatial step requires BackwardEuler"))?
             .require_backward_euler()?
-            .step()
             .value();
         let previous_time_s = history.grid.previous()?.time(step_s)?;
         if history.grid.time(step_s)?.to_bits() != next_time_s.to_bits() {
@@ -305,7 +302,6 @@ impl CommonSpatialPlan {
                 .as_ref()
                 .expect("scalar storage")
                 .require_backward_euler()?
-                .step()
                 .value();
             let previous = self
                 .prescribed_geometry_at(previous_time_s)?
@@ -360,7 +356,6 @@ impl CommonSpatialPlan {
                 .as_ref()
                 .expect("temporal Plan")
                 .require_backward_euler()?
-                .step()
                 .value(),
         )?;
         let structure = equations.algebraic_structure(None)?;

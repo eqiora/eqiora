@@ -315,7 +315,8 @@ fn spatial_time_backend_admission_binds_identity_and_available_domains() {
             "available host backend identity",
         ),
         (
-            base.backward_euler().map(Into::into),
+            base.backward_euler()
+                .map(|step| CommonTemporalPolicy::backward_euler(step.value()).unwrap()),
             Some(TEST_TIME_BACKEND),
             "requires a controlled time policy",
         ),

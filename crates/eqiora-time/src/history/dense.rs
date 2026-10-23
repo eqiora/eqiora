@@ -7,16 +7,16 @@ use eqiora_core::Diagnostic;
 /// An adapter supplies enough samples for its native interpolation degree. These
 /// samples are independent of requested output cadence and quadrature stencils.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TimeDenseOutput {
+pub(super) struct DenseOutput {
     times: Vec<f64>,
     states: Vec<Vec<f64>>,
 }
 
-impl TimeDenseOutput {
+impl DenseOutput {
     /// Retain a degree-at-most `times.len() - 1` polynomial in each coordinate.
     /// # Errors
     /// Rejects unordered or non-finite times, unrepresentable spans, and inconsistent states.
-    pub fn from_samples(times: Vec<f64>, states: Vec<Vec<f64>>) -> Result<Self, Diagnostic> {
+    pub(super) fn from_samples(times: Vec<f64>, states: Vec<Vec<f64>>) -> Result<Self, Diagnostic> {
         if times.len() < 2
             || times.len() != states.len()
             || times.iter().any(|time| !time.is_finite())
@@ -46,20 +46,20 @@ impl TimeDenseOutput {
 
     /// Exact physical sampling times, including both interval endpoints.
     #[must_use]
-    pub fn times(&self) -> &[f64] {
+    pub(super) fn times(&self) -> &[f64] {
         &self.times
     }
 
     /// Native polynomial values in sampling-time order.
     #[must_use]
-    pub fn states(&self) -> &[Vec<f64>] {
+    pub(super) fn states(&self) -> &[Vec<f64>] {
         &self.states
     }
 
     /// Evaluate the retained polynomial without extrapolation.
     /// # Errors
     /// Rejects times outside the interval and non-finite interpolation results.
-    pub fn sample(&self, time: f64) -> Result<Vec<f64>, Diagnostic> {
+    pub(super) fn sample(&self, time: f64) -> Result<Vec<f64>, Diagnostic> {
         let start = self.times[0];
         let end = self.times[self.times.len() - 1];
         if !time.is_finite() || time < start || time > end {
@@ -115,7 +115,7 @@ mod tests {
                 .iter()
                 .map(|&time| vec![(time - 2.).powi(degree), 3. - 2. * (time - 2.)])
                 .collect();
-            let polynomial = TimeDenseOutput::from_samples(times, states).unwrap();
+            let polynomial = DenseOutput::from_samples(times, states).unwrap();
             for offset in [0., 0.03125, 0.21875, 0.625, 0.96875, 1.] {
                 let sample = polynomial.sample(2. + offset).unwrap();
                 // At most five levels of a degree-five recurrence on [0,1];
@@ -147,7 +147,7 @@ mod tests {
             (vec![0., 1.], vec![vec![1.], vec![2., 3.]]),
             (vec![0., 1.], vec![vec![1.], vec![f64::INFINITY]]),
         ] {
-            assert!(TimeDenseOutput::from_samples(times, states).is_err());
+            assert!(DenseOutput::from_samples(times, states).is_err());
         }
     }
 }

@@ -336,7 +336,11 @@ impl CommonSpatialPlan {
         formulation: Option<CommonFormulationDescription>,
         accepted_authored_formulation: Option<AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        if let Some(CommonTemporalPolicy::Ode(policy)) = &admission.temporal {
+        if let Some(policy) = admission
+            .temporal
+            .as_ref()
+            .and_then(CommonTemporalPolicy::as_ode)
+        {
             let backend = admission
                 .time_backend
                 .ok_or_else(|| invalid("controlled time policy omitted its admitted backend"))?;

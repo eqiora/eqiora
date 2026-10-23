@@ -1,4 +1,4 @@
-use eqiora_numerics::CommonTransientFlowPlan;
+use eqiora_numerics::{CommonTemporalPolicy, CommonTransientFlowPlan};
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -8,8 +8,7 @@ use eqiora_artifact::{
 };
 use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonSolvePolicy, CommonSpatialPolicy,
-    IncompressibleScalingRequest2d,
+    AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPolicy, IncompressibleScalingRequest2d,
 };
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -256,7 +255,7 @@ fn transient_plan() -> CommonTransientFlowPlan {
         .unwrap(),
     };
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
-    let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.01).unwrap();
     eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
@@ -265,7 +264,7 @@ fn transient_plan() -> CommonTransientFlowPlan {
         Some(eqiora_numerics::CommonScalingRequest::Incompressible(
             scaling,
         )),
-        Some(temporal.into()),
+        Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

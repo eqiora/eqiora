@@ -7,10 +7,11 @@ use eqiora::artifact::{
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::GeometryGraph;
 use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
+use eqiora_numerics::CommonTemporalPolicy;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonBackwardEuler, CommonLinearRequest, CommonResult,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonTrajectory,
-    CommonTransientRunRequest, ResolvedCommonPlan,
+    AuthenticatedCommonMesh, CommonLinearRequest, CommonResult, CommonSolvePolicy,
+    CommonSpatialPolicy, CommonState, CommonTrajectory, CommonTransientRunRequest,
+    ResolvedCommonPlan,
 };
 use std::{collections::BTreeMap, num::NonZeroUsize};
 
@@ -185,7 +186,7 @@ fn resolve_source(
         CommonSpatialPolicy::Q1,
         solve,
         None,
-        Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
@@ -441,3 +442,7 @@ fn nonlinear_law_storage_uses_state_coordinate_backward_euler() {
 fn nonlinear_relation_storage_uses_state_coordinate_backward_euler() {
     nonlinear_storage_history(false);
 }
+
+#[cfg(feature = "diffsol")]
+#[path = "spatial_time_domains/adaptive.rs"]
+mod adaptive;

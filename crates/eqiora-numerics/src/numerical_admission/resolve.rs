@@ -345,11 +345,10 @@ impl ResolvedCommonPlan {
                         "transient incompressible-flow mathematics requires Newton(linear=...) policy",
                     ));
                 };
-                let temporal = temporal
-                    .ok_or_else(|| {
-                        invalid("transient incompressible-flow mathematics requires BackwardEuler")
-                    })?
-                    .require_backward_euler()?;
+                let temporal_policy = temporal.ok_or_else(|| {
+                    invalid("transient incompressible-flow mathematics requires BackwardEuler")
+                })?;
+                let temporal = temporal_policy.require_backward_euler()?;
                 let (geometry, mesh, correspondence, _) =
                     resource_artifact_digests(&recognized.resources)?;
                 let scaling = resolve_complete_manual_incompressible_scaling_2d(
@@ -374,7 +373,7 @@ impl ResolvedCommonPlan {
                 let admission = recognized.complete(
                     native_spatial,
                     linear,
-                    Some(temporal.into()),
+                    Some(temporal_policy),
                     time_backend,
                     Some(nonlinear),
                     eqiora_realization::SystemScaling::Dimensional,

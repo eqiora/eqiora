@@ -262,11 +262,8 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
                 vec![1.0],
                 vec![0.9],
                 vec![0.8],
-                eqiora_time::TimeDenseOutput::from_samples(
-                    vec![0.0, 0.1, 0.2],
-                    vec![vec![1.0], vec![0.9], vec![0.8]],
-                )
-                .unwrap(),
+                vec![0.0, 0.1, 0.2],
+                vec![vec![1.0], vec![0.9], vec![0.8]],
             )
             .unwrap(),
         ],

@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 mod temporal;
-pub use temporal::{CommonBackwardEuler, CommonTemporalPolicy};
+pub use temporal::CommonTemporalPolicy;
 
 mod eigen;
 pub use eigen::{CommonEigenPlan, CommonEigenRequest};
@@ -522,7 +522,7 @@ pub struct CommonTransientFlowPlan {
     formulation: CommonTransientFormulation,
     formulation_selection: FormulationSelectionMode,
     scaling: ResolvedIncompressibleScaling2d,
-    temporal: CommonBackwardEuler,
+    temporal: DynQuantity,
     nonlinear: NonlinearSolvePlan,
     lineage: CommonSpatialPlanLineage,
     velocity_field_id: String,

@@ -105,7 +105,7 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
             nonlinear: NonlinearSolvePlan::new(1e-10, 1e-12, NonZeroUsize::new(12).unwrap(), 12)
                 .unwrap(),
         },
-        Some(CommonBackwardEuler::from_seconds(0.125).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(0.125).unwrap()),
     )
 }
 
@@ -162,7 +162,7 @@ fn stationary_nonlinear_fields_validate_original_equations_in_each_state() {
             nonlinear: NonlinearSolvePlan::new(0., 1e-12, NonZeroUsize::new(12).unwrap(), 12)
                 .unwrap(),
         },
-        Some(CommonBackwardEuler::from_seconds(0.125).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(0.125).unwrap()),
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

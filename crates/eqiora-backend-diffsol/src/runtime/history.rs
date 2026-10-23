@@ -2,7 +2,7 @@
 use super::continuation::Control;
 use super::*;
 use diffsol::{MatrixCommon, OdeEquations, Tableau};
-use eqiora_time::{AcceptedTimeHistory, TimeCheckpoint, TimeDenseOutput, TimeHistoryStep};
+use eqiora_time::{AcceptedTimeHistory, TimeCheckpoint, TimeHistoryStep};
 use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 
@@ -267,7 +267,8 @@ where
                 || collect_vector(solver.state().y),
                 |proposal| proposal.state().to_vec(),
             ),
-            dense,
+            dense.0,
+            dense.1,
         )?);
         if parameters > 0 {
             let middle = solver.interpolate_sens(midpoint).map_err(|error| {
@@ -298,7 +299,8 @@ where
                 start_sensitivity,
                 flatten(&middle),
                 flatten(&end_sensitivity),
-                dense,
+                dense.0,
+                dense.1,
             )?);
         }
         while sample < times.len()
@@ -402,7 +404,7 @@ fn capture_polynomial(
     end: f64,
     degree: usize,
     mut sample: impl FnMut(f64) -> Result<Vec<f64>, Diagnostic>,
-) -> Result<TimeDenseOutput, Diagnostic> {
+) -> Result<(Vec<f64>, Vec<Vec<f64>>), Diagnostic> {
     if degree == 0 {
         return Err(solve_failed(
             "native dense output omitted its polynomial degree",
@@ -421,5 +423,5 @@ fn capture_polynomial(
         .iter()
         .map(|&time| sample(time))
         .collect::<Result<Vec<_>, _>>()?;
-    TimeDenseOutput::from_samples(times, states)
+    Ok((times, states))
 }

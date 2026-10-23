@@ -73,7 +73,9 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![until],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER)
+                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                    panic!("midpoint must use the production implicit stage solver")
+                })
                 .unwrap();
                 let outputs = vec![h / 2., 2. * h, until];
                 let request = CommonTransientRunRequest::from_times(
@@ -85,7 +87,11 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                 .unwrap();
                 assert!(request.output_steps().is_err());
                 assert!(request.accepted_steps().is_err());
-                let dense = request.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+                let dense = request
+                    .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                        panic!("midpoint must use the production implicit stage solver")
+                    })
+                    .unwrap();
                 assert_eq!(sparse.spatial_time_history(), dense.spatial_time_history());
                 assert_eq!(dense.spatial_time_history().unwrap().steps().len(), 4);
                 let interior_only = CommonTransientRunRequest::from_times(
@@ -95,7 +101,9 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![h / 2.],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER)
+                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                    panic!("midpoint must use the production implicit stage solver")
+                })
                 .unwrap();
                 assert_eq!(
                     interior_only.spatial_time_history(),
@@ -144,7 +152,9 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![until],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER)
+                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                    panic!("midpoint must use the production implicit stage solver")
+                })
                 .unwrap();
                 close(
                     resumed.spatial_state(0).unwrap().spatial_values().unwrap(),
@@ -187,7 +197,7 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
 
 fn reject_false_correction(bytes: &[u8], plan: &ResolvedCommonPlan) {
     let mut false_correction: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-    false_correction["payload"]["execution"][0]["convergence"] =
+    false_correction["payload"]["execution"]["stages"][0]["convergence"] =
         serde_json::json!({"kind":"correction","weighted_norm":0.,"point":[0.],"direction":[1.]});
     let error =
         crate::CommonTrajectory::from_bytes(&serde_json::to_vec(&false_correction).unwrap(), plan)
@@ -212,7 +222,7 @@ fn reject_false_correction(bytes: &[u8], plan: &ResolvedCommonPlan) {
         serde_json::json!(wrong);
     false_equation["payload"]["history"][3]["midpoint_state"][0] =
         serde_json::json!(0.5 * old + 0.5 * wrong);
-    false_equation["payload"]["execution"][3]["convergence"] = serde_json::json!({"kind":"correction","weighted_norm":0.,"point":[wrong],"direction":[0.]});
+    false_equation["payload"]["execution"]["stages"][3]["convergence"] = serde_json::json!({"kind":"correction","weighted_norm":0.,"point":[wrong],"direction":[0.]});
     let error =
         crate::CommonTrajectory::from_bytes(&serde_json::to_vec(&false_equation).unwrap(), plan)
             .unwrap_err();
@@ -266,7 +276,9 @@ fn nonlinear_storage_runs_replay_the_original_state_dependent_stage() {
                 vec![0.25, 0.5, 0.75, 1.],
             )
             .unwrap()
-            .run(&REFERENCE_LINEAR_SOLVER)
+            .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
+                panic!("midpoint must use the production implicit stage solver")
+            })
             .unwrap();
             // 2*u*u'=-u² on the nonzero branch gives u'=-u/2.
             // At h=1/4 the midpoint factor is (1-1/16)/(1+1/16)=15/17.

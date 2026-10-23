@@ -70,7 +70,7 @@ fn resolve(
                 .unwrap(),
         },
         None,
-        Some(CommonBackwardEuler::from_seconds(step).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

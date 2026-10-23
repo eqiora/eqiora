@@ -73,7 +73,6 @@ impl CommonTransientRunRequest {
         let dt = plan
             .backward_euler()
             .ok_or_else(|| invalid("fixed-grid transient Run requires BackwardEuler"))?
-            .step()
             .value();
         let grid = state.time_grid()?;
         let until_s = grid.advance(steps)?.time(dt)?;
@@ -115,7 +114,7 @@ impl CommonTransientRunRequest {
         }
         if let Some(temporal) = plan.backward_euler() {
             let grid = state.time_grid()?;
-            let dt = temporal.step().value();
+            let dt = temporal.value();
             grid.steps_until(until_s, dt, "until_s")?;
             for &time in &output_times_s {
                 grid.steps_until(time, dt, "output_times_s")?;
@@ -167,7 +166,6 @@ impl CommonTransientRunRequest {
             .ok_or_else(|| {
                 invalid("accepted step count is determined by execution for this policy")
             })?
-            .step()
             .value();
         NonZeroUsize::new(
             self.state
@@ -184,7 +182,6 @@ impl CommonTransientRunRequest {
             .ok_or_else(|| {
                 invalid("observation times are not accepted-step ordinals for this policy")
             })?
-            .step()
             .value();
         let grid = self.state.time_grid()?;
         self.output_times_s
@@ -217,7 +214,6 @@ impl CommonTransientRunRequest {
                 .as_ref()
                 .expect("validated temporal")
                 .require_backward_euler()?
-                .step()
                 .value();
             return advance_common_prepared_actions(
                 self.state.clone(),
@@ -232,7 +228,7 @@ impl CommonTransientRunRequest {
         let ResolvedCommonPlan::TransientFlow(plan) = &self.plan else {
             return Err(invalid("unsupported transient Plan"));
         };
-        let step_s = plan.temporal().step().value();
+        let step_s = plan.temporal().value();
         let start_s = self.state().require_time_s()?;
         let mut accepted = 0;
         advance_common_prepared_actions(

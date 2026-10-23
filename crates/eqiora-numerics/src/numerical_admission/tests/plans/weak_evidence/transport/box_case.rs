@@ -76,7 +76,7 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         Some(&projection),

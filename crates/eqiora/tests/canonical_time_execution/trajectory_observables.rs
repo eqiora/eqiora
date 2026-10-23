@@ -690,11 +690,8 @@ model Reset() {
                     vec![0.],
                     vec![0.2],
                     vec![0.4],
-                    eqiora::time::TimeDenseOutput::from_samples(
-                        vec![0., 0.2, 0.4],
-                        vec![vec![0.], vec![0.2], vec![0.4]],
-                    )
-                    .unwrap(),
+                    vec![0., 0.2, 0.4],
+                    vec![vec![0.], vec![0.2], vec![0.4]],
                 )?],
                 vec![],
             )?;
@@ -738,11 +735,8 @@ model Reset() {
                     vec![0.0],
                     vec![0.2],
                     vec![0.4],
-                    eqiora::time::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.2, 0.4],
-                        vec![vec![0.0], vec![0.2], vec![0.4]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.2, 0.4],
+                    vec![vec![0.0], vec![0.2], vec![0.4]],
                 )?],
                 vec![],
             )?;
@@ -754,11 +748,8 @@ model Reset() {
                     vec![0.0],
                     vec![0.0],
                     vec![0.0],
-                    eqiora::time::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.2, 0.4],
-                        vec![vec![0.0], vec![0.0], vec![0.0]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.2, 0.4],
+                    vec![vec![0.0], vec![0.0], vec![0.0]],
                 )?],
                 vec![],
             )?;

@@ -32,7 +32,6 @@ impl TimeObservationInterval {
                     .plan()
                     .backward_euler()
                     .ok_or_else(|| invalid("time observation requires accepted step coordinates"))?
-                    .step()
                     .value();
                 let start = request.state().require_time_s()?;
                 Self::covered(

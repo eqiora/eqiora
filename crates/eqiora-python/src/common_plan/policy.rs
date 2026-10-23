@@ -5,6 +5,7 @@ mod process;
 pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
 pub(super) use process::{PyEulerMaruyama, PyPoissonEvents};
 
+use eqiora_numerics::CommonTemporalPolicy;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
@@ -14,9 +15,7 @@ use super::{CommonMethodRequest, CommonSpatialPolicy, SpatialHandle, SpatialPoli
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{SolverPlan, SolverPlanningObjective};
 use eqiora::{Id, kinds};
-use eqiora_numerics::{
-    CommonBackwardEuler, CommonLinearRequest, CommonOdePolicy, CommonPressureGauge2d,
-};
+use eqiora_numerics::{CommonLinearRequest, CommonOdePolicy, CommonPressureGauge2d};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt};
@@ -434,11 +433,11 @@ impl PyLinear {
 )]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PyBackwardEuler {
-    pub(super) native: CommonBackwardEuler,
+    pub(super) native: eqiora::DynQuantity,
 }
 
 impl PyBackwardEuler {
-    pub(super) const fn from_native(native: CommonBackwardEuler) -> Self {
+    pub(super) const fn from_native(native: eqiora::DynQuantity) -> Self {
         Self { native }
     }
 }
@@ -452,14 +451,18 @@ impl PyBackwardEuler {
             .cast::<PyFloat>()
             .map_err(|_| PyTypeError::new_err("step_s must be a float"))?
             .value();
-        CommonBackwardEuler::from_seconds(step_s)
-            .map(|native| Self { native })
+        CommonTemporalPolicy::backward_euler(step_s)
+            .map(|policy| Self {
+                native: policy
+                    .as_backward_euler()
+                    .expect("backward Euler constructor"),
+            })
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
 
     #[getter]
     fn step_s(&self) -> f64 {
-        self.native.step().value()
+        self.native.value()
     }
 
     fn __repr__(&self) -> String {

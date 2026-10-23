@@ -1,7 +1,7 @@
 //! Reconstruct the original midpoint equation and the actual stopping witness.
 use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
-use crate::common_trajectory::SpatialTimeStage;
+use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
 use crate::nonlinear_execution::{NewtonConvergence, NewtonOptions, NewtonStopping};
 use eqiora_time::{AcceptedTimeHistory, ImplicitMidpointTimeBackend, TimeHistoryStep};
 use midpoint::stage_merit;
@@ -11,7 +11,7 @@ impl CommonTransientRunRequest {
         &self,
         states: &[CommonState],
         history: &AcceptedTimeHistory,
-        execution: &[SpatialTimeStage],
+        execution: &SpatialTimeExecution,
     ) -> Result<(), Diagnostic> {
         let plan = self
             .plan()
@@ -41,28 +41,69 @@ where
         request: &CommonTransientRunRequest,
         states: &[CommonState],
         history: &AcceptedTimeHistory,
-        execution: &[SpatialTimeStage],
+        execution: &SpatialTimeExecution,
     ) -> Result<(), Diagnostic> {
         let (initial, plan) = self.prepare_run(request)?;
-        ImplicitMidpointTimeBackend::validate_history(&initial, &plan, history)?;
-        if states.len() != request.output_times_s().len()
-            || execution.len() != history.steps().len()
-        {
-            return Err(invalid(
-                "spatial history omitted outputs or stage execution records",
-            ));
+        if states.len() != request.output_times_s().len() {
+            return Err(invalid("spatial history omitted requested outputs"));
         }
-        for (step, evidence) in history.steps().iter().zip(execution) {
-            self.validate_stage(request, step, evidence, plan.absolute_tolerances())?;
+        match execution {
+            SpatialTimeExecution::Midpoint(stages) => {
+                ImplicitMidpointTimeBackend::validate_history(&initial, &plan, history)?;
+                if stages.len() != history.steps().len() {
+                    return Err(invalid("spatial history omitted stage execution records"));
+                }
+                for (step, evidence) in history.steps().iter().zip(stages) {
+                    self.validate_stage(request, step, evidence, plan.absolute_tolerances())?;
+                }
+            }
+            SpatialTimeExecution::Adaptive(report) => {
+                if plan.method() != eqiora_time::TimeMethod::Tsitouras45
+                    || report.method() != plan.method()
+                    || report.backend_identity() != request.time_backend_identity()?
+                    || report.equation_class() != eqiora_time::TimeEquationClass::ExplicitOde
+                    || report.initial_condition() != eqiora_time::InitialConditionPolicy::Provided
+                    || history.dimension() != initial.len()
+                    || !history.events().is_empty()
+                    || history.steps()[0].start_time().to_bits() != plan.start_time().to_bits()
+                    || history.steps()[0].start_state() != initial
+                    || history
+                        .steps()
+                        .last()
+                        .expect("nonempty history")
+                        .end_time()
+                        .to_bits()
+                        != request.until_s().to_bits()
+                {
+                    return Err(invalid(
+                        "adaptive spatial history differs from its admitted provider, method, coordinates or Run interval",
+                    ));
+                }
+                // The adapter owns RK acceptance. Replay verifies the retained
+                // spatial admissibility and output history, not a fabricated
+                // midpoint equation or independently authenticated RK stages.
+                for step in history.steps() {
+                    for (time, state) in [
+                        (step.start_time(), step.start_state()),
+                        (
+                            step.start_time() + 0.5 * (step.end_time() - step.start_time()),
+                            step.midpoint_state(),
+                        ),
+                        (step.end_time(), step.end_state()),
+                    ] {
+                        self.regular_mass(time, state)?;
+                    }
+                }
+            }
         }
         for (state, &time) in states.iter().zip(request.output_times_s()) {
             let step = &history.steps()[history
                 .steps()
                 .partition_point(|step| step.end_time() < time)];
-            let point = ImplicitMidpointTimeBackend::sample_step(step, time)?;
+            let point = step.sample(time)?;
             if *state != self.physical_state(time, &point)? {
                 return Err(invalid(
-                    "spatial output differs from its exact collocation history",
+                    "spatial output differs from its exact accepted time history",
                 ));
             }
         }

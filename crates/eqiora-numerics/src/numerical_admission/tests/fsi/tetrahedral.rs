@@ -165,7 +165,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
             NonZeroUsize::new(20_000).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.05).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

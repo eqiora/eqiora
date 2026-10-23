@@ -128,7 +128,7 @@ fn resolve_with_boundary(
             .unwrap(),
         },
         None,
-        Some(CommonBackwardEuler::from_seconds(0.125).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(0.125).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

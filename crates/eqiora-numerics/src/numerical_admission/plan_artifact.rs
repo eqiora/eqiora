@@ -265,7 +265,7 @@ impl ResolvedCommonPlan {
 
     /// Backward-Euler policy owned by a spatial transient Plan.
     #[must_use]
-    pub const fn backward_euler(&self) -> Option<CommonBackwardEuler> {
+    pub const fn backward_euler(&self) -> Option<DynQuantity> {
         match self {
             Self::Spatial(plan) => match &plan.admission.temporal {
                 Some(policy) => policy.as_backward_euler(),
@@ -590,7 +590,7 @@ impl WireResolvedCommonPlan {
                 .as_ref()
                 .ok_or_else(|| invalid("ODE Plan omitted its method policy"))?
                 .to_native()?;
-            let CommonTemporalPolicy::Ode(temporal) = temporal else {
+            let Some(temporal) = temporal.as_ode().cloned() else {
                 return Err(invalid(
                     "ODE Plan requires a controlled continuous time policy",
                 ));

@@ -268,9 +268,9 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
             ));
         }
         let mut bound = self.clone();
-        if let Some(CommonTemporalPolicy::BackwardEuler(temporal)) = temporal {
+        if let Some(temporal) = temporal.and_then(CommonTemporalPolicy::as_backward_euler) {
             for region in &mut bound.regions {
-                region.form = region.form.bind_backward_euler(temporal.step())?;
+                region.form = region.form.bind_backward_euler(temporal)?;
             }
         }
         // Quotient rows sum the two outward flux equations. Their actual row

@@ -23,7 +23,7 @@ mod root_outcome;
 mod root_registration;
 pub use root_outcome::TimeRootOutcome;
 mod solution;
-pub use history::{AcceptedTimeHistory, TimeDenseOutput, TimeEventDiscontinuity, TimeHistoryStep};
+pub use history::{AcceptedTimeHistory, TimeEventDiscontinuity, TimeHistoryStep};
 mod system;
 
 #[cfg(test)]

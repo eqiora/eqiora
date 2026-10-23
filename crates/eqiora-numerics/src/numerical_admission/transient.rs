@@ -46,7 +46,7 @@ impl CommonTransientFlowPlan {
         admission: NativeNumericalAdmission,
         formulation_selection: FormulationSelectionMode,
         scaling: ResolvedIncompressibleScaling2d,
-        temporal: CommonBackwardEuler,
+        temporal: DynQuantity,
         nonlinear: NonlinearSolvePlan,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
@@ -81,7 +81,7 @@ impl CommonTransientFlowPlan {
                         transient,
                         mesh.artifact_reference()?,
                         *scales,
-                        temporal.step(),
+                        temporal,
                         nonlinear,
                         solver,
                     )?;
@@ -138,7 +138,7 @@ impl CommonTransientFlowPlan {
                     let plan = binding.mini_plan(
                         mesh.artifact_reference()?,
                         *scales,
-                        temporal.step(),
+                        temporal,
                         nonlinear,
                         solver,
                     )?;
@@ -208,7 +208,7 @@ impl CommonTransientFlowPlan {
                         transient,
                         MeshPolicy::SuppliedCartesian { artifact, cells },
                         *scales,
-                        temporal.step(),
+                        temporal,
                         nonlinear,
                         solver,
                     )?;
@@ -408,7 +408,7 @@ impl CommonTransientFlowPlan {
         self.scaling.scales()
     }
     #[must_use]
-    pub const fn temporal(&self) -> CommonBackwardEuler {
+    pub const fn temporal(&self) -> DynQuantity {
         self.temporal
     }
     #[must_use]
@@ -734,10 +734,8 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.prepare_execution(state, backend)?.advance(
-            state,
-            state.require_time_s()? + self.temporal().step().value(),
-        )
+        self.prepare_execution(state, backend)?
+            .advance(state, state.require_time_s()? + self.temporal().value())
     }
 
     pub(super) fn authenticate_execution(

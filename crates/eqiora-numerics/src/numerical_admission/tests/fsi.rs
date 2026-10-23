@@ -52,7 +52,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         1.0e-13,
         NonZeroUsize::new(20_000).unwrap(),
     );
-    let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
+    let temporal = CommonTemporalPolicy::backward_euler(0.05).unwrap();
     let resolve = |scaling: Option<CommonScalingRequest>| {
         let resolved = ResolvedCommonPlan::resolve(
             &model,
@@ -60,7 +60,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             scoped.clone(),
             CommonSolvePolicy::Linear(requested),
             scaling,
-            Some(temporal.into()),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
             None,
             None,
@@ -220,7 +220,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
                 .unwrap(),
             ),
             None,
-            Some(temporal.into()),
+            Some(temporal.clone()),
             &FsiPlanningBackend,
             None,
             None,
@@ -252,7 +252,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         scoped.clone(),
         CommonSolvePolicy::Linear(direct),
         None,
-        Some(temporal.into()),
+        Some(temporal.clone()),
         &FsiPlanningBackend,
         None,
         None,
@@ -375,7 +375,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonTrajectory::from_bytes(
             &old_schema(
                 &trajectory_bytes,
-                "eqiora.common-trajectory/v11",
+                "eqiora.common-trajectory/v12",
                 "eqiora.common-trajectory/v4"
             ),
             &automatic_resolved,
@@ -386,7 +386,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonResult::from_bytes(
             &old_schema(
                 &result_bytes,
-                "eqiora.common-result/v26",
+                "eqiora.common-result/v27",
                 "eqiora.common-result/v15"
             ),
             &automatic_resolved,
@@ -420,7 +420,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             foreign_scoped,
             CommonSolvePolicy::Linear(requested),
             None,
-            Some(temporal.into()),
+            Some(temporal.clone()),
             &ResolveOnlyBackend,
             None,
             None,

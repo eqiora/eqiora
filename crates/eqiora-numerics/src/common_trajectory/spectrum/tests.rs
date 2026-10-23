@@ -93,11 +93,8 @@ fn typed_fixture(
                 vec![0.],
                 vec![0.],
                 vec![0.],
-                eqiora_time::TimeDenseOutput::from_samples(
-                    vec![0., 2., 4.],
-                    vec![vec![0.], vec![0.], vec![0.]],
-                )
-                .unwrap(),
+                vec![0., 2., 4.],
+                vec![vec![0.], vec![0.], vec![0.]],
             )
             .unwrap(),
         ],

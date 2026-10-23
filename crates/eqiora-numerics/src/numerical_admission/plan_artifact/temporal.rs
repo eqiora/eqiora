@@ -151,9 +151,9 @@ pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal
             .temporal
             .as_ref()
             .map(WireTemporal::from_policy),
-        ResolvedCommonPlan::TransientFlow(plan) => {
-            Some(WireTemporal::from_policy(&plan.temporal().into()))
-        }
+        ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
+            step_s: plan.temporal().value(),
+        }),
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,
@@ -162,11 +162,12 @@ pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal
 
 impl WireTemporal {
     pub(super) fn from_policy(policy: &CommonTemporalPolicy) -> Self {
-        match policy {
-            CommonTemporalPolicy::BackwardEuler(policy) => Self::BackwardEuler {
-                step_s: policy.step().value(),
-            },
-            CommonTemporalPolicy::Ode(policy) => Self::from_ode(policy),
+        if let Some(step) = policy.as_backward_euler() {
+            Self::BackwardEuler {
+                step_s: step.value(),
+            }
+        } else {
+            Self::from_ode(policy.as_ode().expect("controlled temporal policy"))
         }
     }
 
@@ -206,7 +207,7 @@ impl WireTemporal {
 
     pub(super) fn to_native(&self) -> Result<CommonTemporalPolicy, Diagnostic> {
         if let Self::BackwardEuler { step_s } = self {
-            return CommonBackwardEuler::from_seconds(*step_s).map(Into::into);
+            return CommonTemporalPolicy::backward_euler(*step_s);
         }
         let Self::Ode {
             method,

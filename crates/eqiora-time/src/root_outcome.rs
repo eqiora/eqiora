@@ -166,11 +166,8 @@ mod tests {
                     vec![1.0],
                     vec![0.5],
                     vec![0.0],
-                    crate::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.5, 1.0],
-                        vec![vec![1.0], vec![0.5], vec![0.0]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![1.0], vec![0.5], vec![0.0]],
                 )
                 .unwrap(),
             ],
@@ -190,11 +187,8 @@ mod tests {
                     vec![0.0],
                     vec![0.5],
                     vec![1.0],
-                    crate::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.5, 1.0],
-                        vec![vec![0.0], vec![0.5], vec![1.0]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![0.0], vec![0.5], vec![1.0]],
                 )
                 .unwrap(),
             ],
@@ -231,11 +225,8 @@ mod tests {
                     vec![0.0],
                     vec![0.375],
                     vec![0.75],
-                    crate::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.375, 0.75],
-                        vec![vec![0.0], vec![0.375], vec![0.75]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.375, 0.75],
+                    vec![vec![0.0], vec![0.375], vec![0.75]],
                 )
                 .unwrap(),
             ],
@@ -255,11 +246,8 @@ mod tests {
                     vec![1.0],
                     vec![0.5],
                     vec![0.1],
-                    crate::TimeDenseOutput::from_samples(
-                        vec![0.0, 0.5, 1.0],
-                        vec![vec![1.0], vec![0.5], vec![0.1]],
-                    )
-                    .unwrap(),
+                    vec![0.0, 0.5, 1.0],
+                    vec![vec![1.0], vec![0.5], vec![0.1]],
                 )
                 .unwrap(),
             ],

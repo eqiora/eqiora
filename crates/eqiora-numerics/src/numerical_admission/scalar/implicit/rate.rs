@@ -76,7 +76,7 @@ where
         Ok(tangent)
     }
 
-    fn regular_mass(
+    pub(super) fn regular_mass(
         &self,
         time: f64,
         state: &[f64],
@@ -129,5 +129,50 @@ where
             LinearSolveRequest::new(&checked, self.plan.linear()),
             self.plan.admission.linear.workers,
         )
+    }
+}
+
+/// Bind the existing implicit residual elimination to the shared time-provider vocabulary.
+pub(super) struct SpatialRateSystem<'a, 'p, S: Coefficient> {
+    pub(super) implicit: &'a SpatialImplicitSystem<'p, S>,
+    pub(super) backend: &'a dyn LinearSolverBackend,
+}
+
+impl<S: Coefficient + Send + Sync> eqiora_time::TimeSystem for SpatialRateSystem<'_, '_, S>
+where
+    RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+{
+    fn dimension(&self) -> usize {
+        self.implicit.dimension
+    }
+
+    fn rhs(&self, time: f64, state: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+        if output.len() != self.dimension() {
+            return Err(invalid("spatial rate output has a foreign dimension"));
+        }
+        let (rate, _) = self.implicit.explicit_rate(time, state, self.backend)?;
+        output.copy_from_slice(&rate);
+        Ok(())
+    }
+
+    fn rhs_jvp(
+        &self,
+        time: f64,
+        state: &[f64],
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if output.len() != self.dimension() {
+            return Err(invalid(
+                "spatial rate tangent output has a foreign dimension",
+            ));
+        }
+        output.copy_from_slice(&self.implicit.explicit_rate_jvp(
+            time,
+            state,
+            direction,
+            self.backend,
+        )?);
+        Ok(())
     }
 }

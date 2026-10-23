@@ -53,9 +53,13 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             };
             let mut equations = lowered.clone();
-            if let Some(CommonTemporalPolicy::BackwardEuler(temporal)) = &admission.temporal {
+            if let Some(temporal) = admission
+                .temporal
+                .as_ref()
+                .and_then(CommonTemporalPolicy::as_backward_euler)
+            {
                 for region in &mut equations.regions {
-                    region.form = region.form.bind_backward_euler(temporal.step())?;
+                    region.form = region.form.bind_backward_euler(temporal)?;
                 }
             }
             let forms = equations.bind_spaces(
@@ -112,8 +116,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
             .temporal
             .as_ref()
             .ok_or_else(|| invalid("kinematic graph requires its explicit temporal Plan"))?
-            .require_backward_euler()?
-            .step();
+            .require_backward_euler()?;
         let mut states = Vec::new();
         for region in &lowered.regions {
             let selected = admission

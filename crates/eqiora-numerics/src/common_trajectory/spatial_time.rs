@@ -1,5 +1,6 @@
 //! Accepted continuous spatial history keeps output States separate from internal steps.
 use super::*;
+pub(super) mod artifact;
 use crate::common_result::evidence::{CommonSolveEvidence, CommonSolveHistory};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -8,12 +9,18 @@ pub(crate) struct SpatialTimeStage {
     pub(crate) convergence: crate::nonlinear_execution::NewtonConvergence,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum SpatialTimeExecution {
+    Midpoint(Vec<SpatialTimeStage>),
+    Adaptive(eqiora_time::TimeExecutionReport),
+}
+
 impl CommonTrajectory {
     pub(crate) fn accept_spatial_time(
         request: CommonTransientRunRequest,
         states: Vec<CommonState>,
         history: AcceptedTimeHistory,
-        execution: Vec<SpatialTimeStage>,
+        execution: SpatialTimeExecution,
     ) -> Result<Self, Diagnostic> {
         request.validate_spatial_time(&states, &history, &execution)?;
         let mut bytes = Vec::new();
@@ -27,19 +34,11 @@ impl CommonTrajectory {
             .iter()
             .map(crate::time_history_artifact::WireTimeStep::from)
             .collect::<Vec<_>>();
-        let solves = execution
-            .iter()
-            .map(|stage| {
-                Ok((
-                    crate::common_result::artifact::WireSolveHistory::from_evidence(&stage.solve)?,
-                    &stage.convergence,
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let execution_wire = artifact::WireSpatialTimeExecution::capture(&execution)?;
         push(
             &mut bytes,
             &eqiora_artifact::JsonLimits::EXECUTION
-                .encode(&(steps, solves))
+                .encode(&(steps, execution_wire))
                 .map_err(|error| invalid(error.to_string()))?,
         );
         Ok(Self {
@@ -76,11 +75,15 @@ impl CommonTrajectory {
 
     /// Actual linear solver receipts for one internal spatial time stage.
     /// The index denotes an internal stage, not a requested output.
+    /// Adaptive provider stages do not expose retained linear receipts here.
     #[must_use]
     pub fn spatial_stage_solves(&self, stage: usize) -> Option<&[CommonSolveEvidence]> {
         match &self.payload {
             TrajectoryPayload::SpatialTime { execution, .. } => {
-                match &execution.get(stage)?.solve {
+                let SpatialTimeExecution::Midpoint(stages) = execution else {
+                    return None;
+                };
+                match &stages.get(stage)?.solve {
                     CommonSolveHistory::Newton { linear_solves, .. } => Some(linear_solves),
                     CommonSolveHistory::Linear(solve) => Some(std::slice::from_ref(solve.as_ref())),
                 }

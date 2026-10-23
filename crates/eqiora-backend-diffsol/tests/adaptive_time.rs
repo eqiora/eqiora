@@ -971,7 +971,7 @@ fn retained_dense_output_reproduces_quartic_clock_between_native_stencil_points(
     let solution = DiffsolTimeBackend::new().solve(&problem, &plan).unwrap();
     let history = solution.history().unwrap();
     for step in history.steps() {
-        assert_eq!(step.dense_output().times().len(), 5);
+        assert_eq!(step.dense_times().len(), 5);
         for fraction in [0.125, 0.375, 0.875] {
             let time = step.start_time() + fraction * (step.end_time() - step.start_time());
             let sample = step.sample(time).unwrap()[0];

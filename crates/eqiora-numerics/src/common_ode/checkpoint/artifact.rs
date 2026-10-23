@@ -123,7 +123,7 @@ impl Payload {
         let (time, state, cursor) =
             AdaptiveCheckpoint::segment_origin(&request, prefix.as_ref(), &self.committed_samples)?;
         let (problem, time_plan) = request.smooth_segment(time, state, cursor)?;
-        self.segment.report.replay(plan)?;
+        self.segment.report.replay(plan.backend())?;
         let mut segment = TimeCheckpoint::initial(
             &problem,
             &time_plan,

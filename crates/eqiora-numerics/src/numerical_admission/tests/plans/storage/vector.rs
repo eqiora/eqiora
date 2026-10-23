@@ -46,7 +46,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(1. / 24.).unwrap().into()),
+        Some(CommonTemporalPolicy::backward_euler(1. / 24.).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

@@ -3,7 +3,7 @@ use crate::RootProposal;
 use crate::diagnostic::time_solve_failed;
 use eqiora_core::Diagnostic;
 mod dense;
-pub use dense::TimeDenseOutput;
+use dense::DenseOutput;
 
 /// One accepted interval with its solver-native midpoint value.
 ///
@@ -16,7 +16,7 @@ pub struct TimeHistoryStep {
     start_state: Vec<f64>,
     midpoint_state: Vec<f64>,
     end_state: Vec<f64>,
-    dense_output: TimeDenseOutput,
+    dense_output: DenseOutput,
 }
 
 impl TimeHistoryStep {
@@ -29,7 +29,8 @@ impl TimeHistoryStep {
         start_state: Vec<f64>,
         midpoint_state: Vec<f64>,
         end_state: Vec<f64>,
-        dense_output: TimeDenseOutput,
+        dense_times: Vec<f64>,
+        dense_states: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
         if !start_time.is_finite()
             || !end_time.is_finite()
@@ -47,6 +48,7 @@ impl TimeHistoryStep {
                 "accepted time step has invalid interval, state shape, or values",
             ));
         }
+        let dense_output = DenseOutput::from_samples(dense_times, dense_states)?;
         if dense_output.times()[0] != start_time
             || dense_output.times().last().copied() != Some(end_time)
             || dense_output.states()[0].len() != start_state.len()
@@ -64,15 +66,21 @@ impl TimeHistoryStep {
             dense_output,
         })
     }
-    /// Captured native polynomial on the accepted interval.
+    /// Physical times defining the native polynomial, including both endpoints.
     #[must_use]
-    pub const fn dense_output(&self) -> &TimeDenseOutput {
-        &self.dense_output
+    pub fn dense_times(&self) -> &[f64] {
+        self.dense_output.times()
+    }
+
+    /// Native polynomial values at the retained sampling times.
+    #[must_use]
+    pub fn dense_states(&self) -> &[Vec<f64>] {
+        self.dense_output.states()
     }
 
     /// Exact retained quadrature or endpoint value, if this is its timestamp.
     #[must_use]
-    pub fn stencil_state(&self, time: f64) -> Option<&[f64]> {
+    fn stencil_state(&self, time: f64) -> Option<&[f64]> {
         if time == self.start_time {
             Some(&self.start_state)
         } else if time == self.end_time {
@@ -262,11 +270,8 @@ mod tests {
             vec![left],
             vec![(left + right) * 0.5],
             vec![right],
-            crate::TimeDenseOutput::from_samples(
-                vec![start, start + (end - start) * 0.5, end],
-                vec![vec![left], vec![(left + right) * 0.5], vec![right]],
-            )
-            .unwrap(),
+            vec![start, start + (end - start) * 0.5, end],
+            vec![vec![left], vec![(left + right) * 0.5], vec![right]],
         )
         .unwrap()
     }
