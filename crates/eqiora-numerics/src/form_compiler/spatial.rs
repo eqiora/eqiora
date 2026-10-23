@@ -54,6 +54,24 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
+        Self::derive_with_tests(
+            program,
+            domain,
+            dimension,
+            interface_boundaries,
+            time_s,
+            &BTreeMap::new(),
+        )
+    }
+
+    pub(crate) fn derive_with_tests(
+        program: &KernelProgram,
+        domain: RawId,
+        dimension: usize,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
+        time_s: Option<f64>,
+        tests: &BTreeMap<RawId, RawId>,
+    ) -> Result<Self, Diagnostic> {
         Self::derive_temporal(
             program,
             domain,
@@ -61,6 +79,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             interface_boundaries,
             time_s,
             None,
+            tests,
         )
     }
 
@@ -78,6 +97,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             &BTreeSet::new(),
             Some(current_time_s),
             Some((previous_time_s, step_s)),
+            &BTreeMap::new(),
         )
     }
 
@@ -88,6 +108,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
         previous: Option<(f64, f64)>,
+        tests: &BTreeMap<RawId, RawId>,
     ) -> Result<Self, Diagnostic> {
         if time_s.is_some_and(|time| !time.is_finite()) {
             return Err(invalid(
@@ -118,7 +139,7 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             .as_ref()
             .map(|motion| motion.bind(program, time_s.unwrap_or(0.0)))
             .transpose()?;
-        let roles = EquationRoles::derive(program, [domain])?;
+        let roles = EquationRoles::derive_with_tests(program, [domain], tests)?;
         for relation in roles.relations.keys() {
             let typed = typed_relation(program, *relation)?;
             match program.node(*relation) {
@@ -281,7 +302,13 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                     "moving vector storage requires explicit geometric history",
                 ));
             }
-            CompiledRegionForm::<S>::derive_at_time(program, domain, dimension, time_s)?
+            CompiledRegionForm::<S>::derive_with_roles(
+                program,
+                domain,
+                dimension,
+                time_s,
+                roles.clone(),
+            )?
         };
         let temporal = volume.temporal_structure()?;
         if (motion.is_some() || !kinematics.is_empty()) && !temporal.positive_own_capacity {
@@ -393,6 +420,11 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Stable exact Field identity order; local basis DOFs are contiguous per Field.
     pub(crate) fn fields(&self) -> &[(RawId, ValueType)] {
         &self.fields
+    }
+    pub(crate) fn equation_test_fields(&self) -> impl Iterator<Item = (RawId, RawId)> {
+        self.volume
+            .rows()
+            .map(|(relation, tested, _)| (relation, tested))
     }
     pub(crate) fn formulation_rules(&self) -> BTreeSet<&'static str> {
         let mut rules = self.volume.formulation_rules();

@@ -150,6 +150,37 @@ impl Context<'_> {
                 Box::new(self.form(integrand, next)?),
             ),
             Form::Number { value } => Math::Number(value.to_string()),
+            Form::Rational { value, dimension } => {
+                let (numerator, denominator) = value.canonical_parts();
+                let number = if denominator == "1" {
+                    Math::Number(numerator)
+                } else {
+                    Math::Binary(
+                        "/",
+                        Box::new(Math::Number(numerator)),
+                        Box::new(Math::Number(denominator)),
+                    )
+                };
+                let dimension = eqiora_core::DimExponents::from_rationals(*dimension)
+                    .ok_or_else(|| failure("invalid rational dimension"))?;
+                if dimension == eqiora_core::DimExponents::DIMENSIONLESS {
+                    number
+                } else {
+                    Math::Typed(
+                        Box::new(number),
+                        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                            .map_err(|_| failure("invalid rational value type"))?,
+                    )
+                }
+            }
+            Form::TimeDerivative { field_ulid } => Math::Derivative(Box::new(self.quantity(
+                self.exact(field_ulid, EntityKind::Field)?,
+                QuantityRole::Value,
+            )?)),
+            Form::Complex { real, imag } => Math::Function(
+                "complex".into(),
+                vec![self.form(real, next)?, self.form(imag, next)?],
+            ),
             Form::Field { ulid } => {
                 self.quantity(self.exact(ulid, EntityKind::Field)?, QuantityRole::Value)?
             }

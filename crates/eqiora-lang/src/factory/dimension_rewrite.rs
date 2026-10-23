@@ -68,7 +68,8 @@ impl SourceAstFactory {
                         amplitude.value_type.rewrite_dimension(&mut rewrite);
                     }
                 }
-                if let crate::FormulationBinding::WeakTests { tests } = &mut formulation.binding {
+                if let crate::FormulationBinding::WeakTests { tests, .. } = &mut formulation.binding
+                {
                     for (_, _, _, dimension, _) in tests {
                         *dimension = rewrite(dimension);
                     }

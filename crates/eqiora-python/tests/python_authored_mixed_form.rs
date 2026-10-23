@@ -28,8 +28,8 @@ public component Flow(support body:volume(ambient_dimension=2),support surface:c
  form weak for momentum, continuity {
   test v:1 for u zero_on surface;
   test q:1 for p;
-  integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v)) = integrate(body,dot(v,grad(F)));
-  integrate(body,q*div(u)) = 0;
+  momentum: integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v)) = integrate(body,dot(v,grad(F)));
+  continuity: integrate(body,q*div(u)) = 0;
  }
 }
 '''
@@ -41,7 +41,7 @@ assert len(form.relation_ids)==len(form.trial_field_ids)==len(form.test_restrict
 assert [test[0] for test in form.test_restrictions]==["v","q"]
 assert len(form.test_restrictions[0][2])==4 and form.test_restrictions[1][2]==[]
 assert form.implication=="strong-implies-weak"
-assert "admissible-l2-pressure-test" in form.assumptions
+assert "admissible-tests-with-declared-regularity-and-essential-traces" in form.assumptions
 assert len(model.render_formulations())==1
 assert eqiora.Model.from_bytes(model.to_bytes()).authored_formulations==()
 # Python authoring reaches the same typed source and independent admission owner.
@@ -64,31 +64,33 @@ continuity_law=component.relation("continuity",q.equation(q.div(u),0),on=body)
 component.relation("fixed",q.equation(q.trace(u),0),on=surface.member("face"))
 v=component.test("v",for_=u,zero_on=surface)
 pressure_test=component.test("q",for_=p,regularity="l2")
-component.weak_form("weak",[momentum_law,continuity_law],equations=[
- (q.integrate(body,q.frobenius(q.grad(v),2*mu*q.symmetric_part(q.grad(u)))-p*q.div(v)),q.integrate(body,q.dot(v,q.grad(F)))),
- (q.integrate(body,pressure_test*q.div(u)),0),
-])
+component.weak_form("weak", equations={momentum_law: (q.integrate(body,q.frobenius(q.grad(v),2*mu*q.symmetric_part(q.grad(u)))-p*q.div(v)),q.integrate(body,q.dot(v,q.grad(F)))), continuity_law: (q.integrate(body,pressure_test*q.div(u)),0)})
 python_model=eqiora.compile(source=module,geometry=geometry,entry="Flow",bindings=bindings)
 emitted_model=eqiora.compile(source=module.to_eqi(),geometry=geometry,entry="Flow",bindings=bindings)
 assert python_model.authored_formulations[0].source_identity==emitted_model.authored_formulations[0].source_identity
 assert python_model.authored_formulations[0].kind=="mixed-galerkin"
 assert [test[4] for test in python_model.authored_formulations[0].test_restrictions]==["h1","l2"]
 # A one-trial vector expression is now valid typed primal authoring. It does
-# not acquire the checked mixed-system classification or pressure hypotheses.
+# not acquire the checked mixed-system classification. Hypotheses are common;
+# the exact test restrictions and complete source inventory carry the distinction.
 # The API regression test also submits this subset to the live mixed checker.
-incomplete=source.replace("momentum, continuity", "momentum").replace("  test q:1 for p;", "").replace("  integrate(body,q*div(u)) = 0;", "")
+incomplete=source.replace("momentum: ", "").replace("momentum, continuity", "momentum").replace("  test q:1 for p;", "").replace("  continuity: integrate(body,q*div(u)) = 0;", "")
 partial=eqiora.compile(source=incomplete,geometry=geometry,entry="Flow",bindings=bindings)
 partial_form,=partial.authored_formulations
 assert partial_form.kind=="primal"
 assert len(partial_form.relation_ids)==len(partial_form.trial_field_ids)==1
-assert "admissible-l2-pressure-test" not in partial_form.assumptions
-# Source order carries explicit equation ownership; joint permutation is admissible.
-momentum="  integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v)) = integrate(body,dot(v,grad(F)));"
-continuity="  integrate(body,q*div(u)) = 0;"
+assert partial_form.assumptions == form.assumptions
+# Named rows preserve ownership when either statements or the owner inventory are permuted.
+momentum="  momentum: integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v)) = integrate(body,dot(v,grad(F)));"
+continuity="  continuity: integrate(body,q*div(u)) = 0;"
+reordered=source.replace(momentum+"\n"+continuity,continuity+"\n"+momentum)
+assert reordered != source
+reordered_form,=eqiora.compile(source=reordered,geometry=geometry,entry="Flow",bindings=bindings).authored_formulations
+assert reordered_form.source_identity == form.source_identity
 permuted=source.replace("momentum, continuity","continuity, momentum").replace(momentum+"\n"+continuity,continuity+"\n"+momentum)
 assert len(eqiora.compile(source=permuted,geometry=geometry,entry="Flow",bindings=bindings).authored_formulations[0].relation_ids)==2
 for label,old,new in [
- ("missing equation","  integrate(body,q*div(u)) = 0;",""),
+ ("missing equation","  continuity: integrate(body,q*div(u)) = 0;",""),
  ("test swap","test v:1 for u zero_on surface;","test v:1 for p zero_on surface;"),
  ("foreign pressure","-p*div(v)","-F*div(v)"),
  ("pressure sign","-p*div(v)","+p*div(v)"),

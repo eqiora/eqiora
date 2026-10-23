@@ -20,16 +20,21 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
             ((0, BoundarySide::Upper), symbols.get("right").unwrap()),
         ]),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let mesh = eqiora_meshing::CartesianMesh::from_axes(vec![vec![0., 3., 6.]]).unwrap();
     let source_equations =
-        ExecutableSpatialEquations::<C>::source_regions(&program, &mesh, None).unwrap();
+        ExecutableSpatialEquations::<C>::source_regions(&program, &mesh, None, &BTreeMap::new())
+            .unwrap();
     assert_eq!(source_equations, equations);
     let equations = source_equations;
     // Source bounds must cover whole cells in the exact supplied Mesh.
     let crossed = eqiora_meshing::CartesianMesh::from_axes(vec![vec![-1., 3., 6.]]).unwrap();
-    assert!(ExecutableSpatialEquations::<C>::source_regions(&program, &crossed, None).is_err());
+    assert!(
+        ExecutableSpatialEquations::<C>::source_regions(&program, &crossed, None, &BTreeMap::new())
+            .is_err()
+    );
     let structure = equations.algebraic_structure(None).unwrap();
     let mut policy = NativeLinearPolicy::exact::<C>(
         SolverPlan::new(

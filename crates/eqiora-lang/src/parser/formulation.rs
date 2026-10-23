@@ -83,7 +83,7 @@ impl Parser<'_> {
         if self.at_keyword("harmonic") {
             return self.parse_harmonic_form(start, name, relations);
         }
-        let binding = if self.at_keyword("finite") {
+        let mut binding = if self.at_keyword("finite") {
             self.bump();
             let name = self
                 .expect_identifier("finite coordinate space")?
@@ -173,7 +173,10 @@ impl Parser<'_> {
                     break;
                 }
             }
-            FormulationBinding::WeakTests { tests }
+            FormulationBinding::WeakTests {
+                tests,
+                derivations: Vec::new(),
+            }
         };
         let gauge = if self.at_keyword("gauge") {
             self.bump();
@@ -197,18 +200,70 @@ impl Parser<'_> {
         } else {
             None
         };
+        if self.at_keyword("derive") {
+            let FormulationBinding::WeakTests { derivations, .. } = &mut binding else {
+                self.error_here("derive requires weak test declarations");
+                return None;
+            };
+            while self.at_keyword("derive") {
+                self.bump();
+                let relation = self
+                    .expect_identifier("derived Relation")?
+                    .text()
+                    .to_owned();
+                self.expect_keyword("using")?;
+                let test = self.expect_identifier("derived test")?.text().to_owned();
+                self.expect(TokenKind::Semicolon, "`;` after derivation request")?;
+                derivations.push((relation, test));
+            }
+        }
+        let derived = matches!(&binding, FormulationBinding::WeakTests { derivations, .. } if !derivations.is_empty());
+        let named = matches!(&binding, FormulationBinding::WeakTests { .. }) && relations.len() > 1;
+        let mut named_equations = std::collections::BTreeMap::new();
         let mut equations = Vec::new();
-        loop {
-            let left = self.parse_expression(0)?;
-            self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
-            let right = self.parse_expression(0)?;
-            self.expect(
-                TokenKind::Semicolon,
-                "`;` after authored Formulation equality",
-            )?;
-            equations.push((left, right));
-            if self.at(TokenKind::RightBrace) {
-                break;
+        if !derived {
+            loop {
+                let relation = if named {
+                    let name = self
+                        .expect_identifier("source Relation for weak equality")?
+                        .text()
+                        .to_owned();
+                    self.expect(TokenKind::Colon, "`:` after weak equality Relation")?;
+                    if !relations.contains(&name) {
+                        self.error_here("weak equality names a Relation not owned by this form");
+                        return None;
+                    }
+                    Some(name)
+                } else {
+                    None
+                };
+                let left = self.parse_expression(0)?;
+                self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
+                let right = self.parse_expression(0)?;
+                self.expect(
+                    TokenKind::Semicolon,
+                    "`;` after authored Formulation equality",
+                )?;
+                if let Some(relation) = relation {
+                    if named_equations.insert(relation, (left, right)).is_some() {
+                        self.error_here("duplicate weak equality for source Relation");
+                        return None;
+                    }
+                } else {
+                    equations.push((left, right));
+                }
+                if self.at(TokenKind::RightBrace) {
+                    break;
+                }
+            }
+        }
+        if named && !derived {
+            for relation in &relations {
+                let Some(equation) = named_equations.remove(relation) else {
+                    self.error_here("missing weak equality for source Relation");
+                    return None;
+                };
+                equations.push(equation);
             }
         }
         let end = self

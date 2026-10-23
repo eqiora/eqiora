@@ -37,6 +37,7 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
         fsi_resources(&geometry),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let mut equations =
@@ -44,6 +45,7 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
             &recognized.program,
             &recognized.resources,
             None,
+            &BTreeMap::new(),
         )
         .expect("mixed fluid and kinematic solid equations must use the shared Region compiler");
     assert_eq!(
@@ -108,6 +110,7 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
         fsi_resources(&geometry),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let supports = bind_model_support(&recognized.program, &recognized.resources).unwrap();
@@ -116,6 +119,7 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
             &recognized.program,
             &recognized.resources,
             None,
+            &BTreeMap::new(),
         )
         .unwrap();
     let [interface] = equations.interfaces.as_slice() else {
@@ -185,6 +189,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         fsi_resources(&geometry),
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
         None,
+        &BTreeMap::new(),
     )
     .unwrap();
     let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {

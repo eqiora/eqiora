@@ -5,6 +5,7 @@ use num_complex::Complex64 as C;
 mod actions;
 mod coordinate_replay;
 mod curl;
+mod mixed;
 mod profiles;
 mod storage;
 mod transport;

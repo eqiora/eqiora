@@ -122,11 +122,12 @@ fn time_partials_share_volume_products_and_prescribed_boundary_data() {
     .unwrap()
     .remove(0);
     let rule = QuadratureRule::tensor_product_gauss_legendre(1, 3).unwrap();
-    let initial_form = CompiledRegionForm::<f64>::derive_at_time(
+    let initial_form = CompiledRegionForm::<f64>::derive_with_roles(
         &program,
         symbols.get("body").unwrap(),
         1,
         Some(0.),
+        EquationRoles::derive(&program, [symbols.get("body").unwrap()]).unwrap(),
     )
     .unwrap();
     for t in [0., 2.] {

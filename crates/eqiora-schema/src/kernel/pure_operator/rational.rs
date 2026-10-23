@@ -124,7 +124,7 @@ impl ExactRational {
 
     /// Canonical base-ten numerator and positive denominator.
     #[must_use]
-    pub(super) fn canonical_parts(&self) -> (String, String) {
+    pub fn canonical_parts(&self) -> (String, String) {
         (self.0.numer().to_string(), self.0.denom().to_string())
     }
 

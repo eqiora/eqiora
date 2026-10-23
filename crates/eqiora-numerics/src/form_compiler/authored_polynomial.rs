@@ -13,6 +13,7 @@ mod oriented;
 mod pure;
 mod source;
 mod typing;
+pub(super) mod weak;
 use coefficients::Polynomial;
 use typing::{domain_supports, field_supports, symbol_types};
 
@@ -39,10 +40,63 @@ pub(super) fn matches_weak_residual(
     left: &E,
     right: &E,
 ) -> bool {
-    let [(name, field, _, _, _)] = projection.test_restrictions() else {
+    let [(_, field, _, _, _)] = projection.test_restrictions() else {
         return false;
     };
-    let [(_, authored_left, authored_right)] = projection.equations() else {
+    let [(relation, _, _)] = projection.equations() else {
+        return false;
+    };
+    compare_weak_row(
+        projection,
+        program,
+        dimensions,
+        (relation, field),
+        left,
+        right,
+        true,
+    )
+}
+
+pub(super) fn matches_weak_row(
+    projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
+    dimensions: usize,
+    association: (&str, &str),
+    left: &E,
+    right: &E,
+) -> bool {
+    compare_weak_row(
+        projection,
+        program,
+        dimensions,
+        association,
+        left,
+        right,
+        false,
+    )
+}
+
+fn compare_weak_row(
+    projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
+    dimensions: usize,
+    association: (&str, &str),
+    left: &E,
+    right: &E,
+    checked_variation: bool,
+) -> bool {
+    let Some((name, field, _, _, _)) = projection
+        .test_restrictions()
+        .iter()
+        .find(|(_, field, _, _, _)| field == association.1)
+    else {
+        return false;
+    };
+    let Some((_, authored_left, authored_right)) = projection
+        .equations()
+        .iter()
+        .find(|(relation, _, _)| relation == association.0)
+    else {
         return false;
     };
     let mut context = Context {
@@ -58,7 +112,7 @@ pub(super) fn matches_weak_residual(
     let compare = || -> Option<bool> {
         let mut project = |value| {
             if projection.domain_ulid().is_some() {
-                context.integral(value)
+                context.integral_at(value, 0, checked_variation)
             } else {
                 context.scalar(value, 0)
             }
@@ -265,7 +319,7 @@ impl Context<'_> {
             E::Number { value } => Polynomial::constant(number(*value)?),
             E::Rational { value, .. } => Polynomial::constant(value.clone()),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
-            E::TimeDerivative { field_ulid } if field_ulid == self.field => {
+            E::TimeDerivative { field_ulid } => {
                 self.atom(Atom::TimeDerivative(field_ulid.clone(), vec![]))?
             }
             E::Trace { value, on_ulid } => {
@@ -303,6 +357,10 @@ impl Context<'_> {
                 .scalar(left, depth + 1)?
                 .checked_mul(&self.scalar(right, depth + 1)?)
                 .ok()?,
+            E::Pow { base, exponent } => self
+                .scalar(base, depth + 1)?
+                .checked_pow(u32::try_from(*exponent).ok()?)
+                .ok()?,
             E::Component { value, indices } if indices.len() == 1 => {
                 self.vector(value, usize::try_from(indices[0]).ok()?, depth + 1)?
             }
@@ -313,7 +371,12 @@ impl Context<'_> {
                 depth + 1,
             )?,
             E::Inner { left, right } => self.contract(left, right, true, depth + 1)?,
-            E::Dot { left, right } => self.contract(left, right, false, depth + 1)?,
+            E::Dot { left, right } if self.shape(left, depth + 1)?.len() == 1 => {
+                self.contract(left, right, false, depth + 1)?
+            }
+            E::Frobenius { left, right } if self.shape(left, depth + 1)?.len() == 2 => {
+                self.contract(left, right, false, depth + 1)?
+            }
             _ => return None,
         })
     }
@@ -370,6 +433,9 @@ impl Context<'_> {
                 self.trace(value, vec![axis])
             }
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![axis])),
+            E::TimeDerivative { field_ulid } => {
+                self.atom(Atom::TimeDerivative(field_ulid.clone(), vec![axis]))
+            }
             E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![axis])),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 self.atom(Atom::Test(vec![axis]))

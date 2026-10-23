@@ -33,10 +33,8 @@ impl PyAstFormulation {
         relations: Vec<String>,
         tests: Vec<TestInput<'_>>,
         equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
+        derivations: Vec<(String, PyRef<'_, PyAstExpression>)>,
     ) -> PyResult<Self> {
-        if relations.len() > 8 || tests.len() > 8 || equations.len() > 8 {
-            return Err(syntax_error("weak form exceeds the 8-item inventory limit"));
-        }
         let tests = tests
             .into_iter()
             .map(|(name, trial, zero_on, kind, regularity)| {
@@ -53,11 +51,23 @@ impl PyAstFormulation {
                     regularity,
                 ))
             })
+            .collect::<PyResult<Vec<_>>>()?;
+        let derivations = derivations
+            .into_iter()
+            .map(|(relation, expression)| {
+                let eqiora::language::ExprKind::Name(name) = expression.value.kind() else {
+                    return Err(syntax_error("derivation requires a named test"));
+                };
+                if !tests.iter().any(|(test, _, _, _, _)| test == name) {
+                    return Err(syntax_error("derivation requires a declared test"));
+                }
+                Ok((relation, name.clone()))
+            })
             .collect::<PyResult<_>>()?;
         Ok(Self {
             name,
             relations,
-            binding: FormulationBinding::WeakTests { tests },
+            binding: FormulationBinding::WeakTests { tests, derivations },
             equations: equations
                 .into_iter()
                 .map(|(a, b)| (a.value.clone(), b.value.clone()))

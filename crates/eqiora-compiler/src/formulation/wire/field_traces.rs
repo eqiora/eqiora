@@ -294,7 +294,7 @@ impl super::AuthoredFormulationProjection {
         resolve: &mut Resolve<'_>,
         support: &mut Support<'_>,
     ) -> Result<(), Diagnostic> {
-        let super::WireBinding::WeakTests { tests } = &self.wire.binding else {
+        let super::WireBinding::WeakTests { tests, .. } = &self.wire.binding else {
             return Ok(());
         };
         let mut context = Context {

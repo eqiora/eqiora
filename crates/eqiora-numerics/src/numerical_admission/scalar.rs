@@ -158,11 +158,13 @@ impl CommonSpatialPlan {
                 return Err(invalid("TPFA interval formulation changed during replay"));
             }
         } else if let Some(derived) = lowered.mixed_formulation(
+            self.admission.program(),
             self.formulation
                 .as_ref()
                 .map_or(FormulationSelectionMode::Automatic, |form| form.requested()),
-        ) {
-            if self.authored_formulation.is_some() || self.formulation.as_ref() != Some(&derived) {
+            self.authored_formulation.as_ref(),
+        )? {
+            if self.formulation.as_ref() != Some(&derived) {
                 return Err(invalid("mixed Region formulation changed during replay"));
             }
         } else if let Some(continuum) = self.admission.elasticity_proof() {
@@ -185,14 +187,18 @@ impl CommonSpatialPlan {
                     &derived,
                 )?;
             } else {
-                let description = describe_interface_form(
-                    authored,
-                    self.admission.program(),
-                    &lowered.interfaces,
-                )?;
+                let description = if lowered.interfaces.is_empty() {
+                    lowered.authored_formulation(self.admission.program(), authored)?
+                } else {
+                    describe_interface_form(
+                        authored,
+                        self.admission.program(),
+                        &lowered.interfaces,
+                    )?
+                };
                 if self.formulation.as_ref() != Some(&description) {
                     return Err(invalid(
-                        "authored interface correspondence changed during replay",
+                        "authored spatial correspondence changed during replay",
                     ));
                 }
             }
@@ -243,14 +249,12 @@ impl CommonSpatialPlan {
                 accepted_authored_formulation = authored_formulation.cloned();
             }
             description
-        } else if let Some(description) = lowered
-            .mixed_formulation(formulation_selection.unwrap_or(FormulationSelectionMode::Automatic))
-        {
-            if authored_formulation.is_some() {
-                return Err(invalid(
-                    "authored mixed Region formulation requires an admitted source correspondence",
-                ));
-            }
+        } else if let Some(description) = lowered.mixed_formulation(
+            admission.program(),
+            formulation_selection.unwrap_or(FormulationSelectionMode::Automatic),
+            authored_formulation,
+        )? {
+            accepted_authored_formulation = authored_formulation.cloned();
             Some(description)
         } else if let Some(continuum) = admission.elasticity_proof() {
             let description = super::elasticity::describe_formulation(
@@ -295,11 +299,15 @@ impl CommonSpatialPlan {
                     }
                     None if authored_formulation.is_some() => {
                         let projection = authored_formulation.expect("authored form was selected");
-                        let description = describe_interface_form(
-                            projection,
-                            admission.program(),
-                            &lowered.interfaces,
-                        )?;
+                        let description = if lowered.interfaces.is_empty() {
+                            lowered.authored_formulation(admission.program(), projection)?
+                        } else {
+                            describe_interface_form(
+                                projection,
+                                admission.program(),
+                                &lowered.interfaces,
+                            )?
+                        };
                         accepted_authored_formulation = Some(projection.clone());
                         Some(description)
                     }

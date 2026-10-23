@@ -72,7 +72,7 @@ fn decoded_boundary_forms_cannot_reuse_a_stronger_field_hypothesis() {
         );
         // The separate spatial inspection entry must reach the same live guard
         // before dispatching its narrower vector-curl/Stokes correspondence checks.
-        let error = super::check_authored_spatial_formulation(&weaker, &decoded).unwrap_err();
+        let error = super::resolve_authored_spatial_formulation(&weaker, &decoded).unwrap_err();
         assert!(
             error.message().contains("Field trace regularity"),
             "{error:?}"

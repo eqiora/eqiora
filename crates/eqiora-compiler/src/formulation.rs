@@ -143,6 +143,18 @@ pub struct CompiledAuthoredFormulation {
 }
 
 impl CompiledAuthoredFormulation {
+    /// Retain effective derived equations while preserving the source request and bindings.
+    /// Mathematical correspondence remains the numerical derivation owner's responsibility.
+    /// # Errors
+    /// Rejects non-request inputs or changed equation/test choices.
+    pub fn with_derived_equations(
+        mut self,
+        equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
+    ) -> Result<Self, Diagnostic> {
+        self.projection = self.projection.with_derived_equations(equations)?;
+        Ok(self)
+    }
+
     /// Identity of the Component's canonical authored-form source.
     #[must_use]
     pub fn source_identity(&self) -> &str {
@@ -282,7 +294,7 @@ pub(crate) fn compile_formulations(
                     "explicit gauges require an interval or finite Formulation",
                 )]);
             }
-            let eqiora_lang::FormulationBinding::WeakTests { tests } = binding else {
+            let eqiora_lang::FormulationBinding::WeakTests { tests, derivations } = binding else {
                 unreachable!("other binders returned above");
             };
             compile_weak(
@@ -291,6 +303,7 @@ pub(crate) fn compile_formulations(
                 relations,
                 equations,
                 tests,
+                derivations,
                 range,
                 source_identity,
                 symbols,
@@ -312,6 +325,7 @@ fn compile_weak(
     relation_names: &[String],
     equations: &[(Expr, Expr)],
     tests: &[WeakTestDeclaration],
+    derivations: &[(String, String)],
     range: TextRange,
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
@@ -319,16 +333,21 @@ fn compile_weak(
     geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
     supports: &[crate::external::ExternalSupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
-    if relation_names.len() != equations.len()
+    let deriving = !derivations.is_empty();
+    let row_count = if deriving {
+        derivations.len()
+    } else {
+        equations.len()
+    };
+    if relation_names.len() != row_count
         || tests.is_empty()
-        || tests.len() > 8
-        || equations.is_empty()
-        || equations.len() > 8
+        || row_count == 0
+        || (deriving && !equations.is_empty())
     {
         return Err(error(
             file,
             range,
-            "form requires one Relation per equation and a bounded explicit test inventory",
+            "form requires one Relation per equation and a nonempty explicit test inventory",
         ));
     }
     let relations = relation_names
@@ -493,6 +512,52 @@ fn compile_weak(
         if !trials.contains(&trial) {
             trials.push(trial);
         }
+    }
+    if deriving {
+        let owned = relation_names
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        if derivations
+            .iter()
+            .map(|(relation, _)| relation)
+            .collect::<std::collections::BTreeSet<_>>()
+            != owned
+        {
+            return Err(error(
+                file,
+                range,
+                "derivation must name exactly the owned Relations",
+            ));
+        }
+        let choices = derivations
+            .iter()
+            .map(|(relation, test)| {
+                let field = restrictions
+                    .iter()
+                    .find(|(name, _, _, _, _)| name == test)
+                    .ok_or_else(|| error(file, range, "derivation names an undeclared test"))?
+                    .1
+                    .clone();
+                let relation = resolve_symbol(file, range, relation, symbols)?;
+                Ok((relation.ulid().to_string(), field))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let projection = AuthoredFormulationProjection::encode_weak_with_choices(
+            source_identity.to_string(),
+            name.into(),
+            domain.map(Id::erase),
+            restrictions,
+            Vec::new(),
+            choices,
+        )?;
+        return Ok(CompiledAuthoredFormulation {
+            relations,
+            domain,
+            trials,
+            projection,
+            file: file.into(),
+            range,
+        });
     }
     let mut context = ExpressionContext {
         file,

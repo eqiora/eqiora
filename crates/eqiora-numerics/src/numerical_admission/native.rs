@@ -437,6 +437,8 @@ pub(super) enum RecognizedNativeModel {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct RecognizedNativeAdmission {
+    /// Explicit formulation choices, replayed before automatic role derivation.
+    pub(super) equation_tests: BTreeMap<eqiora_core::RawId, eqiora_core::RawId>,
     pub(super) model: ModelEnvelope,
     pub(super) model_digest: String,
     pub(super) program: KernelProgram,
@@ -502,6 +504,7 @@ impl RecognizedNativeAdmission {
         owner: AuthenticatedCommonMesh,
         request: &CommonSpatialRequest,
         initial_time_s: Option<f64>,
+        equation_tests: &BTreeMap<eqiora_core::RawId, eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
         let program = if let NativeMeshResources::Coordinates(grid) = &resources {
@@ -521,7 +524,8 @@ impl RecognizedNativeAdmission {
             let transient = lower_transient_incompressible_navier_stokes_cartesian::<2>(&program);
             let transient_geometry =
                 recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
-            let scalar = lower_scalar_candidate(&program, &resources, initial_time_s);
+            let scalar =
+                lower_scalar_candidate(&program, &resources, initial_time_s, equation_tests);
             select_exact_model(
                 &program,
                 &resources,
@@ -531,6 +535,21 @@ impl RecognizedNativeAdmission {
                 transient_geometry,
             )?
         };
+        if !equation_tests.is_empty() {
+            match &recognized {
+                RecognizedNativeModel::Spatial(equations) => {
+                    equations.require_test_assignments(equation_tests)?
+                }
+                RecognizedNativeModel::ComplexSpatial(equations) => {
+                    equations.require_test_assignments(equation_tests)?
+                }
+                _ => {
+                    return Err(invalid(
+                        "explicit equation/test choices require the shared spatial equation owner",
+                    ));
+                }
+            }
+        }
         if !owner.model_geometries.is_empty()
             && !matches!(recognized, RecognizedNativeModel::Spatial(_))
         {
@@ -545,6 +564,7 @@ impl RecognizedNativeAdmission {
         };
         let model_digest = model.digest()?.to_string();
         Ok(Self {
+            equation_tests: equation_tests.clone(),
             model: model.clone(),
             model_digest,
             program,
@@ -704,7 +724,14 @@ impl NativeNumericalAdmission {
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
-        RecognizedNativeAdmission::recognize(model, owner, &spatial.request(), None)?.complete(
+        RecognizedNativeAdmission::recognize(
+            model,
+            owner,
+            &spatial.request(),
+            None,
+            &BTreeMap::new(),
+        )?
+        .complete(
             spatial,
             linear,
             None,
@@ -720,6 +747,7 @@ impl NativeNumericalAdmission {
             self.authenticated_mesh(),
             &self.spatial.request(),
             self.temporal.as_ref().map(|_| 0.),
+            &self.recognition.equation_tests,
         )?
         .complete(
             self.spatial.clone(),

@@ -81,7 +81,7 @@ pub(super) fn format_formulation(
             write_indent(output, indent + 2);
             writeln!(output, "finite {name}({});", trials.join(", ")).expect("String write");
         }
-        FormulationBinding::WeakTests { tests } => {
+        FormulationBinding::WeakTests { tests, .. } => {
             for (name, trial, zero_on, dimension, regularity) in tests {
                 write_indent(output, indent + 2);
                 write!(output, "test {name}: ").expect("String write");
@@ -121,8 +121,19 @@ pub(super) fn format_formulation(
         write_indent(output, indent + 2);
         output.push_str("}\n");
     }
-    for (left, right) in &declaration.equations {
+    if let FormulationBinding::WeakTests { derivations, .. } = &declaration.binding {
+        for (relation, test) in derivations {
+            write_indent(output, indent + 2);
+            writeln!(output, "derive {relation} using {test};").expect("String write");
+        }
+    }
+    for (index, (left, right)) in declaration.equations.iter().enumerate() {
         write_indent(output, indent + 2);
+        if matches!(&declaration.binding, FormulationBinding::WeakTests { .. })
+            && declaration.relations.len() > 1
+        {
+            write!(output, "{}: ", declaration.relations[index]).expect("String write");
+        }
         format_expression(left, 0, output);
         output.push_str(" = ");
         format_expression(right, 0, output);
@@ -136,6 +147,28 @@ pub(super) fn format_formulation(
 #[cfg(test)]
 mod tests {
     use crate::{format, parse};
+
+    #[test]
+    fn mixed_weak_rows_are_named_and_independent_of_statement_order() {
+        let prefix = "component C() { form weak for a,b { test v:1 for u; test q:1 for p; ";
+        let first = format!("{prefix}a: v*u=0; b: q*p=0; }} }}");
+        let reordered = format!("{prefix}b: q*p=0; a: v*u=0; }} }}");
+        let canonical = |source: &str| format(&parse("mixed.eqi", source).into_document().unwrap());
+        assert_eq!(canonical(&first), canonical(&reordered));
+        assert_eq!(canonical(&first), canonical(&canonical(&first)));
+        for rows in [
+            "a: v*u=0; a: q*p=0;",
+            "a: v*u=0;",
+            "a: v*u=0; foreign: q*p=0;",
+            "v*u=0; q*p=0;",
+        ] {
+            let source = format!("{prefix}{rows} }} }}");
+            assert!(
+                parse("mixed.eqi", &source).into_document().is_err(),
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn finite_gauge_retains_coordinate_order_and_both_conditions() {
@@ -206,7 +239,7 @@ mod tests {
     }
     #[test]
     fn mixed_form_preserves_ordered_relations_tests_and_equalities() {
-        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,dot(grad(v),grad(velocity)))=integrate(body,dot(v,force)); integrate(body,q*div(velocity))=integrate(body,0); } }";
+        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; momentum: integrate(body,dot(grad(v),grad(velocity)))=integrate(body,dot(v,force)); incompressibility: integrate(body,q*div(velocity))=integrate(body,0); } }";
         let first = parse("mixed.eqi", source).into_document().unwrap();
         let formatted = format(&first);
         let second = parse("mixed.eqi", &formatted).into_document().unwrap();
@@ -215,7 +248,7 @@ mod tests {
         let (name, relations, equations, _) = component.formulations().next().unwrap();
         assert_eq!(relations, ["momentum", "incompressibility"]);
         assert_eq!(equations.len(), 2);
-        let Some(crate::FormulationBinding::WeakTests { tests }) =
+        let Some(crate::FormulationBinding::WeakTests { tests, .. }) =
             component.formulation_binding(name)
         else {
             panic!("weak tests");

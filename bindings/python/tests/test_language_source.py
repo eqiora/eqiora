@@ -369,9 +369,7 @@ def scalar_primal_source():
     )
     left_boundary = law.boundary("left", parent=region)
     w = law.test("w", for_=potential, zero_on=left_boundary)
-    law.weak_form(
-        "weak", [balance],
-        equations=[(q.integrate(
+    law.weak_form("weak", equations={balance: (q.integrate(
             region,
             q.dot(q.grad(w), diffusion * q.grad(potential)),
         ),
@@ -381,9 +379,7 @@ def scalar_primal_source():
             * source_scale
             * q.math.sin(q.math.pi * wave_number * q.coordinate(0)),
         ),
-        )],
-        doc="Authored scalar primal form.",
-    )
+        )}, doc="Authored scalar primal form.")
     return source
 
 
@@ -763,8 +759,8 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
         lambda: right.relation("captured", q.equation(foreign, 0), on=right_region),
         lambda: q.integrate(right_region, foreign),
         lambda: foreign + right_parameter,
-        lambda: right.weak_form("weak", [right_relation], equations=[(q.integrate(left_region, foreign),
-                                  q.integrate(right_region, right_parameter))]),
+        lambda: right.weak_form("weak", equations={right_relation: (q.integrate(left_region, foreign),
+                                  q.integrate(right_region, right_parameter))}),
         lambda: right.instance('child', component=left, bindings={'region': right_region, 'supplied': foreign, 'coefficient': release}),
     ):
         with pytest.raises(q.ModuleError, match="Component"):
@@ -1435,19 +1431,34 @@ def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
         component.test("unsupported", for_=velocity, regularity="H1")
     v = component.test("v", for_=velocity, regularity="h1", zero_on=exterior)
     p = component.test("p", for_=pressure)
-    with pytest.raises(q.ModuleError, match="distinct"):
-        component.weak_form("invalid", [momentum, momentum], equations=[(v, p)])
-    with pytest.raises(q.ModuleError, match="1 and 8 equations"):
-        component.weak_form("invalid", [momentum], equations=[(v, p)] * 9)
-    component.weak_form("mixed", [momentum, continuity],
-                        equations=[(v * velocity, v * 0), (p * pressure, p * 0)])
+    with pytest.raises(q.ModuleError, match="exactly one"):
+        component.weak_form("invalid", equations={momentum: (v, p)}, tests={momentum: v})
+    with pytest.raises(q.ModuleError, match="nonempty"):
+        component.weak_form("invalid", equations={})
+    component.weak_form("mixed", equations={momentum: (v * velocity, v * 0), continuity: (p * pressure, p * 0)})
     with pytest.raises(q.ModuleError, match="one named form"):
-        component.weak_form("second", [momentum], equations=[(v, p)])
+        component.weak_form("second", equations={momentum: (v, p)})
     text = module.to_eqi()
     assert "test v: 1 for velocity in h1 zero_on exterior;" in text
     assert "test p: 1 for pressure;" in text
     assert "form mixed for momentum, continuity" in text
     assert text.index("v * velocity") < text.index("p * pressure")
+
+
+def test_weak_form_accepts_twelve_coupled_rows_with_reordered_tests():
+    module = eqiora.Module("main")
+    component = module.component("Coupled")
+    fields = [component.field(f"x{i}", value_type=eqiora.ValueType.real(),
+                              role=eqiora.FieldRole.Variable) for i in range(12)]
+    relations = [component.relation(f"r{i}", q.equation(fields[(i + 1) % 12], 0))
+                 for i in range(12)]
+    tests = {i: component.test(f"w{i}", for_=fields[i]) for i in reversed(range(12))}
+    component.weak_form("coupled", equations=dict(zip(relations, [(tests[i] * fields[(i + 1) % 12], 0)
+                                   for i in range(12)], strict=True)))
+    text = module.to_eqi()
+    assert "w11 * x0" in text
+    assert text.index("test w11") < text.index("test w0")
+    assert "form coupled for " + ", ".join(f"r{i}" for i in range(12)) in text
 
 
 def test_weak_form_test_names_remain_component_unique():
