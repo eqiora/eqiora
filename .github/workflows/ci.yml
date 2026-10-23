@@ -182,7 +182,7 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev libglu1-mesa
+          sudo apt-get install --no-install-recommends --yes cmake libopenmpi-dev openmpi-bin libclang-dev libffi-dev libglu1-mesa
           mpirun --version
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         if: needs.changes.outputs.rust == 'true'
@@ -320,7 +320,7 @@ jobs:
         if: needs.changes.outputs.msrv == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
+          sudo apt-get install --no-install-recommends --yes cmake libopenmpi-dev openmpi-bin libclang-dev libffi-dev
       - name: Install MSRV
         if: needs.changes.outputs.msrv == 'true'
         run: rustup toolchain install 1.89.0 --profile minimal

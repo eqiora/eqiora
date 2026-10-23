@@ -230,9 +230,11 @@ impl ImplicitTimeSystem for BoundedTime {
 fn terminal_domain_bound_is_respected_with_independent_output_cadence() {
     let system = BoundedTime { end: 0.1 };
     let problem = problem(&system, InitialConditionPolicy::Provided);
+    let mut histories = Vec::new();
     for times in [vec![0.1], vec![0.025, 0.05, 0.075, 0.1]] {
         let plan = TimePlan::new(TimeMethod::Bdf, 0., 1e-4, 1e-9, vec![1e-11; 4], times).unwrap();
         let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
+        histories.push(solution.history().expect("native accepted history").clone());
         for (i, &t) in solution.times().iter().enumerate() {
             for (&actual, expected) in solution.state(i).unwrap().iter().zip([
                 t.cos(),
@@ -244,6 +246,10 @@ fn terminal_domain_bound_is_respected_with_independent_output_cadence() {
             }
         }
     }
+    assert_eq!(
+        histories[0], histories[1],
+        "output cadence must not select native steps"
+    );
 }
 
 #[test]
@@ -300,5 +306,66 @@ fn reference_owner_matches_independent_discrete_branch_before_native_comparison(
         {
             assert!((a - b).abs() < 4. * h + 1e-5);
         }
+    }
+}
+
+#[test]
+fn consistent_initialization_does_not_use_first_output_time_as_a_solver_control() {
+    let system = RecordingScale(std::cell::Cell::new(None));
+    let problem = ImplicitDaeProblem::new(
+        &system,
+        vec![
+            DaeVariableKind::Differential,
+            DaeVariableKind::Differential,
+            DaeVariableKind::Algebraic,
+            DaeVariableKind::Algebraic,
+        ],
+        InitialConditionPolicy::SolveConsistent,
+        vec![1., 0., 1.1, 0.],
+        vec![0., 0.9, 0., 0.5],
+    )
+    .unwrap();
+    let mut histories = Vec::new();
+    let mut scales = Vec::new();
+    for times in [vec![0.1], vec![1e-9, 0.025, 0.05, 0.075, 0.1]] {
+        let plan = TimePlan::new(TimeMethod::Bdf, 0., 1e-4, 1e-9, vec![1e-11; 4], times).unwrap();
+        system.0.set(None);
+        let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
+        scales.push(system.0.get().expect("initial paired-JVP scale"));
+        histories.push(solution.history().unwrap().clone());
+    }
+    assert_eq!(
+        scales[0], scales[1],
+        "initial Newton scale changed with output cadence"
+    );
+    assert!(
+        histories[0] == histories[1],
+        "consistent initialization changed with output cadence"
+    );
+}
+
+struct RecordingScale(std::cell::Cell<Option<f64>>);
+impl ImplicitTimeSystem for RecordingScale {
+    fn dimension(&self) -> usize {
+        4
+    }
+    fn residual(&self, t: f64, y: &[f64], v: &[f64], out: &mut [f64]) -> Result<(), Diagnostic> {
+        Branch(true).residual(t, y, v, out)
+    }
+    fn residual_jvp(
+        &self,
+        t: f64,
+        y: &[f64],
+        v: &[f64],
+        d: &[f64],
+        dv: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if self.0.get().is_none()
+            && let Some(&scale) = dv.iter().find(|&&value| value != 0.)
+        {
+            self.0.set(Some(scale));
+        }
+        Branch(true).residual_jvp(t, y, v, d, dv, out)
     }
 }

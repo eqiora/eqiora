@@ -1,14 +1,14 @@
 use crate::native::Session;
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_time::{
-    ImplicitDaeInitialization, ImplicitDaeProblem, TimeBackendIdentity, TimeEquationClass,
-    TimeExecutionReport, TimeMethod, TimePlan, TimeSolution,
+    AcceptedTimeHistory, ImplicitDaeInitialization, ImplicitDaeProblem, TimeBackendIdentity,
+    TimeEquationClass, TimeExecutionReport, TimeMethod, TimePlan, TimeSolution,
 };
 
 /// Residual-native adaptive primal integration through SUNDIALS IDA 7.8.0.
 ///
 /// Dense serial real-coordinate algebra; no sensitivity, events or native
-/// checkpoint/history claim. Complex systems use their existing real coordinates.
+/// checkpoint claim. Complex systems use their existing real coordinates.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct IdaTimeBackend;
 impl IdaTimeBackend {
@@ -42,10 +42,24 @@ impl IdaTimeBackend {
         admit(problem, plan)?;
         let mut session = Session::new(problem, plan)?;
         let mut values = Vec::new();
-        for &time in plan.output_times() {
-            values.extend(session.sample(time)?);
+        let mut steps = Vec::new();
+        let mut sample = 0;
+        let horizon = *plan
+            .output_times()
+            .last()
+            .expect("validated nonempty outputs");
+        while session.time() < horizon {
+            let step = session.step(horizon)?;
+            while sample < plan.output_times().len()
+                && plan.output_times()[sample] <= step.end_time()
+            {
+                values.extend(step.sample(plan.output_times()[sample])?);
+                sample += 1;
+            }
+            steps.push(step);
         }
-        TimeSolution::accepted(
+        let history = AcceptedTimeHistory::accepted(problem.dimension(), steps, Vec::new())?;
+        TimeSolution::accepted_with_history(
             problem.dimension(),
             plan.output_times().to_vec(),
             values,
@@ -55,6 +69,7 @@ impl IdaTimeBackend {
                 TimeEquationClass::GeneralImplicitDae,
                 problem.initial_condition(),
             ),
+            history,
         )
     }
 }

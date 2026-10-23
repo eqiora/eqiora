@@ -4,8 +4,10 @@ This optional L3 adapter consumes the existing `ImplicitDaeProblem` residual and
 paired-JVP contract. It admits BDF with serial dense real-coordinate algebra.
 It preserves `Provided` pairs and uses IDA's index-one `IDACalcIC` convention for
 `SolveConsistent`. Error tolerances cover every coordinate, including algebraic
-coordinates. Requested output samples use native interpolation, with the final
-requested time set as the integration stop time.
+coordinates. Each accepted native step is retained through the shared `TimeHistoryStep` and
+`AcceptedTimeHistory` owners. The native polynomial degree determines capture
+nodes; output cadence does not select steps. The final requested time is the
+integration stop time.
 
 The exact admitted native release is **SUNDIALS 7.8.0**, built in double precision.
 `sundials-sys` 0.6.2 generates bindings from the deployment's matching headers;
@@ -37,5 +39,5 @@ or unused algebraic-rate predictor.
 
 This adapter does not yet connect ordinary common Plan/Run or Python execution.
 It does not claim events, sensitivities, adjoints, scalable linear providers,
-accepted dense-history export, or durable adaptive restart. Those compositions
+durable adaptive restart, or event-bearing history. Those compositions
 retain their existing owners under #1563 and #1546.

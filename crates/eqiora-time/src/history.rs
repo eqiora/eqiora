@@ -20,6 +20,60 @@ pub struct TimeHistoryStep {
 }
 
 impl TimeHistoryStep {
+    /// Capture a native polynomial while retaining exact accepted stencil values.
+    ///
+    /// The provider supplies its interpolation degree and an evaluator valid on
+    /// this interval. Output-request cadence does not select the capture nodes.
+    /// # Errors
+    /// Rejects a zero/overflowing degree, invalid samples or provider failures.
+    pub fn capture(
+        start_time: f64,
+        end_time: f64,
+        degree: usize,
+        start_state: Vec<f64>,
+        midpoint_state: Vec<f64>,
+        end_state: Vec<f64>,
+        mut sample: impl FnMut(f64) -> Result<Vec<f64>, Diagnostic>,
+    ) -> Result<Self, Diagnostic> {
+        if degree == 0
+            || !start_time.is_finite()
+            || !end_time.is_finite()
+            || start_time >= end_time
+            || !(end_time - start_time).is_finite()
+        {
+            return Err(time_solve_failed(
+                "native dense output requires a positive degree and finite increasing interval",
+            ));
+        }
+        let count = degree
+            .checked_add(1)
+            .ok_or_else(|| time_solve_failed("native interpolation degree overflows"))?;
+        let mut times = Vec::new();
+        times.try_reserve_exact(count).map_err(|_| {
+            time_solve_failed("native interpolation nodes exceed allocation capacity")
+        })?;
+        for index in 0..count {
+            times.push(if index == degree {
+                end_time
+            } else {
+                start_time + (end_time - start_time) * (index as f64 / degree as f64)
+            });
+        }
+        let states = times
+            .iter()
+            .map(|&time| sample(time))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::accepted(
+            start_time,
+            end_time,
+            start_state,
+            midpoint_state,
+            end_state,
+            times,
+            states,
+        )
+    }
+
     /// Accept a native step stencil and its captured dense polynomial.
     /// # Errors
     /// Rejects empty or inconsistent state shapes and non-increasing times.
@@ -274,6 +328,33 @@ mod tests {
             vec![vec![left], vec![(left + right) * 0.5], vec![right]],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn native_capture_retains_cubic_polynomial_and_rejects_invalid_degree() {
+        let value = |t: f64| 1. + 2. * t - 3. * t * t + 4. * t * t * t;
+        let step = TimeHistoryStep::capture(0., 1., 3, vec![1.], vec![1.75], vec![4.], |t| {
+            Ok(vec![value(t)])
+        })
+        .unwrap();
+        for time in [0.13, 0.37, 0.83] {
+            assert!((step.sample(time).unwrap()[0] - value(time)).abs() < 1e-13);
+        }
+        assert_eq!(step.sample(0.5).unwrap(), vec![1.75]);
+        for degree in [0, usize::MAX] {
+            assert!(
+                TimeHistoryStep::capture(
+                    0.,
+                    1.,
+                    degree,
+                    vec![1.],
+                    vec![1.75],
+                    vec![4.],
+                    |_| panic!("invalid degree must fail before evaluation")
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
