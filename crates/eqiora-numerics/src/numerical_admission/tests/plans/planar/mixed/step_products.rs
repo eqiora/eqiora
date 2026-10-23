@@ -93,7 +93,7 @@ fn mixed_step_products_preserve_certified_operator_properties() {
                 .unwrap();
             let reopened = plan
                 .validate_differentiated_step_values(
-                    &steps[0].1,
+                    &request,
                     &[parameter],
                     None,
                     &fields,

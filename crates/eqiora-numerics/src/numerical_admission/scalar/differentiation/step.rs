@@ -47,6 +47,30 @@ impl CommonSpatialPlan {
         step: &CommonAcceptedSpatialStep,
         outputs: &[eqiora_core::RawId],
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
+        self.validate_step_outputs(outputs)?;
+        let mut accepted = step.clone();
+        accepted.reaccept_spatial(self)?;
+        Ok(accepted)
+    }
+
+    fn validate_step_request(
+        &self,
+        request: &CommonTransientRunRequest,
+        outputs: &[eqiora_core::RawId],
+    ) -> Result<TimeGrid, Diagnostic> {
+        self.validate_step_outputs(outputs)?;
+        if request.plan().identity() != self.identity() {
+            return Err(invalid("step Parameter request belongs to a foreign Plan"));
+        }
+        if request.accepted_steps()?.get() != 1 || request.output_steps()? != [1] {
+            return Err(invalid(
+                "fixed-history step products require exactly one requested step and its endpoint",
+            ));
+        }
+        request.state().time_grid()?.advance(1)
+    }
+
+    fn validate_step_outputs(&self, outputs: &[eqiora_core::RawId]) -> Result<(), Diagnostic> {
         self.admission
             .temporal
             .as_ref()
@@ -60,9 +84,7 @@ impl CommonSpatialPlan {
                 "step linearization currently requires complete Field outputs",
             ));
         }
-        let mut accepted = step.clone();
-        accepted.reaccept_spatial(self)?;
-        Ok(accepted)
+        Ok(())
     }
 }
 
@@ -73,7 +95,8 @@ where
     fn prepare_step(
         &mut self,
         template: &ExecutableSpatialEquations<S>,
-        step: &CommonAcceptedSpatialStep,
+        previous: &CommonState,
+        grid: TimeGrid,
     ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
         if self
             .equations
@@ -95,20 +118,25 @@ where
                 "step products through moving geometry require its retained geometry partials",
             ));
         }
-        let [previous, current] = step.time_interval();
-        self.time_interval = Some([previous, current]);
+        let previous_time = previous.require_time_s()?;
+        let current = grid.time(
+            self.plan
+                .admission
+                .temporal
+                .as_ref()
+                .expect("validated temporal Plan")
+                .require_backward_euler()?
+                .value(),
+        )?;
+        self.time_interval = Some([previous_time, current]);
         // Authenticate history at its original Parameter point. Its physical
         // values stay fixed even when the new point changes essential traces.
-        let (canonical, mut input) = self.plan.scalar_step_assembly(
-            template,
-            step.previous_state(),
-            step.state().time_grid()?,
-        )?;
+        let (canonical, mut input) = self.plan.scalar_step_assembly(template, previous, grid)?;
         let history = input.previous.take().expect("validated physical history");
         let (mapping, mut input) = self.plan.scalar_assembly_with_history(
             &self.equations,
             current,
-            Some(previous),
+            Some(previous_time),
             Some(&history),
             None,
         )?;
@@ -126,7 +154,8 @@ where
         template: &ExecutableSpatialEquations<S>,
         step: &CommonAcceptedSpatialStep,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let (mapping, input) = self.prepare_step(template, step)?;
+        let (mapping, input) =
+            self.prepare_step(template, step.previous_state(), step.state().time_grid()?)?;
         let fields = self.plan.validate_state_fields(
             &mapping,
             &input,

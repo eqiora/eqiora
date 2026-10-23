@@ -52,6 +52,89 @@ fn source(equation: &str, boundary: &str) -> String {
     )
 }
 
+#[derive(Debug, Default)]
+struct CountSolves(std::sync::atomic::AtomicUsize);
+
+impl eqiora::solver::LinearSolverBackend for CountSolves {
+    fn provider(&self) -> eqiora::solver::SolverProvider {
+        REFERENCE_LINEAR_SOLVER.provider()
+    }
+    fn capabilities(&self) -> eqiora::solver::SolverCapabilities {
+        REFERENCE_LINEAR_SOLVER.capabilities()
+    }
+    fn solve_with_execution(
+        &self,
+        problem: &eqiora::solver::LinearProblem<'_>,
+        policy: SolverPlan,
+        execution: &dyn eqiora::solver::ReplicatedLinearExecution,
+    ) -> Result<eqiora::solver::LinearSolution, eqiora::Diagnostic> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        REFERENCE_LINEAR_SOLVER.solve_with_execution(problem, policy, execution)
+    }
+}
+
+#[test]
+fn step_request_products_need_no_previously_solved_canonical_step() {
+    let source = source("1[s]*derivative(h)+h=p;", "");
+    let (document, plan) =
+        resolve_source_document(&source, 1., CommonSolvePolicy::Linear(linear())).unwrap();
+    let spatial = plan.as_spatial().unwrap();
+    let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
+    let before = initial.to_bytes().unwrap();
+    let request =
+        CommonTransientRunRequest::from_steps(plan.clone(), initial.clone(), 1, vec![1]).unwrap();
+    let parameter = document.parameter_ref("p").unwrap().id();
+    let field = document.field_ref("h").unwrap().id().erase();
+    let backend = CountSolves::default();
+    let point = spatial
+        .differentiate_step(&request, &[parameter], Some(&[3.]), &[field], &backend)
+        .unwrap();
+    // h_next=(h_previous+p)/2 with h_previous=0: h=3/2, dh/dp=1/2.
+    for value in point.linearization().output_values() {
+        assert!((value - 1.5).abs() < 1e-11);
+    }
+    assert_eq!(backend.0.load(std::sync::atomic::Ordering::Relaxed), 1);
+    check_products(point.linearization(), spatial.linear(), &[0.5; 3]);
+    let restored = spatial
+        .validate_differentiated_step_values(
+            &request,
+            &[parameter],
+            Some(&[3.]),
+            &[field],
+            point.linearization().relation().accepted_unknowns(),
+        )
+        .unwrap();
+    assert_eq!(&restored, point.linearization());
+    let longer =
+        CommonTransientRunRequest::from_steps(plan.clone(), initial.clone(), 2, vec![2]).unwrap();
+    let error = spatial
+        .differentiate_step(&longer, &[parameter], None, &[field], &backend)
+        .unwrap_err();
+    assert!(
+        error.message().contains("exactly one requested step"),
+        "{error:?}"
+    );
+    let foreign = resolve_source(
+        &source.replace("p:1=2", "p:1=4"),
+        1.,
+        CommonSolvePolicy::Linear(linear()),
+    )
+    .unwrap();
+    let foreign_initial = foreign
+        .as_spatial()
+        .unwrap()
+        .initial_state(Some(0.), Vec::new())
+        .unwrap();
+    let foreign_request =
+        CommonTransientRunRequest::from_steps(foreign, foreign_initial, 1, vec![1]).unwrap();
+    let error = spatial
+        .differentiate_step(&foreign_request, &[parameter], None, &[field], &backend)
+        .unwrap_err();
+    assert!(error.message().contains("foreign Plan"), "{error:?}");
+    assert_eq!(backend.0.load(std::sync::atomic::Ordering::Relaxed), 1);
+    assert_eq!(initial.to_bytes().unwrap(), before);
+}
+
 #[test]
 fn accepted_step_products_include_current_boundary_lifts_without_history_feedback() {
     let source = source(
@@ -75,6 +158,13 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
     let parameter = document.parameter_ref("p").unwrap().id();
     let field = document.field_ref("h").unwrap().id().erase();
     for (index, (_, step)) in steps.iter().enumerate() {
+        let step_request = CommonTransientRunRequest::from_steps(
+            plan.clone(),
+            step.previous_state().clone(),
+            1,
+            vec![1],
+        )
+        .unwrap();
         let before = step.state().to_bytes().unwrap();
         let product = spatial
             .linearize_step(step, &[parameter], &[field])
@@ -86,7 +176,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         check_products(&product, spatial.linear(), &[time, 23. * time / 26., time]);
         let changed = spatial
             .differentiate_step(
-                step,
+                &step_request,
                 &[parameter],
                 Some(&[3.]),
                 &[field],
@@ -100,7 +190,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         );
         let reopened = spatial
             .validate_differentiated_step_values(
-                step,
+                &step_request,
                 &[parameter],
                 Some(&[3.]),
                 &[field],
@@ -168,7 +258,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     let field = document.field_ref("h").unwrap().id().erase();
     let changed = spatial
         .differentiate_step(
-            &steps[0].1,
+            &request,
             &[parameter],
             Some(&[10.]),
             &[field],
@@ -182,7 +272,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     check_products(changed.linearization(), spatial.linear(), &[1. / 13.; 3]);
     let reopened = spatial
         .validate_differentiated_step_values(
-            &steps[0].1,
+            &request,
             &[parameter],
             Some(&[10.]),
             &[field],
@@ -196,7 +286,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     assert!(reopened.validate_nonlinear_update_count(0).is_err());
     let error = spatial
         .validate_differentiated_step_values(
-            &steps[0].1,
+            &request,
             &[parameter],
             Some(&[10.]),
             &[field],
@@ -209,7 +299,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     assert!(
         spatial
             .differentiate_step(
-                &steps[0].1,
+                &request,
                 &[parameter],
                 Some(&[f64::NAN]),
                 &[field],

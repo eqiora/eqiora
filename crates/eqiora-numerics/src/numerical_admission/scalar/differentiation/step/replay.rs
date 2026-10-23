@@ -4,30 +4,30 @@ use super::*;
 impl CommonSpatialPlan {
     /// Validate candidate free coordinates at a fixed-history Parameter point.
     ///
-    /// Reaccepts the original canonical step, then checks the supplied candidate
+    /// Authenticates the one-step Run request and checks the supplied candidate
     /// against the changed current equations with the original physical history.
     /// This executes no solve and authenticates no producer history. Returned
     /// partials and Newton seed facts use the same owners as live evaluation.
     ///
     /// # Errors
-    /// Rejects foreign steps, malformed inputs or candidates, unsupported bindings,
+    /// Rejects foreign or multi-step requests, malformed inputs or candidates, unsupported bindings,
     /// and candidates that fail the original residual or constraint checks.
     pub fn validate_differentiated_step_values(
         &self,
-        step: &CommonAcceptedSpatialStep,
+        request: &CommonTransientRunRequest,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let accepted = self.accept_step_product(step, outputs)?;
+        let grid = self.validate_step_request(request, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
                 .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
-                .accept_step_point(equations, &accepted, candidate),
+                .accept_step_point(equations, request.state(), grid, candidate),
             RecognizedNativeModel::ComplexSpatial(equations) => self
                 .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
-                .accept_step_point(equations, &accepted, candidate),
+                .accept_step_point(equations, request.state(), grid, candidate),
             _ => Err(invalid("step acceptance requires exact spatial equations")),
         }
     }
@@ -40,10 +40,11 @@ where
     fn accept_step_point(
         mut self,
         template: &ExecutableSpatialEquations<S>,
-        step: &CommonAcceptedSpatialStep,
+        previous: &CommonState,
+        grid: TimeGrid,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let (mapping, input) = self.prepare_step(template, step)?;
+        let (mapping, input) = self.prepare_step(template, previous, grid)?;
         let coordinates = RegionRealCoordinates::new(&mapping)?;
         let fields = coordinates.recover(candidate)?;
         let (_, target, _, _, seed_residual) = self

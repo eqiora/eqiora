@@ -94,6 +94,13 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     panic!("unexpected stop")
                 };
                 for (index, (_, step)) in steps.iter().enumerate() {
+                    let step_request = CommonTransientRunRequest::from_steps(
+                        resolved.clone(),
+                        step.previous_state().clone(),
+                        1,
+                        vec![1],
+                    )
+                    .unwrap();
                     let linearization = plan.linearize_step(step, &[parameter], &[field]).unwrap();
                     let output = output_tangent(plan, &linearization);
                     let nodes = if spatial == CommonSpatialPolicy::Q1 {
@@ -123,7 +130,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     );
                     let evaluated = plan
                         .differentiate_step(
-                            step,
+                            &step_request,
                             &[parameter],
                             Some(&[3.]),
                             &[field],
@@ -132,7 +139,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         .unwrap();
                     let restored = plan
                         .validate_differentiated_step_values(
-                            step,
+                            &step_request,
                             &[parameter],
                             Some(&[3.]),
                             &[field],
@@ -144,7 +151,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     altered[0] += 0.125;
                     let error = plan
                         .validate_differentiated_step_values(
-                            step,
+                            &step_request,
                             &[parameter],
                             Some(&[3.]),
                             &[field],
