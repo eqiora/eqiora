@@ -10,6 +10,7 @@ repository = "https://github.com/nkiyohara/eqiora"
 rust-version = "1.89"
 
 [workspace.dependencies]
+sundials-sys = { version = "=0.6.2", default-features = false, features = ["ida"] }
 # External dependencies are pinned here; member crates use `workspace = true`.
 base64 = "0.23"
 # Safe, handle-relative filesystem access for the untrusted package store. The

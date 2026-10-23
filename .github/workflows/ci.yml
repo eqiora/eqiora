@@ -182,7 +182,7 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev libglu1-mesa
+          sudo apt-get install --no-install-recommends --yes cmake libopenmpi-dev openmpi-bin libclang-dev libffi-dev libglu1-mesa
           mpirun --version
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         if: needs.changes.outputs.rust == 'true'
@@ -199,6 +199,17 @@ jobs:
       - name: Install stable Rust
         if: needs.changes.outputs.rust == 'true'
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Build checksum-pinned SUNDIALS IDA
+        if: needs.changes.outputs.rust == 'true'
+        shell: bash
+        run: |
+          native_prefix="${HOME:?}/.cache/eqiora/sundials-7.8.0"
+          python3 tools/ci/install_sundials.py --prefix "$native_prefix"
+          {
+            printf 'SUNDIALS_INCLUDE_DIR=%s/include\n' "$native_prefix"
+            printf 'SUNDIALS_LIBRARY_DIR=%s/lib\n' "$native_prefix"
+            printf 'LD_LIBRARY_PATH=%s/lib:%s\n' "$native_prefix" "${LD_LIBRARY_PATH:-}"
+          } >> "$GITHUB_ENV"
       - name: Identify the native build environment
         if: needs.changes.outputs.rust == 'true'
         id: native
@@ -209,8 +220,8 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          prefix-key: stable-deps-${{ steps.native.outputs.digest }}-${{ hashFiles('.github/workflows/ci.yml', 'Cargo.toml', 'tools/ci/rust_quality.py', 'pyproject.toml') }}
-          env-vars: ImageOS ImageVersion pythonLocation Python_ROOT_DIR PKG_CONFIG LD_LIBRARY_PATH
+          prefix-key: stable-deps-${{ steps.native.outputs.digest }}-${{ hashFiles('.github/workflows/ci.yml', 'Cargo.toml', 'tools/ci/rust_quality.py', 'tools/ci/install_sundials.py', 'pyproject.toml') }}
+          env-vars: ImageOS ImageVersion pythonLocation Python_ROOT_DIR PKG_CONFIG LD_LIBRARY_PATH SUNDIALS_INCLUDE_DIR SUNDIALS_LIBRARY_DIR
           cmd-format: rustup run stable {0}
           workspaces: . -> target
           cache-bin: false
@@ -238,6 +249,17 @@ jobs:
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
           TMPDIR: ${{ runner.temp }}
         run: python tools/ci/rust_quality.py test
+      - name: Residual-native IDA tests
+        if: needs.changes.outputs.rust == 'true'
+        env:
+          CARGO_INCREMENTAL: "0"
+          CARGO_PROFILE_TEST_DEBUG: "0"
+          CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
+          CARGO_PROFILE_TEST_INCREMENTAL: "false"
+          CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+          CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
+          TMPDIR: ${{ runner.temp }}
+        run: cargo +stable test -p eqiora-backend-sundials --features ida-runtime --locked
       - name: Full feature tests
         if: needs.changes.outputs.rust == 'true' && needs.changes.outputs.full == 'true'
         env:
@@ -298,10 +320,21 @@ jobs:
         if: needs.changes.outputs.msrv == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
+          sudo apt-get install --no-install-recommends --yes cmake libopenmpi-dev openmpi-bin libclang-dev libffi-dev
       - name: Install MSRV
         if: needs.changes.outputs.msrv == 'true'
         run: rustup toolchain install 1.89.0 --profile minimal
+      - name: Build checksum-pinned SUNDIALS IDA
+        if: needs.changes.outputs.msrv == 'true'
+        shell: bash
+        run: |
+          native_prefix="${HOME:?}/.cache/eqiora/sundials-7.8.0"
+          python3 tools/ci/install_sundials.py --prefix "$native_prefix"
+          {
+            printf 'SUNDIALS_INCLUDE_DIR=%s/include\n' "$native_prefix"
+            printf 'SUNDIALS_LIBRARY_DIR=%s/lib\n' "$native_prefix"
+            printf 'LD_LIBRARY_PATH=%s/lib:%s\n' "$native_prefix" "${LD_LIBRARY_PATH:-}"
+          } >> "$GITHUB_ENV"
       - name: Check every production feature and target
         if: needs.changes.outputs.msrv == 'true'
         run: cargo +1.89.0 check --workspace --all-targets --all-features --locked

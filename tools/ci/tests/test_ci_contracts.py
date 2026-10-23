@@ -512,6 +512,9 @@ jobs:
             "\n  gate:", maxsplit=1
         )[0]
         tests = quality.split("- name: Tests\n", maxsplit=1)[1].split(
+            "- name: Residual-native IDA tests\n", maxsplit=1
+        )[0]
+        ida_tests = quality.split("- name: Residual-native IDA tests\n", maxsplit=1)[1].split(
             "- name: Full feature tests\n", maxsplit=1
         )[0]
         full_feature_tests = quality.split("- name: Full feature tests\n", maxsplit=1)[
@@ -527,13 +530,14 @@ jobs:
 
         for step in (
             tests,
+            ida_tests,
             full_feature_tests,
         ):
             for setting in profile:
                 self.assertIn(setting, step)
             self.assertNotIn("RUSTFLAGS", step)
         for setting in profile:
-            self.assertEqual(workflow.count(setting), 2)
+            self.assertEqual(workflow.count(setting), 3)
         self.assertNotIn("CARGO_PROFILE_TEST_", studio)
         self.assertNotIn("fast-math", workflow.lower())
         self.assertIn("--locked --timings", full_feature_tests)
@@ -565,9 +569,15 @@ jobs:
         steps = (
             (
                 "      - name: Tests\n",
-                "      - name: Full feature tests\n",
+                "      - name: Residual-native IDA tests\n",
                 ("needs.changes.outputs.rust == 'true'",),
                 "python tools/ci/rust_quality.py test",
+            ),
+            (
+                "      - name: Residual-native IDA tests\n",
+                "      - name: Full feature tests\n",
+                ("needs.changes.outputs.rust == 'true'",),
+                "cargo +stable test -p eqiora-backend-sundials --features ida-runtime --locked",
             ),
             (
                 "      - name: Full feature tests\n",
@@ -584,10 +594,10 @@ jobs:
             quality.split("    steps:\n", maxsplit=1)[0],
             expected_job_contract,
         )
-        self.assertEqual(workflow.count("TMPDIR"), 2)
+        self.assertEqual(workflow.count("TMPDIR"), 3)
         self.assertEqual(
             re.findall(r"(?m)^[ \t]*TMPDIR:[ \t]*(.*?)[ \t]*$", workflow),
-            ["${{ runner.temp }}"] * 2,
+            ["${{ runner.temp }}"] * 3,
         )
         self.assertLess(quality.index(steps[0][0]), quality.index(steps[1][0]))
         self.assertNotRegex(
