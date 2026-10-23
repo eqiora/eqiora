@@ -108,14 +108,25 @@ fn prepared_complex_storage_retains_initial_and_fresh_history_channels() {
         form.initial_values_at(&[0.0]).unwrap()[&field][0],
         C::new(1., 2.)
     );
-    assert!(form.volume().is_err());
+    let geometry =
+        AffineGeometryMap::new(ReferenceCell::hypercube(1).unwrap(), 1, vec![3.], vec![3.])
+            .unwrap();
+    // Continuous actions can be prepared before a step is selected, but the
+    // discrete evaluator still requires State/rate data or a time binding.
+    assert!(
+        form.volume()
+            .unwrap()
+            .prepare_cell(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
+            .unwrap()
+            .evaluate(&BTreeMap::new())
+            .unwrap_err()
+            .message()
+            .contains("explicit State/rate point or time discretization")
+    );
     let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
     let form = form
         .bind_backward_euler(DynQuantity::new(2., second))
         .unwrap();
-    let geometry =
-        AffineGeometryMap::new(ReferenceCell::hypercube(1).unwrap(), 1, vec![3.], vec![3.])
-            .unwrap();
     let cell = form
         .volume()
         .unwrap()
