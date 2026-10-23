@@ -81,7 +81,12 @@ pub fn resolve_authored_spatial_formulation(
         } else {
             crate::canonical_stokes::check_authored_mixed_formulation(program, form)
         };
-        specialized.map(|_| form.clone()).map_err(|_| generic_error)
+        specialized.map(|_| form.clone()).map_err(|error| {
+            generic_error.with_context(format!(
+                "specialized Green-identity check also rejected the form ({})",
+                error.message()
+            ))
+        })
     })
 }
 
