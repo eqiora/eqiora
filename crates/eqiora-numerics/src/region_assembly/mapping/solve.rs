@@ -223,7 +223,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     pub(crate) fn solve<'mesh, A: Coefficient + Send + Sync>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<S>,
+        input: &RegionSolveInput<S>,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, A>,
     ) -> Result<RegionSolveOutput<S>, Diagnostic>
@@ -231,7 +231,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Self: RegionAlgebraicCoordinates<A, S>,
     {
         let (core, assembly_report, _) =
-            self.finalize_linear::<A>(mesh, &input, workers, request.plan())?;
+            self.finalize_linear::<A>(mesh, input, workers, request.plan())?;
         let step = kinematic_step(&input.forms)?;
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;

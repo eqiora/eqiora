@@ -176,7 +176,7 @@ impl CommonDifferentiationLinearization {
         self.residual_target
     }
 
-    /// Original seed residual for a nonlinear point; absent for a linear point.
+    /// Nonlinear seed residual; absent for products without a retained seed.
     #[must_use]
     pub const fn initial_residual_norm(&self) -> Option<f64> {
         match self.initial {

@@ -68,7 +68,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
     let output = mapping
         .solve(
             &mesh,
-            input,
+            &input,
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
         )

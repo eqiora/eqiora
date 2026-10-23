@@ -94,13 +94,13 @@ where
                 == RegionRealCoordinates::new(&mapping)?
                     .encode(&mapping.physical_predictor(&seed)?)?,
         };
-        let linearization = self.nonlinear_linearization(
+        let linearization = self.assembled_linearization(
             &mapping,
             &input,
             solved.values,
             solved.assembly,
             solved.evidence.residual_target()?,
-            initial_point,
+            Some(initial_point),
         )?;
         Ok(CommonDifferentiationPoint::from_primal(
             linearization,
@@ -134,34 +134,47 @@ where
             &seed,
             self.plan.admission.nonlinear.expect("Newton Plan"),
         )?;
-        self.nonlinear_linearization(
+        self.assembled_linearization(
             &mapping,
             &input,
             accepted.values,
             accepted.assembly,
             accepted.residual_target,
-            accepted.initial,
+            Some(accepted.initial),
         )
     }
 
-    fn nonlinear_linearization(
+    pub(super) fn assembled_linearization(
         &self,
         mapping: &RegionDofMap<S>,
         input: &RegionSolveInput<S>,
         values: Vec<f64>,
         assembly: RegionAssemblyLinearization,
         target: f64,
-        initial: crate::nonlinear_execution::NewtonInitialPoint,
+        initial: Option<crate::nonlinear_execution::NewtonInitialPoint>,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let [reduced, full]: [_; 2] = assembly.systems.try_into().map_err(|_| {
-            invalid("nonlinear sensitivity requires exact reduced and full Jacobian targets")
+            invalid("spatial sensitivity requires exact reduced and full Jacobian targets")
         })?;
         let [original, _]: [_; 2] = assembly.residuals.try_into().map_err(|_| {
-            invalid("nonlinear sensitivity requires exact reduced and full residual targets")
+            invalid("spatial sensitivity requires exact reduced and full residual targets")
         })?;
         let (partial, output) = self.output_partials(mapping, &values, |coordinate| {
             self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)
         })?;
+        // For affine forms the accepted State Jacobian is the original operator,
+        // so retain its mathematical certificate (including mixed MINRES pairs).
+        // A nonlinear Jacobian has no symmetry promise from primal row pairing.
+        let properties = if self
+            .equations
+            .regions
+            .iter()
+            .any(|region| region.form.is_nonlinear())
+        {
+            LinearOperatorProperties::General
+        } else {
+            input.operator_properties
+        };
         let relation = AssembledLinearizedRelation::from_point(
             reduced.matrix().clone(),
             values,
@@ -169,14 +182,14 @@ where
             self.design.clone(),
             self.values.clone(),
             partial,
-            LinearOperatorProperties::General,
+            properties,
         )?;
         Ok(CommonDifferentiationLinearization::from_spatial(
             relation,
             eqiora_core::ScalarDomain::Real,
             output,
             target,
-            Some(initial),
+            initial,
         ))
     }
 }

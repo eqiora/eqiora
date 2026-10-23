@@ -120,7 +120,7 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
     let execute = |history| {
         mapping.solve(
             &mesh,
-            RegionSolveInput {
+            &RegionSolveInput {
                 conservative: None,
                 operator_properties: LinearOperatorProperties::General,
                 forms: vec![(

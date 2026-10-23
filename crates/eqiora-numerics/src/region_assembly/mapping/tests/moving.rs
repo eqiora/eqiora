@@ -132,7 +132,7 @@ fn execute<const D: usize>(
     )?;
     let output = mapping.solve(
         mesh,
-        RegionSolveInput {
+        &RegionSolveInput {
             conservative: None,
             operator_properties: eqiora_solver::LinearOperatorProperties::General,
             forms: vec![(form.clone(), simplex_duffy_gauss_legendre(D, 3).unwrap())],

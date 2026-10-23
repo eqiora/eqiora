@@ -365,7 +365,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
         let output = mapping
             .solve(
                 mesh.mesh(),
-                crate::region_assembly::mapping::RegionSolveInput {
+                &crate::region_assembly::mapping::RegionSolveInput {
                     conservative: None,
                     operator_properties: LinearOperatorProperties::General,
                     geometry_action: None,

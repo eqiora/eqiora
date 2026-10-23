@@ -328,7 +328,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
     let output = mapping
         .solve(
             mesh.mesh(),
-            input,
+            &input,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
         )
@@ -343,7 +343,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
     let error = mapping
         .solve(
             mesh.mesh(),
-            unclassified,
+            &unclassified,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
         )
