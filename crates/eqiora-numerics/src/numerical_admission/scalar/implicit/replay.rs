@@ -4,7 +4,7 @@ use crate::common_result::evidence::CommonSolveHistory;
 use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
 use crate::nonlinear_execution::stage_merit;
 use crate::nonlinear_execution::{NewtonConvergence, NewtonOptions, NewtonStopping};
-use eqiora_time::{AcceptedTimeHistory, ImplicitMidpointTimeBackend, TimeHistoryStep};
+use eqiora_time::{AcceptedTimeHistory, ImplicitMidpointTimeBackend, TimePlan};
 
 impl CommonTransientRunRequest {
     pub(crate) fn validate_spatial_time(
@@ -48,14 +48,9 @@ where
             return Err(invalid("spatial history omitted requested outputs"));
         }
         match execution {
-            SpatialTimeExecution::Midpoint(stages) => {
-                ImplicitMidpointTimeBackend::validate_history(&initial, &plan, history)?;
-                if stages.len() != history.steps().len() {
-                    return Err(invalid("spatial history omitted stage execution records"));
-                }
-                for (step, evidence) in history.steps().iter().zip(stages) {
-                    self.validate_stage(request, step, evidence, plan.absolute_tolerances())?;
-                }
+            SpatialTimeExecution::Midpoint { .. } => {
+                return self
+                    .validate_midpoint(request, states, history, execution, &initial, &plan);
             }
             SpatialTimeExecution::Adaptive(report) => {
                 if plan.method() != eqiora_time::TimeMethod::Tsitouras45
@@ -110,12 +105,111 @@ where
         Ok(())
     }
 
-    fn validate_stage(
+    fn validate_midpoint(
         &self,
         request: &CommonTransientRunRequest,
-        step: &TimeHistoryStep,
+        states: &[CommonState],
+        history: &AcceptedTimeHistory,
+        execution: &SpatialTimeExecution,
+        initial: &[f64],
+        plan: &TimePlan,
+    ) -> Result<(), Diagnostic> {
+        let SpatialTimeExecution::Midpoint {
+            stages,
+            endpoints,
+            outputs,
+        } = execution
+        else {
+            unreachable!()
+        };
+        let differential_plan = self.differential_plan(plan)?;
+        ImplicitMidpointTimeBackend::validate_history(
+            &self.differential_coordinates(initial),
+            &differential_plan,
+            history,
+        )?;
+        let constrained = !self.algebraic.is_empty();
+        if stages.len() != history.steps().len()
+            || endpoints.len() != if constrained { stages.len() } else { 0 }
+            || outputs.len() != if constrained { states.len() } else { 0 }
+        {
+            return Err(invalid(
+                "spatial history has an incomplete stage or recovery inventory",
+            ));
+        }
+        let absolute =
+            self.midpoint_tolerances(request.plan().ode_temporal().expect("checked policy"))?;
+        let mut current = initial.to_vec();
+        let mut physical_endpoints = Vec::new();
+        for (index, (step, evidence)) in history.steps().iter().zip(stages).enumerate() {
+            let h = step.end_time() - step.start_time();
+            if step.start_state() != self.differential_coordinates(&current)
+                || step.end_state() != self.differential_coordinates(&evidence.unknown)
+            {
+                return Err(invalid(
+                    "midpoint history differs from its original differential coordinates",
+                ));
+            }
+            self.validate_newton(
+                request,
+                evidence,
+                &self.midpoint_seed(&current),
+                &absolute,
+                |unknown| self.midpoint_point(step.start_time(), h, &current, unknown),
+            )?;
+            self.require_stage_regularity(step.start_time(), h, &current, &evidence.unknown)?;
+            current = if constrained {
+                let (fixed, seed) = self.endpoint_recovery_seed(&current, &evidence.unknown, h)?;
+                let recovery = &endpoints[index];
+                self.validate_newton(
+                    request,
+                    recovery,
+                    &seed,
+                    plan.absolute_tolerances(),
+                    |unknown| self.recovery_point(step.end_time(), h, &fixed, unknown),
+                )?;
+                self.recovery_coordinates(h, &fixed, &recovery.unknown)?.0
+            } else {
+                evidence.unknown.clone()
+            };
+            physical_endpoints.push(current.clone());
+        }
+        for (position, (state, &time)) in states.iter().zip(request.output_times_s()).enumerate() {
+            let index = history
+                .steps()
+                .partition_point(|step| step.end_time() < time);
+            let step = &history.steps()[index];
+            let fixed = self.lift_differential(&step.sample(time)?, &physical_endpoints[index])?;
+            let physical = if constrained {
+                let h = step.end_time() - step.start_time();
+                let recovery = &outputs[position];
+                self.validate_newton(
+                    request,
+                    recovery,
+                    &endpoints[index].unknown,
+                    plan.absolute_tolerances(),
+                    |unknown| self.recovery_point(time, h, &fixed, unknown),
+                )?;
+                self.recovery_coordinates(h, &fixed, &recovery.unknown)?.0
+            } else {
+                fixed
+            };
+            if *state != self.physical_state(time, &physical)? {
+                return Err(invalid(
+                    "spatial output differs from its accepted differential history and algebraic recovery",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_newton(
+        &self,
+        request: &CommonTransientRunRequest,
         evidence: &SpatialTimeStage,
+        seed_values: &[f64],
         absolute: &[f64],
+        linearize: impl Fn(&[f64]) -> Result<ImplicitPoint, Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let nonlinear = self.plan.admission.nonlinear;
         let CommonSolveHistory::Newton {
@@ -138,9 +232,7 @@ where
                 return Err(invalid("midpoint stage solve differs from its exact Plan"));
             }
         }
-        let h = step.end_time() - step.start_time();
-        let seed =
-            self.midpoint_point(step.start_time(), h, step.start_state(), step.start_state())?;
+        let seed = linearize(seed_values)?;
         let initial = stage_merit(
             &seed.assembly.residuals[0],
             &seed.row_scales,
@@ -151,8 +243,7 @@ where
                 "midpoint predictor residual differs from original equations",
             ));
         }
-        let current =
-            self.midpoint_point(step.start_time(), h, step.start_state(), step.end_state())?;
+        let current = linearize(&evidence.unknown)?;
         let target = if nonlinear.is_some() {
             0.
         } else {
@@ -160,7 +251,7 @@ where
         };
         crate::nonlinear_execution::NewtonInitialPoint {
             residual_norm: initial,
-            at_seed: step.start_state() == step.end_state(),
+            at_seed: seed_values == evidence.unknown,
         }
         .validate_updates(target, *iterations)?;
         match (&evidence.convergence, nonlinear) {
@@ -211,7 +302,7 @@ where
                     .expect("correction controls");
                 if norm > 1.
                     || norm.to_bits() != weighted_norm.to_bits()
-                    || point.iter().zip(direction).zip(step.end_state()).any(
+                    || point.iter().zip(direction).zip(&evidence.unknown).any(
                         |((point, direction), end)| (point + direction).to_bits() != end.to_bits(),
                     )
                 {
@@ -219,7 +310,7 @@ where
                         "midpoint accepted endpoint is not a small full Newton correction",
                     ));
                 }
-                let base = self.midpoint_point(step.start_time(), h, step.start_state(), point)?;
+                let base = linearize(point)?;
                 let (_, target) = base
                     .assembly
                     .correction_core(0, self.plan.linear(), self.plan.admission.linear.workers)?

@@ -3,6 +3,7 @@ mod linearization;
 mod midpoint;
 mod policy;
 mod rate;
+mod recovery;
 mod run;
 
 use super::*;

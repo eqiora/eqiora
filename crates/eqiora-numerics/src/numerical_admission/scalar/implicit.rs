@@ -1,6 +1,7 @@
 //! Continuous spatial equations in free real coordinates, including analytic trace rates.
 mod midpoint;
 mod rate;
+mod recovery;
 mod replay;
 mod run;
 use super::*;
@@ -21,6 +22,45 @@ pub(in crate::numerical_admission) struct SpatialImplicitSystem<'a, S: Coefficie
     equations: &'a ExecutableSpatialEquations<S>,
     mapping: RegionDofMap<S>,
     dimension: usize,
+    algebraic: BTreeSet<usize>,
+}
+
+/// One transformed Newton point, retaining original residuals and canonical CSR.
+pub(super) struct ImplicitPoint {
+    pub(super) unknown: Vec<f64>,
+    pub(super) assembly: crate::region_assembly::nonlinear::RegionAssemblyLinearization,
+    pub(super) row_scales: Vec<f64>,
+}
+
+impl ImplicitPoint {
+    fn new(
+        unknown: &[f64],
+        assembly: crate::region_assembly::nonlinear::RegionAssemblyLinearization,
+    ) -> Result<Self, Diagnostic> {
+        let matrix = assembly.systems[0].matrix();
+        let row_scales = matrix
+            .row_offsets()
+            .windows(2)
+            .map(|offsets| {
+                matrix.values()[offsets[0]..offsets[1]]
+                    .iter()
+                    .fold(0_f64, |scale, value| scale.max(value.abs()))
+            })
+            .collect::<Vec<_>>();
+        if row_scales
+            .iter()
+            .any(|scale| !scale.is_finite() || *scale <= 0.)
+        {
+            return Err(invalid(
+                "implicit Jacobian requires finite nonzero equation rows",
+            ));
+        }
+        Ok(Self {
+            unknown: unknown.to_vec(),
+            assembly,
+            row_scales,
+        })
+    }
 }
 
 impl<'a, S: Coefficient + Send + Sync> SpatialImplicitSystem<'a, S>
@@ -32,13 +72,17 @@ where
         equations: &'a ExecutableSpatialEquations<S>,
         time_s: f64,
     ) -> Result<Self, Diagnostic> {
-        let (mapping, _) = plan.scalar_assembly_at(equations, time_s)?;
+        let (mapping, input) = plan.scalar_assembly_at(equations, time_s)?;
         let dimension = RegionRealCoordinates::new(&mapping)?.free_count();
+        let algebraic = mapping
+            .temporal_coordinate_partition(&input.temporal_structure()?)?
+            .0;
         Ok(Self {
             plan,
             equations,
             mapping,
             dimension,
+            algebraic,
         })
     }
 

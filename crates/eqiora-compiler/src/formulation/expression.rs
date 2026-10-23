@@ -179,6 +179,15 @@ fn from_dag(
             ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => AuthoredFormExpressionV1::Sin {
                 value: convert(*value)?,
             },
+            // Scalar |z|² has the existing conjugate-first product representation.
+            // Convert both operands under the shared budget; nested norms must
+            // not duplicate an uncharged expression tree.
+            ExprNode::UnaryMath(UnaryMathFunction::Abs2, value) => {
+                AuthoredFormExpressionV1::Inner {
+                    left: convert(*value)?,
+                    right: convert(*value)?,
+                }
+            }
             ExprNode::UnaryMath(UnaryMathFunction::Conj, value) => {
                 AuthoredFormExpressionV1::Conjugate {
                     value: convert(*value)?,

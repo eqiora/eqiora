@@ -3,13 +3,6 @@ use super::*;
 use crate::nonlinear_execution::{
     NewtonEvidence, NewtonOptions, NewtonTrial, solve_damped_newton, stage_merit,
 };
-use crate::region_assembly::nonlinear::RegionAssemblyLinearization;
-
-pub(super) struct MidpointPoint {
-    endpoint: Vec<f64>,
-    pub(super) assembly: RegionAssemblyLinearization,
-    pub(super) row_scales: Vec<f64>,
-}
 
 impl<S: Coefficient + Send + Sync> SpatialImplicitSystem<'_, S>
 where
@@ -46,7 +39,7 @@ where
             .filter(|policy| policy.method() == eqiora_time::TimeMethod::ImplicitMidpoint)
             .ok_or_else(|| invalid("midpoint execution requires the admitted midpoint policy"))?;
         let nonlinear = self.plan.admission.nonlinear;
-        let absolute = self.correction_tolerances(temporal)?;
+        let absolute = self.midpoint_tolerances(temporal)?;
         let structure = self.equations.algebraic_structure(None)?;
         let checked = self
             .plan
@@ -55,7 +48,7 @@ where
             .checked_backend(backend, Some(&structure))?;
         let linear = LinearSolveRequest::new(&checked, self.plan.linear());
         let (accepted, evidence) = solve_damped_newton(
-            initial.to_vec(),
+            self.midpoint_seed(initial),
             NewtonOptions::time_stage(
                 nonlinear,
                 self.plan.linear(),
@@ -76,7 +69,7 @@ where
                     .solve_correction(0, linear, self.plan.admission.linear.workers)
             },
             |endpoint, current| {
-                let (state, rate) = stage_coordinates(initial, endpoint, step_s);
+                let (state, rate) = self.stage_coordinates(initial, endpoint, step_s);
                 let mut residual = vec![0.; self.dimension];
                 self.residual(midpoint_time, &state, &rate, &mut residual)?;
                 Ok(Some(NewtonTrial {
@@ -90,7 +83,8 @@ where
                 }))
             },
         )?;
-        Ok((accepted.endpoint, evidence))
+        self.require_stage_regularity(time_s, step_s, initial, &accepted.unknown)?;
+        Ok((accepted.unknown, evidence))
     }
 
     pub(super) fn midpoint_point(
@@ -99,42 +93,70 @@ where
         h: f64,
         initial: &[f64],
         endpoint: &[f64],
-    ) -> Result<MidpointPoint, Diagnostic> {
+    ) -> Result<ImplicitPoint, Diagnostic> {
         self.validate(initial)?;
         self.validate(endpoint)?;
-        let (state, rate) = stage_coordinates(initial, endpoint, h);
+        let (state, rate) = self.stage_coordinates(initial, endpoint, h);
+        let weights = (0..self.dimension)
+            .map(|i| [Some(0.5), (!self.algebraic.contains(&i)).then_some(1. / h)])
+            .collect::<Vec<_>>();
         let assembly = self.linearize(
             time + 0.5 * h,
             &state,
             &rate,
-            FieldPullback::Uniform {
-                current: Some(0.5),
-                rate: Some(1. / h),
-            },
+            FieldPullback::Coordinates(&weights),
         )?;
-        let matrix = assembly.systems[0].matrix();
-        let row_scales = matrix
-            .row_offsets()
-            .windows(2)
-            .map(|offsets| {
-                matrix.values()[offsets[0]..offsets[1]]
-                    .iter()
-                    .fold(0_f64, |scale, value| scale.max(value.abs()))
-            })
-            .collect::<Vec<_>>();
-        if row_scales
+        ImplicitPoint::new(endpoint, assembly)
+    }
+
+    /// Differential endpoint and twice the algebraic midpoint value. Scaling
+    /// both the latter unknown and its absolute tolerance preserves State units.
+    pub(super) fn midpoint_seed(&self, initial: &[f64]) -> Vec<f64> {
+        initial
             .iter()
-            .any(|scale| !scale.is_finite() || *scale <= 0.)
-        {
-            return Err(invalid(
-                "midpoint Jacobian requires finite nonzero equation rows",
-            ));
+            .enumerate()
+            .map(|(i, value)| {
+                if self.algebraic.contains(&i) {
+                    2. * value
+                } else {
+                    *value
+                }
+            })
+            .collect()
+    }
+
+    pub(super) fn midpoint_tolerances(
+        &self,
+        policy: &CommonOdePolicy,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let mut absolute = self.correction_tolerances(policy)?;
+        for &i in &self.algebraic {
+            absolute[i] *= 2.;
         }
-        Ok(MidpointPoint {
-            endpoint: endpoint.to_vec(),
-            assembly,
-            row_scales,
-        })
+        if absolute.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("midpoint algebraic tolerance scaling overflowed"));
+        }
+        Ok(absolute)
+    }
+
+    pub(super) fn stage_coordinates(
+        &self,
+        initial: &[f64],
+        unknown: &[f64],
+        h: f64,
+    ) -> (Vec<f64>, Vec<f64>) {
+        let mut state = Vec::with_capacity(self.dimension);
+        let mut rate = Vec::with_capacity(self.dimension);
+        for (i, (&a, &b)) in initial.iter().zip(unknown).enumerate() {
+            if self.algebraic.contains(&i) {
+                state.push(0.5 * b);
+                rate.push(0.);
+            } else {
+                state.push(0.5 * a + 0.5 * b);
+                rate.push((b - a) / h);
+            }
+        }
+        (state, rate)
     }
 
     pub(super) fn correction_tolerances(
@@ -176,21 +198,6 @@ where
         }
         Ok(absolute)
     }
-}
-
-fn stage_coordinates(initial: &[f64], endpoint: &[f64], h: f64) -> (Vec<f64>, Vec<f64>) {
-    (
-        initial
-            .iter()
-            .zip(endpoint)
-            .map(|(a, b)| 0.5 * a + 0.5 * b)
-            .collect(),
-        initial
-            .iter()
-            .zip(endpoint)
-            .map(|(a, b)| (b - a) / h)
-            .collect(),
-    )
 }
 
 #[cfg(test)]

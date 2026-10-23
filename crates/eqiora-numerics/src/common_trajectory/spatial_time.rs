@@ -5,13 +5,31 @@ use crate::common_result::evidence::{CommonSolveEvidence, CommonSolveHistory};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SpatialTimeStage {
+    pub(crate) unknown: Vec<f64>,
     pub(crate) solve: CommonSolveHistory,
     pub(crate) convergence: crate::nonlinear_execution::NewtonConvergence,
 }
 
+impl SpatialTimeStage {
+    pub(crate) fn from_newton(
+        unknown: Vec<f64>,
+        evidence: crate::nonlinear_execution::NewtonEvidence,
+    ) -> Self {
+        Self {
+            unknown,
+            solve: CommonSolveHistory::from_newton(&evidence),
+            convergence: evidence.convergence,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SpatialTimeExecution {
-    Midpoint(Vec<SpatialTimeStage>),
+    Midpoint {
+        stages: Vec<SpatialTimeStage>,
+        endpoints: Vec<SpatialTimeStage>,
+        outputs: Vec<SpatialTimeStage>,
+    },
     Adaptive(eqiora_time::TimeExecutionReport),
 }
 
@@ -64,7 +82,8 @@ impl CommonTrajectory {
         }
     }
 
-    /// Continuous spatial stencils in free numerical coordinates.
+    /// Continuous spatial stencils in free differential coordinates.
+    /// Algebraic coordinates are recovered from the original equations, not interpolated.
     #[must_use]
     pub fn spatial_time_history(&self) -> Option<&AcceptedTimeHistory> {
         match &self.payload {
@@ -80,7 +99,7 @@ impl CommonTrajectory {
     pub fn spatial_stage_solves(&self, stage: usize) -> Option<&[CommonSolveEvidence]> {
         match &self.payload {
             TrajectoryPayload::SpatialTime { execution, .. } => {
-                let SpatialTimeExecution::Midpoint(stages) = execution else {
+                let SpatialTimeExecution::Midpoint { stages, .. } = execution else {
                     return None;
                 };
                 match &stages.get(stage)?.solve {

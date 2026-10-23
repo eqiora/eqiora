@@ -8,13 +8,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(in crate::common_trajectory) enum WireSpatialTimeExecution {
-    Midpoint { stages: Vec<WireSpatialTimeStage> },
-    Adaptive { report: WireReport },
+    Midpoint {
+        stages: Vec<WireSpatialTimeStage>,
+        endpoints: Vec<WireSpatialTimeStage>,
+        outputs: Vec<WireSpatialTimeStage>,
+    },
+    Adaptive {
+        report: WireReport,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(in crate::common_trajectory) struct WireSpatialTimeStage {
+    unknown: Vec<f64>,
     solve: WireSolveHistory,
     convergence: crate::nonlinear_execution::NewtonConvergence,
 }
@@ -24,16 +31,23 @@ impl WireSpatialTimeExecution {
         value: &SpatialTimeExecution,
     ) -> Result<Self, Diagnostic> {
         match value {
-            SpatialTimeExecution::Midpoint(stages) => Ok(Self::Midpoint {
+            SpatialTimeExecution::Midpoint {
+                stages,
+                endpoints,
+                outputs,
+            } => Ok(Self::Midpoint {
                 stages: stages
                     .iter()
-                    .map(|stage| {
-                        Ok(WireSpatialTimeStage {
-                            solve: WireSolveHistory::from_evidence(&stage.solve)?,
-                            convergence: stage.convergence.clone(),
-                        })
-                    })
-                    .collect::<Result<_, Diagnostic>>()?,
+                    .map(WireSpatialTimeStage::capture)
+                    .collect::<Result<_, _>>()?,
+                endpoints: endpoints
+                    .iter()
+                    .map(WireSpatialTimeStage::capture)
+                    .collect::<Result<_, _>>()?,
+                outputs: outputs
+                    .iter()
+                    .map(WireSpatialTimeStage::capture)
+                    .collect::<Result<_, _>>()?,
             }),
             SpatialTimeExecution::Adaptive(report) => Ok(Self::Adaptive {
                 report: WireReport::from_native(*report)?,
@@ -46,20 +60,44 @@ impl WireSpatialTimeExecution {
         backend: TimeBackendIdentity,
     ) -> Result<SpatialTimeExecution, Diagnostic> {
         match self {
-            Self::Midpoint { stages } => Ok(SpatialTimeExecution::Midpoint(
-                stages
+            Self::Midpoint {
+                stages,
+                endpoints,
+                outputs,
+            } => Ok(SpatialTimeExecution::Midpoint {
+                stages: stages
                     .iter()
-                    .map(|stage| {
-                        Ok(SpatialTimeStage {
-                            solve: stage.solve.replay_metadata()?,
-                            convergence: stage.convergence.clone(),
-                        })
-                    })
-                    .collect::<Result<_, Diagnostic>>()?,
-            )),
+                    .map(WireSpatialTimeStage::replay)
+                    .collect::<Result<_, _>>()?,
+                endpoints: endpoints
+                    .iter()
+                    .map(WireSpatialTimeStage::replay)
+                    .collect::<Result<_, _>>()?,
+                outputs: outputs
+                    .iter()
+                    .map(WireSpatialTimeStage::replay)
+                    .collect::<Result<_, _>>()?,
+            }),
             Self::Adaptive { report } => {
                 Ok(SpatialTimeExecution::Adaptive(report.replay(backend)?))
             }
         }
+    }
+}
+
+impl WireSpatialTimeStage {
+    fn capture(stage: &SpatialTimeStage) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            unknown: stage.unknown.clone(),
+            solve: WireSolveHistory::from_evidence(&stage.solve)?,
+            convergence: stage.convergence.clone(),
+        })
+    }
+    fn replay(&self) -> Result<SpatialTimeStage, Diagnostic> {
+        Ok(SpatialTimeStage {
+            unknown: self.unknown.clone(),
+            solve: self.solve.replay_metadata()?,
+            convergence: self.convergence.clone(),
+        })
     }
 }

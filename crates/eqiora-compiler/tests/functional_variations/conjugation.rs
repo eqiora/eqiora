@@ -105,7 +105,7 @@ fn authored_complex_vectors_share_construction_and_conjugation_types() {
 }
 
 #[test]
-fn complex_weak_form_classifies_test_and_trial_dependence_structurally() {
+fn complex_weak_residual_keeps_tests_linear_and_allows_nonlinear_state() {
     for expression in [
         "inner(eta,c)",
         "math.conj(eta)*c",
@@ -113,6 +113,10 @@ fn complex_weak_form_classifies_test_and_trial_dependence_structurally() {
         "inner(eta,phase)",
         "inner(eta,c)/phase",
         "inner(eta,math.conj(math.conj(c)))",
+        "inner(eta,math.conj(c))",
+        "inner(eta,c*c)",
+        "inner(eta,math.sin(c))",
+        "inner(eta,c)/c",
     ] {
         complex_form(&format!("integrate(body,{expression})"))
             .unwrap_or_else(|errors| panic!("{expression}: {errors:?}"));
@@ -122,17 +126,19 @@ fn complex_weak_form_classifies_test_and_trial_dependence_structurally() {
         "inner(math.conj(eta),c)",
         "math.conj(inner(eta,c))",
         "eta*c",
-        "inner(eta,math.conj(c))",
-        "inner(eta,c*c)",
-        "inner(eta,math.sin(c))",
-        "inner(eta,c)/c",
         "inner(eta,c)*inner(eta,c)",
+        "inner(eta,c)/eta",
+        "inner(eta^2,c)",
+        "inner(math.sin(eta),c)",
         "inner(eta,c)+c",
     ] {
         let errors = complex_form(&format!("integrate(body,{expression})")).unwrap_err();
-        assert!(errors.iter().any(|error| error.message().contains(
-            "complex weak forms require conjugate-linear test dependence and linear trial dependence"
-        )), "{expression}: {errors:?}");
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("complex weak residuals require conjugate-linear test dependence")),
+            "{expression}: {errors:?}"
+        );
     }
 }
 
@@ -283,17 +289,14 @@ fn decoded_complex_dependence_rechecks_argument_order_and_live_types() {
         (inner(test.clone(), conj(conj(field.clone()))), true),
         (inner(field.clone(), test.clone()), false),
         (mul(test.clone(), field.clone()), false),
-        (inner(test.clone(), conj(field.clone())), false),
-        (
-            inner(test.clone(), mul(field.clone(), field.clone())),
-            false,
-        ),
+        (inner(test.clone(), conj(field.clone())), true),
+        (inner(test.clone(), mul(field.clone(), field.clone())), true),
         (
             E::Div {
                 left: Box::new(inner(test.clone(), field.clone())),
                 right: Box::new(field.clone()),
             },
-            false,
+            true,
         ),
     ] {
         let decoded = mutated_form(projection, expression);
@@ -330,7 +333,7 @@ fn decoded_complex_dependence_rechecks_argument_order_and_live_types() {
 }
 
 #[test]
-fn known_complex_fields_are_coefficients_and_real_arguments_still_require_linearity() {
+fn known_complex_fields_are_coefficients_and_real_tests_still_require_linearity() {
     let model = complex_form_with_fields(
         "integrate(body,inner(eta,math.conj(known)*c))",
         "variable known:complex<1> on body;",

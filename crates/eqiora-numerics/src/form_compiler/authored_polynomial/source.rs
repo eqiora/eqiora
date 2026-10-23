@@ -100,6 +100,10 @@ impl Context<'_> {
                 self.source(typed, *real, coordinate, depth + 1)?,
                 self.source(typed, *imag, coordinate, depth + 1)?,
             )?,
+            ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Abs2, value) => {
+                let value = self.source(typed, *value, coordinate, depth + 1)?;
+                value.conjugate().ok()?.checked_mul(&value).ok()?
+            }
             ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, value) => self
                 .source(typed, *value, coordinate, depth + 1)?
                 .conjugate()
