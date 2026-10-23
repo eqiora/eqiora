@@ -124,7 +124,7 @@ the explicit and mass-matrix classes. `ImplicitDaeProblem` represents the
 third class through `F(t,y,y_dot)` and
 `F_y dy + F_y_dot dy_dot`; Diffsol rejects it. The deterministic reference
 backend admits only `ImplicitEuler`. The optional SUNDIALS IDA adapter consumes this same residual-native seam for
-serial dense BDF execution with native-version checks and accepted history.
+serial dense BDF execution with native-version checks and requested output samples.
 Common Plan/Run composition and broader provider capabilities remain separate
 delivery work; the native product tests do not establish those claims.
 
