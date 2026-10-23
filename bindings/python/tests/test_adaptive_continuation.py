@@ -114,9 +114,11 @@ assert run.progress.maximum_steps is None
     mapped = q.EvaluationMapPlan.from_time(
         plan, [initial], until_s=horizon, output_times_s=outputs,
         checkpoints=[cancelled.checkpoint],
-        # This long oscillatory fixture retains more than 8 MiB of history.
-        # Admit its storage explicitly without changing the public defaults.
-        member_bytes_limit=32 * 1024**2, storage_bytes_limit=128 * 1024**2,
+        # Budget for this already serialized history, including dense samples.
+        # Only incidental elapsed-time metadata may change its encoded size;
+        # reserve 1 KiB for that, without changing the public storage defaults.
+        member_bytes_limit=len(baseline.to_bytes()) + 1024,
+        storage_bytes_limit=128 * 1024**2,
     ).execute()
     assert isinstance(mapped, q.CompleteEvaluationMap), mapped.diagnostics
     assert trajectory_bytes(mapped[0]) == trajectory_bytes(baseline)
