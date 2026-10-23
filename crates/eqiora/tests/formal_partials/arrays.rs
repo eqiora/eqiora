@@ -207,9 +207,9 @@ fn local_operator_array_actions_use_the_same_typed_composition() {
         let source = format!(
             "operator action(input x:1):1={expression}; model M() {{variable y:1;relation r {{y=action(x=-1);}}}}"
         );
-        let error = try_solve(&source)
-            .err()
-            .expect("discarded logarithm remains demanded");
+        let Err(error) = try_solve(&source) else {
+            panic!("discarded logarithm remains demanded");
+        };
         assert!(
             error.contains("EQ0507") || error.contains("EQ0807"),
             "{expression}: {error}"
