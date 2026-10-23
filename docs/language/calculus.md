@@ -122,9 +122,17 @@ including when the result is zero. Differentiating with respect to `k` is reject
 an inner zero partial does not erase the original branch dependency. Units of an absent
 branch derivative come from the typed expression, without evaluating the other branch.
 
-These actions apply to admitted explicit expressions only. Array construction inside a
-differentiated expression, general conditional derivatives, implicit solves and general
-unknown-spatial-field variations remain outside this executable profile. A scalar `partial`
+Authored arrays also compose with `partial`, `jvp` and `vjp`, including nested
+channel axes and complex elements. Their ordinary common element type and units
+are retained. For `a=[x*x,math.log(x)]` at `x=2`, `jvp(a,[x],[1])=[4,0.5]`
+and `vjp(a,x,[2,3])=9.5`. Both `partial(a[0],wrt=x)` and `vjp(a,x,[1,0])`
+still require `x>0`: constructing the array demands every element's domain.
+The existing calculus node and depth budgets apply; array width does not consume
+one independent formal-input slot per element.
+
+These actions apply to admitted explicit expressions only. General conditional
+derivatives, implicit solves and general unknown-spatial-field variations remain
+outside this executable profile. A scalar `partial`
 selector still requires an independent real scalar. Source and derivative-domain checks remain
 in force even when the selected input is unused and the derivative is zero.
 

@@ -1,4 +1,6 @@
 //! Authored formal partials use the common typed scalar evaluator.
+#[path = "formal_partials/arrays.rs"]
+mod arrays;
 #[path = "formal_partials/held_branches.rs"]
 mod held_branches;
 mod support;

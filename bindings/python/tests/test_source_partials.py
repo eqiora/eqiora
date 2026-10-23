@@ -110,3 +110,38 @@ def test_ordered_jacobian_actions_direct_emitted_and_replay(tmp_path, component,
         session = candidate.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
         assert session.advance_ticks(1) == 1
         assert session.field(fields[0]) == expected
+
+
+@pytest.mark.parametrize("mode, expected", [("partial", 6.0), ("jvp", 6.0), ("vjp", 13.0)])
+def test_constructed_array_actions_direct_emitted_and_replay(tmp_path, mode, expected):
+    # At x=3: d[x², log(x)]/dx=[6,1/3]; pairing with [2,3] is 13.
+    source = eqiora.Module("main")
+    scalar = eqiora.ValueType.real()
+
+    def body(x):
+        value = q.array((x*x, q.math.log(x)))
+        if mode == "partial":
+            return q.partial(value[0], wrt=x)
+        if mode == "jvp":
+            return q.jvp(value, wrt=(x,), tangent=(1,))[0]
+        return q.vjp(value, wrt=x, cotangent=q.array((2, 3)))
+
+    action = source.operator("action", inputs={"x": scalar}, result_type=scalar, body=body)
+    model = source.model("ArrayAction")
+    tick = model.clock("tick", period_s=1)
+    memory = model.field("memory", role=eqiora.FieldRole.State, value_type=scalar, at=tick)
+    model.initial((memory, 0))
+    model.relation("evaluate", q.equation(q.next(memory), action(x=3)), at=tick)
+    direct = eqiora.compile(source=source, entry="ArrayAction")
+    path = tmp_path / "array_action.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, entry="ArrayAction")
+    replay = eqiora.Model.from_bytes(direct.to_bytes())
+    assert direct.to_bytes() == emitted.to_bytes() == replay.to_bytes()
+    fields = [node["id"]["ulid"] for node in json.loads(direct.to_bytes())["nodes"]
+              if node["definition"]["kind"] == "field"]
+    assert len(fields) == 1
+    for candidate in (direct, emitted, replay):
+        session = candidate.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+        assert session.advance_ticks(1) == 1
+        assert session.field(fields[0]) == expected
