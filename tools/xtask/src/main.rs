@@ -240,6 +240,7 @@ const LAYER_DECLARATIONS: &[(&str, u8)] = &[
     ("eqiora-backend-mpi", 3),
     ("eqiora-backend-mpi-cuda", 3),
     ("eqiora-backend-diffsol", 3),
+    ("eqiora-backend-sundials", 3),
     ("eqiora-backend-cuda", 3),
     ("eqiora-io-gmsh", 3),
     ("eqiora-io-hdf5", 3),

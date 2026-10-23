@@ -114,16 +114,19 @@ first-order run wire remains unchanged.
 
 `TimeProblem` represents only the first two. Its constructor rejects the third
 because the available action vocabulary could not express it faithfully.
-Rank-deficient mass matrices require `SolveConsistent`; they cannot claim that
-an arbitrary supplied vector is already an accepted initial state.
+The common initializer owns consistency and supplies an accepted State/rate pair.
+`TimeProblem` carries that pair; a native adapter must preserve it, including
+rank-deficient and row-mixed mass matrices, rather than re-solving supplied data
+or inferring algebraic coordinates from mass diagonal zeros.
 
 The Diffsol adapter admits Tsitouras 5(4) only for `ExplicitOde`. BDF admits
 the explicit and mass-matrix classes. `ImplicitDaeProblem` represents the
 third class through `F(t,y,y_dot)` and
 `F_y dy + F_y_dot dy_dot`; Diffsol rejects it. The deterministic reference
-backend admits only `ImplicitEuler`. A future production adapter such as
-SUNDIALS IDA must consume the same residual-native seam and add its own
-capability and provenance evidence.
+backend admits only `ImplicitEuler`. The optional SUNDIALS IDA adapter consumes this same residual-native seam for
+serial dense BDF execution with native-version checks and requested output samples.
+Common Plan/Run composition and broader provider capabilities remain separate
+delivery work; the native product tests do not establish those claims.
 
 ### Residual-native initialization and reference execution
 

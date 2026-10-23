@@ -1,0 +1,20 @@
+[package]
+name = "eqiora-backend-sundials"
+description = "Eqiora L3: residual-native SUNDIALS IDA time adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+ida-runtime = ["dep:sundials-sys"]
+
+[dependencies]
+eqiora-core.workspace = true
+eqiora-time.workspace = true
+sundials-sys = { workspace = true, optional = true }
+
+[lints]
+workspace = true
