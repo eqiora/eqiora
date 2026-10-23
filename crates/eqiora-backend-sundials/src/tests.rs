@@ -369,3 +369,58 @@ impl ImplicitTimeSystem for RecordingScale {
         Branch(true).residual_jvp(t, y, v, d, dv, out)
     }
 }
+
+struct CubicRate;
+impl ImplicitTimeSystem for CubicRate {
+    fn dimension(&self) -> usize {
+        1
+    }
+    fn residual(&self, _: f64, y: &[f64], v: &[f64], out: &mut [f64]) -> Result<(), Diagnostic> {
+        out[0] = (v[0] + y[0]) * (1. + v[0] * v[0]);
+        Ok(())
+    }
+    fn residual_jvp(
+        &self,
+        _: f64,
+        y: &[f64],
+        v: &[f64],
+        dy: &[f64],
+        dv: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        out[0] = (1. + v[0] * v[0]) * (dy[0] + dv[0]) + 2. * v[0] * (v[0] + y[0]) * dv[0];
+        Ok(())
+    }
+}
+
+#[test]
+fn nonlinear_rate_residual_uses_paired_actions_and_retains_the_analytic_solution() {
+    // The strictly positive factor 1+v² makes F=(v+y)(1+v²)=0
+    // equivalent to y'=-y for every real v. Thus y=exp(-t), and
+    // F_v=1+y²>0 along the solution. This cannot be a TimeSystem M(t)v=f(t,y).
+    let problem = ImplicitDaeProblem::new(
+        &CubicRate,
+        vec![DaeVariableKind::Differential],
+        InitialConditionPolicy::Provided,
+        vec![1.],
+        vec![-1.],
+    )
+    .unwrap();
+    let plan = TimePlan::new(
+        TimeMethod::Bdf,
+        0.,
+        1e-4,
+        1e-9,
+        vec![1e-11],
+        vec![0.1, 0.3, 1.],
+    )
+    .unwrap();
+    let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
+    for (i, &time) in solution.times().iter().enumerate() {
+        assert!((solution.state(i).unwrap()[0] - (-time).exp()).abs() < 1e-6);
+    }
+    for step in solution.history().unwrap().steps() {
+        let time = step.start_time() + 0.37 * (step.end_time() - step.start_time());
+        assert!((step.sample(time).unwrap()[0] - (-time).exp()).abs() < 1e-6);
+    }
+}
