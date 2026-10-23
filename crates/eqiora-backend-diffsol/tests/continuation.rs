@@ -3,8 +3,8 @@
 use eqiora_backend_diffsol::DiffsolTimeBackend;
 use eqiora_core::Diagnostic;
 use eqiora_time::{
-    InitialConditionPolicy, TimeCheckpoint, TimeEquationClass, TimeMethod, TimePlan, TimeProblem,
-    TimeSystem,
+    ImplicitDaeInitialization, TimeCheckpoint, TimeEquationClass, TimeMethod, TimePlan,
+    TimeProblem, TimeSystem,
 };
 use std::cell::Cell;
 use std::ops::ControlFlow;
@@ -71,8 +71,7 @@ fn problem(system: &ForcedDecay) -> TimeProblem<'_> {
     TimeProblem::new(
         system,
         TimeEquationClass::ExplicitOde,
-        InitialConditionPolicy::Provided,
-        vec![1.0],
+        ImplicitDaeInitialization::accepted(vec![1.0], vec![-25.0]).unwrap(),
     )
     .unwrap()
 }

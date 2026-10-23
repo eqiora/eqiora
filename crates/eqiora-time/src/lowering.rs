@@ -1,7 +1,6 @@
 //! Structural proofs for lowering canonical Relations to time problems.
 
 use crate::diagnostic::invalid_lowering;
-use crate::problem::InitialConditionPolicy;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use num_rational::BigRational;
@@ -464,21 +463,6 @@ impl TimeLoweringProof {
     #[must_use]
     pub const fn equation_class(&self) -> TimeEquationClass {
         self.equation_class
-    }
-
-    /// Initial-condition policy implied by this witness.
-    #[must_use]
-    pub const fn initial_condition_policy(&self) -> InitialConditionPolicy {
-        match self.equation_class {
-            TimeEquationClass::ExplicitOde => InitialConditionPolicy::Provided,
-            TimeEquationClass::MassMatrix {
-                rank: MassMatrixRank::RankDeficient,
-            } => InitialConditionPolicy::SolveConsistent,
-            TimeEquationClass::MassMatrix {
-                rank: MassMatrixRank::Full,
-            }
-            | TimeEquationClass::GeneralImplicitDae => InitialConditionPolicy::Provided,
-        }
     }
 }
 

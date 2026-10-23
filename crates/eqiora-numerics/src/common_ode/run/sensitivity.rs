@@ -50,8 +50,8 @@ impl CommonTimeRunRequest {
         let mut output_products = Vec::new();
         let trajectory = self.run_with_events(|problem, registered_roots, plan| {
             let problem = ForwardSensitivityProblem::new(
-                &system, TimeEquationClass::ExplicitOde, InitialConditionPolicy::Provided,
-                problem.initial_state().to_vec(),
+                &system, TimeEquationClass::ExplicitOde,
+                problem.initialization().clone(),
             )?;
             let outcome = solve(&problem, registered_roots, plan)?;
             if outcome.parameter_dimension() != parameter_dimension {

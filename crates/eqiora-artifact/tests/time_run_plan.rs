@@ -98,3 +98,18 @@ fn both_run_families_reject_invalid_shared_controls() {
         }
     }
 }
+
+#[test]
+fn mass_rank_does_not_determine_initial_data_provenance() {
+    for rank in ["full", "rank-deficient"] {
+        for policy in ["provided", "solve-consistent"] {
+            let mut value = manifest(false, "bdf");
+            value["execution"]["equation_class"] = json!({"kind":"mass-matrix", "rank":rank});
+            value["execution"]["initial_condition"] = json!(policy);
+            let bytes = canonical(false, &value).unwrap();
+            let decoded: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(decoded["execution"]["initial_condition"], policy);
+            assert_eq!(decoded["execution"]["equation_class"]["rank"], rank);
+        }
+    }
+}

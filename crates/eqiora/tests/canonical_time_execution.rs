@@ -20,6 +20,8 @@ use eqiora::time::{
 };
 use eqiora::{DimExponents, DynQuantity, Id};
 
+#[path = "canonical_time_execution/initialization_rows.rs"]
+mod initialization_rows;
 mod support;
 #[path = "canonical_time_execution/trajectory_observables.rs"]
 mod trajectory_observables;
@@ -105,8 +107,8 @@ fn canonical_algebraic_row_lowers_to_a_rank_deficient_mass_matrix() {
         }
     );
     assert_eq!(
-        system.initial_condition_policy(),
-        InitialConditionPolicy::SolveConsistent
+        system.time_problem().unwrap().initial_condition(),
+        InitialConditionPolicy::Provided
     );
 
     let mut action = [f64::NAN; 2];
@@ -164,7 +166,7 @@ fn canonical_dense_full_mass_matrix_is_exactly_classified_and_integrated() {
         }
     );
     assert_eq!(
-        system.initial_condition_policy(),
+        system.time_problem().unwrap().initial_condition(),
         InitialConditionPolicy::Provided
     );
 
@@ -440,8 +442,11 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
 
     let restarted = problem
         .restart(
-            InitialConditionPolicy::Provided,
-            event.post_state().to_vec(),
+            eqiora::time::ImplicitDaeInitialization::accepted(
+                event.post_state().to_vec(),
+                problem.rate(proposal.time(), event.post_state()).unwrap(),
+            )
+            .unwrap(),
         )
         .unwrap();
     let delta = 0.1;

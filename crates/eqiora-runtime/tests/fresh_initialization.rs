@@ -8,24 +8,38 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{KernelProgram, ReferenceConfig};
-use eqiora_time::{InitialConditionPolicy, ParametricTimeSystem, TimeProblem, TimeSystem};
+use eqiora_time::{ParametricTimeSystem, TimeProblem, TimeSystem};
 
 #[test]
 fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
-    let (kernel, relation) = dense_descriptor(false);
-    let cpu = CpuProgram::lower(&kernel).unwrap();
-    let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
-    let initial = system
-        .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
-        .unwrap();
-    assert_eq!(initial.state(), [1.0, 1.0]);
-    assert_eq!(initial.derivative(), [-2.0, -2.0]);
-    let mut tangent = [f64::NAN; 2];
-    system
-        .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
-        .unwrap();
-    assert_eq!(tangent, [0.0, 0.0]);
-    system.forward_sensitivity_problem(0.0).unwrap();
+    for basis in [
+        [[1.0, 0.0], [0.0, 1.0]],
+        [[0.0, 1.0], [1.0, 0.0]],
+        [[1.0, 1.0], [1.0, -1.0]],
+    ] {
+        let (kernel, relation) = dense_descriptor_with_rows(false, basis);
+        let cpu = CpuProgram::lower(&kernel).unwrap();
+        let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
+        let initial = system
+            .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
+            .unwrap();
+        assert_eq!(initial.state(), [1.0, 1.0]);
+        assert_eq!(initial.derivative(), [-2.0, -2.0]);
+        let mut tangent = [f64::NAN; 2];
+        system
+            .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
+            .unwrap();
+        assert_eq!(tangent, [0.0, 0.0]);
+        // Subtracting the two continuous equations gives x=y. Its time
+        // derivative requires dx=dy, so at x=y=1 the accepted rate is (-p,-p).
+        // Differentiating that independent identity gives (-1,-1), not an
+        // arbitrary solution of the rank-deficient mass equations.
+        system
+            .initial_derivative_parameter_jvp(0.0, &initial, &[1.0], &mut tangent)
+            .unwrap();
+        assert_eq!(tangent, [-1.0, -1.0]);
+        system.forward_sensitivity_problem(0.0).unwrap();
+    }
 }
 
 #[test]
@@ -43,6 +57,13 @@ fn parameter_dependent_initial_conditions_cannot_silently_return_zero_sensitivit
 }
 
 fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relation>) {
+    dense_descriptor_with_rows(parameter_initial, [[1.0, 0.0], [0.0, 1.0]])
+}
+
+fn dense_descriptor_with_rows(
+    parameter_initial: bool,
+    basis: [[f64; 2]; 2],
+) -> (KernelProgram, Id<kinds::Relation>) {
     let x = Id::<kinds::Field>::new();
     let y = Id::<kinds::Field>::new();
     let rate = Id::<kinds::Parameter>::new();
@@ -72,6 +93,17 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
     let ry = expression.mul(twice_rate, yv).unwrap();
     let first = expression.add(derivative_sum, rx).unwrap();
     let second = expression.add(derivative_sum, ry).unwrap();
+    let [first, second] = basis.map(|row| {
+        let a = expression
+            .constant(DynQuantity::new(row[0], DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let b = expression
+            .constant(DynQuantity::new(row[1], DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let a = expression.mul(a, first).unwrap();
+        let b = expression.mul(b, second).unwrap();
+        expression.add(a, b).unwrap()
+    });
     let mut condition = ExprDagBuilder::new();
     let value = condition.symbol(SymbolRef::Field(x)).unwrap();
     let prescribed = if parameter_initial {
@@ -184,13 +216,8 @@ fn structural_lowering_and_accepted_restart_do_not_require_fresh_conditions() {
     assert!(system.time_problem().is_err());
     // This is the adapter seam: the exact State owner authenticates identity
     // before passing an accepted coordinate vector to the time problem.
-    let restart = TimeProblem::new(
-        &system,
-        system.equation_class(),
-        InitialConditionPolicy::Provided,
-        vec![1.5],
-    )
-    .unwrap();
+    let restart =
+        TimeProblem::from_state(&system, system.equation_class(), 0.5, vec![1.5]).unwrap();
     let mut rhs = [0.0];
     system.rhs(0.5, restart.initial_state(), &mut rhs).unwrap();
     assert_eq!(rhs, [-3.0]);

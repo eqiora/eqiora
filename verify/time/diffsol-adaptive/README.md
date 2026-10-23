@@ -11,10 +11,13 @@ the optional Diffsol adapter. It compares requested dense samples against:
   mass-matrix systems;
 - a localized zero crossing, externally committed reset, and explicit restart.
 
-The DAE starts from an algebraically inconsistent guess. The admitted
-`SolveConsistent` policy and Diffsol's BDF state construction must restore the
-constraint before advancing; every sampled state is checked against both the
-analytic trajectory and the algebraic invariant.
+The DAE receives the common owner's accepted initial pair `(x,z)=(0,1)`
+and `(x_dot,z_dot)=(1,0)`; the unused algebraic adapter rate is zero.
+Diffsol must preserve that pair under the `Provided` policy. Fresh consistency
+solving belongs to the common initializer and is exercised separately by
+[`time.canonical-first-order`](../canonical-first-order/README.md).
+Every sampled state is checked against both the analytic trajectory and the
+algebraic invariant. Provider-local reinitialization is not part of this claim.
 
 The adapter separately rejects general `F(t,y,ydot)=0` residuals and explicit
 Runge--Kutta for mass-matrix systems. Mass-matrix sensitivity additionally

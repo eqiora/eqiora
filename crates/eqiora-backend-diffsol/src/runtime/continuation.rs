@@ -135,8 +135,15 @@ where
 {
     match plan.method() {
         TimeMethod::Tsitouras45 => {
+            let state = initialization::state::<_, diffsol::RkState<NalgebraVec<f64>>>(
+                &ode,
+                problem,
+                None,
+                plan.method(),
+                failures,
+            )?;
             let mut solver = ode
-                .tsit45()
+                .tsit45_solver(state)
                 .map_err(|error| map_failure(failures, "initialize Diffsol Tsitouras45", error))?;
             failures.check()?;
             let controlled = if let Some(control) = control {
@@ -174,8 +181,15 @@ where
             history::capture_controlled(&mut solver, problem, plan, roots, failures, controlled)
         }
         TimeMethod::Bdf => {
+            let state = initialization::state::<_, BdfState<NalgebraVec<f64>>>(
+                &ode,
+                problem,
+                None,
+                plan.method(),
+                failures,
+            )?;
             let mut solver = ode
-                .bdf::<NalgebraLU<f64>>()
+                .bdf_solver::<NalgebraLU<f64>>(state)
                 .map_err(|error| map_failure(failures, "initialize Diffsol BDF", error))?;
             history::capture_controlled(&mut solver, problem, plan, roots, failures, None)
         }

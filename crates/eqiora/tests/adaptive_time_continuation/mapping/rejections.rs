@@ -40,8 +40,10 @@ fn execute(request: &CommonTimeRunRequest) -> (CommonTrajectory, Vec<f64>) {
             let problem = TimeProblem::new(
                 &system,
                 problem.equation_class(),
-                InitialConditionPolicy::Provided,
-                problem.initial_state().to_vec(),
+                eqiora::time::ImplicitDaeInitialization::accepted(
+                    problem.initial_state().to_vec(),
+                    problem.initial_derivative().to_vec(),
+                )?,
             )?;
             let mut derivative = vec![0.; system.dimension()];
             system.rhs(plan.start_time(), problem.initial_state(), &mut derivative)?;

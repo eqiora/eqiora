@@ -274,8 +274,8 @@ impl TimeRunManifestV1 {
     /// lowering witness that admitted execution.
     ///
     /// # Errors
-    /// Returns `EQ0901` if method, equation class, or initial-condition policy
-    /// differs across plan/report/lowering, the plan selects a residual-native
+    /// Returns `EQ0901` if method or equation class differs across
+    /// plan/report/lowering, the plan selects a residual-native
     /// reference method, or the adapter-supplied backend version is invalid.
     pub fn new(
         lowering: &TimeLoweringEnvelopeV3,
@@ -287,7 +287,6 @@ impl TimeRunManifestV1 {
         let proof = lowering.proof()?;
         if report.method() != plan.method()
             || report.equation_class() != proof.equation_class()
-            || report.initial_condition() != proof.initial_condition_policy()
             || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
@@ -416,8 +415,9 @@ impl TimeRunManifestV1 {
     /// a separately loaded lowering witness.
     ///
     /// # Errors
-    /// Returns `EQ0901` for any linkage, method, equation-class, or
-    /// initial-condition drift.
+    /// Returns `EQ0901` for any linkage, method, or equation-class drift.
+    /// Initial-condition provenance belongs to the execution report; rank alone
+    /// cannot establish whether its initial data were provided or solved.
     pub fn validate_against(&self, lowering: &TimeLoweringEnvelopeV3) -> Result<(), Diagnostic> {
         let proof = lowering.proof()?;
         let plan = self.plan()?;
@@ -425,7 +425,6 @@ impl TimeRunManifestV1 {
             || self.semantic_revision() != lowering.semantic_revision()
             || self.lowering() != lowering.digest()?
             || self.wire.execution.equation_class.decode() != proof.equation_class()
-            || self.wire.execution.initial_condition.decode() != proof.initial_condition_policy()
             || TimeMethod::from(self.wire.execution.method) != plan.method()
             || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
@@ -755,22 +754,15 @@ impl WireTimeEquationClass {
     }
 
     const fn admits(self, initial_condition: InitialConditionPolicy) -> bool {
+        // A mass rank describes equations, not the provenance of initial data.
+        // Historical executions may have solved consistency in the adapter;
+        // current common initialization supplies an accepted pair for either rank.
         matches!(
             (self.decode(), initial_condition),
             (
                 TimeEquationClass::ExplicitOde,
                 InitialConditionPolicy::Provided
-            ) | (
-                TimeEquationClass::MassMatrix {
-                    rank: MassMatrixRank::Full
-                },
-                InitialConditionPolicy::Provided
-            ) | (
-                TimeEquationClass::MassMatrix {
-                    rank: MassMatrixRank::RankDeficient
-                },
-                InitialConditionPolicy::SolveConsistent
-            )
+            ) | (TimeEquationClass::MassMatrix { .. }, _)
         )
     }
 }

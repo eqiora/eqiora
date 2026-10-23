@@ -24,12 +24,7 @@ impl FirstOrderProgram {
         // Initial values do not participate in an operator identity. The zero
         // vector is used only to construct the existing algebraic rate action.
         let n = self.dimension();
-        let problem = TimeProblem::new(
-            self,
-            self.equation_class(),
-            InitialConditionPolicy::Provided,
-            vec![0.; n],
-        )?;
+        let problem = TimeProblem::from_state(self, self.equation_class(), 0.0, vec![0.; n])?;
         let size = n
             .checked_mul(n)
             .ok_or_else(|| invalid_time(self.relation, "constant generator size overflows"))?;

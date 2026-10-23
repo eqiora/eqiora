@@ -213,13 +213,13 @@ impl<'a, 'b> Context<'a, 'b> {
                 self.owner.plan.as_ode().ok_or_else(|| {
                     invalid("stochastic trajectory has no classical time derivative")
                 })?;
-            let problem = eqiora_time::TimeProblem::new(
+            let problem = eqiora_time::TimeProblem::from_state(
                 plan.system(),
                 plan.equation_class(),
-                eqiora_time::InitialConditionPolicy::Provided,
+                self.time,
                 self.state.to_vec(),
             )?;
-            self.rates = Some(problem.rate(self.time, self.state)?);
+            self.rates = Some(problem.initial_derivative().to_vec());
             if let Some(directions) = &self.directions {
                 let system = plan.system();
                 let mut delta = vec![0.; self.state.len()];

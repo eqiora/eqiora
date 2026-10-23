@@ -143,6 +143,23 @@ pub trait ParametricTimeSystem: TimeSystem {
         parameter_direction: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic>;
+
+    /// Evaluate the Parameter tangent of the accepted initial derivative.
+    ///
+    /// The initial-data owner supplies this alongside `initial_parameter_jvp`;
+    /// a time provider must not infer algebraic coordinates from mass diagonals
+    /// or solve a second initial-value problem. Unused derivative coordinates
+    /// follow the same convention as the supplied initial pair.
+    ///
+    /// # Errors
+    /// Returns a stable diagnostic for an invalid or unproved initial tangent.
+    fn initial_derivative_parameter_jvp(
+        &self,
+        time: f64,
+        initial: &crate::ImplicitDaeInitialization,
+        parameter_direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic>;
 }
 
 /// Zero-crossing actions used only to propose candidate event instants.

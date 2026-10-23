@@ -271,11 +271,6 @@ impl CommonOdePlan {
                 "selected ODE method does not admit this equation class",
             ));
         }
-        if program.initial_condition_policy() != InitialConditionPolicy::Provided {
-            return Err(invalid(
-                "explicit-ODE resolution requires complete Model-owned initial values",
-            ));
-        }
         let state_coordinates = program.state_coordinates();
         let ordered_absolute_tolerances =
             temporal.ordered_absolute_tolerances(state_coordinates)?;
@@ -489,10 +484,10 @@ impl CommonOdePlan {
             ));
         }
         self.check_conserved_norms(state.values())?;
-        TimeProblem::new(
+        TimeProblem::from_state(
             &self.program,
             self.program.equation_class(),
-            InitialConditionPolicy::Provided,
+            state.time_s(),
             state.values().to_vec(),
         )
     }

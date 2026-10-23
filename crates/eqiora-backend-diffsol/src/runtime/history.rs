@@ -170,11 +170,17 @@ where
         && control
             .as_ref()
             .is_none_or(|(saved, _)| saved.history().is_none())
-        && collect_vector(solver.state().y) != problem.initial_state()
     {
-        return Err(solve_failed(
-            "native initialization changed a provided initial state",
-        ));
+        if collect_vector(solver.state().y) != problem.initial_state() {
+            return Err(solve_failed(
+                "native initialization changed a provided initial state",
+            ));
+        }
+        if collect_vector(solver.state().dy) != problem.initial_derivative() {
+            return Err(solve_failed(
+                "native initialization changed a provided initial derivative",
+            ));
+        }
     }
     let mut steps = control
         .as_ref()

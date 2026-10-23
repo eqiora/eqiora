@@ -7,7 +7,7 @@
 - Tsitouras 5(4) samples agree with the analytic coupled trajectory within
   `4e-8` relative scale.
 - The exact algebraic zero row produces a rank-deficient mass matrix,
-  `SolveConsistent`, and a BDF trajectory within `2e-6`; `x+z=1` holds within
+  a common-initialized pair reported as `Provided`, and a BDF trajectory within `2e-6`; `x+z=1` holds within
   `5e-9`.
 - The state-dependent derivative coefficient returns `EQ0705` from the
   first-order projection and never reaches Diffsol.

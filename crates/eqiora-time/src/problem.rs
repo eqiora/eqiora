@@ -23,8 +23,7 @@ pub enum InitialConditionPolicy {
 pub struct TimeProblem<'a> {
     system: &'a dyn TimeSystem,
     equation_class: TimeEquationClass,
-    initial_condition: InitialConditionPolicy,
-    initial_state: Vec<f64>,
+    initial: ImplicitDaeInitialization,
 }
 
 impl std::fmt::Debug for TimeProblem<'_> {
@@ -33,64 +32,63 @@ impl std::fmt::Debug for TimeProblem<'_> {
             .debug_struct("TimeProblem")
             .field("dimension", &self.dimension())
             .field("equation_class", &self.equation_class)
-            .field("initial_condition", &self.initial_condition)
-            .field("initial_state", &self.initial_state)
+            .field("initial", &self.initial)
             .finish_non_exhaustive()
     }
 }
 
 impl<'a> TimeProblem<'a> {
-    /// Bind a lowered system to its equation class and initial state/guess.
+    /// Bind a lowered system to a caller-accepted initial state/rate pair.
+    ///
+    /// Initialization belongs to the caller's common equation/constraint owner.
+    /// A provider must preserve this pair rather than run its own consistency solve.
     ///
     /// # Errors
-    /// Returns `EQ0705` for empty/non-finite state, a general residual passed
-    /// through the first-order seam, or a contradictory consistency policy.
+    /// Returns `EQ0705` for a dimension mismatch or a general residual passed
+    /// through the first-order seam. The pair itself is already shape checked.
     pub fn new(
         system: &'a dyn TimeSystem,
         equation_class: TimeEquationClass,
-        initial_condition: InitialConditionPolicy,
-        initial_state: Vec<f64>,
+        initial: ImplicitDaeInitialization,
     ) -> Result<Self, Diagnostic> {
-        let dimension = system.dimension();
-        if dimension == 0 || initial_state.len() != dimension {
+        if system.dimension() == 0 || initial.state().len() != system.dimension() {
             return Err(invalid_lowering(
-                "time problem state must have the non-zero system dimension",
+                "time problem initial pair must have the non-zero system dimension",
             ));
         }
-        if initial_state.iter().any(|value| !value.is_finite()) {
+        if equation_class == TimeEquationClass::GeneralImplicitDae {
             return Err(invalid_lowering(
-                "time problem initial state must contain only finite values",
+                "general implicit DAE cannot enter the mass-matrix time-problem seam",
             ));
-        }
-        match (equation_class, initial_condition) {
-            (TimeEquationClass::GeneralImplicitDae, _) => {
-                return Err(invalid_lowering(
-                    "general implicit DAE cannot enter the mass-matrix time-problem seam",
-                ));
-            }
-            (TimeEquationClass::ExplicitOde, InitialConditionPolicy::SolveConsistent) => {
-                return Err(invalid_lowering(
-                    "explicit ODE initial state is provided directly; no algebraic consistency solve applies",
-                ));
-            }
-            (
-                TimeEquationClass::MassMatrix {
-                    rank: MassMatrixRank::RankDeficient,
-                },
-                InitialConditionPolicy::Provided,
-            ) => {
-                return Err(invalid_lowering(
-                    "rank-deficient mass matrix requires a consistent-initialization solve",
-                ));
-            }
-            _ => {}
         }
         Ok(Self {
             system,
             equation_class,
-            initial_condition,
-            initial_state,
+            initial,
         })
+    }
+
+    /// Complete an unconstrained initial state with its uniquely determined rate.
+    ///
+    /// This uses the same physical-rate action as subsequent evaluation. A
+    /// constrained system instead supplies its common initializer's pair to `new`.
+    ///
+    /// # Errors
+    /// Rejects invalid data or a system without a unique physical rate.
+    pub fn from_state(
+        system: &'a dyn TimeSystem,
+        equation_class: TimeEquationClass,
+        time: f64,
+        state: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
+        let n = state.len();
+        let mut problem = Self::new(
+            system,
+            equation_class,
+            ImplicitDaeInitialization::accepted(state, vec![0.0; n])?,
+        )?;
+        problem.initial.derivative = problem.rate(time, problem.initial.state())?;
+        Ok(problem)
     }
 
     /// Lowered callback actions.
@@ -102,7 +100,7 @@ impl<'a> TimeProblem<'a> {
     /// Scalar state dimension.
     #[must_use]
     pub fn dimension(&self) -> usize {
-        self.initial_state.len()
+        self.initial.state().len()
     }
 
     /// Declared equation class.
@@ -111,16 +109,28 @@ impl<'a> TimeProblem<'a> {
         self.equation_class
     }
 
-    /// Declared initial-condition treatment.
+    /// Initial data have already been accepted by the common initializer.
     #[must_use]
     pub const fn initial_condition(&self) -> InitialConditionPolicy {
-        self.initial_condition
+        InitialConditionPolicy::Provided
     }
 
-    /// Provided initial state or consistency-solve guess.
+    /// Accepted initial state.
     #[must_use]
     pub fn initial_state(&self) -> &[f64] {
-        &self.initial_state
+        self.initial.state()
+    }
+
+    /// Accepted initial derivative, including the initializer's algebraic-rate convention.
+    #[must_use]
+    pub fn initial_derivative(&self) -> &[f64] {
+        self.initial.derivative()
+    }
+
+    /// The complete pair supplied by the common initial-data owner.
+    #[must_use]
+    pub const fn initialization(&self) -> &ImplicitDaeInitialization {
+        &self.initial
     }
 
     /// Evaluate the physical rate, solving `M y_dot = f` for full-rank mass.
@@ -177,21 +187,12 @@ impl<'a> TimeProblem<'a> {
     /// Rebind the same lowered system/class after an Eqiora-owned reset.
     ///
     /// The caller, normally the hybrid scheduler, determines atomic reset
-    /// meaning and passes only the committed post-event state here.
+    /// meaning and passes the committed post-event state/rate pair here.
     ///
     /// # Errors
     /// Returns the same validation diagnostics as [`Self::new`].
-    pub fn restart(
-        &'a self,
-        initial_condition: InitialConditionPolicy,
-        initial_state: Vec<f64>,
-    ) -> Result<Self, Diagnostic> {
-        Self::new(
-            self.system,
-            self.equation_class,
-            initial_condition,
-            initial_state,
-        )
+    pub fn restart(&'a self, initial: ImplicitDaeInitialization) -> Result<Self, Diagnostic> {
+        Self::new(self.system, self.equation_class, initial)
     }
 }
 
@@ -307,7 +308,7 @@ impl<'a> ImplicitDaeProblem<'a> {
     }
 }
 
-/// Owned, shape-checked initial pair accepted by a residual-native adapter.
+/// Owned, shape-checked initial state/rate pair accepted by its equation owner.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImplicitDaeInitialization {
     state: Vec<f64>,
@@ -373,8 +374,7 @@ impl<'a> ForwardSensitivityProblem<'a> {
     pub fn new<S>(
         system: &'a S,
         equation_class: TimeEquationClass,
-        initial_condition: InitialConditionPolicy,
-        initial_state: Vec<f64>,
+        initial: ImplicitDaeInitialization,
     ) -> Result<Self, Diagnostic>
     where
         S: ParametricTimeSystem,
@@ -395,7 +395,7 @@ impl<'a> ForwardSensitivityProblem<'a> {
                 "mass-matrix sensitivity requires an explicit proof that the mass action is parameter independent",
             ));
         }
-        let primal = TimeProblem::new(system, equation_class, initial_condition, initial_state)?;
+        let primal = TimeProblem::new(system, equation_class, initial)?;
         Ok(Self { primal, system })
     }
 
@@ -409,6 +409,36 @@ impl<'a> ForwardSensitivityProblem<'a> {
     #[must_use]
     pub const fn system(&self) -> &dyn ParametricTimeSystem {
         self.system
+    }
+
+    /// Evaluate the complete initial pair's Parameter tangent through its owner.
+    ///
+    /// # Errors
+    /// Rejects invalid directions or non-finite outputs and preserves callback errors.
+    pub fn initialization_parameter_jvp(
+        &self,
+        time: f64,
+        direction: &[f64],
+    ) -> Result<ImplicitDaeInitialization, Diagnostic> {
+        if !time.is_finite()
+            || direction.len() != self.parameter_dimension()
+            || direction.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid_sensitivity(
+                "initial pair Parameter direction has invalid time or shape",
+            ));
+        }
+        let mut state = vec![0.0; self.primal.dimension()];
+        let mut derivative = vec![0.0; self.primal.dimension()];
+        self.system
+            .initial_parameter_jvp(time, direction, &mut state)?;
+        self.system.initial_derivative_parameter_jvp(
+            time,
+            self.primal.initialization(),
+            direction,
+            &mut derivative,
+        )?;
+        ImplicitDaeInitialization::accepted(state, derivative)
     }
 
     /// Parameter dimension.

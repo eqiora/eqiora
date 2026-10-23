@@ -9,5 +9,7 @@
 - Both methods propose roots at `t = 1` and, after an external reset/restart,
   `t = 1.5`, with the proposed pre-event state on the zero surface.
 - The report retains the Diffsol backend identity, selected method, exact
-  equation class, and consistent-initialization policy.
+  equation class, and `Provided` initial-pair provenance.
+- Native initial state and derivative equal the supplied accepted pair before
+  the first step; no native consistency solve replaces common initialization.
 - General implicit DAE and mass-matrix plus explicit-RK admissions fail closed.

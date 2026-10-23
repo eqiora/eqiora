@@ -118,7 +118,7 @@ fn real_scalar_projection_keeps_complex_intermediates_actions_and_lazy_domains()
     // must survive that projection without a round trip through source syntax.
     use num_traits::ToPrimitive;
     let mut reconstructed = [0.; 2];
-    for (atom, coefficients) in operator.additive_terms(&point, symbol).unwrap() {
+    for (atom, coefficients) in operator.additive_terms(&point, &[symbol]).unwrap() {
         let linear = atom
             .linearize_typed(&point, &[DifferentiationRole::Unknown])
             .unwrap();

@@ -141,7 +141,14 @@ where
     );
     match plan.method() {
         TimeMethod::Tsitouras45 => {
-            let mut solver = ode.tsit45_sens().map_err(|error| {
+            let state = initialization::state::<_, diffsol::RkState<NalgebraVec<f64>>>(
+                &ode,
+                problem.primal(),
+                Some(problem),
+                plan.method(),
+                failures,
+            )?;
+            let mut solver = ode.tsit45_solver_sens(state).map_err(|error| {
                 map_failure(
                     failures,
                     "initialize Diffsol Tsitouras45 sensitivities",
@@ -151,9 +158,18 @@ where
             capture(&mut solver, problem, plan, roots, failures)
         }
         TimeMethod::Bdf => {
-            let mut solver = ode.bdf_sens::<NalgebraLU<f64>>().map_err(|error| {
-                map_failure(failures, "initialize Diffsol BDF sensitivities", error)
-            })?;
+            let state = initialization::state::<_, BdfState<NalgebraVec<f64>>>(
+                &ode,
+                problem.primal(),
+                Some(problem),
+                plan.method(),
+                failures,
+            )?;
+            let mut solver = ode
+                .bdf_solver_sens::<NalgebraLU<f64>>(state)
+                .map_err(|error| {
+                    map_failure(failures, "initialize Diffsol BDF sensitivities", error)
+                })?;
             capture(&mut solver, problem, plan, roots, failures)
         }
         TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {

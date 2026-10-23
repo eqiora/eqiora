@@ -1,12 +1,14 @@
 mod continuation;
 mod history;
+mod initialization;
 mod sensitivities;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use diffsol::{
-    NalgebraLU, NalgebraMat, NalgebraVec, OdeBuilder, OdeSolverMethod, OdeSolverStopReason, Vector,
+    BdfState, NalgebraLU, NalgebraMat, NalgebraVec, OdeBuilder, OdeSolverMethod, OdeSolverState,
+    OdeSolverStopReason, Vector,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
@@ -260,13 +262,22 @@ fn solve_mass_matrix_forward_sensitivities(
         })?;
 
     debug_assert_eq!(plan.method(), TimeMethod::Bdf);
-    let mut solver = ode.bdf_sens::<NalgebraLU<f64>>().map_err(|error| {
-        map_failure(
-            &failures,
-            "initialize Diffsol mass-matrix BDF sensitivities",
-            error,
-        )
-    })?;
+    let state = initialization::state::<_, BdfState<NalgebraVec<f64>>>(
+        &ode,
+        problem.primal(),
+        Some(problem),
+        plan.method(),
+        &failures,
+    )?;
+    let mut solver = ode
+        .bdf_solver_sens::<NalgebraLU<f64>>(state)
+        .map_err(|error| {
+            map_failure(
+                &failures,
+                "initialize accepted Diffsol mass-matrix BDF sensitivities",
+                error,
+            )
+        })?;
     history::capture(
         &mut solver,
         problem.primal(),
@@ -311,9 +322,16 @@ fn solve_mass_matrix(
         .build()
         .map_err(|error| map_failure(&failures, "construct Diffsol mass-matrix problem", error))?;
 
-    let mut solver = ode.bdf::<NalgebraLU<f64>>().map_err(|error| {
-        map_failure(&failures, "initialize consistent Diffsol BDF state", error)
-    })?;
+    let state = initialization::state::<_, BdfState<NalgebraVec<f64>>>(
+        &ode,
+        problem,
+        None,
+        plan.method(),
+        &failures,
+    )?;
+    let mut solver = ode
+        .bdf_solver::<NalgebraLU<f64>>(state)
+        .map_err(|error| map_failure(&failures, "initialize accepted Diffsol BDF state", error))?;
     Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
 }
 

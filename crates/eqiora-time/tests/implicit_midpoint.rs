@@ -42,12 +42,12 @@ fn solve(
     h: f64,
     outputs: Vec<f64>,
 ) -> Result<TimeSolution, Diagnostic> {
-    let problem = TimeProblem::new(
+    let problem = TimeProblem::from_state(
         system,
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::Full,
         },
-        InitialConditionPolicy::Provided,
+        start,
         initial,
     )?;
     let plan = TimePlan::new(
@@ -147,8 +147,7 @@ fn physical_rates_respect_equation_scaling_and_reject_invalid_mass_actions() {
             TimeEquationClass::MassMatrix {
                 rank: MassMatrixRank::Full,
             },
-            InitialConditionPolicy::Provided,
-            seed(),
+            ImplicitDaeInitialization::accepted(seed(), vec![0., 1., 0., 4., 0., 9.]).unwrap(),
         )
         .unwrap();
         let actual = problem.rate(0., &seed());

@@ -8,7 +8,7 @@ capabilities = [
   "tsitouras45-nonstiff-ode",
   "bdf-stiff-ode",
   "rank-deficient-mass-matrix-dae",
-  "consistent-initialization",
+  "accepted-initial-pair-preservation",
   "continuous-forward-parameter-sensitivity",
   "parameter-independent-mass-forward-sensitivity",
   "unproven-mass-parameter-dependence-rejection",

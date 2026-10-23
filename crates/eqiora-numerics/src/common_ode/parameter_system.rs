@@ -239,6 +239,34 @@ impl ParametricTimeSystem for GlobalParameterSystem<'_> {
         }
         Ok(())
     }
+
+    fn initial_derivative_parameter_jvp(
+        &self,
+        time: f64,
+        initial: &eqiora_time::ImplicitDaeInitialization,
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if self.flow.equation_class() != TimeEquationClass::ExplicitOde {
+            return Err(invalid(
+                "event initial-rate tangents require the admitted explicit flow",
+            ));
+        }
+        let mut state_tangent = vec![0.0; self.dimension()];
+        let mut parameter_tangent = vec![0.0; self.dimension()];
+        self.initial_parameter_jvp(time, direction, &mut state_tangent)?;
+        self.rhs_parameter_jvp(time, initial.state(), direction, &mut parameter_tangent)?;
+        self.rhs_jvp(time, initial.state(), &state_tangent, output)?;
+        for (value, parameter) in output.iter_mut().zip(parameter_tangent) {
+            *value += parameter;
+        }
+        if output.iter().any(|value| !value.is_finite()) {
+            return Err(invalid(
+                "event initial-rate Parameter action produced non-finite values",
+            ));
+        }
+        Ok(())
+    }
 }
 impl GlobalParameterSystem<'_> {
     fn require_direction(&self, direction: &[f64]) -> Result<(), Diagnostic> {

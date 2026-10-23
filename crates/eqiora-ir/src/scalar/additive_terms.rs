@@ -8,7 +8,7 @@ impl ScalarOperatorIr {
     /// Express the selected-symbol dependence as an additive sum of opaque
     /// scalar terms, each with a coefficient for every original root.
     /// Other inputs are frozen at the typed point. Only addition, subtraction,
-    /// negation, and factors independent of the selected symbol are expanded.
+    /// negation, and factors independent of the selected symbols are expanded.
     /// Structurally equal terms have equal canonical IR, including across owners.
     /// Active guards remain inside terms; this performs no differentiation.
     /// Original demanded primal/domain validation occurs before cancellation.
@@ -20,7 +20,7 @@ impl ScalarOperatorIr {
     pub fn additive_terms(
         &self,
         inputs: &[ValueLiteral],
-        selected: SymbolRef,
+        selected: &[SymbolRef],
     ) -> Result<Vec<(Self, Vec<BigRational>)>, Diagnostic> {
         let projected = self.project_point(inputs, &self.roots)?;
         let point = self
@@ -38,7 +38,7 @@ impl ScalarOperatorIr {
             .symbols
             .iter()
             .map(|&symbol| {
-                if symbol == selected {
+                if selected.contains(&symbol) {
                     DifferentiationRole::Unknown
                 } else {
                     DifferentiationRole::Frozen
@@ -101,7 +101,6 @@ impl ScalarOperatorIr {
                     _ => {
                         let atom = projected.canonical_term(
                             ValueId(index as u32),
-                            selected,
                             &trace,
                             &dependencies,
                         )?;
@@ -242,17 +241,11 @@ impl ScalarOperatorIr {
     fn canonical_term(
         &self,
         root: ValueId,
-        selected: SymbolRef,
         trace: &[Option<ValueLiteral>],
         dependencies: &[bool],
     ) -> Result<Self, Diagnostic> {
-        let selected_type = self
-            .symbols
-            .iter()
-            .position(|symbol| *symbol == selected)
-            .and_then(|slot| self.typed_inputs.as_ref()?.get(slot))
-            .ok_or_else(|| ir_builder_error("additive term has no admitted input type"))?
-            .clone();
+        let mut symbols = Vec::new();
+        let mut types = Vec::new();
         let mut mapped = vec![None; self.instructions.len()];
         let mut pending = vec![(root, false)];
         let mut instructions = Vec::new();
@@ -279,8 +272,26 @@ impl ScalarOperatorIr {
                         };
                     Instruction::TypedConstant(slot as u32)
                 }
-            } else if let Instruction::Read(_) = self.instructions[index] {
-                Instruction::Read(SymbolSlot(0))
+            } else if let Instruction::Read(slot) = self.instructions[index] {
+                let symbol = self.symbols[slot.0 as usize];
+                let position = if let Some(position) =
+                    symbols.iter().position(|existing| *existing == symbol)
+                {
+                    position
+                } else {
+                    symbols.push(symbol);
+                    types.push(
+                        self.typed_inputs
+                            .as_ref()
+                            .and_then(|types| types.get(slot.0 as usize))
+                            .ok_or_else(|| {
+                                ir_builder_error("additive term has no admitted input type")
+                            })?
+                            .clone(),
+                    );
+                    symbols.len() - 1
+                };
+                Instruction::Read(SymbolSlot(position as u32))
             } else if !exit {
                 let mut children = Vec::new();
                 slot_composition::visit_instruction_operands(&self.instructions, index, |child| {
@@ -309,11 +320,11 @@ impl ScalarOperatorIr {
             mapped[index] = Some(ValueId(position as u32));
         }
         Ok(Self {
-            typed_inputs: Some(vec![selected_type]),
+            typed_inputs: Some(types),
             source_values: (0..instructions.len())
                 .map(|index| Some(ValueId(index as u32)))
                 .collect(),
-            symbols: vec![selected],
+            symbols,
             instructions,
             typed_constants: literals,
             roots: vec![mapped[root.0 as usize].expect("term root")],

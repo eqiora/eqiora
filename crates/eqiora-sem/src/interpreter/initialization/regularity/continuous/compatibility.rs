@@ -88,7 +88,7 @@ pub(super) fn validate(
     let mut terms: Vec<(ScalarOperatorIr, Vec<BigRational>)> = Vec::new();
     for (local_row, (operator, inputs)) in row_operators.iter().enumerate() {
         let equation = &equations[rows[local_row]];
-        for (atom, coefficients) in operator.additive_terms(inputs, SymbolRef::Time)? {
+        for (atom, coefficients) in operator.additive_terms(inputs, &[SymbolRef::Time])? {
             let coefficient = &coefficients[0]
                 - if equation.paired {
                     coefficients[1].clone()
