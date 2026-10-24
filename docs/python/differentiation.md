@@ -379,6 +379,9 @@ the solved equations.
 
 Inputs must be rank-one, contiguous `float64` tensors on CPU:0. The adapter never
 modifies its input and returns a new tensor rather than a view of stored results.
+The output preserves the native output leaf shape: a scalar stays scalar, and a
+sampled Field retains its leading time axis and coefficient/value axes.
+`torch_program.output_shape` reports that same shape.
 Programs are kept alive for the rest of the process, because autograd and compiled
 graphs can outlive the wrapper; evaluations and derivatives are not cached.
 PyTorch and JAX share the native registration owner. The exact initial State is

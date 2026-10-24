@@ -333,8 +333,9 @@ def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
             for p in (4., 9.):
                 point = torch.tensor([p], dtype=torch.float64, requires_grad=True)
                 value = operation(point)
+                assert tuple(value.shape) == operator.output_shape == operator.program.outputs[0].shape
                 # w=sign*sqrt(p); O=w+p and dO/dp=1+sign/(2*sqrt(p)).
-                np.testing.assert_allclose(value.detach().numpy(), [p+sign*np.sqrt(p)], rtol=0, atol=1e-12)
+                np.testing.assert_allclose(value.detach().numpy(), p+sign*np.sqrt(p), rtol=0, atol=1e-12)
                 value.sum().backward()
                 np.testing.assert_allclose(point.grad.numpy(), [1+sign/(2*np.sqrt(p))], rtol=0, atol=1e-12)
 
@@ -347,6 +348,7 @@ def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear
     program, state = held_step_program(nonlinear, False, advanced)
     before = state.to_bytes()
     solve = eqtorch.bind(program)
+    assert solve.output_shape == (1, 3)
     previous = float(advanced)
     # v-v_previous+v^3=p or 2*v-v_previous=p, with v_previous held fixed.
     value, derivative = (10.-previous, 1/13) if nonlinear else (4.-previous, .5)
@@ -367,6 +369,7 @@ def test_spatial_trajectory_composes_with_backward_and_compile():
     program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
         state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
     solve = eqtorch.bind(program)
+    assert solve.output_shape == (2, 3)
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([4.], dtype=torch.float64, requires_grad=True)
         output = operation(point)

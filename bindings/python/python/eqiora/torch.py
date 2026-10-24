@@ -167,6 +167,7 @@ class TorchProgram:
     __slots__ = (
         "_input_size",
         "_output_size",
+        "_output_shape",
         "_program",
         "_token",
     )
@@ -180,6 +181,7 @@ class TorchProgram:
                 or program.outputs[0].value_type.scalar_domain != "real"
                 or any(leaf.shape or leaf.value_type.scalar_domain != "real" for leaf in program.inputs)):
             raise NotImplementedError("this PyTorch adapter requires real scalar inputs and one real output")
+        self._output_shape = program.outputs[0].shape
         self._program = program
         self._input_size, self._output_size = program._coordinate_sizes()
         self._token = program._register()
@@ -194,8 +196,8 @@ class TorchProgram:
         return (self._input_size,)
 
     @property
-    def output_shape(self) -> tuple[int]:
-        return (self._output_size,)
+    def output_shape(self) -> tuple[int, ...]:
+        return self._output_shape
 
     def __call__(self, parameters: torch.Tensor) -> torch.Tensor:
         # The public wrapper rejects unsupported dispatch keys before PyTorch
@@ -207,7 +209,7 @@ class TorchProgram:
             self._token,
             self._input_size,
             self._output_size,
-        )
+        ).reshape(self._output_shape)
 
 
 def bind(program: DifferentiableProgram) -> TorchProgram:
