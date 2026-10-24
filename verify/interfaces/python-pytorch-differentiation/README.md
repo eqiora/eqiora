@@ -5,30 +5,26 @@ One optional `eqiora.torch` adapter projects an accepted framework-neutral
 retains the exact common scalar Plan, its Model, caller-supplied two-dimensional
 rectangular Cartesian Mesh, ordered Parameter identities, and output Field.
 The verified Plans use Q1 FEM or cell-centred TPFA with a typed linear solve
-policy. A rank-one Tensor supplies only the numerical Parameter point.
+policy. An ordered tuple/list supplies the numerical Parameter leaves, each
+with its exact native signature shape and scalar domain.
 
 The forward schema is
-`eqiora::differentiable_solve(Tensor, str, int, int) -> Tensor`. It declares no
-mutation and returns an owned CPU copy of the immutable primal NumPy leaf; neither the input Tensor nor
-the immutable Eqiora evaluation/evidence is aliased. The registered autograd
-rule invokes
-`eqiora::_differentiable_solve_vjp(Tensor, Tensor, str, int, int) -> Tensor`.
-It differentiates the accepted implicit relation through Eqiora's VJP rather
-than recording solver iterations.
+`eqiora::differentiable_solve(Tensor[], str) -> Tensor[]`. It declares no
+mutation and returns owned CPU copies of immutable primal NumPy leaves. The
+registered autograd rule invokes
+`eqiora::_differentiable_solve_vjp(Tensor[], Tensor[], str) -> Tensor[]`.
+One native evaluation/VJP handles all leaves; Python does not loop over solves
+or implement a coordinate derivative algorithm.
 
-Fake kernels validate Tensor metadata without resolving or executing a native
-program. The real kernels admit only native `float64`, rank-one,
-C-contiguous CPU:0 Tensors of the exact declared shape. Parameter values and
-cotangents cross the existing no-transfer DLPack admission boundary and then
-make one Eqiora-owned staging copy per Parameter or output-cotangent leaf.
-Primal and reverse products copy the selected read-only NumPy leaves into owned
-Tensors; native result storage is never exposed for mutation.
-The public wrapper restores the exact native output leaf shape with a Tensor
-reshape outside these flat custom kernels. Fake execution and autograd use that
-same reshape, preserving scalar and sampled output axes without another numerical
-implementation. Binding requires real scalar input leaves and one real output;
-multiple output leaves and complex Tensor products remain outside this adapter
-profile.
+Fake kernels resolve the immutable retained registry entry's signatures and
+validate tensor metadata without reading tensor data or executing a native
+program. The real kernels admit contiguous CPU:0 tensors with exact leaf shape
+and `float64`/`complex128` dtype. Inputs and cotangents cross the existing DLPack
+admission boundary after detachment and resolution of lazy conjugate/negative
+views. Native staging owns its copies; output tensors never alias result storage.
+Scalar, intrinsic value, coefficient and sampled-time axes retain the native
+signature layout without a second shape schema. PyTorch complex gradients use
+the same real pairing as native products, `Re(conj(cotangent)*dy)`.
 
 Process-local opaque tokens keep custom-operator schemas free of Python/native
 objects. PyTorch and JAX share one native registry. Registrations include the
@@ -51,7 +47,10 @@ exact tested release 2.14.0. It exercises:
 - eager and `torch.compile(fullgraph=True)` forward/backward agreement;
 - retained-graph repeated backward, zero cotangents, and inputs that do not
   require gradients;
-- dtype, rank, shape, layout, finiteness, token, and metadata falsifiers;
+- dtype, leaf count, shape, layout, finiteness, token, and metadata falsifiers;
+- ordinary mixed real/complex multi-output controls with independently derived
+  values and cotangents, unused outputs, conjugate views and immutable binding;
+  these do not widen the registered Q1/TPFA scientific claim;
 - ordinary seeded-root checks with independently derived opposite-branch values
   and derivatives, duplicate registration, and eager/compiled calls; these do
   not widen the registered Q1/TPFA scientific claim;
@@ -63,7 +62,10 @@ present in that accepted manifest; the focused
 `tools/ci/python_torch_gate.py` script remains available for standalone
 development but is not a second registered artifact build.
 
-The exact claim is in-process first-order CPU `float64` differentiation.
+The registered scientific claim remains in-process first-order real CPU `float64`
+Q1/TPFA differentiation. Ordinary product tests additionally cover structured
+real/complex values and multiple outputs; they do not establish broader
+scientific verification.
 Double backward, Hessians, `vmap`, AMP/autocast, sparse or arbitrary Tensor
 subclasses, CUDA, distributed autograd, `torch.export`, graph serialization,
 AOT packaging, module reload, and multiprocessing fork/spawn are nonclaims.
