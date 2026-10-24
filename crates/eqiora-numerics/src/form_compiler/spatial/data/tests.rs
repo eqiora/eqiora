@@ -418,8 +418,12 @@ fn map_data_binds_time_and_preserves_coordinate_and_parameter_actions() {
             coefficients: &known,
             time_s: None,
         };
-        assert!(context.data(factor, 0).is_err());
-        assert!(context.data(time, 0).is_err());
+        // Structural lowering retains Time; evaluating requires its finite binding.
+        for node in [factor, time] {
+            let unbound = context.data(node, 0).unwrap();
+            assert!(!unbound.inputs_bound());
+            assert!(unbound.evaluate(&[7., -3.]).is_err());
+        }
         for t in [0.0, 1.0, 2.0] {
             context.time_s = Some(t);
             assert_eq!(
