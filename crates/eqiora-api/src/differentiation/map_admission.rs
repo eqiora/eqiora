@@ -5,25 +5,36 @@ use eqiora_solver::{ExecutionReport, SolveReport};
 
 impl DifferentiableProgram {
     pub(crate) fn validate_map_execution(&self) -> Result<(), Diagnostic> {
-        validate_host_execution(&self.default.native, self.backend.default_execution())
+        self.default
+            .native
+            .points()
+            .iter()
+            .try_for_each(|point| validate_host_execution(point, self.backend.default_execution()))
     }
 
     pub(crate) fn map_binding_metadata_bytes(&self) -> Result<usize, Diagnostic> {
-        self.default.native.receipt().map_or(Ok(0), |receipt| {
-            Ok(receipt.binding().realization().to_bytes()?.len())
-        })
+        self.default
+            .native
+            .points()
+            .iter()
+            .try_fold(0usize, |total, point| {
+                let bytes = point.receipt().map_or(Ok(0), |receipt| {
+                    Ok(receipt.binding().realization().to_bytes()?.len())
+                })?;
+                total.checked_add(bytes).ok_or_else(overflow)
+            })
     }
 
     pub(crate) fn prepare_map_member(
         &self,
         mut member: DifferentiableEvaluation,
     ) -> Result<DifferentiableEvaluation, Diagnostic> {
-        validate_host_execution(&member.native, self.backend.default_execution())?;
-        if member.native.receipt().is_some() {
-            member.native = member
-                .native
-                .with_shared_receipt_binding(&self.default.native)?;
+        for point in member.native.points() {
+            validate_host_execution(point, self.backend.default_execution())?;
         }
+        member.native = member
+            .native
+            .with_shared_receipt_binding(&self.default.native)?;
         Ok(member)
     }
 
@@ -35,95 +46,31 @@ impl DifferentiableProgram {
             .input_dimension()
             .checked_mul(size_of::<f64>())
             .ok_or_else(overflow)?;
-        [
-            size_of::<DifferentiationEvidence>(),
-            values,
-            self.identity.plan_identity.len(),
-            64, // canonical Model digest
-            self.identity
-                .run_request_identity
-                .as_ref()
-                .map_or(0, String::len),
-            self.identity
-                .initial_state_identity
-                .as_ref()
-                .map_or(0, String::len),
-            // Provider strings and library inventory are Plan-owned policy,
-            // independent of accepted values and completed iterations.
-            self.default
-                .native
-                .linear_solves()
-                .first()
-                .map_or(Ok(0), |report| {
-                    eqiora_numerics::CommonSolveEvidence::from_report(report)
-                        .storage_bytes()
-                        .ok_or_else(overflow)
-                })?,
-            self.context
-                .initial()
-                .as_ref()
-                .map_or(0, |initial| initial.identity().len()),
-        ]
-        .into_iter()
-        .try_fold(0usize, |total, bytes| {
-            total.checked_add(bytes).ok_or_else(overflow)
-        })
-    }
-
-    pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
-        let n = self
-            .default
-            .native
-            .linearization()
-            .relation()
-            .unknown_dimension();
-        let p = self.identity.input_dimension();
-        let o = self.identity.output_dimension();
-        // A fixed Program retains its state/output dimensions. n*n bounds CSR
-        // nonzeros even when coefficients alter sparsity; no observed/default
-        // nnz count or finite-difference output supplies this bound.
-        let multiply = |a: usize, b: usize| a.checked_mul(b).ok_or_else(overflow);
-        let entries = multiply(n, n)?;
-        let csr_entries = multiply(entries, size_of::<usize>() + size_of::<f64>())?;
-        let offsets = multiply(n.checked_add(1).ok_or_else(overflow)?, size_of::<usize>())?;
-        // Accepted state, original residual and CSR RHS. The physical seed
-        // is accounted separately because constrained coordinates also remain owned.
-        let state = multiply(n, 3 * size_of::<f64>())?;
-        let design = multiply(multiply(n, p)?, size_of::<f64>())?;
-        // Dense finite outputs own O_w; indexed spatial outputs own DOF indices.
-        // Charge both bounds so the estimate never depends on observed sparsity.
-        let output = multiply(o, size_of::<f64>() + size_of::<Option<usize>>())?;
-        let output_state = multiply(multiply(o, n)?, size_of::<f64>())?;
         let updates = match self.plan().canonical_solve_request() {
             Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) => {
                 nonlinear.maximum_iterations().get()
             }
-            _ => 0,
+            _ => 1,
         };
-        let reports = multiply(updates, size_of::<SolveReport>())?;
-        let direct = multiply(multiply(o, p)?, size_of::<f64>())?;
-        // Planned point, accepted point and relation design values. Immutable
-        // signatures are shared with the Program, not cloned per occurrence.
-        let point_data = multiply(p, 3 * size_of::<f64>())?;
-        [
-            size_of::<DifferentiableEvaluation>(),
-            size_of::<ExecutionReceipt>(), // at most one boxed deployment receipt
-            self.map_evidence_bytes()?,    // temporary comparison/publication metadata
+        let mut bytes = size_of::<DifferentiationEvidence>()
+            .checked_add(values)
+            .ok_or_else(overflow)?;
+        let report = eqiora_numerics::CommonSolveEvidence::planned_storage_bytes(self.plan())
+            .ok_or_else(overflow)?;
+        for _ in self.default.native.points() {
+            let step = size_of::<DifferentiationStepEvidence>()
+                .checked_add(report.checked_mul(updates).ok_or_else(overflow)?)
+                .ok_or_else(overflow)?;
+            bytes = bytes.checked_add(step).ok_or_else(overflow)?;
+        }
+        for extra in [
+            // The nonlinear primal owns its seed identity separately from the Program identity.
             self.context
                 .initial()
                 .as_ref()
-                .map_or(Ok(0), CommonInitialState::retained_payload_bytes)?,
-            size_of::<DifferentiableValues>(),
-            size_of::<eqiora_solver::CanonicalCsrSystemView>(),
-            size_of_val(
-                self.default
-                    .native
-                    .linearization()
-                    .relation()
-                    .design_coordinates(),
-            ),
+                .map_or(0, |initial| initial.identity().len()),
             self.identity.plan_identity.len(),
-            64, // canonical Model digest
+            64,
             self.identity
                 .run_request_identity
                 .as_ref()
@@ -132,21 +79,119 @@ impl DifferentiableProgram {
                 .initial_state_identity
                 .as_ref()
                 .map_or(0, String::len),
-            csr_entries,
-            offsets,
-            state,
-            design,
-            output,
-            output_state,
-            reports,
-            direct,
-            point_data,
-        ]
-        .into_iter()
-        .try_fold(0usize, |total, bytes| {
-            total.checked_add(bytes).ok_or_else(overflow)
-        })
+        ] {
+            bytes = bytes.checked_add(extra).ok_or_else(overflow)?;
+        }
+        Ok(bytes)
     }
+
+    pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
+        let p = self.identity.input_dimension();
+        let updates = match self.plan().canonical_solve_request() {
+            Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) => {
+                nonlinear.maximum_iterations().get()
+            }
+            _ => 1,
+        };
+        let initial_payload =
+            self.default
+                .native
+                .points()
+                .iter()
+                .try_fold(0usize, |total, point| {
+                    let bytes = point
+                        .nonlinear_initial_state()
+                        .map_or(Ok(0), CommonInitialState::retained_payload_bytes)?;
+                    total.checked_add(bytes).ok_or_else(overflow)
+                })?;
+        let request_payload = match &self.default.native {
+            NativeEvaluation::Point(_) => 0,
+            NativeEvaluation::Trajectory(trajectory) => sum_bytes(&[
+                size_of_val(trajectory.as_ref()),
+                CommonInitialState::from(trajectory.request().state()).retained_payload_bytes()?,
+                size_of_val(trajectory.request().output_times_s()),
+                trajectory.request().identity().len(),
+            ])?,
+        };
+        let mut bytes = sum_bytes(&[
+            size_of::<DifferentiableEvaluation>(),
+            self.map_evidence_bytes()?,
+            initial_payload,
+            request_payload,
+            self.default.projection.retained_payload_bytes(),
+            product(self.default.unknowns.len(), size_of::<f64>())?,
+            product(p, 2 * size_of::<f64>())?,
+            self.identity.plan_identity.len(),
+            64,
+            self.identity
+                .run_request_identity
+                .as_ref()
+                .map_or(0, String::len),
+            self.identity
+                .initial_state_identity
+                .as_ref()
+                .map_or(0, String::len),
+        ])?;
+        // Sum each independent step's numerical bound. Squaring the complete
+        // trajectory dimension would charge nonexistent cross-step dense blocks.
+        for point in self.default.native.points() {
+            let linearization = point.linearization();
+            let relation = linearization.relation();
+            let n = relation.unknown_dimension();
+            let o = linearization.output_dimension();
+            let history = linearization.discrete_step().map_or(0, |step| {
+                eqiora_ir::DiscreteStepLinearization::state_coordinates(&step).len()
+            });
+            let step = sum_bytes(&[
+                size_of::<CommonDifferentiationPoint>(),
+                size_of::<ExecutionReceipt>(),
+                size_of::<eqiora_solver::CanonicalCsrSystemView>(),
+                size_of_val(relation.design_coordinates()),
+                product(product(n, n)?, size_of::<usize>() + size_of::<f64>())?,
+                product(n.checked_add(1).ok_or_else(overflow)?, size_of::<usize>())?,
+                product(n, 3 * size_of::<f64>())?,
+                product(product(n, p)?, size_of::<f64>())?,
+                product(o, size_of::<f64>() + size_of::<Option<usize>>())?,
+                product(product(o, n)?, size_of::<f64>())?,
+                product(product(o, p)?, size_of::<f64>())?,
+                product(updates, size_of::<SolveReport>())?,
+                product(p, size_of::<f64>())?,
+                // The history CSR owns a separate row-offset array and shared coordinate identity.
+                if history == 0 {
+                    0
+                } else {
+                    sum_bytes(&[
+                        product(n.checked_add(1).ok_or_else(overflow)?, size_of::<usize>())?,
+                        self.identity.plan_identity.len(),
+                    ])?
+                },
+                // Sparse predecessor action and complete-state output lift.
+                product(
+                    product(history, n)?,
+                    2 * (size_of::<f64>() + size_of::<usize>()),
+                )?,
+                product(product(history, p)?, size_of::<f64>())?,
+                product(
+                    history,
+                    4 * size_of::<f64>()
+                        + size_of::<Option<usize>>()
+                        + size_of::<eqiora_numerics::SpatialStepCoordinate>(),
+                )?,
+            ])?;
+            bytes = bytes.checked_add(step).ok_or_else(overflow)?;
+        }
+        Ok(bytes)
+    }
+}
+
+fn product(a: usize, b: usize) -> Result<usize, Diagnostic> {
+    a.checked_mul(b).ok_or_else(overflow)
+}
+
+fn sum_bytes(values: &[usize]) -> Result<usize, Diagnostic> {
+    values.iter().try_fold(0usize, |total, value| {
+        total.checked_add(*value).ok_or_else(overflow)
+    })
 }
 
 fn validate_host_execution(

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::evidence::{Acceptance, PrimalEvidence};
 use super::*;
 
-const SCHEMA: &str = "eqiora.differentiable-evaluation/v2";
+const SCHEMA: &str = "eqiora.differentiable-evaluation/v3";
 
 /// Read-only accepted primal with the candidate coordinates required for reopening.
 ///
@@ -18,16 +18,16 @@ const SCHEMA: &str = "eqiora.differentiable-evaluation/v2";
 pub struct RecordedDifferentiableEvaluation {
     identity: String,
     result: DifferentiableResult,
-    state: Vec<f64>,
+    state: Vec<Vec<f64>>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireRecord<V = Vec<f64>, P = PrimalEvidence> {
+struct WireRecord<V = Vec<f64>, S = Vec<Vec<f64>>, P = Vec<PrimalEvidence>> {
     schema: String,
     program: String,
     point: V,
-    state: V,
+    state: S,
     output: V,
     primal: P,
 }
@@ -38,16 +38,22 @@ impl DifferentiableEvaluation {
         RecordedDifferentiableEvaluation::new(
             self.primal(),
             self.native
-                .linearization()
-                .relation()
-                .accepted_unknowns()
-                .to_vec(),
+                .points()
+                .iter()
+                .map(|point| {
+                    point
+                        .linearization()
+                        .relation()
+                        .accepted_unknowns()
+                        .to_vec()
+                })
+                .collect(),
         )
     }
 }
 
 impl RecordedDifferentiableEvaluation {
-    fn new(result: DifferentiableResult, state: Vec<f64>) -> Result<Self, Diagnostic> {
+    fn new(result: DifferentiableResult, state: Vec<Vec<f64>>) -> Result<Self, Diagnostic> {
         let mut record = Self {
             identity: String::new(),
             result,
@@ -82,7 +88,11 @@ impl RecordedDifferentiableEvaluation {
                 point: evidence.point().coordinates(),
                 state: self.state.as_slice(),
                 output: self.result.output().coordinates(),
-                primal: &evidence.primal,
+                primal: evidence
+                    .steps()
+                    .iter()
+                    .map(|step| &step.primal)
+                    .collect::<Vec<_>>(),
             })
             .map_err(|error| invalid(format!("cannot encode evaluation record: {error}")))
     }
@@ -100,7 +110,7 @@ impl RecordedDifferentiableEvaluation {
         Self::from_context_bytes(bytes, &Context::stationary(plan, initial))
     }
 
-    /// Reopen a step evaluation against its exact ordinary Run request, without solving.
+    /// Reopen a complete trajectory evaluation against its exact ordinary Run request, without solving.
     pub fn from_run_bytes(
         bytes: &[u8],
         request: &crate::RunRequest,
@@ -139,10 +149,10 @@ impl RecordedDifferentiableEvaluation {
             .iter()
             .map(DifferentiableValueSignature::entity)
             .collect::<Vec<_>>();
-        let linearization = if let Some(request) = context.run_request() {
+        let linearizations = if let Some(request) = context.run_request() {
             plan.as_spatial()
                 .ok_or_else(|| single(invalid("Run record requires its spatial Plan")))?
-                .validate_differentiated_step_values(
+                .validate_differentiated_trajectory_values(
                     request.native(),
                     &selected,
                     Some(point.coordinates()),
@@ -150,6 +160,11 @@ impl RecordedDifferentiableEvaluation {
                     &wire.state,
                 )
         } else {
+            if wire.state.len() != 1 {
+                return Err(single(invalid(
+                    "stationary record requires exactly one accepted point",
+                )));
+            }
             match plan {
                 ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
                     program::spatial_initial(initial).map_err(single)?,
@@ -157,7 +172,7 @@ impl RecordedDifferentiableEvaluation {
                     Some(point.coordinates()),
                     &outputs,
                     identity.observation_quadratures(),
-                    &wire.state,
+                    &wire.state[0],
                 ),
                 ResolvedCommonPlan::Algebraic(algebraic) => {
                     let canonical;
@@ -173,28 +188,51 @@ impl RecordedDifferentiableEvaluation {
                         &selected,
                         Some(point.coordinates()),
                         &outputs,
-                        &wire.state,
+                        &wire.state[0],
                     )
                 }
                 _ => return Err(single(invalid("unsupported evaluation record Plan"))),
             }
+            .map(|point| vec![point])
         };
-        let linearization = linearization.map_err(single)?;
-        let implementation = DerivativeImplementation::from_linearization(&linearization);
-        if !same_coordinates(&wire.output, linearization.output_values())
-            || !same_coordinates(
-                point.coordinates(),
-                linearization.relation().design_values(),
+        let linearizations = linearizations.map_err(single)?;
+        let projection = OutputProjection::new(&identity, context.run_request()).map_err(single)?;
+        let output_values = projection
+            .gather(
+                &linearizations
+                    .iter()
+                    .map(CommonDifferentiationLinearization::output_values)
+                    .collect::<Vec<_>>(),
             )
+            .map_err(single)?;
+        let implementation = DerivativeImplementation::from_linearization(&linearizations[0]);
+        if !same_coordinates(&wire.output, &output_values)
+            || linearizations.iter().any(|linearization| {
+                !same_coordinates(
+                    point.coordinates(),
+                    linearization.relation().design_values(),
+                )
+            })
         {
             return Err(single(invalid(
                 "evaluation record differs from its accepted point or outputs",
             )));
         }
-        wire.primal
-            .validate(plan, initial, &linearization)
-            .map_err(single)?;
-        let acceptance = Acceptance::new(&identity, &linearization).map_err(single)?;
+        if wire.primal.len() != linearizations.len() {
+            return Err(single(invalid(
+                "evaluation record requires every step's primal evidence",
+            )));
+        }
+        let mut acceptance = Vec::with_capacity(linearizations.len());
+        for (index, (primal, linearization)) in wire.primal.iter().zip(&linearizations).enumerate()
+        {
+            // Subsequent seeds are the preceding reaccepted physical history;
+            // only the first step may name the external initial State.
+            primal
+                .validate(plan, if index == 0 { initial } else { None }, linearization)
+                .map_err(single)?;
+            acceptance.push(Acceptance::new(&identity, linearization).map_err(single)?);
+        }
         let output = DifferentiableValues::from_coordinates(identity.outputs.clone(), wire.output)
             .map_err(single)?;
         let record = Self::new(
@@ -251,6 +289,7 @@ impl PrimalEvidence {
                 initial_state_identity,
                 iterations,
                 initial_residual_norm,
+                linear_solves,
             } => {
                 let Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) =
                     plan.canonical_solve_request()
@@ -259,10 +298,7 @@ impl PrimalEvidence {
                         "nonlinear evaluation record requires a Newton Plan",
                     ));
                 };
-                let initial = initial.ok_or_else(|| {
-                    invalid("nonlinear evaluation record requires its initial State")
-                })?;
-                if initial.identity() != initial_state_identity
+                if initial.map(CommonInitialState::identity) != initial_state_identity.as_deref()
                     || *iterations > nonlinear.maximum_iterations().get()
                     || linearization.initial_residual_norm().map(f64::to_bits)
                         != Some(initial_residual_norm.to_bits())
@@ -271,7 +307,19 @@ impl PrimalEvidence {
                         "nonlinear evaluation record differs from its initial State or iteration policy",
                     ));
                 }
-                linearization.validate_nonlinear_update_count(*iterations)
+                linearization.validate_nonlinear_update_count(*iterations)?;
+                if linear_solves.len() != *iterations {
+                    return Err(invalid(
+                        "nonlinear evaluation must retain each update's solve report",
+                    ));
+                }
+                for solve in linear_solves {
+                    if solve.orientation() != eqiora_solver::LinearOperatorOrientation::Normal {
+                        return Err(invalid("nonlinear primal update must use a normal solve"));
+                    }
+                    solve.validate_plan(plan)?;
+                }
+                Ok(())
             }
         }
     }

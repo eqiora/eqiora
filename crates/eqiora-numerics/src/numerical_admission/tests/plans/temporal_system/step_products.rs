@@ -94,6 +94,22 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     panic!("unexpected stop")
                 };
                 for (index, (_, step)) in steps.iter().enumerate() {
+                    // The fixture has one scalar Field, with real/imaginary storage words.
+                    // A restart retains both its current coordinates and one predecessor.
+                    let coordinate_count = if spatial == CommonSpatialPolicy::Q1 {
+                        3
+                    } else {
+                        2
+                    } * if complex { 2 } else { 1 };
+                    let state = step.state();
+                    assert_eq!(
+                        crate::CommonInitialState::from(state)
+                            .retained_payload_bytes()
+                            .unwrap(),
+                        2 * coordinate_count * size_of::<f64>()
+                            + state.state_space_identity().len()
+                            + state.identity().len(),
+                    );
                     let step_request = CommonTransientRunRequest::from_steps(
                         resolved.clone(),
                         step.previous_state().clone(),
@@ -103,6 +119,12 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     .unwrap();
                     let linearization = plan.linearize_step(step, &[parameter], &[field]).unwrap();
                     let output = output_tangent(plan, &linearization);
+                    // Each normalized predecessor component has gain 1/2 at p=1,
+                    // independently of forcing and the accepted loading history.
+                    close(
+                        &previous_tangent(plan, &linearization),
+                        &vec![0.5; linearization.output_dimension()],
+                    );
                     let nodes = if spatial == CommonSpatialPolicy::Q1 {
                         3
                     } else {
@@ -147,6 +169,15 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         )
                         .unwrap();
                     assert_eq!(&restored, evaluated.linearization());
+                    // Changing the storage Parameter changes the history gain to
+                    // p/(p+1)=3/4. A forcing Parameter leaves that gain at 1/2.
+                    close(
+                        &previous_tangent(plan, evaluated.linearization()),
+                        &vec![
+                            if storage_parameter { 0.75 } else { 0.5 };
+                            evaluated.linearization().output_dimension()
+                        ],
+                    );
                     let mut altered = restored.relation().accepted_unknowns().to_vec();
                     altered[0] += 0.125;
                     let error = plan
@@ -192,6 +223,63 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         linearization
                     );
                 }
+                let changed_run = plan
+                    .differentiate_trajectory(
+                        &request,
+                        &[parameter],
+                        Some(&[3.]),
+                        &[field],
+                        &REFERENCE_LINEAR_SOLVER,
+                    )
+                    .unwrap();
+                let candidates = changed_run
+                    .steps()
+                    .iter()
+                    .map(|point| {
+                        point
+                            .linearization()
+                            .relation()
+                            .accepted_unknowns()
+                            .to_vec()
+                    })
+                    .collect::<Vec<_>>();
+                let replay = plan
+                    .validate_differentiated_trajectory_values(
+                        &request,
+                        &[parameter],
+                        Some(&[3.]),
+                        &[field],
+                        &candidates,
+                    )
+                    .unwrap();
+                for (reopened, point) in replay.iter().zip(changed_run.steps()) {
+                    assert_eq!(reopened, point.linearization());
+                }
+                assert_eq!(changed_run.request(), &request);
+                assert_eq!(changed_run.steps().len(), 2);
+                let phase = C::new(1., if complex { 2. } else { 0. });
+                let nodes = if spatial == CommonSpatialPolicy::Q1 {
+                    3
+                } else {
+                    2
+                };
+                for (index, point) in changed_run.steps().iter().enumerate() {
+                    // The changed point owns its own predecessor: storage gain
+                    // 3/4 at both steps; forcing loads 3/2 then unloads to 3/4.
+                    let factor = if storage_parameter {
+                        if index == 0 { 3. / 4. } else { 9. / 16. }
+                    } else if index == 0 {
+                        3. / 2.
+                    } else {
+                        3. / 4.
+                    };
+                    close(
+                        point.linearization().output_values(),
+                        &coordinates(&vec![phase * factor; nodes], complex),
+                    );
+                    assert_eq!(point.linear_solves().len(), 1);
+                    assert_eq!(point.linearization().relation().design_values(), &[3.]);
+                }
                 assert_eq!(initial.to_bytes().unwrap(), before);
             }
         }
@@ -218,5 +306,33 @@ fn output_tangent(
         .unwrap();
     let mut output = vec![0.; point.output_dimension()];
     point.jvp(tangent.values(), &[1.], &mut output).unwrap();
+    output
+}
+
+fn previous_tangent(
+    plan: &CommonSpatialPlan,
+    point: &crate::CommonDifferentiationLinearization,
+) -> Vec<f64> {
+    let relation = point.relation();
+    let step = point.discrete_step().expect("step history action");
+    let mut direction =
+        vec![-1.; eqiora_ir::DiscreteStepLinearization::previous_state_parameter_dimension(&step)];
+    direction.extend(vec![0.; relation.parameter_dimension()]);
+    let mut rhs = vec![0.; relation.residual_dimension()];
+    LinearizedRelation::jvp(
+        &step,
+        eqiora_ir::RelationTangent::Parameter(&direction),
+        &mut rhs,
+    )
+    .unwrap();
+    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+        .solve_canonical_oriented(
+            relation.state_jacobian(),
+            &rhs,
+            LinearOperatorOrientation::Normal,
+        )
+        .unwrap();
+    let mut output = vec![0.; point.output_dimension()];
+    point.jvp(tangent.values(), &[0.], &mut output).unwrap();
     output
 }

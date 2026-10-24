@@ -140,7 +140,7 @@ fn run_program_preserves_fixed_history_products_and_solve_free_records() {
                 .is_err()
         );
         let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        forged["state"][0] = serde_json::json!(forged["state"][0].as_f64().unwrap() + 0.125);
+        forged["state"][0][0] = serde_json::json!(forged["state"][0][0].as_f64().unwrap() + 0.125);
         assert!(
             RecordedDifferentiableEvaluation::from_run_bytes(
                 &serde_json::to_vec(&forged).unwrap(),
@@ -225,4 +225,180 @@ fn run_program_preserves_fixed_history_products_and_solve_free_records() {
         }
         assert_eq!(initial.to_bytes().unwrap(), before);
     }
+}
+
+#[test]
+fn multi_step_program_preserves_temporal_axes_all_acceptances_and_unsampled_history() {
+    let source = "model Heat(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body),support right:boundary(parent=body)) {
+        parameter p:1=2; state h:1 on body in h1; state q:1 on body in h1;
+        initial {h=0; q=0;}
+        relation h_evolution on body {1[s]*derivative(h)+h=p;}
+        relation q_evolution on body {1[s]*derivative(q)+q=2*p;}
+    }";
+    let (document, plan) =
+        resolve_source_document(source, 1., CommonSolvePolicy::Linear(linear())).unwrap();
+    let initial = plan
+        .as_spatial()
+        .unwrap()
+        .initial_state(Some(0.), Vec::new())
+        .unwrap();
+    let request = RunRequest::from_steps(plan.clone(), initial, 3, vec![1, 3]).unwrap();
+    let program = Arc::new(
+        DifferentiableProgram::compile_run(
+            request.clone(),
+            &[document.parameter_ref("p").unwrap()],
+            &[
+                document.field_ref("q").unwrap().erase(),
+                document.field_ref("h").unwrap().erase(),
+            ],
+            Default::default(),
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap(),
+    );
+    for output in program.identity().outputs() {
+        assert_eq!(output.shape(), &[2, 3]);
+        assert_eq!(output.sample_times_s(), Some(&[1., 3.][..]));
+        assert_eq!(output.coefficient_entities().len(), 3);
+        assert!(
+            output
+                .mathematical_type()
+                .value_type
+                .shape()
+                .extents()
+                .is_empty()
+        );
+    }
+    assert_eq!(program.identity().inputs()[0].sample_times_s(), None);
+    let live = program
+        .evaluate(&crate::support::real_point(&program, &[4.]).unwrap())
+        .unwrap();
+    // Backward Euler: h_n=(h_(n-1)+p)/2, q_n=2*h_n. Observe steps 1 and 3.
+    let expected = [4., 4., 4., 7., 7., 7., 2., 2., 2., 3.5, 3.5, 3.5];
+    let derivative = [
+        1., 1., 1., 1.75, 1.75, 1.75, 0.5, 0.5, 0.5, 0.875, 0.875, 0.875,
+    ];
+    close(&live.primal().output().fixture_coordinates(), &expected);
+    let primal = live.primal();
+    let q = primal.output().leaf(0).unwrap();
+    assert_eq!(
+        q.coefficient(0, Some(1)).unwrap().component(0).unwrap(),
+        (7., 0.)
+    );
+    assert!(q.coefficient(0, None).is_err());
+    assert!(q.coefficient(0, Some(2)).is_err());
+    let forward = live
+        .jvp(&tangent(program.identity(), &[1.]).unwrap())
+        .unwrap();
+    close(&forward.derivative().fixture_coordinates(), &derivative);
+    let reverse = live
+        .vjp(&cotangent(program.identity(), &[1.; 12]).unwrap())
+        .unwrap();
+    close(&reverse.derivative().fixture_coordinates(), &[12.375]);
+    for result in [
+        live.primal().evidence(),
+        forward.evidence(),
+        reverse.evidence(),
+    ] {
+        assert_eq!(result.steps().len(), 3);
+        assert!(
+            result
+                .steps()
+                .iter()
+                .all(|step| step.primal_residual_norm() <= step.residual_tolerance())
+        );
+    }
+    assert!(
+        forward
+            .evidence()
+            .steps()
+            .iter()
+            .all(|step| step.derivative_solve().is_some())
+    );
+    assert_eq!(live.accepted_unknowns().len(), 18);
+    let record = live.record().unwrap();
+    let bytes = record.to_bytes().unwrap();
+    assert_eq!(
+        RecordedDifferentiableEvaluation::from_run_bytes(&bytes, &request).unwrap(),
+        record
+    );
+    let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    // The unobserved second step must still be reaccepted, not dropped.
+    forged["state"][1][0] = serde_json::json!(forged["state"][1][0].as_f64().unwrap() + 0.125);
+    assert!(
+        RecordedDifferentiableEvaluation::from_run_bytes(
+            &serde_json::to_vec(&forged).unwrap(),
+            &request
+        )
+        .is_err()
+    );
+    let mut missing: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    missing["primal"].as_array_mut().unwrap().remove(1);
+    assert!(
+        RecordedDifferentiableEvaluation::from_run_bytes(
+            &serde_json::to_vec(&missing).unwrap(),
+            &request
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn nonlinear_trajectory_record_retains_each_actual_update_and_seed_boundary() {
+    let source = "model Heat(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body),support right:boundary(parent=body)) {
+        parameter p:1=2; state h:1 on body in h1; initial {h=0;}
+        relation evolution on body {1[s]*derivative(h)+h^3=p*(if time()<1.5[s] then 1 else 6.6);}
+    }";
+    let (document, plan) = resolve_source_document(source, 1., newton(30)).unwrap();
+    let initial = plan
+        .as_spatial()
+        .unwrap()
+        .initial_state(Some(0.), Vec::new())
+        .unwrap();
+    let request = RunRequest::from_steps(plan, initial.clone(), 2, vec![2]).unwrap();
+    let program = DifferentiableProgram::compile_run(
+        request.clone(),
+        &[document.parameter_ref("p").unwrap()],
+        &[document.field_ref("h").unwrap().erase()],
+        Default::default(),
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    let live = program
+        .evaluate(&crate::support::real_point(&program, &[10.]).unwrap())
+        .unwrap();
+    close(&live.primal().output().fixture_coordinates(), &[4.; 3]);
+    close(
+        &live
+            .jvp(&tangent(program.identity(), &[1.]).unwrap())
+            .unwrap()
+            .derivative()
+            .fixture_coordinates(),
+        &[62. / 455.; 3],
+    );
+    let primal = live.primal();
+    assert_eq!(primal.evidence().steps().len(), 2);
+    for step in primal.evidence().steps() {
+        assert!(step.nonlinear_iterations().unwrap() > 0);
+        assert_eq!(
+            step.primal_solves().len(),
+            step.nonlinear_iterations().unwrap()
+        );
+    }
+    assert_eq!(
+        primal.evidence().steps()[0].nonlinear_initial_state_identity(),
+        Some(initial.identity())
+    );
+    assert_eq!(
+        primal.evidence().steps()[1].nonlinear_initial_state_identity(),
+        None
+    );
+    let record = live.record().unwrap();
+    assert_eq!(
+        RecordedDifferentiableEvaluation::from_run_bytes(&record.to_bytes().unwrap(), &request)
+            .unwrap(),
+        record
+    );
 }

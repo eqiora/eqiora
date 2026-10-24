@@ -101,6 +101,14 @@ See [`eqiora.DifferentiationEvidence`](/reference/python/eqiora/#api-eqiora-Diff
 
 Provenance of one differentiation: model, plan, solve summaries, and residual.
 
+<a id="api-eqiora-diff-DifferentiationStepEvidence"></a>
+
+## `DifferentiationStepEvidence`
+
+See [`eqiora.DifferentiationStepEvidence`](/reference/python/eqiora/#api-eqiora-DifferentiationStepEvidence).
+
+Acceptance and actual solver reports for one ordered step.
+
 <a id="api-eqiora-diff-DifferentiationMode"></a>
 
 ## `DifferentiationMode`
@@ -147,8 +155,9 @@ Input coordinates are ordered by selection, then row-major by component, then
 real before imaginary part. The input identities count Parameters; the input
 shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
-Spatial backward-Euler Programs bind a one-step Run request through state and
-one complete schedule family, holding its physical predecessor fixed.
+Spatial backward-Euler Programs bind the complete Run request and initial State.
+Outputs have a leading physical-time axis; derivatives propagate through every
+accepted step, independently of the output schedule.
 
 ```python
 def compile(plan: Plan, *, inputs: Sequence[ParameterRef], outputs: Sequence[FieldRef | ObservableRef], state: State | None=None, quadrature_points: int | None=None, until_s: float | None=None, output_times_s: Sequence[float] | None=None, steps: int | None=None, output_steps: Sequence[int] | None=None) -> DifferentiableProgram: ...

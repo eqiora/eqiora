@@ -44,10 +44,10 @@ impl DifferentiableProgram {
         )
     }
 
-    /// Compile a fixed-history spatial step from its ordinary Run request.
-    /// The exact physical predecessor and endpoint times remain fixed at every
-    /// selected Parameter point. This is not differentiation through prior steps.
-    /// No canonical step needs to be executed before compiling this Program.
+    /// Compile a spatial trajectory from its ordinary Run request.
+    /// The initial physical State stays fixed; derivatives propagate through all
+    /// accepted steps. Selected outputs carry the request's physical time axis.
+    /// No canonical Run needs to execute before compiling this Program.
     ///
     /// # Errors
     /// Rejects foreign selections, unsupported requests and unaccepted primals.
@@ -100,8 +100,13 @@ impl DifferentiableProgram {
             backend,
         )
         .map_err(single)?;
-        let default =
-            DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
+        let default = DifferentiableEvaluation::accept(
+            identity.clone(),
+            native,
+            OutputProjection::new(&identity, context.run_request()).map_err(single)?,
+            backend,
+        )
+        .map_err(single)?;
         Ok(Self {
             identity,
             context,
@@ -166,18 +171,23 @@ impl DifferentiableProgram {
             self.backend,
         )
         .map_err(single)?;
-        if native.linearization().relation().design_values().len() != parameters.len()
+        if native.parameter_values().len() != parameters.len()
             || parameters
                 .iter()
-                .zip(native.linearization().relation().design_values())
+                .zip(native.parameter_values())
                 .any(|(a, b)| a.to_bits() != b.to_bits())
         {
             return Err(single(invalid(
                 "accepted relation differs from the requested Parameter point",
             )));
         }
-        DifferentiableEvaluation::accept(self.identity.clone(), native, self.backend)
-            .map_err(single)
+        DifferentiableEvaluation::accept(
+            self.identity.clone(),
+            native,
+            OutputProjection::new(&self.identity, self.context.run_request()).map_err(single)?,
+            self.backend,
+        )
+        .map_err(single)
     }
 
     /// Return the accepted default output.
@@ -206,30 +216,48 @@ impl DifferentiableProgram {
 impl DifferentiableEvaluation {
     fn accept(
         identity: DifferentiableProgramIdentity,
-        native: CommonDifferentiationPoint,
+        native: NativeEvaluation,
+        projection: OutputProjection,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        if native.receipt().is_some_and(|receipt| {
-            receipt.operator()
-                != native
-                    .linearization()
-                    .relation()
-                    .state_jacobian()
-                    .agreement_fingerprint()
-        }) {
-            return Err(invalid(
-                "execution receipt differs from the paired state Jacobian",
-            ));
+        for point in native.points() {
+            if point.receipt().is_some_and(|receipt| {
+                receipt.operator()
+                    != point
+                        .linearization()
+                        .relation()
+                        .state_jacobian()
+                        .agreement_fingerprint()
+            }) {
+                return Err(invalid(
+                    "execution receipt differs from the paired state Jacobian",
+                ));
+            }
+            if point.linearization().relation().design_values() != native.parameter_values() {
+                return Err(invalid(
+                    "trajectory steps differ in their accepted Parameter point",
+                ));
+            }
         }
-        let acceptance = evidence::Acceptance::new(&identity, native.linearization())?;
+        let acceptance = native
+            .points()
+            .iter()
+            .map(|point| evidence::Acceptance::new(&identity, point.linearization()))
+            .collect::<Result<Vec<_>, _>>()?;
+        DifferentiableValues::from_coordinates(
+            identity.outputs.clone(),
+            native.outputs(&projection)?,
+        )?;
         Ok(Self {
             point: DifferentiableValues::from_coordinates(
                 identity.inputs.clone(),
-                native.linearization().relation().design_values().to_vec(),
+                native.parameter_values().to_vec(),
             )?,
+            unknowns: native.accepted_unknowns(),
             identity,
             acceptance,
             native,
+            projection,
             backend,
         })
     }
@@ -242,7 +270,7 @@ fn accept_plan_point(
     outputs: &[RawId],
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonDifferentiationPoint, Diagnostic> {
+) -> Result<NativeEvaluation, Diagnostic> {
     let plan = context.plan();
     let initial = context.initial();
     let initial = initial.as_ref();
@@ -250,7 +278,8 @@ fn accept_plan_point(
         return plan
             .as_spatial()
             .ok_or_else(|| invalid("Run differentiation requires its spatial Plan"))?
-            .differentiate_step(request.native(), selected, values, outputs, backend);
+            .differentiate_trajectory(request.native(), selected, values, outputs, backend)
+            .map(|trajectory| NativeEvaluation::Trajectory(Box::new(trajectory)));
     }
     match plan {
         ResolvedCommonPlan::Spatial(plan) => plan.differentiate(
@@ -281,6 +310,7 @@ fn accept_plan_point(
             "this Plan does not admit implicit output differentiation",
         )),
     }
+    .map(|point| NativeEvaluation::Point(Box::new(point)))
 }
 
 /// Typed projections of the same seed owner; wrong families never become absence.

@@ -431,16 +431,16 @@ fn assert_evaluation_matches(
         expected_primal.output().fixture_coordinates().as_slice(),
     );
     assert_eq!(
-        actual_primal.evidence().state_system(),
-        expected_primal.evidence().state_system()
+        actual_primal.evidence().steps()[0].state_system(),
+        expected_primal.evidence().steps()[0].state_system()
     );
     assert_eq!(
-        actual_primal.evidence().accepted_state(),
-        expected_primal.evidence().accepted_state()
+        actual_primal.evidence().steps()[0].accepted_state(),
+        expected_primal.evidence().steps()[0].accepted_state()
     );
     assert_eq!(
-        actual_primal.evidence().primal_solve(),
-        expected_primal.evidence().primal_solve()
+        actual_primal.evidence().steps()[0].primal_solve(),
+        expected_primal.evidence().steps()[0].primal_solve()
     );
     assert_eq!(actual_primal.evidence(), expected_primal.evidence());
 }

@@ -1,0 +1,332 @@
+//! Continuity-checked composition of accepted discrete residual actions.
+use super::*;
+mod partials;
+pub use partials::DiscreteTrajectoryLinearization;
+
+/// One explicit accepted-state boundary inside a discrete adjoint trajectory.
+///
+/// `after_step` counts completed steps and therefore identifies a boundary
+/// strictly inside a trajectory. Artifact layers may construct this from a
+/// separately validated checkpoint/restart edge.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiscreteTrajectoryCheckpoint {
+    after_step: usize,
+    time: f64,
+    state: Vec<f64>,
+}
+
+impl DiscreteTrajectoryCheckpoint {
+    /// Construct a finite, nonempty interior boundary candidate.
+    ///
+    /// # Errors
+    /// Returns `EQ0704` for step zero, empty state, or non-finite data.
+    pub fn new(after_step: usize, time: f64, state: Vec<f64>) -> Result<Self, Diagnostic> {
+        if after_step == 0
+            || !time.is_finite()
+            || state.is_empty()
+            || state.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid_linearization(
+                "discrete trajectory checkpoint requires a positive completed-step index, finite time, and nonempty finite state",
+            ));
+        }
+        Ok(Self {
+            after_step,
+            time,
+            state,
+        })
+    }
+
+    /// Number of completed steps at this boundary.
+    #[must_use]
+    pub const fn after_step(&self) -> usize {
+        self.after_step
+    }
+
+    /// Accepted model time at the boundary.
+    #[must_use]
+    pub const fn time(&self) -> f64 {
+        self.time
+    }
+
+    /// Accepted canonical state at the boundary.
+    #[must_use]
+    pub fn state(&self) -> &[f64] {
+        &self.state
+    }
+}
+
+/// Reverse accumulation result over one validated discrete trajectory.
+#[derive(Debug)]
+pub struct DiscreteTrajectoryAdjoint {
+    initial_state_cotangent: Vec<f64>,
+    parameter_gradient: Vec<f64>,
+    step_adjoints: Vec<LinearSolution>,
+}
+
+impl DiscreteTrajectoryAdjoint {
+    /// Total derivative with respect to the accepted initial state.
+    #[must_use]
+    pub fn initial_state_cotangent(&self) -> &[f64] {
+        &self.initial_state_cotangent
+    }
+
+    /// Total derivative with respect to the common model Parameter vector.
+    #[must_use]
+    pub fn parameter_gradient(&self) -> &[f64] {
+        &self.parameter_gradient
+    }
+
+    /// Accepted transposed solve for every step, in forward-time order.
+    #[must_use]
+    pub fn step_adjoints(&self) -> &[LinearSolution] {
+        &self.step_adjoints
+    }
+}
+
+/// Compose reverse-mode cotangents over accepted discrete step relations.
+///
+/// Every step must use the direct-sum Parameter layout
+/// `[previous_state, common model Parameters]`. State/Parameter identity,
+/// accepted boundary values, time continuity, checkpoint boundaries, and all
+/// primal residuals are validated before the first transposed solve. Each step
+/// retains its own accepted residual threshold and optional canonical sparse
+/// action; there is no shared tolerance that can relax a step's acceptance.
+///
+/// `output_cotangents` contains one objective covector for each selected step
+/// output, in forward-time order (zero for an unobserved step).
+/// `direct_parameter_cotangent`
+/// is the trajectory objective's direct `J_p`. The gradient does not
+/// differentiate through nonlinear iterations, adaptive controllers, or
+/// checkpoint serialization.
+///
+/// # Errors
+/// Returns `EQ0704` for an empty/discontinuous trajectory, incompatible
+/// layouts, invalid checkpoint boundary, unaccepted primal step, or objective
+/// shape/value mismatch; solver diagnostics remain unchanged.
+pub fn discrete_trajectory_adjoint<
+    R: DiscreteStepLinearization + ?Sized,
+    O: LinearizedOutput<f64> + ?Sized,
+>(
+    steps: &[AcceptedOutputLinearization<'_, R, O>],
+    checkpoints: &[DiscreteTrajectoryCheckpoint],
+    output_cotangents: &[&[f64]],
+    direct_parameter_cotangent: &[f64],
+    properties: LinearOperatorProperties,
+    solver: LinearSolveRequest<'_>,
+) -> Result<DiscreteTrajectoryAdjoint, Diagnostic> {
+    let relations = steps
+        .iter()
+        .map(|step| step.relation().relation())
+        .collect::<Vec<_>>();
+    validate_discrete_trajectory(&relations, checkpoints)?;
+    let state_dimension = relations[0].state_coordinates().len();
+    validate_direction(
+        direct_parameter_cotangent,
+        relations[0].model_parameter_coordinates().len(),
+    )?;
+    if output_cotangents.len() != steps.len() {
+        return Err(invalid_linearization(
+            "trajectory requires one objective covector per accepted step",
+        ));
+    }
+    for (step, cotangent) in steps.iter().zip(output_cotangents) {
+        validate_direction(cotangent, step.output().output_dimension())?;
+    }
+    let mut state_cotangent = vec![0.; state_dimension];
+    let mut parameter_gradient = direct_parameter_cotangent.to_vec();
+
+    let mut step_adjoints = Vec::with_capacity(steps.len());
+
+    for (step, objective) in steps.iter().zip(output_cotangents).rev() {
+        let relation = step.relation().relation();
+        let mut unknown = vec![0.; relation.unknown_dimension()];
+        let mut parameter = vec![0.; relation.parameter_dimension()];
+        step.output().vjp(objective, &mut unknown, &mut parameter)?;
+        let mut future_unknown = vec![0.; relation.unknown_dimension()];
+        let mut future_parameter = vec![0.; relation.parameter_dimension()];
+        relation.state_output().vjp(
+            &state_cotangent,
+            &mut future_unknown,
+            &mut future_parameter,
+        )?;
+        for (total, future) in unknown
+            .iter_mut()
+            .chain(&mut parameter)
+            .zip(future_unknown.iter().chain(&future_parameter))
+        {
+            *total += future;
+        }
+        let adjoint = adjoint_gradient(step.relation(), &unknown, &parameter, properties, solver)?;
+        let (solve, gradient) = adjoint.into_parts();
+        state_cotangent.copy_from_slice(&gradient[..state_dimension]);
+        for (total, contribution) in parameter_gradient
+            .iter_mut()
+            .zip(&gradient[state_dimension..])
+        {
+            *total += contribution;
+        }
+        if state_cotangent
+            .iter()
+            .chain(&parameter_gradient)
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid_linearization(
+                "discrete trajectory adjoint accumulation produced a non-finite value",
+            ));
+        }
+        step_adjoints.push(solve);
+    }
+    step_adjoints.reverse();
+    Ok(DiscreteTrajectoryAdjoint {
+        initial_state_cotangent: state_cotangent,
+        parameter_gradient,
+        step_adjoints,
+    })
+}
+
+/// Propagate an initial-state and Model Parameter direction through accepted steps.
+///
+/// Results are in forward-time order. Each contains the implicit-state solve
+/// and selected output tangent, including direct Parameter contributions.
+/// A separate complete-state projection propagates history from that same solve.
+/// All coordinate, time and checkpoint boundaries and both input directions are
+/// validated before solving. This differentiates the frozen discrete equations,
+/// not iterations, adaptive controllers or checkpoint serialization.
+///
+/// # Errors
+/// Returns `EQ0704` for incompatible trajectory metadata or non-finite/wrong-size
+/// directions; preserves relation, output and solver diagnostics.
+pub fn discrete_trajectory_sensitivity<
+    R: DiscreteStepLinearization + ?Sized,
+    O: LinearizedOutput<f64> + ?Sized,
+>(
+    steps: &[AcceptedOutputLinearization<'_, R, O>],
+    checkpoints: &[DiscreteTrajectoryCheckpoint],
+    initial_state_tangent: &[f64],
+    parameter_tangent: &[f64],
+    properties: LinearOperatorProperties,
+    solver: LinearSolveRequest<'_>,
+) -> Result<Vec<ForwardOutputSensitivity>, Diagnostic> {
+    let relations = steps
+        .iter()
+        .map(|step| step.relation().relation())
+        .collect::<Vec<_>>();
+    validate_discrete_trajectory(&relations, checkpoints)?;
+    let state_dimension = relations[0].state_coordinates().len();
+    validate_direction(initial_state_tangent, state_dimension)?;
+    validate_direction(
+        parameter_tangent,
+        relations[0].model_parameter_coordinates().len(),
+    )?;
+    let mut direction = initial_state_tangent.to_vec();
+    direction.extend_from_slice(parameter_tangent);
+    let mut results = Vec::with_capacity(steps.len());
+    for step in steps {
+        let sensitivity = forward_output_sensitivity(step, &direction, properties, solver)?;
+        let mut next = vec![0.; state_dimension];
+        step.relation().relation().state_output().jvp(
+            sensitivity.state().values(),
+            &direction,
+            &mut next,
+        )?;
+        validate_direction(&next, state_dimension)?;
+        direction[..state_dimension].copy_from_slice(&next);
+        results.push(sensitivity);
+    }
+    Ok(results)
+}
+
+fn validate_direction(values: &[f64], dimension: usize) -> Result<(), Diagnostic> {
+    if values.len() != dimension || values.iter().any(|value| !value.is_finite()) {
+        return Err(invalid_linearization(
+            "trajectory direction requires exact finite coordinates",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
+    steps: &[&R],
+    checkpoints: &[DiscreteTrajectoryCheckpoint],
+) -> Result<(), Diagnostic> {
+    let Some(first) = steps.first().copied() else {
+        return Err(invalid_linearization(
+            "discrete trajectory differentiation requires at least one step",
+        ));
+    };
+    let state_coordinates = first.state_coordinates();
+    let parameter_fields = first.model_parameter_coordinates();
+    let parameter_values = first.model_parameter_values();
+    let state_dimension = state_coordinates.len();
+    let parameter_dimension = parameter_fields.len();
+    if state_dimension == 0 || parameter_values.len() != parameter_dimension {
+        return Err(invalid_linearization(
+            "discrete trajectory reference coordinate layout is invalid",
+        ));
+    }
+    for (index, step) in steps.iter().copied().enumerate() {
+        if step.state_coordinates() != state_coordinates
+            || step.model_parameter_coordinates() != parameter_fields
+            || step.model_parameter_values() != parameter_values
+            || step.previous_state_parameter_dimension() != state_dimension
+            || step.residual_dimension() != step.unknown_dimension()
+            || Some(step.parameter_dimension()) != state_dimension.checked_add(parameter_dimension)
+            || step.previous_state().len() != state_dimension
+            || step.next_state().len() != state_dimension
+            || !step.start_time().is_finite()
+            || !step.end_time().is_finite()
+            || step.start_time() >= step.end_time()
+            || step
+                .previous_state()
+                .iter()
+                .chain(step.next_state())
+                .chain(step.model_parameter_values())
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid_linearization(format!(
+                "discrete trajectory step {index} has an incompatible layout or non-finite accepted point"
+            )));
+        }
+        validate_output_layout(step, step.state_output())?;
+        let mut next = vec![0.; step.state_output().output_dimension()];
+        step.state_output().primal(&mut next)?;
+        if next != step.next_state() {
+            return Err(invalid_linearization(format!(
+                "discrete trajectory step {index} output differs from its accepted next state"
+            )));
+        }
+        if index > 0 {
+            let previous = steps[index - 1];
+            if previous.end_time() != step.start_time()
+                || previous.next_state() != step.previous_state()
+            {
+                return Err(invalid_linearization(format!(
+                    "discrete trajectory step boundary {index} is discontinuous"
+                )));
+            }
+        }
+    }
+    let mut previous_boundary = 0;
+    for checkpoint in checkpoints {
+        if checkpoint.after_step() <= previous_boundary || checkpoint.after_step() >= steps.len() {
+            return Err(invalid_linearization(
+                "discrete trajectory checkpoints must be unique, ordered, and strictly interior",
+            ));
+        }
+        let left = steps[checkpoint.after_step() - 1];
+        let right = steps[checkpoint.after_step()];
+        if checkpoint.state().len() != state_dimension
+            || checkpoint.time() != left.end_time()
+            || checkpoint.time() != right.start_time()
+            || checkpoint.state() != left.next_state()
+            || checkpoint.state() != right.previous_state()
+        {
+            return Err(invalid_linearization(
+                "discrete trajectory checkpoint does not match both accepted step boundaries",
+            ));
+        }
+        previous_boundary = checkpoint.after_step();
+    }
+    Ok(())
+}

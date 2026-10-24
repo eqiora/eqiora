@@ -46,23 +46,23 @@ def test_spatial_step_program_products_and_collection(nonlinear, complex_field):
     p, derivative = (10., 1/13) if nonlinear else (4., .5)
     # h=phase*v, v_previous=0: v+v^3=p or 2v=p.
     point = program.evaluate((p,))
-    np.testing.assert_allclose(point.primal().output[0], [2*phase]*3, rtol=0, atol=1e-10)
-    np.testing.assert_allclose(physical.evaluate((p,)).primal().output[0], [2*phase]*3,
+    np.testing.assert_allclose(point.primal().output[0], [[2*phase]*3], rtol=0, atol=1e-10)
+    np.testing.assert_allclose(physical.evaluate((p,)).primal().output[0], [[2*phase]*3],
                                rtol=0, atol=1e-10)
-    np.testing.assert_allclose(point.jvp((1.,)).tangent[0], [phase*derivative]*3,
+    np.testing.assert_allclose(point.jvp((1.,)).tangent[0], [[phase*derivative]*3],
                                rtol=0, atol=1e-10)
     weight = 1+3j if complex_field else 1.
     pairing = 7. if complex_field else 1.
-    np.testing.assert_allclose(point.vjp((np.full(3, weight),)).input_cotangent,
+    np.testing.assert_allclose(point.vjp((np.full((1, 3), weight),)).input_cotangent,
                                [3*pairing*derivative], rtol=0, atol=1e-10)
     collection = program.map((np.array([2., p, p]),), point_shape=(3,)).execute_recorded()
     encoded = collection.to_bytes()
     reopened = q.EvaluationCollection.from_bytes(encoded)
     assert reopened.to_bytes() == encoded
     for member, value in zip(reopened[0], [phase, 2*phase, 2*phase], strict=True):
-        np.testing.assert_allclose(member.result.output[0], [value]*3, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(member.result.output[0], [[value]*3], rtol=0, atol=1e-10)
     shared = program.map((), point_shape=(2,), shared_inputs=(parameter,), shared=(p,)).execute()
-    np.testing.assert_allclose(shared.vjp((np.full((2, 3), weight),)).shared_cotangents[0],
+    np.testing.assert_allclose(shared.vjp((np.full((2, 1, 3), weight),)).shared_cotangents[0],
                                6*pairing*derivative, rtol=0, atol=1e-10)
     assert state.to_bytes() == before
 
@@ -78,8 +78,10 @@ def test_spatial_step_program_requires_one_exact_run():
     with pytest.raises(TypeError):
         q.diff.compile(plan, **options, state=state, steps=1, output_steps=(1,),
                        until_s=1., output_times_s=(1.,))
-    with pytest.raises(q.EqioraError):
-        q.diff.compile(plan, **options, state=state, steps=2, output_steps=(2,))
+    trajectory = q.diff.compile(plan, **options, state=state, steps=2, output_steps=(2,))
+    assert trajectory.outputs[0].shape == (1, 3)
+    assert trajectory.outputs[0].sample_times_s == (2.,)
+    assert len(trajectory.primal().evidence.steps) == 2
 
 
 def held_step_program(nonlinear, complex_field, advanced):
@@ -96,3 +98,36 @@ def held_step_program(nonlinear, complex_field, advanced):
     program = q.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
                              state=state, steps=1, output_steps=(1,))
     return program, state
+
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(complex_field):
+    plan, parameter = step_plan(False, complex_field)
+    state = q.State.initial(plan, time_s=0.)
+    program = q.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
+                             state=state, steps=3, output_steps=(1, 3))
+    assert program.outputs[0].shape == (2, 3)
+    assert program.outputs[0].sample_times_s == (1., 3.)
+    assert program.inputs[0].sample_times_s is None
+    phase = 1+2j if complex_field else 1.
+    point = program.evaluate((4.,))
+    expected = np.array([[2.]*3, [3.5]*3]) * phase
+    derivative = np.array([[.5]*3, [.875]*3]) * phase
+    np.testing.assert_allclose(point.primal().output[0], expected, rtol=0, atol=1e-10)
+    forward = point.jvp((1.,))
+    np.testing.assert_allclose(forward.tangent[0], derivative, rtol=0, atol=1e-10)
+    assert len(forward.evidence.steps) == 3
+    assert all(step.derivative_solve is not None for step in forward.evidence.steps)
+    weight = 1+3j if complex_field else 1.
+    pairing = 7. if complex_field else 1.
+    np.testing.assert_allclose(point.vjp((np.full((2, 3), weight),)).input_cotangent,
+                               [4.125*pairing], rtol=0, atol=1e-10)
+    collection = program.map((np.array([4., 4.]),), point_shape=(2,)).execute_recorded()
+    encoded = collection.to_bytes()
+    reopened = q.EvaluationCollection.from_bytes(encoded)
+    assert reopened.to_bytes() == encoded
+    for member in reopened[0]:
+        np.testing.assert_allclose(member.result.output[0], expected, rtol=0, atol=1e-10)
+        assert len(member.result.evidence.steps) == 3
+    shared = program.map((), point_shape=(2,), shared_inputs=(parameter,), shared=(4.,)).execute()
+    np.testing.assert_allclose(shared.vjp((np.full((2, 2, 3), weight),)).shared_cotangents[0],
+                               8.25*pairing, rtol=0, atol=1e-10)

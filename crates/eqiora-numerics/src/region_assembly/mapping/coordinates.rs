@@ -68,6 +68,19 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
         self.ranges.last().map_or(0, |range| range.end)
     }
 
+    /// Canonical representative of every full real coordinate after quotienting.
+    pub(crate) fn full_keys(&self) -> Vec<(FieldDof, bool)> {
+        let mut keys = vec![None; self.full_count()];
+        for key in self.mapping.keys() {
+            for (part, global) in self.global_coordinates(key).enumerate() {
+                keys[global].get_or_insert((key, part == 1));
+            }
+        }
+        keys.into_iter()
+            .map(|key| key.expect("mapped full coordinate"))
+            .collect()
+    }
+
     pub(crate) fn free_count(&self) -> usize {
         self.constraints.free_count()
     }

@@ -14,6 +14,7 @@ from eqiora.diff import (
     DifferentiableVjp,
     DifferentiationEvidence,
     DifferentiationMode,
+    DifferentiationStepEvidence,
     FieldRef,
     LinearizationState,
     ParameterRef,
@@ -48,6 +49,9 @@ def check_diff_exports(
     assert_type(evidence.implementation, DerivativeImplementation)
     assert_type(evidence.linearization_state, LinearizationState)
     assert_type(evidence.plan_identity, str)
+    assert_type(evidence.steps, tuple[DifferentiationStepEvidence, ...])
+    assert_type(evidence.steps[0].primal_residual_norm, float)
+    assert_type(program.outputs[0].sample_times_s, tuple[float, ...] | None)
     assert_type(program.plan_identity, str)
     batch = program.map((np.ones(3, dtype=np.float64),), point_shape=(3,))
     assert_type(batch, eqiora.EvaluationMapPlan)

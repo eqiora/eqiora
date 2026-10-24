@@ -184,8 +184,8 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     let positive_primal = positive.primal();
     let negative_primal = negative.primal();
     assert_eq!(
-        positive_primal.evidence().state_system(),
-        negative_primal.evidence().state_system(),
+        positive_primal.evidence().steps()[0].state_system(),
+        negative_primal.evidence().steps()[0].state_system(),
         "the falsifier requires a non-injective point-to-primal-system map"
     );
     assert_eq!(
@@ -284,7 +284,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     );
     assert_eq!(leaf.signature().space(), signature.space());
     assert_eq!(leaf.components().collect::<Vec<_>>(), components);
-    let coefficient = leaf.coefficient(field_value_count - 1).unwrap();
+    let coefficient = leaf.coefficient(field_value_count - 1, None).unwrap();
     assert_eq!(
         coefficient.value_type(),
         &signature.mathematical_type().value_type
@@ -293,10 +293,13 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         coefficient.component(0).unwrap(),
         components[field_value_count - 1]
     );
-    assert!(leaf.coefficient(field_value_count).is_err());
+    assert!(leaf.coefficient(field_value_count, None).is_err());
 
     assert_eq!(
-        primal.evidence().primal_solve().unwrap().orientation(),
+        primal.evidence().steps()[0]
+            .primal_solve()
+            .unwrap()
+            .orientation(),
         LinearOperatorOrientation::Normal
     );
     assert_eq!(
@@ -314,7 +317,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .unwrap();
     assert_eq!(jvp.output(), primal.output());
     assert_eq!(
-        jvp.evidence()
+        jvp.evidence().steps()[0]
             .derivative_solve()
             .expect("JVP has one normal derivative solve")
             .orientation(),
@@ -351,7 +354,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .unwrap();
     assert_eq!(vjp.output(), primal.output());
     assert_eq!(
-        vjp.evidence()
+        vjp.evidence().steps()[0]
             .derivative_solve()
             .expect("VJP has one transposed derivative solve")
             .orientation(),
@@ -476,8 +479,8 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let default_again = program.evaluate(program.default_point()).unwrap();
     assert_eq!(default_again.primal().output(), primal.output());
     assert_eq!(
-        default_again.primal().evidence().state_system(),
-        primal.evidence().state_system()
+        default_again.primal().evidence().steps()[0].state_system(),
+        primal.evidence().steps()[0].state_system()
     );
     assert_eq!(program.identity(), alternate_evaluation.identity());
     assert_eq!(
@@ -542,8 +545,8 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     assert_eq!(recomputed.identity(), program.identity());
     assert_eq!(recomputed.primal().output(), primal.output());
     assert_eq!(
-        recomputed.primal().evidence().state_system(),
-        primal.evidence().state_system()
+        recomputed.primal().evidence().steps()[0].state_system(),
+        primal.evidence().steps()[0].state_system()
     );
 
     let (foreign, foreign_plan) = document_and_plan_with_source(

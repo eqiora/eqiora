@@ -12,6 +12,8 @@ use eqiora_assembly::{AssemblyBackend, AssemblyMap, AssemblyTargetId};
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum RegionPoint<'a> {
     Bound(&'a [f64]),
+    /// Same bound residual, differentiated in its consumed predecessor.
+    Previous(&'a [f64]),
     Independent {
         state: &'a [f64],
         rate_target: AssemblyTargetId,
@@ -23,7 +25,7 @@ pub(crate) enum RegionPoint<'a> {
 impl<'a> RegionPoint<'a> {
     fn state(self) -> &'a [f64] {
         match self {
-            Self::Bound(state) | Self::Independent { state, .. } => state,
+            Self::Bound(state) | Self::Previous(state) | Self::Independent { state, .. } => state,
         }
     }
 }
@@ -256,10 +258,14 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         let mut state = mapped_local_point(map, point.state())?;
         orient(&mut state, &packet.orientation);
         let action = match point {
-            RegionPoint::Bound(_) => match &packet.action {
+            RegionPoint::Bound(_) | RegionPoint::Previous(_) => match &packet.action {
                 RegionPacketAction::Cell { prepared, previous } => {
                     if derivative {
-                        prepared.linearize(previous, &state)?
+                        if matches!(point, RegionPoint::Previous(_)) {
+                            prepared.linearize_previous(previous, &state)?
+                        } else {
+                            prepared.linearize(previous, &state)?
+                        }
                     } else {
                         RegionLinearization {
                             residual: prepared.residual(previous, &state)?,
@@ -269,7 +275,17 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                 }
                 RegionPacketAction::Boundary(facet) => {
                     if derivative {
-                        facet.linearize(&state)?
+                        if matches!(point, RegionPoint::Previous(_)) {
+                            facet.action(
+                                &state,
+                                Some(FieldPullback::Uniform {
+                                    current: None,
+                                    rate: None,
+                                }),
+                            )?
+                        } else {
+                            facet.linearize(&state)?
+                        }
                     } else {
                         RegionLinearization {
                             residual: facet.residual(&state)?,
@@ -281,7 +297,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                     local,
                     &state,
                     derivative.then_some(FieldPullback::Uniform {
-                        current: Some(1.),
+                        current: (!matches!(point, RegionPoint::Previous(_))).then_some(1.),
                         rate: None,
                     }),
                 )?,

@@ -83,8 +83,8 @@ def test_nonlinear_spatial_products_and_recorded_collection(property_law):
         np.testing.assert_allclose(point.jvp((0., 1.)).tangent[0], [0., dr, 1.], rtol=0, atol=1e-10)
         reverse = point.vjp((np.array([2., 3., 5.]),))
         np.testing.assert_allclose(reverse.input_cotangent, [3*dp, 3*dr+5], rtol=0, atol=1e-10)
-        assert reverse.evidence.initial_state_identity == seed.digest
-        assert (point.primal().evidence.primal_solve.completed_iterations == 0) == (p == 0)
+        assert reverse.evidence.steps[0].initial_state_identity == seed.digest
+        assert (point.primal().evidence.steps[0].primal_solve.completed_iterations == 0) == (p == 0)
     if property_law:
         with pytest.raises(q.EqioraError):
             program.evaluate((-1., 2.))
@@ -98,7 +98,7 @@ def test_nonlinear_spatial_products_and_recorded_collection(property_law):
     assert reopened.to_bytes() == encoded
     for member, (p, r) in zip(reopened[0], points, strict=True):
         np.testing.assert_allclose(member.result.output[0], [1., exact(p, r)[0], r], rtol=0, atol=1e-10)
-        assert member.result.evidence.initial_state_identity == seed.digest
+        assert member.result.evidence.steps[0].initial_state_identity == seed.digest
     assert seed.to_bytes() == before
     with pytest.raises(q.EqioraError):
         q.diff.compile(plan, inputs=inputs, outputs=(plan.fields[0],))
@@ -208,7 +208,7 @@ def test_tensor_material_solution_and_total_parameter_products(property_law, com
     assert reopened.to_bytes() == encoded
     for member, p in zip(reopened[0], [.5, 2.], strict=True):
         np.testing.assert_allclose(member.result.output[0], p*profile, rtol=0, atol=1e-10)
-        assert member.result.evidence.initial_state_identity == seed.digest
+        assert member.result.evidence.steps[0].initial_state_identity == seed.digest
     assert seed.to_bytes() == before
 
 

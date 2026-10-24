@@ -57,7 +57,7 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     );
     assert_eq!(step.previous_state_parameter_dimension(), 2);
     assert_eq!(step.parameter_dimension(), 3);
-    assert_eq!(step.model_parameter_fields(), [fixture.rate]);
+    assert_eq!(step.model_parameter_coordinates(), [fixture.rate]);
     assert_eq!(step.next_time(), STEP);
     assert_eq!(step.step(), STEP);
     assert_close(next_state[0], 1.0 / 1.1, 2.0e-14);

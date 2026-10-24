@@ -23,8 +23,12 @@ cotangents cross the existing no-transfer DLPack admission boundary and then
 make one Eqiora-owned staging copy per Parameter or output-cotangent leaf.
 Primal and reverse products copy the selected read-only NumPy leaves into owned
 Tensors; native result storage is never exposed for mutation.
-Binding requires real scalar input leaves and one real output; structured or
-complex Tensor products remain outside this adapter profile.
+The public wrapper restores the exact native output leaf shape with a Tensor
+reshape outside these flat custom kernels. Fake execution and autograd use that
+same reshape, preserving scalar and sampled output axes without another numerical
+implementation. Binding requires real scalar input leaves and one real output;
+multiple output leaves and complex Tensor products remain outside this adapter
+profile.
 
 Process-local opaque tokens keep custom-operator schemas free of Python/native
 objects. PyTorch and JAX share one native registry. Registrations include the

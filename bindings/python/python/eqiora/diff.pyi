@@ -14,6 +14,7 @@ from . import (
     DifferentiableVjp as DifferentiableVjp,
     DifferentiableValueSignature as DifferentiableValueSignature,
     DifferentiationEvidence as DifferentiationEvidence,
+    DifferentiationStepEvidence as DifferentiationStepEvidence,
     DifferentiationMode as DifferentiationMode,
     FieldRef as FieldRef,
     LinearizationState as LinearizationState,
@@ -45,8 +46,9 @@ def compile(
     real before imaginary part. The input identities count Parameters; the input
     shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
-    Spatial backward-Euler Programs bind a one-step Run request through state and
-    one complete schedule family, holding its physical predecessor fixed.
+    Spatial backward-Euler Programs bind the complete Run request and initial State.
+    Outputs have a leading physical-time axis; derivatives propagate through every
+    accepted step, independently of the output schedule.
 
     Authority: ``bindings/python/python/eqiora/diff.py::compile``.
     """
@@ -62,6 +64,7 @@ __all__ = [
     "DifferentiableVjp",
     "DifferentiableValueSignature",
     "DifferentiationEvidence",
+    "DifferentiationStepEvidence",
     "DifferentiationMode",
     "FieldRef",
     "LinearizationState",

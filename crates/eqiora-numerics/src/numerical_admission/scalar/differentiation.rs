@@ -155,6 +155,7 @@ impl CommonSpatialPlan {
         Ok(PreparedPoint {
             plan: self,
             time_interval: None,
+            step_coordinates: None,
             equations,
             selected_fields,
             point,
@@ -170,6 +171,7 @@ impl CommonSpatialPlan {
 pub(in crate::numerical_admission) struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
     time_interval: Option<[f64; 2]>,
+    step_coordinates: Option<Vec<crate::numerical_admission::SpatialStepCoordinate>>,
     equations: ExecutableSpatialEquations<S>,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,

@@ -83,9 +83,9 @@ fn sparse_lu_spatial_products_keep_the_provider_and_exact_boundary_response() {
             let expected = (count * (count + 1) / 2) as f64;
             assert!((cotangent.derivative().fixture_coordinates()[0] - expected).abs() < 2e-10);
             for evidence in [
-                point.primal().evidence().primal_solve().unwrap(),
-                tangent.evidence().derivative_solve().unwrap(),
-                cotangent.evidence().derivative_solve().unwrap(),
+                point.primal().evidence().steps()[0].primal_solve().unwrap(),
+                tangent.evidence().steps()[0].derivative_solve().unwrap(),
+                cotangent.evidence().steps()[0].derivative_solve().unwrap(),
             ] {
                 assert_eq!(evidence.solver().id(), "eqiora.faer");
                 assert_eq!(evidence.algorithm(), LinearSolver::SparseLu);

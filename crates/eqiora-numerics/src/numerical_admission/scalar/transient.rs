@@ -463,6 +463,19 @@ impl ResolvedCommonPlan {
 }
 
 impl CommonState {
+    /// Coordinate payload of the current State and its immediate restart history.
+    pub(crate) fn spatial_retained_values_bytes(&self) -> Option<usize> {
+        match &self.kind {
+            CommonStateKind::Spatial { values, previous } => size_of_val(values.as_ref())
+                .checked_add(
+                    previous
+                        .as_ref()
+                        .map_or(0, |history| size_of_val(history.values.as_ref())),
+                ),
+            _ => None,
+        }
+    }
+
     /// Field-major, node-major, component-minor coefficients of this spatial State.
     pub(crate) fn spatial_values(&self) -> Option<&[f64]> {
         match &self.kind {

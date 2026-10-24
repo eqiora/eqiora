@@ -9,6 +9,7 @@ from ._eqiora import (
     DifferentiableVjp,
     DifferentiableValueSignature,
     DifferentiationEvidence,
+    DifferentiationStepEvidence,
     DifferentiationMode,
     FieldRef,
     LinearizationState,
@@ -25,6 +26,7 @@ __all__ = [
     "DifferentiableVjp",
     "DifferentiableValueSignature",
     "DifferentiationEvidence",
+    "DifferentiationStepEvidence",
     "DifferentiationMode",
     "FieldRef",
     "LinearizationState",
@@ -51,12 +53,13 @@ def compile(
     integrals require explicit ``quadrature_points``; the resulting rules belong
     to the immutable Program and its saved identity.
     Spatial backward-Euler Plans take the ordinary Run controls: ``state`` and
-    either ``steps``/``output_steps`` or ``until_s``/``output_times_s``. The current
-    admitted request is one step with its endpoint and complete Field outputs.
-    Parameter changes hold that exact preceding physical State and both endpoint
-    times fixed; these are not derivatives through earlier steps. Compilation
-    needs no previously solved canonical step. Maps and saved collections retain
-    this same request meaning and reopen accepted candidates without solving.
+    either ``steps``/``output_steps`` or ``until_s``/``output_times_s``. Complete
+    Field outputs carry a leading physical-time axis, even for one sample.
+    Parameter changes hold the initial physical State fixed; derivatives propagate
+    through all accepted steps, including unobserved intermediate steps. Maps and
+    saved collections retain the same request, and reopen every accepted candidate
+    without solving. Step evidence retains each primal and derivative solve.
+
 
     Finite affine Plans need no seed, and support real
     Observable sensitivities to typed real or complex Parameters with real or complex

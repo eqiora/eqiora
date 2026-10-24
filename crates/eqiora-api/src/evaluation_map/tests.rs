@@ -48,7 +48,7 @@ const BYTE_LIMIT: usize = 1 << 30;
 fn published_solve_provenance_reopens_without_live_program_handles() {
     let (_, program) = fixture();
     let primal = program.primal();
-    let report = primal.evidence().primal_solve().unwrap().clone();
+    let report = primal.evidence().steps()[0].primal_solve().unwrap().clone();
     let bytes = serde_json::to_vec(&report).unwrap();
     drop(primal);
     drop(program);

@@ -381,7 +381,7 @@ impl ImplicitEulerStepLinearization<'_> {
     /// Canonical model Parameters following `y_previous` in first-occurrence
     /// order.
     #[must_use]
-    pub const fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>] {
+    pub const fn model_parameter_coordinates(&self) -> &[Id<kinds::Parameter>] {
         self.model_parameter_fields
     }
 
@@ -633,12 +633,75 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
     }
 }
 
+impl eqiora_ir::LinearizedOutput<f64> for ImplicitEulerStepLinearization<'_> {
+    fn unknown_dimension(&self) -> usize {
+        self.state_dimension
+    }
+    fn parameter_dimension(&self) -> usize {
+        LinearizedRelation::parameter_dimension(self)
+    }
+    fn output_dimension(&self) -> usize {
+        self.state_dimension
+    }
+    fn primal(&self, output: &mut [f64]) -> Result<(), Diagnostic> {
+        if output.len() != self.state_dimension {
+            return Err(invalid_step_linearization(
+                self.relation,
+                "state output shape differs",
+            ));
+        }
+        output.copy_from_slice(&self.next_state);
+        Ok(())
+    }
+    fn jvp(
+        &self,
+        unknown: &[f64],
+        parameter: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        self.validate_tangent(Some(unknown), Some(parameter))?;
+        if output.len() != self.state_dimension {
+            return Err(invalid_step_linearization(
+                self.relation,
+                "state output tangent shape differs",
+            ));
+        }
+        output.copy_from_slice(unknown);
+        Ok(())
+    }
+    fn vjp(
+        &self,
+        input: &[f64],
+        unknown: &mut [f64],
+        parameter: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        self.validate_tangent(Some(input), None)?;
+        if unknown.len() != self.state_dimension
+            || parameter.len() != LinearizedRelation::parameter_dimension(self)
+        {
+            return Err(invalid_step_linearization(
+                self.relation,
+                "state output cotangent shape differs",
+            ));
+        }
+        unknown.copy_from_slice(input);
+        parameter.fill(0.);
+        Ok(())
+    }
+}
+
 impl DiscreteStepLinearization for ImplicitEulerStepLinearization<'_> {
+    type StateCoordinate = eqiora_core::TimeStateCoordinate;
+    type StateOutput = Self;
+    fn state_output(&self) -> &Self {
+        self
+    }
+    type ModelParameterCoordinate = Id<kinds::Parameter>;
     fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         self.state_coordinates
     }
 
-    fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>] {
+    fn model_parameter_coordinates(&self) -> &[Id<kinds::Parameter>] {
         self.model_parameter_fields
     }
 
