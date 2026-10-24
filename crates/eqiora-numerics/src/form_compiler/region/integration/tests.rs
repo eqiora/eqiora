@@ -312,7 +312,7 @@ fn reused_quadrature_preserves_data_and_exact_geometry_field_bindings() {
         }];
         let run = |cache: &mut QuadratureCache, value| {
             integrate_with_geometry_direction::<f64>(
-                cache,
+                Some(cache),
                 reference,
                 &fields,
                 &terms,

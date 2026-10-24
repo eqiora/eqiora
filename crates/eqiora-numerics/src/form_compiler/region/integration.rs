@@ -50,7 +50,7 @@ pub(in crate::form_compiler) fn integrate<
     values: impl Fn(&[f64], &mut [S], &mut [S], &mut [S]) -> Result<(), Diagnostic>,
 ) -> Result<LocalContribution<S>, Diagnostic> {
     integrate_with_geometry_direction(
-        &mut Default::default(),
+        None,
         reference,
         fields,
         terms,
@@ -69,7 +69,7 @@ pub(in crate::form_compiler) fn integrate<
 pub(in crate::form_compiler) fn integrate_with_geometry_direction<
     S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + SubAssign,
 >(
-    cache: &mut QuadratureCache,
+    cache: Option<&mut QuadratureCache>,
     reference: ReferenceCell,
     fields: &[IntegralField],
     terms: &[IntegralTerm],
@@ -163,11 +163,34 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         direction.map_or_else(Vec::new, |_| vec![zero; coefficients.len()]);
     let mut forcing_tangents = direction.map_or_else(Vec::new, |_| vec![zero; forcing.len()]);
     let mut flux_tangents = direction.map_or_else(Vec::new, |_| vec![zero; flux_load.len()]);
-    let samples = cache.samples(fields, &spaces, geometry, direction, quadrature)?;
-    for (point, sample) in quadrature.points().iter().zip(samples) {
-        let physical = &sample.physical;
-        let physical_tangent = &sample.physical_tangent;
-        let tabulations = &sample.tables;
+    let samples = cache
+        .map(|cache| cache.samples(fields, &spaces, geometry, direction, quadrature))
+        .transpose()?;
+    let mut physical_buffer = vec![0.0; dimension];
+    let mut tangent_buffer = vec![0.0; dimension];
+    for (index, point) in quadrature.points().iter().enumerate() {
+        let fresh;
+        let (physical, physical_tangent, tabulations) = if let Some(samples) = samples {
+            let sample = &samples[index];
+            (
+                sample.physical.as_slice(),
+                sample.physical_tangent.as_slice(),
+                sample.tables.as_slice(),
+            )
+        } else {
+            fresh = tabulation::at_point(
+                fields,
+                &spaces,
+                (geometry, direction),
+                &point.coordinates,
+                (&mut physical_buffer, &mut tangent_buffer),
+            )?;
+            (
+                physical_buffer.as_slice(),
+                tangent_buffer.as_slice(),
+                fresh.as_slice(),
+            )
+        };
         coefficients.fill(zero);
         forcing.fill(zero);
         flux_load.fill(zero);

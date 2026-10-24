@@ -41,7 +41,7 @@ fn dilation_differentiates_nodal_and_piola_mass_and_stiffness() {
             // Under x -> s x, the measure contributes s^3; each derivative
             // contributes s^-1. Edge/face moment values contribute s^-1/s^-2.
             let (primal, tangent) = integrate_with_geometry_direction(
-                &mut Default::default(),
+                None,
                 map.reference_cell(),
                 &[IntegralField {
                     space,
@@ -87,7 +87,7 @@ fn translated_coordinate_data_has_exact_p1_mass_and_load_derivatives() {
         AffineGeometryLinearization::new(map.clone(), vec![2.0, 0.0, 0.0], vec![0.0; 9]).unwrap();
     let rule = eqiora_meshing::simplex_duffy_gauss_legendre(3, 3).unwrap();
     let (_, tangent) = integrate_with_geometry_direction(
-        &mut Default::default(),
+        None,
         map.reference_cell(),
         &[IntegralField {
             space: Space::continuous_lagrange(NonZeroU16::MIN),

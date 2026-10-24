@@ -120,7 +120,7 @@ impl BoundRegionForm<f64> {
                 trial_scale: self.fields[row].scale,
             });
             let (correction, correction_tangent) = integrate_with_geometry_direction(
-                &mut Default::default(),
+                None,
                 self.reference,
                 &fields,
                 &terms,

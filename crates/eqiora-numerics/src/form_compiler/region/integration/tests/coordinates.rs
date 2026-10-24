@@ -119,7 +119,7 @@ fn complex_load_and_flux_keep_derivative_directions_separate() {
     let flux = [7., 11., 13., 17., 19., 23., 29., 31.];
     let rule = eqiora_meshing::simplex_duffy_gauss_legendre(2, 2).unwrap();
     let (result, tangent) = integrate_with_geometry_direction::<f64>(
-        &mut Default::default(),
+        None,
         map.reference_cell(),
         &[field],
         &[],
@@ -186,7 +186,7 @@ fn real_linear_curl_action_preserves_complex_edge_moments() {
     }
     let rule = eqiora_meshing::simplex_duffy_gauss_legendre(3, 3).unwrap();
     let (result, tangent) = integrate_with_geometry_direction(
-        &mut Default::default(),
+        None,
         map.reference_cell(),
         &[field],
         &terms,

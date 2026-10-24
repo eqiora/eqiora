@@ -75,7 +75,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
     /// Loads belong to the current part; independent rates carry no time-step factor.
     pub(super) fn prepare_affine_actions<P: Projection<S>>(
         &self,
-        cache: &mut super::integration::QuadratureCache,
+        cache: Option<&mut super::integration::QuadratureCache>,
         geometry: &AffineGeometryMap,
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,

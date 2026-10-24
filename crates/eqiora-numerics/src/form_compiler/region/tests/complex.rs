@@ -75,7 +75,7 @@ fn additive_complex_diffusion_preserves_flux_phase_rebinding_and_partials() {
             let local = scalar_bound(&form)
                 .unwrap()
                 .prepare_affine_actions::<Native>(
-                    &mut Default::default(),
+                    None,
                     &interval(),
                     None,
                     &rule,
@@ -181,7 +181,7 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
         assert_eq!(
             bound
                 .prepare_affine_actions::<Native>(
-                    &mut Default::default(),
+                    None,
                     &interval(),
                     None,
                     &rule,
@@ -192,7 +192,7 @@ fn conservative_real_coordinates_preserve_linear_and_conjugated_reactions() {
         );
         let (volume, _) = bound
             .prepare_affine_actions::<super::super::coordinates::Real>(
-                &mut Default::default(),
+                None,
                 &interval(),
                 None,
                 &rule,
@@ -236,13 +236,7 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
     let bound = scalar_bound(&form).unwrap();
     let rule = QuadratureRule::gauss_legendre(2).unwrap();
     let local = bound
-        .prepare_affine_actions::<Native>(
-            &mut Default::default(),
-            &interval(),
-            None,
-            &rule,
-            AffineInput::Current,
-        )
+        .prepare_affine_actions::<Native>(None, &interval(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     // Independently on [0,6]: K=a/6[[1,-1],[-1,1]],
@@ -287,26 +281,14 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
         .unwrap();
     let rebound = scalar_bound(&rebound)
         .unwrap()
-        .prepare_affine_actions::<Native>(
-            &mut Default::default(),
-            &interval(),
-            None,
-            &rule,
-            AffineInput::Current,
-        )
+        .prepare_affine_actions::<Native>(None, &interval(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     complex_close(rebound.matrix()[0], C::new(3., 5.));
     complex_close(rebound.matrix()[1], C::new(0., 1.));
     complex_close(
         bound
-            .prepare_affine_actions::<Native>(
-                &mut Default::default(),
-                &interval(),
-                None,
-                &rule,
-                AffineInput::Current,
-            )
+            .prepare_affine_actions::<Native>(None, &interval(), None, &rule, AffineInput::Current)
             .map(|(primal, _)| primal)
             .unwrap()
             .matrix()[0],

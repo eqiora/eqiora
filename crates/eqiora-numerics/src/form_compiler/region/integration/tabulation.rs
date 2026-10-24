@@ -2,10 +2,39 @@
 use super::*;
 use crate::discrete_space::PhysicalBasisTabulation;
 
+type Tables = Vec<(PhysicalBasisTabulation, Option<PhysicalBasisTabulation>)>;
+
 pub(super) struct Sample {
     pub physical: Vec<f64>,
     pub physical_tangent: Vec<f64>,
-    pub tables: Vec<(PhysicalBasisTabulation, Option<PhysicalBasisTabulation>)>,
+    pub tables: Tables,
+}
+
+pub(super) fn at_point(
+    fields: &[IntegralField],
+    spaces: &[DiscreteSpace],
+    geometry: (&AffineGeometryMap, Option<&AffineGeometryLinearization>),
+    coordinates: &[f64],
+    physical: (&mut [f64], &mut [f64]),
+) -> Result<Tables, Diagnostic> {
+    let (geometry, direction) = geometry;
+    let (physical, physical_tangent) = physical;
+    match direction {
+        Some(direction) => direction.map_point_jvp(coordinates, physical, physical_tangent)?,
+        None => geometry.map_point(coordinates, physical)?,
+    }
+    spaces
+        .iter()
+        .zip(fields)
+        .map(|(space, field)| match direction {
+            Some(direction) => space
+                .tabulate_field_linearized(direction, coordinates, field.components)
+                .map(|(primal, tangent)| (primal, Some(tangent))),
+            None => space
+                .tabulate_field_on(geometry, coordinates, field.components)
+                .map(|primal| (primal, None)),
+        })
+        .collect::<Result<Vec<_>, _>>()
 }
 
 struct Cell {
@@ -46,30 +75,13 @@ impl QuadratureCache {
             .map(|point| {
                 let mut physical = vec![0.0; geometry.physical_dimension()];
                 let mut physical_tangent = vec![0.0; geometry.physical_dimension()];
-                match direction {
-                    Some(direction) => direction.map_point_jvp(
-                        &point.coordinates,
-                        &mut physical,
-                        &mut physical_tangent,
-                    )?,
-                    None => geometry.map_point(&point.coordinates, &mut physical)?,
-                }
-                let tables = spaces
-                    .iter()
-                    .zip(fields)
-                    .map(|(space, field)| match direction {
-                        Some(direction) => space
-                            .tabulate_field_linearized(
-                                direction,
-                                &point.coordinates,
-                                field.components,
-                            )
-                            .map(|(primal, tangent)| (primal, Some(tangent))),
-                        None => space
-                            .tabulate_field_on(geometry, &point.coordinates, field.components)
-                            .map(|primal| (primal, None)),
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let tables = at_point(
+                    fields,
+                    spaces,
+                    (geometry, direction),
+                    &point.coordinates,
+                    (&mut physical, &mut physical_tangent),
+                )?;
                 Ok(Sample {
                     physical,
                     physical_tangent,
