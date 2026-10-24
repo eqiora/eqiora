@@ -195,8 +195,13 @@ class _Solve(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *cotangents):
         parameters = ctx.saved_tensors
-        result = _Product.apply(ctx.token, ctx.shape, [], True, len(parameters),
-                                *parameters, *cotangents)
+        # Keep the transform boundary only when constructing a derivative graph.
+        if torch.is_grad_enabled():
+            result = _Product.apply(ctx.token, ctx.shape, [], True, len(parameters),
+                                    *parameters, *cotangents)
+        else:
+            result = _product(list(parameters), list(cotangents), ctx.token,
+                              ctx.shape, [], True)
         return None, None, *result
 
     @staticmethod
