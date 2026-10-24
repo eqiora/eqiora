@@ -251,7 +251,7 @@ pub mod backends {
     /// SUNDIALS residual-native adaptive DAE adapter.
     #[cfg(feature = "sundials")]
     pub mod sundials {
-        pub use eqiora_backend_sundials::*;
+        pub use eqiora_backend_sundials::IdaTimeBackend;
     }
 
     /// Diffsol adaptive ODE and mass-matrix DAE adapter.
