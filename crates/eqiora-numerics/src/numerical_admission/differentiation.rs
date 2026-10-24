@@ -4,7 +4,9 @@ use crate::nonlinear_execution::NewtonInitialPoint;
 use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 mod output;
+mod step;
 pub(super) use output::Output;
+pub use step::{CommonDiscreteStepLinearization, SpatialStepCoordinate};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
@@ -102,7 +104,7 @@ impl CommonDifferentiationPoint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonDifferentiationLinearization {
     relation: AssembledLinearizedRelation,
-    previous_state_jacobian: Option<eqiora_assembly::CsrMatrix<f64>>,
+    history: Option<step::StepHistory>,
     state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
     residual_target: f64,
@@ -129,7 +131,7 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
-            previous_state_jacobian: None,
+            history: None,
             state_scalar_domain,
             output,
             residual_target,
@@ -146,7 +148,7 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
-            previous_state_jacobian: None,
+            history: None,
             state_scalar_domain,
             output: Output::Dense(output),
             residual_target,
@@ -154,27 +156,53 @@ impl CommonDifferentiationLinearization {
         }
     }
 
-    /// Sparse residual derivative in the preceding State's free coordinates.
-    /// Present for a fixed-history spatial step. This is a partial action, not
-    /// a derivative through earlier accepted steps; Model Parameter products
-    /// continue to hold that physical predecessor fixed.
+    /// Borrow this step with its predecessor and Model Parameters as separate inputs.
+    /// Absent for a stationary point or an unimplemented coordinate transition.
+    /// The view reuses the same accepted residual
+    /// and sparse actions; it does not itself differentiate a whole trajectory.
     #[must_use]
-    pub const fn previous_state_jacobian(&self) -> Option<&eqiora_assembly::CsrMatrix<f64>> {
-        self.previous_state_jacobian.as_ref()
+    pub fn discrete_step(&self) -> Option<CommonDiscreteStepLinearization<'_>> {
+        self.history
+            .as_ref()
+            .map(|history| CommonDiscreteStepLinearization {
+                point: self,
+                history,
+            })
     }
 
-    pub(super) fn with_previous_state_jacobian(
+    pub(super) fn with_step_history(
         mut self,
         jacobian: eqiora_assembly::CsrMatrix<f64>,
+        coordinates: Vec<SpatialStepCoordinate>,
+        previous: Vec<f64>,
+        interval: [f64; 2],
+        output: crate::linearized_output::FieldCoefficientLinearization,
     ) -> Result<Self, Diagnostic> {
+        let dimension = coordinates.len();
         if jacobian.rows() != self.relation.residual_dimension()
-            || jacobian.columns() != self.relation.unknown_dimension()
+            || jacobian.columns() != dimension
+            || output.output_dimension() != dimension
+            || output.unknown_dimension() != self.relation.unknown_dimension()
+            || output.parameter_dimension() != self.relation.parameter_dimension()
+            || previous.len() != dimension
+            || previous.iter().any(|v| !v.is_finite())
+            || interval.iter().any(|v| !v.is_finite())
+            || interval[0] >= interval[1]
+            || dimension
+                .checked_add(self.relation.parameter_dimension())
+                .is_none()
         {
             return Err(invalid(
-                "previous-state Jacobian differs from the accepted coordinate layout",
+                "step history differs from the accepted coordinate layout or time interval",
             ));
         }
-        self.previous_state_jacobian = Some(jacobian);
+        self.history = Some(step::StepHistory {
+            jacobian,
+            coordinates,
+            previous,
+            interval,
+            output,
+        });
         Ok(self)
     }
 

@@ -2,7 +2,7 @@
 use super::*;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
 use eqiora_schema::kernel::KernelNode;
-use eqiora_solver::{LinearOperator, LinearOperatorOrientation};
+use eqiora_solver::LinearOperatorOrientation;
 
 #[test]
 fn accepted_step_parameter_products_hold_physical_history_fixed() {
@@ -241,13 +241,17 @@ fn previous_tangent(
     point: &crate::CommonDifferentiationLinearization,
 ) -> Vec<f64> {
     let relation = point.relation();
-    let previous = point
-        .previous_state_jacobian()
-        .expect("step history action");
+    let step = point.discrete_step().expect("step history action");
+    let mut direction =
+        vec![-1.; eqiora_ir::DiscreteStepLinearization::previous_state_parameter_dimension(&step)];
+    direction.extend(vec![0.; relation.parameter_dimension()]);
     let mut rhs = vec![0.; relation.residual_dimension()];
-    previous
-        .apply(&vec![-1.; relation.unknown_dimension()], &mut rhs)
-        .unwrap();
+    LinearizedRelation::jvp(
+        &step,
+        eqiora_ir::RelationTangent::Parameter(&direction),
+        &mut rhs,
+    )
+    .unwrap();
     let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
         .solve_canonical_oriented(
             relation.state_jacobian(),

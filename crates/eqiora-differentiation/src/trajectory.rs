@@ -119,14 +119,15 @@ pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
         direct_parameter_cotangent,
     )?;
     let state_dimension = relations[0].state_coordinates().len();
-    let parameter_dimension = relations[0].model_parameter_coordinates().len();
     let mut state_cotangent = terminal_state_cotangent.to_vec();
     let mut parameter_gradient = direct_parameter_cotangent.to_vec();
-    let step_direct = vec![0.0; state_dimension + parameter_dimension];
+
     let mut step_adjoints = Vec::with_capacity(steps.len());
 
     for step in steps.iter().rev() {
-        let adjoint = adjoint_gradient(step, &state_cotangent, &step_direct, properties, solver)?;
+        let projected =
+            AcceptedOutputLinearization::from_relation(*step, step.relation().state_output())?;
+        let adjoint = adjoint_output_gradient(&projected, &state_cotangent, properties, solver)?;
         let (solve, gradient) = adjoint.into_parts();
         state_cotangent.copy_from_slice(&gradient[..state_dimension]);
         for (total, contribution) in parameter_gradient
@@ -188,8 +189,7 @@ fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
             || step.model_parameter_coordinates() != parameter_fields
             || step.model_parameter_values() != parameter_values
             || step.previous_state_parameter_dimension() != state_dimension
-            || step.unknown_dimension() != state_dimension
-            || step.residual_dimension() != state_dimension
+            || step.residual_dimension() != step.unknown_dimension()
             || step.parameter_dimension() != state_dimension + parameter_dimension
             || step.previous_state().len() != state_dimension
             || step.next_state().len() != state_dimension
@@ -205,6 +205,14 @@ fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
         {
             return Err(invalid_linearization(format!(
                 "discrete trajectory step {index} has an incompatible layout or non-finite accepted point"
+            )));
+        }
+        validate_output_layout(step, step.state_output())?;
+        let mut next = vec![0.; step.state_output().output_dimension()];
+        step.state_output().primal(&mut next)?;
+        if next != step.next_state() {
+            return Err(invalid_linearization(format!(
+                "discrete trajectory step {index} output differs from its accepted next state"
             )));
         }
         if index > 0 {

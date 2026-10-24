@@ -30,6 +30,13 @@ pub struct AcceptedLinearization<'a, R: LinearizedRelation<f64> + ?Sized> {
     state_jacobian: Option<(&'a CanonicalCsrSystemView, eqiora_core::ScalarDomain)>,
 }
 
+impl<R: LinearizedRelation<f64> + ?Sized> Copy for AcceptedLinearization<'_, R> {}
+impl<R: LinearizedRelation<f64> + ?Sized> Clone for AcceptedLinearization<'_, R> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 /// One accepted relation and output projection bound for a derivative action.
 ///
 /// Forward and reverse mode take this pair, so callers cannot pass an output

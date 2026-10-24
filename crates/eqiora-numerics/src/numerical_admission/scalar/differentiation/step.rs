@@ -158,6 +158,28 @@ where
                 "step Parameter point changed the exact Field constraint layout",
             ));
         }
+        // History belongs to the original point, not the changed Parameters.
+        // A changing free-coordinate layout needs a separate transition action;
+        // it does not invalidate the existing fixed-history Parameter product.
+        let (old_mapping, _) = self.plan.scalar_assembly_at(template, previous_time)?;
+        self.step_coordinates = if old_mapping.has_same_coordinate_layout(&mapping) {
+            let identity: std::sync::Arc<str> = self.plan.identity().into();
+            Some(
+                RegionRealCoordinates::new(&mapping)?
+                    .full_keys()
+                    .into_iter()
+                    .map(
+                        |(key, imaginary)| crate::numerical_admission::SpatialStepCoordinate {
+                            plan: identity.clone(),
+                            key,
+                            imaginary,
+                        },
+                    )
+                    .collect(),
+            )
+        } else {
+            None
+        };
         input.previous = Some(history);
         Ok((mapping, input))
     }
@@ -221,13 +243,81 @@ where
                 &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
             )?,
         };
+        self.assembled_linearization(mapping, input, values, assembly, target, initial)
+    }
+
+    pub(super) fn attach_step_history(
+        &self,
+        point: CommonDifferentiationLinearization,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        output: FieldCoefficientLinearization,
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        let keys = self
+            .step_coordinates
+            .as_ref()
+            .expect("prepared history coordinates");
+        let coordinates = RegionRealCoordinates::new(mapping)?;
+        let prepared = match self.plan.admission.resources() {
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                coordinates.prepare_assembly(mesh.mesh(), input)?
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
+                coordinates.prepare_assembly(mesh.mesh(), input)?
+            }
+            _ => {
+                return Err(invalid(
+                    "step history requires the exact admitted affine Mesh",
+                ));
+            }
+        };
         let previous = prepared.work.linearize(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
-            RegionPoint::Previous(&values),
+            RegionPoint::Previous(point.relation().accepted_unknowns()),
             &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
         )?;
-        self.assembled_linearization(mapping, input, values, assembly, target, initial)?
-            .with_previous_state_jacobian(previous.systems[0].matrix().clone())
+        // Restrict residual rows only. Prescribed predecessor columns remain
+        // independent physical history inputs; their derivatives are supplied
+        // by the preceding step's complete-state output projection.
+        let full = previous.systems[1].matrix();
+        let mut rows =
+            vec![std::collections::BTreeMap::<usize, f64>::new(); coordinates.free_count()];
+        for global in 0..full.rows() {
+            if let Some(row) = coordinates.free_coordinate(global) {
+                for entry in full.row_offsets()[global]..full.row_offsets()[global + 1] {
+                    *rows[row].entry(full.column_indices()[entry]).or_default() +=
+                        full.values()[entry];
+                }
+            }
+        }
+        let mut offsets = vec![0];
+        let mut columns = Vec::new();
+        let mut entries = Vec::new();
+        for row in rows {
+            for (column, value) in row {
+                columns.push(column);
+                entries.push(value);
+            }
+            offsets.push(entries.len());
+        }
+        let jacobian = eqiora_assembly::CsrMatrix::from_sorted_csr(
+            coordinates.free_count(),
+            coordinates.full_count(),
+            offsets,
+            columns,
+            entries,
+        )?;
+        let preceding = coordinates.encode_full(&mapping.normalized_coefficients(
+            input.previous.as_ref().expect("prepared physical history"),
+        )?)?;
+        point.with_step_history(
+            jacobian,
+            keys.clone(),
+            preceding,
+            self.time_interval.expect("prepared step interval"),
+            output,
+        )
     }
 }

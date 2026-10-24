@@ -166,6 +166,11 @@ pub trait DiscreteStepLinearization: LinearizedRelation<f64> {
     type StateCoordinate: Eq;
     /// Exact real coordinate of a selected model Parameter.
     type ModelParameterCoordinate: Eq;
+    /// Complete state projection, including eliminated constraints.
+    type StateOutput: LinearizedOutput<f64> + ?Sized;
+
+    /// Projection from implicit unknowns and step Parameters to the next state.
+    fn state_output(&self) -> &Self::StateOutput;
 
     /// Canonical state coordinate order shared by previous and next states.
     fn state_coordinates(&self) -> &[Self::StateCoordinate];

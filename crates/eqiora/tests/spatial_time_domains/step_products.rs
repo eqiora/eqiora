@@ -157,6 +157,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
     };
     let parameter = document.parameter_ref("p").unwrap().id();
     let field = document.field_ref("h").unwrap().id().erase();
+    let mut products = Vec::new();
     for (index, (_, step)) in steps.iter().enumerate() {
         let step_request = CommonTransientRunRequest::from_steps(
             plan.clone(),
@@ -209,6 +210,50 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             assert!((actual - expected).abs() < 1e-10);
         }
         assert_eq!(step.state().to_bytes().unwrap(), before);
+        products.push(product);
+    }
+    // Full trajectory: (13/3)y_n=(1/3)y_prev+(1/6)g_prev+(23/6)g_n,
+    // g_n=n*p. Thus d_0=0, d_1=23/26, d_2=317/169.
+    // The initial physical state is independent even at prescribed nodes.
+    let relations = products
+        .iter()
+        .map(|point| point.discrete_step().unwrap())
+        .collect::<Vec<_>>();
+    let accepted = relations
+        .iter()
+        .zip(&products)
+        .map(|(relation, point)| {
+            eqiora::differentiation::AcceptedLinearization::new_with_canonical_state_jacobian(
+                relation,
+                point.relation().state_jacobian(),
+                point.state_scalar_domain(),
+                point.residual_target(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    for (coordinate, expected) in [2., 317. / 169., 2.].into_iter().enumerate() {
+        let mut terminal = vec![0.; 3];
+        terminal[coordinate] = 1.;
+        let derivative = eqiora::differentiation::discrete_trajectory_adjoint(
+            &accepted,
+            &[],
+            &terminal,
+            &[0.],
+            products[0].relation().state_jacobian().properties(),
+            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear()),
+        )
+        .unwrap();
+        assert!((derivative.parameter_gradient()[0] - expected).abs() < 1e-10);
+        let initial = if coordinate == 1 {
+            [1. / 676., 1. / 169., 1. / 676.]
+        } else {
+            [0.; 3]
+        };
+        for (actual, expected) in derivative.initial_state_cotangent().iter().zip(initial) {
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+        assert_eq!(derivative.step_adjoints().len(), 2);
     }
     let (foreign_document, foreign) = resolve_source_document(
         &source.replace("p:1=2", "p:1=3"),

@@ -159,9 +159,44 @@ where
         let [original, _]: [_; 2] = assembly.residuals.try_into().map_err(|_| {
             invalid("spatial sensitivity requires exact reduced and full residual targets")
         })?;
+        let layout = RegionRealCoordinates::new(mapping)?;
+        let columns = self.coordinates.len();
+        let mut history_direct = self
+            .step_coordinates
+            .as_ref()
+            .map(|_| {
+                layout
+                    .full_count()
+                    .checked_mul(columns)
+                    .map(|size| vec![0.; size])
+                    .ok_or_else(|| invalid("state output Parameter shape overflows"))
+            })
+            .transpose()?;
+        let mut column = 0;
         let (partial, output) = self.output_partials(mapping, &values, |coordinate| {
-            self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)
+            let (residual, lift) =
+                self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)?;
+            if let Some(direct) = &mut history_direct {
+                for (row, value) in lift.iter().enumerate() {
+                    direct[row * columns + column] = *value;
+                }
+            }
+            column += 1;
+            Ok((residual, lift))
         })?;
+        let state_output = history_direct
+            .map(|direct| {
+                FieldCoefficientLinearization::new(
+                    layout.encode_full(&mapping.lift(&layout.decode(&values)?, false)?)?,
+                    values.len(),
+                    columns,
+                    (0..layout.full_count())
+                        .map(|global| layout.free_coordinate(global))
+                        .collect(),
+                    direct,
+                )
+            })
+            .transpose()?;
         // For affine forms the accepted State Jacobian is the original operator,
         // so retain its mathematical certificate (including mixed MINRES pairs).
         // A nonlinear Jacobian has no symmetry promise from primal row pairing.
@@ -184,12 +219,16 @@ where
             partial,
             properties,
         )?;
-        Ok(CommonDifferentiationLinearization::from_spatial(
+        let point = CommonDifferentiationLinearization::from_spatial(
             relation,
             eqiora_core::ScalarDomain::Real,
             output,
             target,
             initial,
-        ))
+        );
+        match state_output {
+            Some(output) => self.attach_step_history(point, mapping, input, output),
+            None => Ok(point),
+        }
     }
 }
