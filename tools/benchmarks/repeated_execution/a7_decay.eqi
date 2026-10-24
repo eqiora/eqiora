@@ -1,0 +1,11 @@
+// A minimal implicit ODE: x decays at the rate supplied by the user.
+model decay {
+  // `x` is dimensionless and starts at 1. `rate` has inverse-time units.
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+
+  // Eqiora writes the evolution law as a residual equal to zero.
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
