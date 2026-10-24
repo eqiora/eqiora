@@ -14,10 +14,20 @@ const IDENTITY_DOMAIN: &[u8] = b"eqiora.prepared-linear-structure/v1\0";
 /// ordering, constraints, packet maps, fixed structural values and sparse
 /// topology. Its digest is a compact observation only: equality compares the
 /// complete encoding so a provider never authorizes reuse from a hash alone.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct PreparedLinearStructureIdentity {
     encoding: Arc<[u8]>,
     digest: [u8; 32],
+}
+
+impl PartialEq for PreparedLinearStructureIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        // Clones share immutable authority. Make this constant-time path explicit
+        // rather than relying on the toolchain's Arc<[u8]> equality optimization.
+        // Independently owned encodings still require complete byte equality.
+        (Arc::ptr_eq(&self.encoding, &other.encoding) || self.encoding == other.encoding)
+            && self.digest == other.digest
+    }
 }
 
 impl PreparedLinearStructureIdentity {
@@ -87,10 +97,19 @@ mod tests {
         let first = PreparedLinearStructureIdentity::new(&b"ordering-a"[..]).unwrap();
         let equal = PreparedLinearStructureIdentity::new(&b"ordering-a"[..]).unwrap();
         let changed = PreparedLinearStructureIdentity::new(&b"ordering-b"[..]).unwrap();
+        assert_eq!(first, first.clone());
         assert_eq!(first, equal);
         assert_ne!(first, changed);
         assert_eq!(first.encoding(), b"ordering-a");
         assert_eq!(first.digest(), equal.digest());
+
+        let mut same_digest = changed;
+        same_digest.digest = first.digest;
+        assert_ne!(first, same_digest);
+
+        let mut changed_digest = first.clone();
+        changed_digest.digest[0] ^= 1;
+        assert_ne!(first, changed_digest);
     }
 
     #[test]
