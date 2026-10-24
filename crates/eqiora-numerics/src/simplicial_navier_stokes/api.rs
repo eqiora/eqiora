@@ -36,9 +36,8 @@ impl MiniNavierStokesStepPlan2d {
     ///
     /// # Errors
     /// Returns `EQ0801` for non-positive physical/time data or nested linear
-    /// tolerances that could accept a zero correction above the nonlinear
-    /// target, and `EQ0807` when the linear policy is not serial
-    /// identity-preconditioned fast-reduction sparse LU. Production
+    /// relative tolerance at or above one, and `EQ0807` when the linear policy
+    /// is not serial identity-preconditioned fast-reduction sparse LU. Production
     /// preconditioning is intentionally a later claim.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -78,11 +77,9 @@ impl MiniNavierStokesStepPlan2d {
                 "bounded reference line search admits at most 64 halvings",
             ));
         }
-        if linear_solver.relative_tolerance() >= 1.0
-            || linear_solver.absolute_tolerance() > nonlinear_absolute_tolerance
-        {
+        if linear_solver.relative_tolerance() >= 1.0 {
             return Err(invalid(
-                "MINI Navier--Stokes linear tolerances must require a nonzero correction whenever the nonlinear residual exceeds its target",
+                "MINI Navier--Stokes linear relative tolerance must be below one",
             ));
         }
         if linear_solver.algorithm() != LinearSolver::SparseLu
@@ -505,9 +502,9 @@ mod tests {
     }
 
     #[test]
-    fn nested_linear_tolerances_cannot_accept_a_zero_newton_correction_above_target() {
+    fn linear_absolute_tolerance_need_not_bound_the_nonlinear_absolute_tolerance() {
         assert!(plan(1.0e-6, 1.0e-11).is_ok());
-        assert!(plan(1.0e-6, 1.0e-9).is_err());
+        assert!(plan(1.0e-6, 1.0e-9).is_ok());
         assert!(plan(1.0, 0.0).is_err());
     }
 }
