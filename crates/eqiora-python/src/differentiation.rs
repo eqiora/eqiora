@@ -257,6 +257,13 @@ impl PyDifferentiationEvidence {
 
 #[pymethods]
 impl PyDifferentiationStepEvidence {
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiationStepEvidence(primal_residual_norm={}, residual_tolerance={})",
+            self.primal_residual_norm, self.residual_tolerance
+        )
+    }
+
     #[getter]
     fn state_system_fingerprint(&self) -> &str {
         &self.state_system_fingerprint

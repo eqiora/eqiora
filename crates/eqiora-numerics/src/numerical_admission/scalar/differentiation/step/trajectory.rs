@@ -8,10 +8,23 @@ type History<S> = (
     BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>,
 );
 
-struct TrajectoryContext<S: Coefficient, T> {
+struct TrajectoryContext<S: Coefficient> {
     grid: TimeGrid,
     history: Option<History<S>>,
-    steps: Vec<T>,
+    steps: usize,
+}
+
+// Both operations advance the same physical history. Keep their result storage
+// outside the traversal so preparation and history recovery have one compiled owner.
+enum TrajectoryEvaluation<'a> {
+    Solve {
+        backend: &'a dyn LinearSolverBackend,
+        steps: Vec<CommonDifferentiationPoint>,
+    },
+    Reaccept {
+        candidates: &'a [Vec<f64>],
+        steps: Vec<CommonDifferentiationLinearization>,
+    },
 }
 
 impl CommonSpatialPlan {
@@ -95,15 +108,17 @@ where
         request: &CommonTransientRunRequest,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationTrajectory, Diagnostic> {
-        let steps = self.walk_trajectory(
+        let result = self.walk_trajectory(
             template,
             request,
-            |prepared, mapping, input, index| {
-                let initial = (index == 0).then(|| request.state().clone().into());
-                prepared.solve_prepared_step(mapping, input, initial, backend)
+            TrajectoryEvaluation::Solve {
+                backend,
+                steps: Vec::new(),
             },
-            CommonDifferentiationPoint::linearization,
         )?;
+        let TrajectoryEvaluation::Solve { steps, .. } = result else {
+            unreachable!("trajectory evaluation retains its requested operation")
+        };
         CommonDifferentiationTrajectory::from_steps(request.clone(), steps)
     }
 
@@ -113,28 +128,26 @@ where
         request: &CommonTransientRunRequest,
         candidates: &[Vec<f64>],
     ) -> Result<Vec<CommonDifferentiationLinearization>, Diagnostic> {
-        self.walk_trajectory(
+        let result = self.walk_trajectory(
             template,
             request,
-            |prepared, mapping, input, index| {
-                prepared.accept_prepared_step(mapping, input, &candidates[index])
+            TrajectoryEvaluation::Reaccept {
+                candidates,
+                steps: Vec::new(),
             },
-            |point| point,
-        )
+        )?;
+        let TrajectoryEvaluation::Reaccept { steps, .. } = result else {
+            unreachable!("trajectory evaluation retains its requested operation")
+        };
+        Ok(steps)
     }
 
-    fn walk_trajectory<T>(
+    fn walk_trajectory<'a>(
         mut self,
         template: &ExecutableSpatialEquations<S>,
         request: &CommonTransientRunRequest,
-        mut evaluate: impl FnMut(
-            &Self,
-            &RegionDofMap<S>,
-            &RegionSolveInput<S>,
-            usize,
-        ) -> Result<T, Diagnostic>,
-        linearization: impl Fn(&T) -> &CommonDifferentiationLinearization,
-    ) -> Result<Vec<T>, Diagnostic> {
+        mut evaluation: TrajectoryEvaluation<'a>,
+    ) -> Result<TrajectoryEvaluation<'a>, Diagnostic> {
         let step_s = self
             .plan
             .admission
@@ -147,7 +160,7 @@ where
         let context = TrajectoryContext {
             grid: request.state().time_grid()?,
             history: None,
-            steps: Vec::new(),
+            steps: 0,
         };
         let result = crate::prepared_execution::advance_prepared_actions(
             context,
@@ -184,22 +197,38 @@ where
                         "trajectory products require an implemented history coordinate transition",
                     ));
                 }
-                let point = evaluate(prepared, &mapping, &input, context.steps.len())?;
+                let linearization = match &mut evaluation {
+                    TrajectoryEvaluation::Solve { backend, steps } => {
+                        let initial = (context.steps == 0).then(|| request.state().clone().into());
+                        steps.push(
+                            prepared.solve_prepared_step(&mapping, &input, initial, *backend)?,
+                        );
+                        steps.last().expect("accepted step").linearization()
+                    }
+                    TrajectoryEvaluation::Reaccept { candidates, steps } => {
+                        steps.push(prepared.accept_prepared_step(
+                            &mapping,
+                            &input,
+                            &candidates[context.steps],
+                        )?);
+                        steps.last().expect("reaccepted step")
+                    }
+                };
                 let fields = RegionRealCoordinates::new(&mapping)?
-                    .recover(linearization(&point).relation().accepted_unknowns())?;
-                Ok((next, mapping, fields, point))
+                    .recover(linearization.relation().accepted_unknowns())?;
+                Ok((next, mapping, fields))
             },
-            |context, _, (grid, mapping, fields, point)| {
+            |context, _, (grid, mapping, fields)| {
                 context.grid = grid;
                 context.history = Some((mapping, fields));
-                context.steps.push(point);
+                context.steps += 1;
                 Ok(())
             },
             |_, _| None::<()>,
         )?;
-        let ControlFlow::Continue(context) = result else {
+        let ControlFlow::Continue(_) = result else {
             unreachable!("analysis loop has no cancellation callback")
         };
-        Ok(context.steps)
+        Ok(evaluation)
     }
 }
