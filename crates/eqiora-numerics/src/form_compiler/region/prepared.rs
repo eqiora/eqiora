@@ -131,8 +131,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "distinct history geometry requires scalar inventory without eliminated states",
             ));
         }
+        let mut quadrature_cache = super::integration::QuadratureCache::default();
         let coordinates = P::ranges(&self.fields)?;
         let (affine, affine_tangent) = self.prepare_affine_actions::<P>(
+            &mut quadrature_cache,
             geometry,
             directions.map(|(current, _)| current),
             quadrature,
@@ -144,6 +146,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 .any(|term| term.derivative && !self.eliminations.contains_key(&term.trial))
         }) {
             let (value, tangent) = self.prepare_affine_actions::<P>(
+                &mut quadrature_cache,
                 geometry,
                 directions.map(|(current, _)| current),
                 quadrature,
@@ -163,6 +166,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 .position(|layout| layout.field == trial)
                 .ok_or_else(|| invalid("history lacks an algebraic binding"))?;
             let (matrix, matrix_tangent) = self.prepare_affine_actions::<P>(
+                &mut quadrature_cache,
                 previous_geometry,
                 directions.map(|(_, previous)| previous),
                 quadrature,
