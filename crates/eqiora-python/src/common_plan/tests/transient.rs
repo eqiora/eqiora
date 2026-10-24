@@ -335,11 +335,11 @@ for name, rejected in (
     ("trailing.eqtrajectory", mini_trajectory_bytes + b"\n"),
     (
         "unknown-version.eqtrajectory",
-        mini_trajectory_bytes.replace(b"common-trajectory/v13", b"common-trajectory/v999"),
+        mini_trajectory_bytes.replace(b"common-trajectory/v14", b"common-trajectory/v999"),
     ),
     (
         "retired-version.eqtrajectory",
-        mini_trajectory_bytes.replace(b"common-trajectory/v13", b"common-trajectory/v12"),
+        mini_trajectory_bytes.replace(b"common-trajectory/v14", b"common-trajectory/v13"),
     ),
 ):
     assert rejected != mini_trajectory_bytes, f"hostile fixture must change bytes: {name}"
