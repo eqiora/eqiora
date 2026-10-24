@@ -16,5 +16,5 @@ def check_torch_adapter(
     assert_type(bound, eqtorch.TorchProgram)
     assert_type(bound.program, eqiora.DifferentiableProgram)
     assert_type(bound.input_shape, tuple[int])
-    assert_type(bound.output_shape, tuple[int])
+    assert_type(bound.output_shape, tuple[int, ...])
     assert_type(bound(parameters), torch.Tensor)
