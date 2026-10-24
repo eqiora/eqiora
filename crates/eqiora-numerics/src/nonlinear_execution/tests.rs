@@ -399,3 +399,60 @@ fn correction_controls_validate_before_any_linearization() {
             < 1e-14
     );
 }
+
+#[test]
+fn residual_newton_checks_actual_progress_with_looser_linear_tolerance() {
+    // For F(x) = x - b the exact Newton correction at zero is b. A linear
+    // atol of 1e-9 can solve b=1 exactly, but accepts the zero initial guess
+    // for b=1e-10. The latter is still above Newton's independent 1e-12 target.
+    for rhs in [1., 1e-10] {
+        let trials = Cell::new(0);
+        let result = solve_damped_newton(
+            vec![0.],
+            policy(1, 12).into(),
+            |point| Ok(point[0]),
+            |point| Ok((point - rhs).abs()),
+            |_, point| {
+                let matrix = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![1.])?;
+                let residual = [rhs - point];
+                let problem = LinearProblem::new(
+                    &matrix,
+                    &residual,
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                )?;
+                let linear = SolverPlan::new(
+                    LinearSolver::ConjugateGradient,
+                    1e-6,
+                    1e-9,
+                    NonZeroUsize::new(2).unwrap(),
+                )?;
+                REFERENCE_LINEAR_SOLVER
+                    .solve(&problem, linear)
+                    .map(|s| s.into_parts())
+            },
+            |point, _| {
+                trials.set(trials.get() + 1);
+                Ok(Some(NewtonTrial {
+                    residual_norm: (point[0] - rhs).abs(),
+                    linearization: None,
+                }))
+            },
+        );
+        if rhs == 1. {
+            let (root, evidence) = result.unwrap();
+            assert_eq!(root, 1.);
+            assert_eq!(evidence.iterations, 1);
+            assert_eq!(evidence.residual_target().unwrap(), 1e-12);
+            assert_eq!(trials.get(), 1);
+        } else {
+            let error = result.unwrap_err();
+            assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
+            assert!(
+                error
+                    .message()
+                    .contains("no residual-decreasing admissible point")
+            );
+            assert!(trials.get() > 0);
+        }
+    }
+}
