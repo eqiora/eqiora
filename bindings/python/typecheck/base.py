@@ -24,6 +24,19 @@ def check_language_source() -> None:
     assert_type(eqiora.compile(source=source), eqiora.Model)
 
 
+def check_weak_form_authoring(
+    component: eqiora.lang.Component,
+    relation: eqiora.lang.Relation,
+    test: eqiora.lang.Expression,
+    *,
+    derive: bool,
+) -> None:
+    if derive:
+        component.weak_form("weak", tests={relation: test})
+    else:
+        component.weak_form("weak", equations={relation: (test, 0)})
+
+
 def check_native_modeling() -> None:
     length = eqiora.Dimension(length=1)
     domain = eqiora.Domain.box("rod", (0.0, 1.0))
