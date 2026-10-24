@@ -79,3 +79,77 @@ fn abandoned_result_materialization_fails_and_wakes_future_callers() {
         "the completed native Result could not be materialized"
     );
 }
+
+#[test]
+fn progress_streams_are_bounded_and_keep_their_segment_prefix() {
+    use std::sync::mpsc::TrySendError;
+
+    let shared = RunShared::new();
+    shared.mark_running();
+    let first = shared.observe_progress(7);
+    first.try_send((2, 0.25)).unwrap();
+    assert!(matches!(
+        first.try_send((3, 0.5)),
+        Err(TrySendError::Full(_))
+    ));
+    let progress = shared.progress_snapshot().unwrap();
+    assert_eq!(progress.accepted_steps, 9);
+    assert_eq!(progress.model_time_bits, 0.25_f64.to_bits());
+    assert_eq!(progress.maximum_steps, None);
+
+    first.try_send((4, 0.75)).unwrap();
+    let next = shared.observe_progress(11);
+    assert!(matches!(
+        first.try_send((5, 1.0)),
+        Err(TrySendError::Disconnected(_))
+    ));
+    // Replacing the source retains its last queued accepted boundary.
+    assert_eq!(shared.progress_snapshot().unwrap().accepted_steps, 11);
+    next.try_send((2, 1.25)).unwrap();
+    assert!(shared.request_cancellation());
+    assert!(shared.cancellation_requested());
+    assert_eq!(shared.progress_snapshot().unwrap().accepted_steps, 13);
+}
+
+#[test]
+fn final_progress_cannot_be_overwritten_by_a_queued_observation() {
+    use std::sync::mpsc::TrySendError;
+
+    let shared = RunShared::new();
+    shared.mark_running();
+    let sender = shared.observe_progress(10);
+    sender.try_send((2, 0.5)).unwrap();
+    let final_progress = super::PyRunProgress {
+        accepted_steps: 20,
+        maximum_steps: None,
+        model_time_bits: 1.0_f64.to_bits(),
+    };
+    shared.publish_progress(final_progress.clone());
+    assert!(matches!(
+        sender.try_send((3, 0.75)),
+        Err(TrySendError::Disconnected(_))
+    ));
+    assert_eq!(shared.progress_snapshot(), Some(final_progress));
+}
+
+#[test]
+fn terminal_failure_retains_the_last_observation_and_closes_the_stream() {
+    use std::sync::mpsc::TrySendError;
+
+    let shared = RunShared::new();
+    shared.mark_running();
+    let sender = shared.observe_progress(3);
+    sender.try_send((2, 0.5)).unwrap();
+    shared.finish(RunTerminal::Failed(RunFailure::Execution(vec![])));
+    assert_eq!(shared.progress_snapshot().unwrap().accepted_steps, 5);
+    assert!(matches!(
+        sender.try_send((3, 0.75)),
+        Err(TrySendError::Disconnected(_))
+    ));
+    let late = shared.observe_progress(9);
+    assert!(matches!(
+        late.try_send((1, 1.0)),
+        Err(TrySendError::Disconnected(_))
+    ));
+    assert_eq!(shared.progress_snapshot().unwrap().accepted_steps, 5);
+}

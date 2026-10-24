@@ -289,31 +289,17 @@ fn execute_job(
                         .advance(
                             checkpoint.as_deref(),
                             |problem, roots, plan, saved, prefix_steps| {
-                                // The solver only sends bounded native observations. A separate
-                                // observer projects them into the public Run without user callbacks.
-                                std::thread::scope(|scope| {
-                                    let (sender, receiver) =
-                                        std::sync::mpsc::sync_channel::<(usize, f64)>(1);
-                                    scope.spawn(move || {
-                                        for (accepted_steps, time) in receiver {
-                                            shared.publish_progress(PyRunProgress {
-                                                accepted_steps: prefix_steps + accepted_steps,
-                                                maximum_steps: None,
-                                                model_time_bits: time.to_bits(),
-                                            });
-                                        }
-                                    });
-                                    let outcome = DiffsolTimeBackend::new().advance(
-                                        problem,
-                                        plan,
-                                        roots,
-                                        saved,
-                                        &shared.cancellation_requested,
-                                        Some(&sender),
-                                    );
-                                    drop(sender);
-                                    outcome
-                                })
+                                // Readers consume bounded native observations directly; the
+                                // solver never waits for a Python reader or invokes user callbacks.
+                                let sender = shared.observe_progress(prefix_steps);
+                                DiffsolTimeBackend::new().advance(
+                                    problem,
+                                    plan,
+                                    roots,
+                                    saved,
+                                    &shared.cancellation_requested,
+                                    Some(&sender),
+                                )
                             },
                         )
                         .map_err(|d| vec![d])?;

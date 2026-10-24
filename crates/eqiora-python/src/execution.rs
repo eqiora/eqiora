@@ -9,6 +9,7 @@ pub(crate) use request::spatial_request;
 pub(crate) use worker::{resolved_linear_backend, run_mapped_time};
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
@@ -77,6 +78,7 @@ struct RunState {
     status: PyRunStatus,
     history: Vec<PyRunStatus>,
     progress: Option<PyRunProgress>,
+    progress_stream: Option<(usize, Receiver<(usize, f64)>)>,
     terminal: Option<RunTerminal>,
     integrity_failed: bool,
 }
@@ -91,8 +93,21 @@ impl RunState {
                 PyRunStatus::Queued,
             ],
             progress: None,
+            progress_stream: None,
             terminal: None,
             integrity_failed: false,
+        }
+    }
+
+    fn refresh_progress(&mut self) {
+        if let Some((prefix, receiver)) = &self.progress_stream
+            && let Ok((steps, time)) = receiver.try_recv()
+        {
+            self.progress = Some(PyRunProgress {
+                accepted_steps: prefix + steps,
+                maximum_steps: None,
+                model_time_bits: time.to_bits(),
+            });
         }
     }
 
@@ -194,9 +209,28 @@ impl RunShared {
         self.cancellation_requested.load(Ordering::Acquire)
     }
 
+    fn observe_progress(&self, prefix_steps: usize) -> SyncSender<(usize, f64)> {
+        let (sender, receiver) = sync_channel(1);
+        let mut state = self.state();
+        if !state.integrity_failed && !state.status.is_terminal() {
+            state.refresh_progress();
+            state.progress_stream = Some((prefix_steps, receiver));
+        }
+        sender
+    }
+
+    fn progress_snapshot(&self) -> Option<PyRunProgress> {
+        let mut state = self.state();
+        if !state.integrity_failed {
+            state.refresh_progress();
+        }
+        state.progress.clone()
+    }
+
     fn publish_progress(&self, progress: PyRunProgress) {
         let mut state = self.state();
         if !state.integrity_failed {
+            state.progress_stream = None;
             state.progress = Some(progress);
         }
         self.changed.notify_all();
@@ -212,6 +246,8 @@ impl RunShared {
         if state.integrity_failed {
             return;
         }
+        state.refresh_progress();
+        state.progress_stream = None;
         state.transition(status);
         if state.integrity_failed {
             return;
@@ -588,7 +624,7 @@ impl PyRun {
 
     #[getter]
     fn progress(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        let progress = { self.shared.state().progress.clone() };
+        let progress = self.shared.progress_snapshot();
         progress
             .map(|progress| Py::new(py, progress).map(Py::into_any))
             .transpose()
