@@ -5,12 +5,16 @@ use eqiora::artifact::{
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
     ModelEnvelope,
 };
+use eqiora::assembly::CsrMatrix;
 use eqiora::diagnostic::codes;
-use eqiora::differentiation::{DiscreteAdjointCheckpoint, discrete_trajectory_adjoint};
+use eqiora::differentiation::{
+    AcceptedLinearization, DiscreteAdjointCheckpoint, discrete_trajectory_adjoint,
+};
+use eqiora::ir::DiscreteStepLinearization;
 use eqiora::runtime::{CpuProgram, GeneralImplicitProgram};
 use eqiora::solver::{
-    LinearOperatorOrientation, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, SolverPlan,
+    CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora::time::{
     ImplicitDaeProblem, InitialConditionPolicy, ReferenceImplicitTimeBackend, TimeMethod, TimePlan,
@@ -153,7 +157,10 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     let step_3 = system
         .linearize_implicit_euler_step(3.0 * STEP, 4.0 * STEP, third_state, fourth_state)
         .unwrap();
-    let steps = [&step_0, &step_1, &step_2, &step_3];
+    let steps = [&step_0, &step_1, &step_2, &step_3]
+        .into_iter()
+        .map(|step| AcceptedLinearization::new(step, 1.0e-12).unwrap())
+        .collect::<Vec<_>>();
     let boundary =
         DiscreteAdjointCheckpoint::new(2, checkpoint.time(), checkpoint.state().to_vec()).unwrap();
     let solver_plan = SolverPlan::new(
@@ -171,7 +178,6 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         &[boundary],
         &[0.0, 1.0],
         &[0.125],
-        1.0e-12,
         LinearOperatorProperties::General,
         solver,
     )
@@ -186,6 +192,70 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         step.report().orientation() == LinearOperatorOrientation::ConjugateTransposed
     }));
 
+    // Independently differentiated residual:
+    // G=((1+z)*((x-x_old)/h+p*x), z-x²). Retain its sparse Jacobian,
+    // rather than recovering columns through coordinate-basis probes.
+    let sources = steps
+        .iter()
+        .map(|accepted| {
+            let step = accepted.relation();
+            let x = step.next_state()[0];
+            let z = step.next_state()[1];
+            let x_old = step.previous_state()[0];
+            let p = step.model_parameter_values()[0];
+            let matrix = CsrMatrix::from_sorted_csr(
+                2,
+                2,
+                vec![0, 2, 4],
+                vec![0, 1, 0, 1],
+                vec![
+                    (1. + z) * (1. / STEP + p),
+                    (x - x_old) / STEP + p * x,
+                    -2. * x,
+                    1.,
+                ],
+            )
+            .unwrap();
+            CanonicalCsrSystemView::new(&matrix, &[0.; 2], LinearOperatorProperties::General)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let materialized = steps
+        .iter()
+        .zip(&sources)
+        .map(|(step, source)| {
+            AcceptedLinearization::new_with_canonical_state_jacobian(
+                step.relation(),
+                source,
+                eqiora::ScalarDomain::Real,
+                step.residual_tolerance(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let direct_plan = SolverPlan::new(
+        LinearSolver::SparseLu,
+        1.0e-12,
+        1.0e-14,
+        NonZeroUsize::new(100).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Fast);
+    let direct = discrete_trajectory_adjoint(
+        &materialized,
+        &[],
+        &[0., 1.],
+        &[0.125],
+        LinearOperatorProperties::General,
+        LinearSolveRequest::new(&FaerLinearSolver, direct_plan),
+    )
+    .unwrap();
+    assert_close(direct.initial_state_cotangent()[0], expected[0], 3.0e-8);
+    assert_close(direct.initial_state_cotangent()[1], expected[1], 3.0e-8);
+    assert_close(direct.parameter_gradient()[0], expected[2], 3.0e-8);
+    assert_eq!(direct.step_adjoints().len(), STEP_COUNT);
+
     let mut drifted = checkpoint.state().to_vec();
     drifted[0] += 1.0e-4;
     let drifted = DiscreteAdjointCheckpoint::new(2, checkpoint.time(), drifted).unwrap();
@@ -195,7 +265,6 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
             &[drifted],
             &[0.0, 1.0],
             &[0.125],
-            1.0e-12,
             LinearOperatorProperties::General,
             solver,
         )

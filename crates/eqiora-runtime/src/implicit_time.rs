@@ -381,7 +381,7 @@ impl ImplicitEulerStepLinearization<'_> {
     /// Canonical model Parameters following `y_previous` in first-occurrence
     /// order.
     #[must_use]
-    pub const fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>] {
+    pub const fn model_parameter_coordinates(&self) -> &[Id<kinds::Parameter>] {
         self.model_parameter_fields
     }
 
@@ -634,11 +634,13 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
 }
 
 impl DiscreteStepLinearization for ImplicitEulerStepLinearization<'_> {
+    type StateCoordinate = eqiora_core::TimeStateCoordinate;
+    type ModelParameterCoordinate = Id<kinds::Parameter>;
     fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         self.state_coordinates
     }
 
-    fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>] {
+    fn model_parameter_coordinates(&self) -> &[Id<kinds::Parameter>] {
         self.model_parameter_fields
     }
 
