@@ -239,8 +239,9 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
     torch.library.opcheck(
         eqtorch._solve,
         (
-            list(parameters.unbind()),
+            list(parameters.detach().unbind()),
             operator._token,
+            [],
         ),
     )
     assert torch.autograd.gradcheck(
@@ -306,13 +307,13 @@ def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
 def test_unknown_or_mismatched_tokens_fail_closed() -> None:
     parameters = torch.tensor([17.0, 1.2, 0.1], dtype=torch.float64)
     with pytest.raises(RuntimeError, match="not registered"):
-        eqtorch._solve(list(parameters.unbind()), "not-a-token")
+        eqtorch._solve(list(parameters.unbind()), "not-a-token", [])
 
     operator = eqtorch.bind(
         differentiable_program(eqiora.fem.Q1())
     )
     with pytest.raises(ValueError, match="leaves"):
-        eqtorch._solve(list(parameters[:2].unbind()), operator._token)
+        eqtorch._solve(list(parameters[:2].unbind()), operator._token, [])
 
 
 def test_supported_torch_series_is_exact() -> None:
@@ -391,7 +392,7 @@ def test_structured_complex_leaves_preserve_shapes_and_real_pairing():
     assert not hasattr(solve, "output_shape")
     point = (torch.tensor(2., dtype=torch.float64, requires_grad=True),
              torch.tensor([1+2j, 3-4j], dtype=torch.complex128, requires_grad=True))
-    torch.library.opcheck(eqtorch._solve, (list(point), solve._token))
+    torch.library.opcheck(eqtorch._solve, ([v.detach() for v in point], solve._token, []))
     assert torch.autograd.gradcheck(lambda p, c: solve((p, c)), point)
     for operation in (solve, torch.compile(solve, fullgraph=True)):
         output = operation(point)
@@ -434,10 +435,115 @@ def test_structured_tensor_metadata_is_admitted_per_leaf():
     for value, error in (
         (torch.ones(2, dtype=torch.float64), TypeError),
         (torch.ones((1, 2), dtype=torch.complex128), ValueError),
-        (torch.ones(4, dtype=torch.complex128)[::2], ValueError),
         (torch.ones(2, dtype=torch.complex128, device="meta"), ValueError),
         (torch.sparse_coo_tensor(torch.tensor([[0, 1]]),
                                 torch.ones(2, dtype=torch.complex128), (2,), check_invariants=True), TypeError),
     ):
         with pytest.raises(error):
             solve((p, value))
+
+
+@pytest.mark.parametrize("compiled", [False, True])
+@pytest.mark.parametrize("kind", ["grad", "shared_grad", "jvp", "jacrev", "jacfwd"])
+def test_native_point_and_seed_axes_compose(kind, compiled):
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    p = torch.tensor([[2., 3., 2.], [1., 4., 2.]], dtype=torch.float64)
+    c = torch.tensor([1+2j, 3-4j], dtype=torch.complex128)
+    z = p[..., None]*c+c.conj()
+    dp = 2*(z.conj()*c).sum(-1).real+1
+    dc = 2*(p[..., None]*z+z.conj())
+
+    def call(p, c): return solve((p, c))
+    def loss(p, c): return call(p, c)[1]
+    def nest(fn): return torch.vmap(torch.vmap(fn, in_dims=(0, None)), in_dims=(0, None))
+
+    if kind == "grad":
+        operation = nest(torch.func.grad(loss, argnums=(0, 1)))
+        expected = dp, dc
+    elif kind == "shared_grad":
+        operation = torch.func.grad(lambda p, c: nest(loss)(p, c).sum(), argnums=(0, 1))
+        expected = dp, dc.sum((0, 1))
+    elif kind == "jvp":
+        def directional(p, c):
+            return torch.func.jvp(call, (p, c), (torch.ones_like(p)*.5, torch.ones_like(c)*(1-2j)))[1]
+        operation = nest(directional)
+        dz = .5*c+p[..., None]*(1-2j)+(1+2j)
+        expected = dz, 2*(z.conj()*dz).sum(-1).real+.5, torch.ones_like(p)*.5
+    else:
+        # Torch Jacobian transforms require real inputs, even for an unselected
+        # complex argument. Expose its real coordinates in this consumer only.
+        def outputs(p, cr, ci):
+            values = call(p, torch.complex(cr, ci))
+            return torch.stack((values[1], values[2]))
+        derivative = torch.func.jacrev if kind == "jacrev" else torch.func.jacfwd
+        jacobian = torch.vmap(torch.vmap(derivative(outputs), in_dims=(0, None, None)),
+                              in_dims=(0, None, None))
+        operation = lambda p, c: jacobian(p, c.real, c.imag)
+        expected = torch.stack((dp, torch.ones_like(p)), dim=-1)
+    if compiled:
+        operation = torch.compile(operation, backend="aot_eager", fullgraph=True)
+    torch.testing.assert_close(operation(p, c), expected, rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("count", [0, 1, 3])
+@pytest.mark.parametrize("compiled", [False, True])
+def test_mapped_grad_handles_nonleading_empty_and_singleton_axes(count, compiled):
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    p = torch.tensor([[2., 3., 2.]], dtype=torch.float64)[:, :count].T
+    c = torch.tensor([1+2j, 3-4j], dtype=torch.complex128)
+    gradient = torch.func.grad(lambda p, c: solve((p, c))[1], argnums=(0, 1))
+    operation = torch.vmap(torch.vmap(gradient, in_dims=(0, None)),
+                           in_dims=(1, None), out_dims=1)
+    if compiled:
+        operation = torch.compile(operation, backend="aot_eager", fullgraph=True)
+    z = p[..., None]*c+c.conj()
+    expected = 2*(z.conj()*c).sum(-1).real+1, 2*(p[..., None]*z+z.conj())
+    torch.testing.assert_close(operation(p, c), expected, rtol=0, atol=1e-12)
+
+
+def test_transform_inputs_preserve_views_versions_and_failure():
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    p = torch.tensor(2., dtype=torch.float64, requires_grad=True)
+    storage = torch.tensor([1+2j, 99., 3-4j, 99.], dtype=torch.complex128, requires_grad=True)
+    view = storage[::2]
+    output = solve((p, view))
+    torch.testing.assert_close(output[1], torch.tensor(112., dtype=torch.float64))
+    gradient = torch.autograd.grad(output[1], (p, storage), retain_graph=True)
+    torch.testing.assert_close(gradient, (torch.tensor(101., dtype=torch.float64),
+        torch.tensor([18+4j, 0., 54-8j, 0.], dtype=torch.complex128)))
+    with torch.no_grad():
+        storage[0] = 5.
+    with pytest.raises(RuntimeError, match="modified by an inplace operation"):
+        torch.autograd.grad(output[1], (p, storage))
+
+    branch = eqtorch.bind(branch_programs()[0])
+    with pytest.raises(RuntimeError, match="Eqiora evaluation stopped at member 1"):
+        torch.vmap(lambda p: branch((p,)))(torch.tensor([4., -1., 9.], dtype=torch.float64))
+
+
+def test_higher_products_are_rejected_instead_of_zero_gradients():
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    c = torch.tensor([1+2j, 3-4j], dtype=torch.complex128)
+    loss = lambda p: solve((p, c))[1]
+    p = torch.tensor(2., dtype=torch.float64)
+    with pytest.raises(RuntimeError):
+        torch.func.grad(torch.func.grad(loss))(p)
+    with pytest.raises(RuntimeError):
+        torch.func.jvp(torch.func.grad(loss), (p,), (torch.ones_like(p),))
+    # AOT may request a derivative of the returned gradient when its inputs
+    # require grad. This remains an explicit missing native higher-order path.
+    compiled = torch.compile(torch.func.grad(loss), backend="aot_eager", fullgraph=True)
+    with pytest.raises(RuntimeError):
+        compiled(p.requires_grad_())
