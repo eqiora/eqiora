@@ -6,6 +6,11 @@ The cylinder profiles prioritize assembly/residual evaluation and preparation.
 The second workload, scalar decay, exposes a latency regression. No 2x speedup,
 non-regression bound, conventional CFD parity, or general scalability is established.
 
+A [later comparison](2026-10-24-ida-runs.md) records the ordinary IDA integration
+candidate against a more recent reference, with exact cylinder field equality
+and the remaining measured performance gap. It does not replace this historical
+a7 comparison.
+
 ## Environment and boundary
 
 Both installations ran on `dide1` (`didelx01`), Linux 6.8.0-94/glibc 2.35,
