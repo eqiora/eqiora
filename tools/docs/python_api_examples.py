@@ -442,15 +442,15 @@ import torch
 from eqiora.torch import bind
 
 operator = bind(program)
-parameters = torch.tensor([1.5], dtype=torch.float64, requires_grad=True)
-values = operator(parameters)
+parameters = (torch.tensor(1.5, dtype=torch.float64, requires_grad=True),)
+values, = operator(parameters)
 values.square().sum().backward()
-print(parameters.grad)
+print(parameters[0].grad)
 ```
 
 The gradient is the derivative of the sum of squared output values with
-respect to the selected parameter. Inputs are contiguous, one-dimensional
-CPU `float64` tensors. See [framework adapters](/guides/differentiation/) for
+respect to the selected parameter. Inputs are ordered contiguous CPU tensor leaves, with the native signature
+shape and `float64` or `complex128` dtype. See [framework adapters](/guides/differentiation/) for
 installation and compiled execution.
 ''',
     "jax": '''## Example: differentiate a scalar objective

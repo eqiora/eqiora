@@ -193,7 +193,7 @@ def torch_smoke(expected_version: str) -> None:
 
     solve = eqtorch.bind(differentiable_program(eqiora))
     point = torch.tensor([17.0, 1.2, 0.1], dtype=torch.float64, requires_grad=True)
-    output = solve(point)
+    output, = solve(tuple(point.unbind()))
     output.square().sum().backward()
     assert output.device.type == "cpu"
     assert point.grad is not None
