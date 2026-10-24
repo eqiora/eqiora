@@ -337,3 +337,24 @@ def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
                 np.testing.assert_allclose(value.detach().numpy(), [p+sign*np.sqrt(p)], rtol=0, atol=1e-12)
                 value.sum().backward()
                 np.testing.assert_allclose(point.grad.numpy(), [1+sign/(2*np.sqrt(p))], rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("nonlinear", [False, True])
+@pytest.mark.parametrize("advanced", [False, True])
+def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear, advanced):
+    from test_spatial_step_program import held_step_program
+
+    program, state = held_step_program(nonlinear, False, advanced)
+    before = state.to_bytes()
+    solve = eqtorch.bind(program)
+    previous = float(advanced)
+    # v-v_previous+v^3=p or 2*v-v_previous=p, with v_previous held fixed.
+    value, derivative = (10.-previous, 1/13) if nonlinear else (4.-previous, .5)
+    for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
+        point = torch.tensor([value], dtype=torch.float64, requires_grad=True)
+        output = operation(point)
+        np.testing.assert_allclose(output.detach().numpy(), [2.]*3, rtol=0, atol=1e-10)
+        gradient, = torch.autograd.grad(output.sum(), point)
+        np.testing.assert_allclose(gradient.detach().numpy(), [3*derivative],
+                                   rtol=0, atol=1e-10)
+    assert state.to_bytes() == before

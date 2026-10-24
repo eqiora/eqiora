@@ -80,3 +80,19 @@ def test_spatial_step_program_requires_one_exact_run():
                        until_s=1., output_times_s=(1.,))
     with pytest.raises(q.EqioraError):
         q.diff.compile(plan, **options, state=state, steps=2, output_steps=(2,))
+
+
+def held_step_program(nonlinear, complex_field, advanced):
+    """A framework fixture with an exact held zero or accepted unit predecessor."""
+    plan, parameter = step_plan(nonlinear, complex_field)
+    state = q.State.initial(plan, time_s=0.)
+    if advanced:
+        # Default p=2 gives v=1 from v_previous=0 in either equation.
+        result = q.run(plan, state=state, steps=1, output_steps=(1,))
+        state = q.State.from_bytes(plan, result.trajectory.states[0].to_bytes())
+        phase = 1+2j if complex_field else 1.
+        np.testing.assert_allclose(state.fields[0].values("vertex"), [phase]*3,
+                                   rtol=0, atol=1e-10)
+    program = q.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
+                             state=state, steps=1, output_steps=(1,))
+    return program, state

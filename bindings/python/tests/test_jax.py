@@ -740,3 +740,34 @@ def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
                 # w=sign*sqrt(p); O=w+p and dO/dp=1+sign/(2*sqrt(p)).
                 np.testing.assert_allclose(value, p+sign*np.sqrt(p), rtol=0, atol=1e-12)
                 np.testing.assert_allclose(gradient[0], 1+sign/(2*np.sqrt(p)), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("nonlinear", [False, True])
+@pytest.mark.parametrize("complex_field", [False, True])
+@pytest.mark.parametrize("advanced", [False, True])
+def test_fixed_history_spatial_step_composes_with_jit_products_and_map(
+    nonlinear, complex_field, advanced,
+):
+    from test_spatial_step_program import held_step_program
+
+    program, state = held_step_program(nonlinear, complex_field, advanced)
+    before = state.to_bytes()
+    solve = eqjax.bind(program)
+    phase = 1+2j if complex_field else 1.
+    previous = float(advanced)
+    # h=phase*v: v-v_previous+v^3=p or 2*v-v_previous=p.
+    # At v=2, held-history dv/dp is 1/13 or 1/2, respectively.
+    value, derivative = (10.-previous, 1/13) if nonlinear else (4.-previous, .5)
+    point = (jnp.asarray(value, dtype=jnp.float64),)
+    operation = jax.jit(solve)
+    np.testing.assert_allclose(operation(point)[0], [2*phase]*3, rtol=0, atol=1e-10)
+    _, tangent = jax.jvp(operation, (point,), ((jnp.asarray(1., dtype=jnp.float64),),))
+    np.testing.assert_allclose(tangent[0], [phase*derivative]*3, rtol=0, atol=1e-10)
+    gradient = jax.jit(jax.grad(lambda p: jnp.real(jnp.sum(solve((p,))[0]))))(point[0])
+    np.testing.assert_allclose(gradient, 3*derivative, rtol=0, atol=1e-10)
+    mapped = jax.jit(jax.vmap(lambda p: solve((p,))[0]))(
+        jnp.asarray([2.-previous, value, value], dtype=jnp.float64)
+    )
+    np.testing.assert_allclose(mapped, [[phase]*3, [2*phase]*3, [2*phase]*3],
+                               rtol=0, atol=1e-10)
+    assert state.to_bytes() == before
