@@ -39,7 +39,7 @@ impl CommonAlgebraicPlan {
             (
                 solution.values,
                 Primal::Nonlinear {
-                    initial: initial.clone().into(),
+                    initial: Some(initial.clone().into()),
                     iterations: solution.iterations,
                     linear_solves: solution.linear_solves,
                 },

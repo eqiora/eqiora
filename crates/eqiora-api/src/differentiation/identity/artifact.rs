@@ -8,7 +8,7 @@ use super::*;
 
 mod quadrature;
 
-const SCHEMA: &str = "eqiora.differentiable-program-identity/v3";
+const SCHEMA: &str = "eqiora.differentiable-program-identity/v4";
 const MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]

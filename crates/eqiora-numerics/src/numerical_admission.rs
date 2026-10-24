@@ -675,7 +675,11 @@ pub(crate) struct CommonLinearRunOutput<S> {
 }
 
 mod differentiation;
-pub use differentiation::{CommonDifferentiationLinearization, CommonDifferentiationPoint};
+pub use differentiation::{
+    CommonDifferentiationLinearization, CommonDifferentiationPoint,
+    CommonDifferentiationTrajectory, CommonDiscreteStepLinearization, CommonDiscreteStepOutput,
+    SpatialStepCoordinate,
+};
 
 /// Opaque steady-Stokes Plan owning one authenticated exact-cylinder occurrence.
 #[derive(Debug, Clone, PartialEq)]

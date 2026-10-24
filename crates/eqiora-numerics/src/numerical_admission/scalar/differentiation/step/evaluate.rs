@@ -49,6 +49,16 @@ where
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         let (mapping, input) = self.prepare_step(template, previous, grid)?;
+        self.solve_prepared_step(&mapping, &input, Some(previous.clone().into()), backend)
+    }
+
+    pub(super) fn solve_prepared_step(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        initial_state: Option<crate::CommonInitialState<'static>>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         let structure = self.equations.algebraic_structure(None)?;
         let checked = self
             .plan
@@ -60,39 +70,40 @@ where
             let seed = input.previous.as_ref().expect("validated physical history");
             let solved = self
                 .plan
-                .solve_region_newton(&mapping, &input, seed, request)?
+                .solve_region_newton(mapping, input, seed, request)?
                 .solve;
             let initial = crate::nonlinear_execution::NewtonInitialPoint {
                 residual_norm: solved.evidence.initial_residual_norm,
                 at_seed: solved.values
-                    == RegionRealCoordinates::new(&mapping)?
+                    == RegionRealCoordinates::new(mapping)?
                         .encode(&mapping.physical_predictor(seed)?)?,
             };
-            let linearization = self.assembled_linearization(
-                &mapping,
-                &input,
+            let linearization = self.linearize_step_values(
+                mapping,
+                input,
                 solved.values,
-                solved.assembly,
                 solved.evidence.residual_target()?,
                 Some(initial),
+                Some(solved.assembly),
             )?;
             (
                 linearization,
                 Primal::Nonlinear {
-                    initial: previous.clone().into(),
+                    initial: initial_state,
                     iterations: solved.evidence.iterations,
                     linear_solves: solved.evidence.linear_solves,
                 },
             )
         } else {
-            let solved = self.plan.solve_region_linear(&mapping, &input, request)?;
-            let values = RegionRealCoordinates::new(&mapping)?
+            let solved = self.plan.solve_region_linear(mapping, input, request)?;
+            let values = RegionRealCoordinates::new(mapping)?
                 .encode(&mapping.physical_predictor(&solved.fields)?)?;
             let linearization = self.linearize_step_values(
-                &mapping,
-                &input,
+                mapping,
+                input,
                 values,
                 solved.solve_report.residual_target(),
+                None,
                 None,
             )?;
             (linearization, Primal::Affine(solved.solve_report))

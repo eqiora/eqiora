@@ -49,7 +49,31 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         previous: &BTreeMap<RawId, Vec<f64>>,
         point: &[f64],
     ) -> Result<RegionLinearization, Diagnostic> {
-        self.action(previous, point, true)
+        self.action(previous, point, Some(self.step_pullback()))
+    }
+
+    /// Original step residual with its derivative in predecessor coordinates.
+    /// Only the consumed physical history varies; the current point stays fixed.
+    pub(crate) fn linearize_previous(
+        &self,
+        previous: &BTreeMap<RawId, Vec<f64>>,
+        point: &[f64],
+    ) -> Result<RegionLinearization, Diagnostic> {
+        if !self.independent_coordinates {
+            return Err(invalid(
+                "previous-state actions require untransformed time coordinates",
+            ));
+        }
+        let step = self
+            .step
+            .ok_or_else(|| invalid("previous-state actions require a step"))?;
+        let mut weights = vec![[None, None]; self.affine.columns()];
+        for (field, range) in self.fields.iter().zip(&self.coordinates) {
+            if previous.contains_key(&field.field) {
+                weights[range.clone()].fill([None, Some(-step.recip())]);
+            }
+        }
+        self.action(previous, point, Some(FieldPullback::Coordinates(&weights)))
     }
 
     pub(crate) fn residual(
@@ -57,14 +81,14 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
         previous: &BTreeMap<RawId, Vec<f64>>,
         point: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
-        Ok(self.action(previous, point, false)?.residual)
+        Ok(self.action(previous, point, None)?.residual)
     }
 
     fn action(
         &self,
         previous: &BTreeMap<RawId, Vec<f64>>,
         point: &[f64],
-        derivative: bool,
+        pullback: Option<FieldPullback<'_>>,
     ) -> Result<RegionLinearization, Diagnostic> {
         let count = self.affine.rows();
         if point.len() != count || point.iter().any(|value| !value.is_finite()) {
@@ -90,7 +114,6 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
                 Ok::<_, Diagnostic>(rates)
             })
             .transpose()?;
-        let pullback = derivative.then(|| self.step_pullback());
         if self.independent_coordinates {
             return self.implicit_action(point, rates.as_deref(), pullback);
         }
@@ -105,7 +128,11 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionCell<S, P> {
             .collect();
         let mut action = RegionLinearization {
             residual,
-            jacobian: if derivative { matrix } else { Vec::new() },
+            jacobian: if pullback.is_some() {
+                matrix
+            } else {
+                Vec::new()
+            },
         };
         self.add_physical_nonlinear(point, rates.as_deref(), pullback, &mut action)?;
         Ok(action)

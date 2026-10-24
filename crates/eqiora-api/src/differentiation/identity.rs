@@ -154,7 +154,7 @@ impl DifferentiableProgramIdentity {
                 let seed = program::spatial_initial(initial).map_err(single)?;
                 if let Some(request) = context.run_request() {
                     spatial
-                        .validate_step_differentiation_request(request.native(), &outputs)
+                        .validate_trajectory_differentiation_request(request.native(), &outputs)
                         .map_err(single)?;
                 } else if seed.is_some() {
                     if !matches!(
@@ -211,6 +211,16 @@ impl DifferentiableProgramIdentity {
         }
         let (input_signatures, output_signatures) =
             signature::build(plan, &model, &selected, &outputs).map_err(single)?;
+        let output_signatures = if let Some(request) = context.run_request() {
+            output_signatures
+                .into_iter()
+                .map(|signature| signature.with_samples(request.native().output_times_s()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(single)?
+        } else {
+            output_signatures
+        };
+        signature::dimension(&output_signatures).map_err(single)?;
         Ok(Self {
             model,
             plan_identity: plan.identity().to_owned(),

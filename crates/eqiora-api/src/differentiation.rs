@@ -20,6 +20,8 @@ use crate::ModelDocument;
 pub(crate) mod context;
 use context::Context;
 mod evidence;
+mod execution;
+use execution::{NativeEvaluation, OutputProjection};
 mod record;
 pub use record::RecordedDifferentiableEvaluation;
 mod identity;
@@ -33,7 +35,8 @@ pub(crate) mod signature;
 mod values;
 
 pub use evidence::{
-    DerivativeImplementation, DifferentiationEvidence, DifferentiationMode, LinearizationState,
+    DerivativeImplementation, DifferentiationEvidence, DifferentiationMode,
+    DifferentiationStepEvidence, LinearizationState,
 };
 pub use products::{DifferentiableCotangent, DifferentiableTangent};
 pub use result::DifferentiableResult;
@@ -171,8 +174,10 @@ impl ModelDocument {
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableValues,
-    native: CommonDifferentiationPoint,
-    acceptance: evidence::Acceptance,
+    native: NativeEvaluation,
+    projection: OutputProjection,
+    unknowns: Vec<f64>,
+    acceptance: Vec<evidence::Acceptance>,
     backend: &'static dyn LinearSolverBackend,
 }
 
@@ -201,7 +206,9 @@ impl DifferentiableEvaluation {
     fn output_values(&self) -> DifferentiableValues {
         DifferentiableValues::from_coordinates(
             self.identity.outputs.clone(),
-            self.native.linearization().output_values().to_vec(),
+            self.native
+                .outputs(&self.projection)
+                .expect("accepted output projection"),
         )
         .expect("accepted output has exact finite value signatures")
     }
@@ -226,25 +233,11 @@ impl DifferentiableEvaluation {
         tangent: &DifferentiableTangent,
     ) -> Result<DifferentiableResult<DifferentiableTangent>, Diagnostic> {
         tangent.values.validate_signatures(self.identity.inputs())?;
-        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.linearization().relation(),
-            self.native.linearization(),
-            self.native.linearization().relation().state_jacobian(),
-            self.native.linearization().state_scalar_domain(),
-            self.acceptance.residual_tolerance,
-        )?;
-        let sensitivity = forward_output_sensitivity(
-            &accepted,
+        let (tangent, solves) = self.native.jvp(
             tangent.values.coordinates(),
-            self.native
-                .linearization()
-                .relation()
-                .state_jacobian()
-                .properties(),
+            &self.projection,
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
-        let (state, tangent) = sensitivity.into_parts();
-        let (_, solve) = state.into_parts();
         Ok(DifferentiableResult {
             output: self.output_values(),
             derivative: DifferentiableTangent {
@@ -253,11 +246,7 @@ impl DifferentiableEvaluation {
                     tangent,
                 )?,
             },
-            evidence: self.evidence(
-                DifferentiationMode::Jvp,
-                Some(solve),
-                LinearizationState::Reused,
-            ),
+            evidence: self.evidence(DifferentiationMode::Jvp, solves, LinearizationState::Reused),
         })
     }
 
@@ -273,25 +262,11 @@ impl DifferentiableEvaluation {
         cotangent
             .values
             .validate_signatures(self.identity.outputs())?;
-        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.linearization().relation(),
-            self.native.linearization(),
-            self.native.linearization().relation().state_jacobian(),
-            self.native.linearization().state_scalar_domain(),
-            self.acceptance.residual_tolerance,
-        )?;
-        let gradient = adjoint_output_gradient(
-            &accepted,
+        let (input_cotangent, solves) = self.native.vjp(
             cotangent.values.coordinates(),
-            self.native
-                .linearization()
-                .relation()
-                .state_jacobian()
-                .properties(),
+            &self.projection,
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
-        let (adjoint, input_cotangent) = gradient.into_parts();
-        let (_, solve) = adjoint.into_parts();
         Ok(DifferentiableResult {
             output: self.output_values(),
             derivative: DifferentiableCotangent {
@@ -300,11 +275,7 @@ impl DifferentiableEvaluation {
                     input_cotangent,
                 )?,
             },
-            evidence: self.evidence(
-                DifferentiationMode::Vjp,
-                Some(solve),
-                LinearizationState::Reused,
-            ),
+            evidence: self.evidence(DifferentiationMode::Vjp, solves, LinearizationState::Reused),
         })
     }
 }

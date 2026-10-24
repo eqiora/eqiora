@@ -156,7 +156,7 @@ opt-level = 0
 [profile.release]
 lto = "fat"
 
-# Keep Python adapter code compact; numerical crates retain the
+# Keep Python adapter code compact; linear algebra backends retain the
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
 opt-level = "s"
@@ -188,4 +188,7 @@ opt-level = "s"
 opt-level = "s"
 
 [profile.release.package.eqiora-ir]
+opt-level = "s"
+
+[profile.release.package.eqiora-differentiation]
 opt-level = "s"

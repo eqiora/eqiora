@@ -490,13 +490,7 @@ fn validate_evidence(
         )
         || evidence.mode() != mode
         || evidence.linearization_state() != LinearizationState::Reused
-        || evidence.state_system() != primal.state_system()
-        || evidence.primal_solve() != primal.primal_solve()
-        || evidence.nonlinear_initial_state_identity() != primal.nonlinear_initial_state_identity()
-        || evidence.nonlinear_iterations() != primal.nonlinear_iterations()
-        || evidence.nonlinear_initial_residual_norm() != primal.nonlinear_initial_residual_norm()
-        || evidence.accepted_state() != primal.accepted_state()
-        || evidence.accepted_output() != primal.accepted_output()
+        || !evidence.same_primal(&primal)
     {
         return Err(invalid(
             "mapped product contains a foreign or unpaired linearization",

@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 
 use eqiora_core::Diagnostic;
-use eqiora_core::Id;
-use eqiora_core::entity::kinds;
 
 /// Role of one lowered operator input in a particular differentiation.
 ///
@@ -164,11 +162,21 @@ pub trait LinearizedOutput<S>: Debug + Sync {
 /// coordinate continuity before composing any adjoint solves. It does not
 /// prescribe a time integration method.
 pub trait DiscreteStepLinearization: LinearizedRelation<f64> {
-    /// Canonical state coordinate order shared by previous and next states.
-    fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate];
+    /// Exact source/realization coordinate identity, including spatial support when present.
+    type StateCoordinate: Eq;
+    /// Exact real coordinate of a selected model Parameter.
+    type ModelParameterCoordinate: Eq;
+    /// Complete state projection, including eliminated constraints.
+    type StateOutput: LinearizedOutput<f64> + ?Sized;
 
-    /// Canonical model Parameter order following the previous-state block.
-    fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>];
+    /// Projection from implicit unknowns and step Parameters to the next state.
+    fn state_output(&self) -> &Self::StateOutput;
+
+    /// Canonical state coordinate order shared by previous and next states.
+    fn state_coordinates(&self) -> &[Self::StateCoordinate];
+
+    /// Canonical model Parameter coordinates following the previous-state block.
+    fn model_parameter_coordinates(&self) -> &[Self::ModelParameterCoordinate];
 
     /// Revision-local model Parameter point.
     fn model_parameter_values(&self) -> &[f64];

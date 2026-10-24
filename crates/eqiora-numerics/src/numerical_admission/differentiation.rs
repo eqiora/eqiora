@@ -4,14 +4,16 @@ use crate::nonlinear_execution::NewtonInitialPoint;
 use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 mod output;
+mod step;
 pub(super) use output::Output;
+pub use step::{CommonDiscreteStepLinearization, CommonDiscreteStepOutput, SpatialStepCoordinate};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
     Affine(eqiora_solver::SolveReport),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
-        initial: crate::CommonInitialState<'static>,
+        initial: Option<crate::CommonInitialState<'static>>,
         iterations: usize,
         linear_solves: Vec<eqiora_solver::SolveReport>,
     },
@@ -75,11 +77,12 @@ impl CommonDifferentiationPoint {
         Ok(self)
     }
 
-    /// Exact retained initial State, absent for linear execution.
+    /// External nonlinear seed, absent for linear execution or a trajectory step
+    /// seeded from its preceding accepted analysis point.
     #[must_use]
     pub fn nonlinear_initial_state(&self) -> Option<&crate::CommonInitialState<'static>> {
         match &self.primal {
-            Primal::Nonlinear { initial, .. } => Some(initial),
+            Primal::Nonlinear { initial, .. } => initial.as_ref(),
             _ => None,
         }
     }
@@ -94,6 +97,48 @@ impl CommonDifferentiationPoint {
     }
 }
 
+/// One Parameter-point trajectory bound to an ordinary transient Run request.
+///
+/// Every accepted step retains its original residual, history/output actions,
+/// and actual primal solver reports. Intermediate analysis histories are not
+/// canonical Model State checkpoints. Requested output indices remain owned by
+/// the Run; storing derivative steps does not alter ordinary Run retention.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonDifferentiationTrajectory {
+    request: CommonTransientRunRequest,
+    steps: Vec<CommonDifferentiationPoint>,
+}
+
+impl CommonDifferentiationTrajectory {
+    pub(super) fn from_steps(
+        request: CommonTransientRunRequest,
+        steps: Vec<CommonDifferentiationPoint>,
+    ) -> Result<Self, Diagnostic> {
+        if steps.len() != request.accepted_steps()?.get()
+            || steps
+                .iter()
+                .any(|point| point.linearization().discrete_step().is_none())
+        {
+            return Err(invalid(
+                "differentiated trajectory requires every accepted history action",
+            ));
+        }
+        Ok(Self { request, steps })
+    }
+
+    /// Exact initial State, Plan, horizon and requested output times.
+    #[must_use]
+    pub const fn request(&self) -> &CommonTransientRunRequest {
+        &self.request
+    }
+
+    /// All accepted analysis steps, in forward-time order.
+    #[must_use]
+    pub fn steps(&self) -> &[CommonDifferentiationPoint] {
+        &self.steps
+    }
+}
+
 /// Original-equation acceptance and partial actions at an exact Parameter point.
 ///
 /// This owns mathematical values, not solver reports or provider handles. A Plan
@@ -102,6 +147,7 @@ impl CommonDifferentiationPoint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonDifferentiationLinearization {
     relation: AssembledLinearizedRelation,
+    history: Option<step::StepHistory>,
     state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
     residual_target: f64,
@@ -128,6 +174,7 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
+            history: None,
             state_scalar_domain,
             output,
             residual_target,
@@ -144,11 +191,62 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
+            history: None,
             state_scalar_domain,
             output: Output::Dense(output),
             residual_target,
             initial,
         }
+    }
+
+    /// Borrow this step with its predecessor and Model Parameters as separate inputs.
+    /// Absent for a stationary point or an unimplemented coordinate transition.
+    /// The view reuses the same accepted residual
+    /// and sparse actions; it does not itself differentiate a whole trajectory.
+    #[must_use]
+    pub fn discrete_step(&self) -> Option<CommonDiscreteStepLinearization<'_>> {
+        self.history
+            .as_ref()
+            .map(|history| CommonDiscreteStepLinearization {
+                point: self,
+                history,
+            })
+    }
+
+    pub(super) fn with_step_history(
+        mut self,
+        jacobian: eqiora_assembly::CsrMatrix<f64>,
+        coordinates: Vec<SpatialStepCoordinate>,
+        previous: Vec<f64>,
+        interval: [f64; 2],
+        output: crate::linearized_output::FieldCoefficientLinearization,
+    ) -> Result<Self, Diagnostic> {
+        let dimension = coordinates.len();
+        if jacobian.rows() != self.relation.residual_dimension()
+            || jacobian.columns() != dimension
+            || output.output_dimension() != dimension
+            || output.unknown_dimension() != self.relation.unknown_dimension()
+            || output.parameter_dimension() != self.relation.parameter_dimension()
+            || previous.len() != dimension
+            || previous.iter().any(|v| !v.is_finite())
+            || interval.iter().any(|v| !v.is_finite())
+            || interval[0] >= interval[1]
+            || dimension
+                .checked_add(self.relation.parameter_dimension())
+                .is_none()
+        {
+            return Err(invalid(
+                "step history differs from the accepted coordinate layout or time interval",
+            ));
+        }
+        self.history = Some(step::StepHistory {
+            jacobian,
+            coordinates,
+            previous,
+            interval,
+            output,
+        });
+        Ok(self)
     }
 
     /// Original accepted residual and the paired `R_w` and `R_p` actions.

@@ -362,8 +362,8 @@ def branch_programs():
     for program, output, derivative in zip(programs, (6., 2., 6.), (1.25, .75, 1.25), strict=True):
         np.testing.assert_allclose(program.primal().output[0], output, rtol=0, atol=1e-12)
         np.testing.assert_allclose(program.vjp((1.,)).input_cotangent[0], derivative, rtol=0, atol=1e-12)
-    assert programs[0].primal().evidence.initial_state_identity != programs[1].primal().evidence.initial_state_identity
-    assert programs[0].primal().evidence.initial_state_identity == programs[2].primal().evidence.initial_state_identity
+    assert programs[0].primal().evidence.steps[0].initial_state_identity != programs[1].primal().evidence.steps[0].initial_state_identity
+    assert programs[0].primal().evidence.steps[0].initial_state_identity == programs[2].primal().evidence.steps[0].initial_state_identity
     return programs
 
 
@@ -377,9 +377,9 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     one = np.array([1.0], dtype=np.float64)
     zero = np.array([0.0], dtype=np.float64)
     default = program.evaluate(tuple(np.array([4.0], dtype=np.float64)))
-    assert isinstance(default.primal().evidence.primal_solve, eqiora.NonlinearSolveSummary)
-    assert default.primal().evidence.primal_solve.completed_iterations == 0
-    assert default.primal().evidence.derivative_solve is None
+    assert isinstance(default.primal().evidence.steps[0].primal_solve, eqiora.NonlinearSolveSummary)
+    assert default.primal().evidence.steps[0].primal_solve.completed_iterations == 0
+    assert default.primal().evidence.steps[0].derivative_solve is None
     for p, w, reduced in ((4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)):
         point = program.evaluate(tuple(np.array([p], dtype=np.float64)))
         np.testing.assert_allclose(point.accepted_unknowns.numpy(), [w], rtol=0, atol=1e-12)
@@ -397,8 +397,8 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
         reverse = point.vjp((1.0,))
         np.testing.assert_allclose(reverse.input_cotangent, [reduced], rtol=0, atol=1e-12)
         assert reverse.evidence.implementation == eqiora.DerivativeImplementation.OperatorIr
-        assert reverse.evidence.initial_state_identity == seed.digest
-        assert reverse.evidence.derivative_solve.orientation == "conjugate-transposed"
+        assert reverse.evidence.steps[0].initial_state_identity == seed.digest
+        assert reverse.evidence.steps[0].derivative_solve.orientation == "conjugate-transposed"
         with pytest.raises(BufferError, match="shape"):
             point.residual_jvp(np.array([], dtype=np.float64), one)
     np.testing.assert_array_equal(default.vjp((1.0,)).input_cotangent, [1.25])

@@ -68,6 +68,7 @@ impl DifferentiableValues {
         if signatures.len() != values.len()
             || signatures.iter().zip(values).any(|(signature, value)| {
                 signature.space().is_some()
+                    || signature.sample_times_s().is_some()
                     || &signature.mathematical_type().value_type != value.value_type()
             })
         {
@@ -212,11 +213,25 @@ impl<'a> DifferentiableValue<'a> {
     }
 
     /// Recover one coefficient with its original mathematical type.
-    /// Finite values have exactly one coefficient at index zero.
+    /// `sample` selects the physical-time index for a sampled output and must
+    /// be `None` for stationary values. Finite values have one coefficient at zero.
     ///
     /// # Errors
-    /// Rejects an out-of-range coefficient or an allocation failure.
-    pub fn coefficient(&self, index: usize) -> Result<ValueLiteral, Diagnostic> {
+    /// Rejects an absent/foreign time axis, an out-of-range index or an allocation failure.
+    pub fn coefficient(
+        &self,
+        index: usize,
+        sample: Option<usize>,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        let sample = match (self.signature.sample_times_s(), sample) {
+            (None, None) => 0,
+            (Some(times), Some(sample)) if sample < times.len() => sample,
+            _ => {
+                return Err(invalid(
+                    "coefficient requires its exact temporal sample index",
+                ));
+            }
+        };
         let count = if self.signature.space().is_some() {
             self.signature.coefficient_entities().len()
         } else {
@@ -234,7 +249,9 @@ impl<'a> DifferentiableValue<'a> {
             .expect("admitted component shape");
         ValueLiteral::new(
             self.signature.mathematical_type().value_type.clone(),
-            self.components().skip(index * components).take(components),
+            self.components()
+                .skip((sample * count + index) * components)
+                .take(components),
         )
         .map_err(|error| invalid(format!("cannot recover a typed coefficient: {error}")))
     }

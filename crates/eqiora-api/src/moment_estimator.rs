@@ -385,7 +385,7 @@ fn row(
                 .output()
                 .leaf(output)
                 .ok_or_else(|| invalid("statistic output missing from accepted member"))?
-                .coefficient(0)
+                .coefficient(0, None)
         })
         .collect()
 }
