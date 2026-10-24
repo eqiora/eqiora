@@ -488,6 +488,12 @@ pub(super) struct OdePolicyData {
 pub(crate) struct PyTsitouras45 {
     pub(super) data: OdePolicyData,
 }
+#[pyclass(name = "Bdf", module = "eqiora._eqiora", frozen, skip_from_py_object)]
+#[derive(Debug)]
+pub(crate) struct PyBdf {
+    pub(super) data: OdePolicyData,
+}
+
 #[pyclass(
     name = "ImplicitMidpoint",
     module = "eqiora._eqiora",
@@ -793,6 +799,48 @@ impl PyImplicitMidpoint {
         format!(
             "ImplicitMidpoint(step_s={}, relative_tolerance={})",
             self.step_s(),
+            self.relative_tolerance()
+        )
+    }
+}
+
+#[pymethods]
+impl PyBdf {
+    #[new]
+    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = exact_time_float)] initial_step_s: f64,
+        #[pyo3(from_py_with = exact_time_float)] relative_tolerance: f64,
+        absolute_tolerances: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
+        OdePolicyData::new(
+            py,
+            eqiora::time::TimeMethod::Bdf,
+            initial_step_s,
+            relative_tolerance,
+            absolute_tolerances,
+            None,
+            None,
+        )
+        .map(|data| Self { data })
+    }
+    #[getter]
+    fn initial_step_s(&self) -> f64 {
+        self.data.native.initial_step_s()
+    }
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.data.native.relative_tolerance()
+    }
+    #[getter]
+    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        self.data.absolute_tolerances(py)
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "Bdf(initial_step_s={}, relative_tolerance={})",
+            self.initial_step_s(),
             self.relative_tolerance()
         )
     }

@@ -679,3 +679,76 @@ fn complex_partial_selection_precedes_scalar_differentiation() {
             .is_err()
     );
 }
+
+#[test]
+fn projected_input_product_keeps_both_time_dependent_factors() {
+    let source = "model Product() {
+        domain body=box(0,1); parameter p:1=0; parameter q:1=0;
+        variable u:1 on body;
+        relation r on body {u=math.sqrt(time()/1[s])*u;}
+    }";
+    let (component, program, _) = component_from_source::<f64>(source, "r", None);
+    let relation = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Relation(relation) => Some(relation.id().erase()),
+            _ => None,
+        })
+        .unwrap();
+    let typed = crate::form_compiler::scalar::typed_relation(&program, relation).unwrap();
+    let dag = typed.expression();
+    let sqrt = dag
+        .nodes()
+        .iter()
+        .position(|node| {
+            matches!(
+                node,
+                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, _)
+            )
+        })
+        .unwrap();
+    let time = ScalarSymbolCoordinate::for_value(
+        SymbolRef::Time,
+        &eqiora_core::ValueType::scalar(
+            ScalarDomain::Real,
+            eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .remove(0);
+    for at in [0., 4.] {
+        let context = Context::<f64> {
+            program: &program,
+            dag,
+            owner: relation,
+            dimension: 1,
+            coefficients: &BTreeMap::new(),
+            time_s: Some(at),
+        };
+        let multiplier = context.data(dag.node_id(sqrt as u32).unwrap(), 0).unwrap();
+        let bound = Arc::new(component.bind_inputs(InputPoint::Time(at)).unwrap());
+        let atoms = bound
+            .input_atoms(&[0.5], &[1.], &time, &multiplier)
+            .unwrap();
+        // The two sampled sqrt factors vanish at zero, but their product's
+        // derivative is not zero. Never drop the two terms of an unjustified
+        // product rule. The existing primitive derivative gate rejects there.
+        if at == 0. {
+            assert!(atoms.iter().any(|(atom, scale)| {
+                use num_traits::Zero;
+                !scale.is_zero() && atom.partial().is_err()
+            }));
+        } else {
+            use num_traits::ToPrimitive;
+            let derivative: f64 = atoms
+                .iter()
+                .map(|(atom, scale)| {
+                    assert_eq!(scale.im, num_traits::Zero::zero());
+                    scale.re.to_f64().unwrap() * atom.partial().unwrap()
+                })
+                .sum();
+            assert_eq!(derivative, 1.); // d(sqrt(t)*sqrt(t))/dt at t=4.
+        }
+    }
+}

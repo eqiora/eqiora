@@ -15,6 +15,7 @@ cli = ["dep:clap"]
 faer = ["dep:eqiora-backend-faer"]
 mpi = ["dep:eqiora-backend-mpi", "dep:mpi"]
 diffsol = ["dep:eqiora-backend-diffsol"]
+sundials = ["dep:eqiora-backend-sundials"]
 cuda = ["dep:eqiora-backend-cuda", "eqiora-backend-cuda/cuda-runtime"]
 mpi-cuda = ["mpi", "cuda", "dep:eqiora-backend-mpi-cuda", "eqiora-backend-mpi-cuda/runtime"]
 rayon = ["dep:eqiora-backend-rayon", "eqiora-api/rayon"]
@@ -34,6 +35,7 @@ eqiora-backend-faer = { workspace = true, optional = true }
 eqiora-backend-mpi = { workspace = true, optional = true, features = ["mpi-runtime"] }
 eqiora-backend-mpi-cuda = { workspace = true, optional = true }
 eqiora-backend-diffsol = { workspace = true, optional = true, features = ["diffsol-runtime"] }
+eqiora-backend-sundials = { workspace = true, optional = true, features = ["ida-runtime"] }
 eqiora-backend-cuda = { workspace = true, optional = true }
 eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }

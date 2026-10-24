@@ -308,7 +308,7 @@ fn spatial_seed_survives_retained_and_recomputed_collection_requests() {
         let reopened = EvaluationCollection::from_bytes(
             &encoded,
             &NoSolve,
-            eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES,
+            &[eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES],
         )
         .unwrap();
         assert_eq!(reopened, collection);

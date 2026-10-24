@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v18";
+const SCHEMA: &str = "eqiora.authored-form/v19";
 
 mod derivation;
 mod field_traces;
@@ -132,6 +132,8 @@ pub enum AuthoredFormExpressionV1 {
     Parameter {
         ulid: String,
     },
+    /// Continuous model Time, distinct from every Field and Parameter.
+    Time,
     Coordinate {
         support_ulid: String,
         factor_ulid: String,

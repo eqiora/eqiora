@@ -34,6 +34,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;
     module.add_class::<PyImplicitMidpoint>()?;
+    module.add_class::<PyBdf>()?;
     module.add_class::<PyEulerMaruyama>()?;
     module.add_class::<PyPoissonEvents>()?;
     module.add_class::<crate::sampling::PySamplingIdentity>()?;

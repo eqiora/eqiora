@@ -55,10 +55,10 @@ pub(crate) fn mapped_local_point<S: Coefficient>(
         .collect()
 }
 
-pub(crate) fn scatter_residual<S: Coefficient>(
-    output: &mut [S],
+pub(crate) fn scatter_residual<S: Coefficient, R: Clone + std::ops::AddAssign>(
+    output: &mut [R],
     map: &AssemblyMap<S>,
-    local_residual: &[S],
+    local_residual: &[R],
 ) -> Result<(), Diagnostic> {
     if map.equations().len() != local_residual.len() {
         return Err(invalid(
@@ -70,7 +70,7 @@ pub(crate) fn scatter_residual<S: Coefficient>(
             let destination = output
                 .get_mut(equation.index())
                 .ok_or_else(|| invalid("region residual equation is outside its target"))?;
-            *destination += *value;
+            *destination += value.clone();
         }
     }
     Ok(())

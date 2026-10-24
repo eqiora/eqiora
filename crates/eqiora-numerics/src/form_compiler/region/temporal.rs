@@ -77,7 +77,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 });
             }
             if let Some(capacity) = capacity {
-                if capacity.spatial() {
+                // A spatially uniform coefficient may still depend on Time.
+                // This certificate is sufficient for constant capacity, so it
+                // must not evaluate an unbound clock or certify one time sample.
+                if capacity.spatial()
+                    || !capacity.constant_in_direction(&|input| {
+                        f64::from(input.symbol() == eqiora_schema::kernel::SymbolRef::Time)
+                    })?
+                {
                     structure.positive_own_capacity = false;
                 } else {
                     let images = capacity.coordinate_images(self.dimension)?;

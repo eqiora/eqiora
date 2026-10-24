@@ -72,7 +72,7 @@ public component Heat(
             );
             let bytes = resolved.to_bytes().unwrap();
             let replay =
-                ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+                ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[time]).unwrap();
             assert_eq!(replay.to_bytes().unwrap(), bytes);
             let initial = replay
                 .as_spatial()

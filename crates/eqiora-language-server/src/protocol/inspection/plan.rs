@@ -9,9 +9,12 @@ use serde_json::{Value, json};
 pub(super) fn project(bytes: &[u8], selected: &ModelDocument) -> Result<Value, String> {
     // Decoding re-resolves admission and checks exact canonical bytes and provider
     // versions. It never executes the Plan or accepts renderer-authored controls.
-    let plan =
-        ResolvedCommonPlan::from_bytes(bytes, &FaerLinearSolver, DiffsolTimeBackend::CAPABILITIES)
-            .map_err(|error| format!("Cannot validate numerical Plan: {}", error.message()))?;
+    let plan = ResolvedCommonPlan::from_bytes(
+        bytes,
+        &FaerLinearSolver,
+        &[DiffsolTimeBackend::CAPABILITIES],
+    )
+    .map_err(|error| format!("Cannot validate numerical Plan: {}", error.message()))?;
     let selected_digest = selected
         .digest()
         .map_err(|error| error.message().to_owned())?;

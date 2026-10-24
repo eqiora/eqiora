@@ -59,6 +59,7 @@ pub(crate) struct CompiledRegionForm<S: Coefficient> {
     dimension: usize,
     roles: EquationRoles,
     rows: Vec<Row<S>>,
+    coefficient_partial: Option<eqiora_ir::ScalarSymbolCoordinate>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -281,6 +282,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             dimension,
             roles,
             rows: rows.into_values().collect(),
+            coefficient_partial: None,
         })
     }
 

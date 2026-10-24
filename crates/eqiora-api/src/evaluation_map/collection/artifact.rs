@@ -64,7 +64,7 @@ impl EvaluationCollection {
     pub fn from_bytes(
         bytes: &[u8],
         backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<Self, Vec<Diagnostic>> {
         eqiora_artifact::JsonLimits::EXECUTION
             .check(bytes)
@@ -165,7 +165,7 @@ impl WireGroup {
     fn replay(
         self,
         backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<EvaluationCollectionGroup, Vec<Diagnostic>> {
         let execution: ulid::Ulid = self
             .execution

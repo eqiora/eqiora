@@ -491,6 +491,14 @@ impl ExpressionContext<'_> {
                     Some(support),
                 ))
             }
+            ("time", []) => {
+                let (dag, value_type) = crate::lower::lower_parameter_coefficient(
+                    self.file,
+                    &crate::lower::LoweringExpression::name("time".to_owned(), expression.range()),
+                    &BTreeMap::new(),
+                )?;
+                coefficient_alias(&dag, value_type)
+            }
             ("math.complex", [real, imag]) => {
                 let real = self.compile(real)?;
                 let imag = self.compile(imag)?;

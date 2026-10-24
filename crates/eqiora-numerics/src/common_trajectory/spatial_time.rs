@@ -30,7 +30,10 @@ pub(crate) enum SpatialTimeExecution {
         endpoints: Vec<SpatialTimeStage>,
         outputs: Vec<SpatialTimeStage>,
     },
-    Adaptive(eqiora_time::TimeExecutionReport),
+    Adaptive {
+        report: eqiora_time::TimeExecutionReport,
+        outputs: Vec<SpatialTimeStage>,
+    },
 }
 
 impl CommonTrajectory {
@@ -82,8 +85,9 @@ impl CommonTrajectory {
         }
     }
 
-    /// Continuous spatial stencils in free differential coordinates.
-    /// Algebraic coordinates are recovered from the original equations, not interpolated.
+    /// Continuous spatial stencils in the time provider's free coordinates.
+    /// Midpoint retains differential coordinates; residual-native providers retain all
+    /// coordinates. Physical output States recover constraints from the original equations.
     #[must_use]
     pub fn spatial_time_history(&self) -> Option<&AcceptedTimeHistory> {
         match &self.payload {

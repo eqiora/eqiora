@@ -123,7 +123,7 @@ impl Payload {
         let (time, state, cursor) =
             AdaptiveCheckpoint::segment_origin(&request, prefix.as_ref(), &self.committed_samples)?;
         let (problem, time_plan) = request.smooth_segment(time, state, cursor)?;
-        self.segment.report.replay(plan.backend())?;
+        let report = self.segment.report.replay(plan.backend())?;
         let mut segment = TimeCheckpoint::initial(
             &problem,
             &time_plan,
@@ -134,6 +134,11 @@ impl Payload {
             self.segment.next_step,
             self.segment.derivative.clone(),
         )?;
+        if report != segment.report() {
+            return Err(invalid(
+                "checkpoint time report differs from its exact Plan and problem",
+            ));
+        }
         if !self.segment.steps.is_empty() {
             let steps = self
                 .segment

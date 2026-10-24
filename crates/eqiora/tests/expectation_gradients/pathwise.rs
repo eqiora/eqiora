@@ -122,7 +122,7 @@ fn pathwise_admission_preserves_coupling_and_rejects_detached_designs() {
             let reopened = eqiora::api::EvaluationCollection::from_bytes(
                 &bytes,
                 &FaerLinearSolver,
-                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
             )
             .unwrap();
             assert_eq!(reopened.to_bytes().unwrap(), bytes);

@@ -624,6 +624,15 @@ invalid candidate
                         b"sdist"
                     )
                     return ""
+                if "--zig-target" in arguments:
+                    self.assertEqual(arguments[-2:], ["--zig-target", "x86_64-linux-gnu.2.17"])
+                    self.assertEqual(Path(arguments[arguments.index("--prefix") + 1]), scratch / "sundials")
+                    self.assertIn(str(extracted / "tools/ci/install_sundials.py"), arguments)
+                    return ""
+                environment = _kwargs["extra_environment"]
+                self.assertEqual(environment["SUNDIALS_INCLUDE_DIR"], str(scratch / "sundials/include"))
+                self.assertEqual(environment["SUNDIALS_LIBRARY_DIR"], str(scratch / "sundials/lib"))
+                self.assertEqual(environment["LD_LIBRARY_PATH"].split(os.pathsep)[0], str(scratch / "sundials/lib"))
                 compatibility = arguments[arguments.index("--compatibility") + 1]
                 interpreter = arguments[arguments.index("--interpreter") + 1]
                 version = next(
@@ -761,6 +770,9 @@ invalid candidate
                         hashlib.sha256(payload).hexdigest(),
                     )
 
+        native_commands = [arguments for arguments in commands if "--zig-target" in arguments]
+        self.assertEqual(len(native_commands), 1)
+        self.assertLess(commands.index(native_commands[0]), next(i for i, arguments in enumerate(commands) if "build" in arguments))
         wheel_commands = [arguments for arguments in commands if "build" in arguments]
         self.assertEqual(len(wheel_commands), 1)
         for version, arguments in zip(config.interpreters[:1], wheel_commands, strict=True):
@@ -774,7 +786,7 @@ invalid candidate
                         "tool",
                         "run",
                         "--from",
-                        "maturin[zig]==1.15.0",
+                        "maturin[zig,patchelf]==1.15.0",
                         "maturin",
                     ],
                 )
@@ -787,7 +799,7 @@ invalid candidate
                         "--compatibility",
                         "manylinux_2_17",
                         "--auditwheel",
-                        "check",
+                        "repair",
                         "--compression-method",
                         "deflated",
                         "--compression-level",

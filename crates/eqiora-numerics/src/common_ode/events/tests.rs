@@ -121,7 +121,7 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
     let resolved = ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     assert_eq!(
-        ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, backend()).unwrap(),
+        ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[backend()]).unwrap(),
         resolved
     );
     let changed = CommonOdePlan::resolve(
@@ -164,7 +164,7 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
         ResolvedCommonPlan::from_bytes(
             &serde_json::to_vec(&wire).unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            backend()
+            &[backend()]
         )
         .is_err()
     );

@@ -162,7 +162,7 @@ fn reopen(saved: CommonTimeCheckpoint) -> CommonTimeCheckpoint {
     let plan = ResolvedCommonPlan::from_bytes(
         &plan_bytes,
         &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-        DiffsolTimeBackend::CAPABILITIES,
+        &[DiffsolTimeBackend::CAPABILITIES],
     )
     .unwrap();
     let ResolvedCommonPlan::Time(plan) = plan else {
@@ -296,6 +296,11 @@ fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
     let mut value = original.clone();
     value["payload"]["segment"]["report"]["backend_version"] = serde_json::json!("foreign");
     reject(value, "backend differs");
+    let mut value = original.clone();
+    value["payload"]["segment"]["report"]["method"] = serde_json::json!("bdf");
+    value["payload"]["segment"]["report"]["equation_class"] =
+        serde_json::json!("general-implicit-dae");
+    reject(value, "time report differs from its exact Plan");
     let mut value = original;
     value["payload"]["request"]["plan_identity"] = serde_json::json!("foreign");
     reject(value, "different exact Plan");

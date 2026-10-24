@@ -80,7 +80,7 @@ fn exact_plan_reopening_restores_ordered_typed_identity_without_solving() {
     let plan = ResolvedCommonPlan::from_bytes(
         &plan.to_bytes().unwrap(),
         &NoSolve,
-        eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+        &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap();
     let reopened = DifferentiableProgramIdentity::from_bytes(&bytes, &plan, None).unwrap();

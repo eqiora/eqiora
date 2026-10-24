@@ -60,17 +60,17 @@ impl CommonOdePolicy {
     ) -> Result<Self, Diagnostic> {
         if !matches!(
             method,
-            TimeMethod::Tsitouras45 | TimeMethod::ImplicitMidpoint
+            TimeMethod::Tsitouras45 | TimeMethod::ImplicitMidpoint | TimeMethod::Bdf
         ) {
             return Err(invalid(
-                "common ODE policy requires Tsitouras45 or ImplicitMidpoint",
+                "common time policy requires Tsitouras45, ImplicitMidpoint or Bdf",
             ));
         }
         require_positive(initial_step_s, "ODE step_s")?;
         require_positive(relative_tolerance, "ODE relative_tolerance")?;
         if absolute_tolerances.is_empty() {
             return Err(invalid(
-                "Tsitouras45 requires one exact Field-bound absolute tolerance per state",
+                "continuous time requires one exact Field-bound absolute tolerance per state",
             ));
         }
         for (_, value) in &absolute_tolerances {

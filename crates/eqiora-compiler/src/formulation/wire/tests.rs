@@ -140,10 +140,14 @@ fn plural_codec_rejects_duplicate_test_names_and_old_schema() {
             .contains("unique")
     );
     let bytes = projection().canonical_bytes().to_vec();
-    for schema in ["eqiora.authored-form/v17", "eqiora.authored-scalar-form/v3"] {
+    for schema in [
+        "eqiora.authored-form/v18",
+        "eqiora.authored-form/v17",
+        "eqiora.authored-scalar-form/v3",
+    ] {
         let old = String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("eqiora.authored-form/v18", schema);
+            .replace("eqiora.authored-form/v19", schema);
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 }

@@ -165,14 +165,14 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
         let reopened = ResolvedCommonPlan::from_bytes(
             &bytes,
             &REFERENCE_LINEAR_SOLVER,
-            eqiora_time::TimeBackendCapabilities::new(
+            &[eqiora_time::TimeBackendCapabilities::new(
                 eqiora_time::TimeBackendIdentity::new("test.forward", "1"),
                 &[
                     eqiora_core::ScalarDomain::Real,
                     eqiora_core::ScalarDomain::Complex,
                 ],
                 &[eqiora_core::ScalarType::F64],
-            ),
+            )],
         )
         .unwrap();
         assert_eq!(reopened, resolved);

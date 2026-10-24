@@ -108,7 +108,7 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     capability = plan.capability
     assert isinstance(capability, eqiora.SpatialPlanView)
     assert_type(
-        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | None
+        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | eqiora.time.Bdf | None
     )
     assert_type(
         eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2)),

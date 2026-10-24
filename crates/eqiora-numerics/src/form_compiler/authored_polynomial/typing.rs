@@ -49,7 +49,8 @@ impl Context<'_> {
             Atom::FieldGradient(id, indices) => (id.as_str(), indices, true),
             Atom::Test(indices) | Atom::TraceTest(indices) => (self.field, indices, false),
             Atom::TestGradient(indices) => (self.field, indices, true),
-            Atom::Measure(_)
+            Atom::Time
+            | Atom::Measure(_)
             | Atom::Normal(..)
             | Atom::Coordinate(..)
             | Atom::CoordinateGradient(..) => {
@@ -184,7 +185,8 @@ impl Context<'_> {
                 shape.push(self.dimensions);
                 Some(shape)
             }
-            E::Number { .. }
+            E::Time
+            | E::Number { .. }
             | E::Rational { .. }
             | E::Coordinate { .. }
             | E::Dot { .. }
@@ -193,6 +195,10 @@ impl Context<'_> {
             E::Complex { real, imag } => (self.shape(real, depth + 1)?.is_empty()
                 && self.shape(imag, depth + 1)?.is_empty())
             .then(Vec::new),
+            E::Div { left, right } => {
+                self.shape(right, depth + 1)?.is_empty().then_some(())?;
+                self.shape(left, depth + 1)
+            }
             E::Mul { left, right } => {
                 let a = self.shape(left, depth + 1)?;
                 let b = self.shape(right, depth + 1)?;

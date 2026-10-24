@@ -70,6 +70,71 @@ impl<S: Coefficient> PointwiseData<S> {
         })
     }
 
+    /// Bind a projected scalar row to its retained prescribed inputs. Field
+    /// values have already been frozen by the scalar IR projection.
+    pub(super) fn from_bound_row(
+        row: ComponentScalarRow,
+        dimension: usize,
+        inputs: Vec<Input<S>>,
+    ) -> Result<Self, Diagnostic> {
+        if inputs.len() != row.symbols().len() {
+            return Err(super::super::invalid(
+                "projected coefficient lacks exact input coverage",
+            ));
+        }
+        Ok(Self {
+            row,
+            dimension,
+            active: vec![false; inputs.len()],
+            inputs: vec![inputs],
+        })
+    }
+
+    pub(super) fn input_atoms(
+        &self,
+        physical: &[f64],
+        coordinate: &ScalarSymbolCoordinate,
+    ) -> Result<InputTerms<S>, Diagnostic> {
+        let inputs = &self.inputs[0];
+        let point = inputs
+            .iter()
+            .map(|input| input.evaluate(physical))
+            .collect::<Result<Vec<_>, _>>()?;
+        let direction = |input: &ScalarSymbolCoordinate| f64::from(input == coordinate);
+        let mut selected = Vec::new();
+        for (input, symbol) in inputs.iter().zip(self.row.symbols()) {
+            if !input.constant_in_direction(symbol, &direction)? {
+                selected.push(symbol.clone());
+            }
+        }
+        self.row
+            .additive_terms(&point, &selected)?
+            .into_iter()
+            .map(|(row, coefficient)| {
+                let bindings = row
+                    .symbols()
+                    .iter()
+                    .map(|symbol| {
+                        let index = self
+                            .row
+                            .symbols()
+                            .iter()
+                            .position(|value| value == symbol)
+                            .ok_or_else(|| {
+                                super::super::invalid("projected coefficient has a foreign input")
+                            })?;
+                        Ok(inputs[index].clone())
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                let data = Self::from_bound_row(row, self.dimension, bindings)?;
+                Ok((
+                    InputAtom::new(Data(Arc::new(Node::Pointwise(data))), physical, coordinate),
+                    num_complex::Complex::new(coefficient, num_traits::Zero::zero()),
+                ))
+            })
+            .collect()
+    }
+
     pub(super) fn bind_inputs<'a>(
         &self,
         point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,

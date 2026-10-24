@@ -18,6 +18,11 @@ use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
 use crate::model_io::{self, ArtifactFileSpec};
 
+pub(crate) const AVAILABLE_TIME_BACKENDS: &[eqiora::time::TimeBackendCapabilities] = &[
+    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
+    eqiora::backends::sundials::IdaTimeBackend::CAPABILITIES,
+];
+
 const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
     artifact_name: "resolved Plan",
     extension: "eqplan",
@@ -43,9 +48,9 @@ mod policy;
 mod registration;
 mod solver_request;
 use policy::{
-    PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama, PyImplicitMidpoint,
-    PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d, PyQ1,
-    PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge, PyTetrahedralFace,
+    PyBackwardEuler, PyBdf, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama,
+    PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d,
+    PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge, PyTetrahedralFace,
     PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
 };
 pub(crate) use registration::register;
@@ -91,6 +96,7 @@ enum TemporalHandle {
     BackwardEuler(Py<PyBackwardEuler>),
     Tsitouras45(Py<PyTsitouras45>),
     ImplicitMidpoint(Py<PyImplicitMidpoint>),
+    Bdf(Py<PyBdf>),
     EulerMaruyama(Py<PyEulerMaruyama>),
     PoissonEvents(Py<PyPoissonEvents>),
 }
@@ -152,6 +158,7 @@ impl PyPlan {
                 eqiora::time::TimeMethod::ImplicitMidpoint => {
                     TemporalHandle::ImplicitMidpoint(Py::new(py, PyImplicitMidpoint { data })?)
                 }
+                eqiora::time::TimeMethod::Bdf => TemporalHandle::Bdf(Py::new(py, PyBdf { data })?),
                 _ => unreachable!("validated ODE policy"),
             })
         } else if let Some(depth) = native
@@ -267,13 +274,9 @@ impl PyPlan {
     /// Decode and independently resolve one exact self-contained Plan.
     #[staticmethod]
     fn from_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
-        ResolvedCommonPlan::from_bytes(
-            data,
-            &FaerLinearSolver,
-            eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
-        )
-        .map_err(|diagnostic| validation_error(py, &[diagnostic]))
-        .and_then(|native| Self::from_native_artifact(py, native))
+        ResolvedCommonPlan::from_bytes(data, &FaerLinearSolver, AVAILABLE_TIME_BACKENDS)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            .and_then(|native| Self::from_native_artifact(py, native))
     }
 
     /// Atomically write this exact resolved Plan to an `.eqplan` file.
@@ -294,11 +297,7 @@ impl PyPlan {
         let native = py
             .detach(move || {
                 let bytes = model_io::read_artifact_bytes(&path, PLAN_FILE_SPEC)?;
-                ResolvedCommonPlan::from_bytes(
-                    &bytes,
-                    &FaerLinearSolver,
-                    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
-                )
+                ResolvedCommonPlan::from_bytes(&bytes, &FaerLinearSolver, AVAILABLE_TIME_BACKENDS)
             })
             .map_err(|diagnostic| compatibility_error(py, &[diagnostic]))?;
         Self::from_native_artifact(py, native)
@@ -610,6 +609,7 @@ impl PyPlan {
             TemporalHandle::BackwardEuler(value) => value.clone_ref(py).into_any(),
             TemporalHandle::Tsitouras45(value) => value.clone_ref(py).into_any(),
             TemporalHandle::ImplicitMidpoint(value) => value.clone_ref(py).into_any(),
+            TemporalHandle::Bdf(value) => value.clone_ref(py).into_any(),
             TemporalHandle::EulerMaruyama(value) => value.clone_ref(py).into_any(),
             TemporalHandle::PoissonEvents(value) => value.clone_ref(py).into_any(),
         })

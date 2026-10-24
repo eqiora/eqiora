@@ -54,7 +54,7 @@ fn fixture(
     let plan = ResolvedCommonPlan::from_bytes(
         &plan.to_bytes().unwrap(),
         &REFERENCE_LINEAR_SOLVER,
-        DiffsolTimeBackend::CAPABILITIES,
+        &[DiffsolTimeBackend::CAPABILITIES],
     )
     .unwrap();
     let q1 = spatial == CommonSpatialPolicy::Q1;
@@ -108,9 +108,11 @@ fn spatial_adaptive_heat_retains_exact_sampling_history_and_replays_outputs() {
             let before = initial.to_bytes().unwrap();
             let run = |times| {
                 request(&plan, &initial, times)
-                    .run(&REFERENCE_LINEAR_SOLVER, |problem, time| {
-                        DiffsolTimeBackend::new().solve(problem, time)
-                    })
+                    .run(
+                        &REFERENCE_LINEAR_SOLVER,
+                        |problem, time| DiffsolTimeBackend::new().solve(problem, time),
+                        |_, _| panic!("unexpected residual-native backend"),
+                    )
                     .unwrap()
             };
             let sparse = run(vec![0.25]);
@@ -146,9 +148,11 @@ fn spatial_adaptive_heat_retains_exact_sampling_history_and_replays_outputs() {
             let resumed =
                 CommonTransientRunRequest::from_times(plan.clone(), restart, 0.25, vec![0.25])
                     .unwrap()
-                    .run(&REFERENCE_LINEAR_SOLVER, |problem, time| {
-                        DiffsolTimeBackend::new().solve(problem, time)
-                    })
+                    .run(
+                        &REFERENCE_LINEAR_SOLVER,
+                        |problem, time| DiffsolTimeBackend::new().solve(problem, time),
+                        |_, _| panic!("unexpected residual-native backend"),
+                    )
                     .unwrap();
             let resumed_values = plan
                 .as_spatial()
@@ -183,20 +187,24 @@ fn spatial_adaptive_heat_retains_exact_sampling_history_and_replays_outputs() {
                 result
             );
             let rejected = request(&plan, &initial, vec![0.125, 0.25])
-                .run(&REFERENCE_LINEAR_SOLVER, |problem, time| {
-                    let solution = DiffsolTimeBackend::new().solve(problem, time)?;
-                    let mut values = (0..solution.times().len())
-                        .flat_map(|index| solution.state(index).unwrap().iter().copied())
-                        .collect::<Vec<_>>();
-                    values[0] += 1.;
-                    TimeSolution::accepted_with_history(
-                        solution.dimension(),
-                        solution.times().to_vec(),
-                        values,
-                        solution.report(),
-                        solution.history().unwrap().clone(),
-                    )
-                })
+                .run(
+                    &REFERENCE_LINEAR_SOLVER,
+                    |problem, time| {
+                        let solution = DiffsolTimeBackend::new().solve(problem, time)?;
+                        let mut values = (0..solution.times().len())
+                            .flat_map(|index| solution.state(index).unwrap().iter().copied())
+                            .collect::<Vec<_>>();
+                        values[0] += 1.;
+                        TimeSolution::accepted_with_history(
+                            solution.dimension(),
+                            solution.times().to_vec(),
+                            values,
+                            solution.report(),
+                            solution.history().unwrap().clone(),
+                        )
+                    },
+                    |_, _| panic!("unexpected residual-native backend"),
+                )
                 .unwrap_err();
             assert!(
                 rejected.message().contains("accepted time history"),
@@ -219,9 +227,11 @@ fn adaptive_spatial_rates_keep_nonlinear_and_conjugate_storage() {
         ] {
             let (plan, initial) = fixture(complex, spatial, balance, false);
             let trajectory = request(&plan, &initial, vec![0.25])
-                .run(&REFERENCE_LINEAR_SOLVER, |problem, time| {
-                    DiffsolTimeBackend::new().solve(problem, time)
-                })
+                .run(
+                    &REFERENCE_LINEAR_SOLVER,
+                    |problem, time| DiffsolTimeBackend::new().solve(problem, time),
+                    |_, _| panic!("unexpected residual-native backend"),
+                )
                 .unwrap();
             let values = plan
                 .as_spatial()

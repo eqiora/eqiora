@@ -40,11 +40,11 @@ fn ordinary_time_plans_replay_both_process_profiles_and_complete_physical_states
         let reopened = ResolvedCommonPlan::from_bytes(
             &bytes,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER,
-            eqiora_time::TimeBackendCapabilities::new(
+            &[eqiora_time::TimeBackendCapabilities::new(
                 eqiora_time::TimeBackendIdentity::new("unused.ode.provider", "1"),
                 &[],
                 &[],
-            ),
+            )],
         )
         .unwrap();
         assert_eq!(resolved, reopened);
@@ -59,11 +59,11 @@ fn ordinary_time_plans_replay_both_process_profiles_and_complete_physical_states
             ResolvedCommonPlan::from_bytes(
                 &noncanonical,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
-                eqiora_time::TimeBackendCapabilities::new(
+                &[eqiora_time::TimeBackendCapabilities::new(
                     eqiora_time::TimeBackendIdentity::new("unused.ode.provider", "1"),
                     &[],
                     &[]
-                )
+                )]
             )
             .is_err()
         );

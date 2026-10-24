@@ -163,6 +163,7 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         source.replace("derivative(u)", "derivative(v)"),
         source.replace("1[s/m^2]", "0[s/m^2]"),
         source.replace("1[s/m^2]", "-1[s/m^2]"),
+        source.replace("1[s/m^2]", "(1+time()/1[s])*1[s/m^2]"),
     ] {
         // These are rate-affine equations. Their actual assembled candidate
         // decides compatibility/regularity; positivity is only a certificate.

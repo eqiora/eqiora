@@ -70,6 +70,7 @@ pub(super) fn derive<S: Coefficient>(
         }
         boundary_count += 1;
         let mut covered = BTreeSet::new();
+        let mut optional_traces = BTreeSet::new();
         let mut carriers = BTreeSet::new();
         let relations = relations_on(program, domain.id().erase());
         for interface in interface_boundaries
@@ -98,6 +99,11 @@ pub(super) fn derive<S: Coefficient>(
             }
             for law in volume.boundary_laws(program, domain.id().erase(), relation, time_s)? {
                 let field = law.tested;
+                if !required.contains(&field)
+                    && law.quantity == crate::canonical_boundary::PhysicalBoundaryQuantity::Trace
+                {
+                    optional_traces.insert(field);
+                }
                 dependencies.insert(relation, law.dependencies.clone());
                 if !covered.insert(field) {
                     return Err(super::invalid("duplicate Field boundary law"));
@@ -108,7 +114,14 @@ pub(super) fn derive<S: Coefficient>(
                     .insert(domain.id().erase(), law);
             }
         }
-        if covered != required {
+        // Flux-bearing rows still require complete coverage. An independently
+        // admitted essential trace can also constrain a local value/rate row.
+        if covered
+            .difference(&optional_traces)
+            .copied()
+            .collect::<BTreeSet<_>>()
+            != required
+        {
             return Err(super::invalid(
                 "complete boundary law coverage must match the exact boundary-bearing Fields",
             ));

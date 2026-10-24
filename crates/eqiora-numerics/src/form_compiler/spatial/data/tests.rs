@@ -1191,3 +1191,120 @@ fn complex_time_parameter_products_share_the_retained_coordinate_inputs() {
         1.
     );
 }
+
+#[test]
+fn symbolic_time_requires_binding_before_primal_or_partial_evaluation() {
+    let data = authored_coefficient::<f64>(
+        r#"model TimeInput() {
+        domain body=box(0,1);
+        variable u:s on body;
+        relation prescribed on body {u=time();}
+    }"#,
+    );
+    let partial = data
+        .derivative(&|c| f64::from(c.symbol() == SymbolRef::Time), 1)
+        .unwrap();
+    for value in [&data, &partial] {
+        assert!(value.evaluate(&[0.]).is_err());
+        assert!(
+            value
+                .bind_inputs(&ParameterPoint::default())
+                .unwrap()
+                .evaluate(&[0.])
+                .is_err()
+        );
+        assert!(
+            value
+                .bind_inputs(super::super::InputPoint::Time(f64::NAN))
+                .is_err()
+        );
+    }
+    assert_eq!(
+        data.bind_inputs(super::super::InputPoint::Time(2.))
+            .unwrap()
+            .evaluate(&[0.])
+            .unwrap(),
+        2.
+    );
+    assert_eq!(
+        partial
+            .bind_inputs(super::super::InputPoint::Time(2.))
+            .unwrap()
+            .evaluate(&[0.])
+            .unwrap(),
+        1.
+    );
+}
+
+#[test]
+fn input_atoms_preserve_time_domains_and_exact_complex_scales() {
+    use num_traits::ToPrimitive;
+    let source = "model InputAtoms() {
+        domain body=box(0,4);
+        variable u:complex<1> on body;
+        relation prescribed on body {u=math.complex(2,3)*math.sqrt(time()/1[s]);}
+    }";
+    let coordinate = ScalarSymbolCoordinate::for_value(
+        SymbolRef::Time,
+        &eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .remove(0);
+    let at_zero = authored_coefficient_at::<C>(source, Some(0.));
+    let atoms = at_zero.input_atoms(&[0.5], &coordinate).unwrap();
+    assert!(!atoms.is_empty());
+    assert!(atoms.iter().any(|(atom, _)| atom.partial().is_err()));
+    let at_four = authored_coefficient_at::<C>(source, Some(4.));
+    let atoms = at_four.input_atoms(&[0.5], &coordinate).unwrap();
+    let derivative: C = atoms
+        .into_iter()
+        .map(|(atom, scale)| {
+            C::new(scale.re.to_f64().unwrap(), scale.im.to_f64().unwrap()) * atom.partial().unwrap()
+        })
+        .sum();
+    // d((2+3i)sqrt(t))/dt at t=4 is (2+3i)/4.
+    assert_eq!(derivative, C::new(0.5, 0.75));
+    assert!(
+        authored_coefficient_at::<C>(source, Some(-1.))
+            .input_atoms(&[0.5], &coordinate)
+            .is_err()
+    );
+    let masked = source.replace("math.complex(2,3)", "math.complex(0,0)");
+    assert!(
+        authored_coefficient_at::<C>(&masked, Some(-1.))
+            .input_atoms(&[0.5], &coordinate)
+            .is_err()
+    );
+}
+
+#[test]
+fn real_input_coordinate_aliases_compare_without_erasing_primal_domains() {
+    let source = "model RealCoordinate() {
+        domain body=box(0,1); variable u:1 on body;
+        relation prescribed on body {u=math.sqrt(time()/1[s]);}
+    }";
+    for at in [0., -1.] {
+        let data = authored_coefficient_at::<C>(source, Some(at));
+        let real = Data(Arc::new(Node::Part {
+            imaginary: false,
+            data: data.clone(),
+        }));
+        let imaginary = Data(Arc::new(Node::Part {
+            imaginary: true,
+            data: data.clone(),
+        }));
+        assert!(real.same_coefficient(&data));
+        assert!(imaginary.same_coefficient(&Data::constant(1, C::new(0., 0.))));
+        if at < 0. {
+            assert!(real.evaluate(&[0.5]).is_err());
+            assert!(imaginary.evaluate(&[0.5]).is_err());
+        } else {
+            assert_eq!(real.evaluate(&[0.5]).unwrap(), C::new(0., 0.));
+            assert_eq!(imaginary.evaluate(&[0.5]).unwrap(), C::new(0., 0.));
+        }
+    }
+}

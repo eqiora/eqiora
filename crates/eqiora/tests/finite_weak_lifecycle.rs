@@ -25,14 +25,14 @@ fn replay(bytes: &[u8]) -> Result<ResolvedCommonPlan, eqiora_core::Diagnostic> {
     ResolvedCommonPlan::from_bytes(
         bytes,
         &FaerLinearSolver,
-        eqiora_time::TimeBackendCapabilities::new(
+        &[eqiora_time::TimeBackendCapabilities::new(
             eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
             &[
                 eqiora_core::ScalarDomain::Real,
                 eqiora_core::ScalarDomain::Complex,
             ],
             &[eqiora_core::ScalarType::F64],
-        ),
+        )],
     )
 }
 #[test]

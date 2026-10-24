@@ -2098,7 +2098,7 @@ class Plan:
     @property
     def requested_solve(self) -> solve_module.Linear | solve_module.Newton | solve_module.HermitianEigen | None: ...
     @property
-    def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None: ...
+    def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None: ...
     @property
     def execution(self) -> ResolvedExecution: ...
     def __repr__(self) -> str: ...
@@ -2859,7 +2859,7 @@ change the physics. The Plan keeps the Model and Mesh you pass in unchanged
 and `spatial`.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>
@@ -5803,6 +5803,34 @@ class ImplicitMidpoint:
     def __new__(cls, *, step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
     @property
     def step_s(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-time-Bdf"></a>
+
+### `eqiora.time.Bdf`
+
+Adaptive residual-native BDF integration for admitted spatial systems.
+
+Tolerances control local time error in each real coordinate, including
+algebraic coordinates. Output cadence does not choose integration steps.
+Admitted real/complex index-one spatial systems retain the supplied initial
+State and derive consistent physical rates from the original equations.
+Requested outputs recover algebraic constraints from the accepted native
+interpolant. Resolution requires an explicit spatial solve policy.
+Finite models, events, sensitivities and durable adaptive checkpoints are
+not currently connected to this policy.
+
+```python
+@final
+class Bdf:
+    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
+    @property
+    def initial_step_s(self) -> float: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property

@@ -5,6 +5,7 @@ use std::time::Instant;
 use eqiora::Diagnostic;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::backends::faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
+use eqiora::backends::sundials::IdaTimeBackend;
 use eqiora::diagnostic::codes;
 use eqiora::solver::{
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverProvider,
@@ -151,9 +152,11 @@ fn execute_job(
             let _solve = solve_phase(1).entered();
             if request.plan().ode_temporal().is_some() {
                 let trajectory = request
-                    .run(backend, |problem, plan| {
-                        DiffsolTimeBackend::new().solve(problem, plan)
-                    })
+                    .run(
+                        backend,
+                        |problem, plan| DiffsolTimeBackend::new().solve(problem, plan),
+                        |problem, plan| IdaTimeBackend::new().solve(problem, plan),
+                    )
                     .map_err(|diagnostic| vec![diagnostic])?;
                 shared.publish_progress(PyRunProgress {
                     accepted_steps: trajectory

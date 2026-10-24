@@ -15,6 +15,7 @@ pub(in crate::common_trajectory) enum WireSpatialTimeExecution {
     },
     Adaptive {
         report: WireReport,
+        outputs: Vec<WireSpatialTimeStage>,
     },
 }
 
@@ -49,8 +50,12 @@ impl WireSpatialTimeExecution {
                     .map(WireSpatialTimeStage::capture)
                     .collect::<Result<_, _>>()?,
             }),
-            SpatialTimeExecution::Adaptive(report) => Ok(Self::Adaptive {
+            SpatialTimeExecution::Adaptive { report, outputs } => Ok(Self::Adaptive {
                 report: WireReport::from_native(*report)?,
+                outputs: outputs
+                    .iter()
+                    .map(WireSpatialTimeStage::capture)
+                    .collect::<Result<_, _>>()?,
             }),
         }
     }
@@ -78,9 +83,13 @@ impl WireSpatialTimeExecution {
                     .map(WireSpatialTimeStage::replay)
                     .collect::<Result<_, _>>()?,
             }),
-            Self::Adaptive { report } => {
-                Ok(SpatialTimeExecution::Adaptive(report.replay(backend)?))
-            }
+            Self::Adaptive { report, outputs } => Ok(SpatialTimeExecution::Adaptive {
+                report: report.replay(backend)?,
+                outputs: outputs
+                    .iter()
+                    .map(WireSpatialTimeStage::replay)
+                    .collect::<Result<_, _>>()?,
+            }),
         }
     }
 }

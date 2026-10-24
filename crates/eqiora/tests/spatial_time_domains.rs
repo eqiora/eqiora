@@ -198,7 +198,9 @@ fn resolve_source_document(
         Some(CommonTemporalPolicy::backward_euler(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
-        None,
+        document
+            .authored_formulation_projection()
+            .map_err(|e| format!("form: {e:?}"))?,
     )
     .map_err(|e| format!("resolve: {e:?}"))?;
     Ok((document, plan))
@@ -218,11 +220,11 @@ fn replay_plan(plan: ResolvedCommonPlan) -> ResolvedCommonPlan {
     let restored = ResolvedCommonPlan::from_bytes(
         &plan.to_bytes().unwrap(),
         &REFERENCE_LINEAR_SOLVER,
-        eqiora::time::TimeBackendCapabilities::new(
+        &[eqiora::time::TimeBackendCapabilities::new(
             eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
             &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
             &[eqiora::ScalarType::F64],
-        ),
+        )],
     )
     .unwrap();
     assert_eq!(restored, plan);
@@ -583,3 +585,7 @@ mod step_products;
 
 #[path = "spatial_time_domains/program.rs"]
 mod program;
+
+#[cfg(feature = "sundials")]
+#[path = "spatial_time_domains/residual_native.rs"]
+mod residual_native;

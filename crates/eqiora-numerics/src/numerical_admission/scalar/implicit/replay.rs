@@ -1,4 +1,4 @@
-//! Reconstruct the original midpoint equation and the actual stopping witness.
+//! Reconstruct spatial stage/recovery equations and their actual stopping witnesses.
 use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
 use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
@@ -52,11 +52,26 @@ where
                 return self
                     .validate_midpoint(request, states, history, execution, &initial, &plan);
             }
-            SpatialTimeExecution::Adaptive(report) => {
-                if plan.method() != eqiora_time::TimeMethod::Tsitouras45
+            SpatialTimeExecution::Adaptive { report, outputs } => {
+                let constrained =
+                    plan.method() == eqiora_time::TimeMethod::Bdf && !self.algebraic.is_empty();
+                if outputs.len() != if constrained { states.len() } else { 0 } {
+                    return Err(invalid(
+                        "adaptive history has an incomplete output recovery inventory",
+                    ));
+                }
+                let class = match plan.method() {
+                    eqiora_time::TimeMethod::Tsitouras45 => {
+                        eqiora_time::TimeEquationClass::ExplicitOde
+                    }
+                    eqiora_time::TimeMethod::Bdf => {
+                        eqiora_time::TimeEquationClass::GeneralImplicitDae
+                    }
+                    _ => return Err(invalid("adaptive history requires an adaptive time method")),
+                };
+                if report.equation_class() != class
                     || report.method() != plan.method()
                     || report.backend_identity() != request.time_backend_identity()?
-                    || report.equation_class() != eqiora_time::TimeEquationClass::ExplicitOde
                     || report.initial_condition() != eqiora_time::InitialConditionPolicy::Provided
                     || history.dimension() != initial.len()
                     || !history.events().is_empty()
@@ -74,9 +89,9 @@ where
                         "adaptive spatial history differs from its admitted provider, method, coordinates or Run interval",
                     ));
                 }
-                // The adapter owns RK acceptance. Replay verifies the retained
+                // The adapter owns adaptive step acceptance. Replay verifies the retained
                 // spatial admissibility and output history, not a fabricated
-                // midpoint equation or independently authenticated RK stages.
+                // midpoint equation or independently authenticated native stages.
                 for step in history.steps() {
                     for (time, state) in [
                         (step.start_time(), step.start_state()),
@@ -86,16 +101,45 @@ where
                         ),
                         (step.end_time(), step.end_state()),
                     ] {
-                        self.regular_mass(time, state)?;
+                        if plan.method() == eqiora_time::TimeMethod::Bdf {
+                            // Dense polynomials approximate the DAE constraint. Check
+                            // the actual State/rate chart, not initial-State consistency.
+                            let (_, seed) = self.interpolated_recovery_seed(step, time)?;
+                            self.recovery_point(
+                                time,
+                                step.end_time() - step.start_time(),
+                                state,
+                                &seed,
+                            )?;
+                        } else {
+                            self.regular_mass(time, state)?;
+                        }
                     }
                 }
             }
         }
-        for (state, &time) in states.iter().zip(request.output_times_s()) {
+        let SpatialTimeExecution::Adaptive { outputs, .. } = execution else {
+            unreachable!("midpoint was validated separately")
+        };
+        for (position, (state, &time)) in states.iter().zip(request.output_times_s()).enumerate() {
             let step = &history.steps()[history
                 .steps()
                 .partition_point(|step| step.end_time() < time)];
-            let point = step.sample(time)?;
+            let point = if outputs.is_empty() {
+                step.sample(time)?
+            } else {
+                let (fixed, seed) = self.interpolated_recovery_seed(step, time)?;
+                let h = step.end_time() - step.start_time();
+                let recovery = &outputs[position];
+                self.validate_newton(
+                    request,
+                    recovery,
+                    &seed,
+                    plan.absolute_tolerances(),
+                    |unknown| self.recovery_point(time, h, &fixed, unknown),
+                )?;
+                self.recovery_coordinates(h, &fixed, &recovery.unknown)?.0
+            };
             if *state != self.physical_state(time, &point)? {
                 return Err(invalid(
                     "spatial output differs from its exact accepted time history",
@@ -218,18 +262,22 @@ where
             linear_solves,
         } = &evidence.solve
         else {
-            return Err(invalid("midpoint stage omitted its correction history"));
+            return Err(invalid(
+                "spatial Newton stage omitted its correction history",
+            ));
         };
         let maximum = nonlinear.map_or(1, |policy| policy.maximum_iterations().get());
         if *iterations != linear_solves.len() || *iterations > maximum {
-            return Err(invalid("midpoint stage violates its iteration bound"));
+            return Err(invalid("spatial Newton stage violates its iteration bound"));
         }
         for solve in linear_solves {
             solve.validate_plan(request.plan())?;
             if solve.orientation() != eqiora_solver::LinearOperatorOrientation::Normal
                 || solve.completed_iterations() > self.plan.linear().maximum_iterations().get()
             {
-                return Err(invalid("midpoint stage solve differs from its exact Plan"));
+                return Err(invalid(
+                    "spatial Newton stage solve differs from its exact Plan",
+                ));
             }
         }
         let seed = linearize(seed_values)?;
@@ -240,7 +288,7 @@ where
         )?;
         if initial.to_bits() != initial_residual_norm.to_bits() {
             return Err(invalid(
-                "midpoint predictor residual differs from original equations",
+                "spatial Newton predictor residual differs from original equations",
             ));
         }
         let current = linearize(&evidence.unknown)?;
@@ -261,7 +309,7 @@ where
                         > target
                 {
                     return Err(invalid(
-                        "affine midpoint stage exceeds its original-equation target",
+                        "affine spatial Newton stage exceeds its original-equation target",
                     ));
                 }
             }
@@ -271,7 +319,7 @@ where
                     .any(|value| *value != 0.)
                 {
                     return Err(invalid(
-                        "midpoint zero-residual convergence differs from original equations",
+                        "spatial Newton zero-residual convergence differs from original equations",
                     ));
                 }
             }
@@ -307,7 +355,7 @@ where
                     )
                 {
                     return Err(invalid(
-                        "midpoint accepted endpoint is not a small full Newton correction",
+                        "spatial Newton accepted endpoint is not a small full Newton correction",
                     ));
                 }
                 let base = linearize(point)?;
@@ -320,13 +368,13 @@ where
                     .is_none_or(|solve| solve.residual_target().to_bits() != target.to_bits())
                 {
                     return Err(invalid(
-                        "midpoint correction solve target differs from its original equation",
+                        "spatial Newton correction solve target differs from its original equation",
                     ));
                 }
             }
             _ => {
                 return Err(invalid(
-                    "midpoint stopping evidence differs from its linear/Newton policy",
+                    "spatial Newton stopping evidence differs from its linear/Newton policy",
                 ));
             }
         }

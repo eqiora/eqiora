@@ -38,6 +38,13 @@ impl<'a, S: Coefficient> Expression<'a, S> {
                     input,
                     coordinate,
                 } => Algebra::Input(*dimension, input, coordinate),
+                Node::Part { imaginary, data } if data.provably_real() => {
+                    if *imaginary {
+                        Algebra::Constant(<S as From<f64>>::from(0.))
+                    } else {
+                        Algebra::Alias(Self::Data(data))
+                    }
+                }
                 Node::Pointwise(data) => data
                     .expression_view()
                     .map(|view| Algebra::Alias(Self::Pointwise(data, view)))

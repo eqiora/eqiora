@@ -174,6 +174,22 @@ impl<S: Coefficient> BoundFieldComponent<S> {
         )
     }
 
+    pub(super) fn input_atoms(
+        &self,
+        fields: &[RegionFieldLayout],
+        sample: &FieldPoint<'_>,
+        point: &FieldValues<'_, S>,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        multiplier: &crate::form_compiler::spatial::data::Data<S>,
+    ) -> Result<crate::form_compiler::spatial::data::InputTerms<S>, Diagnostic> {
+        self.value.input_atoms(
+            sample.physical,
+            &self.inputs(fields, sample, point)?,
+            coordinate,
+            multiplier,
+        )
+    }
+
     fn inputs(
         &self,
         fields: &[RegionFieldLayout],

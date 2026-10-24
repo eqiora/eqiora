@@ -48,10 +48,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                     current,
                     Some(previous),
                     input.previous.as_ref(),
-                    Some((
+                    &[(
                         coordinate,
                         crate::form_compiler::spatial::InputPartialScope::Full,
-                    )),
+                    )],
                 )?
             } else {
                 let NativeMeshResources::Cartesian { mesh, .. } = self.plan.admission.resources()

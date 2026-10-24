@@ -134,6 +134,13 @@ impl Context<'_, '_> {
                 self.native
                     .operation(ExprNode::CoordinatePartial { value, wrt }, ty)
             }
+            E::Time => {
+                let dimension =
+                    DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("Time dimension");
+                let ty = typed(ValueType::scalar(ScalarDomain::Real, dimension))?;
+                self.native
+                    .operation(ExprNode::Symbol(SymbolRef::Time), Ty::new(ty, None))
+            }
             E::Parameter { ulid } => {
                 let id = Id::<kinds::Parameter>::from_ulid(identity(ulid)?);
                 let (ty, assertion) = (self.resolve)(id.erase())?;
@@ -379,6 +386,7 @@ fn children(value: &E) -> Vec<&E> {
         E::Field { .. }
         | E::TimeDerivative { .. }
         | E::Parameter { .. }
+        | E::Time
         | E::Test { .. }
         | E::Direction { .. }
         | E::Number { .. }

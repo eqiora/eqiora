@@ -18,13 +18,16 @@ mod action;
 mod ale;
 mod components;
 mod dyadics;
+mod input_actions;
 use components::Component;
+use input_actions::PreparedInputAction;
 
 pub(crate) type CellActions<S, P = Native> =
     (PreparedRegionCell<S, P>, Option<PreparedRegionCell<S, P>>);
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
+    weight: f64,
     physical: Vec<f64>,
     values: Vec<Vec<f64>>,
     gradients: Vec<Vec<[f64; 3]>>,
@@ -53,6 +56,7 @@ pub(crate) struct PreparedRegionCell<S: Coefficient, P: Projection<S> = Native> 
     dyadics: Vec<Dyadic>,
     components: Vec<Component<S>>,
     samples: Vec<Sample<S>>,
+    input_actions: Vec<PreparedInputAction<S, P>>,
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
@@ -101,6 +105,36 @@ impl<S: Coefficient> BoundRegionForm<S> {
         previous_geometry: &AffineGeometryMap,
         directions: Option<(&AffineGeometryLinearization, &AffineGeometryLinearization)>,
         quadrature: &QuadratureRule,
+    ) -> Result<CellActions<S, P>, Diagnostic> {
+        if let Some(coordinate) = &self.form.coefficient_partial {
+            if directions.is_some()
+                || geometry != previous_geometry
+                || !self.eliminations.is_empty()
+            {
+                return Err(invalid(
+                    "projected coefficient partials require fixed independent geometry",
+                ));
+            }
+            return self
+                .prepare_input_partial::<P>(geometry, quadrature, coordinate)
+                .map(|cell| (cell, None));
+        }
+        self.prepare_projected_cell_actions_with::<P>(
+            geometry,
+            previous_geometry,
+            directions,
+            quadrature,
+            &super::evaluate::evaluate_data,
+        )
+    }
+
+    fn prepare_projected_cell_actions_with<P: Projection<S>>(
+        &self,
+        geometry: &AffineGeometryMap,
+        previous_geometry: &AffineGeometryMap,
+        directions: Option<(&AffineGeometryLinearization, &AffineGeometryLinearization)>,
+        quadrature: &QuadratureRule,
+        evaluate: &super::evaluate::DataEvaluator<'_, S>,
     ) -> Result<CellActions<S, P>, Diagnostic> {
         if directions.is_some_and(|(current, previous)| {
             current.map() != geometry || previous.map() != previous_geometry
@@ -152,20 +186,22 @@ impl<S: Coefficient> BoundRegionForm<S> {
         };
         let mut quadrature_cache = super::integration::QuadratureCache::default();
         let coordinates = P::ranges(&self.fields)?;
-        let (affine, affine_tangent) = self.prepare_affine_actions::<P>(
+        let (affine, affine_tangent) = self.prepare_affine_actions_with::<P>(
             (current_uses > 1).then_some(&mut quadrature_cache),
             geometry,
             directions.map(|(current, _)| current),
             quadrature,
             AffineInput::Current,
+            evaluate,
         )?;
         let (rate, rate_tangent) = if has_rate {
-            let (value, tangent) = self.prepare_affine_actions::<P>(
+            let (value, tangent) = self.prepare_affine_actions_with::<P>(
                 Some(&mut quadrature_cache),
                 geometry,
                 directions.map(|(current, _)| current),
                 quadrature,
                 AffineInput::Rate,
+                evaluate,
             )?;
             (Some(Box::new(value)), tangent.map(Box::new))
         } else {
@@ -180,12 +216,13 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 .iter()
                 .position(|layout| layout.field == trial)
                 .ok_or_else(|| invalid("history lacks an algebraic binding"))?;
-            let (matrix, matrix_tangent) = self.prepare_affine_actions::<P>(
+            let (matrix, matrix_tangent) = self.prepare_affine_actions_with::<P>(
                 reuse_history.then_some(&mut quadrature_cache),
                 previous_geometry,
                 directions.map(|(_, previous)| previous),
                 quadrature,
                 AffineInput::Previous(*field),
+                evaluate,
             )?;
             let range = &coordinates[column];
             if self.fields[column].range.len() != layout.range.len() {
@@ -227,7 +264,13 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut components = Vec::new();
         for (row, source) in self.form.rows.iter().enumerate() {
             for term in &source.components {
-                components.push(Component::new(row, term, &self.fields, data.len())?);
+                components.push(Component::new(
+                    row,
+                    term,
+                    &self.fields,
+                    data.len(),
+                    self.row_multipliers[row],
+                )?);
                 data.push((row, &term.coefficient));
             }
         }
@@ -281,7 +324,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 let coefficient_values = data
                     .iter()
                     .map(|(row, coefficient)| {
-                        let (value, tangent) = super::evaluate::evaluate_data(
+                        let (value, tangent) = evaluate(
                             coefficient,
                             &physical,
                             directions.map(|_| physical_tangent.as_slice()),
@@ -318,6 +361,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     // Every dyadic contraction has one gradient. Product-rule
                     // samples reuse that contraction, including its state Jacobian.
                     sample_tangents.push(Sample {
+                        weight: point.weight * geometry.measure_scale(),
                         physical: physical.clone(),
                         values: values.clone(),
                         gradients: gradients.clone(),
@@ -327,6 +371,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                             .collect(),
                     });
                     sample_tangents.push(Sample {
+                        weight: point.weight * geometry.measure_scale(),
                         physical: physical.clone(),
                         values: values.clone(),
                         gradients: mapped_gradients(inverse_tangent),
@@ -334,6 +379,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                     });
                 }
                 samples.push(Sample {
+                    weight: point.weight * geometry.measure_scale(),
                     physical,
                     values,
                     gradients,
@@ -354,6 +400,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             dyadics: dyadics.clone(),
             components: components.clone(),
             samples: sample_tangents,
+            input_actions: Vec::new(),
         });
         Ok((
             PreparedRegionCell {
@@ -369,6 +416,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 dyadics,
                 components,
                 samples,
+                input_actions: Vec::new(),
             },
             tangent,
         ))

@@ -183,7 +183,7 @@ public component Affine(
             &[eqiora_core::ScalarType::F64],
         );
         let replay =
-            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[time]).unwrap();
         assert_eq!(replay.to_bytes().unwrap(), bytes);
         let result_bytes = result.to_bytes().unwrap();
         assert_eq!(

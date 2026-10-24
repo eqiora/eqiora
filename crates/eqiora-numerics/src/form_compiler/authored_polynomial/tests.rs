@@ -673,3 +673,38 @@ public component Wave() {
             .is_none()
     );
 }
+
+#[test]
+fn constant_division_preserves_time_and_rejects_variable_or_zero_divisors() {
+    let mut context = scalar_context(eqiora_core::ScalarDomain::Real);
+    let quotient = |right| E::Div {
+        left: Box::new(E::Time),
+        right: Box::new(right),
+    };
+    let expected = Polynomial::atom(Atom::Time)
+        .checked_mul(&Polynomial::constant(ExactRational::new(1, 2).unwrap()))
+        .unwrap();
+    assert_eq!(
+        context.scalar(&quotient(E::Number { value: 2. }), 0),
+        Some(expected)
+    );
+    assert!(
+        context
+            .scalar(&quotient(E::Number { value: 0. }), 0)
+            .is_none()
+    );
+    assert!(context.scalar(&quotient(E::Time), 0).is_none());
+    // 1/(1+i)=(1-i)/2, with both channels retained exactly.
+    let divisor = Polynomial::complex(
+        Polynomial::constant(ExactRational::integer(1)),
+        Polynomial::constant(ExactRational::integer(1)),
+    )
+    .unwrap();
+    assert_eq!(
+        Polynomial::constant(ExactRational::integer(1)).divide_constant(&divisor),
+        Polynomial::complex(
+            Polynomial::constant(ExactRational::new(1, 2).unwrap()),
+            Polynomial::constant(ExactRational::new(-1, 2).unwrap()),
+        )
+    );
+}

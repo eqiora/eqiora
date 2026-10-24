@@ -73,9 +73,11 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![until],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                    panic!("midpoint must use the production implicit stage solver")
-                })
+                .run(
+                    &REFERENCE_LINEAR_SOLVER,
+                    |_, _| panic!("midpoint must use the production implicit stage solver"),
+                    |_, _| panic!("unexpected residual-native backend"),
+                )
                 .unwrap();
                 let outputs = vec![h / 2., 2. * h, until];
                 let request = CommonTransientRunRequest::from_times(
@@ -88,9 +90,11 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                 assert!(request.output_steps().is_err());
                 assert!(request.accepted_steps().is_err());
                 let dense = request
-                    .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                        panic!("midpoint must use the production implicit stage solver")
-                    })
+                    .run(
+                        &REFERENCE_LINEAR_SOLVER,
+                        |_, _| panic!("midpoint must use the production implicit stage solver"),
+                        |_, _| panic!("unexpected residual-native backend"),
+                    )
                     .unwrap();
                 assert_eq!(sparse.spatial_time_history(), dense.spatial_time_history());
                 assert_eq!(dense.spatial_time_history().unwrap().steps().len(), 4);
@@ -101,9 +105,11 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![h / 2.],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                    panic!("midpoint must use the production implicit stage solver")
-                })
+                .run(
+                    &REFERENCE_LINEAR_SOLVER,
+                    |_, _| panic!("midpoint must use the production implicit stage solver"),
+                    |_, _| panic!("unexpected residual-native backend"),
+                )
                 .unwrap();
                 assert_eq!(
                     interior_only.spatial_time_history(),
@@ -152,9 +158,11 @@ fn spatial_midpoint_runs_preserve_sampling_solver_intent_and_restart() {
                     vec![until],
                 )
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                    panic!("midpoint must use the production implicit stage solver")
-                })
+                .run(
+                    &REFERENCE_LINEAR_SOLVER,
+                    |_, _| panic!("midpoint must use the production implicit stage solver"),
+                    |_, _| panic!("unexpected residual-native backend"),
+                )
                 .unwrap();
                 close(
                     resumed.spatial_state(0).unwrap().spatial_values().unwrap(),
@@ -277,9 +285,11 @@ fn nonlinear_storage_runs_replay_the_original_state_dependent_stage() {
                 vec![0.25, 0.5, 0.75, 1.],
             )
             .unwrap()
-            .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                panic!("midpoint must use the production implicit stage solver")
-            })
+            .run(
+                &REFERENCE_LINEAR_SOLVER,
+                |_, _| panic!("midpoint must use the production implicit stage solver"),
+                |_, _| panic!("unexpected residual-native backend"),
+            )
             .unwrap();
             // 2*u*u'=-u² on the nonzero branch gives u'=-u/2.
             // At h=1/4 the midpoint factor is (1-1/16)/(1+1/16)=15/17.

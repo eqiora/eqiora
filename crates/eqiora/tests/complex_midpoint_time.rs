@@ -71,7 +71,7 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
         &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-        ImplicitMidpointTimeBackend::CAPABILITIES,
+        &[ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap();
     assert_eq!(replay, resolved);
@@ -428,7 +428,7 @@ fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
         ResolvedCommonPlan::from_bytes(
             &serde_json::to_vec(&wire).unwrap(),
             &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-            ImplicitMidpointTimeBackend::CAPABILITIES
+            &[ImplicitMidpointTimeBackend::CAPABILITIES]
         )
         .is_err()
     );

@@ -60,6 +60,14 @@ impl DenseOutput {
     /// # Errors
     /// Rejects times outside the interval and non-finite interpolation results.
     pub(super) fn sample(&self, time: f64) -> Result<Vec<f64>, Diagnostic> {
+        self.evaluate(time, false)
+    }
+
+    pub(super) fn derivative(&self, time: f64) -> Result<Vec<f64>, Diagnostic> {
+        self.evaluate(time, true)
+    }
+
+    fn evaluate(&self, time: f64, derivative: bool) -> Result<Vec<f64>, Diagnostic> {
         let start = self.times[0];
         let end = self.times[self.times.len() - 1];
         if !time.is_finite() || time < start || time > end {
@@ -67,7 +75,7 @@ impl DenseOutput {
                 "dense time sample is outside its accepted interval",
             ));
         }
-        if let Some(index) = self.times.iter().position(|&node| node == time) {
+        if !derivative && let Some(index) = self.times.iter().position(|&node| node == time) {
             return Ok(self.states[index].clone());
         }
         // Neville's recurrence on normalized actual timestamps avoids powers of
@@ -81,17 +89,33 @@ impl DenseOutput {
             .collect::<Vec<_>>();
         let point = (time - start) / span;
         let mut values = self.states.clone();
+        let mut tangents = derivative.then(|| vec![vec![0.; self.states[0].len()]; nodes.len()]);
         for width in 1..nodes.len() {
             for left in 0..nodes.len() - width {
                 let denominator = nodes[left + width] - nodes[left];
                 let weight = (point - nodes[left]) / denominator;
                 for coordinate in 0..values[left].len() {
+                    if let Some(tangents) = &mut tangents {
+                        // Differentiate the same Neville recurrence analytically.
+                        tangents[left][coordinate] = (1. - weight) * tangents[left][coordinate]
+                            + weight * tangents[left + 1][coordinate]
+                            + (values[left + 1][coordinate] - values[left][coordinate])
+                                / denominator;
+                    }
                     values[left][coordinate] = (1. - weight) * values[left][coordinate]
                         + weight * values[left + 1][coordinate];
                 }
             }
         }
-        let result = values.remove(0);
+        let result = if let Some(mut tangents) = tangents {
+            tangents
+                .remove(0)
+                .into_iter()
+                .map(|value| value / span)
+                .collect()
+        } else {
+            values.remove(0)
+        };
         if result.iter().any(|value| !value.is_finite()) {
             return Err(time_solve_failed(
                 "dense time polynomial evaluation is non-finite",
@@ -128,6 +152,36 @@ mod tests {
             }
             for time in [1., 4., f64::NAN, f64::INFINITY] {
                 assert!(polynomial.sample(time).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn polynomial_derivatives_follow_physical_time_at_nodes_and_between_them() {
+        for degree in 1_i32..=5 {
+            let times = (0..=degree)
+                .map(|i| 2. + 4. * i as f64 / degree as f64)
+                .collect::<Vec<_>>();
+            let states = times
+                .iter()
+                .map(|&time| {
+                    let x = (time - 2.) / 4.;
+                    vec![x.powi(degree), 3. - 2. * x]
+                })
+                .collect();
+            let polynomial = DenseOutput::from_samples(times, states).unwrap();
+            for x in [0., 0.03125, 0.21875, 0.625, 0.96875, 1.] {
+                let derivative = polynomial.derivative(2. + 4. * x).unwrap();
+                // Up to five interpolation levels and their product-rule sums;
+                // this conservative absolute roundoff budget is independent of output.
+                assert!(
+                    (derivative[0] - degree as f64 * x.powi(degree - 1) / 4.).abs()
+                        <= 2048. * f64::EPSILON
+                );
+                assert!((derivative[1] + 0.5).abs() <= 2048. * f64::EPSILON);
+            }
+            for time in [1., 7., f64::NAN, f64::INFINITY] {
+                assert!(polynomial.derivative(time).is_err());
             }
         }
     }

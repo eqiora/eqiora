@@ -57,8 +57,8 @@ fn coefficient_and_material_partials_share_the_physical_weak_action() {
         let point = ParameterPoint::bind(&program, &[parameter], &[p]).unwrap();
         let primal = form.bind_inputs(&point).unwrap();
         for partial in [
-            primal.input_partial(&coordinate).unwrap(),
-            form.input_partial(&coordinate)
+            primal.input_partial(&coordinate, true).unwrap(),
+            form.input_partial(&coordinate, true)
                 .unwrap()
                 .bind_inputs(&point)
                 .unwrap(),
@@ -167,7 +167,7 @@ fn time_partials_share_volume_products_and_prescribed_boundary_data() {
         close(&primal.evaluate(&[1.], &[]).unwrap(), &[t * t]);
         // Partial formation and input rebinding commute at fixed geometry.
         let early_partial = initial_form
-            .input_partial(&coordinate)
+            .input_partial(&coordinate, true)
             .unwrap()
             .bind_inputs(crate::form_compiler::spatial::InputPoint::Time(t))
             .unwrap();
@@ -208,7 +208,7 @@ fn direct_weak_material_partial_needs_first_products_without_a_mixed_derivative(
     for profile in ["first_partials", "value_only"] {
         let (form, program, parameter) = model(&material_source(profile, "p*u", "4"));
         let coordinate = coordinates(&program, &[parameter]).unwrap().remove(0);
-        let bound = bind(&form.input_partial(&coordinate).unwrap());
+        let bound = bind(&form.input_partial(&coordinate, true).unwrap());
         let cell = bound
             .prepare_cell(
                 &geometry(),
@@ -241,7 +241,7 @@ fn parameter_partial_keeps_original_material_domain_on_replaced_natural_flux() {
         // remains demanded at volume and natural-boundary points.
         let (form, program, parameter) = model(&material_source(profile, "u", "1.99"));
         let coordinate = coordinates(&program, &[parameter]).unwrap().remove(0);
-        let bound = bind(&form.input_partial(&coordinate).unwrap());
+        let bound = bind(&form.input_partial(&coordinate, true).unwrap());
         let geometry = geometry();
         let cell = bound
             .prepare_cell(

@@ -335,7 +335,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
         &[eqiora_core::ScalarType::F64],
     );
     let bytes = plan.to_bytes().unwrap();
-    let replay = ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+    let replay = ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[time]).unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
     let initial = replay
         .as_spatial()

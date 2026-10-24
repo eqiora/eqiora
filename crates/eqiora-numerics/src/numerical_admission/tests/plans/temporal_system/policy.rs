@@ -210,11 +210,11 @@ fn spatial_time_plan_rejects_retired_schema_and_changed_controls() {
     let requested = policy(&base, TimeMethod::ImplicitMidpoint, 0.125);
     let plan = with_policy(&base, requested).unwrap();
     let original = String::from_utf8(plan.to_bytes().unwrap()).unwrap();
-    assert!(original.contains("eqiora.resolved-common-plan/v22"));
+    assert!(original.contains("eqiora.resolved-common-plan/v23"));
     for (before, after, diagnostic) in [
         (
+            "eqiora.resolved-common-plan/v23",
             "eqiora.resolved-common-plan/v22",
-            "eqiora.resolved-common-plan/v20",
             "schema",
         ),
         (
@@ -229,7 +229,7 @@ fn spatial_time_plan_rejects_retired_schema_and_changed_controls() {
         let error = ResolvedCommonPlan::from_bytes(
             wire.as_bytes(),
             &REFERENCE_LINEAR_SOLVER,
-            eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+            &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
         )
         .unwrap_err();
         assert!(error.message().contains(diagnostic), "{error}");
@@ -269,7 +269,7 @@ fn spatial_time_backend_admission_binds_identity_and_available_domains() {
         let error = ResolvedCommonPlan::from_bytes(
             &resolved.to_bytes().unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            backend,
+            &[backend],
         )
         .unwrap_err();
         assert!(error.message().contains("does not support"), "{error}");
@@ -290,14 +290,14 @@ fn spatial_time_backend_admission_binds_identity_and_available_domains() {
         assert_ne!(changed.identity(), resolved.identity());
         let bytes = changed.to_bytes().unwrap();
         assert_eq!(
-            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, other)
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[other])
                 .unwrap()
                 .to_bytes()
                 .unwrap(),
             bytes
         );
         let error =
-            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, TEST_TIME_BACKEND)
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[TEST_TIME_BACKEND])
                 .unwrap_err();
         assert!(
             error.message().contains("time backend identity or version"),
@@ -358,7 +358,7 @@ fn spatial_time_backend_payload_rejects_missing_or_changed_provider() {
         let error = ResolvedCommonPlan::from_bytes(
             changed.as_bytes(),
             &REFERENCE_LINEAR_SOLVER,
-            TEST_TIME_BACKEND,
+            &[TEST_TIME_BACKEND],
         )
         .unwrap_err();
         assert!(error.message().contains(message), "{error}");
@@ -368,11 +368,70 @@ fn spatial_time_backend_payload_rejects_missing_or_changed_provider() {
     let error = ResolvedCommonPlan::from_bytes(
         changed.as_bytes(),
         &REFERENCE_LINEAR_SOLVER,
-        TEST_TIME_BACKEND,
+        &[TEST_TIME_BACKEND],
     )
     .unwrap_err();
     assert!(
         error.message().contains("must be present together"),
         "{error}"
     );
+}
+
+#[test]
+fn spatial_plan_replay_selects_one_exact_available_time_provider() {
+    let base = resolve(
+        false,
+        CommonSpatialPolicy::Q1,
+        0.25,
+        "1[s]*derivative(u)+u=0;",
+        None,
+    );
+    let other = eqiora_time::TimeBackendCapabilities::new(
+        eqiora_time::TimeBackendIdentity::new("eqiora.test.other-time", "1"),
+        &[eqiora_core::ScalarDomain::Real],
+        &[eqiora_core::ScalarType::F64],
+    );
+    for method in [TimeMethod::Tsitouras45, TimeMethod::Bdf] {
+        let plan = with_policy(&base, policy(&base, method, 0.125)).unwrap();
+        let bytes = plan.to_bytes().unwrap();
+        for available in [[other, TEST_TIME_BACKEND], [TEST_TIME_BACKEND, other]] {
+            assert_eq!(
+                ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &available)
+                    .unwrap()
+                    .to_bytes()
+                    .unwrap(),
+                bytes
+            );
+        }
+        for available in [vec![], vec![other]] {
+            let error =
+                ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &available)
+                    .unwrap_err();
+            assert!(
+                error.message().contains("time backend identity or version"),
+                "{error}"
+            );
+        }
+        let error = ResolvedCommonPlan::from_bytes(
+            &bytes,
+            &REFERENCE_LINEAR_SOLVER,
+            &[TEST_TIME_BACKEND, other, TEST_TIME_BACKEND],
+        )
+        .unwrap_err();
+        assert!(error.message().contains("ambiguous"), "{error}");
+    }
+    // Built-in midpoint and fixed-step BE need no external time provider.
+    for plan in [
+        base.clone(),
+        with_policy(&base, policy(&base, TimeMethod::ImplicitMidpoint, 0.125)).unwrap(),
+    ] {
+        let bytes = plan.to_bytes().unwrap();
+        assert_eq!(
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[])
+                .unwrap()
+                .to_bytes()
+                .unwrap(),
+            bytes
+        );
+    }
 }

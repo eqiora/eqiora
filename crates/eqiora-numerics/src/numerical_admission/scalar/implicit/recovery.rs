@@ -38,6 +38,31 @@ where
         Ok(full)
     }
 
+    pub(super) fn interpolated_recovery_seed(
+        &self,
+        step: &eqiora_time::TimeHistoryStep,
+        time: f64,
+    ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
+        let fixed = step.sample(time)?;
+        let rate = step.polynomial_derivative(time)?;
+        self.validate(&fixed)?;
+        self.validate(&rate)?;
+        let h = step.end_time() - step.start_time();
+        let seed = fixed
+            .iter()
+            .enumerate()
+            .map(|(i, value)| {
+                if self.algebraic.contains(&i) {
+                    *value
+                } else {
+                    h * rate[i]
+                }
+            })
+            .collect::<Vec<_>>();
+        self.validate(&seed)?;
+        Ok((fixed, seed))
+    }
+
     fn stage_recovery_seed(
         &self,
         initial: &[f64],

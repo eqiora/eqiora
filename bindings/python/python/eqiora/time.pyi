@@ -92,7 +92,31 @@ class ImplicitMidpoint:
     def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["EulerMaruyama", "PoissonEvents", "BackwardEuler", "TimePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeObservationInterpolation", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
+@final
+class Bdf:
+    """Adaptive residual-native BDF integration for admitted spatial systems.
+
+    Tolerances control local time error in each real coordinate, including
+    algebraic coordinates. Output cadence does not choose integration steps.
+    Admitted real/complex index-one spatial systems retain the supplied initial
+    State and derive consistent physical rates from the original equations.
+    Requested outputs recover algebraic constraints from the accepted native
+    interpolant. Resolution requires an explicit spatial solve policy.
+    Finite models, events, sensitivities and durable adaptive checkpoints are
+    not currently connected to this policy.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBdf``.
+    """
+    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
+    @property
+    def initial_step_s(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
+    def __repr__(self) -> str: ...
+
+__all__ = ["EulerMaruyama", "PoissonEvents", "BackwardEuler", "TimePlanView", "Tsitouras45", "ImplicitMidpoint", "Bdf", "TimeObservationInterpolation", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
 
 @final
 class TimeObservationInterpolation:

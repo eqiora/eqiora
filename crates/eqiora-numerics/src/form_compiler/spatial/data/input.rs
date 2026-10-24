@@ -39,7 +39,7 @@ impl InputPoint<'_> {
 pub(super) enum Input<S: Coefficient> {
     Scalar { data: Data<S>, imaginary: bool },
     // Identity and scalar part belong to the enclosing ScalarSymbolCoordinate.
-    BoundScalar { value: f64 },
+    BoundScalar { value: Option<f64> },
     Coordinate { axis: usize, dimension: usize },
 }
 
@@ -99,14 +99,14 @@ impl<S: Coefficient> Input<S> {
                     "model Time requires one real scalar coordinate",
                 ));
             }
-            let value = context
-                .time_s
-                .filter(|value| value.is_finite())
-                .ok_or_else(|| {
-                    super::super::invalid(
-                        "coefficient Time requires an explicit finite evaluation point",
-                    )
-                })?;
+            // Structural form correspondence retains Time symbolically. Execution
+            // must bind a finite point before evaluating the coefficient.
+            let value = context.time_s;
+            if value.is_some_and(|value| !value.is_finite()) {
+                return Err(super::super::invalid(
+                    "coefficient Time requires an explicit finite evaluation point",
+                ));
+            }
             return Ok(Self::BoundScalar { value });
         }
         if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
@@ -115,7 +115,7 @@ impl<S: Coefficient> Input<S> {
                 .typed_value(parameter.erase())
                 .ok_or_else(|| super::super::invalid("coefficient Parameter has no exact value"))?;
             return Ok(Input::BoundScalar {
-                value: coordinate.read_value(literal)?,
+                value: Some(coordinate.read_value(literal)?),
             });
         }
         if let SymbolRef::Coordinate {
@@ -166,7 +166,11 @@ impl<S: Coefficient> Input<S> {
                 let value = data.evaluate(point)?;
                 Ok(if *imaginary { value.im() } else { value.re() })
             }
-            Self::BoundScalar { value, .. } => Ok(*value),
+            Self::BoundScalar { value } => value.ok_or_else(|| {
+                super::super::invalid(
+                    "coefficient Time requires an explicit finite evaluation point",
+                )
+            }),
             Self::Coordinate { axis, dimension } => {
                 validate_point(point, *dimension)?;
                 Ok(point[*axis])
@@ -189,7 +193,7 @@ impl<S: Coefficient> Input<S> {
                 imaginary: *imaginary,
             },
             Self::BoundScalar { value } => Self::BoundScalar {
-                value: point.value(coordinate)?.unwrap_or(*value),
+                value: point.value(coordinate)?.or(*value),
             },
         })
     }

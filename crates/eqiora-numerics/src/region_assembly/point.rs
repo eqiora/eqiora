@@ -28,6 +28,34 @@ impl<'a> RegionPoint<'a> {
     }
 }
 
+impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionPacket<S, P> {
+    fn physical_rates(
+        &self,
+        target: AssemblyTargetId,
+        rates: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let RegionPacketAction::Cell { prepared, .. } = &self.action else {
+            return Err(invalid(
+                "independent rate interpolation requires a cell action",
+            ));
+        };
+        let rate_map = candidate_map(&self.mappings, target)?;
+        // Fixed entries are State values, not derivatives of boundary data.
+        if rate_map
+            .unknowns()
+            .iter()
+            .any(|value| matches!(value, LocalUnknown::Fixed(_)))
+        {
+            return Err(invalid(
+                "independent rates require an unconstrained target with explicit boundary rates",
+            ));
+        }
+        let mut rates = mapped_local_point(rate_map, rates)?;
+        orient(&mut rates, &self.orientation);
+        prepared.physical_coefficients(&rates)
+    }
+}
+
 impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegionAssembly<S, P> {
     pub(crate) fn linearize(
         &self,
@@ -134,6 +162,88 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         Ok(output)
     }
 
+    pub(crate) fn projected_input_partial(
+        &self,
+        plan: &AssemblyPlan,
+        target: AssemblyTargetId,
+        point: RegionPoint<'_>,
+        coefficient_partial: (&Self, &AssemblyPlan),
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        mass: &eqiora_time::ConstantDerivativeMatrixProof,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        use crate::form_compiler::spatial::InputAction;
+        use num_rational::BigRational;
+        use num_traits::{ToPrimitive, Zero};
+        self.validate_point(plan, target, point)?;
+        let RegionPoint::Independent {
+            rate_target, rates, ..
+        } = point
+        else {
+            return Err(invalid(
+                "projected input partial requires independent rates",
+            ));
+        };
+        if mass.dimension() != point.state().len() {
+            return Err(invalid("input partial mass proof has a foreign dimension"));
+        }
+        let mut actions: Vec<InputAction<S>> = Vec::new();
+        for (assembly, assembly_plan, coefficients) in [
+            (self, plan, false),
+            (coefficient_partial.0, coefficient_partial.1, true),
+        ] {
+            assembly.validate_point(assembly_plan, target, point)?;
+            for packet in &assembly.packets {
+                let RegionPacketAction::Cell { prepared, .. } = &packet.action else {
+                    continue;
+                };
+                let map = candidate_map(&packet.mappings, target)?;
+                let mut state = mapped_local_point(map, point.state())?;
+                orient(&mut state, &packet.orientation);
+                let rates = packet.physical_rates(rate_target, rates)?;
+                let local = if coefficients {
+                    prepared.coefficient_input_actions(&state, &rates)?
+                } else {
+                    prepared.component_input_actions(&state, &rates, coordinate)?
+                };
+                for mut action in local {
+                    for (value, sign) in action.coefficients.iter_mut().zip(&packet.orientation) {
+                        *value *= BigRational::from_integer((*sign).into());
+                    }
+                    let at = if let Some(at) = actions
+                        .iter()
+                        .position(|item| item.atom.same_atom(&action.atom))
+                    {
+                        at
+                    } else {
+                        actions.push(InputAction {
+                            atom: action.atom.clone(),
+                            coefficients: vec![BigRational::zero(); mass.dimension()],
+                        });
+                        actions.len() - 1
+                    };
+                    scatter_residual(&mut actions[at].coefficients, map, &action.coefficients)?;
+                }
+            }
+        }
+        let mut partial = vec![0_f64; mass.dimension()];
+        for action in actions {
+            if mass.is_compatible(&[], &action.coefficients)? {
+                continue;
+            }
+            let derivative = action.atom.partial()?;
+            for (value, coefficient) in partial.iter_mut().zip(action.coefficients) {
+                *value += coefficient
+                    .to_f64()
+                    .ok_or_else(|| invalid("input action exceeds binary64"))?
+                    * derivative;
+            }
+        }
+        if partial.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("projected input partial is non-finite"));
+        }
+        Ok(partial)
+    }
+
     fn local_action(
         &self,
         target: AssemblyTargetId,
@@ -199,21 +309,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                 };
                 match &packet.action {
                     RegionPacketAction::Cell { prepared, .. } => {
-                        let rate_map = candidate_map(&packet.mappings, rate_target)?;
-                        // Fixed entries contain State values. They are not time derivatives
-                        // of boundary data, so a rate point must supply every coordinate.
-                        if rate_map
-                            .unknowns()
-                            .iter()
-                            .any(|value| matches!(value, LocalUnknown::Fixed(_)))
-                        {
-                            return Err(invalid(
-                                "independent rates require an unconstrained target with explicit boundary rates",
-                            ));
-                        }
-                        let mut rates = mapped_local_point(rate_map, rates)?;
-                        orient(&mut rates, &packet.orientation);
-                        let rates = prepared.physical_coefficients(&rates)?;
+                        let rates = packet.physical_rates(rate_target, rates)?;
                         prepared.implicit_action(
                             &state,
                             Some(&rates),

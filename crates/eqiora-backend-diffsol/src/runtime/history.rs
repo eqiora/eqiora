@@ -258,23 +258,22 @@ where
             TimeMethod::Bdf => solver.order(),
             _ => return Err(solve_failed("unsupported native dense-output method")),
         };
-        let dense = capture_polynomial(start_time, end_time, degree, |time| {
-            solver
-                .interpolate(time)
-                .map(|state| collect_vector(&state))
-                .map_err(|error| map_failure(failures, "capture native dense output", error))
-        })?;
-        steps.push(TimeHistoryStep::accepted(
+        steps.push(TimeHistoryStep::capture(
             start_time,
             end_time,
+            degree,
             start_state,
             collect_vector(&middle),
             proposal.as_ref().map_or_else(
                 || collect_vector(solver.state().y),
                 |proposal| proposal.state().to_vec(),
             ),
-            dense.0,
-            dense.1,
+            |time| {
+                solver
+                    .interpolate(time)
+                    .map(|state| collect_vector(&state))
+                    .map_err(|error| map_failure(failures, "capture native dense output", error))
+            },
         )?);
         if parameters > 0 {
             let middle = solver.interpolate_sens(midpoint).map_err(|error| {
@@ -291,22 +290,21 @@ where
             } else {
                 solver.state().s.to_vec()
             };
-            let dense = capture_polynomial(start_time, end_time, degree, |time| {
-                solver
-                    .interpolate_sens(time)
-                    .map(|states| flatten(&states))
-                    .map_err(|error| {
-                        map_failure(failures, "capture native sensitivity dense output", error)
-                    })
-            })?;
-            sensitivity_steps.push(TimeHistoryStep::accepted(
+            sensitivity_steps.push(TimeHistoryStep::capture(
                 start_time,
                 end_time,
+                degree,
                 start_sensitivity,
                 flatten(&middle),
                 flatten(&end_sensitivity),
-                dense.0,
-                dense.1,
+                |time| {
+                    solver
+                        .interpolate_sens(time)
+                        .map(|states| flatten(&states))
+                        .map_err(|error| {
+                            map_failure(failures, "capture native sensitivity dense output", error)
+                        })
+                },
             )?);
         }
         while sample < times.len()
@@ -403,31 +401,4 @@ fn report(problem: &TimeProblem<'_>, plan: &TimePlan) -> TimeExecutionReport {
         problem.equation_class(),
         problem.initial_condition(),
     )
-}
-
-fn capture_polynomial(
-    start: f64,
-    end: f64,
-    degree: usize,
-    mut sample: impl FnMut(f64) -> Result<Vec<f64>, Diagnostic>,
-) -> Result<(Vec<f64>, Vec<Vec<f64>>), Diagnostic> {
-    if degree == 0 {
-        return Err(solve_failed(
-            "native dense output omitted its polynomial degree",
-        ));
-    }
-    let times = (0..=degree)
-        .map(|index| {
-            if index == degree {
-                end
-            } else {
-                start + (end - start) * (index as f64 / degree as f64)
-            }
-        })
-        .collect::<Vec<_>>();
-    let states = times
-        .iter()
-        .map(|&time| sample(time))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((times, states))
 }

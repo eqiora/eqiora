@@ -392,11 +392,11 @@ fn reject_changed_equality_root(plan: &ResolvedCommonPlan) {
         ResolvedCommonPlan::from_bytes(
             changed.as_bytes(),
             &ResolveOnlyBackend,
-            eqiora_time::TimeBackendCapabilities::new(
+            &[eqiora_time::TimeBackendCapabilities::new(
                 eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
                 &[eqiora_core::ScalarDomain::Real],
                 &[eqiora_core::ScalarType::F64]
-            ),
+            )],
         )
         .is_err()
     );

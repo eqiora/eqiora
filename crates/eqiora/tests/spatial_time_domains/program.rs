@@ -203,7 +203,7 @@ fn run_program_preserves_fixed_history_products_and_solve_free_records() {
             let reopened = EvaluationCollection::from_bytes(
                 &encoded,
                 &NoSolve,
-                eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                &[eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES],
             )
             .unwrap();
             assert_eq!(reopened, collection);

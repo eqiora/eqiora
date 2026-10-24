@@ -230,9 +230,11 @@ impl ImplicitTimeSystem for BoundedTime {
 fn terminal_domain_bound_is_respected_with_independent_output_cadence() {
     let system = BoundedTime { end: 0.1 };
     let problem = problem(&system, InitialConditionPolicy::Provided);
+    let mut histories = Vec::new();
     for times in [vec![0.1], vec![0.025, 0.05, 0.075, 0.1]] {
         let plan = TimePlan::new(TimeMethod::Bdf, 0., 1e-4, 1e-9, vec![1e-11; 4], times).unwrap();
         let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
+        histories.push(solution.history().expect("native accepted history").clone());
         for (i, &t) in solution.times().iter().enumerate() {
             for (&actual, expected) in solution.state(i).unwrap().iter().zip([
                 t.cos(),
@@ -244,6 +246,10 @@ fn terminal_domain_bound_is_respected_with_independent_output_cadence() {
             }
         }
     }
+    assert_eq!(
+        histories[0], histories[1],
+        "output cadence must not select native steps"
+    );
 }
 
 #[test]
@@ -319,16 +325,22 @@ fn consistent_initialization_does_not_use_first_output_time_as_a_solver_control(
         vec![0., 0.9, 0., 0.5],
     )
     .unwrap();
+    let mut histories = Vec::new();
     let mut scales = Vec::new();
     for times in [vec![0.1], vec![1e-9, 0.025, 0.05, 0.075, 0.1]] {
         let plan = TimePlan::new(TimeMethod::Bdf, 0., 1e-4, 1e-9, vec![1e-11; 4], times).unwrap();
         system.0.set(None);
-        IdaTimeBackend::new().solve(&problem, &plan).unwrap();
+        let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
         scales.push(system.0.get().expect("initial paired-JVP scale"));
+        histories.push(solution.history().unwrap().clone());
     }
     assert_eq!(
         scales[0], scales[1],
         "initial Newton scale changed with output cadence"
+    );
+    assert!(
+        histories[0] == histories[1],
+        "consistent initialization changed with output cadence"
     );
 }
 
@@ -406,5 +418,9 @@ fn nonlinear_rate_residual_uses_paired_actions_and_retains_the_analytic_solution
     let solution = IdaTimeBackend::new().solve(&problem, &plan).unwrap();
     for (i, &time) in solution.times().iter().enumerate() {
         assert!((solution.state(i).unwrap()[0] - (-time).exp()).abs() < 1e-6);
+    }
+    for step in solution.history().unwrap().steps() {
+        let time = step.start_time() + 0.37 * (step.end_time() - step.start_time());
+        assert!((step.sample(time).unwrap()[0] - (-time).exp()).abs() < 1e-6);
     }
 }

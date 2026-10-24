@@ -7,10 +7,42 @@ use eqiora_core::Diagnostic;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InputPartialScope {
     Full,
+    CoefficientData,
     EssentialTraces,
 }
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
+    /// Symbolic correspondence may leave Time unbound; executable admission may not.
+    pub(crate) fn require_time_point(
+        &self,
+        program: &eqiora_sem::KernelProgram,
+        time: Option<f64>,
+    ) -> Result<(), Diagnostic> {
+        if time.is_some_and(f64::is_finite) {
+            return Ok(());
+        }
+        // Inspect only this form's retained equation/coefficient/boundary inventory.
+        // A Time symbol in an unrelated Model relation is not an execution input.
+        for relation in self.dependencies.keys() {
+            if let Some(eqiora_schema::kernel::KernelNode::Relation(relation)) =
+                program.node(*relation)
+                && relation.expression().nodes().iter().any(|node| {
+                    matches!(
+                        node,
+                        eqiora_schema::kernel::ExprNode::Symbol(
+                            eqiora_schema::kernel::SymbolRef::Time
+                        )
+                    )
+                })
+            {
+                return Err(super::invalid(
+                    "coefficient Time requires an explicit finite evaluation point",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Partial coefficients and data at fixed geometry, topology and Field values.
     /// Assembly combines these with the primal constraints and boundary data.
     pub(crate) fn input_partial(
@@ -22,15 +54,17 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             return Err(super::invalid("form input partial requires fixed geometry"));
         }
         let mut partial = self.clone();
-        if scope == InputPartialScope::Full {
-            partial.volume = self.volume.input_partial(coordinate)?;
+        if scope != InputPartialScope::EssentialTraces {
+            partial.volume = self
+                .volume
+                .input_partial(coordinate, scope == InputPartialScope::Full)?;
         }
         for law in partial
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            if scope == InputPartialScope::Full
+            if scope != InputPartialScope::EssentialTraces
                 || law.quantity == crate::canonical_boundary::PhysicalBoundaryQuantity::Trace
             {
                 law.input_partial(coordinate, self.dimension)?;
