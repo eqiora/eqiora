@@ -128,8 +128,13 @@ fn altered_registration_report_index_shape_and_budget_fail_before_history_accept
     let mut invalid = wire.clone();
     invalid[0].time = f64::NAN;
     assert!(replay(&invalid, &plan).is_err());
+    // BDF is a known wire method, but cannot be paired with an explicit ODE.
+    let mut json = serde_json::to_value(&wire).unwrap();
+    json[0]["report"]["method"] = serde_json::json!("bdf");
+    let invalid: Vec<WireEvent> = serde_json::from_value(json).unwrap();
+    assert!(replay(&invalid, &plan).is_err());
     for (key, value) in [
-        ("method", "bdf"),
+        ("method", "unknown-method"),
         ("equation_class", "mass-matrix"),
         ("initial_condition", "consistent"),
     ] {

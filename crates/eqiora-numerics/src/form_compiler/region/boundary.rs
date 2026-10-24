@@ -142,11 +142,30 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                                 _ => None,
                             })
                             .unwrap_or(field);
-                        if let Some(row) = self
-                            .rows
-                            .iter()
-                            .find(|row| row.tested == tested && row.has_boundary_flux())
-                        {
+                        if let Some(row) = self.rows.iter().find(|row| row.tested == tested) {
+                            // A complete differential Field may have an essential
+                            // trace without a spatial flux. An algebraic multiplier
+                            // does not acquire a boundary contract from row ownership.
+                            if !row.has_boundary_flux() {
+                                let rates = self.temporal_structure()?.differential;
+                                let ty = &self.roles.fields[&field].1;
+                                let width =
+                                    1 + usize::from(ty.scalar_domain() == ScalarDomain::Complex);
+                                let complete =
+                                    (0..components(ty, self.dimension)?).all(|component| {
+                                        (0..width).all(|part| {
+                                            rates.contains(&eqiora_core::TimeStateCoordinate::new(
+                                                field.downcast().expect("trace Field"),
+                                                0,
+                                                component,
+                                                part != 0,
+                                            ))
+                                        })
+                                    });
+                                if !complete {
+                                    continue;
+                                }
+                            }
                             operators.push((
                                 leaf,
                                 row,

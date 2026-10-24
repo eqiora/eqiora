@@ -89,7 +89,7 @@ fn native_process_results_survive_recreated_plans_and_repeated_atomic_restart() 
                     let plan = ResolvedCommonPlan::from_bytes(
                         &plan_bytes,
                         &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-                        eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                        &[eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES],
                     )
                     .unwrap();
                     let bytes = checkpoint.to_bytes().unwrap();

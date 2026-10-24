@@ -17,6 +17,17 @@ fn resolve_typed_constraint(
     complex: bool,
     dynamic: &str,
 ) -> (ResolvedCommonPlan, [RawId; 2]) {
+    resolve_typed_constraint_with_data(spatial, mixed, constraint, complex, dynamic, "")
+}
+
+fn resolve_typed_constraint_with_data(
+    spatial: CommonSpatialPolicy,
+    mixed: bool,
+    constraint: &str,
+    complex: bool,
+    dynamic: &str,
+    data: &str,
+) -> (ResolvedCommonPlan, [RawId; 2]) {
     let scalar = if complex { "complex<1>" } else { "1" };
     let geometry = cartesian_interval();
     let first = if mixed {
@@ -44,6 +55,7 @@ fn resolve_typed_constraint(
         "public component Mixed(support body:volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body)) {{
         state u:{scalar} on body in smooth;
         variable z:{scalar} on body in smooth;
+        {data}
         relation evolution on body {{{first}=0;}}
         relation constraint on body {{{second}=0;}}
         {form}
@@ -92,7 +104,7 @@ fn resolve_typed_constraint(
         None,
         projection.as_ref(),
     )
-    .unwrap();
+    .unwrap_or_else(|error| panic!("{spatial:?}, mixed={mixed}, dynamic={dynamic}, constraint={constraint}, data={data}: {error}"));
     let resolved = policy::with_policy(
         &base,
         policy::policy(&base, eqiora_time::TimeMethod::ImplicitMidpoint, 0.1),
@@ -102,7 +114,7 @@ fn resolve_typed_constraint(
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
         &REFERENCE_LINEAR_SOLVER,
-        eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+        &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
@@ -278,9 +290,11 @@ fn constrained_midpoint_runs_recover_physical_outputs_and_replay_without_resolvi
             let run = |state, times| {
                 CommonTransientRunRequest::from_times(resolved.clone(), state, 0.3, times)
                     .unwrap()
-                    .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-                        panic!("midpoint uses the production stage owner")
-                    })
+                    .run(
+                        &REFERENCE_LINEAR_SOLVER,
+                        |_, _| panic!("midpoint uses the production stage owner"),
+                        |_, _| panic!("unexpected residual-native backend"),
+                    )
                     .unwrap()
             };
             let dense = run(initial.clone(), vec![0.05, 0.1, 0.15, 0.2, 0.3]);
@@ -427,9 +441,11 @@ fn one_complex_field_retains_differential_real_and_algebraic_imaginary_coordinat
             vec![0.05, 0.2],
         )
         .unwrap()
-        .run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-            panic!("production midpoint")
-        })
+        .run(
+            &REFERENCE_LINEAR_SOLVER,
+            |_, _| panic!("production midpoint"),
+            |_, _| panic!("unexpected residual-native backend"),
+        )
         .unwrap();
         assert_eq!(
             trajectory.spatial_time_history().unwrap().dimension(),
@@ -502,13 +518,273 @@ fn midpoint_rejects_a_singular_collocation_chart_even_when_endpoints_are_regular
             outputs,
         )
         .unwrap();
-        let error = match request.run(&REFERENCE_LINEAR_SOLVER, |_, _| {
-            panic!("production midpoint")
-        }) {
+        let error = match request.run(
+            &REFERENCE_LINEAR_SOLVER,
+            |_, _| panic!("production midpoint"),
+            |_, _| panic!("unexpected residual-native backend"),
+        ) {
             Ok(_) => panic!("midpoint accepted a singular collocation recovery chart"),
             Err(error) => error,
         };
         assert!(error.message().contains("locally regular"), "{error}");
+        assert_eq!(initial.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn physical_initial_rates_differentiate_constraints_without_changing_state() {
+    for (spatial, mixed) in [
+        (CommonSpatialPolicy::Q1, false),
+        (CommonSpatialPolicy::Q1, true),
+        (CommonSpatialPolicy::CellCenteredTpfa, false),
+    ] {
+        for (constraint, expected) in [("z-u*u", 2.), ("z-u*u-time()/1[s]", 3.)] {
+            // u'=1, z=u^2 (+t); at u=z=1,t=0 the physical z' is 2 (+1).
+            // A positive State-dependent multiplier and invertible row mixing
+            // do not change this independently differentiated solution.
+            let (resolved, _) = resolve_typed_constraint(
+                spatial,
+                mixed,
+                constraint,
+                false,
+                "(1+u*u)*(1[s]*derivative(u)-1)",
+            );
+            let plan = resolved.as_spatial().unwrap();
+            let RecognizedNativeModel::Spatial(equations) = plan.admission.recognized_model()
+            else {
+                unreachable!()
+            };
+            let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
+            let initial = vec![1.; system.dimension()];
+            let before = initial.clone();
+            let rates = system
+                .initial_rates(0., &initial, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
+            assert_eq!(initial, before);
+            assert_eq!(
+                rates.iter().filter(|v| (**v - 1.).abs() < 1e-11).count() * 2,
+                rates.len()
+            );
+            assert_eq!(
+                rates
+                    .iter()
+                    .filter(|v| (**v - expected).abs() < 1e-11)
+                    .count()
+                    * 2,
+                rates.len()
+            );
+            let mut residual = vec![f64::NAN; rates.len()];
+            system
+                .residual(0., &initial, &rates, &mut residual)
+                .unwrap();
+            assert!(residual.iter().all(|v| v.abs() < 1e-12));
+        }
+    }
+}
+
+#[test]
+fn physical_initial_rates_do_not_differentiate_regular_row_forcing() {
+    // u'=sqrt(t), z=u², u(0)=z(0)=1 gives u'(0)=z'(0)=0.
+    // The physical pair exists even though the nuisance acceleration u''(0)
+    // does not; differentiating the dynamic forcing is not needed for z'.
+    check_initial_zero_rates(
+        CommonSpatialPolicy::CellCenteredTpfa,
+        false,
+        "(1+u*u)*(1[s]*derivative(u)-math.sqrt(time()/1[s]))",
+    );
+}
+
+#[test]
+fn physical_initial_rates_q1_do_not_differentiate_regular_row_forcing() {
+    // Authored weak forms refer to the existing prescribed-Field owner. This
+    // exercises the same sqrt(t) forcing without extending their closed syntax.
+    for mixed in [false, true] {
+        check_initial_zero_rates_with_data(
+            CommonSpatialPolicy::Q1,
+            mixed,
+            "(1+u*u)*(1[s]*derivative(u)-forcing)",
+            "variable forcing:1 on body; relation forcing_data on body {forcing=math.sqrt(time()/1[s]);}",
+        );
+    }
+}
+
+#[test]
+fn physical_initial_rates_do_not_differentiate_affine_forcing() {
+    check_initial_zero_rates(
+        CommonSpatialPolicy::CellCenteredTpfa,
+        false,
+        "1[s]*derivative(u)-math.sqrt(time()/1[s])",
+    );
+}
+
+fn check_initial_zero_rates(spatial: CommonSpatialPolicy, mixed: bool, dynamic: &str) {
+    check_initial_zero_rates_with_data(spatial, mixed, dynamic, "");
+}
+
+fn check_initial_zero_rates_with_data(
+    spatial: CommonSpatialPolicy,
+    mixed: bool,
+    dynamic: &str,
+    data: &str,
+) {
+    let rates = initial_rate_result(spatial, mixed, "z-u*u", dynamic, data).unwrap();
+    assert!(rates.iter().all(|rate| rate.abs() < 1e-12));
+}
+
+fn initial_rate_result(
+    spatial: CommonSpatialPolicy,
+    mixed: bool,
+    constraint: &str,
+    dynamic: &str,
+    data: &str,
+) -> Result<Vec<f64>, eqiora_core::Diagnostic> {
+    let (resolved, _) =
+        resolve_typed_constraint_with_data(spatial, mixed, constraint, false, dynamic, data);
+    let plan = resolved.as_spatial().unwrap();
+    let RecognizedNativeModel::Spatial(equations) = plan.admission.recognized_model() else {
+        unreachable!()
+    };
+    let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
+    let initial = vec![1.; system.dimension()];
+    system.initial_rates(0., &initial, &REFERENCE_LINEAR_SOLVER)
+}
+
+#[test]
+fn physical_initial_rates_project_coefficients_before_differentiation() {
+    for (spatial, mixed) in [
+        (CommonSpatialPolicy::Q1, false),
+        (CommonSpatialPolicy::Q1, true),
+        (CommonSpatialPolicy::CellCenteredTpfa, false),
+    ] {
+        for forcing in [
+            "math.sqrt(time()/1[s])",
+            "coordinate(0)/1[m]*math.sqrt(time()/1[s])",
+        ] {
+            let data = format!(
+                "variable forcing:1 on body; relation forcing_data on body {{forcing={forcing};}}"
+            );
+            // u'=sqrt(t)*g(x), z=u² at u=z=1 has both initial rates zero.
+            check_initial_zero_rates_with_data(spatial, mixed, "1[s]*derivative(u)-forcing", &data);
+            // a'(0) need not exist when its entire action a'(0)*u'(0) is zero.
+            check_initial_zero_rates_with_data(
+                spatial,
+                mixed,
+                "(1+forcing)*1[s]*derivative(u)",
+                &data,
+            );
+            // The prescribed forcing and nonlinear u²*forcing actions cancel
+            // only after their complete equation actions have been assembled.
+            let rates = initial_rate_result(
+                spatial,
+                mixed,
+                "z-u*u+forcing-u*u*forcing",
+                "1[s]*derivative(u)",
+                &data,
+            )
+            .unwrap();
+            assert!(rates.iter().all(|rate| rate.abs() < 1e-12));
+        }
+        // With u'=0 and z=u²+t the algebraic rate is exactly one; the Time
+        // partial must be retained when it lies outside the differential range.
+        let rates = initial_rate_result(
+            spatial,
+            mixed,
+            "z-u*u-time()/1[s]",
+            "1[s]*derivative(u)",
+            "",
+        )
+        .unwrap();
+        assert_eq!(
+            rates.iter().filter(|rate| rate.abs() < 1e-12).count() * 2,
+            rates.len()
+        );
+        assert_eq!(
+            rates
+                .iter()
+                .filter(|rate| (**rate - 1.).abs() < 1e-12)
+                .count()
+                * 2,
+            rates.len()
+        );
+        // z=u²-sqrt(t) genuinely has no finite initial algebraic rate.
+        let error = initial_rate_result(spatial, mixed, "z-u*u+forcing", "1[s]*derivative(u)",
+            "variable forcing:1 on body; relation forcing_data on body {forcing=math.sqrt(time()/1[s]);}").unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("scalar derivative requires a positive argument"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn physical_initial_rates_complex_coefficient_actions_preserve_both_parts() {
+    for (spatial, mixed) in [
+        (CommonSpatialPolicy::Q1, false),
+        (CommonSpatialPolicy::Q1, true),
+        (CommonSpatialPolicy::CellCenteredTpfa, false),
+    ] {
+        let (resolved, fields) = resolve_typed_constraint_with_data(
+            spatial,
+            mixed,
+            "z-u*u-math.complex(4,5)*time()/1[s]",
+            true,
+            "1[s]*derivative(u)-math.complex(2,3)*forcing",
+            "variable forcing:1 on body; relation forcing_data on body {forcing=math.sqrt(time()/1[s]);}",
+        );
+        let plan = resolved.as_spatial().unwrap();
+        let q1 = spatial == CommonSpatialPolicy::Q1;
+        let count = if q1 { 3 } else { 2 };
+        let u = C::new(1., 2.);
+        let assignments = plan
+            .fields()
+            .map(|(field, ty)| {
+                let value = if field.erase() == fields[0] { u } else { u * u };
+                let values =
+                    CommonInitialValues::new(ty.shape().clone(), vec![value; count]).unwrap();
+                CommonInitialField::new(
+                    resolved.model_artifact().digest().unwrap(),
+                    field,
+                    q1.then(|| values.clone()),
+                    (!q1).then_some(values),
+                )
+                .unwrap()
+            })
+            .collect();
+        let initial = plan.initial_state(Some(0.), assignments).unwrap();
+        let before = initial.to_bytes().unwrap();
+        let RecognizedNativeModel::ComplexSpatial(equations) = plan.admission.recognized_model()
+        else {
+            unreachable!()
+        };
+        let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
+        let rates = system
+            .initial_rates(
+                0.,
+                initial.spatial_values().unwrap(),
+                &REFERENCE_LINEAR_SOLVER,
+            )
+            .unwrap();
+        // u'(0)=0 and z'(0)=2u(0)u'(0)+(4+5i)=4+5i.
+        assert_eq!(
+            rates
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .filter(|pair| pair[0].abs() < 1e-11 && pair[1].abs() < 1e-11)
+                .count(),
+            count
+        );
+        assert_eq!(
+            rates
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .filter(|pair| (pair[0] - 4.).abs() < 1e-11 && (pair[1] - 5.).abs() < 1e-11)
+                .count(),
+            count
+        );
         assert_eq!(initial.to_bytes().unwrap(), before);
     }
 }

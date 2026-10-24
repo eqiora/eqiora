@@ -225,14 +225,14 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
         crate::ResolvedCommonPlan::from_bytes(
             &bytes,
             &REFERENCE_LINEAR_SOLVER,
-            eqiora_time::TimeBackendCapabilities::new(
+            &[eqiora_time::TimeBackendCapabilities::new(
                 eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
                 &[
                     eqiora_core::ScalarDomain::Real,
                     eqiora_core::ScalarDomain::Complex
                 ],
                 &[eqiora_core::ScalarType::F64]
-            ),
+            )],
         )
         .unwrap(),
         resolved

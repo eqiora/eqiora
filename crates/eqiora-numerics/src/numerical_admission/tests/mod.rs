@@ -183,7 +183,7 @@ const TEST_TIME_BACKEND: eqiora_time::TimeBackendCapabilities =
 
 fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> ResolvedCommonPlan {
     let bytes = plan.to_bytes().unwrap();
-    let replayed = ResolvedCommonPlan::from_bytes(&bytes, backend, TEST_TIME_BACKEND).unwrap();
+    let replayed = ResolvedCommonPlan::from_bytes(&bytes, backend, &[TEST_TIME_BACKEND]).unwrap();
     assert_eq!(replayed, plan);
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
     let mut false_identity = bytes.clone();
@@ -199,12 +199,12 @@ fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> R
         b'x'
     };
     assert!(
-        ResolvedCommonPlan::from_bytes(&false_identity, backend, TEST_TIME_BACKEND,).is_err(),
+        ResolvedCommonPlan::from_bytes(&false_identity, backend, &[TEST_TIME_BACKEND],).is_err(),
         "a canonical-looking false resolved identity must reject"
     );
     let mut noncanonical = bytes;
     noncanonical.push(b'\n');
-    assert!(ResolvedCommonPlan::from_bytes(&noncanonical, backend, TEST_TIME_BACKEND,).is_err());
+    assert!(ResolvedCommonPlan::from_bytes(&noncanonical, backend, &[TEST_TIME_BACKEND],).is_err());
     replayed
 }
 

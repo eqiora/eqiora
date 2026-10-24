@@ -151,7 +151,7 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
             let reopened = eqiora::api::EvaluationCollection::from_bytes(
                 &bytes,
                 &FaerLinearSolver,
-                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
             )
             .unwrap();
             assert_eq!(reopened.to_bytes().unwrap(), bytes);

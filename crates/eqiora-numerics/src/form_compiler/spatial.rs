@@ -15,6 +15,7 @@ pub(crate) use binding::InputPartialScope;
 mod boundary;
 pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;
+pub(crate) use data::InputAction;
 pub(crate) use data::InputPoint;
 mod error_estimate;
 mod lowering;

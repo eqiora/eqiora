@@ -120,6 +120,7 @@ fn from_dag(
                     field_ulid: id.ulid().to_string(),
                 }
             }
+            ExprNode::Symbol(SymbolRef::Time) => AuthoredFormExpressionV1::Time,
             ExprNode::Symbol(SymbolRef::Parameter(id)) => AuthoredFormExpressionV1::Parameter {
                 ulid: id.ulid().to_string(),
             },

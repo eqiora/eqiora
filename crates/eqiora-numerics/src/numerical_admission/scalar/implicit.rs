@@ -1,4 +1,5 @@
 //! Continuous spatial equations in free real coordinates, including analytic trace rates.
+mod initial;
 mod midpoint;
 mod rate;
 mod recovery;
@@ -126,7 +127,7 @@ where
         let (partial_mapping, _) = self.plan.scalar_time_partial(
             self.equations,
             time_s,
-            InputPartialScope::EssentialTraces,
+            &[InputPartialScope::EssentialTraces],
         )?;
         let fixed = mapping.prescribed_rates(&partial_mapping)?;
         let rates = RegionRealCoordinates::new(&mapping)?.lift_rates(derivative, &fixed)?;

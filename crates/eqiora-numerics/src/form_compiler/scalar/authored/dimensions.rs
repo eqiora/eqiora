@@ -111,6 +111,7 @@ impl Context<'_> {
         }
         self.remaining = self.remaining.checked_sub(1)?;
         match value {
+            E::Time => D::from_integers([0, 0, 1, 0, 0, 0, 0]),
             E::Number { value } if value.is_finite() => Some(D::DIMENSIONLESS),
             E::Rational {
                 dimension: units, ..

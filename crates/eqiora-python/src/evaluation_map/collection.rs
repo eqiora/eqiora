@@ -95,7 +95,7 @@ impl PyEvaluationCollection {
                 EvaluationCollection::from_bytes(
                     data,
                     &eqiora::backends::faer::FaerLinearSolver,
-                    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
+                    crate::common_plan::AVAILABLE_TIME_BACKENDS,
                 )
             })
             .map(Self::from)

@@ -185,7 +185,7 @@ fn execute<S: Coefficient + Send + Sync>(
             &[eqiora_core::ScalarType::F64],
         );
         let public =
-            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[time]).unwrap();
         assert_eq!(public.to_bytes().unwrap(), bytes);
         let result = public
             .as_spatial()
@@ -251,11 +251,12 @@ fn execute<S: Coefficient + Send + Sync>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v22",
+            "eqiora.resolved-common-plan/v23",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
-            ResolvedCommonPlan::from_bytes(old.as_bytes(), &REFERENCE_LINEAR_SOLVER, time).is_err()
+            ResolvedCommonPlan::from_bytes(old.as_bytes(), &REFERENCE_LINEAR_SOLVER, &[time])
+                .is_err()
         );
 
         // The same constant solution is representable by nodal P1, but a

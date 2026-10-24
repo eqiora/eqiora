@@ -58,6 +58,7 @@ pub(super) fn resolve_plan(
                         .ok()
                         .map(TemporalHandle::ImplicitMidpoint)
                 })
+                .or_else(|| value.extract::<Py<PyBdf>>().ok().map(TemporalHandle::Bdf))
                 .or_else(|| {
                     value
                         .extract::<Py<PyEulerMaruyama>>()
@@ -289,7 +290,9 @@ pub(super) fn resolve_plan(
                 )
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))
             }
-            TemporalHandle::Tsitouras45(_) | TemporalHandle::ImplicitMidpoint(_) => {
+            TemporalHandle::Tsitouras45(_)
+            | TemporalHandle::ImplicitMidpoint(_)
+            | TemporalHandle::Bdf(_) => {
                 let digest = model_ref
                     .artifact()
                     .digest()
@@ -376,9 +379,16 @@ fn ode_policy(
                 value.data.belongs_to_model(py, model_digest),
             )
         }
+        TemporalHandle::Bdf(handle) => {
+            let value = handle.borrow(py);
+            (
+                value.data.native.clone(),
+                value.data.belongs_to_model(py, model_digest),
+            )
+        }
         _ => {
             return Err(PyTypeError::new_err(
-                "continuous deterministic time resolution requires Tsitouras45 or ImplicitMidpoint",
+                "continuous deterministic time resolution requires Tsitouras45, ImplicitMidpoint or Bdf",
             ));
         }
     };
@@ -397,6 +407,7 @@ fn time_backend(
         eqiora::time::TimeMethod::ImplicitMidpoint => {
             eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
         }
+        eqiora::time::TimeMethod::Bdf => eqiora::backends::sundials::IdaTimeBackend::CAPABILITIES,
         _ => eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
     }
 }

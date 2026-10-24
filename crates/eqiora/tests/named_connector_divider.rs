@@ -336,11 +336,11 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
     let replayed = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendCapabilities::new(
+        &[eqiora::time::TimeBackendCapabilities::new(
             eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
             &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
             &[eqiora::ScalarType::F64],
-        ),
+        )],
     )
     .unwrap();
     assert_eq!(replayed, resolved);
@@ -464,17 +464,17 @@ fn finite_plan_and_state_bind_exact_provider_library_releases() {
     let second_plan = ResolvedCommonPlan::Algebraic(Box::new(second_plan));
     let bytes = first_plan.to_bytes().unwrap();
     assert_eq!(
-        ResolvedCommonPlan::from_bytes(&bytes, &first, time).unwrap(),
+        ResolvedCommonPlan::from_bytes(&bytes, &first, &[time]).unwrap(),
         first_plan
     );
     assert_eq!(
-        ResolvedCommonPlan::from_bytes(&second_plan.to_bytes().unwrap(), &second, time).unwrap(),
+        ResolvedCommonPlan::from_bytes(&second_plan.to_bytes().unwrap(), &second, &[time]).unwrap(),
         second_plan
     );
-    assert!(ResolvedCommonPlan::from_bytes(&bytes, &second, time).is_err());
+    assert!(ResolvedCommonPlan::from_bytes(&bytes, &second, &[time]).is_err());
     let canonical = String::from_utf8(bytes).unwrap();
     let original = "[[\"test-library\",\"1\"]]";
     assert_eq!(canonical.matches(original).count(), 1);
     let substituted = canonical.replace(original, "[[\"test-library\",\"2\"]]");
-    assert!(ResolvedCommonPlan::from_bytes(substituted.as_bytes(), &second, time).is_err());
+    assert!(ResolvedCommonPlan::from_bytes(substituted.as_bytes(), &second, &[time]).is_err());
 }

@@ -24,13 +24,27 @@ impl WireTimeBackend {
     pub(super) fn resolve(
         &self,
         method: WireOdeMethod,
-        available: TimeBackendCapabilities,
+        available: &[TimeBackendCapabilities],
     ) -> Result<TimeBackendCapabilities, Diagnostic> {
         let backend = match method {
             WireOdeMethod::ImplicitMidpoint => {
                 eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
             }
-            WireOdeMethod::Tsitouras45 => available,
+            WireOdeMethod::Tsitouras45 | WireOdeMethod::Bdf => {
+                let mut matching = available.iter().copied().filter(|candidate| {
+                    candidate.identity().id() == self.id
+                        && candidate.identity().version() == self.version
+                });
+                let selected = matching.next().ok_or_else(|| invalid(
+                    "persisted time backend identity or version differs from the available implementations",
+                ))?;
+                if matching.next().is_some() {
+                    return Err(invalid(
+                        "persisted time backend has ambiguous available implementations",
+                    ));
+                }
+                selected
+            }
         };
         let identity = backend.identity();
         if self.id != identity.id() || self.version != identity.version() {
@@ -90,12 +104,14 @@ impl WireConservedNorm {
 pub(super) enum WireOdeMethod {
     Tsitouras45,
     ImplicitMidpoint,
+    Bdf,
 }
 impl WireOdeMethod {
     fn encode(method: eqiora_time::TimeMethod) -> Self {
         match method {
             eqiora_time::TimeMethod::Tsitouras45 => Self::Tsitouras45,
             eqiora_time::TimeMethod::ImplicitMidpoint => Self::ImplicitMidpoint,
+            eqiora_time::TimeMethod::Bdf => Self::Bdf,
             _ => unreachable!("validated common ODE policy"),
         }
     }
@@ -103,6 +119,7 @@ impl WireOdeMethod {
         match self {
             Self::Tsitouras45 => eqiora_time::TimeMethod::Tsitouras45,
             Self::ImplicitMidpoint => eqiora_time::TimeMethod::ImplicitMidpoint,
+            Self::Bdf => eqiora_time::TimeMethod::Bdf,
         }
     }
 }

@@ -121,7 +121,7 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                 eqiora_numerics::ResolvedCommonPlan::from_bytes(
                     &bytes,
                     &FaerLinearSolver,
-                    ImplicitMidpointTimeBackend::CAPABILITIES,
+                    &[ImplicitMidpointTimeBackend::CAPABILITIES],
                 )
                 .unwrap(),
                 resolved

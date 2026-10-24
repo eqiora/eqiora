@@ -206,3 +206,38 @@ fn simplified_zero_coefficient_is_not_an_unknown_boundary_field() {
         form.volume().unwrap();
     }
 }
+
+#[test]
+fn local_rows_allow_prescribed_traces_without_waiving_flux_coverage() {
+    // Keep u as a physical unknown: a bare u=2 definition is eliminated
+    // as a known coefficient before boundary admission.
+    let source = SOURCE
+        .replace("variable u: 1", "state u: 1")
+        .replace("-div(k * grad(u)) = 0", "1[s]*derivative(u) = 0")
+        .replace("normal(k * grad(u)) = q", "trace(u) = 2");
+    let form = derive(&source).unwrap();
+    assert_eq!(
+        form.boundary_laws()
+            .values()
+            .map(BTreeMap::len)
+            .sum::<usize>(),
+        4
+    );
+    derive(&source.replace("relation ul on left { trace(u) = 2; }", "")).unwrap();
+    let missing = derive(&source.replace("relation vl on left { trace(v) = 4; }", "")).unwrap_err();
+    assert!(missing.message().contains("complete boundary law coverage"));
+    assert!(
+        derive(&source.replace(
+            "relation ur on right { trace(u) = 2; }",
+            "relation ur on right { normal(grad(u)) = 0; }"
+        ))
+        .is_err()
+    );
+    assert!(
+        derive_with_interface(
+            &source.replace("relation ul on left { trace(u) = 2; }", ""),
+            Some("u")
+        )
+        .is_err()
+    );
+}

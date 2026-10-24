@@ -111,6 +111,45 @@ impl ComponentScalarRow {
         self.ir.polynomial_degree(inputs)
     }
 
+    /// Decompose the selected-coordinate dependence at one physical point.
+    /// Unselected coordinates are frozen; coefficients use the shared exact
+    /// additive projection, before any derivative is demanded. The original
+    /// row's complete demanded primal domains are checked before cancellation.
+    /// Returned atoms retain real component identities and their own calculus.
+    /// This point-bound decomposition does not authorize discarding a term
+    /// without a caller-owned proof of its assembled action.
+    ///
+    /// # Errors
+    /// Rejects invalid inputs, demanded primal domains, and exact projection
+    /// work exceeding the scalar IR budget.
+    pub fn additive_terms(
+        &self,
+        inputs: &[f64],
+        selected: &[ScalarSymbolCoordinate],
+    ) -> Result<Vec<(Self, num_rational::BigRational)>, Diagnostic> {
+        Ok(self
+            .ir
+            .additive_terms(inputs, selected)?
+            .into_iter()
+            .map(|(ir, coefficient)| {
+                (
+                    Self {
+                        root_index: self.root_index,
+                        component_index: self.component_index.clone(),
+                        part: self.part,
+                        symbols: ir
+                            .slots()
+                            .iter()
+                            .map(|slot| slot.source().clone())
+                            .collect(),
+                        ir,
+                    },
+                    coefficient,
+                )
+            })
+            .collect())
+    }
+
     /// Conservatively classify affine dependence on selected coordinates.
     /// Other inputs remain symbolic coefficients, never sampled values. Guards
     /// and branch choices must be independent of the selection, and retained

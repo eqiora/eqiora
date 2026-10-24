@@ -15,9 +15,12 @@ pub(super) fn project(
     plan: &[u8],
     selected: &ModelDocument,
 ) -> Result<Value, String> {
-    let plan =
-        ResolvedCommonPlan::from_bytes(plan, &FaerLinearSolver, DiffsolTimeBackend::CAPABILITIES)
-            .map_err(|error| format!("Cannot validate Result Plan: {}", error.message()))?;
+    let plan = ResolvedCommonPlan::from_bytes(
+        plan,
+        &FaerLinearSolver,
+        &[DiffsolTimeBackend::CAPABILITIES],
+    )
+    .map_err(|error| format!("Cannot validate Result Plan: {}", error.message()))?;
     if plan.model_digest()
         != selected
             .digest()

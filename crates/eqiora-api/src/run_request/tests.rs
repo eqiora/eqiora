@@ -47,7 +47,8 @@ fn exact_common_transient_request_round_trips_and_normalizes_schedule_spelling()
     assert_eq!(by_steps.to_bytes().unwrap(), by_times.to_bytes().unwrap());
 
     let bytes = by_steps.to_bytes().unwrap();
-    let replayed = RunRequest::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, TIME_BACKEND).unwrap();
+    let replayed =
+        RunRequest::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[TIME_BACKEND]).unwrap();
     assert_eq!(replayed, by_steps);
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
     assert_eq!(replayed.native().identity(), by_steps.identity());
@@ -105,7 +106,7 @@ fn replay_rejects_false_identity_noncanonical_and_invalid_schedule_content() {
 
     let mut trailing = bytes;
     trailing.push(b'\n');
-    assert!(RunRequest::from_bytes(&trailing, &REFERENCE_LINEAR_SOLVER, TIME_BACKEND).is_err());
+    assert!(RunRequest::from_bytes(&trailing, &REFERENCE_LINEAR_SOLVER, &[TIME_BACKEND]).is_err());
 }
 
 #[test]
@@ -130,7 +131,7 @@ fn replay_rejects_cross_wired_roots_bad_base64_and_oversized_input() {
     assert!(decode_wire(&bad_base64).is_err());
 
     assert!(
-        RunRequest::from_bytes_with_limit(b"{}", &REFERENCE_LINEAR_SOLVER, TIME_BACKEND, 1,)
+        RunRequest::from_bytes_with_limit(b"{}", &REFERENCE_LINEAR_SOLVER, &[TIME_BACKEND], 1,)
             .is_err()
     );
 }
@@ -279,7 +280,7 @@ fn decode_wire(wire: &serde_json::Value) -> Result<RunRequest, Diagnostic> {
     RunRequest::from_bytes(
         &serde_json::to_vec(wire).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
-        TIME_BACKEND,
+        &[TIME_BACKEND],
     )
 }
 

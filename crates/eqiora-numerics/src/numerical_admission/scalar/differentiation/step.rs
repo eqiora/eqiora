@@ -151,7 +151,7 @@ where
             current,
             Some(previous_time),
             Some(&history),
-            None,
+            &[],
         )?;
         if !canonical.has_same_coordinate_layout(&mapping) {
             return Err(invalid(

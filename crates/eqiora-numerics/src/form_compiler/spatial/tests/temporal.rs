@@ -163,6 +163,7 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         source.replace("derivative(u)", "derivative(v)"),
         source.replace("1[s/m^2]", "0[s/m^2]"),
         source.replace("1[s/m^2]", "-1[s/m^2]"),
+        source.replace("1[s/m^2]", "(1+time()/1[s])*1[s/m^2]"),
     ] {
         // These are rate-affine equations. Their actual assembled candidate
         // decides compatibility/regularity; positivity is only a certificate.
@@ -170,6 +171,21 @@ fn vector_storage_retains_source_rates_without_assuming_own_positive_capacity() 
         assert!(form.is_transient());
         assert!(!form.temporal.positive_own_capacity);
     }
+    let varying = derive(&source.replace("1[s/m^2]", "(1+time()/1[s])*1[s/m^2]")).unwrap();
+    for (time, positive) in [(2., true), (-1., false), (-2., false)] {
+        let bound = varying
+            .bind_inputs(super::super::InputPoint::Time(time))
+            .unwrap();
+        assert_eq!(bound.temporal.positive_own_capacity, positive);
+        assert_eq!(bound.temporal.differential, varying.temporal.differential);
+    }
+    let singular = derive(&source.replace("1[s/m^2]", "math.sqrt(time()/1[s])*1[s/m^2]")).unwrap();
+    assert!(!singular.temporal.positive_own_capacity);
+    assert!(
+        singular
+            .bind_inputs(super::super::InputPoint::Time(-1.))
+            .is_err()
+    );
 }
 
 #[test]

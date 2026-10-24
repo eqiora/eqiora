@@ -6,7 +6,7 @@ fn reopen(collection: &EvaluationCollection) -> EvaluationCollection {
     let reopened = EvaluationCollection::from_bytes(
         &bytes,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
-        eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+        &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap();
     assert_eq!(reopened.to_bytes().unwrap(), bytes);
@@ -116,7 +116,7 @@ fn interrupted_time_collection_retains_individual_results_and_requires_explicit_
     let error = EvaluationCollection::from_bytes(
         &serde_json::to_vec(&false_complete).unwrap(),
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
-        eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+        &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap_err();
     assert!(
@@ -255,7 +255,7 @@ fn saved_time_estimator_binds_every_occurrence_without_reducing_on_read() {
             EvaluationCollection::from_bytes(
                 &serde_json::to_vec(&mutant).unwrap(),
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
-                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
             )
         })
         .unwrap_err();

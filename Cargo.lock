@@ -672,6 +672,7 @@ dependencies = [
  "eqiora-backend-mpi",
  "eqiora-backend-mpi-cuda",
  "eqiora-backend-rayon",
+ "eqiora-backend-sundials",
  "eqiora-cad-truck",
  "eqiora-compiler",
  "eqiora-core",

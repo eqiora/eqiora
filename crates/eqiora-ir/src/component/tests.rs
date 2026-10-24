@@ -465,3 +465,204 @@ fn constant_rate_matrix_retains_complex_parts_without_freezing_other_symbols() {
         }
     }
 }
+
+#[test]
+fn additive_terms_keep_component_identity_and_defer_singular_time_derivatives() {
+    use crate::{DifferentiationRole, LinearizedRelation, RelationTangent};
+    use eqiora_core::{DynQuantity, ScalarDomain, ValueType};
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let field = SymbolRef::Field(Id::<kinds::Field>::new());
+    let time_dimension = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let u = builder.symbol(field).unwrap();
+    let t = builder.symbol(SymbolRef::Time).unwrap();
+    let second = builder
+        .constant(DynQuantity::new(1., time_dimension))
+        .unwrap();
+    let dimensionless_time = builder.div(t, second).unwrap();
+    let root_time = builder
+        .unary_math(UnaryMathFunction::Sqrt, dimensionless_time)
+        .unwrap();
+    let root = builder.mul(u, root_time).unwrap();
+    let typed = TypedResidual::infer(
+        builder.finish([root]).unwrap(),
+        None::<SpatialSupport<()>>,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |symbol| {
+            Ok::<_, ()>(ExpressionType::new(
+                ValueType::scalar(
+                    if symbol == SymbolRef::Time {
+                        ScalarDomain::Real
+                    } else {
+                        ScalarDomain::Complex
+                    },
+                    if symbol == SymbolRef::Time {
+                        time_dimension
+                    } else {
+                        DimExponents::DIMENSIONLESS
+                    },
+                )
+                .unwrap(),
+                None,
+            ))
+        },
+    )
+    .unwrap();
+    let lowered = ComponentScalarization::lower(&typed).unwrap();
+    let mut atoms = Vec::new();
+    for row in lowered.rows() {
+        let selected = row
+            .symbols()
+            .iter()
+            .filter(|c| c.symbol() == SymbolRef::Time)
+            .cloned()
+            .collect::<Vec<_>>();
+        let point = row
+            .symbols()
+            .iter()
+            .map(|c| {
+                if c.symbol() == SymbolRef::Time {
+                    0.
+                } else if c.is_imaginary() {
+                    3.
+                } else {
+                    2.
+                }
+            })
+            .collect::<Vec<_>>();
+        let terms = row.additive_terms(&point, &selected).unwrap();
+        assert_eq!(terms.len(), 1);
+        let (atom, coefficient) = &terms[0];
+        let expected = if row.is_imaginary() { 3 } else { 2 };
+        assert_eq!(
+            *coefficient,
+            num_rational::BigRational::from_integer(expected.into())
+        );
+        assert_eq!(atom.symbols(), selected);
+        let singular = atom
+            .linearize(&[0.], &[DifferentiationRole::Unknown])
+            .unwrap();
+        assert!(
+            singular
+                .jvp(RelationTangent::Unknown(&[1.]), &mut [0.])
+                .is_err()
+        );
+        // sqrt(t) has value 2 and derivative 1/4 at t=4, independently of
+        // the original complex multiplier and input-slot ordinals.
+        assert_eq!(atom.evaluate(&[4.]).unwrap(), 2.);
+        let action = atom
+            .linearize(&[4.], &[DifferentiationRole::Unknown])
+            .unwrap();
+        let mut derivative = [0.];
+        action
+            .jvp(RelationTangent::Unknown(&[1.]), &mut derivative)
+            .unwrap();
+        assert_eq!(derivative, [0.25]);
+        let invalid = row
+            .symbols()
+            .iter()
+            .map(|c| {
+                if c.symbol() == SymbolRef::Time {
+                    -1.
+                } else {
+                    0.
+                }
+            })
+            .collect::<Vec<_>>();
+        assert!(row.additive_terms(&invalid, &selected).is_err());
+        atoms.push(atom.clone());
+    }
+    assert_eq!(atoms.len(), 2);
+    assert!(
+        atoms[0]
+            .expression_view()
+            .same_expression(atoms[1].expression_view(), |a, b| a.source() == b.source())
+    );
+}
+
+#[test]
+fn additive_terms_share_live_branch_and_guard_boundary_projection() {
+    use crate::{DifferentiationRole, LinearizedRelation, RelationTangent};
+    use eqiora_core::{DynQuantity, ScalarDomain, ValueType};
+    use eqiora_schema::kernel::{ComparisonOp, UnaryMathFunction};
+    let field = SymbolRef::Field(Id::<kinds::Field>::new());
+    let mode = SymbolRef::Parameter(Id::<kinds::Parameter>::new());
+    for active_guard in [false, true] {
+        let mut builder = ExprDagBuilder::new();
+        let x = builder.symbol(field).unwrap();
+        let selector = if active_guard {
+            x
+        } else {
+            builder.symbol(mode).unwrap()
+        };
+        let zero = builder
+            .constant(DynQuantity::new(0., DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let condition = builder
+            .compare(ComparisonOp::Greater, selector, zero)
+            .unwrap();
+        let otherwise = if active_guard {
+            zero
+        } else {
+            let negative = builder
+                .constant(DynQuantity::new(-1., DimExponents::DIMENSIONLESS))
+                .unwrap();
+            builder
+                .unary_math(UnaryMathFunction::Log, negative)
+                .unwrap()
+        };
+        let root = builder.select(condition, x, otherwise).unwrap();
+        let typed = TypedResidual::infer(
+            builder.finish([root]).unwrap(),
+            None::<SpatialSupport<()>>,
+            |_| None,
+            RootContract::ComponentwiseResidual,
+            |_| {
+                Ok::<_, ()>(ExpressionType::new(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+                    None,
+                ))
+            },
+        )
+        .unwrap();
+        let lowered = ComponentScalarization::lower(&typed).unwrap();
+        let row = &lowered.rows()[0];
+        let selected = row
+            .symbols()
+            .iter()
+            .filter(|c| c.symbol() == field)
+            .cloned()
+            .collect::<Vec<_>>();
+        let point = row
+            .symbols()
+            .iter()
+            .map(|c| if c.symbol() == field { 0. } else { 1. })
+            .collect::<Vec<_>>();
+        let terms = row.additive_terms(&point, &selected).unwrap();
+        assert_eq!(terms.len(), 1);
+        assert_eq!(
+            terms[0].1,
+            num_rational::BigRational::from_integer(1.into())
+        );
+        let action = terms[0].0.linearize(&[0.], &[DifferentiationRole::Unknown]);
+        if active_guard {
+            // An active switch at x=0 still has its original derivative boundary.
+            assert!(action.is_err());
+        } else {
+            // The inactive log(-1) arm is never demanded.
+            let mut derivative = [0.];
+            action
+                .unwrap()
+                .jvp(RelationTangent::Unknown(&[1.]), &mut derivative)
+                .unwrap();
+            assert_eq!(derivative, [1.]);
+            let invalid = row
+                .symbols()
+                .iter()
+                .map(|c| if c.symbol() == field { 0. } else { -1. })
+                .collect::<Vec<_>>();
+            assert!(row.additive_terms(&invalid, &selected).is_err());
+        }
+    }
+}

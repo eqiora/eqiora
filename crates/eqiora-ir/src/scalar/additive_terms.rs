@@ -53,27 +53,181 @@ impl ScalarOperatorIr {
             .projection_cost()?
             .checked_mul(1076)
             .ok_or_else(|| ir_builder_error("exact coefficient budget overflow"))?;
-        let mut frozen_values = vec![None; projected.instructions.len()];
-        let mut terms: Vec<(Self, Vec<BigRational>)> = Vec::new();
-        for (row, &root) in projected.roots.iter().enumerate() {
-            let mut weights = vec![BigRational::zero(); projected.instructions.len()];
+        let inputs = projected
+            .symbols
+            .iter()
+            .copied()
+            .zip(
+                projected
+                    .typed_inputs
+                    .as_ref()
+                    .ok_or_else(|| {
+                        ir_builder_error("additive projection requires admitted input types")
+                    })?
+                    .iter()
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
+        AdditiveProgram {
+            instructions: &projected.instructions,
+            roots: &projected.roots,
+            inputs: &inputs,
+        }
+        .project(&trace, &dependencies, budget)?
+        .into_iter()
+        .map(|(atom, coefficients)| {
+            let (symbols, types) = atom.inputs.into_iter().unzip();
+            Ok((
+                Self {
+                    typed_inputs: Some(types),
+                    source_values: (0..atom.instructions.len())
+                        .map(|index| Some(ValueId(index as u32)))
+                        .collect(),
+                    symbols,
+                    instructions: atom.instructions,
+                    typed_constants: atom.literals,
+                    roots: vec![atom.root],
+                    array_operands: Vec::new(),
+                    definitions: Vec::new(),
+                },
+                coefficients,
+            ))
+        })
+        .collect()
+    }
+}
+
+impl ScalarInputOperatorIr {
+    pub(crate) fn additive_terms(
+        &self,
+        values: &[f64],
+        selected: &[ScalarSymbolCoordinate],
+    ) -> Result<Vec<(Self, BigRational)>, Diagnostic> {
+        if self.roots.len() != 1 {
+            return Err(ir_builder_error(
+                "component additive projection requires one root",
+            ));
+        }
+        let point = self.typed_point(values)?;
+        let program = self.typed_instructions();
+        let (_, trace) = program.evaluate(&self.evaluation_roots(), &mut |slot| {
+            point.get(slot.0 as usize).cloned()
+        })?;
+        let source = self.point_components(&trace)?;
+        let program = source.typed_instructions();
+        let (_, trace) = program.evaluate(&source.evaluation_roots(), &mut |slot| {
+            point.get(slot.0 as usize).cloned()
+        })?;
+        let roles = source
+            .slots
+            .iter()
+            .map(|slot| {
+                if selected.contains(slot.source()) {
+                    DifferentiationRole::Unknown
+                } else {
+                    DifferentiationRole::Frozen
+                }
+            })
+            .collect::<Vec<_>>();
+        let dependencies = program.active_input_dependencies(&trace, &roles)?;
+        let work = slot_composition::relocation_work(&source.instructions)?;
+        if work > 1_000_000 {
+            return Err(ir_builder_error("typed projection work budget exceeded"));
+        }
+        let budget = work
+            .checked_mul(1076)
+            .ok_or_else(|| ir_builder_error("exact coefficient budget overflow"))?;
+        let inputs = source
+            .slots
+            .iter()
+            .map(|slot| {
+                Ok((
+                    slot.source().clone(),
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        slot.dimension(),
+                    )
+                    .map_err(|error| ir_builder_error(error.to_string()))?,
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        Ok(AdditiveProgram {
+            instructions: &source.instructions,
+            roots: &source.roots,
+            inputs: &inputs,
+        }
+        .project(&trace, &dependencies, budget)?
+        .into_iter()
+        .map(|(atom, coefficients)| {
+            let slots = atom
+                .inputs
+                .into_iter()
+                .enumerate()
+                .map(|(index, (source, ty))| {
+                    ScalarInputSlot::new(index as u32, source, ty.dimension())
+                })
+                .collect();
+            (
+                Self {
+                    primal_checks: Vec::new(),
+                    slots,
+                    instructions: atom.instructions,
+                    typed_constants: atom.literals,
+                    roots: vec![atom.root],
+                },
+                coefficients
+                    .into_iter()
+                    .next()
+                    .expect("single component root"),
+            )
+        })
+        .collect())
+    }
+}
+
+#[derive(PartialEq)]
+struct ProjectedAtom<K> {
+    inputs: Vec<(K, eqiora_core::ValueType)>,
+    instructions: Vec<Instruction>,
+    literals: Vec<ValueLiteral>,
+    root: ValueId,
+}
+
+type ProjectedTerms<K> = Vec<(ProjectedAtom<K>, Vec<BigRational>)>;
+
+struct AdditiveProgram<'a, K> {
+    inputs: &'a [(K, eqiora_core::ValueType)],
+    instructions: &'a [Instruction],
+    roots: &'a [ValueId],
+}
+
+impl<K: Clone + PartialEq> AdditiveProgram<'_, K> {
+    fn project(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        dependencies: &[bool],
+        budget: usize,
+    ) -> Result<ProjectedTerms<K>, Diagnostic> {
+        let mut frozen_values = vec![None; self.instructions.len()];
+        let mut terms: Vec<(ProjectedAtom<K>, Vec<BigRational>)> = Vec::new();
+        for (row, &root) in self.roots.iter().enumerate() {
+            let mut weights = vec![BigRational::zero(); self.instructions.len()];
             weights[root.0 as usize] = BigRational::one();
             // Accumulate on DAG nodes before visiting their operands. Expanding
             // each path separately is exponential for a shared doubling chain.
-            for index in (0..projected.instructions.len()).rev() {
+            for index in (0..self.instructions.len()).rev() {
                 let scale = std::mem::take(&mut weights[index]);
                 if !dependencies[index] || scale.is_zero() {
                     continue;
                 }
-                let mut frozen = |id: ValueId| {
-                    projected.frozen_coefficient(id, &trace, budget, &mut frozen_values)
-                };
+                let mut frozen =
+                    |id: ValueId| self.frozen_coefficient(id, trace, budget, &mut frozen_values);
                 let mut push = |id: ValueId, coefficient: BigRational| -> Result<(), Diagnostic> {
                     check_coefficient(&coefficient, budget)?;
                     weights[id.0 as usize] += coefficient;
                     check_coefficient(&weights[id.0 as usize], budget)
                 };
-                match projected.instructions[index] {
+                match self.instructions[index] {
                     Instruction::Add(a, b) => {
                         push(a, scale.clone())?;
                         push(b, scale)?;
@@ -99,17 +253,14 @@ impl ScalarOperatorIr {
                         push(a, scale / denominator)?;
                     }
                     _ => {
-                        let atom = projected.canonical_term(
-                            ValueId(index as u32),
-                            &trace,
-                            &dependencies,
-                        )?;
+                        let atom =
+                            self.canonical_term(ValueId(index as u32), trace, dependencies)?;
                         let at = if let Some(at) =
                             terms.iter().position(|(existing, _)| *existing == atom)
                         {
                             at
                         } else {
-                            terms.push((atom, vec![BigRational::zero(); projected.roots.len()]));
+                            terms.push((atom, vec![BigRational::zero(); self.roots.len()]));
                             terms.len() - 1
                         };
                         terms[at].1[row] += scale;
@@ -243,9 +394,8 @@ impl ScalarOperatorIr {
         root: ValueId,
         trace: &[Option<ValueLiteral>],
         dependencies: &[bool],
-    ) -> Result<Self, Diagnostic> {
-        let mut symbols = Vec::new();
-        let mut types = Vec::new();
+    ) -> Result<ProjectedAtom<K>, Diagnostic> {
+        let mut inputs = Vec::new();
         let mut mapped = vec![None; self.instructions.len()];
         let mut pending = vec![(root, false)];
         let mut instructions = Vec::new();
@@ -273,28 +423,21 @@ impl ScalarOperatorIr {
                     Instruction::TypedConstant(slot as u32)
                 }
             } else if let Instruction::Read(slot) = self.instructions[index] {
-                let symbol = self.symbols[slot.0 as usize];
-                let position = if let Some(position) =
-                    symbols.iter().position(|existing| *existing == symbol)
-                {
-                    position
-                } else {
-                    symbols.push(symbol);
-                    types.push(
-                        self.typed_inputs
-                            .as_ref()
-                            .and_then(|types| types.get(slot.0 as usize))
-                            .ok_or_else(|| {
-                                ir_builder_error("additive term has no admitted input type")
-                            })?
-                            .clone(),
-                    );
-                    symbols.len() - 1
-                };
+                let input = self
+                    .inputs
+                    .get(slot.0 as usize)
+                    .ok_or_else(|| ir_builder_error("additive term has no admitted input type"))?;
+                let position =
+                    if let Some(position) = inputs.iter().position(|existing| existing == input) {
+                        position
+                    } else {
+                        inputs.push(input.clone());
+                        inputs.len() - 1
+                    };
                 Instruction::Read(SymbolSlot(position as u32))
             } else if !exit {
                 let mut children = Vec::new();
-                slot_composition::visit_instruction_operands(&self.instructions, index, |child| {
+                slot_composition::visit_instruction_operands(self.instructions, index, |child| {
                     children.push(child)
                 })?;
                 pending.push((id, true));
@@ -302,7 +445,7 @@ impl ScalarOperatorIr {
                 continue;
             } else {
                 slot_composition::remap_instruction(
-                    &self.instructions,
+                    self.instructions,
                     index,
                     &mut instructions,
                     &mut map_entries,
@@ -319,17 +462,11 @@ impl ScalarOperatorIr {
             };
             mapped[index] = Some(ValueId(position as u32));
         }
-        Ok(Self {
-            typed_inputs: Some(types),
-            source_values: (0..instructions.len())
-                .map(|index| Some(ValueId(index as u32)))
-                .collect(),
-            symbols,
+        Ok(ProjectedAtom {
+            inputs,
             instructions,
-            typed_constants: literals,
-            roots: vec![mapped[root.0 as usize].expect("term root")],
-            array_operands: Vec::new(),
-            definitions: Vec::new(),
+            literals,
+            root: mapped[root.0 as usize].expect("term root"),
         })
     }
 }

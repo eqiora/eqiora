@@ -131,11 +131,11 @@ fn exact_package_replay_retains_equality_complementarity_and_inequality() {
     let reopened = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendCapabilities::new(
+        &[eqiora::time::TimeBackendCapabilities::new(
             eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
             &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
             &[eqiora::ScalarType::F64],
-        ),
+        )],
     )
     .unwrap();
     assert_eq!(reopened, resolved);

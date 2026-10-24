@@ -66,11 +66,13 @@ pub(crate) struct WireReport {
 #[serde(rename_all = "kebab-case")]
 enum WireMethod {
     Tsitouras45,
+    Bdf,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireEquationClass {
     ExplicitOde,
+    GeneralImplicitDae,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -80,19 +82,27 @@ enum WireInitialCondition {
 
 impl WireReport {
     pub(crate) fn from_native(report: TimeExecutionReport) -> Result<Self, Diagnostic> {
-        if report.method() != TimeMethod::Tsitouras45
-            || report.equation_class() != TimeEquationClass::ExplicitOde
-            || report.initial_condition() != InitialConditionPolicy::Provided
-        {
-            return Err(invalid(
-                "native time report requires admitted explicit Tsitouras45 execution with provided initial data",
-            ));
+        if report.initial_condition() != InitialConditionPolicy::Provided {
+            return Err(invalid("native time report requires provided initial data"));
         }
+        let (method, equation_class) = match (report.method(), report.equation_class()) {
+            (TimeMethod::Tsitouras45, TimeEquationClass::ExplicitOde) => {
+                (WireMethod::Tsitouras45, WireEquationClass::ExplicitOde)
+            }
+            (TimeMethod::Bdf, TimeEquationClass::GeneralImplicitDae) => {
+                (WireMethod::Bdf, WireEquationClass::GeneralImplicitDae)
+            }
+            _ => {
+                return Err(invalid(
+                    "native time report has an unsupported method/equation-class pair",
+                ));
+            }
+        };
         Ok(Self {
             backend: report.backend().to_owned(),
             backend_version: report.backend_version().to_owned(),
-            method: WireMethod::Tsitouras45,
-            equation_class: WireEquationClass::ExplicitOde,
+            method,
+            equation_class,
             initial_condition: WireInitialCondition::Provided,
         })
     }
@@ -105,10 +115,23 @@ impl WireReport {
                 "native time report backend differs from the exact ODE Plan",
             ));
         }
+        let (method, equation_class) = match (self.method, self.equation_class) {
+            (WireMethod::Tsitouras45, WireEquationClass::ExplicitOde) => {
+                (TimeMethod::Tsitouras45, TimeEquationClass::ExplicitOde)
+            }
+            (WireMethod::Bdf, WireEquationClass::GeneralImplicitDae) => {
+                (TimeMethod::Bdf, TimeEquationClass::GeneralImplicitDae)
+            }
+            _ => {
+                return Err(invalid(
+                    "native time report has an unsupported method/equation-class pair",
+                ));
+            }
+        };
         Ok(TimeExecutionReport::new(
             backend,
-            TimeMethod::Tsitouras45,
-            TimeEquationClass::ExplicitOde,
+            method,
+            equation_class,
             InitialConditionPolicy::Provided,
         ))
     }
@@ -121,6 +144,26 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_reports_preserve_method_and_equation_class_without_cross_pairing() {
+        let backend = eqiora_time::TimeBackendIdentity::new("eqiora.test.native", "1");
+        for (method, class) in [
+            (TimeMethod::Tsitouras45, TimeEquationClass::ExplicitOde),
+            (TimeMethod::Bdf, TimeEquationClass::GeneralImplicitDae),
+        ] {
+            let report =
+                TimeExecutionReport::new(backend, method, class, InitialConditionPolicy::Provided);
+            let wire = WireReport::from_native(report).unwrap();
+            assert_eq!(wire.replay(backend).unwrap(), report);
+            let mut forged = wire.clone();
+            forged.equation_class = match wire.equation_class {
+                WireEquationClass::ExplicitOde => WireEquationClass::GeneralImplicitDae,
+                WireEquationClass::GeneralImplicitDae => WireEquationClass::ExplicitOde,
+            };
+            assert!(forged.replay(backend).is_err());
+        }
+    }
 
     #[test]
     fn dense_history_codec_preserves_samples_and_rejects_malformed_polynomials() {

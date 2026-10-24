@@ -378,7 +378,7 @@ def maturin_package(config: DistributionConfig, *, zig: bool) -> str:
     """Return the exact maturin tool requirement, optionally with Zig."""
 
     name, version = config.maturin.split("==", maxsplit=1)
-    suffix = "[zig]" if zig else ""
+    suffix = "[zig,patchelf]" if zig else ""
     return f"{name}{suffix}=={version}"
 
 
@@ -436,6 +436,25 @@ def build_artifacts(
         )
     target = scratch / "cargo-target"
     wheel_tool = maturin_package(config, zig=True)
+    native_prefix = scratch / "sundials"
+    checked_run(
+        [
+            uv, "run", "--no-project", "--with", wheel_tool,
+            "--python", interpreter, "python",
+            str(extracted / "tools/ci/install_sundials.py"),
+            "--prefix", str(native_prefix),
+            "--zig-target", "x86_64-linux-gnu.2.17",
+        ],
+        cwd=extracted,
+    )
+    wheel_environment = {
+        **rust_environment,
+        "SUNDIALS_INCLUDE_DIR": str(native_prefix / "include"),
+        "SUNDIALS_LIBRARY_DIR": str(native_prefix / "lib"),
+        "LD_LIBRARY_PATH": os.pathsep.join(
+            (str(native_prefix / "lib"), os.environ.get("LD_LIBRARY_PATH", ""))
+        ),
+    }
     checked_run(
         [
             uv,
@@ -450,7 +469,7 @@ def build_artifacts(
             "--compatibility",
             "manylinux_2_17",
             "--auditwheel",
-            "check",
+            "repair",
             "--compression-method",
             "deflated",
             "--compression-level",
@@ -463,7 +482,7 @@ def build_artifacts(
             str(output),
         ],
         cwd=extracted,
-        extra_environment=rust_environment,
+        extra_environment=wheel_environment,
     )
     family = admit_candidate_family(output)
     if family.sdist != sdist or _producer_file_identity(sdist) != sdist_identity:

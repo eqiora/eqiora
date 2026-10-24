@@ -194,6 +194,7 @@ fn visit(
         | E::Field { .. }
         | E::TimeDerivative { .. }
         | E::Parameter { .. }
+        | E::Time
         | E::Coordinate { .. }
         | E::LinearMap { .. } => {}
     }

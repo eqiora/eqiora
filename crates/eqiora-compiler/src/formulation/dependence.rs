@@ -104,6 +104,7 @@ fn classify(
         E::Number { .. }
         | E::Rational { .. }
         | E::Parameter { .. }
+        | E::Time
         | E::Coordinate { .. }
         | E::LinearMap { .. } => constant(),
         // Unknown State may enter nonlinearly or antilinearly. Its affinity,
@@ -421,6 +422,7 @@ fn walk<'a>(
             | E::Test { .. }
             | E::Direction { .. }
             | E::Parameter { .. }
+            | E::Time
             | E::LinearMap { .. }
             | E::Number { .. }
             | E::Rational { .. }

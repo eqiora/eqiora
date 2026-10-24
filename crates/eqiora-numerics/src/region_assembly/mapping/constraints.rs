@@ -307,6 +307,7 @@ where
                     mesh,
                     &input,
                     &values,
+                    &vec![0.; coordinates.full_count()],
                     initial_partial(InputPartialScope::Full)?,
                 )?;
                 let jacobian = state_action.systems[1].matrix();

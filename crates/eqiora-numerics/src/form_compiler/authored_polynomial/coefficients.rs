@@ -75,6 +75,30 @@ impl Polynomial {
         })
     }
 
+    /// Division stays polynomial only for a nonzero constant divisor.
+    pub(super) fn divide_constant(&self, divisor: &Self) -> Option<Self> {
+        let constant = |component: &Component| {
+            let mut terms = component.terms();
+            match terms.next() {
+                None => Some(ExactRational::integer(0)),
+                Some(([], value)) if terms.next().is_none() => Some(value),
+                _ => None,
+            }
+        };
+        let real = constant(&divisor.real)?;
+        let imaginary = constant(&divisor.imaginary)?;
+        let norm = real
+            .checked_mul(real.clone())
+            .ok()?
+            .checked_add(imaginary.checked_mul(imaginary.clone()).ok()?)
+            .ok()?;
+        let reciprocal = Self::complex(
+            Self::constant(real.checked_div(norm.clone()).ok()?),
+            Self::constant(imaginary.checked_neg().ok()?.checked_div(norm).ok()?),
+        )?;
+        self.checked_mul(&reciprocal).ok()
+    }
+
     pub(super) fn checked_pow(&self, mut exponent: u32) -> Result<Self, ExactPolynomialError> {
         let mut result = Self::constant(ExactRational::integer(1));
         let mut base = self.clone();

@@ -34,7 +34,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v22";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v23";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -308,11 +308,12 @@ impl ResolvedCommonPlan {
     ///
     /// The caller supplies external linear and adaptive-time providers. Fixed-step
     /// midpoint uses the built-in host implementation. Exact identities and
-    /// versions must reproduce the persisted Plan.
+    /// versions must reproduce the persisted Plan. Exactly one supplied adaptive
+    /// provider must match; missing or ambiguous matches are rejected.
     pub fn from_bytes(
         bytes: &[u8],
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_BYTES {
             return Err(invalid(format!(
@@ -510,7 +511,7 @@ impl WireResolvedCommonPlan {
     fn resolve(
         &self,
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let admitted_time_backend = match (&self.temporal, &self.time_backend) {
             (Some(WireTemporal::Ode { method, .. }), Some(backend)) => {

@@ -90,7 +90,7 @@ impl WireRequest {
     pub(super) fn replay(
         self,
         backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<RecordedRequest, Vec<Diagnostic>> {
         let request = match self {
             Self::Evaluations {

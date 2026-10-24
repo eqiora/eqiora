@@ -37,7 +37,7 @@ impl WireContext {
     pub(crate) fn replay(
         self,
         backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<Context<'static>, Diagnostic> {
         Ok(match self {
             Self::Stationary { plan, initial } => {

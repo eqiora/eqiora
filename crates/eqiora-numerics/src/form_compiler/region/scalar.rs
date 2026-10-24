@@ -81,6 +81,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             dimension,
             roles,
             rows,
+            coefficient_partial: None,
         };
         Ok(form)
     }
@@ -211,6 +212,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn input_partial(
         &self,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        component_actions: bool,
     ) -> Result<Self, Diagnostic> {
         if self
             .rows
@@ -222,17 +224,30 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 "repeated component input partials require a higher-order input product",
             ));
         }
-        let mut partial = self.map_data(&|value| {
-            value.derivative(&|input| f64::from(input == coordinate), self.dimension)
-        })?;
+        if self.coefficient_partial.is_some() {
+            return Err(invalid(
+                "a projected input partial cannot be differentiated again",
+            ));
+        }
+        let mut partial = if component_actions {
+            self.map_data(&|value| {
+                value.derivative(&|input| f64::from(input == coordinate), self.dimension)
+            })?
+        } else {
+            let mut partial = self.clone();
+            partial.coefficient_partial = Some(coordinate.clone());
+            partial
+        };
         // d(c*f)/dp = c_p*f + c*f_p. Retain both original operands, including
         // their domains, even when a sampled factor or tangent vanishes.
         for (row, source) in partial.rows.iter_mut().zip(&self.rows) {
-            row.components.extend(source.components.iter().map(|term| {
-                let mut partial = term.clone();
-                partial.input_partial = Some(coordinate.clone());
-                partial
-            }));
+            if component_actions {
+                row.components.extend(source.components.iter().map(|term| {
+                    let mut partial = term.clone();
+                    partial.input_partial = Some(coordinate.clone());
+                    partial
+                }));
+            }
         }
         // Positivity belongs to the already assembled primal constitutive law.
         // Its derivative can have either sign, including zero.
@@ -256,11 +271,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
     ) -> Result<Self, Diagnostic> {
         let mut partial = self.clone();
-        partial.form = self.form.input_partial(coordinate)?;
+        partial.form = self.form.input_partial(coordinate, true)?;
         partial.conservative_flux = self
             .conservative_flux
             .as_ref()
-            .map(|flux| flux.input_partial(coordinate).map(Box::new))
+            .map(|flux| flux.input_partial(coordinate, true).map(Box::new))
             .transpose()?;
         Ok(partial)
     }

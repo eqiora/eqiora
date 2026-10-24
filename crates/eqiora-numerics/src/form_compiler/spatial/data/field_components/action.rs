@@ -199,3 +199,50 @@ impl<S: Coefficient> FieldComponent<S> {
         Ok(inputs)
     }
 }
+
+impl<S: Coefficient> FieldComponent<S> {
+    pub(in crate::form_compiler) fn input_atoms(
+        self: &Arc<Self>,
+        physical: &[f64],
+        values: &[S],
+        coordinate: &ScalarSymbolCoordinate,
+        multiplier: &Data<S>,
+    ) -> Result<InputTerms<S>, Diagnostic> {
+        multiplier.evaluate(physical)?;
+        let mut terms = Vec::new();
+        for row in &self.rows {
+            let point = self.point(row, physical, values)?;
+            // Freeze only solved Field coordinates. Keep the complete row:
+            // even its Time-independent part contributes when the external
+            // coefficient depends on Time. Decompose only the full product.
+            let inputs = row
+                .symbols()
+                .iter()
+                .zip(&point)
+                .map(|(input, value)| {
+                    if self.selected.contains(input) {
+                        Ok(Input::Scalar {
+                            data: Data::constant(physical.len(), <S as From<f64>>::from(*value)),
+                            imaginary: false,
+                        })
+                    } else {
+                        self.binding(input).cloned()
+                    }
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let data =
+                pointwise::PointwiseData::from_bound_row(row.clone(), physical.len(), inputs)?;
+            for (atom, mut scale) in multiplier
+                .clone()
+                .multiply(Data(Arc::new(Node::Pointwise(data))))
+                .input_atoms(physical, coordinate)?
+            {
+                if row.is_imaginary() {
+                    scale = num_complex::Complex::new(-scale.im, scale.re);
+                }
+                terms.push((atom, scale));
+            }
+        }
+        Ok(terms)
+    }
+}

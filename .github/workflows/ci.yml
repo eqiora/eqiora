@@ -453,10 +453,21 @@ jobs:
         if: needs.changes.outputs.python == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libglu1-mesa
+          sudo apt-get install --no-install-recommends --yes cmake libclang-dev libglu1-mesa
       - name: Install stable Rust
         if: needs.changes.outputs.python == 'true'
         run: rustup toolchain install stable --profile minimal
+      - name: Build checksum-pinned SUNDIALS IDA
+        if: needs.changes.outputs.python == 'true'
+        shell: bash
+        run: |
+          native_prefix="${HOME:?}/.cache/eqiora/sundials-7.8.0"
+          python3 tools/ci/install_sundials.py --prefix "$native_prefix"
+          {
+            printf 'SUNDIALS_INCLUDE_DIR=%s/include\n' "$native_prefix"
+            printf 'SUNDIALS_LIBRARY_DIR=%s/lib\n' "$native_prefix"
+            printf 'LD_LIBRARY_PATH=%s/lib:%s\n' "$native_prefix" "${LD_LIBRARY_PATH:-}"
+          } >> "$GITHUB_ENV"
       - name: Test installed wheel
         if: needs.changes.outputs.python == 'true'
         run: python tools/ci/python_package_gate.py

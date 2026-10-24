@@ -45,7 +45,7 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
             let plan = ResolvedCommonPlan::from_bytes(
                 &plan.to_bytes().unwrap(),
                 &REFERENCE_LINEAR_SOLVER,
-                eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES,
+                &[eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES],
             )
             .unwrap();
             // Establish that the ordinary coupled solve is admitted before testing selection.

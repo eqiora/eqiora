@@ -76,14 +76,14 @@ impl CommonSpatialPlan {
         ),
         Diagnostic,
     > {
-        self.scalar_assembly_with_history(equations, time_s, None, None, None)
+        self.scalar_assembly_with_history(equations, time_s, None, None, &[])
     }
 
     pub(super) fn scalar_time_partial<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
-        scope: crate::form_compiler::spatial::InputPartialScope,
+        scopes: &[crate::form_compiler::spatial::InputPartialScope],
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -97,7 +97,16 @@ impl CommonSpatialPlan {
                 .expect("real scalar Time"),
         )?
         .remove(0);
-        self.scalar_assembly_with_history(equations, time_s, None, None, Some((&coordinate, scope)))
+        self.scalar_assembly_with_history(
+            equations,
+            time_s,
+            None,
+            None,
+            &scopes
+                .iter()
+                .map(|scope| (&coordinate, *scope))
+                .collect::<Vec<_>>(),
+        )
     }
 
     pub(super) fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
@@ -108,10 +117,10 @@ impl CommonSpatialPlan {
         previous: Option<
             &BTreeMap<eqiora_core::RawId, crate::region_assembly::mapping::RecoveredRegionField<S>>,
         >,
-        partial: Option<(
+        partials: &[(
             &eqiora_ir::ScalarSymbolCoordinate,
             crate::form_compiler::spatial::InputPartialScope,
-        )>,
+        )],
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<S>,
@@ -164,7 +173,7 @@ impl CommonSpatialPlan {
             if bind_step {
                 region.form = region.form.bind_backward_euler(step()?)?;
             }
-            if let Some((coordinate, scope)) = partial {
+            for &(coordinate, scope) in partials {
                 region.form = region.form.input_partial(coordinate, scope)?;
             }
         }
@@ -311,7 +320,7 @@ impl CommonSpatialPlan {
             next_time_s,
             Some(previous_time_s),
             Some(&previous),
-            None,
+            &[],
         )?;
         if equations
             .regions

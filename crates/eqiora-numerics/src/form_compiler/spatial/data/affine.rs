@@ -68,6 +68,17 @@ pub(in crate::form_compiler) fn project<S: Coefficient>(
 }
 
 impl<S: Coefficient> AffineData<S> {
+    pub(super) fn inputs_bound(&self) -> bool {
+        self.row
+            .bindings
+            .iter()
+            .all(|(_, input)| input.inputs_bound())
+            && self
+                .tangent
+                .as_ref()
+                .is_none_or(|inputs| inputs.iter().flatten().all(Input::inputs_bound))
+    }
+
     /// Images of the retained trial's real and imaginary coordinate directions.
     /// Offsets are values, not actions on a trial coordinate.
     pub(super) fn coordinate_images(&self) -> Option<[(Self, bool); 2]> {

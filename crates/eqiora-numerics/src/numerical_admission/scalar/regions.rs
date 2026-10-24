@@ -45,6 +45,7 @@ impl<S: Coefficient> SpatialRegion<S> {
             initial_time_s,
             &tests_on(program, domain, equation_tests),
         )?;
+        form.require_time_point(program, initial_time_s)?;
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
             .boundary_laws()
@@ -224,14 +225,16 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         for (&domain, support) in &supports {
             let motion =
                 crate::form_compiler::spatial::motion::StorageMotion::select(program, domain)?;
+            let time = initial_time_s.or_else(|| motion.map(|_| 0.0));
             let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_with_tests(
                 program,
                 domain,
                 dimension,
                 &interface_boundaries,
-                initial_time_s.or_else(|| motion.map(|_| 0.0)),
+                time,
                 &tests_on(program, domain, equation_tests),
             )?;
+            form.require_time_point(program, time)?;
             for (_, ty) in form.fields() {
                 let components = crate::form_compiler::region::components(ty, dimension)?;
                 if (components != 1 && components != dimension) || ty.scalar_domain() != S::DOMAIN {
@@ -390,6 +393,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 initial_time_s,
                 &tests_on(program, support.domain, equation_tests),
             )?;
+            form.require_time_point(program, initial_time_s)?;
             // Storage is bound after the caller selects an explicit temporal Plan.
             if !form.is_transient() {
                 form.volume()?;

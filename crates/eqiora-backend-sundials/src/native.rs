@@ -3,7 +3,7 @@ use crate::runtime::failure;
 use eqiora_core::Diagnostic;
 use eqiora_time::{
     DaeVariableKind, ImplicitDaeInitialization, ImplicitDaeProblem, ImplicitTimeSystem,
-    InitialConditionPolicy, TimePlan,
+    InitialConditionPolicy, TimeHistoryStep, TimePlan,
 };
 use std::{
     ffi::{c_char, c_int, c_void},
@@ -139,6 +139,8 @@ pub(crate) struct Session<'a> {
     v: sys::N_Vector,
     atol: sys::N_Vector,
     id: sys::N_Vector,
+    dense: sys::N_Vector,
+    time: f64,
     matrix: sys::SUNMatrix,
     linear: sys::SUNLinearSolver,
     mem: *mut c_void,
@@ -174,6 +176,8 @@ impl<'a> Session<'a> {
             v: ptr::null_mut(),
             atol: ptr::null_mut(),
             id: ptr::null_mut(),
+            dense: ptr::null_mut(),
+            time: plan.start_time(),
             matrix: ptr::null_mut(),
             linear: ptr::null_mut(),
             mem: ptr::null_mut(),
@@ -198,6 +202,8 @@ impl<'a> Session<'a> {
             nonnull(s.atol)?;
             s.id = sys::N_VClone(s.y);
             nonnull(s.id)?;
+            s.dense = sys::N_VClone(s.y);
+            nonnull(s.dense)?;
             ptr::copy_nonoverlapping(
                 problem.initial_state().as_ptr(),
                 sys::N_VGetArrayPointer(s.y),
@@ -250,6 +256,7 @@ impl<'a> Session<'a> {
             );
             s.check(code, "set terminal time")?;
             if problem.initial_condition() == InitialConditionPolicy::SolveConsistent {
+                // IC scaling is a solver control, independent of output cadence.
                 let target = (plan.start_time() + plan.initial_step())
                     .min(*plan.output_times().last().expect("validated outputs"));
                 if target <= plan.start_time() {
@@ -293,30 +300,61 @@ impl<'a> Session<'a> {
             )
         }
     }
-    pub(crate) fn sample(&mut self, time: f64) -> Result<Vec<f64>, Diagnostic> {
-        let mut returned = 0.;
-        // SAFETY: all handles and boxed callbacks remain owned by this session;
-        // IDA executes synchronously and returned points to a live output scalar.
+    pub(crate) fn time(&self) -> f64 {
+        self.time
+    }
+    fn state(&self) -> Vec<f64> {
+        // SAFETY: the session owns a live serial vector of the validated dimension.
+        unsafe { slice::from_raw_parts(sys::N_VGetArrayPointer(self.y), self.callbacks.n).to_vec() }
+    }
+    fn interpolate(&mut self, time: f64) -> Result<Vec<f64>, Diagnostic> {
+        // SAFETY: native memory and scratch vector are live; k=0 samples the
+        // latest accepted native polynomial without changing its owned history.
+        let code = unsafe { sys::IDAGetDky(self.mem, time, 0, self.dense) };
+        self.check(code, "capture native dense output")?;
+        // SAFETY: the private scratch serial vector contains n initialized entries.
+        let values =
+            unsafe { slice::from_raw_parts(sys::N_VGetArrayPointer(self.dense), self.callbacks.n) };
+        finite(values)?;
+        Ok(values.to_vec())
+    }
+    pub(crate) fn step(&mut self, horizon: f64) -> Result<TimeHistoryStep, Diagnostic> {
+        let start = self.time;
+        let start_state = self.state();
+        let mut end = start;
+        // SAFETY: all owned handles/userdata outlive this synchronous advance.
         let code = unsafe {
             sys::IDASolve(
                 self.mem,
-                time,
-                &mut returned,
+                horizon,
+                &mut end,
                 self.y,
                 self.v,
-                sys::IDA_NORMAL,
+                sys::IDA_ONE_STEP,
             )
         };
-        self.check(code, "advance")?;
-        if ![sys::IDA_SUCCESS, sys::IDA_TSTOP_RETURN].contains(&code) || returned != time {
-            return Err(failure("IDA did not return the requested output time"));
+        self.check(code, "advance accepted step")?;
+        if ![sys::IDA_SUCCESS, sys::IDA_TSTOP_RETURN].contains(&code)
+            || !end.is_finite()
+            || end <= start
+            || end > horizon
+        {
+            return Err(failure("IDA returned an invalid accepted interval"));
         }
-        // SAFETY: IDASolve returned; the session still owns the serial state vector.
-        unsafe {
-            let values = slice::from_raw_parts(sys::N_VGetArrayPointer(self.y), self.callbacks.n);
-            finite(values)?;
-            Ok(values.to_vec())
-        }
+        let mut order = 0;
+        // SAFETY: order is a live output scalar; memory owns the last accepted step.
+        let code = unsafe { sys::IDAGetLastOrder(self.mem, &mut order) };
+        self.check(code, "read accepted interpolation order")?;
+        let degree = usize::try_from(order)
+            .map_err(|_| failure("IDA returned a negative interpolation order"))?;
+        let middle = self.interpolate(start + (end - start) * 0.5)?;
+        let end_state = self.state();
+        let step =
+            TimeHistoryStep::capture(start, end, degree, start_state, middle, end_state, |time| {
+                self.interpolate(time)
+            })?;
+        self.time = end;
+        Ok(step)
     }
 }
 fn nonnull<T>(value: *mut T) -> Result<(), Diagnostic> {
@@ -340,7 +378,7 @@ impl Drop for Session<'_> {
             if !self.matrix.is_null() {
                 sys::SUNMatDestroy(self.matrix);
             }
-            for vector in [self.id, self.atol, self.v, self.y] {
+            for vector in [self.dense, self.id, self.atol, self.v, self.y] {
                 if !vector.is_null() {
                     sys::N_VDestroy(vector);
                 }

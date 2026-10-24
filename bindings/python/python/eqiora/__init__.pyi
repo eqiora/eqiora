@@ -1245,7 +1245,7 @@ class Plan:
     @property
     def requested_solve(self) -> solve_module.Linear | solve_module.Newton | solve_module.HermitianEigen | None: ...
     @property
-    def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None: ...
+    def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None: ...
     @property
     def execution(self) -> ResolvedExecution: ...
     def __repr__(self) -> str: ...
@@ -2741,7 +2741,7 @@ def resolve(
     formulation: FormulationKind | None = None,
     solve: solve.Linear | solve.Newton | solve.HermitianEigen | None = None,
     scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None = None,
-    temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None = None,
+    temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None = None,
     enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
 ) -> Plan:
     """Combine a Model with numerical settings to produce a Plan.

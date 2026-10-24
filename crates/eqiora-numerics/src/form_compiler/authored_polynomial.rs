@@ -25,6 +25,7 @@ enum Atom {
     TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
     TimeDerivative(String, Vec<usize>),
+    Time,
     Parameter(String, Vec<usize>),
     Coordinate(String, String, usize),
     CoordinateGradient(String, String, usize, usize),
@@ -326,6 +327,7 @@ impl Context<'_> {
                 self.selected_boundary(on_ulid)?;
                 self.trace(value, vec![])?
             }
+            E::Time => Polynomial::atom(Atom::Time),
             E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![]))?,
             E::Coordinate {
                 support_ulid,
@@ -357,6 +359,9 @@ impl Context<'_> {
                 .scalar(left, depth + 1)?
                 .checked_mul(&self.scalar(right, depth + 1)?)
                 .ok()?,
+            E::Div { left, right } => self
+                .scalar(left, depth + 1)?
+                .divide_constant(&self.scalar(right, depth + 1)?)?,
             E::Pow { base, exponent } => self
                 .scalar(base, depth + 1)?
                 .checked_pow(u32::try_from(*exponent).ok()?)

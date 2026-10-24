@@ -93,7 +93,7 @@ impl RunRequest {
     pub fn from_bytes(
         bytes: &[u8],
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<Self, Diagnostic> {
         Self::from_bytes_with_limit(bytes, linear_backend, time_backend, MAX_BYTES)
     }
@@ -101,7 +101,7 @@ impl RunRequest {
     fn from_bytes_with_limit(
         bytes: &[u8],
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
         max_bytes: usize,
     ) -> Result<Self, Diagnostic> {
         if bytes.len() > max_bytes {
@@ -157,7 +157,7 @@ impl WireRunRequest {
     fn replay(
         &self,
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendCapabilities,
+        time_backend: &[TimeBackendCapabilities],
     ) -> Result<CommonTransientRunRequest, Diagnostic> {
         let plan_bytes = decode(&self.plan_base64, "Plan")?;
         let resolved = ResolvedCommonPlan::from_bytes(&plan_bytes, linear_backend, time_backend)?;

@@ -135,7 +135,7 @@ impl CommonSpatialPlan {
         }
         let temporal = input.temporal_structure()?;
         if let Some(time_s) = time_s {
-            let initial_partial = |scope| self.scalar_time_partial(equations, time_s, scope);
+            let initial_partial = |scope| self.scalar_time_partial(equations, time_s, &[scope]);
             match self.admission.resources() {
                 NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_temporal_state(
                     mesh.mesh(),

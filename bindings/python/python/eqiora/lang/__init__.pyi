@@ -493,9 +493,9 @@ class Component:
     def weak_form(
         self,
         name: str,
-        relations: Sequence[Relation],
         *,
-        equations: Sequence[tuple[object, object]],
+        equations: Mapping[Relation, tuple[object, object]] | None = None,
+        tests: Mapping[Relation, Expression] | None = None,
         doc: str | None = None,
     ) -> None: ...
     def harmonic_form(

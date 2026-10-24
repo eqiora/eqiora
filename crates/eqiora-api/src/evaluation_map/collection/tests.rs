@@ -65,7 +65,11 @@ fn fixture(retention: EvaluationMapRetention) -> EvaluationMapPlan {
 
 fn reopen(bytes: &[u8]) -> Result<EvaluationCollection, Vec<Diagnostic>> {
     crate::sampling::without_draws(|| {
-        EvaluationCollection::from_bytes(bytes, &NoSolve, ImplicitMidpointTimeBackend::CAPABILITIES)
+        EvaluationCollection::from_bytes(
+            bytes,
+            &NoSolve,
+            &[ImplicitMidpointTimeBackend::CAPABILITIES],
+        )
     })
 }
 

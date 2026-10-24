@@ -121,6 +121,7 @@ eqiora-backend-faer = { version = "0.1.3", path = "crates/eqiora-backend-faer" }
 eqiora-backend-mpi = { version = "0.1.3", path = "crates/eqiora-backend-mpi" }
 eqiora-backend-mpi-cuda = { version = "0.1.3", path = "crates/eqiora-backend-mpi-cuda" }
 eqiora-backend-diffsol = { version = "0.1.3", path = "crates/eqiora-backend-diffsol" }
+eqiora-backend-sundials = { version = "0.1.3", path = "crates/eqiora-backend-sundials" }
 eqiora-backend-cuda = { version = "0.1.3", path = "crates/eqiora-backend-cuda" }
 eqiora-differentiation = { version = "0.1.3", path = "crates/eqiora-differentiation" }
 eqiora-device = { version = "0.1.3", path = "crates/eqiora-device" }
@@ -169,4 +170,22 @@ opt-level = "s"
 opt-level = "s"
 
 [profile.release.package.eqiora-sem]
+opt-level = "s"
+
+# Bound the Python distribution size using compact orchestration, artifact and
+# residual-action code. Linear algebra backends retain their release profile.
+
+[profile.release.package.eqiora-artifact]
+opt-level = "s"
+
+[profile.release.package.eqiora-api]
+opt-level = "s"
+
+[profile.release.package.eqiora-schema]
+opt-level = "s"
+
+[profile.release.package.eqiora-numerics]
+opt-level = "s"
+
+[profile.release.package.eqiora-ir]
 opt-level = "s"

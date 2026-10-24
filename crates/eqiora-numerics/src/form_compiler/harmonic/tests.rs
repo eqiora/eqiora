@@ -153,11 +153,11 @@ fn rc_response_uses_the_original_equations_and_shared_complex_solver() {
     let replayed = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &REFERENCE_LINEAR_SOLVER,
-        eqiora_time::TimeBackendCapabilities::new(
+        &[eqiora_time::TimeBackendCapabilities::new(
             eqiora_time::TimeBackendIdentity::new("harmonic.test", "1"),
             &[ScalarDomain::Real, ScalarDomain::Complex],
             &[eqiora_core::ScalarType::F64],
-        ),
+        )],
     )
     .unwrap();
     assert_eq!(resolved, replayed);

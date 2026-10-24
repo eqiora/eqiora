@@ -24,6 +24,19 @@ def check_language_source() -> None:
     assert_type(eqiora.compile(source=source), eqiora.Model)
 
 
+def check_weak_form_authoring(
+    component: eqiora.lang.Component,
+    relation: eqiora.lang.Relation,
+    test: eqiora.lang.Expression,
+    *,
+    derive: bool,
+) -> None:
+    if derive:
+        component.weak_form("weak", tests={relation: test})
+    else:
+        component.weak_form("weak", equations={relation: (test, 0)})
+
+
 def check_native_modeling() -> None:
     length = eqiora.Dimension(length=1)
     domain = eqiora.Domain.box("rod", (0.0, 1.0))
@@ -108,7 +121,7 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     capability = plan.capability
     assert isinstance(capability, eqiora.SpatialPlanView)
     assert_type(
-        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | None
+        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | eqiora.time.Bdf | None
     )
     assert_type(
         eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2)),

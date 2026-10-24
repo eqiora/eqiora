@@ -3,10 +3,15 @@ use super::*;
 use crate::form_compiler::region::coordinates::Projection;
 use crate::region_assembly::mapping::assembly::MappedRegionAssembly;
 
+type PreparedRateData<S> = (
+    Vec<f64>,
+    MappedRegionAssembly<S, <RegionDofMap<S> as RegionAlgebraicCoordinates<f64, S>>::Projection>,
+);
+
 impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64> + Send + Sync>
     MappedRegionAssembly<S, P>
 {
-    pub(super) fn consistent_rates(
+    pub(crate) fn consistent_rates(
         &self,
         coordinates: &RegionRealCoordinates<'_, S>,
         point: (&[f64], &[f64]),
@@ -91,25 +96,23 @@ where
         RegionRealCoordinates::new(self)?.encode_full(&fixed)
     }
 
-    pub(super) fn initial_rate_data<'mesh>(
+    pub(crate) fn initial_rate_data<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<S>,
         values: &[f64],
-        (partial_mapping, mut partial): (Self, RegionSolveInput<S>),
+        rates: &[f64],
+        (partial_mapping, partial): (Self, RegionSolveInput<S>),
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        let fixed = self.prescribed_rates(&partial_mapping)?;
-        partial.retain_primal_integration(input)?;
-        partial.previous = input.previous.clone();
-        let coordinates = RegionRealCoordinates::new(self)?;
-        let prepared = self.prepare_numeric_assembly(mesh, &partial)?;
+        let (fixed, prepared) =
+            self.prepare_initial_rate_data(mesh, input, (partial_mapping, partial))?;
         let residual = prepared.work.residual(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
             RegionPoint::Independent {
                 state: values,
                 rate_target: prepared.plan.target_id(1).expect("full target"),
-                rates: &vec![0.; coordinates.full_count()],
+                rates,
                 pullback: FieldPullback::Uniform {
                     current: None,
                     rate: None,
@@ -117,5 +120,18 @@ where
             },
         )?;
         Ok((fixed, residual))
+    }
+
+    pub(crate) fn prepare_initial_rate_data<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: &RegionSolveInput<S>,
+        (partial_mapping, mut partial): (Self, RegionSolveInput<S>),
+    ) -> Result<PreparedRateData<S>, Diagnostic> {
+        let fixed = self.prescribed_rates(&partial_mapping)?;
+        partial.retain_primal_integration(input)?;
+        partial.previous = input.previous.clone();
+        let prepared = self.prepare_numeric_assembly(mesh, &partial)?;
+        Ok((fixed, prepared))
     }
 }

@@ -72,7 +72,8 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
     let resolved = crate::ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     let replay =
-        crate::ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, backend).unwrap();
+        crate::ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, &[backend])
+            .unwrap();
     assert_eq!(replay, resolved);
     for inspected in [&resolved, &replay] {
         let form = inspected.formulation().unwrap();
@@ -153,7 +154,7 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         crate::ResolvedCommonPlan::from_bytes(
             &resolved.to_bytes().unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            backend
+            &[backend]
         )
         .unwrap(),
         resolved

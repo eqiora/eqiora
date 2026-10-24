@@ -73,6 +73,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
 
     /// Integrate current, rate or previous coefficients through one weak-form owner.
     /// Loads belong to the current part; independent rates carry no time-step factor.
+    #[cfg(test)]
     pub(super) fn prepare_affine_actions<P: Projection<S>>(
         &self,
         cache: Option<&mut super::integration::QuadratureCache>,
@@ -80,6 +81,25 @@ impl<S: Coefficient> BoundRegionForm<S> {
         direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
         input: AffineInput,
+    ) -> Result<super::integration::IntegralActions<P::Scalar>, Diagnostic> {
+        self.prepare_affine_actions_with::<P>(
+            cache,
+            geometry,
+            direction,
+            quadrature,
+            input,
+            &evaluate_data,
+        )
+    }
+
+    pub(super) fn prepare_affine_actions_with<P: Projection<S>>(
+        &self,
+        cache: Option<&mut super::integration::QuadratureCache>,
+        geometry: &AffineGeometryMap,
+        direction: Option<&AffineGeometryLinearization>,
+        quadrature: &QuadratureRule,
+        input: AffineInput,
+        evaluate: &DataEvaluator<'_, S>,
     ) -> Result<super::integration::IntegralActions<P::Scalar>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = super::coordinates::fields::<S, P>(&self.fields)?;
@@ -165,7 +185,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                             else {
                                 continue;
                             };
-                            let (value, tangent) = evaluate_data(datum, point, point_direction)?;
+                            let (value, tangent) = evaluate(datum, point, point_direction)?;
                             let scale = <S as From<f64>>::from(self.row_multipliers[index]);
                             for entry in entries {
                                 for coordinate in 0..width {
@@ -179,8 +199,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                         }
                         flux_offset += row.forcing.len() * self.form.dimension * width;
                         for component in &row.forcing {
-                            let (value, tangent) =
-                                evaluate_data(component, point, point_direction)?;
+                            let (value, tangent) = evaluate(component, point, point_direction)?;
                             let scale = <S as From<f64>>::from(self.row_multipliers[index]);
                             for coordinate in 0..width {
                                 *components.next().expect("exact row component inventory") =
@@ -195,7 +214,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 for (index, (coefficient, (row, term, source, coordinate))) in
                     coefficients.iter_mut().zip(&data).enumerate()
                 {
-                    let (value, tangent) = evaluate_data(source, point, point_direction)?;
+                    let (value, tangent) = evaluate(source, point, point_direction)?;
                     P::validate(term, value, point)?;
                     let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
                     *coefficient = P::component(scale * value, *coordinate);
@@ -208,6 +227,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
         )
     }
 }
+
+pub(super) type DataEvaluator<'a, S> =
+    dyn Fn(&super::Data<S>, &[f64], Option<&[f64]>) -> Result<(S, S), Diagnostic> + 'a;
 
 /// Coordinate pullback with fixed physical Parameters. Coefficient derivative
 /// admission stays with Data, including its exact product and chart rules.

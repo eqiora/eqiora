@@ -54,6 +54,7 @@ impl Context<'_> {
                     field.ulid().to_string(),
                     coordinate.to_vec(),
                 ))?,
+            ExprNode::Symbol(SymbolRef::Time) => Polynomial::atom(Atom::Time),
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => self.atom(Atom::Parameter(
                 parameter.ulid().to_string(),
                 coordinate.to_vec(),
@@ -162,6 +163,9 @@ impl Context<'_> {
                     .checked_mul(&self.source(typed, *right, b, depth + 1)?)
                     .ok()?
             }
+            ExprNode::Div(left, right) => self
+                .source(typed, *left, coordinate, depth + 1)?
+                .divide_constant(&self.source(typed, *right, &[], depth + 1)?)?,
             ExprNode::PowI(base, exponent) if coordinate.is_empty() => self
                 .source(typed, *base, coordinate, depth + 1)?
                 .checked_pow(u32::try_from(*exponent).ok()?)
