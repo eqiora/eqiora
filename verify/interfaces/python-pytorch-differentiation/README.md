@@ -8,20 +8,21 @@ The verified Plans use Q1 FEM or cell-centred TPFA with a typed linear solve
 policy. An ordered tuple/list supplies the numerical Parameter leaves, each
 with its exact native signature shape and scalar domain.
 
-The forward schema is
-`eqiora::differentiable_solve(Tensor[], str) -> Tensor[]`. It declares no
-mutation and returns owned CPU copies of immutable primal NumPy leaves. The
-registered autograd rule invokes
-`eqiora::_differentiable_solve_vjp(Tensor[], Tensor[], str) -> Tensor[]`.
-One native evaluation/VJP handles all leaves; Python does not loop over solves
-or implement a coordinate derivative algorithm.
+The custom forward kernel accepts typed Tensor leaves, a retained program token
+and physical point shape. A modern autograd Function with separate
+`setup_context` supplies backward/JVP/vmap through one native product kernel.
+That kernel selects existing native JVP or VJP and carries distinct point and
+seed axes. Python projects tensor axes but does not loop over solves or
+implement a coordinate derivative algorithm. Private kernels are checked with
+non-autograd inputs; public Function differentiation retains gradcheck and
+compiled backward controls.
 
 Fake kernels resolve the immutable retained registry entry's signatures and
 validate tensor metadata without reading tensor data or executing a native
-program. The real kernels admit contiguous CPU:0 tensors with exact leaf shape
+program. The real kernels admit strided CPU:0 tensors with exact leaf shape
 and `float64`/`complex128` dtype. Inputs and cotangents cross the existing DLPack
 admission boundary after detachment and resolution of lazy conjugate/negative
-views. Native staging owns its copies; output tensors never alias result storage.
+views and contiguous staging. Native staging owns its copies; output tensors never alias result storage.
 Scalar, intrinsic value, coefficient and sampled-time axes retain the native
 signature layout without a second shape schema. PyTorch complex gradients use
 the same real pairing as native products, `Re(conj(cotangent)*dy)`.
@@ -66,7 +67,11 @@ The registered scientific claim remains in-process first-order real CPU `float64
 Q1/TPFA differentiation. Ordinary product tests additionally cover structured
 real/complex values and multiple outputs; they do not establish broader
 scientific verification.
-Double backward, Hessians, `vmap`, AMP/autocast, sparse or arbitrary Tensor
+Ordinary product tests additionally exercise nested/non-leading point/seed axes,
+shared gradients, empty maps and first-order functional transforms. These do not
+widen the registered spatial scientific claim. Compiled functional gradients
+with requires-grad inputs can request unavailable higher-order products.
+Double backward, Hessians, AMP/autocast, sparse or arbitrary Tensor
 subclasses, CUDA, distributed autograd, `torch.export`, graph serialization,
 AOT packaging, module reload, and multiprocessing fork/spawn are nonclaims.
 

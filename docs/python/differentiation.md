@@ -373,7 +373,7 @@ compiled_objective = torch.compile(
 The adapter requires PyTorch `>=2.14,<2.15`. Backpropagation uses the VJP of
 the solved equations.
 
-Inputs are an ordered tuple or list of contiguous CPU:0 tensors, one per
+Inputs are an ordered tuple or list of strided CPU:0 tensors, one per
 `torch_program.inputs` signature. Each tensor has that leaf's exact native shape
 and `float64` (real) or `complex128` (complex) dtype. Outputs are an ordered tuple
 matching `torch_program.outputs`; a scalar stays scalar, and a sampled Field
@@ -387,9 +387,22 @@ PyTorch and JAX share the native registration owner. The exact initial State is
 part of program identity, so distinct nonlinear seeds retain their own solutions
 and derivatives.
 
-The current adapter supports in-process `torch.compile(fullgraph=True)` with
-first-order gradients. Double backward, `vmap`, AMP, CUDA, `torch.export`, and
-AOT packaging are not yet supported.
+The adapter composes first-order `torch.func.jvp`, `vjp`, `grad`, `jacfwd` and
+`jacrev` with nested/non-leading `vmap`, including shared-input gradient sums,
+duplicate points and empty batches. Native maps own physical evaluations;
+Jacobian seed directions remain separate from physical, temporal and value axes.
+Strided views are staged at the native boundary, while saved original tensors
+retain autograd version checks. A failed native member rejects the operation.
+Torch Jacobian transforms require real arguments; expose real/imaginary
+coordinates in the calling function when differentiating complex-valued leaves.
+
+In-process `torch.compile(fullgraph=True)` supports ordinary first-order
+backward and the tested first-order functional transforms on inputs that do not
+already require gradients. Compiling a functional gradient with `requires_grad`
+inputs can request higher-order native products and is not supported yet. Double
+backward and derivatives of JVP/VJP products are rejected, not replaced by zeros.
+AMP, CUDA, `torch.export`, AOT packaging and arbitrary Tensor subclasses remain
+unsupported. Native map resource limits apply; batching is not a speed claim.
 
 ## JAX
 
