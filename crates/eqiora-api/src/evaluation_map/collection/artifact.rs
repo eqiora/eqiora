@@ -6,7 +6,7 @@ use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 
-pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v1";
+pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v2";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -203,11 +203,9 @@ impl WireGroup {
                     } else {
                         let bytes = decode(encoded).map_err(one)?;
                         let outcome = match &request {
-                            RecordedRequest::Evaluations { plan, initial, .. } => {
-                                let record = RecordedDifferentiableEvaluation::from_bytes(
-                                    &bytes,
-                                    plan,
-                                    initial.as_ref(),
+                            RecordedRequest::Evaluations { context, .. } => {
+                                let record = RecordedDifferentiableEvaluation::from_context_bytes(
+                                    &bytes, context,
                                 )?;
                                 if record.identity() != reference {
                                     return Err(one(invalid(

@@ -4,15 +4,15 @@ use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
 
 impl DifferentiableProgram {
-    pub(crate) const fn plan(&self) -> &ResolvedCommonPlan {
-        &self.plan
+    pub(crate) fn plan(&self) -> &ResolvedCommonPlan {
+        self.context.plan()
     }
-    pub(crate) const fn initial_state(&self) -> Option<&CommonInitialState<'static>> {
-        self.initial.as_ref()
+    pub(crate) fn context(&self) -> &Context<'static> {
+        &self.context
     }
 
     pub(crate) fn kernel_program(&self) -> Result<&eqiora_sem::KernelProgram, Diagnostic> {
-        signature::kernel(&self.plan)
+        signature::kernel(self.plan())
     }
     /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
     /// Nonlinear Plans require their complete initial State and an
@@ -32,14 +32,51 @@ impl DifferentiableProgram {
         initial: Option<CommonInitialState<'static>>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let identity = DifferentiableProgramIdentity::from_plan(
-            &plan,
+        Self::compile_context(
+            Context::Stationary {
+                plan: std::borrow::Cow::Owned(plan),
+                initial,
+            },
             inputs,
             outputs,
-            &quadratures,
-            initial.as_ref(),
-        )?;
-        if plan.linear_solver_provider() != Some(backend.provider()) {
+            quadratures,
+            backend,
+        )
+    }
+
+    /// Compile a fixed-history spatial step from its ordinary Run request.
+    /// The exact physical predecessor and endpoint times remain fixed at every
+    /// selected Parameter point. This is not differentiation through prior steps.
+    /// No canonical step needs to be executed before compiling this Program.
+    ///
+    /// # Errors
+    /// Rejects foreign selections, unsupported requests and unaccepted primals.
+    pub fn compile_run(
+        request: crate::RunRequest,
+        inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
+        outputs: &[ModelEntityRef],
+        quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
+        backend: &'static dyn LinearSolverBackend,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::compile_context(
+            Context::Run(std::borrow::Cow::Owned(request)),
+            inputs,
+            outputs,
+            quadratures,
+            backend,
+        )
+    }
+
+    fn compile_context(
+        context: Context<'static>,
+        inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
+        outputs: &[ModelEntityRef],
+        quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
+        backend: &'static dyn LinearSolverBackend,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let identity =
+            DifferentiableProgramIdentity::from_context(&context, inputs, outputs, &quadratures)?;
+        if context.plan().linear_solver_provider() != Some(backend.provider()) {
             return Err(single(invalid(
                 "differentiable backend must match the exact Plan provider",
             )));
@@ -55,8 +92,7 @@ impl DifferentiableProgram {
             .map(|value| value.entity())
             .collect::<Vec<_>>();
         let native = accept_plan_point(
-            &plan,
-            initial.as_ref(),
+            &context,
             &selected,
             None,
             &outputs,
@@ -68,8 +104,7 @@ impl DifferentiableProgram {
             DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
         Ok(Self {
             identity,
-            plan,
-            initial,
+            context,
             backend,
             default,
         })
@@ -113,8 +148,7 @@ impl DifferentiableProgram {
             return Ok(self.default.clone());
         }
         let native = accept_plan_point(
-            &self.plan,
-            self.initial.as_ref(),
+            &self.context,
             &self
                 .identity
                 .inputs
@@ -202,14 +236,22 @@ impl DifferentiableEvaluation {
 }
 
 fn accept_plan_point(
-    plan: &ResolvedCommonPlan,
-    initial: Option<&CommonInitialState<'_>>,
+    context: &Context<'_>,
     selected: &[Id<kinds::Parameter>],
     values: Option<&[f64]>,
     outputs: &[RawId],
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+    let plan = context.plan();
+    let initial = context.initial();
+    let initial = initial.as_ref();
+    if let Some(request) = context.run_request() {
+        return plan
+            .as_spatial()
+            .ok_or_else(|| invalid("Run differentiation requires its spatial Plan"))?
+            .differentiate_step(request.native(), selected, values, outputs, backend);
+    }
     match plan {
         ResolvedCommonPlan::Spatial(plan) => plan.differentiate(
             spatial_initial(initial)?,

@@ -41,6 +41,10 @@ impl DifferentiableProgram {
             self.identity.plan_identity.len(),
             64, // canonical Model digest
             self.identity
+                .run_request_identity
+                .as_ref()
+                .map_or(0, String::len),
+            self.identity
                 .initial_state_identity
                 .as_ref()
                 .map_or(0, String::len),
@@ -55,7 +59,8 @@ impl DifferentiableProgram {
                         .storage_bytes()
                         .ok_or_else(overflow)
                 })?,
-            self.initial
+            self.context
+                .initial()
                 .as_ref()
                 .map_or(0, |initial| initial.identity().len()),
         ]
@@ -89,7 +94,7 @@ impl DifferentiableProgram {
         // Charge both bounds so the estimate never depends on observed sparsity.
         let output = multiply(o, size_of::<f64>() + size_of::<Option<usize>>())?;
         let output_state = multiply(multiply(o, n)?, size_of::<f64>())?;
-        let updates = match self.plan.canonical_solve_request() {
+        let updates = match self.plan().canonical_solve_request() {
             Some(eqiora_numerics::CommonSolvePolicy::Newton { nonlinear, .. }) => {
                 nonlinear.maximum_iterations().get()
             }
@@ -104,7 +109,8 @@ impl DifferentiableProgram {
             size_of::<DifferentiableEvaluation>(),
             size_of::<ExecutionReceipt>(), // at most one boxed deployment receipt
             self.map_evidence_bytes()?,    // temporary comparison/publication metadata
-            self.initial
+            self.context
+                .initial()
                 .as_ref()
                 .map_or(Ok(0), CommonInitialState::retained_payload_bytes)?,
             size_of::<DifferentiableValues>(),
@@ -118,6 +124,10 @@ impl DifferentiableProgram {
             ),
             self.identity.plan_identity.len(),
             64, // canonical Model digest
+            self.identity
+                .run_request_identity
+                .as_ref()
+                .map_or(0, String::len),
             self.identity
                 .initial_state_identity
                 .as_ref()

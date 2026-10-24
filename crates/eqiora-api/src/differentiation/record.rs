@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::evidence::{Acceptance, PrimalEvidence};
 use super::*;
 
-const SCHEMA: &str = "eqiora.differentiable-evaluation/v1";
+const SCHEMA: &str = "eqiora.differentiable-evaluation/v2";
 
 /// Read-only accepted primal with the candidate coordinates required for reopening.
 ///
@@ -97,6 +97,24 @@ impl RecordedDifferentiableEvaluation {
         plan: &ResolvedCommonPlan,
         initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::from_context_bytes(bytes, &Context::stationary(plan, initial))
+    }
+
+    /// Reopen a step evaluation against its exact ordinary Run request, without solving.
+    pub fn from_run_bytes(
+        bytes: &[u8],
+        request: &crate::RunRequest,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::from_context_bytes(bytes, &Context::Run(std::borrow::Cow::Borrowed(request)))
+    }
+
+    pub(crate) fn from_context_bytes(
+        bytes: &[u8],
+        context: &Context<'_>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let plan = context.plan();
+        let initial = context.initial();
+        let initial = initial.as_ref();
         eqiora_artifact::JsonLimits::EXECUTION
             .check(bytes)
             .map_err(single)?;
@@ -108,7 +126,7 @@ impl RecordedDifferentiableEvaluation {
         let identity_bytes = STANDARD
             .decode(&wire.program)
             .map_err(|error| single(invalid(format!("invalid Program encoding: {error}"))))?;
-        let identity = DifferentiableProgramIdentity::from_bytes(&identity_bytes, plan, initial)?;
+        let identity = DifferentiableProgramIdentity::from_context_bytes(&identity_bytes, context)?;
         let point = DifferentiableValues::from_coordinates(identity.inputs.clone(), wire.point)
             .map_err(single)?;
         let selected = identity
@@ -121,33 +139,45 @@ impl RecordedDifferentiableEvaluation {
             .iter()
             .map(DifferentiableValueSignature::entity)
             .collect::<Vec<_>>();
-        let linearization = match plan {
-            ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
-                program::spatial_initial(initial).map_err(single)?,
-                &selected,
-                Some(point.coordinates()),
-                &outputs,
-                identity.observation_quadratures(),
-                &wire.state,
-            ),
-            ResolvedCommonPlan::Algebraic(algebraic) => {
-                let canonical;
-                let initial = match program::algebraic_initial(initial).map_err(single)? {
-                    Some(initial) => initial,
-                    None => {
-                        canonical = algebraic.initial_state(&[]).map_err(single)?;
-                        &canonical
-                    }
-                };
-                algebraic.validate_differentiated_values(
-                    initial,
+        let linearization = if let Some(request) = context.run_request() {
+            plan.as_spatial()
+                .ok_or_else(|| single(invalid("Run record requires its spatial Plan")))?
+                .validate_differentiated_step_values(
+                    request.native(),
                     &selected,
                     Some(point.coordinates()),
                     &outputs,
                     &wire.state,
                 )
+        } else {
+            match plan {
+                ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
+                    program::spatial_initial(initial).map_err(single)?,
+                    &selected,
+                    Some(point.coordinates()),
+                    &outputs,
+                    identity.observation_quadratures(),
+                    &wire.state,
+                ),
+                ResolvedCommonPlan::Algebraic(algebraic) => {
+                    let canonical;
+                    let initial = match program::algebraic_initial(initial).map_err(single)? {
+                        Some(initial) => initial,
+                        None => {
+                            canonical = algebraic.initial_state(&[]).map_err(single)?;
+                            &canonical
+                        }
+                    };
+                    algebraic.validate_differentiated_values(
+                        initial,
+                        &selected,
+                        Some(point.coordinates()),
+                        &outputs,
+                        &wire.state,
+                    )
+                }
+                _ => return Err(single(invalid("unsupported evaluation record Plan"))),
             }
-            _ => return Err(single(invalid("unsupported evaluation record Plan"))),
         };
         let linearization = linearization.map_err(single)?;
         let implementation = DerivativeImplementation::from_linearization(&linearization);

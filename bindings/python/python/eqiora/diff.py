@@ -33,7 +33,10 @@ __all__ = [
 ]
 
 
-def compile(plan, *, inputs, outputs, state=None, quadrature_points=None):
+def compile(
+    plan, *, inputs, outputs, state=None, quadrature_points=None,
+    until_s=None, output_times_s=None, steps=None, output_steps=None,
+):
     """Compile one immutable program over an ordered Parameter coordinate set.
 
     ``program.evaluate(parameters)`` accepts another complete numerical point
@@ -47,6 +50,14 @@ def compile(plan, *, inputs, outputs, state=None, quadrature_points=None):
     and reduced Observables, while retaining the complete coupled solve. Spatial
     integrals require explicit ``quadrature_points``; the resulting rules belong
     to the immutable Program and its saved identity.
+    Spatial backward-Euler Plans take the ordinary Run controls: ``state`` and
+    either ``steps``/``output_steps`` or ``until_s``/``output_times_s``. The current
+    admitted request is one step with its endpoint and complete Field outputs.
+    Parameter changes hold that exact preceding physical State and both endpoint
+    times fixed; these are not derivatives through earlier steps. Compilation
+    needs no previously solved canonical step. Maps and saved collections retain
+    this same request meaning and reopen accepted candidates without solving.
+
     Finite affine Plans need no seed, and support real
     Observable sensitivities to typed real or complex Parameters with real or complex
     Field coordinates, including conjugate dependence. Complex actions use the
@@ -70,4 +81,8 @@ def compile(plan, *, inputs, outputs, state=None, quadrature_points=None):
         outputs=outputs,
         state=state,
         quadrature_points=quadrature_points,
+        until_s=until_s,
+        output_times_s=output_times_s,
+        steps=steps,
+        output_steps=output_steps,
     )

@@ -53,6 +53,19 @@ impl CommonSpatialPlan {
         Ok(accepted)
     }
 
+    /// Validate the exact step request and output roles without solving.
+    /// This binds static request meaning, not candidate residual acceptance.
+    ///
+    /// # Errors
+    /// Rejects foreign Plans, unsupported temporal policies, schedules and outputs.
+    pub fn validate_step_differentiation_request(
+        &self,
+        request: &CommonTransientRunRequest,
+        outputs: &[eqiora_core::RawId],
+    ) -> Result<(), Diagnostic> {
+        self.validate_step_request(request, outputs).map(|_| ())
+    }
+
     fn validate_step_request(
         &self,
         request: &CommonTransientRunRequest,

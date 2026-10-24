@@ -15,6 +15,7 @@ pub struct DifferentiableProgramIdentity {
     pub(super) outputs: Arc<[DifferentiableValueSignature]>,
     pub(super) quadratures: Arc<HashMap<Id<kinds::Domain>, QuadratureRule>>,
     pub(super) initial_state_identity: Option<String>,
+    pub(super) run_request_identity: Option<String>,
     pub(super) scalar_type: ScalarType,
     pub(super) solver: SolverPlan,
 }
@@ -50,10 +51,16 @@ impl DifferentiableProgramIdentity {
         &self.quadratures
     }
 
-    /// Exact initial State bound by this Program; absent for spatial linear execution.
+    /// Exact initial State; absent for stationary affine spatial execution.
     #[must_use]
     pub fn initial_state_identity(&self) -> Option<&str> {
         self.initial_state_identity.as_deref()
+    }
+
+    /// Exact transient request, absent for a stationary Program.
+    #[must_use]
+    pub fn run_request_identity(&self) -> Option<&str> {
+        self.run_request_identity.as_deref()
     }
 
     /// Flat tangent/gradient input dimension.
@@ -84,13 +91,15 @@ impl DifferentiableProgramIdentity {
 impl DifferentiableProgramIdentity {
     /// Bind static meaning without accepting a default primal or retaining a provider.
     /// Exact collection reopening can use this same admission boundary without solving.
-    pub(crate) fn from_plan(
-        plan: &ResolvedCommonPlan,
+    pub(crate) fn from_context(
+        context: &Context<'_>,
         inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
         outputs: &[ModelEntityRef],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
-        initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let plan = context.plan();
+        let initial = context.initial();
+        let initial = initial.as_ref();
         if inputs.is_empty() {
             return Err(single(invalid(
                 "differentiable program requires selected Parameters",
@@ -135,10 +144,19 @@ impl DifferentiableProgramIdentity {
                 "nonlinear differentiation requires its exact initial State",
             )));
         }
+        if context.run_request().is_some() && plan.as_spatial().is_none() {
+            return Err(single(invalid(
+                "Run differentiation requires its spatial Plan",
+            )));
+        }
         match plan {
             ResolvedCommonPlan::Spatial(spatial) => {
                 let seed = program::spatial_initial(initial).map_err(single)?;
-                if seed.is_some() {
+                if let Some(request) = context.run_request() {
+                    spatial
+                        .validate_step_differentiation_request(request.native(), &outputs)
+                        .map_err(single)?;
+                } else if seed.is_some() {
                     if !matches!(
                         plan.canonical_solve_request(),
                         Some(eqiora_numerics::CommonSolvePolicy::Newton { .. })
@@ -200,6 +218,9 @@ impl DifferentiableProgramIdentity {
             outputs: output_signatures.into(),
             quadratures: Arc::new(quadratures.clone()),
             initial_state_identity: initial.map(|state| state.identity().to_owned()),
+            run_request_identity: context
+                .run_request()
+                .map(|request| request.identity().to_owned()),
             scalar_type: ScalarType::F64,
             solver: plan
                 .effective_solver()

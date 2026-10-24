@@ -1,15 +1,13 @@
 //! Frozen request meaning without an executable Program or Run closure.
 use super::*;
-use eqiora_numerics::{
-    CommonInitialState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
-};
+use crate::differentiation::context::Context;
+use eqiora_numerics::{CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecordedRequest {
     Evaluations {
-        plan: ResolvedCommonPlan,
+        context: Box<Context<'static>>,
         program: Box<DifferentiableProgramIdentity>,
-        initial: Option<CommonInitialState<'static>>,
         points: Vec<DifferentiableValues>,
         shared: Vec<Parameter>,
         samples: Option<Vec<SampledParameterPoint>>,
@@ -30,9 +28,8 @@ impl RecordedRequest {
                 shared_inputs,
                 samples,
             } => Self::Evaluations {
-                plan: program.plan().clone(),
+                context: Box::new(program.context().clone()),
                 program: Box::new(program.identity().clone()),
-                initial: program.initial_state().cloned(),
                 points: points.to_vec(),
                 shared: shared_inputs.to_vec(),
                 samples: samples.as_ref().map(|v| v.to_vec()),
@@ -56,7 +53,8 @@ impl RecordedRequest {
     }
     pub(super) fn plan(&self) -> &ResolvedCommonPlan {
         match self {
-            Self::Evaluations { plan, .. } | Self::Time { plan, .. } => plan,
+            Self::Evaluations { context, .. } => context.plan(),
+            Self::Time { plan, .. } => plan,
         }
     }
     pub(super) fn program_identity(&self) -> Option<&DifferentiableProgramIdentity> {
