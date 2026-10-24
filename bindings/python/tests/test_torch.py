@@ -353,8 +353,23 @@ def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([value], dtype=torch.float64, requires_grad=True)
         output = operation(point)
-        np.testing.assert_allclose(output.detach().numpy(), [2.]*3, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(output.detach().numpy(), [[2.]*3], rtol=0, atol=1e-10)
         gradient, = torch.autograd.grad(output.sum(), point)
         np.testing.assert_allclose(gradient.detach().numpy(), [3*derivative],
                                    rtol=0, atol=1e-10)
     assert state.to_bytes() == before
+
+
+def test_spatial_trajectory_composes_with_backward_and_compile():
+    from test_spatial_step_program import step_plan
+
+    plan, parameter = step_plan(False, False)
+    program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
+        state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
+    solve = eqtorch.bind(program)
+    for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
+        point = torch.tensor([4.], dtype=torch.float64, requires_grad=True)
+        output = operation(point)
+        np.testing.assert_allclose(output.detach().numpy(), [[2.]*3, [3.5]*3], rtol=0, atol=1e-10)
+        gradient, = torch.autograd.grad(output.sum(), point)
+        np.testing.assert_allclose(gradient.detach().numpy(), [4.125], rtol=0, atol=1e-10)

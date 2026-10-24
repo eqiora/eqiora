@@ -561,6 +561,8 @@ class DifferentiableValueSignature:
     @property
     def shape(self) -> tuple[int, ...]: ...
     @property
+    def sample_times_s(self) -> tuple[float, ...] | None: ...
+    @property
     def mesh_digest(self) -> str | None: ...
     @property
     def space(self) -> str | None: ...
@@ -890,6 +892,19 @@ class DifferentiationEvidence:
     def implementation(self) -> DerivativeImplementation: ...
     @property
     def linearization_state(self) -> LinearizationState: ...
+    @property
+    def steps(self) -> tuple[DifferentiationStepEvidence, ...]: ...
+```
+
+<a id="api-eqiora-DifferentiationStepEvidence"></a>
+
+### `eqiora.DifferentiationStepEvidence`
+
+Acceptance and actual solver reports for one ordered step.
+
+```python
+@final
+class DifferentiationStepEvidence:
     @property
     def state_system_fingerprint(self) -> str: ...
     @property
@@ -6678,6 +6693,14 @@ See [`eqiora.DifferentiationEvidence`](#api-eqiora-DifferentiationEvidence).
 
 Provenance of one differentiation: model, plan, solve summaries, and residual.
 
+<a id="api-eqiora-diff-DifferentiationStepEvidence"></a>
+
+### `eqiora.diff.DifferentiationStepEvidence`
+
+See [`eqiora.DifferentiationStepEvidence`](#api-eqiora-DifferentiationStepEvidence).
+
+Acceptance and actual solver reports for one ordered step.
+
 <a id="api-eqiora-diff-DifferentiationMode"></a>
 
 ### `eqiora.diff.DifferentiationMode`
@@ -6724,8 +6747,9 @@ Input coordinates are ordered by selection, then row-major by component, then
 real before imaginary part. The input identities count Parameters; the input
 shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
-Spatial backward-Euler Programs bind a one-step Run request through state and
-one complete schedule family, holding its physical predecessor fixed.
+Spatial backward-Euler Programs bind the complete Run request and initial State.
+Outputs have a leading physical-time axis; derivatives propagate through every
+accepted step, independently of the output schedule.
 
 ```python
 def compile(plan: Plan, *, inputs: Sequence[ParameterRef], outputs: Sequence[FieldRef | ObservableRef], state: State | None=None, quadrature_points: int | None=None, until_s: float | None=None, output_times_s: Sequence[float] | None=None, steps: int | None=None, output_steps: Sequence[int] | None=None) -> DifferentiableProgram: ...

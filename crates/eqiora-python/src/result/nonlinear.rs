@@ -23,14 +23,20 @@ pub(crate) struct PyNonlinearSolveSummary {
 }
 impl PyNonlinearSolveSummary {
     pub(crate) fn from_differentiation(
-        value: &eqiora::api::DifferentiationEvidence,
+        value: &eqiora::api::DifferentiationStepEvidence,
     ) -> Option<Self> {
         Some(Self {
             completed_iterations: value.nonlinear_iterations()?,
             initial_residual_norm: value.nonlinear_initial_residual_norm()?,
             true_residual_norm: value.primal_residual_norm(),
             residual_target: value.residual_tolerance(),
-            linear_solves: None,
+            linear_solves: Some(
+                value
+                    .primal_solves()
+                    .iter()
+                    .map(PyLinearSolveSummary::from_evidence)
+                    .collect(),
+            ),
         })
     }
 

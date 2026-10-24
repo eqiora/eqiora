@@ -76,15 +76,15 @@ impl CommonInitialState<'_> {
                 "initial State payload has no admitted storage bound",
             )
         };
-        let (values, owner) = match self {
-            Self::Algebraic(state) => (state.values(), state.plan_identity()),
+        let (bytes, owner) = match self {
+            Self::Algebraic(state) => (size_of_val(state.values()), state.plan_identity()),
             Self::Spatial(state) => (
-                state.spatial_values().ok_or_else(invalid)?,
+                state.spatial_retained_values_bytes().ok_or_else(invalid)?,
                 state.state_space_identity(),
             ),
-            Self::Time(state) => (state.values(), state.state_space_identity()),
+            Self::Time(state) => (size_of_val(state.values()), state.state_space_identity()),
         };
-        size_of_val(values)
+        bytes
             .checked_add(owner.len())
             .and_then(|bytes| bytes.checked_add(self.identity().len()))
             .ok_or_else(invalid)

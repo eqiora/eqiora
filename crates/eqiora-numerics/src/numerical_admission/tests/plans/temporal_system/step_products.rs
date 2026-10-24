@@ -94,6 +94,22 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     panic!("unexpected stop")
                 };
                 for (index, (_, step)) in steps.iter().enumerate() {
+                    // The fixture has one scalar Field, with real/imaginary storage words.
+                    // A restart retains both its current coordinates and one predecessor.
+                    let coordinate_count = if spatial == CommonSpatialPolicy::Q1 {
+                        3
+                    } else {
+                        2
+                    } * if complex { 2 } else { 1 };
+                    let state = step.state();
+                    assert_eq!(
+                        crate::CommonInitialState::from(state)
+                            .retained_payload_bytes()
+                            .unwrap(),
+                        2 * coordinate_count * size_of::<f64>()
+                            + state.state_space_identity().len()
+                            + state.identity().len(),
+                    );
                     let step_request = CommonTransientRunRequest::from_steps(
                         resolved.clone(),
                         step.previous_state().clone(),

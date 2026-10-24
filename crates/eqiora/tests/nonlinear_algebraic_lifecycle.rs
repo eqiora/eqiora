@@ -281,15 +281,20 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     let default = program
         .evaluate(&support::real_point(&program, &[4.0]).unwrap())
         .unwrap();
-    assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
+    assert_eq!(
+        default.primal().evidence().steps()[0].nonlinear_iterations(),
+        Some(0)
+    );
     assert!(
-        default
-            .primal()
-            .evidence()
+        default.primal().evidence().steps()[0]
             .nonlinear_initial_state_identity()
             .is_some()
     );
-    assert!(default.primal().evidence().primal_solve().is_none());
+    assert!(
+        default.primal().evidence().steps()[0]
+            .primal_solve()
+            .is_none()
+    );
     assert_eq!(
         program.identity().initial_state_identity(),
         Some(initial.identity())
@@ -330,11 +335,11 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             DerivativeImplementation::OperatorIr
         );
         assert_eq!(
-            reverse.evidence().nonlinear_initial_state_identity(),
+            reverse.evidence().steps()[0].nonlinear_initial_state_identity(),
             Some(initial.identity())
         );
         assert_eq!(
-            reverse.evidence().accepted_state(),
+            reverse.evidence().steps()[0].accepted_state(),
             eqiora_execution::AcceptedOutputFingerprintV1::from_values(point.accepted_unknowns())
                 .unwrap()
         );
@@ -440,8 +445,16 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         .unwrap()
         .execute()
         .unwrap();
-        assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
-        assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
+        assert_eq!(
+            map.evidence(0).unwrap().steps()[0].nonlinear_iterations(),
+            Some(0)
+        );
+        assert!(
+            map.evidence(1).unwrap().steps()[0]
+                .nonlinear_iterations()
+                .unwrap()
+                > 0
+        );
         let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
         let forward =
             support::derivative_products::mapped_jvp(&products, &[], &[1., 1.], 1).unwrap();
@@ -544,8 +557,15 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
         &ParallelOnly,
     )
     .unwrap();
-    assert_eq!(program.primal().evidence().nonlinear_iterations(), Some(0));
-    assert!(program.primal().evidence().primal_solve().is_none());
+    assert_eq!(
+        program.primal().evidence().steps()[0].nonlinear_iterations(),
+        Some(0)
+    );
+    assert!(
+        program.primal().evidence().steps()[0]
+            .primal_solve()
+            .is_none()
+    );
     let error = EvaluationMapPlan::new(
         Arc::new(program.clone()),
         &support::real_points(&program, &[&[9.]]),

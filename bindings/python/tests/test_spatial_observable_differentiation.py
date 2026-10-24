@@ -95,7 +95,7 @@ def test_spatial_observable_total_derivatives(method, complex_values, solve):
     for a in (values[0], 3-2j if complex_values else 3.):
         values[0] = a
         point = program.evaluate(parts(values))
-        assert point.primal().evidence.primal_solve.backend == plan.solve.backend
+        assert point.primal().evidence.steps[0].primal_solve.backend == plan.solve.backend
         expected, tangent = oracle(values, direction)
         for actual, wanted in zip(point.primal().output, expected, strict=True):
             assert np.asarray(actual).shape == np.asarray(wanted).shape

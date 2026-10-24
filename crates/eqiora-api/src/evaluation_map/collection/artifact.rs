@@ -6,7 +6,7 @@ use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 
-pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v2";
+pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v3";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

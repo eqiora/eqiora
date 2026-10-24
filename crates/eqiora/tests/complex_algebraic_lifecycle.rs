@@ -328,8 +328,12 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
             assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
             let primal = point.primal();
             assert!((primal.output().fixture_coordinates()[0] - (2. * p * p + p)).abs() < 1e-9);
-            assert!(primal.evidence().primal_solve().is_some());
-            assert!(primal.evidence().nonlinear_iterations().is_none());
+            assert!(primal.evidence().steps()[0].primal_solve().is_some());
+            assert!(
+                primal.evidence().steps()[0]
+                    .nonlinear_iterations()
+                    .is_none()
+            );
             assert!(
                 (point
                     .jvp(&support::derivative_products::tangent(point.identity(), &[2.]).unwrap())
@@ -483,7 +487,10 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         let leaf = primal.output().get(selection.id()).unwrap();
         assert_eq!(leaf.signature().model(), selection.model());
         assert_eq!(leaf.components().collect::<Vec<_>>(), [expected]);
-        assert_eq!(leaf.coefficient(0).unwrap().component(0).unwrap(), expected);
+        assert_eq!(
+            leaf.coefficient(0, None).unwrap().component(0).unwrap(),
+            expected
+        );
     }
     assert!(program.evaluate(primal.output()).is_err());
     assert_eq!(
@@ -799,11 +806,11 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
     let typed = eqiora::api::DifferentiableValues::from_literals(signatures, &literals).unwrap();
     assert_eq!(program.primal().output(), &typed);
     assert_eq!(
-        typed.get(field).unwrap().coefficient(0).unwrap(),
+        typed.get(field).unwrap().coefficient(0, None).unwrap(),
         literals[0]
     );
     assert_eq!(
-        typed.get(loss).unwrap().coefficient(0).unwrap(),
+        typed.get(loss).unwrap().coefficient(0, None).unwrap(),
         literals[1]
     );
     assert!(
@@ -1050,7 +1057,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             assert_eq!(c.signature().shape(), [2]);
             assert_eq!(c.components().collect::<Vec<_>>(), expected_components);
             let literals = (0..2)
-                .map(|index| point.leaf(index).unwrap().coefficient(0).unwrap())
+                .map(|index| point.leaf(index).unwrap().coefficient(0, None).unwrap())
                 .collect::<Vec<_>>();
             assert_eq!(
                 eqiora::api::DifferentiableValues::from_literals(point.signatures(), &literals)
@@ -1308,11 +1315,11 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
             point.leaf(index).unwrap().signature().model(),
             program.identity().model()
         );
-        assert!(point.leaf(index).unwrap().coefficient(1).is_err());
+        assert!(point.leaf(index).unwrap().coefficient(1, None).is_err());
     }
     let literals = [
-        point.leaf(0).unwrap().coefficient(0).unwrap(),
-        point.leaf(1).unwrap().coefficient(0).unwrap(),
+        point.leaf(0).unwrap().coefficient(0, None).unwrap(),
+        point.leaf(1).unwrap().coefficient(0, None).unwrap(),
     ];
     let rebound = DifferentiableValues::from_literals(signatures, &literals).unwrap();
     assert_eq!(&rebound, point);

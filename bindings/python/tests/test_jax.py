@@ -760,14 +760,34 @@ def test_fixed_history_spatial_step_composes_with_jit_products_and_map(
     value, derivative = (10.-previous, 1/13) if nonlinear else (4.-previous, .5)
     point = (jnp.asarray(value, dtype=jnp.float64),)
     operation = jax.jit(solve)
-    np.testing.assert_allclose(operation(point)[0], [2*phase]*3, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(operation(point)[0], [[2*phase]*3], rtol=0, atol=1e-10)
     _, tangent = jax.jvp(operation, (point,), ((jnp.asarray(1., dtype=jnp.float64),),))
-    np.testing.assert_allclose(tangent[0], [phase*derivative]*3, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(tangent[0], [[phase*derivative]*3], rtol=0, atol=1e-10)
     gradient = jax.jit(jax.grad(lambda p: jnp.real(jnp.sum(solve((p,))[0]))))(point[0])
     np.testing.assert_allclose(gradient, 3*derivative, rtol=0, atol=1e-10)
     mapped = jax.jit(jax.vmap(lambda p: solve((p,))[0]))(
         jnp.asarray([2.-previous, value, value], dtype=jnp.float64)
     )
-    np.testing.assert_allclose(mapped, [[phase]*3, [2*phase]*3, [2*phase]*3],
+    np.testing.assert_allclose(mapped, [[[phase]*3], [[2*phase]*3], [[2*phase]*3]],
                                rtol=0, atol=1e-10)
     assert state.to_bytes() == before
+
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_field):
+    from test_spatial_step_program import step_plan
+
+    plan, parameter = step_plan(False, complex_field)
+    program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
+        state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
+    solve = eqjax.bind(program)
+    phase = 1+2j if complex_field else 1.
+    point = (jnp.asarray(4., dtype=jnp.float64),)
+    operation = jax.jit(solve)
+    output, tangent = jax.jvp(operation, (point,), ((jnp.asarray(1., dtype=jnp.float64),),))
+    np.testing.assert_allclose(output[0], np.array([[2.]*3, [3.5]*3])*phase, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(tangent[0], np.array([[.5]*3, [.875]*3])*phase, rtol=0, atol=1e-10)
+    gradient = jax.jit(jax.grad(lambda p: jnp.real(jnp.sum(solve((p,))[0]))))(point[0])
+    np.testing.assert_allclose(gradient, 4.125, rtol=0, atol=1e-10)
+    mapped = jax.jit(jax.vmap(lambda p: solve((p,))[0]))(jnp.array([2.,4.,4.]))
+    assert mapped.shape == (3, 2, 3)
+    np.testing.assert_allclose(mapped[1], output[0], rtol=0, atol=1e-10)

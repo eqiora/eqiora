@@ -127,7 +127,7 @@ scalar arithmetic and pointwise component expressions. Their shared component IR
 evaluates two input directions, including mixed derivatives of those inputs.
 Affine-map coefficient composition and arbitrary-order derivatives remain outside
 this path. Conjugated state equations remain outside this static path.
-Transient Plans use the fixed-history step boundary described below.
+Transient Plans use the Run-bound trajectory boundary described below.
 
 Spatial integral outputs require explicit quadrature, including integrals used
 by a composed Observable:
@@ -157,27 +157,50 @@ Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
 
-## One transient step with a fixed predecessor
+## Spatial trajectories with a fixed initial State
 
-For an admitted spatial backward-Euler Plan, pass the exact preceding `State`
-to `eqiora.diff.compile` with `state=previous_state`, `steps=1` and
-`output_steps=(1,)`. Select Parameters through `inputs` and complete endpoint
-Fields through `outputs`, just as for a stationary Program. Alternatively,
-use `until_s` and `output_times_s` to request the same single endpoint; supply
-exactly one schedule family. No previously solved canonical step is required.
+For an admitted spatial backward-Euler Plan, pass its initial physical `State`
+and one ordinary Run schedule to `eqiora.diff.compile`. Select Parameters
+through `inputs` and complete Fields through `outputs`:
 
-The Program holds the original physical predecessor and endpoint times fixed
-while evaluating new Parameter values. Its JVP and VJP therefore differentiate
-this one step, not the trajectory that produced the predecessor. Real and
-complex linear/Newton step products use the ordinary native execution owners.
-Moving geometry, eliminated kinematics, temporal Observables and other time
-methods remain outside this boundary.
+```python
+program = eqiora.diff.compile(
+    plan, inputs=(model.parameter("p"),), outputs=(plan.fields[0],),
+    state=initial_state, steps=3, output_steps=(1, 3),
+)
+point = program.evaluate((4.0,))
+values = point.primal().output[0]
+tangent = point.jvp((1.0,)).tangent[0]
+```
 
-Use the existing `evaluate`, `jvp`, `vjp` and `map` APIs for the resulting
-Program. Recorded evaluation collections bind the exact Run request and reopen
-through the original equation acceptance without solving. Reopening validates
-mathematical acceptance; it does not authenticate a producer's iteration history.
-Full interpolation history is not retained by this step Program.
+Use `until_s` and `output_times_s` instead for a physical-time schedule; supply
+exactly one schedule family. No previously solved canonical Run is required.
+Each selected output has shape `(sample_count, coefficient_count, *value_shape)`,
+including a leading length-one time axis when only one output time is selected.
+`program.outputs[i].sample_times_s` gives those physical times. Parameter inputs
+have no time axis. Mapping adds its axes before these output axes without
+changing the Field's intrinsic mathematical type or coefficient entities.
+
+The Program holds the initial physical State fixed and differentiates through
+all accepted steps. Intermediate steps contribute to JVP and VJP even when they
+are absent from the requested outputs. With `steps=1, output_steps=(1,)`, this
+is the fixed-predecessor step derivative; it does not differentiate the Run that
+produced the supplied State. Real and complex linear/Newton products reuse the
+ordinary native execution and accepted derivative owners. Moving geometry,
+eliminated kinematics, temporal Observables and other time methods remain
+outside this boundary.
+
+Use the existing `evaluate`, `jvp`, `vjp` and `map` APIs, or bind the Program with
+`eqiora.jax.bind` / `eqiora.torch.bind` within each adapter's supported value types
+and first-order transformations. `result.evidence.steps` retains every accepted
+step in execution order, independently of the output schedule. Each step exposes
+its residual acceptance, primal solve summary and optional derivative solve.
+
+Recorded evaluation collections bind the exact Run request. Reopening checks
+all candidate steps against the original equations and preceding physical
+history without solving. It validates mathematical acceptance and report
+consistency, not the authenticity of a producer's iteration history. Ordinary
+Run interpolation retention is unchanged.
 
 ## Finite nonlinear points and partial actions
 
@@ -209,8 +232,9 @@ follow the ordered `inputs` selection.
 
 As above, each evaluation keeps its own solution and partial derivatives. The
 seed, the strict-interior conditions, and the residual and regularity checks are
-applied again at every point. `evidence.primal_solve` is a `NonlinearSolveSummary`,
-even when no Newton update was needed, and `derivative_solve` describes the
+applied again at every point. Stationary evaluations have one evidence entry:
+`result.evidence.steps[0].primal_solve` is a `NonlinearSolveSummary`, even when no
+Newton update was needed, and that entry’s `derivative_solve` describes the
 linear sensitivity solve, normal or transposed. Independent ordered maps reuse
 the same immutable seed at each point. This does not track a solution branch
 globally or provide higher implicit derivatives.

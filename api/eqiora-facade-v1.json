@@ -112,6 +112,7 @@
         { "name": "DifferentiableCotangent", "from": "eqiora_api::DifferentiableCotangent" },
         { "name": "DifferentiationEvidence", "from": "eqiora_api::DifferentiationEvidence" },
         { "name": "DifferentiationMode", "from": "eqiora_api::DifferentiationMode" },
+        { "name": "DifferentiationStepEvidence", "from": "eqiora_api::DifferentiationStepEvidence" },
         { "name": "LinearizationState", "from": "eqiora_api::LinearizationState" },
         { "name": "MathReference", "from": "eqiora_api::MathReference" },
         { "name": "MathRendering", "from": "eqiora_api::MathRendering" },

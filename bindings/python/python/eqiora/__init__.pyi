@@ -1422,6 +1422,8 @@ class DifferentiableValueSignature:
     @property
     def shape(self) -> tuple[int, ...]: ...
     @property
+    def sample_times_s(self) -> tuple[float, ...] | None: ...
+    @property
     def mesh_digest(self) -> str | None: ...
     @property
     def space(self) -> str | None: ...
@@ -1451,6 +1453,16 @@ class DifferentiationEvidence:
     def implementation(self) -> DerivativeImplementation: ...
     @property
     def linearization_state(self) -> LinearizationState: ...
+    @property
+    def steps(self) -> tuple[DifferentiationStepEvidence, ...]: ...
+
+@final
+class DifferentiationStepEvidence:
+    """Acceptance and actual solver reports for one ordered step.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiationStepEvidence``.
+    """
+
     @property
     def state_system_fingerprint(self) -> str: ...
     @property
@@ -2880,6 +2892,7 @@ __all__ = [
     "EvaluationMapJvp",
     "EvaluationMapVjp",
     "DifferentiationEvidence",
+    "DifferentiationStepEvidence",
     "DifferentiationMode",
     "Dimension",
     "ValueType",

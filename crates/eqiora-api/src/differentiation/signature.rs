@@ -19,6 +19,7 @@ pub struct DifferentiableValueSignature {
     entity: RawId,
     mathematical_type: ExpressionType<RawId>,
     shape: Vec<usize>,
+    sample_times_s: Option<Arc<[f64]>>,
     coordinate_count: usize,
     space: Option<Space>,
     mesh_digest: Option<String>,
@@ -44,10 +45,35 @@ impl DifferentiableValueSignature {
         &self.mathematical_type
     }
 
-    /// Complete native value shape, including any Field coefficient axis.
+    /// Complete native shape: optional time axis, Field coefficient axis, then value axes.
     #[must_use]
     pub fn shape(&self) -> &[usize] {
         &self.shape
+    }
+
+    /// Physical observation times on the leading temporal axis; absent for
+    /// stationary values and Parameters. This is independent of mapping axes.
+    #[must_use]
+    pub fn sample_times_s(&self) -> Option<&[f64]> {
+        self.sample_times_s.as_deref()
+    }
+
+    pub(super) fn with_samples(mut self, times: &[f64]) -> Result<Self, Diagnostic> {
+        if times.is_empty()
+            || times.iter().any(|time| !time.is_finite())
+            || times.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid(
+                "sampled signature requires finite ordered physical times",
+            ));
+        }
+        self.coordinate_count = self
+            .coordinate_count
+            .checked_mul(times.len())
+            .ok_or_else(|| invalid("sampled signature dimension overflows"))?;
+        self.shape.insert(0, times.len());
+        self.sample_times_s = Some(times.into());
+        Ok(self)
     }
 
     /// Coefficient Space for a spatial output; finite values have no Space.
@@ -199,6 +225,7 @@ fn value(
         mathematical_type,
         shape,
         coordinate_count: count,
+        sample_times_s: None,
         space,
         mesh_digest,
         entities,

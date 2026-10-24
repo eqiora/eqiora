@@ -152,22 +152,37 @@ impl CommonSolveEvidence {
     /// Deterministic owned metadata charge, excluding allocator capacity and overhead.
     /// This has no dependence on solution values or completed iteration counts.
     pub fn storage_bytes(&self) -> Option<usize> {
-        let mut total = size_of::<Self>();
-        for provider in [
-            &self.solver,
-            &self.execution.provider,
-            &self.verification.provider,
-        ] {
-            total = total.checked_add(provider.id.len())?;
-            total = total.checked_add(provider.implementation_version.len())?;
-            total = total.checked_add(size_of_val(provider.libraries.as_slice()))?;
-            for (name, version) in &provider.libraries {
-                total = total.checked_add(name.len())?.checked_add(version.len())?;
-            }
-        }
-        total
-            .checked_add(self.execution.adapter.len())?
-            .checked_add(self.verification.adapter.len())
+        metadata_storage_bytes(
+            [
+                &self.solver,
+                &self.execution.provider,
+                &self.verification.provider,
+            ],
+            [&self.execution.adapter, &self.verification.adapter],
+        )
+    }
+
+    /// Metadata charge from the exact Plan, including when a Newton seed
+    /// accepts without producing a solve report. Provider and adapter inventories
+    /// follow the same contract used to validate recorded solve evidence.
+    /// Returns `None` for a Plan without a linear provider or on size overflow.
+    pub fn planned_storage_bytes(plan: &crate::ResolvedCommonPlan) -> Option<usize> {
+        let solver = plan.linear_solver_provider()?;
+        let (execution, _) = plan.linear_execution_provider()?;
+        let verification = eqiora_solver::SERIAL_EXECUTION_PROVIDER;
+        let providers = [
+            CommonProviderEvidence::from_parts(
+                solver.id().as_str(),
+                solver.implementation_version(),
+                solver.libraries(),
+            ),
+            CommonProviderEvidence::from_execution_provider(execution),
+            CommonProviderEvidence::from_execution_provider(verification),
+        ];
+        metadata_storage_bytes(
+            [&providers[0], &providers[1], &providers[2]],
+            [execution.id().as_str(), verification.id().as_str()],
+        )
     }
 
     pub fn from_report(report: &SolveReport) -> Self {
@@ -335,4 +350,22 @@ impl CommonSolveHistory {
                 .collect(),
         }
     }
+}
+
+fn metadata_storage_bytes(
+    providers: [&CommonProviderEvidence; 3],
+    adapters: [&str; 2],
+) -> Option<usize> {
+    let mut total = size_of::<CommonSolveEvidence>();
+    for provider in providers {
+        total = total.checked_add(provider.id.len())?;
+        total = total.checked_add(provider.implementation_version.len())?;
+        total = total.checked_add(size_of_val(provider.libraries.as_slice()))?;
+        for (name, version) in &provider.libraries {
+            total = total.checked_add(name.len())?.checked_add(version.len())?;
+        }
+    }
+    total
+        .checked_add(adapters[0].len())?
+        .checked_add(adapters[1].len())
 }

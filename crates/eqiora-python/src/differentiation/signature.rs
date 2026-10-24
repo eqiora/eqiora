@@ -46,6 +46,15 @@ impl PyDifferentiableValueSignature {
         Ok(PyTuple::new(py, self.value.shape())?.unbind())
     }
 
+    /// Exact physical times for the leading temporal axis, absent for stationary values.
+    #[getter]
+    fn sample_times_s(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
+        self.value
+            .sample_times_s()
+            .map(|times| PyTuple::new(py, times).map(Bound::unbind))
+            .transpose()
+    }
+
     #[getter]
     fn mesh_digest(&self) -> Option<&str> {
         self.value.mesh_digest()
@@ -84,6 +93,11 @@ impl PyDifferentiableValueSignature {
         self.value.mesh_digest().hash(&mut hasher);
         self.value.space().hash(&mut hasher);
         self.value.shape().hash(&mut hasher);
+        if let Some(times) = self.value.sample_times_s() {
+            for time in times {
+                (if *time == 0. { 0 } else { time.to_bits() }).hash(&mut hasher);
+            }
+        }
         self.value.coefficient_entities().hash(&mut hasher);
         hasher.finish()
     }

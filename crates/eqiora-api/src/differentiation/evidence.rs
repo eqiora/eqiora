@@ -47,7 +47,8 @@ pub enum LinearizationState {
 pub(super) enum PrimalEvidence {
     Linear(Box<CommonSolveEvidence>),
     Nonlinear {
-        initial_state_identity: String,
+        initial_state_identity: Option<String>,
+        linear_solves: Vec<CommonSolveEvidence>,
         iterations: usize,
         initial_residual_norm: f64,
     },
@@ -61,12 +62,30 @@ pub struct DifferentiationEvidence {
     mode: DifferentiationMode,
     implementation: DerivativeImplementation,
     linearization_state: LinearizationState,
+    steps: Vec<DifferentiationStepEvidence>,
+}
+
+/// Acceptance and actual solver reports for one step, in execution order.
+/// Stationary evaluations contain one such entry. A trajectory retains every
+/// accepted step, including steps absent from the selected output schedule.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DifferentiationStepEvidence {
     acceptance: Acceptance,
     pub(super) primal: PrimalEvidence,
     derivative_solve: Option<CommonSolveEvidence>,
 }
 
 impl DifferentiationEvidence {
+    pub(crate) fn same_primal(&self, other: &Self) -> bool {
+        self.implementation == other.implementation
+            && self.steps.len() == other.steps.len()
+            && self
+                .steps
+                .iter()
+                .zip(&other.steps)
+                .all(|(a, b)| a.acceptance == b.acceptance && a.primal == b.primal)
+    }
+
     /// Exact program identity.
     #[must_use]
     pub const fn identity(&self) -> &DifferentiableProgramIdentity {
@@ -97,6 +116,14 @@ impl DifferentiationEvidence {
         self.linearization_state
     }
 
+    /// Complete ordered step acceptances, independent of the output schedule.
+    #[must_use]
+    pub fn steps(&self) -> &[DifferentiationStepEvidence] {
+        &self.steps
+    }
+}
+
+impl DifferentiationStepEvidence {
     /// Exact algebraic state-system identity at the accepted point.
     #[must_use]
     pub const fn state_system(&self) -> CanonicalCsrAgreementFingerprintV1 {
@@ -124,14 +151,24 @@ impl DifferentiationEvidence {
         }
     }
 
-    /// Exact nonlinear initial State, absent for a linear primal.
+    /// Actual primal linear solves, including every accepted Newton update.
+    #[must_use]
+    pub fn primal_solves(&self) -> &[CommonSolveEvidence] {
+        match &self.primal {
+            PrimalEvidence::Linear(solve) => std::slice::from_ref(solve.as_ref()),
+            PrimalEvidence::Nonlinear { linear_solves, .. } => linear_solves,
+        }
+    }
+
+    /// External nonlinear initial State. Later trajectory steps instead use the
+    /// preceding accepted step; absence alone does not identify a linear primal.
     #[must_use]
     pub fn nonlinear_initial_state_identity(&self) -> Option<&str> {
         match &self.primal {
             PrimalEvidence::Nonlinear {
                 initial_state_identity,
                 ..
-            } => Some(initial_state_identity),
+            } => initial_state_identity.as_deref(),
             PrimalEvidence::Linear(_) => None,
         }
     }
@@ -180,7 +217,7 @@ impl DifferentiableEvaluation {
     pub(crate) fn primal_evidence(&self) -> DifferentiationEvidence {
         self.evidence(
             DifferentiationMode::Primal,
-            None,
+            Vec::new(),
             LinearizationState::Established,
         )
     }
@@ -188,46 +225,60 @@ impl DifferentiableEvaluation {
     pub(super) fn evidence(
         &self,
         mode: DifferentiationMode,
-        derivative_solve: Option<SolveReport>,
+        derivative_solves: Vec<SolveReport>,
         linearization_state: LinearizationState,
     ) -> DifferentiationEvidence {
+        assert!(
+            derivative_solves.is_empty() || derivative_solves.len() == self.native.points().len()
+        );
+        let steps = self
+            .native
+            .points()
+            .iter()
+            .zip(&self.acceptance)
+            .enumerate()
+            .map(|(index, (point, acceptance))| {
+                let primal = match point.nonlinear_iterations() {
+                    None => PrimalEvidence::Linear(Box::new(CommonSolveEvidence::from_report(
+                        point
+                            .linear_solves()
+                            .first()
+                            .expect("accepted linear primal solve"),
+                    ))),
+                    Some(iterations) => PrimalEvidence::Nonlinear {
+                        initial_state_identity: point
+                            .nonlinear_initial_state()
+                            .map(|state| state.identity().to_owned()),
+                        linear_solves: point
+                            .linear_solves()
+                            .iter()
+                            .map(CommonSolveEvidence::from_report)
+                            .collect(),
+                        iterations,
+                        initial_residual_norm: point
+                            .linearization()
+                            .initial_residual_norm()
+                            .expect("accepted nonlinear initial residual"),
+                    },
+                };
+                DifferentiationStepEvidence {
+                    acceptance: acceptance.clone(),
+                    primal,
+                    derivative_solve: derivative_solves
+                        .get(index)
+                        .map(CommonSolveEvidence::from_report),
+                }
+            })
+            .collect();
         DifferentiationEvidence {
             identity: self.identity.clone(),
             point: self.point.clone(),
             mode,
             implementation: DerivativeImplementation::from_linearization(
-                self.native.linearization(),
+                self.native.points()[0].linearization(),
             ),
             linearization_state,
-            acceptance: self.acceptance.clone(),
-            primal: match self.native.nonlinear_initial_state() {
-                None => PrimalEvidence::Linear(Box::new(CommonSolveEvidence::from_report(
-                    self.native
-                        .linear_solves()
-                        .first()
-                        .expect("accepted linear primal solve"),
-                ))),
-                Some(_) => PrimalEvidence::Nonlinear {
-                    initial_state_identity: self
-                        .native
-                        .nonlinear_initial_state()
-                        .expect("accepted nonlinear seed")
-                        .identity()
-                        .to_owned(),
-                    iterations: self
-                        .native
-                        .nonlinear_iterations()
-                        .expect("accepted nonlinear count"),
-                    initial_residual_norm: self
-                        .native
-                        .linearization()
-                        .initial_residual_norm()
-                        .expect("accepted nonlinear initial residual"),
-                },
-            },
-            derivative_solve: derivative_solve
-                .as_ref()
-                .map(CommonSolveEvidence::from_report),
+            steps,
         }
     }
 }
@@ -249,7 +300,14 @@ impl Acceptance {
     ) -> Result<Self, Diagnostic> {
         let relation = linearization.relation();
         if identity.input_dimension() != relation.parameter_dimension()
-            || identity.output_dimension() != linearization.output_dimension()
+            || identity
+                .outputs()
+                .iter()
+                .map(|value| {
+                    value.coordinate_count() / value.sample_times_s().map_or(1, <[f64]>::len)
+                })
+                .sum::<usize>()
+                != linearization.output_dimension()
         {
             return Err(invalid(
                 "accepted linearization differs from the Model/Plan value signatures",
@@ -279,18 +337,24 @@ impl DifferentiationEvidence {
         identity: DifferentiableProgramIdentity,
         point: DifferentiableValues,
         implementation: DerivativeImplementation,
-        acceptance: Acceptance,
-        primal: PrimalEvidence,
+        acceptance: Vec<Acceptance>,
+        primal: Vec<PrimalEvidence>,
     ) -> Self {
         Self {
             identity,
             point,
             implementation,
-            acceptance,
-            primal,
+            steps: acceptance
+                .into_iter()
+                .zip(primal)
+                .map(|(acceptance, primal)| DifferentiationStepEvidence {
+                    acceptance,
+                    primal,
+                    derivative_solve: None,
+                })
+                .collect(),
             mode: DifferentiationMode::Primal,
             linearization_state: LinearizationState::Established,
-            derivative_solve: None,
         }
     }
 }

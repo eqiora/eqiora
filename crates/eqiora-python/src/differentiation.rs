@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eqiora::api::{
     DerivativeImplementation, DifferentiableCotangent, DifferentiableEvaluation,
     DifferentiableProgram, DifferentiableResult, DifferentiableTangent, DifferentiableValues,
-    DifferentiationEvidence, DifferentiationMode, LinearizationState,
+    DifferentiationEvidence, DifferentiationMode, DifferentiationStepEvidence, LinearizationState,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PyTuple};
@@ -117,6 +117,18 @@ pub(crate) struct PyDifferentiationEvidence {
     mode: PyDifferentiationMode,
     implementation: PyDerivativeImplementation,
     linearization_state: PyLinearizationState,
+    steps: Vec<PyDifferentiationStepEvidence>,
+}
+
+/// One accepted step and its primal/derivative solver reports.
+#[pyclass(
+    name = "DifferentiationStepEvidence",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone)]
+pub(crate) struct PyDifferentiationStepEvidence {
     state_system_fingerprint: String,
     primal_residual_norm: f64,
     residual_tolerance: f64,
@@ -144,6 +156,18 @@ impl PyDifferentiationEvidence {
             mode: value.mode().into(),
             implementation: value.implementation().into(),
             linearization_state: value.linearization_state().into(),
+            steps: value
+                .steps()
+                .iter()
+                .map(PyDifferentiationStepEvidence::from_value)
+                .collect(),
+        }
+    }
+}
+
+impl PyDifferentiationStepEvidence {
+    fn from_value(value: &DifferentiationStepEvidence) -> Self {
+        Self {
             state_system_fingerprint: hex(value.state_system().as_bytes()),
             primal_residual_norm: value.primal_residual_norm(),
             residual_tolerance: value.residual_tolerance(),
@@ -178,12 +202,11 @@ impl PyDifferentiationEvidence {
     /// The mode, the implementation, and whether the primal met its tolerance.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiationEvidence(mode={:?}, implementation={:?}, output_ids={:?}, primal_residual_norm={:e}, residual_tolerance={:e})",
+            "DifferentiationEvidence(mode={:?}, implementation={:?}, output_ids={:?}, steps={})",
             self.mode,
             self.implementation,
             self.output_ids,
-            self.primal_residual_norm,
-            self.residual_tolerance
+            self.steps.len()
         )
     }
     #[getter]
@@ -221,6 +244,19 @@ impl PyDifferentiationEvidence {
         self.linearization_state
     }
 
+    #[getter]
+    fn steps(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let steps = self
+            .steps
+            .iter()
+            .map(|step| Py::new(py, step.clone()))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, steps)?.unbind())
+    }
+}
+
+#[pymethods]
+impl PyDifferentiationStepEvidence {
     #[getter]
     fn state_system_fingerprint(&self) -> &str {
         &self.state_system_fingerprint
@@ -272,8 +308,9 @@ impl PyDifferentiablePrimal {
     /// The output it accepted and the residual that accepted it.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiablePrimal(output_ids={:?}, primal_residual_norm={:e})",
-            self.evidence.output_ids, self.evidence.primal_residual_norm
+            "DifferentiablePrimal(output_ids={:?}, steps={})",
+            self.evidence.output_ids,
+            self.evidence.steps.len()
         )
     }
     #[getter]
@@ -305,8 +342,10 @@ impl PyDifferentiableJvp {
     /// The output it accepted, in forward mode.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableJvp(output_ids={:?}, mode={:?}, primal_residual_norm={:e})",
-            self.evidence.output_ids, self.evidence.mode, self.evidence.primal_residual_norm
+            "DifferentiableJvp(output_ids={:?}, mode={:?}, steps={})",
+            self.evidence.output_ids,
+            self.evidence.mode,
+            self.evidence.steps.len()
         )
     }
     #[getter]
@@ -343,8 +382,10 @@ impl PyDifferentiableVjp {
     /// The output it accepted, in reverse mode.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableVjp(output_ids={:?}, mode={:?}, primal_residual_norm={:e})",
-            self.evidence.output_ids, self.evidence.mode, self.evidence.primal_residual_norm
+            "DifferentiableVjp(output_ids={:?}, mode={:?}, steps={})",
+            self.evidence.output_ids,
+            self.evidence.mode,
+            self.evidence.steps.len()
         )
     }
     #[getter]
@@ -593,6 +634,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDerivativeImplementation>()?;
     module.add_class::<PyLinearizationState>()?;
     module.add_class::<PyDifferentiationEvidence>()?;
+    module.add_class::<PyDifferentiationStepEvidence>()?;
     module.add_class::<signature::PyDifferentiableValueSignature>()?;
     module.add_class::<PyDifferentiablePrimal>()?;
     module.add_class::<PyDifferentiableJvp>()?;

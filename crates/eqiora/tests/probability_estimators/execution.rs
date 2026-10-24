@@ -186,7 +186,7 @@ fn standard_error_requires_explicit_iid_mean_and_finite_count() {
                 .output()
                 .leaf(0)
                 .unwrap()
-                .coefficient(0)
+                .coefficient(0, None)
                 .unwrap()
                 .real_scalar_value()
                 .unwrap()

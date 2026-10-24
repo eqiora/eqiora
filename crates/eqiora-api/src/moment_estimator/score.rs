@@ -223,7 +223,7 @@ fn input(
     match symbol {
         SymbolRef::Parameter(id) => point
             .get(id.erase())
-            .map(|leaf| leaf.coefficient(0))
+            .map(|leaf| leaf.coefficient(0, None))
             .unwrap_or_else(|| {
                 kernel
                     .typed_value(id.erase())
