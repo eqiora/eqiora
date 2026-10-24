@@ -238,7 +238,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         let derivative = eqiora::differentiation::discrete_trajectory_adjoint(
             &accepted,
             &[],
-            &terminal,
+            &[&[0.; 3], &terminal],
             &[0.],
             products[0].relation().state_jacobian().properties(),
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear()),
@@ -255,6 +255,86 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         }
         assert_eq!(derivative.step_adjoints().len(), 2);
     }
+    let properties = products[0].relation().state_jacobian().properties();
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear());
+    let tangent = eqiora::differentiation::discrete_trajectory_sensitivity(
+        &accepted,
+        &[],
+        &[0.; 3],
+        &[1.],
+        properties,
+        solver,
+    )
+    .unwrap();
+    for (step, expected) in tangent
+        .iter()
+        .zip([[1., 23. / 26., 1.], [2., 317. / 169., 2.]])
+    {
+        for (actual, expected) in step.output_tangent().iter().zip(expected) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        assert_eq!(
+            step.state().report().orientation(),
+            eqiora::solver::LinearOperatorOrientation::Normal
+        );
+    }
+    // J=3*y_1-2*y_2+p/2. Both time samples contribute independently.
+    let mixed = eqiora::differentiation::discrete_trajectory_adjoint(
+        &accepted,
+        &[],
+        &[&[0., 3., 0.], &[0., -2., 0.]],
+        &[0.5],
+        properties,
+        solver,
+    )
+    .unwrap();
+    assert!(
+        (mixed.parameter_gradient()[0] - (3. * 23. / 26. - 2. * 317. / 169. + 0.5)).abs() < 1e-10
+    );
+    let initial = [
+        3. / 52. - 2. / 676.,
+        3. / 13. - 2. / 169.,
+        3. / 52. - 2. / 676.,
+    ];
+    for (actual, expected) in mixed.initial_state_cotangent().iter().zip(initial) {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    let seeded = eqiora::differentiation::discrete_trajectory_sensitivity(
+        &accepted,
+        &[],
+        &[1., 2., -1.],
+        &[0.],
+        properties,
+        solver,
+    )
+    .unwrap();
+    for (step, expected) in seeded.iter().zip([2. / 13., 2. / 169.]) {
+        assert!((step.output_tangent()[1] - expected).abs() < 1e-10);
+        assert_eq!(step.output_tangent()[0], 0.);
+        assert_eq!(step.output_tangent()[2], 0.);
+    }
+    assert!(
+        eqiora::differentiation::discrete_trajectory_adjoint(
+            &accepted,
+            &[],
+            &[&[0.; 3]],
+            &[0.],
+            properties,
+            solver,
+        )
+        .is_err()
+    );
+    assert!(
+        eqiora::differentiation::discrete_trajectory_sensitivity(
+            &accepted,
+            &[],
+            &[0., f64::NAN, 0.],
+            &[1.],
+            properties,
+            solver,
+        )
+        .is_err()
+    );
     let (foreign_document, foreign) = resolve_source_document(
         &source.replace("p:1=2", "p:1=3"),
         1.,

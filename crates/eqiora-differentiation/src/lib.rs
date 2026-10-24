@@ -18,7 +18,8 @@ use eqiora_solver::{
 
 mod trajectory;
 pub use trajectory::{
-    DiscreteAdjointCheckpoint, DiscreteTrajectoryAdjoint, discrete_trajectory_adjoint,
+    DiscreteTrajectoryAdjoint, DiscreteTrajectoryCheckpoint, discrete_trajectory_adjoint,
+    discrete_trajectory_sensitivity,
 };
 
 /// A linearization whose primal residual has been independently accepted.

@@ -8,7 +8,7 @@ use eqiora::artifact::{
 use eqiora::assembly::CsrMatrix;
 use eqiora::diagnostic::codes;
 use eqiora::differentiation::{
-    AcceptedLinearization, DiscreteAdjointCheckpoint, discrete_trajectory_adjoint,
+    AcceptedLinearization, DiscreteTrajectoryCheckpoint, discrete_trajectory_adjoint,
 };
 use eqiora::ir::DiscreteStepLinearization;
 use eqiora::runtime::{CpuProgram, GeneralImplicitProgram};
@@ -162,7 +162,8 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         .map(|step| AcceptedLinearization::new(step, 1.0e-12).unwrap())
         .collect::<Vec<_>>();
     let boundary =
-        DiscreteAdjointCheckpoint::new(2, checkpoint.time(), checkpoint.state().to_vec()).unwrap();
+        DiscreteTrajectoryCheckpoint::new(2, checkpoint.time(), checkpoint.state().to_vec())
+            .unwrap();
     let solver_plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1.0e-12,
@@ -176,7 +177,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     let adjoint = discrete_trajectory_adjoint(
         &steps,
         &[boundary],
-        &[0.0, 1.0],
+        &[&[0., 0.], &[0., 0.], &[0., 0.], &[0., 1.]],
         &[0.125],
         LinearOperatorProperties::General,
         solver,
@@ -245,7 +246,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     let direct = discrete_trajectory_adjoint(
         &materialized,
         &[],
-        &[0., 1.],
+        &[&[0., 0.], &[0., 0.], &[0., 0.], &[0., 1.]],
         &[0.125],
         LinearOperatorProperties::General,
         LinearSolveRequest::new(&FaerLinearSolver, direct_plan),
@@ -258,12 +259,12 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
 
     let mut drifted = checkpoint.state().to_vec();
     drifted[0] += 1.0e-4;
-    let drifted = DiscreteAdjointCheckpoint::new(2, checkpoint.time(), drifted).unwrap();
+    let drifted = DiscreteTrajectoryCheckpoint::new(2, checkpoint.time(), drifted).unwrap();
     assert_eq!(
         discrete_trajectory_adjoint(
             &steps,
             &[drifted],
-            &[0.0, 1.0],
+            &[&[0., 0.], &[0., 0.], &[0., 0.], &[0., 1.]],
             &[0.125],
             LinearOperatorProperties::General,
             solver,
