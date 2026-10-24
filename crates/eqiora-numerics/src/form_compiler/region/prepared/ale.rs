@@ -120,11 +120,11 @@ impl BoundRegionForm<f64> {
                 trial_scale: self.fields[row].scale,
             });
             let (correction, correction_tangent) = integrate_with_geometry_direction(
+                None,
                 self.reference,
                 &fields,
                 &terms,
-                map,
-                direction,
+                (map, direction),
                 quadrature,
                 |reference, physical, physical_tangent, coefficients, _, _, tangents, _, _| {
                     let (density, density_tangent) = super::super::evaluate::evaluate_data(

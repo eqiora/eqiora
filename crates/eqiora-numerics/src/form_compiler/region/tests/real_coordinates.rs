@@ -69,11 +69,11 @@ fn mixed_real_and_complex_fields_keep_only_their_independent_coordinates() {
     let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     assert!(
         bound
-            .prepare_affine_actions::<Native>(&map, None, &rule, AffineInput::Current)
+            .prepare_affine_actions::<Native>(None, &map, None, &rule, AffineInput::Current)
             .is_err()
     );
     let (local, _) = bound
-        .prepare_affine_actions::<Real>(&map, None, &rule, AffineInput::Current)
+        .prepare_affine_actions::<Real>(None, &map, None, &rule, AffineInput::Current)
         .unwrap();
     let u = symbols.get("u").unwrap();
     let coordinates = bound
@@ -196,6 +196,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                 let bound = form.bind(reference, &fields, &rows, None).unwrap();
                 let (local, geometry) = bound
                     .prepare_affine_actions::<Real>(
+                        None,
                         &map,
                         Some(&direction),
                         &rule,
@@ -220,7 +221,13 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                 }
                 if !conjugate {
                     let (native, _) = bound
-                        .prepare_affine_actions::<Native>(&map, None, &rule, AffineInput::Current)
+                        .prepare_affine_actions::<Native>(
+                            None,
+                            &map,
+                            None,
+                            &rule,
+                            AffineInput::Current,
+                        )
                         .unwrap();
                     for row in 0..native.rows() {
                         for column in 0..native.columns() {
@@ -235,6 +242,7 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                     assert!(
                         bound
                             .prepare_affine_actions::<Native>(
+                                None,
                                 &map,
                                 None,
                                 &rule,
@@ -258,7 +266,13 @@ fn tensor_affine_coordinates_preserve_conjugation_rebinding_and_parameter_partia
                         };
                         let derivative = bound.input_partial(&coordinate).unwrap();
                         let (partial, _) = derivative
-                            .prepare_affine_actions::<Real>(&map, None, &rule, AffineInput::Current)
+                            .prepare_affine_actions::<Real>(
+                                None,
+                                &map,
+                                None,
+                                &rule,
+                                AffineInput::Current,
+                            )
                             .unwrap();
                         let zero = C::new(0., 0.);
                         check_matrix(

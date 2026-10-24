@@ -131,19 +131,37 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "distinct history geometry requires scalar inventory without eliminated states",
             ));
         }
+        let has_rate = self.form.rows.iter().any(|row| {
+            row.terms
+                .iter()
+                .any(|term| term.derivative && !self.eliminations.contains_key(&term.trial))
+        });
+        let shared_history_geometry = geometry == previous_geometry
+            && directions.is_none_or(|(current, previous)| current == previous);
+        let current_uses = 1
+            + usize::from(has_rate)
+            + if shared_history_geometry {
+                self.previous.len()
+            } else {
+                0
+            };
+        let reuse_history = if shared_history_geometry {
+            current_uses > 1
+        } else {
+            self.previous.len() > 1
+        };
+        let mut quadrature_cache = super::integration::QuadratureCache::default();
         let coordinates = P::ranges(&self.fields)?;
         let (affine, affine_tangent) = self.prepare_affine_actions::<P>(
+            (current_uses > 1).then_some(&mut quadrature_cache),
             geometry,
             directions.map(|(current, _)| current),
             quadrature,
             AffineInput::Current,
         )?;
-        let (rate, rate_tangent) = if self.form.rows.iter().any(|row| {
-            row.terms
-                .iter()
-                .any(|term| term.derivative && !self.eliminations.contains_key(&term.trial))
-        }) {
+        let (rate, rate_tangent) = if has_rate {
             let (value, tangent) = self.prepare_affine_actions::<P>(
+                Some(&mut quadrature_cache),
                 geometry,
                 directions.map(|(current, _)| current),
                 quadrature,
@@ -163,6 +181,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 .position(|layout| layout.field == trial)
                 .ok_or_else(|| invalid("history lacks an algebraic binding"))?;
             let (matrix, matrix_tangent) = self.prepare_affine_actions::<P>(
+                reuse_history.then_some(&mut quadrature_cache),
                 previous_geometry,
                 directions.map(|(_, previous)| previous),
                 quadrature,

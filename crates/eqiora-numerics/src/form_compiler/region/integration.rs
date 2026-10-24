@@ -14,12 +14,16 @@ use crate::form_compiler::bilinear::{Basis, Pairing};
 
 use super::invalid;
 
+mod tabulation;
+pub(in crate::form_compiler) use tabulation::QuadratureCache;
+
 pub(in crate::form_compiler) type IntegralActions<S> =
     (LocalContribution<S>, Option<LocalContribution<S>>);
 
 /// Physical basis components and scalar coordinates are independent axes.
 /// A complex edge coefficient has two real coordinates, but its basis remains
 /// a three-dimensional vector with the Space-owned Piola transformation.
+#[derive(Clone, PartialEq)]
 pub(in crate::form_compiler) struct IntegralField {
     pub space: Space,
     pub components: usize,
@@ -46,11 +50,11 @@ pub(in crate::form_compiler) fn integrate<
     values: impl Fn(&[f64], &mut [S], &mut [S], &mut [S]) -> Result<(), Diagnostic>,
 ) -> Result<LocalContribution<S>, Diagnostic> {
     integrate_with_geometry_direction(
+        None,
         reference,
         fields,
         terms,
-        geometry,
-        None,
+        (geometry, None),
         quadrature,
         |_, point, _, coefficients, forcing, flux, _, _, _| {
             values(point, coefficients, forcing, flux)
@@ -65,11 +69,11 @@ pub(in crate::form_compiler) fn integrate<
 pub(in crate::form_compiler) fn integrate_with_geometry_direction<
     S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + SubAssign,
 >(
+    cache: Option<&mut QuadratureCache>,
     reference: ReferenceCell,
     fields: &[IntegralField],
     terms: &[IntegralTerm],
-    geometry: &AffineGeometryMap,
-    direction: Option<&AffineGeometryLinearization>,
+    geometry: (&AffineGeometryMap, Option<&AffineGeometryLinearization>),
     quadrature: &QuadratureRule,
     values: impl Fn(
         &[f64],
@@ -83,6 +87,7 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         &mut [S],
     ) -> Result<(), Diagnostic>,
 ) -> Result<IntegralActions<S>, Diagnostic> {
+    let (geometry, direction) = geometry;
     if direction.is_some_and(|direction| direction.map() != geometry) {
         return Err(invalid(
             "quadrature geometry direction has a different primal map",
@@ -154,31 +159,38 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
     }
     let mut forcing = vec![zero; *forcing_offsets.last().unwrap()];
     let mut flux_load = vec![zero; forcing.len() * dimension];
-    let mut physical = vec![0.0; dimension];
-    let mut physical_tangent = vec![0.0; dimension];
     let mut coefficient_tangents =
         direction.map_or_else(Vec::new, |_| vec![zero; coefficients.len()]);
     let mut forcing_tangents = direction.map_or_else(Vec::new, |_| vec![zero; forcing.len()]);
     let mut flux_tangents = direction.map_or_else(Vec::new, |_| vec![zero; flux_load.len()]);
-    for point in quadrature.points() {
-        match direction {
-            Some(direction) => {
-                direction.map_point_jvp(&point.coordinates, &mut physical, &mut physical_tangent)?
-            }
-            None => geometry.map_point(&point.coordinates, &mut physical)?,
-        }
-        let tabulations = spaces
-            .iter()
-            .zip(fields)
-            .map(|(space, field)| match direction {
-                Some(direction) => space
-                    .tabulate_field_linearized(direction, &point.coordinates, field.components)
-                    .map(|(primal, tangent)| (primal, Some(tangent))),
-                None => space
-                    .tabulate_field_on(geometry, &point.coordinates, field.components)
-                    .map(|primal| (primal, None)),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+    let samples = cache
+        .map(|cache| cache.samples(fields, &spaces, geometry, direction, quadrature))
+        .transpose()?;
+    let mut physical_buffer = vec![0.0; dimension];
+    let mut tangent_buffer = vec![0.0; dimension];
+    for (index, point) in quadrature.points().iter().enumerate() {
+        let fresh;
+        let (physical, physical_tangent, tabulations) = if let Some(samples) = samples {
+            let sample = &samples[index];
+            (
+                sample.physical.as_slice(),
+                sample.physical_tangent.as_slice(),
+                sample.tables.as_slice(),
+            )
+        } else {
+            fresh = tabulation::at_point(
+                fields,
+                &spaces,
+                (geometry, direction),
+                &point.coordinates,
+                (&mut physical_buffer, &mut tangent_buffer),
+            )?;
+            (
+                physical_buffer.as_slice(),
+                tangent_buffer.as_slice(),
+                fresh.as_slice(),
+            )
+        };
         coefficients.fill(zero);
         forcing.fill(zero);
         flux_load.fill(zero);
@@ -187,8 +199,8 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         flux_tangents.fill(zero);
         values(
             &point.coordinates,
-            &physical,
-            &physical_tangent,
+            physical,
+            physical_tangent,
             &mut coefficients,
             &mut forcing,
             &mut flux_load,

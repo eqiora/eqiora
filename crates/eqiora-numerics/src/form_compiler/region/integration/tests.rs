@@ -278,3 +278,74 @@ fn complex_diffusion_mass_and_load_share_real_basis_quadrature() {
         .is_err()
     );
 }
+
+#[test]
+fn reused_quadrature_preserves_data_and_exact_geometry_field_bindings() {
+    let reference = ReferenceCell::simplex(1).unwrap();
+    let mut cache = QuadratureCache::default();
+    // P1 mass on [0,L]: L/6 [[2,1],[1,2]], independently for each component.
+    // Its derivative under a length direction dL is the same matrix with L=dL.
+    for (length, components, order, coefficient, dilation) in [
+        (1.0, 1, 2, 1.0, 0.25),
+        (1.0, 1, 2, 3.0, 0.25),
+        (2.0, 1, 2, 1.0, 0.25),
+        (1.0, 1, 3, 2.0, 0.25),
+        (1.0, 2, 2, 1.0, 0.25),
+        (1.0, 1, 2, 1.0, 0.5),
+    ] {
+        let map = AffineGeometryMap::new(reference, 1, vec![0.0], vec![length]).unwrap();
+        let direction =
+            AffineGeometryLinearization::new(map.clone(), vec![0.0], vec![dilation]).unwrap();
+        let rule = eqiora_meshing::simplex_duffy_gauss_legendre(1, order).unwrap();
+        let fields = [IntegralField {
+            space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            components,
+            scalar_coordinates: 1,
+        }];
+        let terms = [IntegralTerm {
+            row: 0,
+            column: 0,
+            pairing: Pairing::Value,
+            trial_scale: 1.0,
+            test_coordinate: 0,
+            trial_coordinate: 0,
+        }];
+        let run = |cache: &mut QuadratureCache, value| {
+            integrate_with_geometry_direction::<f64>(
+                Some(cache),
+                reference,
+                &fields,
+                &terms,
+                (&map, Some(&direction)),
+                &rule,
+                |_, _, _, coefficients, _, _, _, _, _| {
+                    coefficients[0] = value;
+                    Ok(())
+                },
+            )
+        };
+        let (mass, tangent) = run(&mut cache, coefficient).unwrap();
+        let tangent = tangent.unwrap();
+        for i in 0..2 * components {
+            for j in 0..2 * components {
+                let moment = if i % components != j % components {
+                    0.0
+                } else if i / components == j / components {
+                    1.0 / 3.0
+                } else {
+                    1.0 / 6.0
+                };
+                let slot = i * 2 * components + j;
+                close(
+                    mass.matrix()[slot].into(),
+                    (coefficient * length * moment).into(),
+                );
+                close(
+                    tangent.matrix()[slot].into(),
+                    (coefficient * dilation * moment).into(),
+                );
+            }
+        }
+        assert!(run(&mut cache, f64::NAN).is_err());
+    }
+}

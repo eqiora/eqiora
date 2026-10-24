@@ -40,7 +40,7 @@ fn mixed_volume_orientation_derives_transpose_signs_and_preserves_whole_rows() {
         .unwrap();
     let rule = simplex_duffy_gauss_legendre(2, 4).unwrap();
     let local = bound
-        .prepare_affine_actions::<Native>(&geometry(), None, &rule, AffineInput::Current)
+        .prepare_affine_actions::<Native>(None, &geometry(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     let n = local.rhs().len();
@@ -66,7 +66,7 @@ fn mixed_volume_orientation_derives_transpose_signs_and_preserves_whole_rows() {
         )
         .unwrap();
     let local = forced
-        .prepare_affine_actions::<Native>(&geometry(), None, &rule, AffineInput::Current)
+        .prepare_affine_actions::<Native>(None, &geometry(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     let pressure = forced
@@ -216,11 +216,11 @@ fn congruence_binding_applies_field_scales_to_both_matrix_axes() {
         .unwrap();
     let rule = simplex_duffy_gauss_legendre(2, 4).unwrap();
     let unscaled_local = unit
-        .prepare_affine_actions::<Native>(&geometry(), None, &rule, AffineInput::Current)
+        .prepare_affine_actions::<Native>(None, &geometry(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     let scaled_local = scaled
-        .prepare_affine_actions::<Native>(&geometry(), None, &rule, AffineInput::Current)
+        .prepare_affine_actions::<Native>(None, &geometry(), None, &rule, AffineInput::Current)
         .map(|(primal, _)| primal)
         .unwrap();
     let n = unscaled_local.rhs().len();
