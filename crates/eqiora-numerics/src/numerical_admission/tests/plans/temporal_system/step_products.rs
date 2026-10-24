@@ -207,6 +207,63 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         linearization
                     );
                 }
+                let changed_run = plan
+                    .differentiate_trajectory(
+                        &request,
+                        &[parameter],
+                        Some(&[3.]),
+                        &[field],
+                        &REFERENCE_LINEAR_SOLVER,
+                    )
+                    .unwrap();
+                let candidates = changed_run
+                    .steps()
+                    .iter()
+                    .map(|point| {
+                        point
+                            .linearization()
+                            .relation()
+                            .accepted_unknowns()
+                            .to_vec()
+                    })
+                    .collect::<Vec<_>>();
+                let replay = plan
+                    .validate_differentiated_trajectory_values(
+                        &request,
+                        &[parameter],
+                        Some(&[3.]),
+                        &[field],
+                        &candidates,
+                    )
+                    .unwrap();
+                for (reopened, point) in replay.iter().zip(changed_run.steps()) {
+                    assert_eq!(reopened, point.linearization());
+                }
+                assert_eq!(changed_run.request(), &request);
+                assert_eq!(changed_run.steps().len(), 2);
+                let phase = C::new(1., if complex { 2. } else { 0. });
+                let nodes = if spatial == CommonSpatialPolicy::Q1 {
+                    3
+                } else {
+                    2
+                };
+                for (index, point) in changed_run.steps().iter().enumerate() {
+                    // The changed point owns its own predecessor: storage gain
+                    // 3/4 at both steps; forcing loads 3/2 then unloads to 3/4.
+                    let factor = if storage_parameter {
+                        if index == 0 { 3. / 4. } else { 9. / 16. }
+                    } else if index == 0 {
+                        3. / 2.
+                    } else {
+                        3. / 4.
+                    };
+                    close(
+                        point.linearization().output_values(),
+                        &coordinates(&vec![phase * factor; nodes], complex),
+                    );
+                    assert_eq!(point.linear_solves().len(), 1);
+                    assert_eq!(point.linearization().relation().design_values(), &[3.]);
+                }
                 assert_eq!(initial.to_bytes().unwrap(), before);
             }
         }

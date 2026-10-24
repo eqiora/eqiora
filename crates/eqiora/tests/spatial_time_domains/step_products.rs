@@ -434,3 +434,147 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     );
     assert_eq!(steps[0].1.state().to_bytes().unwrap(), before);
 }
+
+#[test]
+fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
+    // At p=10: h1+h1^3=10 -> h1=2;
+    // h2-h1+h2^3=(33/5)*10 -> h2=4.
+    let source = source(
+        "1[s]*derivative(h)+h^3=p*(if time()<1.5[s] then 1 else 33/5);",
+        "",
+    );
+    let (document, plan) = resolve_source_document(&source, 1., newton(20)).unwrap();
+    let spatial = plan.as_spatial().unwrap();
+    let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
+    let before = initial.to_bytes().unwrap();
+    let request =
+        CommonTransientRunRequest::from_steps(plan.clone(), initial.clone(), 2, vec![2]).unwrap();
+    let parameter = document.parameter_ref("p").unwrap().id();
+    let field = document.field_ref("h").unwrap().id().erase();
+    let trajectory = spatial
+        .differentiate_trajectory(
+            &request,
+            &[parameter],
+            Some(&[10.]),
+            &[field],
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+    assert_eq!(trajectory.request().output_steps().unwrap(), vec![2]);
+    assert_eq!(trajectory.steps().len(), 2);
+    for (index, point) in trajectory.steps().iter().enumerate() {
+        for value in point.linearization().output_values() {
+            assert!((value - (index + 1) as f64 * 2.).abs() < 1e-10);
+        }
+        assert!(point.nonlinear_iterations().unwrap() > 0);
+        assert!(!point.linear_solves().is_empty());
+        assert_eq!(point.linearization().relation().design_values(), &[10.]);
+        assert_eq!(point.nonlinear_initial_state().is_some(), index == 0);
+        point
+            .linearization()
+            .validate_nonlinear_update_count(point.nonlinear_iterations().unwrap())
+            .unwrap();
+    }
+    let candidates = trajectory
+        .steps()
+        .iter()
+        .map(|p| p.linearization().relation().accepted_unknowns().to_vec())
+        .collect::<Vec<_>>();
+    let replay = spatial
+        .validate_differentiated_trajectory_values(
+            &request,
+            &[parameter],
+            Some(&[10.]),
+            &[field],
+            &candidates,
+        )
+        .unwrap();
+    for (reopened, point) in replay.iter().zip(trajectory.steps()) {
+        assert_eq!(reopened, point.linearization());
+    }
+    assert!(
+        spatial
+            .validate_differentiated_trajectory_values(
+                &request,
+                &[parameter],
+                Some(&[10.]),
+                &[field],
+                &candidates[..1],
+            )
+            .is_err()
+    );
+    assert!(
+        spatial
+            .validate_differentiated_trajectory_values(
+                &request,
+                &[parameter],
+                Some(&[2.]),
+                &[field],
+                &candidates,
+            )
+            .is_err()
+    );
+    let mut altered = candidates.clone();
+    altered[1][0] += 0.125;
+    let error = spatial
+        .validate_differentiated_trajectory_values(
+            &request,
+            &[parameter],
+            Some(&[10.]),
+            &[field],
+            &altered,
+        )
+        .unwrap_err();
+    assert!(error.message().contains("residual"), "{error:?}");
+    let views = trajectory
+        .steps()
+        .iter()
+        .map(|p| p.linearization().discrete_step().unwrap())
+        .collect::<Vec<_>>();
+    let accepted = views
+        .iter()
+        .zip(trajectory.steps())
+        .map(|(view, point)| {
+            let point = point.linearization();
+            eqiora::differentiation::AcceptedLinearization::new_with_canonical_state_jacobian(
+                view,
+                point.relation().state_jacobian(),
+                point.state_scalar_domain(),
+                point.residual_target(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let properties = trajectory.steps()[0]
+        .linearization()
+        .relation()
+        .state_jacobian()
+        .properties();
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear());
+    let tangent = eqiora::differentiation::discrete_trajectory_sensitivity(
+        &accepted,
+        &[],
+        &[0.; 3],
+        &[1.],
+        properties,
+        solver,
+    )
+    .unwrap();
+    // d1=1/13, d2=(d1+33/5)/49=62/455, independently of Newton updates.
+    for (step, expected) in tangent.iter().zip([1. / 13., 62. / 455.]) {
+        for actual in step.output_tangent() {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+    }
+    let adjoint = eqiora::differentiation::discrete_trajectory_adjoint(
+        &accepted,
+        &[],
+        &[&[0.; 3], &[1.; 3]],
+        &[0.],
+        properties,
+        solver,
+    )
+    .unwrap();
+    assert!((adjoint.parameter_gradient()[0] - 3. * 62. / 455.).abs() < 1e-10);
+    assert_eq!(initial.to_bytes().unwrap(), before);
+}

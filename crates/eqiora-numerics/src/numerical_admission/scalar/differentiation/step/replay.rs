@@ -45,11 +45,20 @@ where
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let (mapping, input) = self.prepare_step(template, previous, grid)?;
-        let coordinates = RegionRealCoordinates::new(&mapping)?;
+        self.accept_prepared_step(&mapping, &input, candidate)
+    }
+
+    pub(super) fn accept_prepared_step(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &RegionSolveInput<S>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        let coordinates = RegionRealCoordinates::new(mapping)?;
         let fields = coordinates.recover(candidate)?;
         let (_, target, _, _, seed_residual) = self
             .plan
-            .accept_step_fields(&mapping, &input, &fields, None)?;
+            .accept_step_fields(mapping, input, &fields, None)?;
         let initial = seed_residual
             .map(|residual_norm| {
                 let seed = input.previous.as_ref().expect("validated step history");
@@ -59,6 +68,6 @@ where
                 })
             })
             .transpose()?;
-        self.linearize_step_values(&mapping, &input, candidate.to_vec(), target, initial, None)
+        self.linearize_step_values(mapping, input, candidate.to_vec(), target, initial, None)
     }
 }

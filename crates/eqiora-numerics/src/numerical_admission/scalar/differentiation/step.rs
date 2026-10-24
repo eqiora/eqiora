@@ -6,6 +6,7 @@ use crate::region_assembly::{
 };
 mod evaluate;
 mod replay;
+mod trajectory;
 
 impl CommonSpatialPlan {
     /// Linearize one accepted backward-Euler step at the canonical Model point.
@@ -71,16 +72,31 @@ impl CommonSpatialPlan {
         request: &CommonTransientRunRequest,
         outputs: &[eqiora_core::RawId],
     ) -> Result<TimeGrid, Diagnostic> {
-        self.validate_step_outputs(outputs)?;
-        if request.plan().identity() != self.identity() {
-            return Err(invalid("step Parameter request belongs to a foreign Plan"));
-        }
+        self.validate_trajectory_differentiation_request(request, outputs)?;
         if request.accepted_steps()?.get() != 1 || request.output_steps()? != [1] {
             return Err(invalid(
                 "fixed-history step products require exactly one requested step and its endpoint",
             ));
         }
         request.state().time_grid()?.advance(1)
+    }
+
+    /// Validate the exact Run and complete Field output roles for trajectory products.
+    ///
+    /// # Errors
+    /// Rejects foreign Plans and unsupported temporal or output bindings.
+    pub fn validate_trajectory_differentiation_request(
+        &self,
+        request: &CommonTransientRunRequest,
+        outputs: &[eqiora_core::RawId],
+    ) -> Result<(), Diagnostic> {
+        self.validate_step_outputs(outputs)?;
+        if request.plan().identity() != self.identity() {
+            return Err(invalid("step Parameter request belongs to a foreign Plan"));
+        }
+        request.accepted_steps()?;
+        request.output_steps()?;
+        Ok(())
     }
 
     fn validate_step_outputs(&self, outputs: &[eqiora_core::RawId]) -> Result<(), Diagnostic> {
@@ -132,6 +148,30 @@ where
             ));
         }
         let previous_time = previous.require_time_s()?;
+        // Only external canonical history is authenticated against the template.
+        let (canonical, mut input) = self.plan.scalar_step_assembly(template, previous, grid)?;
+        let history = input.previous.take().expect("validated physical history");
+        let (old_mapping, _) = self.plan.scalar_assembly_at(template, previous_time)?;
+        let (mapping, input) =
+            self.prepare_step_history(&old_mapping, &history, previous_time, grid)?;
+        if !canonical.has_same_coordinate_layout(&mapping) {
+            return Err(invalid(
+                "step Parameter point changed the exact Field constraint layout",
+            ));
+        }
+        Ok((mapping, input))
+    }
+
+    fn prepare_step_history(
+        &mut self,
+        old_mapping: &RegionDofMap<S>,
+        history: &BTreeMap<
+            eqiora_core::RawId,
+            crate::region_assembly::mapping::RecoveredRegionField<S>,
+        >,
+        previous_time: f64,
+        grid: TimeGrid,
+    ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
         let current = grid.time(
             self.plan
                 .admission
@@ -142,26 +182,13 @@ where
                 .value(),
         )?;
         self.time_interval = Some([previous_time, current]);
-        // Authenticate history at its original Parameter point. Its physical
-        // values stay fixed even when the new point changes essential traces.
-        let (canonical, mut input) = self.plan.scalar_step_assembly(template, previous, grid)?;
-        let history = input.previous.take().expect("validated physical history");
         let (mapping, mut input) = self.plan.scalar_assembly_with_history(
             &self.equations,
             current,
             Some(previous_time),
-            Some(&history),
+            Some(history),
             &[],
         )?;
-        if !canonical.has_same_coordinate_layout(&mapping) {
-            return Err(invalid(
-                "step Parameter point changed the exact Field constraint layout",
-            ));
-        }
-        // History belongs to the original point, not the changed Parameters.
-        // A changing free-coordinate layout needs a separate transition action;
-        // it does not invalidate the existing fixed-history Parameter product.
-        let (old_mapping, _) = self.plan.scalar_assembly_at(template, previous_time)?;
         self.step_coordinates = if old_mapping.has_same_coordinate_layout(&mapping) {
             let identity: std::sync::Arc<str> = self.plan.identity().into();
             Some(
@@ -180,7 +207,7 @@ where
         } else {
             None
         };
-        input.previous = Some(history);
+        input.previous = Some(history.clone());
         Ok((mapping, input))
     }
 

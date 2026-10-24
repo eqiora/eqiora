@@ -13,7 +13,7 @@ pub(super) enum Primal {
     Affine(eqiora_solver::SolveReport),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
-        initial: crate::CommonInitialState<'static>,
+        initial: Option<crate::CommonInitialState<'static>>,
         iterations: usize,
         linear_solves: Vec<eqiora_solver::SolveReport>,
     },
@@ -77,11 +77,12 @@ impl CommonDifferentiationPoint {
         Ok(self)
     }
 
-    /// Exact retained initial State, absent for linear execution.
+    /// External nonlinear seed, absent for linear execution or a trajectory step
+    /// seeded from its preceding accepted analysis point.
     #[must_use]
     pub fn nonlinear_initial_state(&self) -> Option<&crate::CommonInitialState<'static>> {
         match &self.primal {
-            Primal::Nonlinear { initial, .. } => Some(initial),
+            Primal::Nonlinear { initial, .. } => initial.as_ref(),
             _ => None,
         }
     }
@@ -93,6 +94,48 @@ impl CommonDifferentiationPoint {
             Primal::Nonlinear { iterations, .. } => Some(*iterations),
             _ => None,
         }
+    }
+}
+
+/// One Parameter-point trajectory bound to an ordinary transient Run request.
+///
+/// Every accepted step retains its original residual, history/output actions,
+/// and actual primal solver reports. Intermediate analysis histories are not
+/// canonical Model State checkpoints. Requested output indices remain owned by
+/// the Run; storing derivative steps does not alter ordinary Run retention.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonDifferentiationTrajectory {
+    request: CommonTransientRunRequest,
+    steps: Vec<CommonDifferentiationPoint>,
+}
+
+impl CommonDifferentiationTrajectory {
+    pub(super) fn from_steps(
+        request: CommonTransientRunRequest,
+        steps: Vec<CommonDifferentiationPoint>,
+    ) -> Result<Self, Diagnostic> {
+        if steps.len() != request.accepted_steps()?.get()
+            || steps
+                .iter()
+                .any(|point| point.linearization().discrete_step().is_none())
+        {
+            return Err(invalid(
+                "differentiated trajectory requires every accepted history action",
+            ));
+        }
+        Ok(Self { request, steps })
+    }
+
+    /// Exact initial State, Plan, horizon and requested output times.
+    #[must_use]
+    pub const fn request(&self) -> &CommonTransientRunRequest {
+        &self.request
+    }
+
+    /// All accepted analysis steps, in forward-time order.
+    #[must_use]
+    pub fn steps(&self) -> &[CommonDifferentiationPoint] {
+        &self.steps
     }
 }
 

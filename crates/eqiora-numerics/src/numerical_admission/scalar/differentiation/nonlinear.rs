@@ -105,7 +105,7 @@ where
         Ok(CommonDifferentiationPoint::from_primal(
             linearization,
             Primal::Nonlinear {
-                initial: initial.clone().into(),
+                initial: Some(initial.clone().into()),
                 iterations: solved.evidence.iterations,
                 linear_solves: solved.evidence.linear_solves,
             },
