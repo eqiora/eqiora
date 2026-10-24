@@ -57,8 +57,8 @@ fn fixture(name: &str, tolerance: f64) -> (ModelDocument, ResolvedCommonPlan) {
 }
 
 fn identity(document: &ModelDocument, plan: &ResolvedCommonPlan) -> DifferentiableProgramIdentity {
-    DifferentiableProgramIdentity::from_plan(
-        plan,
+    DifferentiableProgramIdentity::from_context(
+        &Context::stationary(plan, None),
         &[
             document.parameter_ref("q").unwrap(),
             document.parameter_ref("p").unwrap(),
@@ -68,7 +68,6 @@ fn identity(document: &ModelDocument, plan: &ResolvedCommonPlan) -> Differentiab
             document.field_ref("x").unwrap().erase(),
         ],
         &Default::default(),
-        None,
     )
     .unwrap()
 }
@@ -123,12 +122,11 @@ fn exact_plan_reopening_restores_ordered_typed_identity_without_solving() {
 fn seeded_identity_reopening_requires_the_exact_initial_state() {
     let (document, plan) = fixture("Seeded", 1e-12);
     let seed = plan.as_algebraic().unwrap().initial_state(&[]).unwrap();
-    let identity = DifferentiableProgramIdentity::from_plan(
-        &plan,
+    let identity = DifferentiableProgramIdentity::from_context(
+        &Context::stationary(&plan, Some(&(&seed).into())),
         &[document.parameter_ref("p").unwrap()],
         &[document.field_ref("x").unwrap().erase()],
         &Default::default(),
-        Some(&(&seed).into()),
     )
     .unwrap();
     let seed = eqiora_numerics::CommonAlgebraicState::from_bytes(

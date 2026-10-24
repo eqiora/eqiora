@@ -17,6 +17,8 @@ use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
 
 use crate::ModelDocument;
 
+pub(crate) mod context;
+use context::Context;
 mod evidence;
 mod record;
 pub use record::RecordedDifferentiableEvaluation;
@@ -178,8 +180,7 @@ pub struct DifferentiableEvaluation {
 #[derive(Debug, Clone)]
 pub struct DifferentiableProgram {
     identity: DifferentiableProgramIdentity,
-    plan: ResolvedCommonPlan,
-    initial: Option<CommonInitialState<'static>>,
+    context: Context<'static>,
     backend: &'static dyn LinearSolverBackend,
     default: DifferentiableEvaluation,
 }

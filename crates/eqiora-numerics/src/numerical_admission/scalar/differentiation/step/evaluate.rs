@@ -4,31 +4,32 @@ use super::*;
 impl CommonSpatialPlan {
     /// Solve one backward-Euler step at selected Parameter values with fixed history.
     ///
-    /// The supplied canonical step authenticates the preceding physical State and
-    /// endpoint times. Selected values change only the current equations and traces;
+    /// The supplied one-step Run request binds the preceding physical State and
+    /// endpoint times without requiring a previously solved canonical step. Selected
+    /// values change only the current equations and traces;
     /// omitted values use the canonical Model point. Outputs are complete Fields.
     /// The result retains actual solver reports and composes with the existing
     /// forward/adjoint sensitivity owners; it is not a new reusable State checkpoint.
     ///
     /// # Errors
-    /// Rejects foreign steps, incompatible points or providers, unsupported step
+    /// Rejects foreign or multi-step requests, incompatible points or providers, unsupported step
     /// realizations, and failed original-equation acceptance.
     pub fn differentiate_step(
         &self,
-        step: &CommonAcceptedSpatialStep,
+        request: &CommonTransientRunRequest,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let accepted = self.accept_step_product(step, outputs)?;
+        let grid = self.validate_step_request(request, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
                 .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
-                .solve_step(equations, &accepted, backend),
+                .solve_step(equations, request.state(), grid, backend),
             RecognizedNativeModel::ComplexSpatial(equations) => self
                 .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
-                .solve_step(equations, &accepted, backend),
+                .solve_step(equations, request.state(), grid, backend),
             _ => Err(invalid(
                 "step differentiation requires exact spatial equations",
             )),
@@ -43,10 +44,11 @@ where
     fn solve_step(
         mut self,
         template: &ExecutableSpatialEquations<S>,
-        step: &CommonAcceptedSpatialStep,
+        previous: &CommonState,
+        grid: TimeGrid,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (mapping, input) = self.prepare_step(template, step)?;
+        let (mapping, input) = self.prepare_step(template, previous, grid)?;
         let structure = self.equations.algebraic_structure(None)?;
         let checked = self
             .plan
@@ -77,7 +79,7 @@ where
             (
                 linearization,
                 Primal::Nonlinear {
-                    initial: step.previous_state().clone().into(),
+                    initial: previous.clone().into(),
                     iterations: solved.evidence.iterations,
                     linear_solves: solved.evidence.linear_solves,
                 },
@@ -91,6 +93,7 @@ where
                 &input,
                 values,
                 solved.solve_report.residual_target(),
+                None,
             )?;
             (linearization, Primal::Affine(solved.solve_report))
         };

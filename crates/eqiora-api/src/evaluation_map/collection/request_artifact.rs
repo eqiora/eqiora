@@ -1,10 +1,9 @@
 //! Exact request codecs, never reconstruction of an executable map.
 use super::artifact::{decode, one};
 use super::*;
+use crate::differentiation::context::WireContext;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use eqiora_numerics::{
-    CommonInitialState, CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan,
-};
+use eqiora_numerics::{CommonTimeRunRequest, RecordedTimeCheckpoint, ResolvedCommonPlan};
 use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
@@ -13,9 +12,8 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireRequest {
     Evaluations {
-        plan: String,
+        context: WireContext,
         program: String,
-        initial: Option<String>,
         points: Vec<Vec<f64>>,
         shared: Vec<String>,
         samples: Option<Vec<String>>,
@@ -31,19 +29,14 @@ impl RecordedRequest {
     pub(super) fn wire(&self) -> Result<WireRequest, Diagnostic> {
         Ok(match self {
             Self::Evaluations {
-                plan,
+                context,
                 program,
-                initial,
                 points,
                 shared,
                 samples,
             } => WireRequest::Evaluations {
-                plan: STANDARD.encode(plan.to_bytes()?),
+                context: context.wire()?,
                 program: STANDARD.encode(program.to_bytes()?),
-                initial: initial
-                    .as_ref()
-                    .map(|state| state.to_bytes().map(|bytes| STANDARD.encode(bytes)))
-                    .transpose()?,
                 points: points
                     .iter()
                     .map(|point| point.coordinates().to_vec())
@@ -88,7 +81,7 @@ impl WireRequest {
             .encode(self)
             .map_err(|_| invalid("cannot encode collection request"))?;
         Ok(
-            ArtifactDigest::compute(b"eqiora.evaluation-collection-request/v1", &bytes)
+            ArtifactDigest::compute(b"eqiora.evaluation-collection-request/v2", &bytes)
                 .as_str()
                 .to_owned(),
         )
@@ -99,32 +92,19 @@ impl WireRequest {
         backend: &dyn LinearSolverBackend,
         time_backend: TimeBackendCapabilities,
     ) -> Result<RecordedRequest, Vec<Diagnostic>> {
-        let plan_bytes = match &self {
-            Self::Evaluations { plan, .. } | Self::Time { plan, .. } => plan,
-        };
-        let plan = ResolvedCommonPlan::from_bytes(
-            &decode(plan_bytes).map_err(one)?,
-            backend,
-            time_backend,
-        )
-        .map_err(one)?;
         let request = match self {
             Self::Evaluations {
                 program,
-                initial,
+                context,
                 points,
                 shared,
                 samples,
                 ..
             } => {
-                let initial = initial
-                    .map(|value| CommonInitialState::from_bytes(&decode(&value)?, &plan))
-                    .transpose()
-                    .map_err(one)?;
-                let program = DifferentiableProgramIdentity::from_bytes(
+                let context = context.replay(backend, time_backend).map_err(one)?;
+                let program = DifferentiableProgramIdentity::from_context_bytes(
                     &decode(&program).map_err(one)?,
-                    &plan,
-                    initial.as_ref(),
+                    &context,
                 )?;
                 let points = points
                     .into_iter()
@@ -162,19 +142,24 @@ impl WireRequest {
                     .transpose()
                     .map_err(one)?;
                 RecordedRequest::Evaluations {
-                    plan,
+                    context: Box::new(context),
                     program: Box::new(program),
-                    initial,
                     points,
                     shared,
                     samples,
                 }
             }
             Self::Time {
+                plan,
                 requests,
                 checkpoints,
-                ..
             } => {
+                let plan = ResolvedCommonPlan::from_bytes(
+                    &decode(&plan).map_err(one)?,
+                    backend,
+                    time_backend,
+                )
+                .map_err(one)?;
                 let time_plan = plan
                     .as_time()
                     .ok_or_else(|| one(invalid("collection time requests require a time Plan")))?;

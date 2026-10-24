@@ -1,4 +1,5 @@
 //! Typed spatial history uses the same ordinary temporal lifecycle.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     CartesianMeshCellsV2, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
@@ -579,3 +580,6 @@ mod material;
 
 #[path = "spatial_time_domains/step_products.rs"]
 mod step_products;
+
+#[path = "spatial_time_domains/program.rs"]
+mod program;

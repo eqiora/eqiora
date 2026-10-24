@@ -3,7 +3,9 @@
 mod cancellation;
 mod evidence;
 use cancellation::NativeRunCancellation;
+mod request;
 mod worker;
+pub(crate) use request::spatial_request;
 pub(crate) use worker::{resolved_linear_backend, run_mapped_time};
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -872,17 +874,15 @@ pub(crate) fn submit_plan(
             let native_state = state.common_native().ok_or_else(|| {
                 PyValueError::new_err("State is not a common transient restart State")
             })?;
-            let request = match (until_s, output_times_s, steps, output_steps) {
-                (Some(until), Some(outputs), None, None) => CommonTransientRunRequest::from_times(
-                    plan_ref.native().clone(), native_state.clone(), until, outputs,
-                ),
-                (None, None, Some(steps), Some(outputs)) => CommonTransientRunRequest::from_steps(
-                    plan_ref.native().clone(), native_state.clone(), steps, outputs,
-                ),
-                _ => return Err(PyTypeError::new_err(
-                    "transient submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
-                )),
-            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let request = spatial_request(
+                py,
+                plan_ref.native(),
+                native_state,
+                until_s,
+                output_times_s,
+                steps,
+                output_steps,
+            )?;
             Some(CommonRunRequest::Transient(Box::new(request)))
         } else {
             if until_s.is_some()

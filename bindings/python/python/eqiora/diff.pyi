@@ -30,6 +30,10 @@ def compile(
     outputs: Sequence[FieldRef | ObservableRef],
     state: State | None = None,
     quadrature_points: int | None = None,
+    until_s: float | None = None,
+    output_times_s: Sequence[float] | None = None,
+    steps: int | None = None,
+    output_steps: Sequence[int] | None = None,
 ) -> DifferentiableProgram:
     """Compile a differentiable program over an ordered set of parameters.
 
@@ -40,6 +44,9 @@ def compile(
     Input coordinates are ordered by selection, then row-major by component, then
     real before imaginary part. The input identities count Parameters; the input
     shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
+
+    Spatial backward-Euler Programs bind a one-step Run request through state and
+    one complete schedule family, holding its physical predecessor fixed.
 
     Authority: ``bindings/python/python/eqiora/diff.py::compile``.
     """

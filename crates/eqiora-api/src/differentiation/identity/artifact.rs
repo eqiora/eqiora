@@ -8,7 +8,7 @@ use super::*;
 
 mod quadrature;
 
-const SCHEMA: &str = "eqiora.differentiable-program-identity/v2";
+const SCHEMA: &str = "eqiora.differentiable-program-identity/v3";
 const MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
@@ -20,6 +20,7 @@ struct WireIdentity {
     inputs: Vec<String>,
     outputs: Vec<String>,
     initial_state: Option<String>,
+    run_request: Option<String>,
     quadratures: BTreeMap<String, quadrature::Rule>,
 }
 
@@ -45,6 +46,7 @@ impl DifferentiableProgramIdentity {
                 .map(|value| value.entity().to_string())
                 .collect(),
             initial_state: self.initial_state_identity.clone(),
+            run_request: self.run_request_identity.clone(),
             quadratures: self
                 .quadratures
                 .iter()
@@ -70,6 +72,25 @@ impl DifferentiableProgramIdentity {
         plan: &ResolvedCommonPlan,
         initial: Option<&CommonInitialState<'_>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::from_context_bytes(bytes, &Context::stationary(plan, initial))
+    }
+
+    /// Reopen static Program meaning against its exact transient Run request.
+    /// This performs no solve and authenticates no accepted primal.
+    pub fn from_run_bytes(
+        bytes: &[u8],
+        request: &crate::RunRequest,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::from_context_bytes(bytes, &Context::Run(std::borrow::Cow::Borrowed(request)))
+    }
+
+    pub(crate) fn from_context_bytes(
+        bytes: &[u8],
+        context: &Context<'_>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let plan = context.plan();
+        let initial = context.initial();
+        let initial = initial.as_ref();
         check_size(bytes).map_err(single)?;
         let wire: WireIdentity = serde_json::from_slice(bytes)
             .map_err(|error| single(invalid(format!("invalid Program identity: {error}"))))?;
@@ -78,6 +99,7 @@ impl DifferentiableProgramIdentity {
             || wire.model != model.artifact().as_str()
             || wire.plan != plan.identity()
             || wire.initial_state.as_deref() != initial.map(CommonInitialState::identity)
+            || wire.run_request.as_deref() != context.run_request().map(crate::RunRequest::identity)
         {
             return Err(single(invalid(
                 "Program identity differs from its exact artifacts",
@@ -126,7 +148,7 @@ impl DifferentiableProgramIdentity {
                 Ok((domain, rule.decode().map_err(single)?))
             })
             .collect::<Result<_, Vec<Diagnostic>>>()?;
-        let identity = Self::from_plan(plan, &inputs, &outputs, &rules, initial)?;
+        let identity = Self::from_context(context, &inputs, &outputs, &rules)?;
         if identity.to_bytes().map_err(single)? != bytes {
             return Err(single(invalid("Program identity bytes are not canonical")));
         }

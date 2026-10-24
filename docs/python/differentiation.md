@@ -126,7 +126,8 @@ Mixed spatial/Parameter coefficient derivatives are supported for admitted
 scalar arithmetic and pointwise component expressions. Their shared component IR
 evaluates two input directions, including mixed derivatives of those inputs.
 Affine-map coefficient composition and arbitrary-order derivatives remain outside
-this path. Conjugated state equations and transient Plans remain unimplemented.
+this path. Conjugated state equations remain outside this static path.
+Transient Plans use the fixed-history step boundary described below.
 
 Spatial integral outputs require explicit quadrature, including integrals used
 by a composed Observable:
@@ -155,6 +156,28 @@ fixed: `sqrt(p*p)` at `p=0` still rejects differentiation.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
+
+## One transient step with a fixed predecessor
+
+For an admitted spatial backward-Euler Plan, pass the exact preceding `State`
+to `eqiora.diff.compile` with `state=previous_state`, `steps=1` and
+`output_steps=(1,)`. Select Parameters through `inputs` and complete endpoint
+Fields through `outputs`, just as for a stationary Program. Alternatively,
+use `until_s` and `output_times_s` to request the same single endpoint; supply
+exactly one schedule family. No previously solved canonical step is required.
+
+The Program holds the original physical predecessor and endpoint times fixed
+while evaluating new Parameter values. Its JVP and VJP therefore differentiate
+this one step, not the trajectory that produced the predecessor. Real and
+complex linear/Newton step products use the ordinary native execution owners.
+Moving geometry, eliminated kinematics, temporal Observables and other time
+methods remain outside this boundary.
+
+Use the existing `evaluate`, `jvp`, `vjp` and `map` APIs for the resulting
+Program. Recorded evaluation collections bind the exact Run request and reopen
+through the original equation acceptance without solving. Reopening validates
+mathematical acceptance; it does not authenticate a producer's iteration history.
+Full interpolation history is not retained by this step Program.
 
 ## Finite nonlinear points and partial actions
 

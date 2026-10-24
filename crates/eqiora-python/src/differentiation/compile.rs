@@ -9,7 +9,8 @@ use pyo3::types::PySequence;
 
 /// Compile one exact accepted-point differentiable program.
 #[pyfunction(name = "_compile_differentiable")]
-#[pyo3(signature = (plan, /, *, inputs, outputs, state=None, quadrature_points=None))]
+#[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (plan, /, *, inputs, outputs, state=None, quadrature_points=None, until_s=None, output_times_s=None, steps=None, output_steps=None))]
 pub(crate) fn compile_differentiable(
     py: Python<'_>,
     plan: &PyPlan,
@@ -17,6 +18,10 @@ pub(crate) fn compile_differentiable(
     outputs: &Bound<'_, PyAny>,
     state: Option<&PyState>,
     quadrature_points: Option<usize>,
+    until_s: Option<f64>,
+    output_times_s: Option<Vec<f64>>,
+    steps: Option<usize>,
+    output_steps: Option<Vec<usize>>,
 ) -> PyResult<PyDifferentiableProgram> {
     panic_boundary(py, || {
         let invalid = |message: &str| {
@@ -47,7 +52,35 @@ pub(crate) fn compile_differentiable(
                 .ok_or_else(|| invalid("differentiation requires a linear solver provider"))?,
         )
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
+        let request = if native_plan.is_temporal() {
+            let state = state.and_then(PyState::common_native).ok_or_else(|| {
+                pyo3::exceptions::PyTypeError::new_err(
+                    "spatial Run differentiation requires state=State(...)",
+                )
+            })?;
+            Some(crate::execution::spatial_request(
+                py,
+                &native_plan,
+                state,
+                until_s,
+                output_times_s,
+                steps,
+                output_steps,
+            )?)
+        } else {
+            if until_s.is_some()
+                || output_times_s.is_some()
+                || steps.is_some()
+                || output_steps.is_some()
+            {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "stationary differentiation accepts no transient Run controls",
+                ));
+            }
+            None
+        };
         let initial = state
+            .filter(|_| request.is_none())
             .map(|state| {
                 state
                     .initial_state()
@@ -113,15 +146,22 @@ pub(crate) fn compile_differentiable(
             }
         };
         let value = py
-            .detach(move || {
-                DifferentiableProgram::compile(
+            .detach(move || match request {
+                Some(request) => DifferentiableProgram::compile_run(
+                    request.into(),
+                    &selected,
+                    &selected_outputs,
+                    quadratures,
+                    backend,
+                ),
+                None => DifferentiableProgram::compile(
                     native_plan,
                     &selected,
                     &selected_outputs,
                     quadratures,
                     initial,
                     backend,
-                )
+                ),
             })
             .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
         Ok(PyDifferentiableProgram {
