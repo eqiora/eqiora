@@ -1,0 +1,156 @@
+{
+  "recorded_at": "2026-10-24T01:57:50.034749+00:00",
+  "host": "didelx01 (dide1)",
+  "cpu": "AMD Ryzen Threadripper PRO 5995WX 64-Cores",
+  "affinity": [
+    16
+  ],
+  "exclusive_cpu": false,
+  "reference": "installed PyPI eqiora0.1.0a7 CPython3.13 wheel",
+  "candidate": "4292283ea779d6ea5626aa7b6e38f024baf882eb, Rust1.98.0/maturin1.15.0 release wheel built on dide1",
+  "runtime": "CPython3.13.14, NumPy2.5.2, Gmsh4.15.2; OMP/OpenBLAS/MKL/Rayon thread limits1",
+  "cadence": "one cold Run,2 warmup Runs,7 samples; cylinder1 Run/sample, decay100 Runs/sample; median of sample means",
+  "measurements": {
+    "cylinder": {
+      "a7": {
+        "median_seconds": 9.315869349,
+        "min_seconds": 9.127443829,
+        "max_seconds": 9.39905619,
+        "median_absolute_deviation_seconds": 0.08318684099999984,
+        "load_at_start": [
+          1.85693359375,
+          2.48486328125,
+          2.4482421875
+        ],
+        "load_at_end": [
+          2.4541015625,
+          2.5244140625,
+          2.46533203125
+        ],
+        "samples_seconds": [
+          9.343849346,
+          9.170303534,
+          9.127443829,
+          9.192175551,
+          9.370061293,
+          9.39905619,
+          9.315869349
+        ],
+        "cold": {
+          "wall_seconds": 9.369876431,
+          "cpu_seconds": 9.368591684
+        },
+        "driver_sha256": "93f1dfbae919422278a72f1ef5c14584ed90a2ba42dbec04112077b69065235f"
+      },
+      "candidate": {
+        "median_seconds": 5.52503417,
+        "min_seconds": 5.501069945,
+        "max_seconds": 5.636817774,
+        "median_absolute_deviation_seconds": 0.01336870700000059,
+        "load_at_start": [
+          2.4541015625,
+          2.5244140625,
+          2.46533203125
+        ],
+        "load_at_end": [
+          2.60400390625,
+          2.57568359375,
+          2.48681640625
+        ],
+        "samples_seconds": [
+          5.576750266,
+          5.52503417,
+          5.501069945,
+          5.538402877,
+          5.636817774,
+          5.519356309,
+          5.519986558
+        ],
+        "cold": {
+          "wall_seconds": 5.789586994,
+          "cpu_seconds": 5.788443468
+        },
+        "driver_sha256": "93f1dfbae919422278a72f1ef5c14584ed90a2ba42dbec04112077b69065235f"
+      }
+    },
+    "decay": {
+      "a7": {
+        "median_seconds": 9.793255e-05,
+        "min_seconds": 9.196932e-05,
+        "max_seconds": 0.00010053455,
+        "median_absolute_deviation_seconds": 1.8363000000000082e-06,
+        "load_at_start": [
+          2.60400390625,
+          2.57568359375,
+          2.48681640625
+        ],
+        "load_at_end": [
+          2.60400390625,
+          2.57568359375,
+          2.48681640625
+        ],
+        "samples_seconds": [
+          9.784141e-05,
+          9.793255e-05,
+          0.00010053455,
+          9.976885e-05,
+          9.967852e-05,
+          9.295757e-05,
+          9.196932e-05
+        ],
+        "cold": {
+          "wall_seconds": 0.000270334,
+          "cpu_seconds": 0.000263444
+        },
+        "driver_sha256": "93f1dfbae919422278a72f1ef5c14584ed90a2ba42dbec04112077b69065235f"
+      },
+      "candidate": {
+        "median_seconds": 0.00024461038,
+        "min_seconds": 0.00023903007,
+        "max_seconds": 0.00025663096,
+        "median_absolute_deviation_seconds": 5.580309999999965e-06,
+        "load_at_start": [
+          2.60400390625,
+          2.57568359375,
+          2.48681640625
+        ],
+        "load_at_end": [
+          2.60400390625,
+          2.57568359375,
+          2.48681640625
+        ],
+        "samples_seconds": [
+          0.00024453666,
+          0.00024461038,
+          0.00023950619,
+          0.00025663096,
+          0.00025080134,
+          0.00025278929,
+          0.00023903007
+        ],
+        "cold": {
+          "wall_seconds": 0.000529187,
+          "cpu_seconds": 0.000519094
+        },
+        "driver_sha256": "93f1dfbae919422278a72f1ef5c14584ed90a2ba42dbec04112077b69065235f"
+      }
+    }
+  },
+  "limitations": [
+    "Cylinder discrete transport/natural-facet implementation changed since a7 (#1251). These historical times do not establish the same-discretization2x target or output equivalence required by #802.",
+    "No exclusive CPU reservation, confidence interval, stable regression limit, GPU/MPI claim or CFD comparator. Raw samples/range/MAD and actual load are retained.",
+    "Phase fractions come from a separate profiled execution (5.930868135s), not the unprofiled timing samples.",
+    "Preprocessing, compile, resolve, initial binding and Python import are outside the eqiora.run timing.",
+    "Profile remains coarse for ODE; phase fractions do not isolate the cause of its latency increase."
+  ],
+  "candidate_cylinder_profile_self_seconds": {
+    "other execution work": 0.076670334,
+    "discretization preparation": 1.319480562,
+    "unpartitioned time-step work": 0.637269682,
+    "assembly and residual trials": 2.654197654,
+    "other linear solve work": 0.109531796,
+    "symbolic LU": 0.022161885,
+    "numeric LU": 1.077892242,
+    "postprocess": 0.03366398
+  }
+}

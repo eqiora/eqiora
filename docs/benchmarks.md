@@ -12,3 +12,9 @@ A benchmark result must state the complete problem, geometry, boundary and initi
 data, numerical method, reference quantities, tolerances, and execution environment.
 Source and result lineage must identify the actual run; a successful example or
 a retained fixture is not by itself benchmark acceptance.
+
+## Runtime investigations
+
+The [2026-10-24 repeated-Run baseline](performance/2026-10-24-repeated-runs.md)
+records two installed-API workloads, reproducible inputs and remaining costs.
+It is an initial performance investigation, not a verified speedup or scalability claim.
