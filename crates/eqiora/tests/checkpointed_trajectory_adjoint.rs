@@ -8,7 +8,7 @@ use eqiora::artifact::{
 use eqiora::assembly::CsrMatrix;
 use eqiora::diagnostic::codes;
 use eqiora::differentiation::{
-    AcceptedLinearization, DiscreteTrajectoryCheckpoint, discrete_trajectory_adjoint,
+    AcceptedOutputLinearization, DiscreteTrajectoryCheckpoint, discrete_trajectory_adjoint,
 };
 use eqiora::ir::DiscreteStepLinearization;
 use eqiora::runtime::{CpuProgram, GeneralImplicitProgram};
@@ -159,7 +159,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         .unwrap();
     let steps = [&step_0, &step_1, &step_2, &step_3]
         .into_iter()
-        .map(|step| AcceptedLinearization::new(step, 1.0e-12).unwrap())
+        .map(|step| AcceptedOutputLinearization::new(step, step, 1.0e-12).unwrap())
         .collect::<Vec<_>>();
     let boundary =
         DiscreteTrajectoryCheckpoint::new(2, checkpoint.time(), checkpoint.state().to_vec())
@@ -199,7 +199,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     let sources = steps
         .iter()
         .map(|accepted| {
-            let step = accepted.relation();
+            let step = accepted.relation().relation();
             let x = step.next_state()[0];
             let z = step.next_state()[1];
             let x_old = step.previous_state()[0];
@@ -225,11 +225,12 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         .iter()
         .zip(&sources)
         .map(|(step, source)| {
-            AcceptedLinearization::new_with_canonical_state_jacobian(
-                step.relation(),
+            AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+                step.relation().relation(),
+                step.output(),
                 source,
                 eqiora::ScalarDomain::Real,
-                step.residual_tolerance(),
+                step.relation().residual_tolerance(),
             )
             .unwrap()
         })

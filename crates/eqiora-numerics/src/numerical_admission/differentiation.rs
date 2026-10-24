@@ -6,7 +6,7 @@ use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 mod output;
 mod step;
 pub(super) use output::Output;
-pub use step::{CommonDiscreteStepLinearization, SpatialStepCoordinate};
+pub use step::{CommonDiscreteStepLinearization, CommonDiscreteStepOutput, SpatialStepCoordinate};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {

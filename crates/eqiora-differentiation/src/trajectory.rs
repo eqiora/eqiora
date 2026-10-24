@@ -1,5 +1,7 @@
 //! Continuity-checked composition of accepted discrete residual actions.
 use super::*;
+mod partials;
+pub use partials::DiscreteTrajectoryLinearization;
 
 /// One explicit accepted-state boundary inside a discrete adjoint trajectory.
 ///
@@ -91,8 +93,8 @@ impl DiscreteTrajectoryAdjoint {
 /// retains its own accepted residual threshold and optional canonical sparse
 /// action; there is no shared tolerance that can relax a step's acceptance.
 ///
-/// `state_cotangents` contains one objective covector for each accepted next
-/// state, in forward-time order (zero for an unobserved step).
+/// `output_cotangents` contains one objective covector for each selected step
+/// output, in forward-time order (zero for an unobserved step).
 /// `direct_parameter_cotangent`
 /// is the trajectory objective's direct `J_p`. The gradient does not
 /// differentiate through nonlinear iterations, adaptive controllers, or
@@ -102,17 +104,20 @@ impl DiscreteTrajectoryAdjoint {
 /// Returns `EQ0704` for an empty/discontinuous trajectory, incompatible
 /// layouts, invalid checkpoint boundary, unaccepted primal step, or objective
 /// shape/value mismatch; solver diagnostics remain unchanged.
-pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
-    steps: &[AcceptedLinearization<'_, R>],
+pub fn discrete_trajectory_adjoint<
+    R: DiscreteStepLinearization + ?Sized,
+    O: LinearizedOutput<f64> + ?Sized,
+>(
+    steps: &[AcceptedOutputLinearization<'_, R, O>],
     checkpoints: &[DiscreteTrajectoryCheckpoint],
-    state_cotangents: &[&[f64]],
+    output_cotangents: &[&[f64]],
     direct_parameter_cotangent: &[f64],
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
 ) -> Result<DiscreteTrajectoryAdjoint, Diagnostic> {
     let relations = steps
         .iter()
-        .map(AcceptedLinearization::relation)
+        .map(|step| step.relation().relation())
         .collect::<Vec<_>>();
     validate_discrete_trajectory(&relations, checkpoints)?;
     let state_dimension = relations[0].state_coordinates().len();
@@ -120,27 +125,39 @@ pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
         direct_parameter_cotangent,
         relations[0].model_parameter_coordinates().len(),
     )?;
-    if state_cotangents.len() != steps.len() {
+    if output_cotangents.len() != steps.len() {
         return Err(invalid_linearization(
             "trajectory requires one objective covector per accepted step",
         ));
     }
-    for cotangent in state_cotangents {
-        validate_direction(cotangent, state_dimension)?;
+    for (step, cotangent) in steps.iter().zip(output_cotangents) {
+        validate_direction(cotangent, step.output().output_dimension())?;
     }
     let mut state_cotangent = vec![0.; state_dimension];
     let mut parameter_gradient = direct_parameter_cotangent.to_vec();
 
     let mut step_adjoints = Vec::with_capacity(steps.len());
 
-    for (step, objective) in steps.iter().zip(state_cotangents).rev() {
-        for (total, contribution) in state_cotangent.iter_mut().zip(*objective) {
-            *total += contribution;
+    for (step, objective) in steps.iter().zip(output_cotangents).rev() {
+        let relation = step.relation().relation();
+        let mut unknown = vec![0.; relation.unknown_dimension()];
+        let mut parameter = vec![0.; relation.parameter_dimension()];
+        step.output().vjp(objective, &mut unknown, &mut parameter)?;
+        let mut future_unknown = vec![0.; relation.unknown_dimension()];
+        let mut future_parameter = vec![0.; relation.parameter_dimension()];
+        relation.state_output().vjp(
+            &state_cotangent,
+            &mut future_unknown,
+            &mut future_parameter,
+        )?;
+        for (total, future) in unknown
+            .iter_mut()
+            .chain(&mut parameter)
+            .zip(future_unknown.iter().chain(&future_parameter))
+        {
+            *total += future;
         }
-        validate_direction(&state_cotangent, state_dimension)?;
-        let projected =
-            AcceptedOutputLinearization::from_relation(*step, step.relation().state_output())?;
-        let adjoint = adjoint_output_gradient(&projected, &state_cotangent, properties, solver)?;
+        let adjoint = adjoint_gradient(step.relation(), &unknown, &parameter, properties, solver)?;
         let (solve, gradient) = adjoint.into_parts();
         state_cotangent.copy_from_slice(&gradient[..state_dimension]);
         for (total, contribution) in parameter_gradient
@@ -171,7 +188,8 @@ pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
 /// Propagate an initial-state and Model Parameter direction through accepted steps.
 ///
 /// Results are in forward-time order. Each contains the implicit-state solve
-/// and complete next-state tangent, including eliminated-boundary contributions.
+/// and selected output tangent, including direct Parameter contributions.
+/// A separate complete-state projection propagates history from that same solve.
 /// All coordinate, time and checkpoint boundaries and both input directions are
 /// validated before solving. This differentiates the frozen discrete equations,
 /// not iterations, adaptive controllers or checkpoint serialization.
@@ -179,8 +197,11 @@ pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
 /// # Errors
 /// Returns `EQ0704` for incompatible trajectory metadata or non-finite/wrong-size
 /// directions; preserves relation, output and solver diagnostics.
-pub fn discrete_trajectory_sensitivity<R: DiscreteStepLinearization + ?Sized>(
-    steps: &[AcceptedLinearization<'_, R>],
+pub fn discrete_trajectory_sensitivity<
+    R: DiscreteStepLinearization + ?Sized,
+    O: LinearizedOutput<f64> + ?Sized,
+>(
+    steps: &[AcceptedOutputLinearization<'_, R, O>],
     checkpoints: &[DiscreteTrajectoryCheckpoint],
     initial_state_tangent: &[f64],
     parameter_tangent: &[f64],
@@ -189,7 +210,7 @@ pub fn discrete_trajectory_sensitivity<R: DiscreteStepLinearization + ?Sized>(
 ) -> Result<Vec<ForwardOutputSensitivity>, Diagnostic> {
     let relations = steps
         .iter()
-        .map(AcceptedLinearization::relation)
+        .map(|step| step.relation().relation())
         .collect::<Vec<_>>();
     validate_discrete_trajectory(&relations, checkpoints)?;
     let state_dimension = relations[0].state_coordinates().len();
@@ -202,11 +223,15 @@ pub fn discrete_trajectory_sensitivity<R: DiscreteStepLinearization + ?Sized>(
     direction.extend_from_slice(parameter_tangent);
     let mut results = Vec::with_capacity(steps.len());
     for step in steps {
-        let projected =
-            AcceptedOutputLinearization::from_relation(*step, step.relation().state_output())?;
-        let sensitivity = forward_output_sensitivity(&projected, &direction, properties, solver)?;
-        validate_direction(sensitivity.output_tangent(), state_dimension)?;
-        direction[..state_dimension].copy_from_slice(sensitivity.output_tangent());
+        let sensitivity = forward_output_sensitivity(step, &direction, properties, solver)?;
+        let mut next = vec![0.; state_dimension];
+        step.relation().relation().state_output().jvp(
+            sensitivity.state().values(),
+            &direction,
+            &mut next,
+        )?;
+        validate_direction(&next, state_dimension)?;
+        direction[..state_dimension].copy_from_slice(&next);
         results.push(sensitivity);
     }
     Ok(results)

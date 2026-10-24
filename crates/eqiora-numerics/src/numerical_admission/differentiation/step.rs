@@ -35,7 +35,32 @@ pub struct CommonDiscreteStepLinearization<'a> {
     pub(super) history: &'a StepHistory,
 }
 
-impl CommonDiscreteStepLinearization<'_> {
+/// Borrow a step output with independent `[previous State, Model Parameters]` inputs.
+/// Its original direct Parameter action is preserved; previous-state effects
+/// enter through the residual solve, so this projection adds no dense zero block.
+#[derive(Debug, Clone, Copy)]
+pub struct CommonDiscreteStepOutput<'a> {
+    source: &'a dyn LinearizedOutput<f64>,
+    previous_dimension: usize,
+}
+
+impl<'point> CommonDiscreteStepLinearization<'point> {
+    /// Selected complete outputs paired with this same accepted step.
+    #[must_use]
+    pub fn selected_output(&self) -> CommonDiscreteStepOutput<'point> {
+        CommonDiscreteStepOutput {
+            source: self.point,
+            previous_dimension: self.history.previous.len(),
+        }
+    }
+
+    fn full_output(&self) -> CommonDiscreteStepOutput<'point> {
+        CommonDiscreteStepOutput {
+            source: &self.history.output,
+            previous_dimension: self.history.previous.len(),
+        }
+    }
+
     fn split<'a>(&self, values: &'a [f64]) -> Result<(&'a [f64], &'a [f64]), Diagnostic> {
         if values.len() != LinearizedRelation::parameter_dimension(self)
             || values.iter().any(|v| !v.is_finite())
@@ -164,16 +189,16 @@ impl DiscreteStepLinearization for CommonDiscreteStepLinearization<'_> {
 
 impl LinearizedOutput<f64> for CommonDiscreteStepLinearization<'_> {
     fn unknown_dimension(&self) -> usize {
-        self.point.relation.unknown_dimension()
+        self.full_output().unknown_dimension()
     }
     fn parameter_dimension(&self) -> usize {
-        LinearizedRelation::parameter_dimension(self)
+        self.full_output().parameter_dimension()
     }
     fn output_dimension(&self) -> usize {
-        self.history.output.output_dimension()
+        self.full_output().output_dimension()
     }
     fn primal(&self, output: &mut [f64]) -> Result<(), Diagnostic> {
-        self.history.output.primal(output)
+        self.full_output().primal(output)
     }
     fn jvp(
         &self,
@@ -181,8 +206,7 @@ impl LinearizedOutput<f64> for CommonDiscreteStepLinearization<'_> {
         parameter: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        let (_, model) = self.split(parameter)?;
-        self.history.output.jvp(unknown, model, output)
+        self.full_output().jvp(unknown, parameter, output)
     }
     fn vjp(
         &self,
@@ -190,11 +214,50 @@ impl LinearizedOutput<f64> for CommonDiscreteStepLinearization<'_> {
         unknown: &mut [f64],
         parameter: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        if parameter.len() != LinearizedRelation::parameter_dimension(self) {
+        self.full_output().vjp(input, unknown, parameter)
+    }
+}
+
+impl LinearizedOutput<f64> for CommonDiscreteStepOutput<'_> {
+    fn unknown_dimension(&self) -> usize {
+        self.source.unknown_dimension()
+    }
+    fn parameter_dimension(&self) -> usize {
+        self.previous_dimension + self.source.parameter_dimension()
+    }
+    fn output_dimension(&self) -> usize {
+        self.source.output_dimension()
+    }
+    fn primal(&self, output: &mut [f64]) -> Result<(), Diagnostic> {
+        self.source.primal(output)
+    }
+    fn jvp(
+        &self,
+        unknown: &[f64],
+        parameter: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if parameter.len() != self.parameter_dimension()
+            || parameter.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "step output direction requires exact finite coordinates",
+            ));
+        }
+        self.source
+            .jvp(unknown, &parameter[self.previous_dimension..], output)
+    }
+    fn vjp(
+        &self,
+        input: &[f64],
+        unknown: &mut [f64],
+        parameter: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if parameter.len() != self.parameter_dimension() {
             return Err(invalid("step output cotangent layout differs"));
         }
-        let (previous, model) = parameter.split_at_mut(self.history.previous.len());
-        self.history.output.vjp(input, unknown, model)?;
+        let (previous, model) = parameter.split_at_mut(self.previous_dimension);
+        self.source.vjp(input, unknown, model)?;
         previous.fill(0.);
         Ok(())
     }
