@@ -36,155 +36,117 @@ if _torch_series(torch.__version__) != _SUPPORTED_TORCH_SERIES:
     )
 
 
-def _resolve(
-    token: str,
-    input_size: int,
-    output_size: int,
-) -> DifferentiableProgram:
+def _metadata(signatures):
+    return tuple(
+        (leaf.shape, torch.complex128 if leaf.value_type.scalar_domain == "complex"
+         else torch.float64)
+        for leaf in signatures
+    )
+
+
+def _validate(values, metadata, role):
+    if not isinstance(values, (tuple, list)):
+        raise TypeError(f'{role} must be an ordered tuple or list of tensors')
+    if len(values) != len(metadata):
+        raise ValueError(f'{role} must have {len(metadata)} leaves')
+    for value, (shape, dtype) in zip(values, metadata, strict=True):
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(f'{role} leaves must be tensors')
+        if value.device.type != "cpu" or value.device.index not in (None, 0):
+            raise ValueError(f'{role} must reside on CPU device 0')
+        if value.layout != torch.strided:
+            raise TypeError(f'{role} must use strided layout')
+        if value.dtype != dtype:
+            raise TypeError(f'{role} must have dtype {dtype}')
+        if tuple(value.shape) != shape:
+            raise ValueError(f'{role} must have exact shape {shape}')
+        if not value.is_contiguous():
+            raise ValueError(f'{role} must be C-contiguous')
+
+
+def _detached(values):
+    # Native DLPack staging cannot consume lazy conjugate/negative tensor views.
+    return tuple(v.detach().resolve_conj().resolve_neg() for v in values)
+
+
+@torch.library.custom_op("eqiora::differentiable_solve", mutates_args=(), device_types="cpu")
+def _solve(parameters: list[torch.Tensor], token: str) -> list[torch.Tensor]:
     program = _eqiora._differentiable_program(token)
-    if program._coordinate_sizes() != (input_size, output_size):
-        raise RuntimeError("operator metadata does not match Eqiora program identity")
-    return program
-
-
-def _validate_tensor(
-    value: torch.Tensor,
-    size: int,
-    *,
-    role: str,
-) -> None:
-    if value.device.type != "cpu" or value.device.index not in (None, 0):
-        raise ValueError(f"{role} must reside on CPU device 0")
-    if value.layout != torch.strided:
-        raise TypeError(f"{role} must use strided layout")
-    if value.dtype is not torch.float64:
-        raise TypeError(f"{role} must have dtype torch.float64")
-    if value.ndim != 1 or value.shape[0] != size:
-        raise ValueError(f"{role} must have exact shape ({size},)")
-    if not value.is_contiguous():
-        raise ValueError(f"{role} must be C-contiguous")
-
-
-@torch.library.custom_op(
-    "eqiora::differentiable_solve",
-    mutates_args=(),
-    device_types="cpu",
-)
-def _solve(
-    parameters: torch.Tensor,
-    token: str,
-    input_size: int,
-    output_size: int,
-) -> torch.Tensor:
-    _validate_tensor(parameters, input_size, role="parameters")
-    program = _resolve(token, input_size, output_size)
-    evaluation = program.evaluate(tuple(parameters.detach().unbind()))
-    output = torch.tensor(evaluation.primal().output[0], dtype=torch.float64, device="cpu").reshape(-1)
-    _validate_tensor(output, output_size, role="Eqiora output")
-    return output
+    _validate(parameters, _metadata(program.inputs), "parameters")
+    evaluation = program.evaluate(_detached(parameters))
+    return [torch.tensor(v, device="cpu") for v in evaluation.primal().output]
 
 
 @_solve.register_fake
-def _solve_fake(
-    parameters: torch.Tensor,
-    token: str,
-    input_size: int,
-    output_size: int,
-) -> torch.Tensor:
-    del token
-    _validate_tensor(parameters, input_size, role="parameters")
-    return parameters.new_empty((output_size,))
+def _solve_fake(parameters, token):
+    # Registry entries are immutable and retained for the process lifetime. Read
+    # only their signatures here: no tensor data or numerical evaluation occurs.
+    program = _eqiora._differentiable_program(token)
+    _validate(parameters, _metadata(program.inputs), "parameters")
+    return [
+        torch.empty(shape, dtype=dtype, device="cpu")
+        for shape, dtype in _metadata(program.outputs)
+    ]
 
 
-@torch.library.custom_op(
-    "eqiora::_differentiable_solve_vjp",
-    mutates_args=(),
-    device_types="cpu",
-)
-def _vjp(
-    parameters: torch.Tensor,
-    cotangent: torch.Tensor,
-    token: str,
-    input_size: int,
-    output_size: int,
-) -> torch.Tensor:
-    _validate_tensor(parameters, input_size, role="parameters")
-    _validate_tensor(cotangent, output_size, role="cotangent")
-    program = _resolve(token, input_size, output_size)
-    evaluation = program.evaluate(tuple(parameters.detach().unbind()))
-    output_cotangent = cotangent.detach().reshape(program.outputs[0].shape)
-    leaves = evaluation.vjp((output_cotangent,)).input_cotangent
-    input_cotangent = torch.tensor([leaf.item() for leaf in leaves], dtype=torch.float64, device="cpu")
-    _validate_tensor(
-        input_cotangent,
-        input_size,
-        role="Eqiora input cotangent",
-    )
-    return input_cotangent
+@torch.library.custom_op("eqiora::_differentiable_solve_vjp", mutates_args=(), device_types="cpu")
+def _vjp(parameters: list[torch.Tensor], cotangents: list[torch.Tensor], token: str) -> list[torch.Tensor]:
+    program = _eqiora._differentiable_program(token)
+    _validate(parameters, _metadata(program.inputs), "parameters")
+    _validate(cotangents, _metadata(program.outputs), "cotangents")
+    evaluation = program.evaluate(_detached(parameters))
+    return [
+        torch.tensor(value, device="cpu")
+        for value in evaluation.vjp(_detached(cotangents)).input_cotangent
+    ]
 
 
 @_vjp.register_fake
-def _vjp_fake(
-    parameters: torch.Tensor,
-    cotangent: torch.Tensor,
-    token: str,
-    input_size: int,
-    output_size: int,
-) -> torch.Tensor:
-    del token
-    _validate_tensor(parameters, input_size, role="parameters")
-    _validate_tensor(cotangent, output_size, role="cotangent")
-    return parameters.new_empty((input_size,))
+def _vjp_fake(parameters, cotangents, token):
+    program = _eqiora._differentiable_program(token)
+    _validate(parameters, _metadata(program.inputs), "parameters")
+    _validate(cotangents, _metadata(program.outputs), "cotangents")
+    return [torch.empty_like(v) for v in parameters]
 
 
-def _setup_solve_context(ctx, inputs, output) -> None:
+def _setup(ctx, inputs, output):
     del output
-    parameters, token, input_size, output_size = inputs
-    ctx.save_for_backward(parameters)
+    parameters, token = inputs
+    ctx.save_for_backward(*parameters)
     ctx.token = token
-    ctx.input_size = input_size
-    ctx.output_size = output_size
 
 
-def _solve_backward(ctx, cotangent: torch.Tensor):
-    (parameters,) = ctx.saved_tensors
-    input_cotangent = _vjp(
-        parameters,
-        cotangent.contiguous(),
-        ctx.token,
-        ctx.input_size,
-        ctx.output_size,
-    )
-    return input_cotangent, None, None, None
+def _backward(ctx, cotangents):
+    return _vjp(list(ctx.saved_tensors), [v.contiguous() for v in cotangents], ctx.token), None
 
-
-_solve.register_autograd(_solve_backward, setup_context=_setup_solve_context)
+_solve.register_autograd(_backward, setup_context=_setup)
 
 
 class TorchProgram:
-    """Functional PyTorch view of one Eqiora program, valid in this process."""
+    """Process-local PyTorch view of ordered real/complex native value leaves.
 
-    __slots__ = (
-        "_input_size",
-        "_output_size",
-        "_output_shape",
-        "_program",
-        "_token",
-    )
+    Native signatures own each leaf's shape and scalar domain. CPU float64 and
+    complex128 values support first-order autograd and fullgraph compilation.
+    """
+
+    __slots__ = ("_program", "_token", "_input_metadata")
 
     def __init__(self, program: DifferentiableProgram) -> None:
         if not isinstance(program, DifferentiableProgram):
             raise TypeError("program must be an eqiora.DifferentiableProgram")
         if program.dtype != "float64" or program.device != "cpu:0":
             raise ValueError("this PyTorch adapter supports CPU:0 float64 programs")
-        if (len(program.outputs) != 1
-                or program.outputs[0].value_type.scalar_domain != "real"
-                or any(leaf.shape or leaf.value_type.scalar_domain != "real" for leaf in program.inputs)):
-            raise NotImplementedError("this PyTorch adapter requires real scalar inputs and one real output")
-        self._output_shape = program.outputs[0].shape
         self._program = program
-        self._input_size, self._output_size = program._coordinate_sizes()
         self._token = program._register()
+        self._input_metadata = _metadata(program.inputs)
+
+    def __setattr__(self, name, value):
+        if hasattr(self, name):
+            raise AttributeError("Eqiora PyTorch program configuration is immutable")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name):
+        raise AttributeError("Eqiora PyTorch program configuration is immutable")
 
     @property
     def program(self) -> DifferentiableProgram:
@@ -192,24 +154,18 @@ class TorchProgram:
         return self._program
 
     @property
-    def input_shape(self) -> tuple[int]:
-        return (self._input_size,)
+    def inputs(self):
+        return self._program.inputs
 
     @property
-    def output_shape(self) -> tuple[int, ...]:
-        return self._output_shape
+    def outputs(self):
+        return self._program.outputs
 
-    def __call__(self, parameters: torch.Tensor) -> torch.Tensor:
-        # The public wrapper rejects unsupported dispatch keys before PyTorch
-        # attempts to select a custom-op kernel. The kernel repeats the check
-        # defensively for direct operator calls.
-        _validate_tensor(parameters, self._input_size, role="parameters")
-        return _solve(
-            parameters,
-            self._token,
-            self._input_size,
-            self._output_size,
-        ).reshape(self._output_shape)
+    def __call__(self, parameters):
+        # Reject unsupported dispatch keys before custom-op dispatch. Kernels
+        # independently validate against the same immutable native signature.
+        _validate(parameters, self._input_metadata, "parameters")
+        return tuple(_solve(list(parameters), self._token))
 
 
 def bind(program: DifferentiableProgram) -> TorchProgram:

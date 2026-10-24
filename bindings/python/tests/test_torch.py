@@ -14,6 +14,15 @@ import eqiora.torch as eqtorch
 from test_differentiation import branch_programs
 
 
+@pytest.fixture(autouse=True)
+def isolated_compiler_cache():
+    # Each test owns different immutable native programs. Do not let unrelated
+    # cases exhaust Dynamo's per-code-object specialization cache.
+    torch.compiler.reset()
+    yield
+    torch.compiler.reset()
+
+
 POISSON = """
 public component PytorchDifferentiatedPoisson(
   support square: volume(ambient_dimension = 2),
@@ -138,11 +147,11 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
     cotangent = torch.linspace(
         0.25,
         1.25,
-        operator.output_shape[0],
+        operator.outputs[0].shape[0],
         dtype=torch.float64,
     )
 
-    output = operator(parameters)
+    output = operator(tuple(parameters.unbind()))[0]
     native = program.evaluate(tuple(parameters.detach().unbind()))
     np.testing.assert_allclose(
         output.detach().numpy(),
@@ -152,7 +161,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
     )
     assert output.dtype is torch.float64
     assert output.device == torch.device("cpu")
-    assert output.shape == operator.output_shape
+    assert output.shape == operator.outputs[0].shape
     assert output.data_ptr() != parameters.data_ptr()
 
     output.backward(cotangent)
@@ -165,7 +174,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
 
     with torch.no_grad():
         output[0] = -123.0
-    assert operator(parameters.detach())[0].item() != -123.0
+    assert operator(tuple(parameters.detach().unbind()))[0][0].item() != -123.0
 
 
 def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
@@ -178,7 +187,7 @@ def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
         requires_grad=True,
     )
 
-    output = operator(parameters)
+    output = operator(tuple(parameters.unbind()))[0]
     output.sum().backward(retain_graph=True)
     first = parameters.grad.detach().clone()
     parameters.grad = None
@@ -186,12 +195,12 @@ def test_autograd_is_repeatable_and_zero_cotangent_is_exact() -> None:
     torch.testing.assert_close(parameters.grad, first, rtol=0.0, atol=0.0)
 
     zero = torch.autograd.grad(
-        operator(parameters),
+        operator(tuple(parameters.unbind()))[0],
         parameters,
-        grad_outputs=torch.zeros(operator.output_shape, dtype=torch.float64),
+        grad_outputs=torch.zeros(operator.outputs[0].shape, dtype=torch.float64),
     )[0]
     torch.testing.assert_close(zero, torch.zeros_like(parameters), rtol=0.0, atol=0.0)
-    assert not operator(parameters.detach()).requires_grad
+    assert not operator(tuple(parameters.detach().unbind()))[0].requires_grad
 
 
 def test_double_backward_is_an_explicit_nonclaim() -> None:
@@ -204,7 +213,7 @@ def test_double_backward_is_an_explicit_nonclaim() -> None:
         requires_grad=True,
     )
     first = torch.autograd.grad(
-        operator(parameters).sum(),
+        operator(tuple(parameters.unbind()))[0].sum(),
         parameters,
         create_graph=True,
     )[0]
@@ -230,14 +239,12 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
     torch.library.opcheck(
         eqtorch._solve,
         (
-            parameters,
+            list(parameters.unbind()),
             operator._token,
-            operator.input_shape[0],
-            operator.output_shape[0],
         ),
     )
     assert torch.autograd.gradcheck(
-        operator,
+        lambda values: operator(tuple(values.unbind())),
         (parameters,),
         eps=1.0e-6,
         atol=2.0e-6,
@@ -245,7 +252,7 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
     )
 
     def objective(values):
-        return operator(values).square().sum()
+        return operator(tuple(values.unbind()))[0].square().sum()
 
     eager_value = objective(parameters)
     eager = torch.autograd.grad(eager_value, parameters)[0]
@@ -265,26 +272,17 @@ def test_registration_passes_opcheck_gradcheck_and_fullgraph_compile(method) -> 
 @pytest.mark.parametrize(
     ("parameters", "error"),
     [
-        (torch.ones(3, dtype=torch.float32), TypeError),
-        (torch.ones((1, 3), dtype=torch.float64), ValueError),
-        (torch.arange(6, dtype=torch.float64)[::2], ValueError),
-        (
-            torch.sparse_coo_tensor(
-                torch.tensor([[0, 2]]),
-                torch.ones(2, dtype=torch.float64),
-                (3,),
-                check_invariants=False,
-            ),
-            TypeError,
-        ),
-        (torch.ones(2, dtype=torch.float64), ValueError),
-        (torch.tensor([17.0, float("nan"), 0.1], dtype=torch.float64), BufferError),
+        (torch.ones(3, dtype=torch.float64), TypeError),
+        ((torch.tensor(17., dtype=torch.float32),) * 3, TypeError),
+        ((torch.ones(1, dtype=torch.float64),) * 3, ValueError),
+        ((torch.tensor(17., dtype=torch.float64),) * 2, ValueError),
+        ((torch.tensor(v, dtype=torch.float64) for v in (17., 1.2, .1)), TypeError),
+        ((torch.tensor(17., dtype=torch.float64), torch.tensor(float("nan"), dtype=torch.float64),
+          torch.tensor(.1, dtype=torch.float64)), BufferError),
     ],
 )
 def test_inputs_fail_closed_before_or_at_native_admission(parameters, error) -> None:
-    operator = eqtorch.bind(
-        differentiable_program(eqiora.fem.Q1())
-    )
+    operator = eqtorch.bind(differentiable_program(eqiora.fem.Q1()))
     with pytest.raises(error):
         operator(parameters)
 
@@ -300,7 +298,7 @@ def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
         dtype=torch.float64,
         requires_grad=True,
     )
-    output = eqtorch.bind(program)(parameters)
+    output = eqtorch.bind(program)(tuple(parameters.unbind()))[0]
     output.sum().backward()
     assert parameters.grad is not None
 
@@ -308,13 +306,13 @@ def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
 def test_unknown_or_mismatched_tokens_fail_closed() -> None:
     parameters = torch.tensor([17.0, 1.2, 0.1], dtype=torch.float64)
     with pytest.raises(RuntimeError, match="not registered"):
-        eqtorch._solve(parameters, "not-a-token", 3, 25)
+        eqtorch._solve(list(parameters.unbind()), "not-a-token")
 
     operator = eqtorch.bind(
         differentiable_program(eqiora.fem.Q1())
     )
-    with pytest.raises(RuntimeError, match="metadata"):
-        eqtorch._solve(parameters, operator._token, 3, operator.output_shape[0] + 1)
+    with pytest.raises(ValueError, match="leaves"):
+        eqtorch._solve(list(parameters[:2].unbind()), operator._token)
 
 
 def test_supported_torch_series_is_exact() -> None:
@@ -332,8 +330,8 @@ def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
         for operation in (operator, torch.compile(operator, backend="eager", fullgraph=True)):
             for p in (4., 9.):
                 point = torch.tensor([p], dtype=torch.float64, requires_grad=True)
-                value = operation(point)
-                assert tuple(value.shape) == operator.output_shape == operator.program.outputs[0].shape
+                value, = operation(tuple(point.unbind()))
+                assert tuple(value.shape) == operator.outputs[0].shape == operator.program.outputs[0].shape
                 # w=sign*sqrt(p); O=w+p and dO/dp=1+sign/(2*sqrt(p)).
                 np.testing.assert_allclose(value.detach().numpy(), p+sign*np.sqrt(p), rtol=0, atol=1e-12)
                 value.sum().backward()
@@ -342,37 +340,104 @@ def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
 
 @pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("advanced", [False, True])
-def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear, advanced):
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear, advanced, complex_field):
     from test_spatial_step_program import held_step_program
 
-    program, state = held_step_program(nonlinear, False, advanced)
+    program, state = held_step_program(nonlinear, complex_field, advanced)
     before = state.to_bytes()
     solve = eqtorch.bind(program)
-    assert solve.output_shape == (1, 3)
+    assert solve.outputs[0].shape == (1, 3)
+    phase = 1+2j if complex_field else 1.
     previous = float(advanced)
     # v-v_previous+v^3=p or 2*v-v_previous=p, with v_previous held fixed.
     value, derivative = (10.-previous, 1/13) if nonlinear else (4.-previous, .5)
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([value], dtype=torch.float64, requires_grad=True)
-        output = operation(point)
-        np.testing.assert_allclose(output.detach().numpy(), [[2.]*3], rtol=0, atol=1e-10)
-        gradient, = torch.autograd.grad(output.sum(), point)
+        output, = operation(tuple(point.unbind()))
+        np.testing.assert_allclose(output.detach().numpy(), [[2*phase]*3], rtol=0, atol=1e-10)
+        gradient, = torch.autograd.grad(output.real.sum(), point)
         np.testing.assert_allclose(gradient.detach().numpy(), [3*derivative],
                                    rtol=0, atol=1e-10)
     assert state.to_bytes() == before
 
 
-def test_spatial_trajectory_composes_with_backward_and_compile():
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_spatial_trajectory_composes_with_backward_and_compile(complex_field):
     from test_spatial_step_program import step_plan
 
-    plan, parameter = step_plan(False, False)
+    plan, parameter = step_plan(False, complex_field)
     program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
         state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
     solve = eqtorch.bind(program)
-    assert solve.output_shape == (2, 3)
+    assert solve.outputs[0].shape == (2, 3)
+    phase = 1+2j if complex_field else 1.
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([4.], dtype=torch.float64, requires_grad=True)
-        output = operation(point)
-        np.testing.assert_allclose(output.detach().numpy(), [[2.]*3, [3.5]*3], rtol=0, atol=1e-10)
-        gradient, = torch.autograd.grad(output.sum(), point)
+        output, = operation(tuple(point.unbind()))
+        np.testing.assert_allclose(output.detach().numpy(), np.array([[2.]*3, [3.5]*3])*phase, rtol=0, atol=1e-10)
+        gradient, = torch.autograd.grad(output.real.sum(), point)
         np.testing.assert_allclose(gradient.detach().numpy(), [4.125], rtol=0, atol=1e-10)
+
+
+def test_structured_complex_leaves_preserve_shapes_and_real_pairing():
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    assert solve.inputs == program.inputs
+    assert solve.outputs == program.outputs
+    assert not hasattr(solve, "input_shape")
+    assert not hasattr(solve, "output_shape")
+    point = (torch.tensor(2., dtype=torch.float64, requires_grad=True),
+             torch.tensor([1+2j, 3-4j], dtype=torch.complex128, requires_grad=True))
+    torch.library.opcheck(eqtorch._solve, (list(point), solve._token))
+    assert torch.autograd.gradcheck(lambda p, c: solve((p, c)), point)
+    for operation in (solve, torch.compile(solve, fullgraph=True)):
+        output = operation(point)
+        assert tuple(value.shape for value in output) == ((2,), (), ())
+        assert tuple(value.dtype for value in output) == (torch.complex128, torch.float64, torch.float64)
+        # z = p*c + conj(c), loss = sum|z|^2 + p, margin = p-1.
+        torch.testing.assert_close(output[0], torch.tensor([3+2j, 9-4j], dtype=torch.complex128))
+        torch.testing.assert_close(output[1], torch.tensor(112., dtype=torch.float64))
+        torch.testing.assert_close(output[2], torch.tensor(1., dtype=torch.float64))
+        gradient = torch.autograd.grad(output[1], point, retain_graph=True)
+        torch.testing.assert_close(gradient[0], torch.tensor(101., dtype=torch.float64))
+        torch.testing.assert_close(gradient[1], torch.tensor([18+4j, 54-8j], dtype=torch.complex128))
+        # Native and Torch use Re(conj(cotangent)*dy), including non-holomorphic z.
+        # dz = c*dp + p*dc + conj(dc); weight z by 2+3i, loss by 1/2, margin by -2.
+        cotangent = (torch.full((2,), 2+3j, dtype=torch.complex128),
+                     torch.tensor(.5, dtype=torch.float64), torch.tensor(-2., dtype=torch.float64))
+        gradient = torch.autograd.grad(output, point, grad_outputs=cotangent)
+        torch.testing.assert_close(gradient[0], torch.tensor(50.5, dtype=torch.float64))
+        torch.testing.assert_close(gradient[1], torch.tensor([15+5j, 33-1j], dtype=torch.complex128))
+    # Lazy conjugate views are resolved without mutating the underlying tensor.
+    before = point[1].detach().clone()
+    output = solve((point[0], point[1].conj()))
+    torch.testing.assert_close(output[0], torch.tensor([3-2j, 9+4j], dtype=torch.complex128))
+    torch.testing.assert_close(point[1], before)
+    gradient, = torch.autograd.grad(output[1], (point[1],))
+    torch.testing.assert_close(gradient, torch.tensor([18+4j, 54-8j], dtype=torch.complex128))
+    for name in ("_program", "_token", "_input_metadata"):
+        with pytest.raises(AttributeError, match="immutable"):
+            setattr(solve, name, None)
+        with pytest.raises(AttributeError, match="immutable"):
+            delattr(solve, name)
+
+
+def test_structured_tensor_metadata_is_admitted_per_leaf():
+    from test_complex_differentiation import structured_map_program
+
+    _, program = structured_map_program()
+    solve = eqtorch.bind(program)
+    p = torch.tensor(2., dtype=torch.float64)
+    for value, error in (
+        (torch.ones(2, dtype=torch.float64), TypeError),
+        (torch.ones((1, 2), dtype=torch.complex128), ValueError),
+        (torch.ones(4, dtype=torch.complex128)[::2], ValueError),
+        (torch.ones(2, dtype=torch.complex128, device="meta"), ValueError),
+        (torch.sparse_coo_tensor(torch.tensor([[0, 1]]),
+                                torch.ones(2, dtype=torch.complex128), (2,), check_invariants=True), TypeError),
+    ):
+        with pytest.raises(error):
+            solve((p, value))

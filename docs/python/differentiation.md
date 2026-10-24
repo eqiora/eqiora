@@ -360,16 +360,12 @@ import torch
 import eqiora.torch as eqtorch
 
 torch_program = eqtorch.bind(program)
-theta = torch.tensor(
-    [1.5],
-    dtype=torch.float64,
-    requires_grad=True,
-)
-state = torch_program(theta)
+theta = (torch.tensor(1.5, dtype=torch.float64, requires_grad=True),)
+state, = torch_program(theta)
 state.square().sum().backward()
 
 compiled_objective = torch.compile(
-    lambda point: torch_program(point).square().sum(),
+    lambda point: torch_program(point)[0].square().sum(),
     fullgraph=True,
 )
 ```
@@ -377,11 +373,14 @@ compiled_objective = torch.compile(
 The adapter requires PyTorch `>=2.14,<2.15`. Backpropagation uses the VJP of
 the solved equations.
 
-Inputs must be rank-one, contiguous `float64` tensors on CPU:0. The adapter never
-modifies its input and returns a new tensor rather than a view of stored results.
-The output preserves the native output leaf shape: a scalar stays scalar, and a
-sampled Field retains its leading time axis and coefficient/value axes.
-`torch_program.output_shape` reports that same shape.
+Inputs are an ordered tuple or list of contiguous CPU:0 tensors, one per
+`torch_program.inputs` signature. Each tensor has that leaf's exact native shape
+and `float64` (real) or `complex128` (complex) dtype. Outputs are an ordered tuple
+matching `torch_program.outputs`; a scalar stays scalar, and a sampled Field
+retains its leading time axis and coefficient/value axes. Multiple output leaves
+and real/complex mixtures use the same native Program and VJP. Complex gradients
+use PyTorch's real pairing, $\operatorname{Re}(\overline{c}\,dy)$.
+The adapter does not modify inputs and returns fresh tensors.
 Programs are kept alive for the rest of the process, because autograd and compiled
 graphs can outlive the wrapper; evaluations and derivatives are not cached.
 PyTorch and JAX share the native registration owner. The exact initial State is
