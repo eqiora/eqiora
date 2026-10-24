@@ -17,6 +17,10 @@ pub(super) struct PointwiseData<S: Coefficient> {
 }
 
 impl<S: Coefficient> PointwiseData<S> {
+    pub(super) fn inputs_bound(&self) -> bool {
+        self.inputs.iter().flatten().all(Input::inputs_bound)
+    }
+
     pub(super) fn lower(
         context: &Context<'_, S>,
         id: ExprId,

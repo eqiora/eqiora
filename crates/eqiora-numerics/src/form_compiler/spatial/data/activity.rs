@@ -2,6 +2,21 @@
 use super::*;
 
 impl<S: Coefficient> Data<S> {
+    /// Availability is distinct from derivative activity. Even a zero tangent
+    /// keeps the primal input domains demanded by ordinary evaluation.
+    pub(in crate::form_compiler) fn inputs_bound(&self) -> bool {
+        match self.0.as_ref() {
+            Node::Constant { .. } => true,
+            Node::Input { input, .. } => input.inputs_bound(),
+            Node::Pointwise(data) => data.inputs_bound(),
+            Node::Affine(data) => data.inputs_bound(),
+            Node::Chart(data, _) | Node::Part { data, .. } => data.inputs_bound(),
+            Node::Derivative(a, b) | Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => {
+                a.inputs_bound() && b.inputs_bound()
+            }
+        }
+    }
+
     pub(in crate::form_compiler) fn constant_in_direction(
         &self,
         direction: Direction<'_>,
@@ -27,6 +42,14 @@ impl<S: Coefficient> Data<S> {
 }
 
 impl<S: Coefficient> Input<S> {
+    pub(super) fn inputs_bound(&self) -> bool {
+        match self {
+            Self::Scalar { data, .. } => data.inputs_bound(),
+            Self::BoundScalar { value } => value.is_some(),
+            Self::Coordinate { .. } => true,
+        }
+    }
+
     pub(super) fn constant_in_direction(
         &self,
         coordinate: &ScalarSymbolCoordinate,

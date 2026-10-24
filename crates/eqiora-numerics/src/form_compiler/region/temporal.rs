@@ -1,4 +1,4 @@
-//! Source rate coordinates and sufficient constant-capacity certificates.
+//! Source rate coordinates and sufficient snapshot capacity certificates.
 use super::*;
 use eqiora_core::TimeStateCoordinate;
 use std::collections::HashSet;
@@ -77,14 +77,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 });
             }
             if let Some(capacity) = capacity {
-                // A spatially uniform coefficient may still depend on Time.
-                // This certificate is sufficient for constant capacity, so it
-                // must not evaluate an unbound clock or certify one time sample.
-                if capacity.spatial()
-                    || !capacity.constant_in_direction(&|input| {
-                        f64::from(input.symbol() == eqiora_schema::kernel::SymbolRef::Time)
-                    })?
-                {
+                // This is a spatially constant snapshot certificate, not a
+                // proof of invariance in Time. Defer it while inputs are unbound;
+                // once bound, retain ordinary evaluation and domain rejection.
+                if capacity.spatial() || !capacity.inputs_bound() {
                     structure.positive_own_capacity = false;
                 } else {
                     let images = capacity.coordinate_images(self.dimension)?;

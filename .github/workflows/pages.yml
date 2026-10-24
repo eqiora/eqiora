@@ -217,7 +217,14 @@ jobs:
           done
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            libclang-dev libffi-dev libopenmpi-dev openmpi-bin
+            cmake libclang-dev libffi-dev libopenmpi-dev openmpi-bin
+
+          native_prefix="${HOME:?}/.cache/eqiora/sundials-7.8.0"
+          python3 tools/ci/install_sundials.py --prefix "$native_prefix"
+          {
+            printf 'SUNDIALS_INCLUDE_DIR=%s/include\n' "$native_prefix"
+            printf 'SUNDIALS_LIBRARY_DIR=%s/lib\n' "$native_prefix"
+          } >> "$GITHUB_ENV"
 
           npm ci --engine-strict --prefix docs/site
           node <<'NODE'
@@ -295,7 +302,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
-          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_CARGO_TARGET,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,LC_ALL,TZ \
+          sudo --preserve-env=SUNDIALS_INCLUDE_DIR,SUNDIALS_LIBRARY_DIR,ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_CARGO_TARGET,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,LC_ALL,TZ \
             unshare --net -- bash -ceu '
               ip link set lo up
               exec setpriv \
@@ -312,6 +319,7 @@ jobs:
                   ASTRO_TELEMETRY_DISABLED="$ASTRO_TELEMETRY_DISABLED" \
                   npm_config_offline=true \
                   CARGO_NET_OFFLINE=true \
+                  LD_LIBRARY_PATH="$SUNDIALS_LIBRARY_DIR" \
                   PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
                   EQIORA_API_SCRATCH="$EQIORA_API_SCRATCH" \
                   EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \
