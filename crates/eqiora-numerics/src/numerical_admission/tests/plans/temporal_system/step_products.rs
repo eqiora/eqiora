@@ -2,7 +2,7 @@
 use super::*;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
 use eqiora_schema::kernel::KernelNode;
-use eqiora_solver::LinearOperatorOrientation;
+use eqiora_solver::{LinearOperator, LinearOperatorOrientation};
 
 #[test]
 fn accepted_step_parameter_products_hold_physical_history_fixed() {
@@ -103,6 +103,12 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     .unwrap();
                     let linearization = plan.linearize_step(step, &[parameter], &[field]).unwrap();
                     let output = output_tangent(plan, &linearization);
+                    // Each normalized predecessor component has gain 1/2 at p=1,
+                    // independently of forcing and the accepted loading history.
+                    close(
+                        &previous_tangent(plan, &linearization),
+                        &vec![0.5; linearization.output_dimension()],
+                    );
                     let nodes = if spatial == CommonSpatialPolicy::Q1 {
                         3
                     } else {
@@ -147,6 +153,15 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         )
                         .unwrap();
                     assert_eq!(&restored, evaluated.linearization());
+                    // Changing the storage Parameter changes the history gain to
+                    // p/(p+1)=3/4. A forcing Parameter leaves that gain at 1/2.
+                    close(
+                        &previous_tangent(plan, evaluated.linearization()),
+                        &vec![
+                            if storage_parameter { 0.75 } else { 0.5 };
+                            evaluated.linearization().output_dimension()
+                        ],
+                    );
                     let mut altered = restored.relation().accepted_unknowns().to_vec();
                     altered[0] += 0.125;
                     let error = plan
@@ -218,5 +233,29 @@ fn output_tangent(
         .unwrap();
     let mut output = vec![0.; point.output_dimension()];
     point.jvp(tangent.values(), &[1.], &mut output).unwrap();
+    output
+}
+
+fn previous_tangent(
+    plan: &CommonSpatialPlan,
+    point: &crate::CommonDifferentiationLinearization,
+) -> Vec<f64> {
+    let relation = point.relation();
+    let previous = point
+        .previous_state_jacobian()
+        .expect("step history action");
+    let mut rhs = vec![0.; relation.residual_dimension()];
+    previous
+        .apply(&vec![-1.; relation.unknown_dimension()], &mut rhs)
+        .unwrap();
+    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+        .solve_canonical_oriented(
+            relation.state_jacobian(),
+            &rhs,
+            LinearOperatorOrientation::Normal,
+        )
+        .unwrap();
+    let mut output = vec![0.; point.output_dimension()];
+    point.jvp(tangent.values(), &[0.], &mut output).unwrap();
     output
 }

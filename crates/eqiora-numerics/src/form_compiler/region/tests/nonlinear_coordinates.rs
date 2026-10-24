@@ -108,6 +108,19 @@ fn mixed_nonlinear_cells_preserve_physical_scales_and_parameter_products() {
                 [p * b, 1.5 + p * a - v, -b],
                 [2. * a, 2. * b, 1.5],
             ];
+            // The physical predecessor enters only through (u-u_old)/2.
+            // Its normalized-coordinate Jacobian is -area*scale/2 on each diagonal,
+            // even though the current-state law is nonlinear and nonholomorphic.
+            let history = cell.linearize_previous(&previous, &point).unwrap();
+            assert_eq!(history.residual, cell.residual(&previous, &point).unwrap());
+            for (row, _) in coordinates.iter().enumerate() {
+                for (column, &c) in coordinates.iter().enumerate() {
+                    close(
+                        history.jacobian[row * 3 + column],
+                        if row == column { -3. * scales[c] } else { 0. },
+                    );
+                }
+            }
             // Holding physical Fields fixed gives dF/dp=(a²,ab,0).
             let expected_partial = [a * a, a * b, 0.];
             let mixed = [[2. * a, 0., 0.], [b, a, 0.], [0., 0., 0.]];

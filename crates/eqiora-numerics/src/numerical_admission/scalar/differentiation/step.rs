@@ -184,6 +184,7 @@ where
             values,
             step.residual.expect("reaccepted step").1,
             None,
+            None,
         )
     }
 
@@ -194,6 +195,7 @@ where
         values: Vec<f64>,
         target: f64,
         initial: Option<crate::nonlinear_execution::NewtonInitialPoint>,
+        assembly: Option<crate::region_assembly::nonlinear::RegionAssemblyLinearization>,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let coordinates = RegionRealCoordinates::new(mapping)?;
         let prepared = match self.plan.admission.resources() {
@@ -210,12 +212,22 @@ where
                 ));
             }
         };
-        let assembly = prepared.work.linearize(
+        let assembly = match assembly {
+            Some(assembly) => assembly,
+            None => prepared.work.linearize(
+                &prepared.plan,
+                prepared.plan.target_id(0).expect("reduced target"),
+                RegionPoint::Bound(&values),
+                &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
+            )?,
+        };
+        let previous = prepared.work.linearize(
             &prepared.plan,
             prepared.plan.target_id(0).expect("reduced target"),
-            RegionPoint::Bound(&values),
+            RegionPoint::Previous(&values),
             &eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND,
         )?;
-        self.assembled_linearization(mapping, input, values, assembly, target, initial)
+        self.assembled_linearization(mapping, input, values, assembly, target, initial)?
+            .with_previous_state_jacobian(previous.systems[0].matrix().clone())
     }
 }

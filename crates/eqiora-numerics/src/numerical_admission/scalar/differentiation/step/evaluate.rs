@@ -68,13 +68,13 @@ where
                     == RegionRealCoordinates::new(&mapping)?
                         .encode(&mapping.physical_predictor(seed)?)?,
             };
-            let linearization = self.assembled_linearization(
+            let linearization = self.linearize_step_values(
                 &mapping,
                 &input,
                 solved.values,
-                solved.assembly,
                 solved.evidence.residual_target()?,
                 Some(initial),
+                Some(solved.assembly),
             )?;
             (
                 linearization,
@@ -93,6 +93,7 @@ where
                 &input,
                 values,
                 solved.solve_report.residual_target(),
+                None,
                 None,
             )?;
             (linearization, Primal::Affine(solved.solve_report))

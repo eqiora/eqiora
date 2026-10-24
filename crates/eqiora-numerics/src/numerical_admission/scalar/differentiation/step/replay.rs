@@ -59,6 +59,6 @@ where
                 })
             })
             .transpose()?;
-        self.linearize_step_values(&mapping, &input, candidate.to_vec(), target, initial)
+        self.linearize_step_values(&mapping, &input, candidate.to_vec(), target, initial, None)
     }
 }

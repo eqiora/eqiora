@@ -102,6 +102,7 @@ impl CommonDifferentiationPoint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonDifferentiationLinearization {
     relation: AssembledLinearizedRelation,
+    previous_state_jacobian: Option<eqiora_assembly::CsrMatrix<f64>>,
     state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
     residual_target: f64,
@@ -128,6 +129,7 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
+            previous_state_jacobian: None,
             state_scalar_domain,
             output,
             residual_target,
@@ -144,11 +146,36 @@ impl CommonDifferentiationLinearization {
     ) -> Self {
         Self {
             relation,
+            previous_state_jacobian: None,
             state_scalar_domain,
             output: Output::Dense(output),
             residual_target,
             initial,
         }
+    }
+
+    /// Sparse residual derivative in the preceding State's free coordinates.
+    /// Present for a fixed-history spatial step. This is a partial action, not
+    /// a derivative through earlier accepted steps; Model Parameter products
+    /// continue to hold that physical predecessor fixed.
+    #[must_use]
+    pub const fn previous_state_jacobian(&self) -> Option<&eqiora_assembly::CsrMatrix<f64>> {
+        self.previous_state_jacobian.as_ref()
+    }
+
+    pub(super) fn with_previous_state_jacobian(
+        mut self,
+        jacobian: eqiora_assembly::CsrMatrix<f64>,
+    ) -> Result<Self, Diagnostic> {
+        if jacobian.rows() != self.relation.residual_dimension()
+            || jacobian.columns() != self.relation.unknown_dimension()
+        {
+            return Err(invalid(
+                "previous-state Jacobian differs from the accepted coordinate layout",
+            ));
+        }
+        self.previous_state_jacobian = Some(jacobian);
+        Ok(self)
     }
 
     /// Original accepted residual and the paired `R_w` and `R_p` actions.
