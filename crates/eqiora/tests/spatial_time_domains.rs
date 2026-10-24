@@ -576,3 +576,6 @@ fn prescribed_branch_failure_keeps_the_accepted_spatial_state() {
 
 #[path = "spatial_time_domains/material.rs"]
 mod material;
+
+#[path = "spatial_time_domains/step_products.rs"]
+mod step_products;

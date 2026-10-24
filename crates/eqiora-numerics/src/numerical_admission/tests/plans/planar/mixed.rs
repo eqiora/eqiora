@@ -4,6 +4,7 @@ use super::*;
 mod history;
 mod nonlinear;
 mod observations;
+mod step_products;
 mod time_data;
 
 const FLOW: &str = r#"

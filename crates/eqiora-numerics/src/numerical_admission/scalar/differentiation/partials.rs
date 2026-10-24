@@ -41,23 +41,38 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         coordinate: &ScalarSymbolCoordinate,
         values: &[f64],
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        let NativeMeshResources::Cartesian { mesh, .. } = self.plan.admission.resources() else {
-            return Err(invalid(
-                "spatial Parameter partials require Cartesian resources",
-            ));
-        };
-        let partial = self.partial_equations(coordinate)?;
-        let forms = input
-            .forms
-            .iter()
-            .map(|(form, _)| form.input_partial(coordinate))
-            .collect::<Result<Vec<_>, _>>()?;
-        let (partial_mapping, mut differentiated) = partial.cartesian_assembly_bound(
-            mesh.mesh(),
-            &self.plan.admission.discretizations,
-            forms,
-            |_, _, value| Ok(Some(value)),
-        )?;
+        let (partial_mapping, mut differentiated) =
+            if let Some([previous, current]) = self.time_interval {
+                self.plan.scalar_assembly_with_history(
+                    &self.equations,
+                    current,
+                    Some(previous),
+                    input.previous.as_ref(),
+                    Some((
+                        coordinate,
+                        crate::form_compiler::spatial::InputPartialScope::Full,
+                    )),
+                )?
+            } else {
+                let NativeMeshResources::Cartesian { mesh, .. } = self.plan.admission.resources()
+                else {
+                    return Err(invalid(
+                        "spatial Parameter partials require Cartesian resources",
+                    ));
+                };
+                let partial = self.partial_equations(coordinate)?;
+                let forms = input
+                    .forms
+                    .iter()
+                    .map(|(form, _)| form.input_partial(coordinate))
+                    .collect::<Result<Vec<_>, _>>()?;
+                partial.cartesian_assembly_bound(
+                    mesh.mesh(),
+                    &self.plan.admission.discretizations,
+                    forms,
+                    |_, _, value| Ok(Some(value)),
+                )?
+            };
         if !partial_mapping.has_same_coordinate_layout(mapping) {
             return Err(invalid(
                 "Parameter partial changed the exact Field constraint layout",
@@ -65,7 +80,21 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         }
         // Derivatives use the primal integration rule and fixed primal trace.
         differentiated.retain_primal_integration(input)?;
-        let mut residual = S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?;
+        differentiated.previous = input.previous.clone();
+        let mut residual = match self.plan.admission.resources() {
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
+                S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?
+            }
+            _ => {
+                return Err(invalid(
+                    "Parameter partials require the exact admitted affine Mesh",
+                ));
+            }
+        };
         let lift = partial_mapping.lift(&vec![S::zero(); mapping.free_count()], false)?;
         let layout = RegionRealCoordinates::new(mapping)?;
         let lift = layout.encode_full(&lift)?;

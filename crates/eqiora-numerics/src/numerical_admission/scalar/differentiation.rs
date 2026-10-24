@@ -13,6 +13,7 @@ mod nonlinear;
 mod outputs;
 mod partials;
 mod scalar;
+mod step;
 use crate::region_assembly::mapping::{RegionDofMap, RegionRealCoordinates};
 use scalar::{DifferentiationScalar, coordinates};
 
@@ -78,6 +79,30 @@ impl CommonSpatialPlan {
         outputs: &[eqiora_core::RawId],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     ) -> Result<PreparedPoint<'_, S>, Diagnostic> {
+        if self.admission.temporal.is_some() {
+            return Err(invalid(
+                "stationary Parameter differentiation requires a static Plan",
+            ));
+        }
+        if !matches!(
+            self.admission.resources(),
+            NativeMeshResources::Cartesian { .. }
+        ) {
+            return Err(invalid(
+                "spatial Parameter differentiation requires exact Cartesian resources",
+            ));
+        }
+        self.prepare_parameter_point(template, selected, values, outputs, quadratures)
+    }
+
+    fn prepare_parameter_point<S: DifferentiationScalar>(
+        &self,
+        template: &ExecutableSpatialEquations<S>,
+        selected: &[Id<kinds::Parameter>],
+        values: Option<&[f64]>,
+        outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    ) -> Result<PreparedPoint<'_, S>, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
@@ -96,21 +121,8 @@ impl CommonSpatialPlan {
                 "constrained TPFA differentiation has no admitted linearization",
             ));
         }
-        if self.admission.temporal.is_some() {
-            return Err(invalid(
-                "stationary Parameter differentiation requires a static Plan",
-            ));
-        }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        if !matches!(
-            self.admission.resources(),
-            NativeMeshResources::Cartesian { .. }
-        ) {
-            return Err(invalid(
-                "spatial Parameter differentiation requires exact Cartesian resources",
-            ));
-        }
         let (design, canonical) = crate::parameter_point::canonical_point(self.kernel(), selected)?;
         let values = values.unwrap_or(&canonical).to_vec();
         let point = crate::parameter_point::ParameterPoint::bind(self.kernel(), selected, &values)?;
@@ -142,6 +154,7 @@ impl CommonSpatialPlan {
         }
         Ok(PreparedPoint {
             plan: self,
+            time_interval: None,
             equations,
             selected_fields,
             point,
@@ -156,6 +169,7 @@ impl CommonSpatialPlan {
 
 pub(in crate::numerical_admission) struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
+    time_interval: Option<[f64; 2]>,
     equations: ExecutableSpatialEquations<S>,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,

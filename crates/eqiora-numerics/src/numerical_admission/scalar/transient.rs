@@ -4,6 +4,36 @@ use crate::region_assembly::mapping::{RegionAlgebraicCoordinates, RegionDofMap};
 use crate::spatial_expression::Coefficient;
 
 impl CommonSpatialPlan {
+    pub(super) fn solve_region_linear<S: Coefficient + Send + Sync>(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &crate::region_assembly::mapping::RegionSolveInput<S>,
+        request: LinearSolveRequest<'_>,
+    ) -> Result<crate::region_assembly::mapping::RegionSolveOutput<S>, Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
+        let current_mesh = input
+            .geometry_action
+            .as_ref()
+            .map(|action| action.current_mesh());
+        match self.admission.resources() {
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
+                current_mesh.unwrap_or_else(|| mesh.mesh()),
+                input,
+                self.admission.linear.workers,
+                request,
+            ),
+            _ => Err(invalid(
+                "Region linear solve requires its exact affine Mesh",
+            )),
+        }
+    }
+
     pub(super) fn prescribed_geometry_at(
         &self,
         time_s: f64,
@@ -70,7 +100,7 @@ impl CommonSpatialPlan {
         self.scalar_assembly_with_history(equations, time_s, None, None, Some((&coordinate, scope)))
     }
 
-    fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
+    pub(super) fn scalar_assembly_with_history<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,
@@ -375,23 +405,7 @@ impl CommonSpatialPlan {
             let execution = super::nonlinear::newton_execution(&output.solve);
             (output.fields, residual, execution)
         } else {
-            let current_mesh = input
-                .geometry_action
-                .as_ref()
-                .map(|action| action.current_mesh().clone());
-            let output = match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => {
-                    mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?
-                }
-                NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
-                    current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
-                    input,
-                    self.admission.linear.workers,
-                    request,
-                )?,
-                _ => return Err(invalid("scalar storage requires its exact nodal Mesh")),
-            };
+            let output = self.solve_region_linear(&mapping, &input, request)?;
             let execution = CommonSpatialExecution {
                 solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
                     crate::common_result::evidence::CommonSolveEvidence::from_report(

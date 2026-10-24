@@ -92,7 +92,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let output = mapping
             .solve(
                 &mesh,
-                crate::region_assembly::mapping::RegionSolveInput {
+                &crate::region_assembly::mapping::RegionSolveInput {
                     conservative: None,
                     operator_properties: eqiora_solver::LinearOperatorProperties::General,
                     geometry_action: None,
@@ -159,7 +159,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let error = mismatched
             .solve(
                 &mesh,
-                crate::region_assembly::mapping::RegionSolveInput {
+                &crate::region_assembly::mapping::RegionSolveInput {
                     conservative: None,
                     operator_properties: eqiora_solver::LinearOperatorProperties::General,
                     geometry_action: None,

@@ -26,9 +26,9 @@ pub(in crate::numerical_admission) trait DifferentiationScalar:
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
     ) -> Result<StaticSpatialSystem<Self>, Diagnostic>;
-    fn parameter_residual(
+    fn parameter_residual<'mesh>(
         mapping: &RegionDofMap<Self>,
-        mesh: &eqiora_meshing::CartesianMesh,
+        mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
         input: crate::region_assembly::mapping::RegionSolveInput<Self>,
         values: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
