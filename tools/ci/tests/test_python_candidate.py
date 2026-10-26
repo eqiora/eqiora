@@ -1121,6 +1121,8 @@ invalid candidate
             reference / "standard-packages/_examples/stokes.eqi",
             reference / "standard-packages/_examples/sampled.eqi",
             reference / "language/_examples/clocked.eqi",
+            Path("examples/research-conductivity/conductivity.eqi"),
+            Path("examples/research-conductivity/research_workflow.py"),
             Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
         ):
             self.assertIn(relative, PYTHON_TEST_RESOURCES)
