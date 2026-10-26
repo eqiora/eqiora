@@ -159,7 +159,7 @@ lto = "fat"
 # Keep Python adapter code compact; linear algebra backends retain the
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
-opt-level = "s"
+opt-level = "z"
 codegen-units = 1
 
 # Compact authoring and parsing code without changing numerical optimization.
