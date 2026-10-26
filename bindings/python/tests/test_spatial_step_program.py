@@ -6,7 +6,7 @@ import pytest
 from test_nonlinear_spatial_differentiation import linear_policy, newton_policy
 
 
-def step_plan(nonlinear, complex_field, *, observables=False):
+def step_plan(nonlinear, complex_field, *, observables=False, observable_output="total"):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={
@@ -43,7 +43,7 @@ def step_plan(nonlinear, complex_field, *, observables=False):
     plan = q.Plan.from_bytes(plan.to_bytes())
     if observables:
         return plan, plan.model.parameter(model.parameter("p").id), tuple(
-            plan.model.observable(model.observable(name).id) for name in ("total", "energy"))
+            plan.model.observable(model.observable(name).id) for name in (observable_output, "energy"))
     return plan, plan.model.parameter(model.parameter("p").id)
 
 
@@ -170,8 +170,10 @@ def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(compl
 
 @pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, complex_field):
-    plan, parameter, (total, energy) = step_plan(nonlinear, complex_field, observables=True)
+@pytest.mark.parametrize("observable_output", ["total", "amount"])
+def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, complex_field, observable_output):
+    plan, parameter, (total, energy) = step_plan(
+        nonlinear, complex_field, observables=True, observable_output=observable_output)
     state = q.State.initial(plan, time_s=0.)
     before = state.to_bytes()
     outputs = (total, plan.fields[0], energy)
@@ -185,8 +187,9 @@ def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, com
     times = np.array([1., 3.])
     expected, derivative = trajectory_reference(4., nonlinear, complex_field)
     h, dh = expected[:, 0], derivative[:, 0]
-    values = (times*(h.real+4), expected, np.abs(h)**2)
-    tangents = (times*(dh.real+1), derivative, 2*(h.conj()*dh).real)
+    integral_output = observable_output == "amount"
+    values = (times*(h if integral_output else h.real+4), expected, np.abs(h)**2)
+    tangents = (times*(dh if integral_output else dh.real+1), derivative, 2*(h.conj()*dh).real)
     point = program.evaluate((4.,))
     scalar_program = q.diff.compile(plan, **(options | {"outputs": (total,)}), quadrature_points=2)
     scalar = scalar_program.evaluate((4.,))
@@ -204,7 +207,9 @@ def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, com
         np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
     for actual, wanted in zip(point.jvp((1.,)).tangent, tangents, strict=True):
         np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
-    weights = (np.array([2., -1.]), np.full((2, 3), 1+3j if complex_field else 1.),
+    observable_weights = (np.array([2.+1j, -1.-2j]) if integral_output and complex_field
+                          else np.array([2., -1.]))
+    weights = (observable_weights, np.full((2, 3), 1+3j if complex_field else 1.),
                np.array([-.5, 2.]))
     paired = sum(np.vdot(w, d).real for w, d in zip(weights, tangents, strict=True))
     np.testing.assert_allclose(point.vjp(weights).input_cotangent, [paired], rtol=0, atol=1e-9)
