@@ -54,7 +54,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
         &output,
         relation.state_jacobian(),
         eqiora::ScalarDomain::Real,
-        fixture.absolute_tolerance,
+        &eqiora::differentiation::PrimalAcceptance::Residual(fixture.absolute_tolerance),
     )
     .unwrap();
     assert!(
@@ -63,7 +63,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
             &output,
             relation.state_jacobian(),
             eqiora::ScalarDomain::Complex,
-            fixture.absolute_tolerance,
+            &eqiora::differentiation::PrimalAcceptance::Residual(fixture.absolute_tolerance),
         )
         .is_err()
     );
@@ -178,7 +178,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
         &output,
         &foreign_source,
         eqiora::ScalarDomain::Real,
-        fixture.absolute_tolerance,
+        &eqiora::differentiation::PrimalAcceptance::Residual(fixture.absolute_tolerance),
     )
     .unwrap();
     let foreign = forward_output_sensitivity(

@@ -221,3 +221,63 @@ fn residual_stage_callback_shares_clocks_history_and_observation_interpolation()
         );
     }
 }
+
+#[test]
+fn midpoint_sampling_weights_follow_retained_branches_and_shortened_steps() {
+    let plan = TimePlan::new(
+        TimeMethod::ImplicitMidpoint,
+        2.,
+        0.25,
+        1e-10,
+        vec![1e-12],
+        vec![2.3],
+    )
+    .unwrap();
+    let solution = ImplicitMidpointTimeBackend::new()
+        .solve_with_stages(
+            &[1.],
+            &plan,
+            TimeEquationClass::GeneralImplicitDae,
+            |start, end, state| Ok(vec![state[0] + 2. * (end - start)]),
+        )
+        .unwrap();
+    let history = solution.history().unwrap();
+    assert_eq!(history.steps().len(), 2);
+    for step in history.steps() {
+        let midpoint = step.start_time() + 0.5 * (step.end_time() - step.start_time());
+        for (time, weights) in [
+            (step.start_time(), [1., 0.]),
+            (midpoint, [0.5, 0.5]),
+            (step.end_time(), [0., 1.]),
+        ] {
+            assert_eq!(
+                ImplicitMidpointTimeBackend::sample_step_weights(step, time).unwrap(),
+                weights
+            );
+            assert_eq!(
+                ImplicitMidpointTimeBackend::sample_step(step, time).unwrap(),
+                step.sample(time).unwrap()
+            );
+        }
+        let time = step.start_time() + 0.3 * (step.end_time() - step.start_time());
+        let [alpha, beta] = ImplicitMidpointTimeBackend::sample_step_weights(step, time).unwrap();
+        assert_eq!(
+            beta,
+            (time - step.start_time()) / (step.end_time() - step.start_time())
+        );
+        assert_eq!(alpha, 1. - beta);
+        let sample = ImplicitMidpointTimeBackend::sample_step(step, time).unwrap();
+        assert_eq!(
+            sample[0],
+            alpha * step.start_state()[0] + beta * step.end_state()[0]
+        );
+        for time in [
+            f64::NAN,
+            f64::INFINITY,
+            step.start_time() - 1.,
+            step.end_time() + 1.,
+        ] {
+            assert!(ImplicitMidpointTimeBackend::sample_step_weights(step, time).is_err());
+        }
+    }
+}

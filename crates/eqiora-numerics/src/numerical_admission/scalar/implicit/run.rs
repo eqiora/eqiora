@@ -216,19 +216,12 @@ where
                     ));
                 }
                 let h = next - time;
-                let (unknown, evidence) = self.midpoint_step(time, h, &current, backend)?;
-                let endpoint = if self.algebraic.is_empty() {
-                    unknown.clone()
-                } else {
-                    let (fixed, seed) = self.endpoint_recovery_seed(&current, &unknown, h)?;
-                    let (recovered, evidence) =
-                        self.recover_consistent(next, h, &fixed, &seed, backend)?;
-                    let (physical, _) = self.recovery_coordinates(h, &fixed, &recovered)?;
-                    endpoints.push(SpatialTimeStage::from_newton(recovered, evidence));
-                    physical
-                };
-                stages.push(SpatialTimeStage::from_newton(unknown, evidence));
-                current = endpoint;
+                let accepted = self.midpoint_step(time, h, &current, backend)?;
+                if let Some(endpoint) = accepted.endpoint {
+                    endpoints.push(endpoint);
+                }
+                stages.push(accepted.stage);
+                current = accepted.physical;
                 physical_endpoints.push(current.clone());
                 Ok(self.differential_coordinates(&current))
             },
@@ -246,27 +239,21 @@ where
             .ok_or_else(|| invalid("midpoint omitted accepted history"))?;
         let mut outputs = Vec::new();
         let mut states = Vec::new();
-        for (position, &time) in request.output_times_s().iter().enumerate() {
+        for &time in request.output_times_s() {
             let index = history
                 .steps()
                 .partition_point(|step| step.end_time() < time);
-            let step = &history.steps()[index];
-            let differential = solution
-                .state(position)
-                .ok_or_else(|| invalid("midpoint omitted a requested output"))?;
-            let fixed = self.lift_differential(differential, &physical_endpoints[index])?;
-            let physical = if self.algebraic.is_empty() {
-                fixed
-            } else {
-                let h = step.end_time() - step.start_time();
-                // Seed from an accepted endpoint, never from the preceding observation.
-                let (unknown, evidence) =
-                    self.recover_consistent(time, h, &fixed, &endpoints[index].unknown, backend)?;
-                let (physical, _) = self.recovery_coordinates(h, &fixed, &unknown)?;
-                outputs.push(SpatialTimeStage::from_newton(unknown, evidence));
-                physical
-            };
-            states.push(self.physical_state(time, &physical)?);
+            let observation = self.solve_midpoint_observation(
+                &history.steps()[index],
+                &physical_endpoints[index],
+                endpoints.get(index),
+                time,
+                backend,
+            )?;
+            if let Some(recovery) = observation.recovery {
+                outputs.push(recovery);
+            }
+            states.push(self.physical_state(time, &observation.physical)?);
         }
         crate::CommonTrajectory::accept_spatial_time(
             request.clone(),
@@ -280,7 +267,10 @@ where
         )
     }
 
-    pub(super) fn differential_plan(&self, plan: &TimePlan) -> Result<TimePlan, Diagnostic> {
+    pub(in crate::numerical_admission) fn differential_plan(
+        &self,
+        plan: &TimePlan,
+    ) -> Result<TimePlan, Diagnostic> {
         TimePlan::new(
             plan.method(),
             plan.start_time(),
@@ -291,7 +281,7 @@ where
         )
     }
 
-    pub(super) fn prepare_run(
+    pub(in crate::numerical_admission) fn prepare_run(
         &self,
         request: &CommonTransientRunRequest,
     ) -> Result<(Vec<f64>, TimePlan), Diagnostic> {

@@ -18,21 +18,22 @@ pub(crate) struct PyNonlinearSolveSummary {
     #[pyo3(get)]
     true_residual_norm: f64,
     #[pyo3(get)]
-    residual_target: f64,
+    residual_target: Option<f64>,
     linear_solves: Option<Vec<PyLinearSolveSummary>>,
 }
 impl PyNonlinearSolveSummary {
     pub(crate) fn from_differentiation(
         value: &eqiora::api::DifferentiationStepEvidence,
+        solve: usize,
     ) -> Option<Self> {
         Some(Self {
-            completed_iterations: value.nonlinear_iterations()?,
-            initial_residual_norm: value.nonlinear_initial_residual_norm()?,
-            true_residual_norm: value.primal_residual_norm(),
-            residual_target: value.residual_tolerance(),
+            completed_iterations: value.nonlinear_iterations(solve)?,
+            initial_residual_norm: value.nonlinear_initial_residual_norm(solve)?,
+            true_residual_norm: value.solve_residual_norm(solve)?,
+            residual_target: value.solve_residual_tolerance(solve),
             linear_solves: Some(
                 value
-                    .primal_solves()
+                    .primal_solves(solve)?
                     .iter()
                     .map(PyLinearSolveSummary::from_evidence)
                     .collect(),
@@ -62,9 +63,11 @@ impl PyNonlinearSolveSummary {
             true_residual_norm: result
                 .nonlinear_true_residual_norm(output_index)
                 .ok_or_else(missing)?,
-            residual_target: result
-                .nonlinear_residual_target(output_index)
-                .ok_or_else(missing)?,
+            residual_target: Some(
+                result
+                    .nonlinear_residual_target(output_index)
+                    .ok_or_else(missing)?,
+            ),
             linear_solves: Some(linear_solves),
         })
     }
@@ -89,7 +92,7 @@ impl PyNonlinearSolveSummary {
 
     fn __repr__(&self) -> String {
         format!(
-            "NonlinearSolveSummary(completed_iterations={}, initial_residual_norm={}, true_residual_norm={}, residual_target={})",
+            "NonlinearSolveSummary(completed_iterations={}, initial_residual_norm={}, true_residual_norm={}, residual_target={:?})",
             self.completed_iterations,
             self.initial_residual_norm,
             self.true_residual_norm,

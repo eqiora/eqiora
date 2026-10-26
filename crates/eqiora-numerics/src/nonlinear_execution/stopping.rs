@@ -146,6 +146,31 @@ impl NewtonStopping<'_> {
         }
     }
 
+    /// Check the retained full update against the same physical correction
+    /// controls used by Newton. Equation/linear-solve replay remains with the
+    /// caller that owns the original residual at the witness point.
+    pub(crate) fn accepts_full_correction(
+        &self,
+        weighted_norm: f64,
+        point: &[f64],
+        direction: &[f64],
+        accepted: &[f64],
+    ) -> Result<bool, Diagnostic> {
+        let Some(norm) = self.correction_norm(point, direction)? else {
+            return Ok(false);
+        };
+        Ok(norm <= 1.
+            && norm.to_bits() == weighted_norm.to_bits()
+            && accepted.len() == point.len()
+            && point
+                .iter()
+                .zip(direction)
+                .zip(accepted)
+                .all(|((point, direction), end)| {
+                    end.is_finite() && (point + direction).to_bits() == end.to_bits()
+                }))
+    }
+
     pub(super) fn convergence(
         &self,
         target: f64,

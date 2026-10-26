@@ -100,13 +100,19 @@ impl DifferentiableProgram {
             backend,
         )
         .map_err(single)?;
-        let default = DifferentiableEvaluation::accept(
-            identity.clone(),
-            native,
-            OutputProjection::new(&identity, context.run_request()).map_err(single)?,
-            backend,
+        let projection = OutputProjection::new(
+            &identity,
+            context.run_request(),
+            &native
+                .points()
+                .iter()
+                .map(CommonDifferentiationPoint::linearization)
+                .collect::<Vec<_>>(),
         )
         .map_err(single)?;
+        let default =
+            DifferentiableEvaluation::accept(identity.clone(), native, projection, backend)
+                .map_err(single)?;
         Ok(Self {
             identity,
             context,
@@ -181,13 +187,18 @@ impl DifferentiableProgram {
                 "accepted relation differs from the requested Parameter point",
             )));
         }
-        DifferentiableEvaluation::accept(
-            self.identity.clone(),
-            native,
-            OutputProjection::new(&self.identity, self.context.run_request()).map_err(single)?,
-            self.backend,
+        let projection = OutputProjection::new(
+            &self.identity,
+            self.context.run_request(),
+            &native
+                .points()
+                .iter()
+                .map(CommonDifferentiationPoint::linearization)
+                .collect::<Vec<_>>(),
         )
-        .map_err(single)
+        .map_err(single)?;
+        DifferentiableEvaluation::accept(self.identity.clone(), native, projection, self.backend)
+            .map_err(single)
     }
 
     /// Return the accepted default output.

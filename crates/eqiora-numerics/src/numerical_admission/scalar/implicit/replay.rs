@@ -4,6 +4,7 @@ use crate::common_result::evidence::CommonSolveHistory;
 use crate::common_trajectory::{SpatialTimeExecution, SpatialTimeStage};
 use crate::nonlinear_execution::stage_merit;
 use crate::nonlinear_execution::{NewtonConvergence, NewtonOptions, NewtonStopping};
+use eqiora_differentiation::PrimalAcceptance;
 use eqiora_time::{AcceptedTimeHistory, ImplicitMidpointTimeBackend, TimePlan};
 
 impl CommonTransientRunRequest {
@@ -181,8 +182,6 @@ where
                 "spatial history has an incomplete stage or recovery inventory",
             ));
         }
-        let absolute =
-            self.midpoint_tolerances(request.plan().ode_temporal().expect("checked policy"))?;
         let mut current = initial.to_vec();
         let mut physical_endpoints = Vec::new();
         for (index, (step, evidence)) in history.steps().iter().zip(stages).enumerate() {
@@ -194,50 +193,29 @@ where
                     "midpoint history differs from its original differential coordinates",
                 ));
             }
-            self.validate_newton(
+            (current, _) = self.accept_midpoint_step(
                 request,
+                step.start_time(),
+                h,
+                &current,
                 evidence,
-                &self.midpoint_seed(&current),
-                &absolute,
-                |unknown| self.midpoint_point(step.start_time(), h, &current, unknown),
+                endpoints.get(index),
             )?;
-            self.require_stage_regularity(step.start_time(), h, &current, &evidence.unknown)?;
-            current = if constrained {
-                let (fixed, seed) = self.endpoint_recovery_seed(&current, &evidence.unknown, h)?;
-                let recovery = &endpoints[index];
-                self.validate_newton(
-                    request,
-                    recovery,
-                    &seed,
-                    plan.absolute_tolerances(),
-                    |unknown| self.recovery_point(step.end_time(), h, &fixed, unknown),
-                )?;
-                self.recovery_coordinates(h, &fixed, &recovery.unknown)?.0
-            } else {
-                evidence.unknown.clone()
-            };
             physical_endpoints.push(current.clone());
         }
         for (position, (state, &time)) in states.iter().zip(request.output_times_s()).enumerate() {
             let index = history
                 .steps()
                 .partition_point(|step| step.end_time() < time);
-            let step = &history.steps()[index];
-            let fixed = self.lift_differential(&step.sample(time)?, &physical_endpoints[index])?;
-            let physical = if constrained {
-                let h = step.end_time() - step.start_time();
-                let recovery = &outputs[position];
-                self.validate_newton(
-                    request,
-                    recovery,
-                    &endpoints[index].unknown,
-                    plan.absolute_tolerances(),
-                    |unknown| self.recovery_point(time, h, &fixed, unknown),
-                )?;
-                self.recovery_coordinates(h, &fixed, &recovery.unknown)?.0
-            } else {
-                fixed
-            };
+            let (observation, _) = self.accept_midpoint_observation(
+                request,
+                &history.steps()[index],
+                &physical_endpoints[index],
+                endpoints.get(index),
+                time,
+                outputs.get(position),
+            )?;
+            let physical = observation.physical;
             if *state != self.physical_state(time, &physical)? {
                 return Err(invalid(
                     "spatial output differs from its accepted differential history and algebraic recovery",
@@ -247,14 +225,66 @@ where
         Ok(())
     }
 
-    fn validate_newton(
+    /// Reconstruct both original solves without executing either one again.
+    /// For constrained systems the returned criterion covers stage rows followed
+    /// by endpoint-recovery rows, with their separate physical stopping controls.
+    pub(in crate::numerical_admission) fn accept_midpoint_step(
+        &self,
+        request: &CommonTransientRunRequest,
+        time: f64,
+        h: f64,
+        initial: &[f64],
+        stage: &SpatialTimeStage,
+        endpoint: Option<&SpatialTimeStage>,
+    ) -> Result<(Vec<f64>, PrimalAcceptance), Diagnostic> {
+        let policy = request
+            .plan()
+            .ode_temporal()
+            .ok_or_else(|| invalid("midpoint acceptance requires its admitted temporal policy"))?;
+        if policy.method() != eqiora_time::TimeMethod::ImplicitMidpoint
+            || endpoint.is_some() == self.algebraic.is_empty()
+        {
+            return Err(invalid(
+                "midpoint acceptance has a foreign policy or endpoint inventory",
+            ));
+        }
+        let stage_acceptance = self.validate_newton(
+            request,
+            stage,
+            &self.midpoint_seed(initial),
+            &self.midpoint_tolerances(policy)?,
+            |unknown| self.midpoint_point(time, h, initial, unknown),
+        )?;
+        self.require_stage_regularity(time, h, initial, &stage.unknown)?;
+        let Some(endpoint) = endpoint else {
+            return Ok((stage.unknown.clone(), stage_acceptance));
+        };
+        let (fixed, seed) = self.endpoint_recovery_seed(initial, &stage.unknown, h)?;
+        let endpoint_acceptance = self.validate_newton(
+            request,
+            endpoint,
+            &seed,
+            &self.correction_tolerances(policy)?,
+            |unknown| self.recovery_point(time + h, h, &fixed, unknown),
+        )?;
+        let (physical, _) = self.recovery_coordinates(h, &fixed, &endpoint.unknown)?;
+        Ok((
+            physical,
+            PrimalAcceptance::Blocks(vec![
+                (self.dimension, stage_acceptance),
+                (self.dimension, endpoint_acceptance),
+            ]),
+        ))
+    }
+
+    pub(super) fn validate_newton(
         &self,
         request: &CommonTransientRunRequest,
         evidence: &SpatialTimeStage,
         seed_values: &[f64],
         absolute: &[f64],
         linearize: impl Fn(&[f64]) -> Result<ImplicitPoint, Diagnostic>,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<PrimalAcceptance, Diagnostic> {
         let nonlinear = self.plan.admission.nonlinear;
         let CommonSolveHistory::Newton {
             initial_residual_norm,
@@ -302,7 +332,7 @@ where
             at_seed: seed_values == evidence.unknown,
         }
         .validate_updates(target, *iterations)?;
-        match (&evidence.convergence, nonlinear) {
+        let acceptance = match (&evidence.convergence, nonlinear) {
             (NewtonConvergence::Residual { target: recorded }, None) => {
                 if recorded.to_bits() != target.to_bits()
                     || stage_merit(&current.assembly.residuals[0], &current.row_scales, false)?
@@ -312,6 +342,7 @@ where
                         "affine spatial Newton stage exceeds its original-equation target",
                     ));
                 }
+                PrimalAcceptance::Residual(target)
             }
             (NewtonConvergence::ExactResidualZero, Some(_)) => {
                 if current.assembly.residuals[0]
@@ -322,6 +353,7 @@ where
                         "spatial Newton zero-residual convergence differs from original equations",
                     ));
                 }
+                PrimalAcceptance::Residual(0.)
             }
             (
                 NewtonConvergence::Correction {
@@ -344,25 +376,23 @@ where
                     },
                 };
                 options.validate(self.dimension)?;
-                let norm = options
-                    .stopping
-                    .correction_norm(point, direction)?
-                    .expect("correction controls");
-                if norm > 1.
-                    || norm.to_bits() != weighted_norm.to_bits()
-                    || point.iter().zip(direction).zip(&evidence.unknown).any(
-                        |((point, direction), end)| (point + direction).to_bits() != end.to_bits(),
-                    )
-                {
+                if !options.stopping.accepts_full_correction(
+                    *weighted_norm,
+                    point,
+                    direction,
+                    &evidence.unknown,
+                )? {
                     return Err(invalid(
                         "spatial Newton accepted endpoint is not a small full Newton correction",
                     ));
                 }
                 let base = linearize(point)?;
-                let (_, target) = base
-                    .assembly
-                    .correction_core(0, self.plan.linear(), self.plan.admission.linear.workers)?
-                    .validate_coefficients(direction)?;
+                let correction = base.assembly.correction_core(
+                    0,
+                    self.plan.linear(),
+                    self.plan.admission.linear.workers,
+                )?;
+                let (_, target) = correction.validate_coefficients(direction)?;
                 if linear_solves
                     .last()
                     .is_none_or(|solve| solve.residual_target().to_bits() != target.to_bits())
@@ -371,13 +401,26 @@ where
                         "spatial Newton correction solve target differs from its original equation",
                     ));
                 }
+                PrimalAcceptance::NewtonCorrection {
+                    previous: point.clone(),
+                    direction: direction.clone(),
+                    accepted: evidence.unknown.clone(),
+                    system: correction.shared_canonical_system(),
+                    solve: self.plan.linear(),
+                    relative: request
+                        .plan()
+                        .ode_temporal()
+                        .expect("checked policy")
+                        .relative_tolerance(),
+                    absolute: absolute.to_vec(),
+                }
             }
             _ => {
                 return Err(invalid(
                     "spatial Newton stopping evidence differs from its linear/Newton policy",
                 ));
             }
-        }
-        Ok(())
+        };
+        Ok(acceptance)
     }
 }

@@ -164,9 +164,19 @@ impl Integrand<'_, '_> {
             .iter()
             .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+        // Represented Fields are reconstructed from accepted coefficients. Only
+        // absent Fields need prescribed-data derivation; inferring equation roles
+        // again for represented mixed Fields discards the admitted test pairing.
+        let represented = field_types
+            .iter()
+            .map(|(id, _)| id.erase())
+            .collect::<BTreeSet<_>>();
+        let prescribed_fields = requested.difference(&represented).copied().collect();
         let mut prescribed =
             crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
-                program, &requested, dimension,
+                program,
+                &prescribed_fields,
+                dimension,
             )?;
         if let Some(point) = result.parameter_point() {
             prescribed.bind_parameter_point(point)?;

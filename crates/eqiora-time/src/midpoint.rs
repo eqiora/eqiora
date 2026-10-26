@@ -163,6 +163,15 @@ impl ImplicitMidpointTimeBackend {
     /// # Errors
     /// Rejects times outside the step or a non-midpoint stencil.
     pub fn sample_step(step: &TimeHistoryStep, time: f64) -> Result<Vec<f64>, Diagnostic> {
+        Self::sample_step_weights(step, time)?;
+        step.sample(time)
+    }
+
+    /// Endpoint weights of the exact validated sampling branch.
+    /// Retained start, end and midpoint values use their exact stencil weights.
+    /// # Errors
+    /// Rejects times outside the step or a non-midpoint stencil.
+    pub fn sample_step_weights(step: &TimeHistoryStep, time: f64) -> Result<[f64; 2], Diagnostic> {
         if !time.is_finite()
             || time < step.start_time()
             || time > step.end_time()
@@ -173,7 +182,16 @@ impl ImplicitMidpointTimeBackend {
                 "midpoint sample requires its exact interval and linear stencil",
             ));
         }
-        step.sample(time)
+        Ok(if time == step.start_time() {
+            [1., 0.]
+        } else if time == step.end_time() {
+            [0., 1.]
+        } else if time == step.start_time() + (step.end_time() - step.start_time()) * 0.5 {
+            [0.5, 0.5]
+        } else {
+            let beta = (time - step.start_time()) / (step.end_time() - step.start_time());
+            [1. - beta, beta]
+        })
     }
 }
 fn has_linear_dense_output(step: &TimeHistoryStep) -> bool {

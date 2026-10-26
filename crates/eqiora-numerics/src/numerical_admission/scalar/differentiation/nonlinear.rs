@@ -173,17 +173,18 @@ where
             })
             .transpose()?;
         let mut column = 0;
-        let (partial, output) = self.output_partials(mapping, &values, |coordinate| {
-            let (residual, lift) =
-                self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)?;
-            if let Some(direct) = &mut history_direct {
-                for (row, value) in lift.iter().enumerate() {
-                    direct[row * columns + column] = *value;
+        let (partial, output) =
+            self.output_partials(mapping, &values, values.len(), |coordinate| {
+                let (residual, lift) =
+                    self.mapped_parameter_partial(mapping, &full, input, coordinate, &values)?;
+                if let Some(direct) = &mut history_direct {
+                    for (row, value) in lift.iter().enumerate() {
+                        direct[row * columns + column] = *value;
+                    }
                 }
-            }
-            column += 1;
-            Ok((residual, lift))
-        })?;
+                column += 1;
+                Ok((residual, lift))
+            })?;
         let state_output = history_direct
             .map(|direct| {
                 FieldCoefficientLinearization::new(
@@ -223,7 +224,7 @@ where
             relation,
             eqiora_core::ScalarDomain::Real,
             output,
-            target,
+            eqiora_differentiation::PrimalAcceptance::Residual(target),
             initial,
         );
         match state_output {

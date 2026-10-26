@@ -253,7 +253,7 @@ def check_complete_field_actions(method) -> None:
     assert jvp.evidence.linearization_state == eqiora.LinearizationState.Reused
     assert primal.evidence.linearization_state == eqiora.LinearizationState.Established
     assert primal.evidence.steps[0].derivative_solve is None
-    assert jvp.evidence.steps[0].primal_solve.orientation == "normal"
+    assert jvp.evidence.steps[0].primal_solves[0].orientation == "normal"
     assert jvp.evidence.steps[0].derivative_solve.orientation == "normal"
     assert vjp.evidence.steps[0].derivative_solve.orientation == "conjugate-transposed"
     expected_algorithm = "bicgstab" if method == eqiora.fem.Q1() else "conjugate-gradient"

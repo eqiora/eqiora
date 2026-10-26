@@ -8,7 +8,10 @@ impl<S: Coefficient + Send + Sync> SpatialImplicitSystem<'_, S>
 where
     RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
 {
-    pub(super) fn differential_coordinates(&self, full: &[f64]) -> Vec<f64> {
+    pub(in crate::numerical_admission) fn differential_coordinates(
+        &self,
+        full: &[f64],
+    ) -> Vec<f64> {
         full.iter()
             .enumerate()
             .filter_map(|(i, value)| (!self.algebraic.contains(&i)).then_some(*value))

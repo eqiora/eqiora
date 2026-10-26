@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::evidence::{Acceptance, PrimalEvidence};
 use super::*;
 
-const SCHEMA: &str = "eqiora.differentiable-evaluation/v3";
+const SCHEMA: &str = "eqiora.differentiable-evaluation/v4";
 
 /// Read-only accepted primal with the candidate coordinates required for reopening.
 ///
@@ -18,18 +18,41 @@ const SCHEMA: &str = "eqiora.differentiable-evaluation/v3";
 pub struct RecordedDifferentiableEvaluation {
     identity: String,
     result: DifferentiableResult,
-    state: Vec<Vec<f64>>,
+    steps: Vec<WireStep>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireStep {
+    Single {
+        unknown: Vec<f64>,
+        primal: PrimalEvidence,
+    },
+    Midpoint {
+        initial_state_identity: Option<String>,
+        candidate: eqiora_numerics::CommonDifferentiationCandidate,
+    },
+}
+
+impl WireStep {
+    fn candidate(&self) -> eqiora_numerics::CommonDifferentiationCandidate {
+        match self {
+            Self::Single { unknown, .. } => {
+                eqiora_numerics::CommonDifferentiationCandidate::from_coordinates(unknown.clone())
+            }
+            Self::Midpoint { candidate, .. } => candidate.clone(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireRecord<V = Vec<f64>, S = Vec<Vec<f64>>, P = Vec<PrimalEvidence>> {
+struct WireRecord {
     schema: String,
     program: String,
-    point: V,
-    state: S,
-    output: V,
-    primal: P,
+    point: Vec<f64>,
+    steps: Vec<WireStep>,
+    output: Vec<f64>,
 }
 
 impl DifferentiableEvaluation {
@@ -40,12 +63,21 @@ impl DifferentiableEvaluation {
             self.native
                 .points()
                 .iter()
-                .map(|point| {
-                    point
-                        .linearization()
-                        .relation()
-                        .accepted_unknowns()
-                        .to_vec()
+                .zip(self.primal_evidence().steps())
+                .map(|(point, evidence)| {
+                    let candidate = point.candidate();
+                    match candidate.coordinates() {
+                        Some(unknown) => WireStep::Single {
+                            unknown: unknown.to_vec(),
+                            primal: evidence.primal[0].primal.clone(),
+                        },
+                        None => WireStep::Midpoint {
+                            initial_state_identity: evidence.primal[0]
+                                .nonlinear_initial_state_identity()
+                                .map(str::to_owned),
+                            candidate,
+                        },
+                    }
                 })
                 .collect(),
         )
@@ -53,11 +85,11 @@ impl DifferentiableEvaluation {
 }
 
 impl RecordedDifferentiableEvaluation {
-    fn new(result: DifferentiableResult, state: Vec<Vec<f64>>) -> Result<Self, Diagnostic> {
+    fn new(result: DifferentiableResult, steps: Vec<WireStep>) -> Result<Self, Diagnostic> {
         let mut record = Self {
             identity: String::new(),
             result,
-            state,
+            steps,
         };
         record.identity =
             eqiora_artifact::ArtifactDigest::compute(SCHEMA.as_bytes(), &record.to_bytes()?)
@@ -85,14 +117,9 @@ impl RecordedDifferentiableEvaluation {
             .encode(&WireRecord {
                 schema: SCHEMA.to_owned(),
                 program: STANDARD.encode(evidence.identity().to_bytes()?),
-                point: evidence.point().coordinates(),
-                state: self.state.as_slice(),
-                output: self.result.output().coordinates(),
-                primal: evidence
-                    .steps()
-                    .iter()
-                    .map(|step| &step.primal)
-                    .collect::<Vec<_>>(),
+                point: evidence.point().coordinates().to_vec(),
+                steps: self.steps.clone(),
+                output: self.result.output().coordinates().to_vec(),
             })
             .map_err(|error| invalid(format!("cannot encode evaluation record: {error}")))
     }
@@ -158,14 +185,23 @@ impl RecordedDifferentiableEvaluation {
                     Some(point.coordinates()),
                     &outputs,
                     identity.observation_quadratures(),
-                    &wire.state,
+                    &wire
+                        .steps
+                        .iter()
+                        .map(WireStep::candidate)
+                        .collect::<Vec<_>>(),
                 )
         } else {
-            if wire.state.len() != 1 {
+            if wire.steps.len() != 1 {
                 return Err(single(invalid(
                     "stationary record requires exactly one accepted point",
                 )));
             }
+            let WireStep::Single { unknown, .. } = &wire.steps[0] else {
+                return Err(single(invalid(
+                    "stationary record requires a single-solve candidate",
+                )));
+            };
             match plan {
                 ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
                     program::spatial_initial(initial).map_err(single)?,
@@ -173,7 +209,7 @@ impl RecordedDifferentiableEvaluation {
                     Some(point.coordinates()),
                     &outputs,
                     identity.observation_quadratures(),
-                    &wire.state[0],
+                    unknown,
                 ),
                 ResolvedCommonPlan::Algebraic(algebraic) => {
                     let canonical;
@@ -189,7 +225,7 @@ impl RecordedDifferentiableEvaluation {
                         &selected,
                         Some(point.coordinates()),
                         &outputs,
-                        &wire.state[0],
+                        unknown,
                     )
                 }
                 _ => return Err(single(invalid("unsupported evaluation record Plan"))),
@@ -197,7 +233,12 @@ impl RecordedDifferentiableEvaluation {
             .map(|point| vec![point])
         };
         let linearizations = linearizations.map_err(single)?;
-        let projection = OutputProjection::new(&identity, context.run_request()).map_err(single)?;
+        let projection = OutputProjection::new(
+            &identity,
+            context.run_request(),
+            &linearizations.iter().collect::<Vec<_>>(),
+        )
+        .map_err(single)?;
         let output_values = projection
             .gather(
                 &linearizations
@@ -219,20 +260,50 @@ impl RecordedDifferentiableEvaluation {
                 "evaluation record differs from its accepted point or outputs",
             )));
         }
-        if wire.primal.len() != linearizations.len() {
+        if wire.steps.len() != linearizations.len() {
             return Err(single(invalid(
                 "evaluation record requires every step's primal evidence",
             )));
         }
         let mut acceptance = Vec::with_capacity(linearizations.len());
-        for (index, (primal, linearization)) in wire.primal.iter().zip(&linearizations).enumerate()
-        {
-            // Subsequent seeds are the preceding reaccepted physical history;
-            // only the first step may name the external initial State.
-            primal
-                .validate(plan, if index == 0 { initial } else { None }, linearization)
-                .map_err(single)?;
-            acceptance.push(Acceptance::new(&identity, linearization).map_err(single)?);
+        let mut primal = Vec::with_capacity(linearizations.len());
+        for (index, (step, linearization)) in wire.steps.iter().zip(&linearizations).enumerate() {
+            let initial = if index == 0 { initial } else { None };
+            let accepted = Acceptance::new(&identity, linearization).map_err(single)?;
+            primal.push(match step {
+                WireStep::Single { primal, .. } => {
+                    primal
+                        .validate(plan, initial, linearization)
+                        .map_err(single)?;
+                    vec![super::evidence::DifferentiationPrimalEvidence::single(
+                        primal.clone(),
+                        &accepted,
+                    )]
+                }
+                WireStep::Midpoint {
+                    initial_state_identity,
+                    candidate,
+                } => {
+                    if candidate.coordinates().is_some()
+                        || initial.map(CommonInitialState::identity)
+                            != initial_state_identity.as_deref()
+                    {
+                        return Err(single(invalid(
+                            "midpoint record differs from its original candidate or initial State",
+                        )));
+                    }
+                    // The native reacceptance above validates every original stage,
+                    // recovery, seed, update count and provider. Affine midpoint
+                    // also uses this owner; it does not require a Newton Plan.
+                    super::evidence::midpoint_primal_evidence(
+                        candidate,
+                        linearization,
+                        initial_state_identity.clone(),
+                    )
+                    .map_err(single)?
+                }
+            });
+            acceptance.push(accepted);
         }
         let output = DifferentiableValues::from_coordinates(identity.outputs.clone(), wire.output)
             .map_err(single)?;
@@ -245,10 +316,10 @@ impl RecordedDifferentiableEvaluation {
                     point,
                     implementation,
                     acceptance,
-                    wire.primal,
+                    primal,
                 ),
             },
-            wire.state,
+            wire.steps,
         )
         .map_err(single)?;
         if record.to_bytes().map_err(single)? != bytes {
@@ -277,8 +348,9 @@ impl PrimalEvidence {
             Self::Linear(solve) => {
                 if linearization.initial_residual_norm().is_some()
                     || solve.orientation() != eqiora_solver::LinearOperatorOrientation::Normal
-                    || solve.residual_target().to_bits()
-                        != linearization.residual_target().to_bits()
+                    || !matches!(linearization.acceptance(),
+                        eqiora_differentiation::PrimalAcceptance::Residual(target)
+                        if solve.residual_target().to_bits() == target.to_bits())
                 {
                     return Err(invalid(
                         "evaluation primal solve differs from native acceptance",

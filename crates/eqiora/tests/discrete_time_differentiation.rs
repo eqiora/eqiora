@@ -63,7 +63,11 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     assert_close(next_state[0], 1.0 / 1.1, 2.0e-14);
     assert_close(next_state[1], next_state[0].powi(2), 2.0e-14);
 
-    let accepted = AcceptedLinearization::new(&step, 1.0e-12).unwrap();
+    let accepted = AcceptedLinearization::new(
+        &step,
+        &eqiora::differentiation::PrimalAcceptance::Residual(1.0e-12),
+    )
+    .unwrap();
     let unknown_tangent = [0.2, -0.3];
     let parameter_tangent = [0.4, -0.5, 0.6];
     let residual_cotangent = [0.7, -0.2];
@@ -140,7 +144,13 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     let off_manifold = system
         .linearize_implicit_euler_step(0.0, STEP, initial.state(), &[0.9, 0.7])
         .unwrap();
-    assert!(AcceptedLinearization::new(&off_manifold, 1.0e-12).is_err());
+    assert!(
+        AcceptedLinearization::new(
+            &off_manifold,
+            &eqiora::differentiation::PrimalAcceptance::Residual(1.0e-12)
+        )
+        .is_err()
+    );
     assert!(
         system
             .linearize_implicit_euler_step(STEP, STEP, initial.state(), next_state)

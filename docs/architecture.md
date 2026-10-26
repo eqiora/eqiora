@@ -52,6 +52,30 @@ volume and oriented boundary Domains define continuous geometry;
 relation scope explicit. A continuum Representation states continuous meaning
 without choosing a mesh, basis, or solver.
 
+## Original-equation acceptance for differentiation
+
+Architecture decision for [#1565](https://github.com/eqiora/eqiora/issues/1565):
+`eqiora-numerics` may depend one way on `eqiora-differentiation` to retain the
+shared `PrimalAcceptance` criterion with its assembled relation. A residual
+bound and a full Newton correction under physical-coordinate controls are
+different acceptance contracts. Composed stage and endpoint solves retain
+separate criteria; neither an observed residual nor an aggregate correction
+supplies a missing bound for another block.
+
+Numerics binds the witness to the original equations, exact input point and
+Plan, reconstructs its correction matrix, and validates the retained solve
+history. Differentiation checks the mathematical criterion before accepting a
+relation for products. It does not depend on Numerics, run a primal solver, or
+own State publication. The API borrows the same immutable criterion for each
+product instead of copying matrices or translating a second acceptance enum.
+
+The criterion stays with the existing accepted-relation owner: moving it into
+linear solver vocabulary would make that layer own nonlinear point admission,
+while a new crate or a duplicate native type would split the invariant. This
+edge grants no other same-layer dependency. Remove it if numerical admission no
+longer owns accepted differentiation relations; do not retain a parallel criterion.
+Independent analytic tests and witness falsifiers remain necessary evidence.
+
 ## Common initialization derivative owner
 
 Architecture decision for [#1002](https://github.com/eqiora/eqiora/issues/1002):

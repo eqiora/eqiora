@@ -377,8 +377,8 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     one = np.array([1.0], dtype=np.float64)
     zero = np.array([0.0], dtype=np.float64)
     default = program.evaluate(tuple(np.array([4.0], dtype=np.float64)))
-    assert isinstance(default.primal().evidence.steps[0].primal_solve, eqiora.NonlinearSolveSummary)
-    assert default.primal().evidence.steps[0].primal_solve.completed_iterations == 0
+    assert isinstance(default.primal().evidence.steps[0].primal_solves[0], eqiora.NonlinearSolveSummary)
+    assert default.primal().evidence.steps[0].primal_solves[0].completed_iterations == 0
     assert default.primal().evidence.steps[0].derivative_solve is None
     for p, w, reduced in ((4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)):
         point = program.evaluate(tuple(np.array([p], dtype=np.float64)))

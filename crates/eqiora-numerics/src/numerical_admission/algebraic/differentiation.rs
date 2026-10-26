@@ -280,7 +280,7 @@ impl PreparedPoint {
                     ScalarDomain::Real
                 },
                 output,
-                assessment.residual_target(),
+                eqiora_differentiation::PrimalAcceptance::Residual(assessment.residual_target()),
                 initial_residual_norm.map(|residual_norm| {
                     crate::nonlinear_execution::NewtonInitialPoint {
                         residual_norm,

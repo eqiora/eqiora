@@ -21,7 +21,7 @@ pub(in crate::common_trajectory) enum WireSpatialTimeExecution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(in crate::common_trajectory) struct WireSpatialTimeStage {
+pub(crate) struct WireSpatialTimeStage {
     unknown: Vec<f64>,
     solve: WireSolveHistory,
     convergence: crate::nonlinear_execution::NewtonConvergence,
@@ -95,14 +95,14 @@ impl WireSpatialTimeExecution {
 }
 
 impl WireSpatialTimeStage {
-    fn capture(stage: &SpatialTimeStage) -> Result<Self, Diagnostic> {
+    pub(crate) fn capture(stage: &SpatialTimeStage) -> Result<Self, Diagnostic> {
         Ok(Self {
             unknown: stage.unknown.clone(),
             solve: WireSolveHistory::from_evidence(&stage.solve)?,
             convergence: stage.convergence.clone(),
         })
     }
-    fn replay(&self) -> Result<SpatialTimeStage, Diagnostic> {
+    pub(crate) fn replay(&self) -> Result<SpatialTimeStage, Diagnostic> {
         Ok(SpatialTimeStage {
             unknown: self.unknown.clone(),
             solve: self.solve.replay_metadata()?,

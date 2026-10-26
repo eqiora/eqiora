@@ -159,9 +159,9 @@ the same accepted-point API. Array leaves use the CPU transport described in
 
 ## Spatial trajectories with a fixed initial State
 
-For an admitted spatial backward-Euler Plan, pass its initial physical `State`
+For an admitted spatial backward-Euler or implicit-midpoint Plan, pass its initial physical `State`
 and one ordinary Run schedule to `eqiora.diff.compile`. Select Parameters
-through `inputs` and complete Fields through `outputs`:
+through `inputs` and complete Fields or reduced spatial Observables through `outputs`:
 
 ```python
 program = eqiora.diff.compile(
@@ -173,7 +173,8 @@ values = point.primal().output[0]
 tangent = point.jvp((1.0,)).tangent[0]
 ```
 
-Use `until_s` and `output_times_s` instead for a physical-time schedule; supply
+For implicit midpoint, use `until_s` and `output_times_s`. These also provide a
+physical-time schedule for backward Euler; supply
 exactly one schedule family. No previously solved canonical Run is required.
 Each selected output has shape `(sample_count, coefficient_count, *value_shape)`,
 including a leading length-one time axis when only one output time is selected.
@@ -187,14 +188,25 @@ are absent from the requested outputs. With `steps=1, output_steps=(1,)`, this
 is the fixed-predecessor step derivative; it does not differentiate the Run that
 produced the supplied State. Real and complex linear/Newton products reuse the
 ordinary native execution and accepted derivative owners. Moving geometry,
-eliminated kinematics, temporal Observables and other time methods remain
+eliminated kinematics, time-window Observables and other time methods remain
 outside this boundary.
 
 Use the existing `evaluate`, `jvp`, `vjp` and `map` APIs, or bind the Program with
 `eqiora.jax.bind` / `eqiora.torch.bind` within each adapter's supported value types
 and first-order transformations. `result.evidence.steps` retains every accepted
 step in execution order, independently of the output schedule. Each step exposes
-its residual acceptance, primal solve summary and optional derivative solve.
+its joint residual acceptance, ordered `primal_solves` summaries and optional derivative solve.
+Midpoint groups its stage, optional constrained endpoint recovery, then requested
+observation recoveries. Each group keeps its own iteration count and residual;
+a physical Newton-correction criterion has `residual_target=None`. Empty update
+lists still represent accepted zero-update solves.
+
+Midpoint uses the ordinary internal clock, including a shortened final step.
+Requested times do not choose steps. Interpolated differential Fields and
+separately recovered algebraic Fields contribute their original equation and
+output actions, including direct dependence on the preceding State. A step may
+own several requested observations or none. An unrequested final horizon still
+advances the complete physical history.
 
 Recorded evaluation collections bind the exact Run request. Reopening checks
 all candidate steps against the original equations and preceding physical
@@ -233,7 +245,7 @@ follow the ordered `inputs` selection.
 As above, each evaluation keeps its own solution and partial derivatives. The
 seed, the strict-interior conditions, and the residual and regularity checks are
 applied again at every point. Stationary evaluations have one evidence entry:
-`result.evidence.steps[0].primal_solve` is a `NonlinearSolveSummary`, even when no
+`result.evidence.steps[0].primal_solves[0]` is a `NonlinearSolveSummary`, even when no
 Newton update was needed, and that entry’s `derivative_solve` describes the
 linear sensitivity solve, normal or transposed. Independent ordered maps reuse
 the same immutable seed at each point. This does not track a solution branch

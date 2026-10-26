@@ -216,7 +216,7 @@ fn nonlinear_spatial_program_pairs_total_products_and_reauthenticates_records() 
         let record = evaluation.record().unwrap();
         assert_eq!(
             record.result().evidence().steps()[0]
-                .nonlinear_iterations()
+                .nonlinear_iterations(0)
                 .unwrap()
                 == 0,
             p == 0.
@@ -228,10 +228,10 @@ fn nonlinear_spatial_program_pairs_total_products_and_reauthenticates_records() 
             record
         );
         assert!(RecordedDifferentiableEvaluation::from_bytes(&encoded, &plan, None).is_err());
-        for key in ["state", "output", "point"] {
+        for key in ["unknown", "output", "point"] {
             let mut wire: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
-            let coordinate = if key == "state" {
-                &mut wire[key][0][0]
+            let coordinate = if key == "unknown" {
+                &mut wire["steps"][0][key][0]
             } else {
                 &mut wire[key][0]
             };
@@ -247,7 +247,7 @@ fn nonlinear_spatial_program_pairs_total_products_and_reauthenticates_records() 
         }
         for iterations in [if p == 0. { 1 } else { 0 }, 17] {
             let mut wire: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
-            wire["primal"][0]["record"]["iterations"] = serde_json::json!(iterations);
+            wire["steps"][0]["primal"]["record"]["iterations"] = serde_json::json!(iterations);
             assert!(
                 RecordedDifferentiableEvaluation::from_bytes(
                     &serde_json::to_vec(&wire).unwrap(),

@@ -84,7 +84,7 @@ def test_nonlinear_spatial_products_and_recorded_collection(property_law):
         reverse = point.vjp((np.array([2., 3., 5.]),))
         np.testing.assert_allclose(reverse.input_cotangent, [3*dp, 3*dr+5], rtol=0, atol=1e-10)
         assert reverse.evidence.steps[0].initial_state_identity == seed.digest
-        assert (point.primal().evidence.steps[0].primal_solve.completed_iterations == 0) == (p == 0)
+        assert (point.primal().evidence.steps[0].primal_solves[0].completed_iterations == 0) == (p == 0)
     if property_law:
         with pytest.raises(q.EqioraError):
             program.evaluate((-1., 2.))

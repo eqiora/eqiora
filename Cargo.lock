@@ -1051,6 +1051,7 @@ dependencies = [
  "eqiora-assembly",
  "eqiora-compiler",
  "eqiora-core",
+ "eqiora-differentiation",
  "eqiora-distributed",
  "eqiora-execution",
  "eqiora-geometry",

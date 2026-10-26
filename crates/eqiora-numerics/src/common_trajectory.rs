@@ -13,7 +13,7 @@ mod artifact;
 mod functional;
 pub(crate) mod history_boundary;
 mod sensitivity;
-mod spatial_time;
+pub(crate) mod spatial_time;
 pub(crate) use spatial_time::{SpatialTimeExecution, SpatialTimeStage};
 mod spectrum;
 pub use functional::{CommonTrajectoryObservation, TimeObservationInterpolation};

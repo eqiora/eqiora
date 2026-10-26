@@ -50,6 +50,11 @@ impl CommonSpatialPlan {
         outputs: &[eqiora_core::RawId],
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.validate_step_outputs(outputs)?;
+        self.admission
+            .temporal
+            .as_ref()
+            .expect("validated temporal Plan")
+            .require_backward_euler()?;
         let mut accepted = step.clone();
         accepted.reaccept_spatial(self)?;
         Ok(accepted)
@@ -74,6 +79,11 @@ impl CommonSpatialPlan {
         outputs: &[eqiora_core::RawId],
     ) -> Result<TimeGrid, Diagnostic> {
         self.validate_trajectory_differentiation_request(request, outputs)?;
+        self.admission
+            .temporal
+            .as_ref()
+            .expect("validated temporal Plan")
+            .require_backward_euler()?;
         if request.accepted_steps()?.get() != 1 || request.output_steps()? != [1] {
             return Err(invalid(
                 "fixed-history step products require exactly one requested step and its endpoint",
@@ -95,8 +105,28 @@ impl CommonSpatialPlan {
         if request.plan().identity() != self.identity() {
             return Err(invalid("step Parameter request belongs to a foreign Plan"));
         }
-        request.accepted_steps()?;
-        request.output_steps()?;
+        if self
+            .admission
+            .temporal
+            .as_ref()
+            .is_some_and(|policy| policy.as_ode().is_some())
+        {
+            let policy = self
+                .admission
+                .temporal
+                .as_ref()
+                .and_then(CommonTemporalPolicy::as_ode)
+                .expect("checked ODE policy");
+            if policy.method() != eqiora_time::TimeMethod::ImplicitMidpoint {
+                return Err(invalid(
+                    "trajectory products require backward Euler or implicit midpoint",
+                ));
+            }
+            policy.require_spatial_execution_controls()?;
+        } else {
+            request.accepted_steps()?;
+            request.output_steps()?;
+        }
         Ok(())
     }
 
@@ -104,8 +134,7 @@ impl CommonSpatialPlan {
         self.admission
             .temporal
             .as_ref()
-            .ok_or_else(|| invalid("step linearization requires a temporal Plan"))?
-            .require_backward_euler()?;
+            .ok_or_else(|| invalid("step linearization requires a temporal Plan"))?;
         self.differentiation_output_fields(outputs)?;
         Ok(())
     }
@@ -115,12 +144,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S>
 where
     RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
 {
-    fn prepare_step(
-        &mut self,
-        template: &ExecutableSpatialEquations<S>,
-        previous: &CommonState,
-        grid: TimeGrid,
-    ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
+    pub(super) fn require_fixed_geometry_products(&self) -> Result<(), Diagnostic> {
         if self
             .equations
             .regions
@@ -141,6 +165,16 @@ where
                 "step products through moving geometry require its retained geometry partials",
             ));
         }
+        Ok(())
+    }
+
+    fn prepare_step(
+        &mut self,
+        template: &ExecutableSpatialEquations<S>,
+        previous: &CommonState,
+        grid: TimeGrid,
+    ) -> Result<(RegionDofMap<S>, RegionSolveInput<S>), Diagnostic> {
+        self.require_fixed_geometry_products()?;
         let previous_time = previous.require_time_s()?;
         // Only external canonical history is authenticated against the template.
         let (canonical, mut input) = self.plan.scalar_step_assembly(template, previous, grid)?;

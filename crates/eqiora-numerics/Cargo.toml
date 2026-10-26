@@ -18,6 +18,7 @@ eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
 eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
+eqiora-differentiation = { workspace = true }
 eqiora-distributed = { workspace = true }
 eqiora-execution = { workspace = true }
 eqiora-geometry = { workspace = true }

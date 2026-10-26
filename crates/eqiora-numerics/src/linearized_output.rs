@@ -15,6 +15,7 @@ pub struct FieldCoefficientLinearization {
     unknown_dimension: usize,
     parameter_dimension: usize,
     output_unknowns: Vec<Option<usize>>,
+    unknown_weights: Vec<f64>,
     direct_parameter_jacobian: Vec<f64>,
 }
 
@@ -59,12 +60,53 @@ impl FieldCoefficientLinearization {
             ));
         }
         Ok(Self {
+            unknown_weights: vec![1.; primal.len()],
             primal,
             unknown_dimension,
             parameter_dimension,
             output_unknowns,
             direct_parameter_jacobian,
         })
+    }
+
+    /// Rebind physical free coordinates to the joint implicit unknown layout.
+    pub(crate) fn project_unknowns(
+        mut self,
+        dimension: usize,
+        coordinates: &[(usize, f64)],
+    ) -> Result<Self, Diagnostic> {
+        if coordinates.len() != self.unknown_dimension
+            || coordinates
+                .iter()
+                .any(|&(index, weight)| index >= dimension || !weight.is_finite())
+        {
+            return Err(invalid(
+                "Field output projection has a foreign unknown layout",
+            ));
+        }
+        for (index, weight) in self
+            .output_unknowns
+            .iter_mut()
+            .zip(&mut self.unknown_weights)
+        {
+            if let Some(index) = index {
+                let (joint, factor) = coordinates[*index];
+                *index = joint;
+                *weight *= factor;
+                if !weight.is_finite() {
+                    return Err(invalid("Field projection weight is non-finite"));
+                }
+            }
+        }
+        self.unknown_dimension = dimension;
+        Ok(self)
+    }
+
+    pub(crate) fn state_entries(&self) -> impl Iterator<Item = Option<(usize, f64)>> + '_ {
+        self.output_unknowns
+            .iter()
+            .zip(&self.unknown_weights)
+            .map(|(index, weight)| index.map(|index| (index, *weight)))
     }
 
     /// Complete accepted Field values in the Realization's canonical order.
@@ -112,7 +154,9 @@ impl LinearizedOutput<f64> for FieldCoefficientLinearization {
             return Err(invalid("Field output JVP shape or value mismatch"));
         }
         for (row, output) in output_tangent.iter_mut().enumerate() {
-            let state = self.output_unknowns[row].map_or(0.0, |index| unknown_tangent[index]);
+            let state = self.output_unknowns[row].map_or(0.0, |index| {
+                self.unknown_weights[row] * unknown_tangent[index]
+            });
             let direct = self.direct_parameter_jacobian
                 [row * self.parameter_dimension..(row + 1) * self.parameter_dimension]
                 .iter()
@@ -141,7 +185,7 @@ impl LinearizedOutput<f64> for FieldCoefficientLinearization {
         parameter_cotangent.fill(0.0);
         for (row, &cotangent) in output_cotangent.iter().enumerate() {
             if let Some(index) = self.output_unknowns[row] {
-                unknown_cotangent[index] += cotangent;
+                unknown_cotangent[index] += self.unknown_weights[row] * cotangent;
             }
             for (column, parameter) in parameter_cotangent.iter_mut().enumerate() {
                 *parameter += self.direct_parameter_jacobian

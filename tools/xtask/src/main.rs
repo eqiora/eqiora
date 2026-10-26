@@ -187,6 +187,9 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // remain one-way leaves; neither owns numerical policy.
             | ("eqiora-numerics", "eqiora-io-gmsh")
             | ("eqiora-numerics", "eqiora-runtime")
+            // #1565: numerical admission retains the shared original-equation
+            // acceptance criterion; docs/architecture.md records this one-way edge.
+            | ("eqiora-numerics", "eqiora-differentiation")
             // RFC 0063: this single L3 composition owns the joint lifecycle
             // of otherwise isolated MPI transport and CUDA action adapters.
             | ("eqiora-backend-mpi-cuda", "eqiora-backend-mpi")
@@ -355,6 +358,26 @@ mod tests {
         assert!(!same_layer_dependency_is_allowed(
             "eqiora-compiler",
             "eqiora-solver"
+        ));
+    }
+
+    #[test]
+    fn primal_acceptance_composition_preserves_analysis_independence() {
+        assert!(same_layer_dependency_is_allowed(
+            "eqiora-numerics",
+            "eqiora-differentiation"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-differentiation",
+            "eqiora-numerics"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-runtime",
+            "eqiora-differentiation"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-differentiation",
+            "eqiora-backend-faer"
         ));
     }
 

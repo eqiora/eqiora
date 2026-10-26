@@ -52,7 +52,11 @@ fn verify_shape_gradient(method: DiscretizationMethod) {
     assert_eq!(linearization.design_coordinates(), &selected);
     assert_eq!(linearization.design_values(), &bounds);
 
-    let accepted = AcceptedLinearization::new(&linearization, 2.0e-9).unwrap();
+    let accepted = AcceptedLinearization::new(
+        &linearization,
+        &eqiora::differentiation::PrimalAcceptance::Residual(2.0e-9),
+    )
+    .unwrap();
     let solver = sensitivity_solver();
     let direction = [0.3, -0.25];
     let forward = forward_sensitivity(
@@ -150,7 +154,11 @@ fn objective_and_gradient(aspect_coordinate: f64, method: DiscretizationMethod) 
     )
     .unwrap();
     let objective = -mean(linearization.accepted_unknowns());
-    let accepted = AcceptedLinearization::new(&linearization, 2.0e-9).unwrap();
+    let accepted = AcceptedLinearization::new(
+        &linearization,
+        &eqiora::differentiation::PrimalAcceptance::Residual(2.0e-9),
+    )
+    .unwrap();
     let objective_unknown = vec![
         -1.0 / linearization.accepted_unknowns().len() as f64;
         linearization.accepted_unknowns().len()

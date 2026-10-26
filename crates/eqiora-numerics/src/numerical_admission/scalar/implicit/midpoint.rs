@@ -1,15 +1,54 @@
 //! Residual-native midpoint stages use the shared Newton and canonical solver owners.
 use super::*;
+use crate::common_trajectory::SpatialTimeStage;
 use crate::nonlinear_execution::{
     NewtonEvidence, NewtonOptions, NewtonTrial, solve_damped_newton, stage_merit,
 };
+
+/// One physical step retains both the midpoint stage and any endpoint recovery.
+/// An algebraic midpoint unknown is never published as the endpoint State.
+pub(in crate::numerical_admission) struct MidpointStep {
+    pub(in crate::numerical_admission) stage: SpatialTimeStage,
+    pub(in crate::numerical_admission) endpoint: Option<SpatialTimeStage>,
+    pub(in crate::numerical_admission) physical: Vec<f64>,
+    pub(in crate::numerical_admission) observations: Vec<MidpointObservation>,
+}
 
 impl<S: Coefficient + Send + Sync> SpatialImplicitSystem<'_, S>
 where
     RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
 {
-    /// An immutable stage attempt. The caller owns clocks, observations and State publication.
+    /// Execute the complete ordinary step, including algebraic endpoint recovery.
     pub(in crate::numerical_admission) fn midpoint_step(
+        &self,
+        time: f64,
+        h: f64,
+        initial: &[f64],
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<MidpointStep, Diagnostic> {
+        let (unknown, evidence) = self.midpoint_stage(time, h, initial, backend)?;
+        let (physical, endpoint) = if self.algebraic.is_empty() {
+            (unknown.clone(), None)
+        } else {
+            let (fixed, seed) = self.endpoint_recovery_seed(initial, &unknown, h)?;
+            let (recovered, evidence) =
+                self.recover_consistent(time + h, h, &fixed, &seed, backend)?;
+            let (physical, _) = self.recovery_coordinates(h, &fixed, &recovered)?;
+            (
+                physical,
+                Some(SpatialTimeStage::from_newton(recovered, evidence)),
+            )
+        };
+        Ok(MidpointStep {
+            stage: SpatialTimeStage::from_newton(unknown, evidence),
+            endpoint,
+            physical,
+            observations: Vec::new(),
+        })
+    }
+
+    /// An immutable stage attempt. The caller owns clocks, observations and State publication.
+    pub(in crate::numerical_admission) fn midpoint_stage(
         &self,
         time_s: f64,
         step_s: f64,

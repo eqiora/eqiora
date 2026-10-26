@@ -28,6 +28,23 @@ fn resolve_typed_constraint_with_data(
     dynamic: &str,
     data: &str,
 ) -> (ResolvedCommonPlan, [RawId; 2]) {
+    resolve_constraint_source(spatial, mixed, constraint, complex, dynamic, data, false)
+}
+
+fn resolve_constraint_source(
+    spatial: CommonSpatialPolicy,
+    mixed: bool,
+    constraint: &str,
+    complex: bool,
+    dynamic: &str,
+    data: &str,
+    runtime_parameters: bool,
+) -> (ResolvedCommonPlan, [RawId; 2]) {
+    let declaration = if runtime_parameters {
+        "model"
+    } else {
+        "public component"
+    };
     let scalar = if complex { "complex<1>" } else { "1" };
     let geometry = cartesian_interval();
     let first = if mixed {
@@ -52,7 +69,7 @@ fn resolve_typed_constraint_with_data(
         String::new()
     };
     let source = format!(
-        "public component Mixed(support body:volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body)) {{
+        "{declaration} Mixed(support body:volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body)) {{
         state u:{scalar} on body in smooth;
         variable z:{scalar} on body in smooth;
         {data}
@@ -78,7 +95,12 @@ fn resolve_typed_constraint_with_data(
         .next()
         .map(|form| form.projection().clone());
     let (transaction, model, symbols) = compiled.into_parts();
-    let fields = ["definition.u", "definition.z"].map(|name| symbols.get(name).unwrap());
+    let fields = if runtime_parameters {
+        ["u", "z"]
+    } else {
+        ["definition.u", "definition.z"]
+    }
+    .map(|name| symbols.get(name).unwrap());
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program =
@@ -176,7 +198,7 @@ fn midpoint_stage_and_endpoint_recovery_satisfy_distinct_physical_constraints() 
         let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
         let initial = vec![1.; system.dimension()];
         let (unknown, _) = system
-            .midpoint_step(0., 0.1, &initial, &REFERENCE_LINEAR_SOLVER)
+            .midpoint_stage(0., 0.1, &initial, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         // u(t)=1+t. At the midpoint, z=1.05^2; at the endpoint z=1.1^2.
         // The stage unknown for z is twice its midpoint value, never z(0.1).
@@ -338,17 +360,19 @@ fn constrained_midpoint_runs_recover_physical_outputs_and_replay_without_resolvi
                     .unwrap(),
                 result_bytes
             );
-            let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            let witness = &mut forged["payload"]["execution"]["endpoints"][0];
-            let wrong = witness["unknown"][0].as_f64().unwrap() + 0.1;
-            witness["unknown"][0] = serde_json::json!(wrong);
-            witness["convergence"] = serde_json::json!({"kind":"exact-residual-zero"});
-            let error = crate::CommonTrajectory::from_bytes(
-                &serde_json::to_vec(&forged).unwrap(),
-                &resolved,
-            )
-            .unwrap_err();
-            assert!(error.message().contains("zero-residual"), "{error}");
+            for role in ["endpoints", "outputs"] {
+                let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                let witness = &mut forged["payload"]["execution"][role][0];
+                let wrong = witness["unknown"][0].as_f64().unwrap() + 0.1;
+                witness["unknown"][0] = serde_json::json!(wrong);
+                witness["convergence"] = serde_json::json!({"kind":"exact-residual-zero"});
+                let error = crate::CommonTrajectory::from_bytes(
+                    &serde_json::to_vec(&forged).unwrap(),
+                    &resolved,
+                )
+                .unwrap_err();
+                assert!(error.message().contains("zero-residual"), "{error}");
+            }
         }
     }
 }
@@ -369,7 +393,7 @@ fn algebraic_midpoint_feedback_changes_the_differential_update() {
         let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
         let initial = vec![1.; system.dimension()];
         let (unknown, _) = system
-            .midpoint_step(0., 0.1, &initial, &REFERENCE_LINEAR_SOLVER)
+            .midpoint_stage(0., 0.1, &initial, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         // u'=-z,z=u²: h*w²+2*w-2*u0=0 at the collocation point.
         // This cancellation-free positive root is independent of the solver.
@@ -786,5 +810,234 @@ fn physical_initial_rates_complex_coefficient_actions_preserve_both_parts() {
             count
         );
         assert_eq!(initial.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn midpoint_joint_products_include_history_and_physical_endpoint_recovery() {
+    for complex in [false, true] {
+        for (spatial, mixed) in [
+            (CommonSpatialPolicy::Q1, false),
+            (CommonSpatialPolicy::Q1, true),
+            (CommonSpatialPolicy::CellCenteredTpfa, false),
+        ] {
+            let (resolved, fields) = resolve_constraint_source(
+                spatial,
+                mixed,
+                "z-u*u",
+                complex,
+                "1[s]*derivative(u)-p",
+                "parameter p:1=1;",
+                true,
+            );
+            let plan = resolved.as_spatial().unwrap();
+            match plan.admission.recognized_model() {
+                RecognizedNativeModel::Spatial(equations) => {
+                    joint_products(plan, equations, fields)
+                }
+                RecognizedNativeModel::ComplexSpatial(equations) => {
+                    joint_products(plan, equations, fields)
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+fn joint_products<S: crate::spatial_expression::Coefficient + Send + Sync>(
+    plan: &CommonSpatialPlan,
+    equations: &ExecutableSpatialEquations<S>,
+    fields: [RawId; 2],
+) where
+    crate::region_assembly::mapping::RegionDofMap<S>:
+        crate::region_assembly::mapping::RegionAlgebraicCoordinates<f64, S>,
+{
+    use crate::region_assembly::mapping::RegionRealCoordinates;
+    use eqiora_schema::kernel::{KernelNode, SymbolRef};
+    use eqiora_solver::{CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation};
+    let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
+    let (mapping, _) = plan.scalar_assembly_at(equations, 0.).unwrap();
+    let layout = RegionRealCoordinates::new(&mapping).unwrap();
+    let keys = layout.full_keys();
+    let mut coordinates = vec![(false, false); system.dimension()];
+    for (global, (key, imaginary)) in keys.into_iter().enumerate() {
+        if let Some(free) = layout.free_coordinate(global) {
+            coordinates[free] = (key.field == fields[0], imaginary);
+        }
+    }
+    let parameter = plan
+        .kernel()
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Parameter(parameter) => Some(parameter.id()),
+            _ => None,
+        })
+        .unwrap();
+    let parameters = eqiora_ir::ScalarSymbolCoordinate::for_value(
+        SymbolRef::Parameter(parameter),
+        &eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let initial = coordinates
+        .iter()
+        .map(|(_, imaginary)| if *imaginary { 0. } else { 1. })
+        .collect::<Vec<_>>();
+    let mut step = system
+        .midpoint_step(0., 0.1, &initial, &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    let partials = system
+        .midpoint_partials(0., 0.1, &initial, &step, &parameters)
+        .unwrap();
+    // u'=p, z=u²; u0=p=1, h=1/10. Thus u1=11/10,
+    // midpoint u=21/20, stage unknown z=2*(21/20)²,
+    // and physical endpoint z=121/100, not the midpoint value.
+    let n = coordinates.len();
+    assert_eq!(partials.unknowns.len(), 2 * n);
+    assert_eq!(partials.parameters.len(), 2 * n);
+    assert!(partials.residual.iter().all(|value| value.abs() < 1e-10));
+    for (i, &(dynamic, imaginary)) in coordinates.iter().enumerate() {
+        let expected = if imaginary {
+            0.
+        } else if dynamic {
+            1.1
+        } else {
+            1.21
+        };
+        assert!((partials.unknowns[partials.physical[i]] - expected).abs() < 1e-10);
+        assert!((step.physical[i] - expected).abs() < 1e-10);
+    }
+    assert!(partials.observations.is_empty());
+    let time_plan = eqiora_time::TimePlan::new(
+        eqiora_time::TimeMethod::ImplicitMidpoint,
+        0.,
+        0.1,
+        1e-10,
+        vec![1e-12; system.differential_coordinates(&initial).len()],
+        vec![0.025, 0.05, 0.1],
+    )
+    .unwrap();
+    let solution = eqiora_time::ImplicitMidpointTimeBackend::new()
+        .solve_with_stages(
+            &system.differential_coordinates(&initial),
+            &time_plan,
+            eqiora_time::TimeEquationClass::GeneralImplicitDae,
+            |_, _, _| Ok(system.differential_coordinates(&step.physical)),
+        )
+        .unwrap();
+    let history_step = &solution.history().unwrap().steps()[0];
+    for time in [0., 0.025, 0.05, 0.1] {
+        step.observations.push(
+            system
+                .solve_midpoint_observation(
+                    history_step,
+                    &step.physical,
+                    step.endpoint.as_ref(),
+                    time,
+                    &REFERENCE_LINEAR_SOLVER,
+                )
+                .unwrap(),
+        );
+    }
+    let partials = system
+        .midpoint_partials(0., 0.1, &initial, &step, &parameters)
+        .unwrap();
+    assert_eq!(partials.unknowns.len(), 6 * n);
+    assert_eq!(partials.observations.len(), 4);
+    assert!(partials.residual.iter().all(|value| value.abs() < 1e-10));
+    // Each leaf has no coupling to the endpoint recovery or any other leaf.
+    for row in 2 * n..6 * n {
+        for entry in partials.state.row_offsets()[row]..partials.state.row_offsets()[row + 1] {
+            let column = partials.state.column_indices()[entry];
+            assert!(column < n || column / n == row / n);
+        }
+    }
+    // Hold independent predecessor directions du0=3-2i, dz0=7+5i,
+    // dp=2. The algebraic predecessor must have no effect.
+    let history = coordinates
+        .iter()
+        .map(|&(dynamic, imaginary)| match (dynamic, imaginary) {
+            (true, false) => 3.,
+            (true, true) => -2.,
+            (false, false) => 7.,
+            (false, true) => 5.,
+        })
+        .collect::<Vec<_>>();
+    let mut rhs = vec![0.; partials.unknowns.len()];
+    partials.history.apply(&history, &mut rhs).unwrap();
+    for (value, parameter) in rhs.iter_mut().zip(&partials.parameters) {
+        *value = -*value - 2. * parameter;
+    }
+    let canonical =
+        CanonicalCsrSystemView::new(&partials.state, &rhs, LinearOperatorProperties::General)
+            .unwrap();
+    let solved = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+        .solve_canonical_oriented(&canonical, &rhs, LinearOperatorOrientation::Normal)
+        .unwrap();
+    // du1=16/5-2i, dm=31/10-2i; d(2m²)=4m dm,
+    // d(h*v)=1/5 and dz1=2*u1*du1.
+    for (i, &(dynamic, imaginary)) in coordinates.iter().enumerate() {
+        let stage = match (dynamic, imaginary) {
+            (true, false) => 3.2,
+            (true, true) => -2.,
+            (false, false) => 13.02,
+            (false, true) => -8.4,
+        };
+        let recovery = match (dynamic, imaginary) {
+            (true, false) => 0.2,
+            (true, true) => 0.,
+            (false, false) => 7.04,
+            (false, true) => -4.4,
+        };
+        assert!(
+            (solved.values()[i] - stage).abs() < 1e-9,
+            "stage {i}: {} vs {stage}",
+            solved.values()[i]
+        );
+        assert!(
+            (solved.values()[n + i] - recovery).abs() < 1e-9,
+            "endpoint {i}: {} vs {recovery}",
+            solved.values()[n + i]
+        );
+    }
+    for (index, observation) in partials.observations.iter().enumerate() {
+        let time = [0., 0.025, 0.05, 0.1][index];
+        assert_eq!(observation.time, time);
+        let alpha = 1. - time / 0.1;
+        let beta = time / 0.1;
+        for (i, &(dynamic, imaginary)) in coordinates.iter().enumerate() {
+            let primal = if imaginary {
+                0.
+            } else if dynamic {
+                1. + time
+            } else {
+                (1. + time).powi(2)
+            };
+            assert!((observation.physical[i] - primal).abs() < 1e-10);
+            assert!((observation.weights[i] - if dynamic { beta } else { 1. }).abs() < 1e-15);
+            assert!((observation.history[i] - if dynamic { alpha } else { 0. }).abs() < 1e-15);
+            let expected = match (dynamic, imaginary) {
+                (true, false) => 3. + 2. * time,
+                (true, true) => -2.,
+                (false, false) => 2. * (1. + time) * (3. + 2. * time),
+                (false, true) => -4. * (1. + time),
+            };
+            let actual = observation.weights[i] * solved.values()[observation.unknowns[i]]
+                + observation.history[i] * history[i];
+            assert!(
+                (actual - expected).abs() < 1e-9,
+                "observation {time} coordinate {i}: {actual} vs {expected}"
+            );
+            let recovery = solved.values()[(index + 2) * n + i];
+            let expected_recovery = if dynamic {
+                if imaginary { 0. } else { 0.2 }
+            } else {
+                expected
+            };
+            assert!((recovery - expected_recovery).abs() < 1e-9);
+        }
     }
 }

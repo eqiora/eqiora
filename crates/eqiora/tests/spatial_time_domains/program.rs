@@ -140,7 +140,8 @@ fn run_program_preserves_fixed_history_products_and_solve_free_records() {
                 .is_err()
         );
         let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        forged["state"][0][0] = serde_json::json!(forged["state"][0][0].as_f64().unwrap() + 0.125);
+        forged["steps"][0]["unknown"][0] =
+            serde_json::json!(forged["steps"][0]["unknown"][0].as_f64().unwrap() + 0.125);
         assert!(
             RecordedDifferentiableEvaluation::from_run_bytes(
                 &serde_json::to_vec(&forged).unwrap(),
@@ -302,12 +303,12 @@ fn multi_step_program_preserves_temporal_axes_all_acceptances_and_unsampled_hist
         reverse.evidence(),
     ] {
         assert_eq!(result.steps().len(), 3);
-        assert!(
-            result
-                .steps()
-                .iter()
-                .all(|step| step.primal_residual_norm() <= step.residual_tolerance())
-        );
+        assert!(result.steps().iter().all(|step| {
+            step.primal_residual_norm()
+                <= step
+                    .residual_tolerance()
+                    .expect("backward-Euler residual criterion")
+        }));
     }
     assert!(
         forward
@@ -325,7 +326,8 @@ fn multi_step_program_preserves_temporal_axes_all_acceptances_and_unsampled_hist
     );
     let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     // The unobserved second step must still be reaccepted, not dropped.
-    forged["state"][1][0] = serde_json::json!(forged["state"][1][0].as_f64().unwrap() + 0.125);
+    forged["steps"][1]["unknown"][0] =
+        serde_json::json!(forged["steps"][1]["unknown"][0].as_f64().unwrap() + 0.125);
     assert!(
         RecordedDifferentiableEvaluation::from_run_bytes(
             &serde_json::to_vec(&forged).unwrap(),
@@ -334,7 +336,7 @@ fn multi_step_program_preserves_temporal_axes_all_acceptances_and_unsampled_hist
         .is_err()
     );
     let mut missing: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    missing["primal"].as_array_mut().unwrap().remove(1);
+    missing["steps"].as_array_mut().unwrap().remove(1);
     assert!(
         RecordedDifferentiableEvaluation::from_run_bytes(
             &serde_json::to_vec(&missing).unwrap(),
@@ -381,18 +383,18 @@ fn nonlinear_trajectory_record_retains_each_actual_update_and_seed_boundary() {
     let primal = live.primal();
     assert_eq!(primal.evidence().steps().len(), 2);
     for step in primal.evidence().steps() {
-        assert!(step.nonlinear_iterations().unwrap() > 0);
+        assert!(step.nonlinear_iterations(0).unwrap() > 0);
         assert_eq!(
-            step.primal_solves().len(),
-            step.nonlinear_iterations().unwrap()
+            step.primal_solves(0).unwrap().len(),
+            step.nonlinear_iterations(0).unwrap()
         );
     }
     assert_eq!(
-        primal.evidence().steps()[0].nonlinear_initial_state_identity(),
+        primal.evidence().steps()[0].nonlinear_initial_state_identity(0),
         Some(initial.identity())
     );
     assert_eq!(
-        primal.evidence().steps()[1].nonlinear_initial_state_identity(),
+        primal.evidence().steps()[1].nonlinear_initial_state_identity(0),
         None
     );
     let record = live.record().unwrap();

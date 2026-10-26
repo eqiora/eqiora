@@ -196,7 +196,9 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         .unwrap_err();
                     assert!(error.message().contains("residual"), "{error:?}");
                     assert_eq!(evaluated.linear_solves().len(), 1);
-                    assert_eq!(evaluated.linear_solves()[0].solver_plan(), plan.linear());
+                    evaluated.linear_solves()[0]
+                        .validate_plan(&ResolvedCommonPlan::Spatial(Box::new(plan.clone())))
+                        .unwrap();
                     assert_eq!(evaluated.linearization().relation().design_values(), &[3.]);
                     let old = if storage_parameter {
                         phase / if index == 0 { 1. } else { 2. }
@@ -242,13 +244,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                 let candidates = changed_run
                     .steps()
                     .iter()
-                    .map(|point| {
-                        point
-                            .linearization()
-                            .relation()
-                            .accepted_unknowns()
-                            .to_vec()
-                    })
+                    .map(|point| point.candidate())
                     .collect::<Vec<_>>();
                 let replay = plan
                     .validate_differentiated_trajectory_values(

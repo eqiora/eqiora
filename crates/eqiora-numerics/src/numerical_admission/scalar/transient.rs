@@ -65,7 +65,7 @@ impl CommonSpatialPlan {
             .map(Some)
     }
 
-    pub(super) fn scalar_assembly_at<S: Coefficient + Send + Sync>(
+    pub(in crate::numerical_admission) fn scalar_assembly_at<S: Coefficient + Send + Sync>(
         &self,
         equations: &ExecutableSpatialEquations<S>,
         time_s: f64,

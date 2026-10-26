@@ -16,6 +16,9 @@ use eqiora_solver::{
     OrientedLinearOperator, SERIAL_LINEAR_EXECUTION,
 };
 
+mod acceptance;
+pub use acceptance::PrimalAcceptance;
+
 mod trajectory;
 pub use trajectory::{
     DiscreteTrajectoryAdjoint, DiscreteTrajectoryCheckpoint, DiscreteTrajectoryLinearization,
@@ -27,7 +30,7 @@ pub use trajectory::{
 pub struct AcceptedLinearization<'a, R: LinearizedRelation<f64> + ?Sized> {
     relation: &'a R,
     primal_residual_norm: f64,
-    residual_tolerance: f64,
+    residual_tolerance: Option<f64>,
     state_jacobian: Option<(&'a CanonicalCsrSystemView, eqiora_core::ScalarDomain)>,
 }
 
@@ -66,12 +69,9 @@ where
     pub fn new(
         relation: &'a R,
         output: &'a O,
-        residual_tolerance: f64,
+        acceptance: &PrimalAcceptance,
     ) -> Result<Self, Diagnostic> {
-        Self::from_relation(
-            AcceptedLinearization::new(relation, residual_tolerance)?,
-            output,
-        )
+        Self::from_relation(AcceptedLinearization::new(relation, acceptance)?, output)
     }
 
     fn from_relation(
@@ -111,14 +111,14 @@ where
         output: &'a O,
         state_jacobian: &'a CanonicalCsrSystemView,
         state_scalar_domain: eqiora_core::ScalarDomain,
-        residual_tolerance: f64,
+        acceptance: &PrimalAcceptance,
     ) -> Result<Self, Diagnostic> {
         Self::from_relation(
             AcceptedLinearization::new_with_canonical_state_jacobian(
                 relation,
                 state_jacobian,
                 state_scalar_domain,
-                residual_tolerance,
+                acceptance,
             )?,
             output,
         )
@@ -138,25 +138,16 @@ where
 }
 
 impl<'a, R: LinearizedRelation<f64> + ?Sized> AcceptedLinearization<'a, R> {
-    /// Verify the primal residual before sensitivity analysis.
+    /// Verify the declared primal acceptance criterion before sensitivity analysis.
     ///
     /// # Errors
-    /// Returns `EQ0704` for an invalid tolerance, non-finite norm, or residual
-    /// above the declared acceptance threshold.
-    pub fn new(relation: &'a R, residual_tolerance: f64) -> Result<Self, Diagnostic> {
-        if !residual_tolerance.is_finite() || residual_tolerance < 0.0 {
-            return Err(invalid_linearization(
-                "linearization residual tolerance must be finite and non-negative",
-            ));
-        }
+    /// Returns `EQ0704` for non-finite residuals, invalid controls, or a
+    /// failed residual bound or full Newton correction criterion.
+    pub fn new(relation: &'a R, acceptance: &PrimalAcceptance) -> Result<Self, Diagnostic> {
         let mut residual = vec![0.0; relation.residual_dimension()];
         relation.primal(&mut residual)?;
         let primal_residual_norm = linearization_residual_norm(&residual)?;
-        if primal_residual_norm > residual_tolerance {
-            return Err(invalid_linearization(format!(
-                "primal residual {primal_residual_norm:e} exceeds linearization tolerance {residual_tolerance:e}"
-            )));
-        }
+        let residual_tolerance = acceptance.validate(&residual)?;
         Ok(Self {
             relation,
             primal_residual_norm,
@@ -177,9 +168,9 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> AcceptedLinearization<'a, R> {
         relation: &'a R,
         state_jacobian: &'a CanonicalCsrSystemView,
         state_scalar_domain: eqiora_core::ScalarDomain,
-        residual_tolerance: f64,
+        acceptance: &PrimalAcceptance,
     ) -> Result<Self, Diagnostic> {
-        let mut accepted = Self::new(relation, residual_tolerance)?;
+        let mut accepted = Self::new(relation, acceptance)?;
         if state_jacobian.rows() != relation.residual_dimension()
             || state_jacobian.columns() != relation.unknown_dimension()
         {
@@ -217,16 +208,16 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> AcceptedLinearization<'a, R> {
         self.primal_residual_norm
     }
 
-    /// Residual threshold this point was accepted against.
+    /// Residual threshold, absent when acceptance uses physical Newton corrections.
     #[must_use]
-    pub const fn residual_tolerance(&self) -> f64 {
+    pub const fn residual_tolerance(&self) -> Option<f64> {
         self.residual_tolerance
     }
 }
 
 /// Matrix-free state Jacobian action `R_w` derived from one relation JVP/VJP.
 #[derive(Debug, Clone, Copy)]
-pub struct StateJacobian<'a, R: LinearizedRelation<f64> + ?Sized> {
+struct StateJacobian<'a, R: LinearizedRelation<f64> + ?Sized> {
     relation: &'a R,
 }
 
@@ -274,7 +265,7 @@ impl<R: LinearizedRelation<f64> + ?Sized> OrientedLinearOperator for StateJacobi
 
 /// Matrix-free parameter Jacobian action `R_p` from the same relation.
 #[derive(Debug, Clone, Copy)]
-pub struct ParameterJacobian<'a, R: LinearizedRelation<f64> + ?Sized> {
+struct ParameterJacobian<'a, R: LinearizedRelation<f64> + ?Sized> {
     relation: &'a R,
 }
 

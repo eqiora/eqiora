@@ -176,7 +176,12 @@ fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
     let objective =
         DenseOutputLinearization::new(vec![output[0]], state_gradient.clone(), parameter_gradient)
             .unwrap();
-    let accepted = AcceptedOutputLinearization::new(&residual, &objective, 1e-14).unwrap();
+    let accepted = AcceptedOutputLinearization::new(
+        &residual,
+        &objective,
+        &eqiora::differentiation::PrimalAcceptance::Residual(1e-14),
+    )
+    .unwrap();
     let forward = forward_sensitivity(
         accepted.relation(),
         &[2.],
