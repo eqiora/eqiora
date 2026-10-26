@@ -390,11 +390,17 @@ assert fvm_zero_replayed.source_kind == "artifact"
 assert fvm_zero.mesh is cartesian
 assert fvm_zero.field(fvm.capability.velocity).associations == ("cell",)
 assert fvm_zero.field(fvm.capability.pressure).associations == ("cell",)
-for plan in planned.values():
+for name, plan in planned.items():
+    _, _, backend, algorithm, reduction = expected_planning[name]
     exact_linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12,
-        maximum_iterations=2000, algorithm=package.solve.LinearSolver.SparseLu,
+        maximum_iterations=2000,
+        algorithm=(package.solve.LinearSolver.SparseLu if algorithm == "sparse-lu"
+                   else package.solve.LinearSolver.BiConjugateGradientStabilized),
         preconditioner=package.solve.Preconditioner.Identity,
-        reduction=package.solve.Reduction.Fast, provider=package.solve.SolverProvider.faer())
+        reduction=(package.solve.Reduction.Fast if reduction == "fast"
+                   else package.solve.Reduction.Reproducible),
+        provider=(package.solve.SolverProvider.faer() if backend == "eqiora.faer"
+                  else package.solve.SolverProvider.reference()))
     exact_plan = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(),
         solve=package.solve.Newton(linear=exact_linear), scaling=scaling, temporal=temporal)
     assert exact_plan.solve.linear.objective is None
