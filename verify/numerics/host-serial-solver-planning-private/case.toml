@@ -1,6 +1,6 @@
 id = "numerics.host-serial-solver-planning-private"
 status = "implemented"
-scope = "crate-private-host-serial-solver-planning-v2-adversarial-oracle"
+scope = "crate-private-host-serial-solver-planning-v3-adversarial-oracle"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
@@ -17,7 +17,7 @@ capabilities = [
 [authority]
 required_primary_case = "numerics.host-serial-solver-planning"
 verification_requires_both_cases = true
-policy_oracle = "../host-serial-solver-planning/expected/policy-v2.json"
+policy_oracle = "../host-serial-solver-planning/expected/policy-v3.json"
 private_falsifier_owner = "crates/eqiora-solver/src/planning/tests.rs"
 aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_all_private_falsifiers"
 
@@ -25,7 +25,7 @@ aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_a
 candidate_order = "ascending candidate ID"
 candidate_record = "one first rejection or candidate.admitted, followed immediately by nonselection or objective selection for admitted candidates"
 catalog_controls_profile_capability_backend_solve_calls = 0
-missing_diagonal = "Jacobi candidates reject; identity-preconditioned SparseLU remains admitted without numerical work"
+missing_diagonal = "Jacobi candidates reject; identity-preconditioned BiCGSTAB and SparseLU remain admitted without numerical work"
 actual_owned_operator_apply_calls = 0
 actual_owned_operator_diagonal_calls = 0
 simultaneous_stale_evidence_and_provider_reason = "catalog.evidence-mismatch"

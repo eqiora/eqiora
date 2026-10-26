@@ -1,13 +1,13 @@
 # Independent reference
 
-`derive_policy_v2.py` is the independent authority for the exact rational
+`derive_policy_v3.py` is the independent authority for the exact rational
 system and deterministic selection table. It uses Python `Fraction` arithmetic
 to derive `[1, 2]` and the zero residual, locates both diagonal entries directly
 from the captured CSR offsets and column indices, freezes the decimal control
-values and their IEEE-754 bit patterns, and ranks a literal three-record
+values and their IEEE-754 bit patterns, and ranks a literal five-record
 catalog without importing or executing Rust.
 
-The derivation enumerates all six input permutations and every nonempty
+The derivation enumerates all 120 input permutations and every nonempty
 admitted subset, checking the complete ID-ordered reason trace and exact
 reranking for every objective. Independent mutants reverse each precedence
 ordering whose effect is observable in the frozen catalog and replace the
@@ -32,9 +32,17 @@ the oracle requires exact ordered equality of that inventory and rejects a
 changed, missing, or extra dependency. It creates no fake second dependency
 and makes no same-members reorder claim.
 
-## Pre-implementation residual audit
+## Provider source identity
 
-Before this evidence was committed, all three accepted live backends were run
+The v3 table binds the inspected Cargo release `0.1.3` for solver and execution
+provider descriptors. The v2 table retained `0.1.0-alpha.3` while its public test
+checked the actual Cargo version separately. The v3 test requires equality among
+the actual provider, the independent oracle, and Cargo source metadata. The exact
+rational solution and numerical tolerance derivations are unchanged.
+
+## Historical v2 residual audit
+
+Before the original v2 evidence was committed, its three accepted live backends were run
 at protected base `f36f6f029e7cdc59b81163355ff07ec1cdb9c78e` on the frozen
 fixture and common controls. Independent CSR replay observed:
 

@@ -112,22 +112,28 @@ pub(crate) fn policy_identity(
         bytes.extend_from_slice(&nonlinear.maximum_iterations().get().to_be_bytes());
         bytes.extend_from_slice(&nonlinear.maximum_line_search_steps().to_be_bytes());
     }
+    push_linear_policy_identity(&mut bytes, linear);
+    Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
+}
+
+/// Effective solver and planning provenance share one byte owner across Plan families.
+pub(in crate::numerical_admission) fn push_linear_policy_identity(
+    bytes: &mut Vec<u8>,
+    linear: &NativeLinearPolicy,
+) {
+    push_framed(bytes, linear_solver_identity(linear.solver.algorithm()));
     push_framed(
-        &mut bytes,
-        linear_solver_identity(linear.solver.algorithm()),
-    );
-    push_framed(
-        &mut bytes,
+        bytes,
         preconditioner_identity(linear.solver.preconditioner()),
     );
-    push_framed(&mut bytes, reduction_identity(linear.solver.reduction()));
+    push_framed(bytes, reduction_identity(linear.solver.reduction()));
     bytes.extend_from_slice(&linear.solver.relative_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.absolute_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.maximum_iterations().get().to_be_bytes());
     if let Some(objective) = linear.planning_objective {
-        push_framed(&mut bytes, b"program-controlled");
+        push_framed(bytes, b"program-controlled");
         push_framed(
-            &mut bytes,
+            bytes,
             match objective {
                 SolverPlanningObjective::Robust => b"robust",
                 SolverPlanningObjective::Fast => b"fast",
@@ -135,36 +141,29 @@ pub(crate) fn policy_identity(
             },
         );
         push_framed(
-            &mut bytes,
+            bytes,
             linear
                 .planning_policy_id
                 .expect("program-controlled policy retains its identity")
                 .as_bytes(),
         );
         push_framed(
-            &mut bytes,
+            bytes,
             linear
                 .selected_candidate_id
                 .expect("program-controlled policy retains its selected candidate")
                 .as_bytes(),
         );
     }
-    push_framed(&mut bytes, linear.provider.id().as_str().as_bytes());
-    push_framed(
-        &mut bytes,
-        linear.provider.implementation_version().as_bytes(),
-    );
+    push_framed(bytes, linear.provider.id().as_str().as_bytes());
+    push_framed(bytes, linear.provider.implementation_version().as_bytes());
     for library in linear.provider.libraries() {
-        push_framed(&mut bytes, library.name().as_bytes());
-        push_framed(&mut bytes, library.version().as_bytes());
+        push_framed(bytes, library.name().as_bytes());
+        push_framed(bytes, library.version().as_bytes());
     }
-    push_framed(&mut bytes, linear.execution.id().as_str().as_bytes());
-    push_framed(
-        &mut bytes,
-        linear.execution.implementation_version().as_bytes(),
-    );
+    push_framed(bytes, linear.execution.id().as_str().as_bytes());
+    push_framed(bytes, linear.execution.implementation_version().as_bytes());
     bytes.extend_from_slice(&linear.workers.get().to_be_bytes());
-    Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
 }
 
 pub(crate) const fn linear_solver_identity(value: LinearSolver) -> &'static [u8] {

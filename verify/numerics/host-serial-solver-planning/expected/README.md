@@ -1,6 +1,6 @@
 # Frozen expected policy
 
-`policy-v2.json` is the exact checked-in output of the independent derivation.
+`policy-v3.json` is the exact checked-in output of the independent derivation.
 It freezes the rational system and solution, canonical CSR and diagonal
 inventory, common IEEE-754 control bits, all candidate/provider/evidence/plan
 identities, all three decisions, every observable admitted-subset reranking and
@@ -15,5 +15,5 @@ simultaneous stale-evidence/stale-provider mutation, whose only rejection is
 `catalog.evidence-mismatch`.
 
 The Rust tests consume these values; the implementation writer may wire them
-but must not change them. Run `derive_policy_v2.py` to compare the checked-in
+but must not change them. Run `derive_policy_v3.py` to compare the checked-in
 JSON byte-for-byte with a fresh exact derivation.

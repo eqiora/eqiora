@@ -12,9 +12,11 @@ use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v2.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v3.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
+const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
+const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
 
 #[derive(Debug)]
@@ -75,6 +77,13 @@ fn faer_bicgstab_plan() -> SolverPlan {
     )
 }
 
+fn reference_identity_plan() -> SolverPlan {
+    reference_plan().with_preconditioner(PreconditionerPolicy::Identity)
+}
+fn faer_identity_plan() -> SolverPlan {
+    faer_bicgstab_plan().with_preconditioner(PreconditionerPolicy::Identity)
+}
+
 fn faer_sparse_lu_plan() -> SolverPlan {
     plan(
         LinearSolver::SparseLu,
@@ -96,9 +105,12 @@ fn assert_solver_provider(actual: SolverProvider, expected: &Value) {
     assert_eq!(actual.id().as_str(), expected["id"].as_str().unwrap());
     assert_eq!(
         expected["implementation_version"].as_str(),
-        Some("0.1.0-alpha.3")
+        Some(env!("CARGO_PKG_VERSION"))
     );
-    assert_eq!(actual.implementation_version(), env!("CARGO_PKG_VERSION"));
+    assert_eq!(
+        actual.implementation_version(),
+        expected["implementation_version"].as_str().unwrap()
+    );
     let expected_libraries = expected["libraries"].as_array().unwrap();
     assert_eq!(actual.libraries().len(), expected_libraries.len());
     for (actual, expected) in actual.libraries().iter().zip(expected_libraries) {
@@ -111,9 +123,12 @@ fn assert_execution_provider(actual: ExecutionProvider, expected: &Value) {
     assert_eq!(actual.id().as_str(), expected["id"].as_str().unwrap());
     assert_eq!(
         expected["implementation_version"].as_str(),
-        Some("0.1.0-alpha.3")
+        Some(env!("CARGO_PKG_VERSION"))
     );
-    assert_eq!(actual.implementation_version(), env!("CARGO_PKG_VERSION"));
+    assert_eq!(
+        actual.implementation_version(),
+        expected["implementation_version"].as_str().unwrap()
+    );
     assert!(actual.libraries().is_empty());
     assert!(expected["libraries"].as_array().unwrap().is_empty());
 }
@@ -122,6 +137,8 @@ fn assert_plan(candidate_id: &str, actual: SolverPlan, expected: &Value) {
     let tuple = &expected["tuple"];
     match candidate_id {
         REFERENCE_ID => assert_eq!(actual, reference_plan()),
+        REFERENCE_IDENTITY_ID => assert_eq!(actual, reference_identity_plan()),
+        FAER_IDENTITY_ID => assert_eq!(actual, faer_identity_plan()),
         FAER_BICGSTAB_ID => assert_eq!(actual, faer_bicgstab_plan()),
         FAER_SPARSE_LU_ID => assert_eq!(actual, faer_sparse_lu_plan()),
         other => panic!("unexpected frozen candidate {other}"),
@@ -149,7 +166,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v2.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v3.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -166,7 +183,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.host-serial-solver-planning/v2"
+        "eqiora.host-serial-solver-planning/v3"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -206,6 +223,18 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             reference_plan(),
         ),
         (
+            REFERENCE_IDENTITY_ID,
+            "fluid.cell-centered-navier-stokes-fvm-2d",
+            REFERENCE_LINEAR_SOLVER.provider(),
+            reference_identity_plan(),
+        ),
+        (
+            FAER_IDENTITY_ID,
+            "electrical.parallel-dc-network",
+            faer.provider(),
+            faer_identity_plan(),
+        ),
+        (
             FAER_SPARSE_LU_ID,
             "numerics.linear-backends",
             faer.provider(),
@@ -220,7 +249,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     ];
 
     let frozen_candidates = oracle["candidates"].as_array().unwrap();
-    assert_eq!(frozen_candidates.len(), 3);
+    assert_eq!(frozen_candidates.len(), 5);
     for (candidate_id, evidence_case, provider, plan) in candidates {
         let expected = frozen_candidates
             .iter()
@@ -229,6 +258,18 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         assert_eq!(evidence_case, expected["evidence_case"].as_str().unwrap());
         assert_solver_provider(provider, &expected["solver_provider"]);
         assert_plan(candidate_id, plan, expected);
+        let backend: &dyn LinearSolverBackend = if provider == REFERENCE_LINEAR_SOLVER.provider() {
+            &REFERENCE_LINEAR_SOLVER
+        } else {
+            &faer
+        };
+        let solved = LinearSolveRequest::new(backend, plan)
+            .solve(&problem)
+            .unwrap();
+        for (actual, expected) in solved.values().iter().zip([1., 2.]) {
+            assert!((actual - expected).abs() <= 2.0_f64.powi(-40));
+        }
+        assert!(solved.report().true_residual_norm() <= solved.report().residual_target());
     }
 
     let bound = 2.0_f64.powi(-40);
@@ -283,6 +324,10 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
 
         let manual = match decision.selected_candidate_id() {
             REFERENCE_ID => LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, reference_plan()),
+            REFERENCE_IDENTITY_ID => {
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, reference_identity_plan())
+            }
+            FAER_IDENTITY_ID => LinearSolveRequest::new(&faer, faer_identity_plan()),
             FAER_BICGSTAB_ID => LinearSolveRequest::new(&faer, faer_bicgstab_plan()),
             FAER_SPARSE_LU_ID => LinearSolveRequest::new(&faer, faer_sparse_lu_plan()),
             _ => unreachable!("closed catalog candidate"),
@@ -515,13 +560,22 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
             &faer,
         )
         .unwrap();
-        // A diagonal has not been established during planning: both Jacobi
-        // candidates are ineligible. Identity LU is the sole admissible tuple.
-        assert_eq!(decision.selected_candidate_id(), FAER_SPARSE_LU_ID);
-        assert_eq!(decision.solver_plan(), faer_sparse_lu_plan());
-        assert_eq!(decision.solver_provider(), faer.provider());
+        // Unknown diagonal facts exclude Jacobi; the three Identity tuples
+        // retain the ordinary objective and final candidate-ID ordering.
+        let (id, plan, backend): (_, _, &dyn LinearSolverBackend) = match objective {
+            SolverPlanningObjective::Robust => (
+                REFERENCE_IDENTITY_ID,
+                reference_identity_plan(),
+                &REFERENCE_LINEAR_SOLVER,
+            ),
+            SolverPlanningObjective::Fast => (FAER_SPARSE_LU_ID, faer_sparse_lu_plan(), &faer),
+            SolverPlanningObjective::LowMemory => (FAER_IDENTITY_ID, faer_identity_plan(), &faer),
+        };
+        assert_eq!(decision.selected_candidate_id(), id);
+        assert_eq!(decision.solver_plan(), plan);
+        assert_eq!(decision.solver_provider(), backend.provider());
         let solution = decision.solve(&problem, None).unwrap();
-        let manual = LinearSolveRequest::new(&faer, faer_sparse_lu_plan())
+        let manual = LinearSolveRequest::new(backend, plan)
             .solve(&problem)
             .unwrap();
         assert_eq!(solution.values(), manual.values());

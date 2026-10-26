@@ -732,8 +732,9 @@ mod refinement;
 mod resources;
 
 pub(super) use identity::{
-    domain_separated_identity, hex_bytes, invalid, policy_identity, push_framed, replay_program,
-    require_portable_realization, space_identity, static_plan_identity_lineage,
+    domain_separated_identity, hex_bytes, invalid, policy_identity, push_framed,
+    push_linear_policy_identity, replay_program, require_portable_realization, space_identity,
+    static_plan_identity_lineage,
 };
 pub(super) use recognition::{
     ResourceDigests, lower_scalar_candidate, require_policy_compatibility,

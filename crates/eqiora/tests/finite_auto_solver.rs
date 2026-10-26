@@ -1,0 +1,230 @@
+//! Ordinary real finite objectives share the admitted host-serial chooser.
+use eqiora::artifact::ModelEnvelope;
+use eqiora::compiler::CompiledModel;
+use eqiora::graph::{GraphStore, InMemoryGraphStore};
+use eqiora::sem::KernelProgram;
+use eqiora::solver::{
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverPlan, SolverPlanningObjective,
+};
+use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    CommonAlgebraicPlan, CommonAlgebraicState, CommonLinearRequest, CommonResult,
+    CommonSolvePolicy, ResolvedCommonPlan,
+};
+use std::num::NonZeroUsize;
+
+fn model() -> (
+    ModelEnvelope,
+    eqiora::RawId,
+    eqiora::Id<eqiora::kinds::Observable>,
+) {
+    let compiled = CompiledModel::compile_selected("finite-auto.eqi", "model Finite() { variable x:1; variable y:1; relation first {4*x+y=6;} relation second {2*x+3*y=8;} observable objective:1=x+10*y; }", "Finite", &[]).unwrap();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let x = symbols.get("x").unwrap();
+    let observable = symbols.get("objective").unwrap().downcast().unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    (
+        ModelEnvelope::from_program(&program).unwrap(),
+        x,
+        observable,
+    )
+}
+fn request(objective: SolverPlanningObjective) -> CommonLinearRequest {
+    CommonLinearRequest::program_controlled(
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(100).unwrap(),
+        objective,
+    )
+    .unwrap()
+}
+fn resolve(
+    model: &ModelEnvelope,
+    objective: SolverPlanningObjective,
+    backend: &dyn LinearSolverBackend,
+) -> CommonAlgebraicPlan {
+    CommonAlgebraicPlan::resolve(
+        model,
+        CommonSolvePolicy::Linear(request(objective)),
+        None,
+        &[],
+        None,
+        backend,
+    )
+    .unwrap()
+}
+fn expected_plan(algorithm: LinearSolver, reduction: ReductionPolicy) -> SolverPlan {
+    SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(100).unwrap())
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_reduction(reduction)
+}
+
+#[test]
+fn real_finite_objectives_execute_reopen_and_preserve_exact_selection() {
+    let (model, x, observable) = model();
+    let faer = FaerLinearSolver;
+    for (objective, candidate, backend, expected) in [
+        (
+            SolverPlanningObjective::Robust,
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+            &REFERENCE_LINEAR_SOLVER as &dyn LinearSolverBackend,
+            expected_plan(
+                LinearSolver::BiConjugateGradientStabilized,
+                ReductionPolicy::Reproducible,
+            ),
+        ),
+        (
+            SolverPlanningObjective::Fast,
+            "eqiora.faer.sparse-lu-general-identity-fast-f64",
+            &faer,
+            expected_plan(LinearSolver::SparseLu, ReductionPolicy::Fast),
+        ),
+        (
+            SolverPlanningObjective::LowMemory,
+            "eqiora.faer.bicgstab-general-identity-fast-f64",
+            &faer,
+            expected_plan(
+                LinearSolver::BiConjugateGradientStabilized,
+                ReductionPolicy::Fast,
+            ),
+        ),
+    ] {
+        let plan = resolve(&model, objective, &faer);
+        let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+        assert_eq!(resolved.solver_planning_objective(), Some(objective));
+        assert_eq!(
+            resolved.solver_planning_policy_id(),
+            Some("eqiora.host-serial-solver-planning/v3")
+        );
+        assert_eq!(resolved.selected_solver_candidate_id(), Some(candidate));
+        assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));
+        assert_eq!(plan.linear(), expected);
+        assert!(resolved.solver_planning_reasons().contains(&(
+            "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+            "candidate.admitted"
+        )));
+        let initial = plan.initial_state(&[]).unwrap();
+        let before = initial.to_bytes().unwrap();
+        let result = plan.run_result(&initial, backend).unwrap();
+        for (symbol, actual) in plan.symbols().iter().zip(result.finite_values().unwrap()) {
+            let eqiora::kernel::SymbolRef::Field(field) = symbol else {
+                unreachable!()
+            };
+            assert!((actual - if field.erase() == x { 1. } else { 2. }).abs() < 1e-11);
+        }
+        let observation = result
+            .observe(&model, observable, &Default::default(), None)
+            .unwrap();
+        assert!((observation.value().real_scalar_value().unwrap().value() - 21.).abs() < 1e-10);
+        assert!(result.finite_reference_residual_norm().unwrap() <= 1e-11);
+        let evidence = result.solve_evidence(None, None).unwrap();
+        assert_eq!(evidence.algorithm(), expected.algorithm());
+        assert_eq!(evidence.preconditioner(), expected.preconditioner());
+        assert_eq!(evidence.reduction(), expected.reduction());
+        assert_eq!(evidence.solver().id(), backend.provider().id().as_str());
+        assert!(evidence.true_residual_norm() <= evidence.residual_target());
+        evidence.validate_plan(&resolved).unwrap();
+        let reopened_plan =
+            ResolvedCommonPlan::from_bytes(&resolved.to_bytes().unwrap(), &faer, &[]).unwrap();
+        assert_eq!(reopened_plan, resolved);
+        let reopened =
+            CommonResult::from_bytes(&result.to_bytes().unwrap(), &reopened_plan).unwrap();
+        assert_eq!(reopened, result);
+        assert_eq!(initial.to_bytes().unwrap(), before);
+        // Explicit manual controls continue to select the exact same solver/provider.
+        let manual = CommonAlgebraicPlan::resolve(
+            &model,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(expected, backend.provider()).unwrap(),
+            ),
+            None,
+            &[],
+            None,
+            backend,
+        )
+        .unwrap();
+        let manual = manual
+            .run_result(&manual.initial_state(&[]).unwrap(), backend)
+            .unwrap();
+        assert_eq!(manual.finite_values(), result.finite_values());
+        assert_eq!(
+            manual.solve_evidence(None, None),
+            result.solve_evidence(None, None)
+        );
+    }
+}
+
+#[test]
+fn finite_auto_identity_binds_effective_selection_and_replay_does_not_switch_it() {
+    let (model, _, _) = model();
+    let faer = FaerLinearSolver;
+    let available = resolve(&model, SolverPlanningObjective::Fast, &faer);
+    let unavailable = resolve(
+        &model,
+        SolverPlanningObjective::Fast,
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    assert_ne!(available.identity(), unavailable.identity());
+    assert_eq!(available.linear().algorithm(), LinearSolver::SparseLu);
+    assert_eq!(
+        unavailable.linear(),
+        expected_plan(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible
+        )
+    );
+    let full = ResolvedCommonPlan::Algebraic(Box::new(available.clone()));
+    let limited = ResolvedCommonPlan::Algebraic(Box::new(unavailable.clone()));
+    assert!(limited.solver_planning_reasons().contains(&(
+        "eqiora.faer.sparse-lu-general-identity-fast-f64",
+        "catalog.provider-mismatch"
+    )));
+    let initial = available.initial_state(&[]).unwrap();
+    assert!(CommonAlgebraicState::from_bytes(&initial.to_bytes().unwrap(), &unavailable).is_err());
+    assert!(
+        available
+            .run_result(&initial, &REFERENCE_LINEAR_SOLVER)
+            .is_err()
+    );
+    let result = available.run_result(&initial, &faer).unwrap();
+    assert!(CommonResult::from_bytes(&result.to_bytes().unwrap(), &limited).is_err());
+    assert!(
+        ResolvedCommonPlan::from_bytes(&full.to_bytes().unwrap(), &REFERENCE_LINEAR_SOLVER, &[])
+            .is_err()
+    );
+}
+
+#[test]
+fn finite_complex_objective_retains_the_exact_control_gate() {
+    let compiled = CompiledModel::compile_selected(
+        "finite-complex-auto.eqi",
+        "model Finite() { variable x:complex<1>; relation value {x=math.complex(1,2);} }",
+        "Finite",
+        &[],
+    )
+    .unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let model = ModelEnvelope::from_program(&kernel).unwrap();
+    let error = CommonAlgebraicPlan::resolve(
+        &model,
+        CommonSolvePolicy::Linear(request(SolverPlanningObjective::Fast)),
+        None,
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("complex Plan requires exact linear controls"),
+        "{error}"
+    );
+}

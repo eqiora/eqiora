@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v2.
+"""Independent exact General-profile oracle for host-serial solver planning v3.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,11 +17,13 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v2"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v2.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v3"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v3.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
+REFERENCE_IDENTITY_ID = "eqiora.reference.bicgstab-general-identity-reproducible-f64"
+FAER_IDENTITY_ID = "eqiora.faer.bicgstab-general-identity-fast-f64"
 FAER_SPARSE_LU_ID = "eqiora.faer.sparse-lu-general-identity-fast-f64"
 
 # This is an independent literal policy table, not a transcription of Rust.
@@ -50,24 +52,24 @@ SELECTED_REASON = {
 }
 
 EXPECTED_SELECTION = {
-    "Robust": REFERENCE_ID,
+    "Robust": REFERENCE_IDENTITY_ID,
     "Fast": FAER_SPARSE_LU_ID,
-    "LowMemory": FAER_BICGSTAB_ID,
+    "LowMemory": FAER_IDENTITY_ID,
 }
 
 REFERENCE_PROVIDER = {
     "id": "eqiora.reference",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [],
 }
 FAER_PROVIDER = {
     "id": "eqiora.faer",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [{"name": "faer", "version": "0.24.4"}],
 }
 EXECUTION_PROVIDER = {
     "id": "eqiora.host.serial",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [],
 }
 
@@ -92,6 +94,30 @@ CANDIDATES = (
             "algorithm": "BiConjugateGradientStabilized",
             "operator_properties": "General",
             "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_type": "F64",
+        },
+    },
+    {
+        "id": REFERENCE_IDENTITY_ID,
+        "evidence_case": "fluid.cell-centered-navier-stokes-fvm-2d",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Identity",
+            "reduction": "Reproducible",
+            "scalar_type": "F64",
+        },
+    },
+    {
+        "id": FAER_IDENTITY_ID,
+        "evidence_case": "electrical.parallel-dc-network",
+        "solver_provider": FAER_PROVIDER,
+        "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Identity",
             "reduction": "Fast",
             "scalar_type": "F64",
         },
@@ -241,12 +267,14 @@ def ordered_rejection_trace(
 
 def zero_numerical_ledger() -> dict[str, Any]:
     return {
-        "faer_bicgstab_backend_solve_calls": 0,
+        "faer_bicgstab_jacobi_backend_solve_calls": 0,
+        "faer_bicgstab_identity_backend_solve_calls": 0,
         "faer_sparse_lu_backend_solve_calls": 0,
         "operator_identity": "exact-owned-canonical-view",
         "operator_apply_calls": 0,
         "operator_diagonal_calls": 0,
-        "reference_backend_solve_calls": 0,
+        "reference_jacobi_backend_solve_calls": 0,
+        "reference_identity_backend_solve_calls": 0,
     }
 
 
@@ -644,7 +672,7 @@ def validate_mutants(expected: dict[str, Any]) -> None:
             assert swapped == ordinary
 
     # Input enumeration cannot replace the final ID tie-break.
-    reversed_bicgstab = [by_id[REFERENCE_ID], by_id[FAER_BICGSTAB_ID]]
+    reversed_bicgstab = [by_id[REFERENCE_IDENTITY_ID], by_id[FAER_IDENTITY_ID]]
     assert reversed_bicgstab[0]["id"] != EXPECTED_SELECTION["LowMemory"]
 
     assert solve_exact() == ([Fraction(1), Fraction(2)], [Fraction(0), Fraction(0)])
@@ -679,9 +707,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v2.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v3.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v2 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v3 oracle: exact derivation and mutants passed")
     return 0
 
 

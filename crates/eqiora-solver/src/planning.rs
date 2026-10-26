@@ -10,10 +10,12 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
+const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
+const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
 
 const REFERENCE_CG_ID: &str = "eqiora.reference.cg-spd-identity-reproducible-f64";
@@ -24,6 +26,8 @@ const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-f
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
 const FAER_EVIDENCE: &str = "numerics.linear-backends";
+const REFERENCE_IDENTITY_EVIDENCE: &str = "fluid.cell-centered-navier-stokes-fvm-2d";
+const FAER_IDENTITY_EVIDENCE: &str = "electrical.parallel-dc-network";
 
 const EMPTY_LIBRARIES: &[ProviderLibrary] = &[];
 const FAER_LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("faer", "0.24.4")];
@@ -305,8 +309,8 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     }
 }
 
-/// Exact executable plan selected from the v2 host-serial catalog before
-/// numerical operator construction.
+/// Exact executable plan selected from the v3 host-serial catalog using
+/// admitted operator facts.
 #[derive(Debug)]
 pub struct ResolvedHostSerialSolverPlan<'backend> {
     profile: HostSerialSolverProfile,
@@ -317,7 +321,7 @@ pub struct ResolvedHostSerialSolverPlan<'backend> {
 }
 
 impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
-    /// Plan one exact executable candidate from the frozen v2 host-serial catalog
+    /// Plan one exact executable candidate from the frozen v3 host-serial catalog
     /// using structural operator facts and caller-owned convergence controls.
     ///
     /// # Errors
@@ -504,14 +508,14 @@ fn catalog_plan(
     })
 }
 
-/// Resolve one exact candidate from the frozen v2 host-serial catalog.
+/// Resolve one exact candidate from the frozen v3 host-serial catalog.
 ///
 /// # Errors
 /// Returns `EQ0807` when inventory, common controls, catalog identity, problem
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v2<'problem, 'backend>(
+fn resolve_host_serial_solver_v3<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -603,7 +607,13 @@ fn resolve_candidates<'backend>(
 
 fn catalog_ids(properties: LinearOperatorProperties) -> &'static [&'static str] {
     match properties {
-        LinearOperatorProperties::General => &[REFERENCE_ID, FAER_BICGSTAB_ID, FAER_SPARSE_LU_ID],
+        LinearOperatorProperties::General => &[
+            REFERENCE_ID,
+            REFERENCE_IDENTITY_ID,
+            FAER_BICGSTAB_ID,
+            FAER_IDENTITY_ID,
+            FAER_SPARSE_LU_ID,
+        ],
         LinearOperatorProperties::SymmetricPositiveDefinite => {
             &[REFERENCE_CG_ID, FAER_CG_ID, FAER_SPD_LU_ID]
         }
@@ -764,6 +774,22 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             preconditioner: PreconditionerPolicy::Jacobi,
+            reduction: ReductionPolicy::Fast,
+        },
+        REFERENCE_IDENTITY_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::General,
+            evidence_case: REFERENCE_IDENTITY_EVIDENCE,
+            provider: REFERENCE_PROVIDER,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        },
+        FAER_IDENTITY_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::General,
+            evidence_case: FAER_IDENTITY_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            preconditioner: PreconditionerPolicy::Identity,
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPARSE_LU_ID => ExpectedCandidate {

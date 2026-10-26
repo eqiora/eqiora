@@ -112,17 +112,19 @@ impl CommonAlgebraicPlan {
         let gauge = authored.map(|form| problem.gauge(form)).transpose()?;
         let symbols = problem.symbols();
         let dimensions = problem.dimensions();
-        if request.objective().is_some() {
-            return Err(invalid(
-                "finite algebraic Plan requires exact linear controls",
-            ));
+        if request.objective().is_some() && symbols.iter().any(|symbol| {
+            matches!(symbol, SymbolRef::Field(field) if matches!(kernel.node(field.erase()),
+                Some(KernelNode::Field(definition)) if definition.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex))
+        }) {
+            return Err(invalid("complex Plan requires exact linear controls"));
         }
         let complex_system = if nonlinear.is_none() {
             problem.complex_linear_system()?
         } else {
             None
         };
-        let diagonal = if solver_planning::requests_diagonal(request)
+        let diagonal = if (solver_planning::requests_diagonal(request)
+            || request.objective().is_some())
             && complex_system.is_none()
             && gauge.is_none()
             && nonlinear.is_none()
@@ -155,6 +157,9 @@ impl CommonAlgebraicPlan {
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();
         push_framed(&mut bytes, &plan_artifact::solve_intent_bytes(solve)?);
+        if linear.planning_objective.is_some() {
+            super::native::push_linear_policy_identity(&mut bytes, &linear);
+        }
         push_framed(
             &mut bytes,
             &super::plan_artifact::finite_enforcement_bytes(problem.enforcement())?,

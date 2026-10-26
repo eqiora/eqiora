@@ -194,20 +194,21 @@ for numerical_plan in (mini, fvm, mini_exact, fvm_exact, *planned.values()):
     assert numerical_plan.model is model
     assert numerical_plan.model.structural_fingerprint == model_fingerprint
     assert numerical_plan.model.to_bytes() == model_bytes
-# No diagonal claim is established before assembly. Both Jacobi tuples are
-# ineligible, so identity LU is the sole admissible candidate for every objective.
+# No diagonal claim is established before assembly. Identity tuples remain
+# eligible and use the same objective axes and final candidate-ID tie-break.
 expected_planning = {
-    name: (objective, "eqiora.faer.sparse-lu-general-identity-fast-f64", "eqiora.faer", "sparse-lu", "fast")
-    for name, objective in (("robust", package.solve.Robust), ("fast", package.solve.Fast), ("low-memory", package.solve.LowMemory))
+    "robust": (package.solve.Robust, "eqiora.reference.bicgstab-general-identity-reproducible-f64", "eqiora.reference", "bicgstab", "reproducible"),
+    "fast": (package.solve.Fast, "eqiora.faer.sparse-lu-general-identity-fast-f64", "eqiora.faer", "sparse-lu", "fast"),
+    "low-memory": (package.solve.LowMemory, "eqiora.faer.bicgstab-general-identity-fast-f64", "eqiora.faer", "bicgstab", "fast"),
 }
 for name, plan in planned.items():
     objective, candidate, backend, algorithm, reduction = expected_planning[name]
     resolved = plan.solve.linear
     assert resolved.objective is objective
-    assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v2"
+    assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v3"
     assert resolved.selected_candidate_id == candidate
     assert resolved.selected_evidence_case is not None
-    assert len(resolved.planning_reasons) == 4
+    assert len(resolved.planning_reasons) == 8
     assert resolved.backend == backend
     assert resolved.algorithm == algorithm
     assert resolved.reduction == reduction
@@ -216,8 +217,8 @@ assert len({plan.identity for plan in planned.values()}) == 3
 planned_mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(),
     solve=package.solve.Newton(linear=package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12,
         maximum_iterations=2000, objective=package.solve.Robust)), scaling=scaling, temporal=temporal)
-assert planned_mini.solve.linear.algorithm == "sparse-lu"
-assert planned_mini.solve.linear.backend == "eqiora.faer"
+assert planned_mini.solve.linear.algorithm == "bicgstab"
+assert planned_mini.solve.linear.backend == "eqiora.reference"
 assert mini.capability.scaling.length_m == 1.0 and mini.capability.scaling.velocity_m_per_s == 2.0 and mini.capability.scaling.pressure_pa == 3.0
 
 for kwargs in (
