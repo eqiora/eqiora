@@ -23,12 +23,10 @@ pub(super) fn initial_residual<S: Scalar + ComplexFloat<Real = f64> + Sync>(
         .map_or_else(|| vec![S::zero(); dimension], <[S]>::to_vec);
     let mut applied = vec![S::zero(); dimension];
     execution.apply(problem.operator(), &solution, &mut applied)?;
-    let residual = problem
-        .right_hand_side()
-        .iter()
-        .zip(&applied)
-        .map(|(right, applied)| *right - *applied)
-        .collect::<Vec<_>>();
+    let mut residual = Vec::with_capacity(dimension);
+    for (right, applied) in problem.right_hand_side().iter().zip(&applied) {
+        residual.push(*right - *applied);
+    }
     require_finite(&residual, "initial residual")?;
 
     let right_hand_side_norm = FixedOrderInnerProduct::norm(execution, problem.right_hand_side())?;

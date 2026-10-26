@@ -2,6 +2,8 @@ mod bicgstab;
 mod complex;
 mod correction;
 mod initial_residual;
+mod payload;
+pub(crate) use payload::canonical_csr_numeric_workspace_bytes;
 
 use initial_residual::{InitialResidual, initial_residual};
 
@@ -394,12 +396,13 @@ fn build_inverse_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
         };
         return Err(solve_failed(message));
     }
-    let inverse = diagonal
-        .into_iter()
-        .map(|value| S::one() / value)
-        .collect::<Vec<_>>();
-    require_finite(&inverse, "Jacobi inverse diagonal")?;
-    Ok(Some(inverse))
+    // The diagonal allocation becomes the inverse in place. Its requested
+    // numeric payload stays n scalars, independently of collect specialization.
+    for value in &mut diagonal {
+        *value = S::one() / *value;
+    }
+    require_finite(&diagonal, "Jacobi inverse diagonal")?;
+    Ok(Some(diagonal))
 }
 
 fn apply_preconditioner<S: Scalar>(inverse: &Option<Vec<S>>, residual: &[S], output: &mut [S]) {
