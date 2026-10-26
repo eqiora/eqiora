@@ -142,6 +142,7 @@ export default defineConfig({
         { label: 'Guides', items: [
           { label: 'Choose a task', link: '/guides/' },
           { label: 'Run and inspect', link: '/guides/run-and-inspect/' },
+          { label: 'Conductivity research workflow', link: '/guides/research-conductivity/' },
           { label: 'How Eqiora fits together', link: '/guides/how-eqiora-fits-together/' },
           { label: 'Create and share a library', link: '/guides/creating-libraries/' },
           { label: 'Modeling and realization', link: '/guides/modeling/' },

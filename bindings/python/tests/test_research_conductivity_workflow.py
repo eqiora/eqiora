@@ -219,6 +219,31 @@ def test_invalid_coefficients_units_and_stale_observations(workflow, tmp_path):
     assert failed.value.collection[0][0].diagnostics[0].code == "EQ0505"
 
 
+def test_installed_research_sources_match_the_canonical_pair():
+    from importlib.resources import files
+
+    installed = files("eqiora").joinpath("examples")
+    assert installed.joinpath("research_conductivity.py").read_bytes() == (SOURCE / "research_workflow.py").read_bytes()
+    assert installed.joinpath("conductivity.eqi").read_bytes() == (SOURCE / "conductivity.eqi").read_bytes()
+
+
+def test_installed_research_module_runs_outside_checkout(tmp_path):
+    pytest.importorskip("scipy")
+    output = tmp_path / "accepted"
+    command = [sys.executable, "-I", "-m", "eqiora.examples.research_conductivity",
+               "--output", str(output)]
+    completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True,
+                               check=True, timeout=120)
+    summary = json.loads(completed.stdout)
+    assert summary["dataset_members"] == 18
+    assert len(list(tmp_path.iterdir())) == 1  # No downloaded or repository-owned source fixtures.
+    reopened = subprocess.run([*command, "--reopen"], cwd=tmp_path,
+                              capture_output=True, text=True, check=True, timeout=120)
+    retained = json.loads(reopened.stdout)
+    assert retained["plan_identity"] == summary["plan_identity"]
+    assert retained["dataset_complete"] and retained["dataset_members"] == 18
+
+
 @pytest.mark.parametrize("solver", ["direct", "iterative"])
 def test_downloaded_source_and_fresh_process_offline_reopening(workflow, tmp_path, solver):
     pytest.importorskip("scipy")

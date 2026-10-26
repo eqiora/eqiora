@@ -54,6 +54,8 @@ include = [
     { path = "transient-flow-past-cylinder.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "mixed-boundary-elasticity.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "fixed-reference-fsi.eqi", from = "out-dir", to = "eqiora/examples/" },
+    { path = "research_conductivity.py", from = "out-dir", to = "eqiora/examples/" },
+    { path = "conductivity.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "bindings/python/frontend/package.json", format = "sdist" },
     { path = "bindings/python/frontend/package-lock.json", format = "sdist" },
     { path = "bindings/python/frontend/biome.json", format = "sdist" },
