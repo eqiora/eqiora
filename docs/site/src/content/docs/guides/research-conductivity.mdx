@@ -1,0 +1,196 @@
+---
+title: Identify layered conductivity and retain a research dataset
+description: A bounded CPU workflow for forward prediction, multi-load inference, held-out evaluation, and exact failed-member history.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../examples/research-conductivity/conductivity.eqi?raw';
+import modelDownload from '../../../../../../examples/research-conductivity/conductivity.eqi?url&no-inline';
+import programDownload from '../../../../../../examples/research-conductivity/research_workflow.py?url&no-inline';
+
+This development example follows a one-metre layered rod from a forward solve to
+conductivity inference and a reusable dataset. It exercises installed public APIs;
+its focused checks also run the downloaded files outside a source checkout.
+**Published-package acceptance is pending.** A candidate wheel carrying the source
+revision is required until this workflow is validated against a published release.
+The candidate's package version alone does not identify its implementation.
+
+<a href={modelDownload} download="conductivity.eqi">Download conductivity.eqi</a> and
+<a href={programDownload} download="research_workflow.py">download research_workflow.py</a>
+into the same directory. The tutorial and checks use these exact sources.
+
+## Install and run the candidate
+
+The checked environment is Linux x86-64, ordinary-GIL CPython 3.13, NumPy 2.5.4,
+and SciPy 1.18.1. Eqiora performs the equations, linear solves, observations and
+implicit derivative products. SciPy supplies the bounded optimizer.
+
+Use the candidate wheel supplied with the exact source revision:
+
+```bash
+uv init --python 3.13 conductivity-study
+cd conductivity-study
+uv add /absolute/path/to/eqiora-0.1.3-cp311-abi3-linux_x86_64.whl numpy==2.5.4 scipy==1.18.1
+# Save the two downloaded files here.
+uv run python research_workflow.py --output accepted
+uv run python research_workflow.py --output accepted --reopen
+```
+
+Retain the wheel and `uv.lock` with the study while this remains a development
+route. The wheel installation and source downloads require no editable package,
+Rust toolchain, GPU, repository fixtures or private API. The output directory must
+be new; a rerun uses a different directory and preserves the previous history.
+
+## Model, parameters and loads
+
+The rod has fixed interface $x=0.5\,\mathrm{m}$, a fixed mesh, and perfect thermal
+contact. It solves
+
+$$
+-\frac{\mathrm{d}}{\mathrm{d}x}\left(k(x)\frac{\mathrm{d}T}{\mathrm{d}x}\right)=q,
+\qquad T(0)=300\,\mathrm{K},\qquad T(1)=T_R.
+$$
+
+The two conductivity coordinates are dimensionless logarithms:
+$k_i=\exp(\eta_i)\,\mathrm{W/(m\,K)}$. The default truth is $(2,5)$ in those
+units. Geometry, interface, observation supports and mesh topology stay fixed
+through the inverse problem. Even cell counts align the interface with a node.
+
+<Code code={modelSource} lang="eqiora" title="conductivity.eqi" />
+
+The calibration loads are explicitly ordered: `calibration-a` uses
+$(q,T_R)=(20\,\mathrm{W/m^3},310\,\mathrm K)$; `calibration-b` uses
+$(40\,\mathrm{W/m^3},302\,\mathrm K)$. The withheld load uses
+$(15\,\mathrm{W/m^3},307\,\mathrm K)$ and never enters the fit.
+
+Two regional mean temperatures have units K. The third observation is the mean
+axial heat flux, positive toward increasing $x$, in $\mathrm{W/m^2}$. These are
+physical reduced observations, evaluated with an explicit two-point quadrature
+rule. Their identities, types and rule are retained by the differentiable program
+and saved collections. The ordinary `Result` also exposes the labeled temperature
+field and `definition.profile` for typed point queries.
+
+Change physical and numerical inputs through the same entry point:
+
+```bash
+uv run python research_workflow.py --output changed-physical \
+  --conductivities 2.5 4.0 --heating 25 --right-temperature 308
+uv run python research_workflow.py --output finer --cells 32
+uv run python research_workflow.py --output iterative --solver iterative
+```
+
+The inverse search bounds are $0.5\leq k_i\leq10\,\mathrm{W/(m\,K)}$.
+Choose synthetic truths within those bounds. Nonpositive or nonfinite physical
+conductivity inputs reject before conversion to log coordinates.
+
+| Substitution | Meaning and checked boundary |
+| --- | --- |
+| Sparse LU / faer to BiCGStab / reference | Compatible linear solver swap on the same Q1 problem; primal and tangent fields are compared at a numerical tolerance. |
+| 16 to 32 Q1 cells | A different discrete problem; compare spatial error and convergence rather than exact result identity. |
+| Fixed positive conductivities, known source and boundary values | Ordinary parameter changes; the map retains each exact point and solved output. |
+| FVM or another mesh family | A distinct discretization; this example's Q1 accuracy and derivative checks do not establish its behavior. |
+| Source-free temperature-only calibration | Mathematically unable to identify the common conductivity scale. |
+| Nonpositive conductivity or a temperature coordinate supplied in seconds | Invalid physical input or units; reject instead of fitting. |
+
+## Inverse checks and their limits
+
+The objective is
+$\frac12\sum_{\ell,s}[(y_s(\eta;\ell)-d_{\ell,s})/\sigma_s]^2$ with scales
+$(0.02\,\mathrm K,0.02\,\mathrm K,0.05\,\mathrm{W/m^2})$. There is no
+regularizer. Native VJPs supply the objective gradient; Python only reduces the
+scaled residuals. SciPy’s bounded trust-region reflective least-squares method uses the native
+observation Jacobian, `ftol=1e-10`, `xtol=1e-10`, `gtol=1e-8`, and at most 100
+residual evaluations. Failure is reported, never converted to a successful fit.
+
+Synthetic observations come from a separate four-times-finer Eqiora mesh.
+Noise-free observations and an independent Gaussian perturbation with fixed seed
+20261026 are both fitted. Reported parameter errors remain distinct from the
+observation residuals. The bounded checks require relative parameter errors below
+0.5% without noise and 2% with this fixed noise realization; neither bound is a
+promise for other data, starting points or global convergence.
+
+The script reports sensitivity singular values at the truth and at nine points
+of the declared parameter box. This samples conditioning; it does not certify rank
+everywhere. The deficient control removes heating and flux observations. Scaling
+both conductivities leaves its temperatures unchanged, so the common scale
+sensitivity vanishes even if an optimizer could report success.
+
+The focused checks derive an independent continuum reference by integrating
+$j'=q$ and $T'=-j/k$. With
+$R=1/(2k_L)+1/(2k_R)$ and $A=1/(8k_L)+3/(8k_R)$,
+$j(x)=qx+C$, where $C=-(T_R-300+qA)/R$ in coherent SI units. On each half,
+$T$ is quadratic. Aligned Q1 nodal temperatures equal this exact solution; each
+regional mean has interpolation error $-q h^2/(12k_i)$. Doubling cell count must
+reduce that error by four. The default fine-reference mean error is bounded by
+0.5 mK, smaller than the declared temperature noise scale.
+
+A centred difference independently checks the fixed-mesh objective gradient.
+The first-order-corrected Taylor remainder must decay quadratically. Deliberately
+negating the gradient produces a first-order remainder and fails that criterion.
+These checks establish derivatives of the selected discrete program; continuum
+sensitivity is a separate mesh-dependence question.
+
+## Read and retain the artifacts
+
+`summary.json` separates solver residual and acceptance target, reference spatial
+error bound, observation fit, relative parameter error, withheld-load prediction,
+and errors in withheld parameter regions. It records environment versions and
+costs for preparation, forward solve plus observation, objective plus gradient,
+repeated multi-load execution, dataset generation and process peak memory. Timings
+include the native work requested in each phase; they are measurements of that
+process and host, without a throughput or cross-environment promise.
+
+The exact `model.json`, `plan.json` and `result.json` reopen through `Model`, `Plan`
+and `Result`. `reference-plan.json` and reference collections identify the separate
+observation discretization. Fitted, held-out and dataset collections retain their
+own Plan, full input point, field and observation signatures, accepted outputs,
+occurrence identities, status and diagnostics. Offline opening does not solve again.
+The script is copied into the output folder beside its equation source.
+
+`samples.csv` labels 18 samples: six parameter cases across three loads. All loads
+of a parameter case stay in the same train, validation or test split. Test cases
+$(1,7)$ and $(3,3)$ lie outside the training parameter range. The withheld load is
+also excluded from normalization. This explicit grid uses no sampling RNG; the
+measurement noise has its separately recorded seed. `targets.npz` projects the
+accepted temperature field and three observations, preserving sample IDs and units;
+its normalization is fitted only to accepted training calibration rows. Native
+collection bytes remain authoritative. No derivative targets or surrogate accuracy
+are claimed by this dataset.
+
+## Inspect failure and retry
+
+The example deliberately requests `log_k_left=1000`. Eqiora reports `EQ0505`,
+“unary mathematics produced a nonfinite result”. Inspect the saved collection:
+
+```python
+import eqiora as q
+
+history = q.EvaluationCollection.read("accepted/retry-history.eqcollection")
+for group in history:
+    for member in group:
+        print(member.occurrence_id, member.status,
+              [(d.code, d.message) for d in member.diagnostics])
+```
+
+The first group contains `accepted`, `failed`, `not_started`. An exact retry
+requests only the two unsuccessful occurrences and still fails at the invalid
+point. A third execution explicitly corrects that point to $(2,5)$ and evaluates
+the previously unstarted duplicate. It is a **changed request**, with a new input
+identity and new execution occurrences. The initial successful member remains
+unchanged. This example uses common native maps and collection combination;
+it does not supply a separate study scheduler or generic retry API.
+
+If a multi-load objective fails, its `IncompleteEvaluation` exception retains
+`exception.collection` for inspection. No partial objective or training statistic
+is accepted silently. Numerical continuation and restoration of provider memory
+are separate capabilities.
+
+The installed checks also reject wrong source/coordinate units, stale observation
+handles and reordered sample attribution, and reopen saved results in a fresh
+interpreter with solver/compiler entry points disabled. See the
+<ExactSourceLink path="bindings/python/tests/test_research_conductivity_workflow.py" kind="blob">focused checks</ExactSourceLink>
+for the exact scientific expectations and falsifiers. Published installation,
+distributed example entry points and release-matched navigation remain part of
+<ExactSourceLink path="docs/capability-matrix.md" kind="blob">the existing capability index</ExactSourceLink>
+and the released-user acceptance work.
