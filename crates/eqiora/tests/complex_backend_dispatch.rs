@@ -355,7 +355,7 @@ fn automatic_complex_program_keeps_selected_provider_for_forward_and_adjoint_pro
         // The differentiated solves expose the actual selected typed producer.
         assert_eq!(
             point.primal().evidence().steps()[0]
-                .primal_solve()
+                .primal_solve(0)
                 .unwrap()
                 .solver()
                 .id(),
