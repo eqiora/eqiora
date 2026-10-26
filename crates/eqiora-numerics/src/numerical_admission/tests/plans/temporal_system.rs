@@ -1,6 +1,8 @@
 //! Independent semidiscrete residuals through the existing time-system contract.
 mod linearization;
 mod midpoint;
+mod midpoint_products;
+mod partials;
 mod policy;
 mod rate;
 mod recovery;

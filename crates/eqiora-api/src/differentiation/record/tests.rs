@@ -96,12 +96,12 @@ fn evaluation_record_restores_typed_primal_and_provenance_after_live_owner_is_dr
             assert_eq!(reopened.to_bytes().unwrap(), bytes);
             if nonlinear {
                 assert_eq!(
-                    reopened.result().evidence().steps()[0].nonlinear_initial_residual_norm(),
+                    reopened.result().evidence().steps()[0].nonlinear_initial_residual_norm(0),
                     Some((4. - p).abs())
                 );
                 assert_eq!(
                     reopened.result().evidence().steps()[0]
-                        .nonlinear_iterations()
+                        .nonlinear_iterations(0)
                         .unwrap()
                         == 0,
                     p == 4.
@@ -140,7 +140,12 @@ fn evaluation_record_rejects_changed_candidates_outputs_point_and_provenance() {
         for field in ["state", "output", "point"] {
             let mut wire: WireRecord = serde_json::from_slice(&bytes).unwrap();
             match field {
-                "state" => wire.state[0][0] += 1.,
+                "state" => {
+                    let WireStep::Single { unknown, .. } = &mut wire.steps[0] else {
+                        unreachable!()
+                    };
+                    unknown[0] += 1.;
+                }
                 "output" => wire.output[0] += 1.,
                 _ => wire.point[0] += 1.,
             }
@@ -153,7 +158,11 @@ fn evaluation_record_rejects_changed_candidates_outputs_point_and_provenance() {
             assert!(!error.is_empty());
         }
         let mut wire: WireRecord = serde_json::from_slice(&bytes).unwrap();
-        if let PrimalEvidence::Nonlinear { iterations, .. } = &mut wire.primal[0] {
+        if let WireStep::Single {
+            primal: PrimalEvidence::Nonlinear { iterations, .. },
+            ..
+        } = &mut wire.steps[0]
+        {
             *iterations = 1;
             let error = RecordedDifferentiableEvaluation::from_bytes(
                 &serde_json::to_vec(&wire).unwrap(),
@@ -164,7 +173,7 @@ fn evaluation_record_rejects_changed_candidates_outputs_point_and_provenance() {
             assert!(error[0].message().contains("zero-update"));
         } else {
             let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            value["primal"][0]["record"]["solver"]["implementation_version"] =
+            value["steps"][0]["primal"]["record"]["solver"]["implementation_version"] =
                 serde_json::json!("foreign");
             let altered: WireRecord = serde_json::from_value(value).unwrap();
             let errors = RecordedDifferentiableEvaluation::from_bytes(
@@ -178,10 +187,14 @@ fn evaluation_record_rejects_changed_candidates_outputs_point_and_provenance() {
         if nonlinear {
             assert!(RecordedDifferentiableEvaluation::from_bytes(&bytes, &plan, None).is_err());
             let mut changed: WireRecord = serde_json::from_slice(&bytes).unwrap();
-            if let PrimalEvidence::Nonlinear {
-                initial_residual_norm,
+            if let WireStep::Single {
+                primal:
+                    PrimalEvidence::Nonlinear {
+                        initial_residual_norm,
+                        ..
+                    },
                 ..
-            } = &mut changed.primal[0]
+            } = &mut changed.steps[0]
             {
                 *initial_residual_norm = 1.;
             }

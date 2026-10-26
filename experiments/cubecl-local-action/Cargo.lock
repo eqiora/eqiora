@@ -908,6 +908,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqiora-differentiation"
+version = "0.1.3"
+dependencies = [
+ "eqiora-core",
+ "eqiora-ir",
+ "eqiora-solver",
+]
+
+[[package]]
 name = "eqiora-distributed"
 version = "0.1.3"
 dependencies = [
@@ -996,6 +1005,7 @@ dependencies = [
  "eqiora-assembly",
  "eqiora-compiler",
  "eqiora-core",
+ "eqiora-differentiation",
  "eqiora-distributed",
  "eqiora-execution",
  "eqiora-geometry",

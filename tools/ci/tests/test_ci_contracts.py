@@ -2082,12 +2082,20 @@ class MiseTaskContractTests(unittest.TestCase):
                 )
                 self.assertEqual(completed.returncode, 0, completed.stdout)
                 setup = "[setup] $ npm ci"
-                invocation = f"[{task}] $ {self.tasks[task]['run']} --x={marker}"
+                prefix = f"[{task}] $ "
+                invocations = [line for line in completed.stdout.splitlines()
+                               if line.startswith(prefix)]
                 self.assertIn(setup, completed.stdout)
-                self.assertIn(invocation, completed.stdout)
+                self.assertEqual(len(invocations), 1, completed.stdout)
+                # The forwarded argv is the contract; mise may quote an
+                # unchanged argument differently when rendering its dry run.
+                self.assertEqual(
+                    shlex.split(invocations[0][len(prefix):]),
+                    shlex.split(self.tasks[task]["run"]) + [f"--x={marker}"],
+                )
                 self.assertLess(
                     completed.stdout.index(setup),
-                    completed.stdout.index(invocation),
+                    completed.stdout.index(invocations[0]),
                 )
 
     @staticmethod

@@ -1,6 +1,6 @@
 //! Accepted continuous spatial history keeps output States separate from internal steps.
 use super::*;
-pub(super) mod artifact;
+pub(crate) mod artifact;
 use crate::common_result::evidence::{CommonSolveEvidence, CommonSolveHistory};
 
 #[derive(Debug, Clone, PartialEq)]

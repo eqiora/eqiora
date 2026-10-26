@@ -22,13 +22,13 @@ enum TrajectoryEvaluation<'a> {
         steps: Vec<CommonDifferentiationPoint>,
     },
     Reaccept {
-        candidates: &'a [Vec<f64>],
+        candidates: &'a [CommonDifferentiationCandidate],
         steps: Vec<CommonDifferentiationLinearization>,
     },
 }
 
 impl CommonSpatialPlan {
-    /// Evaluate a backward-Euler Run at one selected Parameter point.
+    /// Evaluate a supported implicit Run at one selected Parameter point.
     ///
     /// The supplied initial physical State stays fixed. Later history belongs
     /// to this same analysis point and is never published as a canonical Model
@@ -63,7 +63,7 @@ impl CommonSpatialPlan {
 
     /// Reaccept every step of a Parameter-point Run without solving.
     ///
-    /// Candidates contain all implicit-state vectors in forward-time order,
+    /// Candidates contain every method-owned implicit point in forward-time order,
     /// including steps omitted by the output schedule. Each accepted candidate
     /// supplies the next step's physical history. This rederives mathematical
     /// acceptance and seed facts, not producer iteration counts or solve reports.
@@ -78,10 +78,16 @@ impl CommonSpatialPlan {
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
-        candidates: &[Vec<f64>],
+        candidates: &[CommonDifferentiationCandidate],
     ) -> Result<Vec<CommonDifferentiationLinearization>, Diagnostic> {
         self.validate_trajectory_differentiation_request(request, outputs)?;
-        if candidates.len() != request.accepted_steps()?.get() {
+        if self
+            .admission
+            .temporal
+            .as_ref()
+            .is_some_and(|policy| policy.as_ode().is_none())
+            && candidates.len() != request.accepted_steps()?.get()
+        {
             return Err(invalid(
                 "trajectory candidates must include every accepted step",
             ));
@@ -110,6 +116,9 @@ where
         request: &CommonTransientRunRequest,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationTrajectory, Diagnostic> {
+        if self.is_midpoint() {
+            return self.solve_midpoint_trajectory(template, request, backend);
+        }
         let result = self.walk_trajectory(
             template,
             request,
@@ -128,8 +137,11 @@ where
         self,
         template: &ExecutableSpatialEquations<S>,
         request: &CommonTransientRunRequest,
-        candidates: &[Vec<f64>],
+        candidates: &[CommonDifferentiationCandidate],
     ) -> Result<Vec<CommonDifferentiationLinearization>, Diagnostic> {
+        if self.is_midpoint() {
+            return self.accept_midpoint_trajectory(template, request, candidates);
+        }
         let result = self.walk_trajectory(
             template,
             request,
@@ -211,7 +223,9 @@ where
                         steps.push(prepared.accept_prepared_step(
                             &mapping,
                             &input,
-                            &candidates[context.steps],
+                            candidates[context.steps].coordinates().ok_or_else(|| {
+                                invalid("backward-Euler candidate requires plain coordinates")
+                            })?,
                         )?);
                         steps.last().expect("reaccepted step")
                     }

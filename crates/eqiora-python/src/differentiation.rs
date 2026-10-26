@@ -131,8 +131,8 @@ pub(crate) struct PyDifferentiationEvidence {
 pub(crate) struct PyDifferentiationStepEvidence {
     state_system_fingerprint: String,
     primal_residual_norm: f64,
-    residual_tolerance: f64,
-    primal_solve: PrimalSummary,
+    residual_tolerance: Option<f64>,
+    primal_solves: Vec<PrimalSummary>,
     initial_state_identity: Option<String>,
     derivative_solve: Option<PyLinearSolveSummary>,
 }
@@ -171,16 +171,18 @@ impl PyDifferentiationStepEvidence {
             state_system_fingerprint: hex(value.state_system().as_bytes()),
             primal_residual_norm: value.primal_residual_norm(),
             residual_tolerance: value.residual_tolerance(),
-            primal_solve: match value.primal_solve() {
-                Some(report) => {
-                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_evidence(report)))
-                }
-                None => PrimalSummary::Nonlinear(
-                    crate::result::PyNonlinearSolveSummary::from_differentiation(value)
-                        .expect("accepted nonlinear differentiation summary"),
-                ),
-            },
-            initial_state_identity: value.nonlinear_initial_state_identity().map(str::to_owned),
+            primal_solves: (0..value.primal_solve_count())
+                .map(|index| match value.primal_solve(index) {
+                    Some(report) => {
+                        PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_evidence(report)))
+                    }
+                    None => PrimalSummary::Nonlinear(
+                        crate::result::PyNonlinearSolveSummary::from_differentiation(value, index)
+                            .expect("accepted nonlinear differentiation summary"),
+                    ),
+                })
+                .collect(),
+            initial_state_identity: value.nonlinear_initial_state_identity(0).map(str::to_owned),
             derivative_solve: value
                 .derivative_solve()
                 .map(PyLinearSolveSummary::from_evidence),
@@ -259,7 +261,7 @@ impl PyDifferentiationEvidence {
 impl PyDifferentiationStepEvidence {
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiationStepEvidence(primal_residual_norm={}, residual_tolerance={})",
+            "DifferentiationStepEvidence(primal_residual_norm={}, residual_tolerance={:?})",
             self.primal_residual_norm, self.residual_tolerance
         )
     }
@@ -275,16 +277,21 @@ impl PyDifferentiationStepEvidence {
     }
 
     #[getter]
-    const fn residual_tolerance(&self) -> f64 {
+    const fn residual_tolerance(&self) -> Option<f64> {
         self.residual_tolerance
     }
 
     #[getter]
-    fn primal_solve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        match &self.primal_solve {
-            PrimalSummary::Linear(value) => Ok(Py::new(py, value.as_ref().clone())?.into_any()),
-            PrimalSummary::Nonlinear(value) => Ok(Py::new(py, value.clone())?.into_any()),
-        }
+    fn primal_solves(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let groups = self
+            .primal_solves
+            .iter()
+            .map(|group| match group {
+                PrimalSummary::Linear(value) => Ok(Py::new(py, value.as_ref().clone())?.into_any()),
+                PrimalSummary::Nonlinear(value) => Ok(Py::new(py, value.clone())?.into_any()),
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, groups)?.unbind())
     }
 
     #[getter]

@@ -38,7 +38,7 @@ def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
                                        [2*(4*p+1)], rtol=0, atol=1e-9)
             reverse = point.vjp((1.,))
             np.testing.assert_allclose(reverse.input_cotangent, [4*p+1], rtol=0, atol=1e-9)
-            assert reverse.evidence.steps[0].primal_solve is not None
+            assert reverse.evidence.steps[0].primal_solves[0] is not None
             assert reverse.evidence.steps[0].initial_state_identity is None
         np.testing.assert_allclose(program.vjp((1.,)).input_cotangent,
                                    [13.], rtol=0, atol=1e-9)

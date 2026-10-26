@@ -153,7 +153,7 @@ fn check_spatial_observables(
                     linearization,
                     linearization.relation().state_jacobian(),
                     linearization.state_scalar_domain(),
-                    linearization.residual_target(),
+                    linearization.acceptance(),
                 )
                 .unwrap();
                 let properties = linearization.relation().state_jacobian().properties();

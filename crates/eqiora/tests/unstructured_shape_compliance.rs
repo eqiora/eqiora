@@ -71,7 +71,12 @@ fn unstructured_simplex_shape_action_matches_rebuild_and_continuous_compliance()
         2.0e-14,
     );
 
-    let accepted = AcceptedOutputLinearization::new(&relation, &objective, 2.0e-10).unwrap();
+    let accepted = AcceptedOutputLinearization::new(
+        &relation,
+        &objective,
+        &eqiora::differentiation::PrimalAcceptance::Residual(2.0e-10),
+    )
+    .unwrap();
     let direction = [0.3, -0.2];
     let forward = forward_sensitivity(
         accepted.relation(),

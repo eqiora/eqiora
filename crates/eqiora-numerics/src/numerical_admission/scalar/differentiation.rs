@@ -9,6 +9,7 @@ use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
 mod affine;
+mod midpoint;
 mod nonlinear;
 mod outputs;
 mod partials;
@@ -220,6 +221,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         &self,
         mapping: &RegionDofMap<S>,
         state_coordinates: &[f64],
+        residual_dimension: usize,
         mut partial: impl FnMut(&ScalarSymbolCoordinate) -> Result<(Vec<f64>, Vec<f64>), Diagnostic>,
     ) -> Result<(Vec<f64>, Output), Diagnostic> {
         let layout = RegionRealCoordinates::new(mapping)?;
@@ -238,12 +240,13 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             .flat_map(|key| layout.global_coordinates(*key))
             .collect::<Vec<_>>();
         let output_count = output_coordinates.len();
-        let mut residual = vec![
-            0.;
-            state_coordinates.len().checked_mul(count).ok_or_else(
-                || invalid("spatial Parameter Jacobian shape overflow")
-            )?
-        ];
+        let mut residual =
+            vec![
+                0.;
+                residual_dimension
+                    .checked_mul(count)
+                    .ok_or_else(|| invalid("spatial Parameter Jacobian shape overflow"))?
+            ];
         let mut direct = vec![
             0.;
             output_count.checked_mul(count).ok_or_else(|| invalid(
@@ -252,7 +255,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         ];
         for (column, coordinate) in self.coordinates.iter().enumerate() {
             let (values, lift) = partial(coordinate)?;
-            if values.len() != state_coordinates.len() || lift.len() != layout.full_count() {
+            if values.len() != residual_dimension || lift.len() != layout.full_count() {
                 return Err(invalid(
                     "Parameter partial differs from the exact Field coordinate map",
                 ));

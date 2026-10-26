@@ -38,9 +38,104 @@ fn exercise<S: Coefficient + Send + Sync>(
     } else {
         3. / 5.
     };
+    // The same rational amplification differentiates the initial uniform mode.
+    // For d(u²)/dt=-u² this checks the nonlinear storage Jacobian, not an
+    // assumed constant mass. Complex coordinates include both channels.
+    {
+        use eqiora_solver::{CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation};
+        let mut full_step = system
+            .midpoint_step(0., step, &initial, &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let time_plan = eqiora_time::TimePlan::new(
+            TimeMethod::ImplicitMidpoint,
+            0.,
+            step,
+            1e-10,
+            vec![1e-12; initial.len()],
+            vec![step],
+        )
+        .unwrap();
+        let solution = eqiora_time::ImplicitMidpointTimeBackend::new()
+            .solve_with_stages(
+                &initial,
+                &time_plan,
+                eqiora_time::TimeEquationClass::GeneralImplicitDae,
+                |_, _, _| Ok(full_step.physical.clone()),
+            )
+            .unwrap();
+        for time in [0.25 * step, 0.5 * step, step] {
+            full_step.observations.push(
+                system
+                    .solve_midpoint_observation(
+                        &solution.history().unwrap().steps()[0],
+                        &full_step.physical,
+                        None,
+                        time,
+                        &REFERENCE_LINEAR_SOLVER,
+                    )
+                    .unwrap(),
+            );
+        }
+        let partials = system
+            .midpoint_partials(0., step, &initial, &full_step, &[])
+            .unwrap();
+        assert_eq!(partials.unknowns.len(), initial.len());
+        assert!(partials.parameters.is_empty());
+        assert_eq!(partials.physical, (0..initial.len()).collect::<Vec<_>>());
+        let mut rhs = vec![0.; initial.len()];
+        partials.history.apply(&initial, &mut rhs).unwrap();
+        for value in &mut rhs {
+            *value = -*value;
+        }
+        let canonical =
+            CanonicalCsrSystemView::new(&partials.state, &rhs, LinearOperatorProperties::General)
+                .unwrap();
+        let derivative = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+            .solve_canonical_oriented(&canonical, &rhs, LinearOperatorOrientation::Normal)
+            .unwrap();
+        assert_eq!(partials.observations.len(), 3);
+        for observation in &partials.observations {
+            let beta = observation.time / step;
+            let alpha = 1. - beta;
+            for i in 0..initial.len() {
+                assert_eq!(observation.unknowns[i], i);
+                assert_eq!(observation.weights[i], beta);
+                assert_eq!(observation.history[i], alpha);
+            }
+            close(
+                &observation.physical,
+                &initial
+                    .iter()
+                    .map(|value| (alpha + beta * factor) * value)
+                    .collect::<Vec<_>>(),
+            );
+            close(
+                &observation
+                    .unknowns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &unknown)| {
+                        observation.weights[i] * derivative.values()[unknown]
+                            + observation.history[i] * initial[i]
+                    })
+                    .collect::<Vec<_>>(),
+                &initial
+                    .iter()
+                    .map(|value| (alpha + beta * factor) * value)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        close(
+            derivative.values(),
+            &initial
+                .iter()
+                .map(|value| factor * value)
+                .collect::<Vec<_>>(),
+        );
+    }
     for index in 0..4 {
         let (next, evidence) = system
-            .midpoint_step(index as f64 * step, step, &point, &REFERENCE_LINEAR_SOLVER)
+            .midpoint_stage(index as f64 * step, step, &point, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         close(
             &next,
@@ -62,7 +157,7 @@ fn exercise<S: Coefficient + Send + Sync>(
     for bad_step in [0., -1., f64::INFINITY, f64::NAN] {
         assert!(
             system
-                .midpoint_step(0., bad_step, &initial, &REFERENCE_LINEAR_SOLVER)
+                .midpoint_stage(0., bad_step, &initial, &REFERENCE_LINEAR_SOLVER)
                 .is_err()
         );
         assert_eq!(initial, saved);
@@ -129,7 +224,7 @@ fn a_backward_euler_plan_cannot_execute_an_unrequested_midpoint_stage() {
     let system = SpatialImplicitSystem::new(plan, equations, 0.).unwrap();
     let initial = [1.];
     let error = system
-        .midpoint_step(0., 0.25, &initial, &REFERENCE_LINEAR_SOLVER)
+        .midpoint_stage(0., 0.25, &initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap_err();
     assert!(error.message().contains("midpoint policy"));
     assert_eq!(initial, [1.]);
@@ -172,7 +267,7 @@ fn a_failed_nonlinear_midpoint_stage_preserves_the_input() {
     let initial = [1.; 3];
     // One Newton update from u=1 for this quadratic cannot meet a 1e-10 correction tolerance.
     let error = system
-        .midpoint_step(0., 0.25, &initial, &REFERENCE_LINEAR_SOLVER)
+        .midpoint_stage(0., 0.25, &initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap_err();
     assert_eq!(
         error.code(),

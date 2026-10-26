@@ -297,7 +297,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
 
     assert_eq!(
         primal.evidence().steps()[0]
-            .primal_solve()
+            .primal_solve(0)
             .unwrap()
             .orientation(),
         LinearOperatorOrientation::Normal
@@ -617,7 +617,11 @@ fn verify_method(
         3 * linearization.accepted_unknowns().len()
     );
 
-    let accepted = AcceptedLinearization::new(&linearization, 2.0e-9).unwrap();
+    let accepted = AcceptedLinearization::new(
+        &linearization,
+        &eqiora::differentiation::PrimalAcceptance::Residual(2.0e-9),
+    )
+    .unwrap();
     let solver_plan = SolverPlan::new(
         LinearSolver::ConjugateGradient,
         1.0e-12,

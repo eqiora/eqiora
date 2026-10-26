@@ -1,16 +1,23 @@
 //! One accepted output point for spatial linear or finite algebraic Plans.
 use super::*;
 use crate::nonlinear_execution::NewtonInitialPoint;
-use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
+use eqiora_differentiation::PrimalAcceptance;
+use eqiora_ir::{
+    DenseOutputLinearization, DiscreteStepLinearization, LinearizedOutput, LinearizedRelation,
+};
 
+mod candidate;
+pub(in crate::numerical_admission) use candidate::Candidate;
+pub use candidate::CommonDifferentiationCandidate;
 mod output;
 mod step;
 pub(super) use output::Output;
-pub use step::{CommonDiscreteStepLinearization, CommonDiscreteStepOutput, SpatialStepCoordinate};
+pub use step::{CommonDiscreteStepLinearization, SpatialStepCoordinate};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
     Affine(eqiora_solver::SolveReport),
+    Midpoint(CommonDifferentiationCandidate),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial: Option<crate::CommonInitialState<'static>>,
@@ -53,14 +60,39 @@ impl CommonDifferentiationPoint {
         }
     }
 
-    /// Reports for the linear solves used to establish this accepted point.
-    /// A nonlinear point accepted at its seed has no linear updates.
+    /// Actual linear solve metadata in equation order. Multi-solve methods retain
+    /// their group boundaries in the candidate; a seed acceptance contributes no updates.
     #[must_use]
-    pub fn linear_solves(&self) -> &[eqiora_solver::SolveReport] {
+    pub fn linear_solves(&self) -> Vec<crate::CommonSolveEvidence> {
+        use crate::CommonSolveEvidence;
         match &self.primal {
-            Primal::Affine(report) => std::slice::from_ref(report),
-            Primal::Linear(receipt) => std::slice::from_ref(receipt.report()),
-            Primal::Nonlinear { linear_solves, .. } => linear_solves,
+            Primal::Affine(report) => vec![CommonSolveEvidence::from_report(report)],
+            Primal::Linear(receipt) => vec![CommonSolveEvidence::from_report(receipt.report())],
+            Primal::Nonlinear { linear_solves, .. } => linear_solves
+                .iter()
+                .map(CommonSolveEvidence::from_report)
+                .collect(),
+            Primal::Midpoint(candidate) => (0..candidate.solve_count())
+                .flat_map(|i| {
+                    candidate
+                        .linear_solves(i)
+                        .expect("retained solve")
+                        .iter()
+                        .cloned()
+                })
+                .collect(),
+        }
+    }
+
+    /// Retain the original coordinates and any method-owned stopping witnesses.
+    /// Reopening must reaccept these inputs against the exact request and Parameter point.
+    #[must_use]
+    pub fn candidate(&self) -> CommonDifferentiationCandidate {
+        match &self.primal {
+            Primal::Midpoint(candidate) => candidate.clone(),
+            _ => CommonDifferentiationCandidate::from_coordinates(
+                self.linearization.relation().accepted_unknowns().to_vec(),
+            ),
         }
     }
 
@@ -87,7 +119,7 @@ impl CommonDifferentiationPoint {
         }
     }
 
-    /// Accepted nonlinear update count; a zero-update solve has no linear primal receipt.
+    /// Accepted update count for a single nonlinear solve; composed solves use the candidate groups.
     #[must_use]
     pub fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
@@ -114,13 +146,26 @@ impl CommonDifferentiationTrajectory {
         request: CommonTransientRunRequest,
         steps: Vec<CommonDifferentiationPoint>,
     ) -> Result<Self, Diagnostic> {
-        if steps.len() != request.accepted_steps()?.get()
-            || steps
-                .iter()
-                .any(|point| point.linearization().discrete_step().is_none())
-        {
+        let mut previous = request.state().require_time_s()?;
+        if steps.is_empty() {
             return Err(invalid(
-                "differentiated trajectory requires every accepted history action",
+                "differentiated trajectory requires accepted history actions",
+            ));
+        }
+        for point in &steps {
+            let step = point.linearization().discrete_step().ok_or_else(|| {
+                invalid("differentiated trajectory requires every accepted history action")
+            })?;
+            if step.start_time().to_bits() != previous.to_bits() {
+                return Err(invalid(
+                    "differentiated trajectory has a discontinuous clock",
+                ));
+            }
+            previous = step.end_time();
+        }
+        if previous.to_bits() != request.until_s().to_bits() {
+            return Err(invalid(
+                "differentiated trajectory omits its requested horizon",
             ));
         }
         Ok(Self { request, steps })
@@ -150,7 +195,8 @@ pub struct CommonDifferentiationLinearization {
     history: Option<step::StepHistory>,
     state_scalar_domain: eqiora_core::ScalarDomain,
     output: Output,
-    residual_target: f64,
+    acceptance: PrimalAcceptance,
+    observation_times: Option<Vec<f64>>,
     initial: Option<NewtonInitialPoint>,
 }
 
@@ -161,7 +207,7 @@ impl CommonDifferentiationLinearization {
     pub const fn field_output(&self) -> Option<&FieldCoefficientLinearization> {
         match &self.output {
             Output::Field(output) => Some(output),
-            Output::Dense(_) | Output::Sequence { .. } => None,
+            Output::Empty { .. } | Output::Dense(_) | Output::Sequence { .. } => None,
         }
     }
 
@@ -169,7 +215,7 @@ impl CommonDifferentiationLinearization {
         relation: AssembledLinearizedRelation,
         state_scalar_domain: eqiora_core::ScalarDomain,
         output: Output,
-        residual_target: f64,
+        acceptance: PrimalAcceptance,
         initial: Option<NewtonInitialPoint>,
     ) -> Self {
         Self {
@@ -177,7 +223,8 @@ impl CommonDifferentiationLinearization {
             history: None,
             state_scalar_domain,
             output,
-            residual_target,
+            acceptance,
+            observation_times: None,
             initial,
         }
     }
@@ -186,7 +233,7 @@ impl CommonDifferentiationLinearization {
         relation: AssembledLinearizedRelation,
         state_scalar_domain: eqiora_core::ScalarDomain,
         output: DenseOutputLinearization,
-        residual_target: f64,
+        acceptance: PrimalAcceptance,
         initial: Option<NewtonInitialPoint>,
     ) -> Self {
         Self {
@@ -194,7 +241,8 @@ impl CommonDifferentiationLinearization {
             history: None,
             state_scalar_domain,
             output: Output::Dense(output),
-            residual_target,
+            acceptance,
+            observation_times: None,
             initial,
         }
     }
@@ -239,13 +287,48 @@ impl CommonDifferentiationLinearization {
                 "step history differs from the accepted coordinate layout or time interval",
             ));
         }
+        self.observation_times = Some(vec![interval[1]]);
         self.history = Some(step::StepHistory {
             jacobian,
             coordinates,
             previous,
             interval,
             output,
+            selected_output_history: None,
         });
+        Ok(self)
+    }
+
+    /// Exact selected observation times owned by this accepted step.
+    /// Stationary points have no time samples; an internal step may own none.
+    #[must_use]
+    pub fn observation_times(&self) -> Option<&[f64]> {
+        self.observation_times.as_deref()
+    }
+
+    pub(in crate::numerical_admission) fn with_step_observations(
+        mut self,
+        times: Vec<f64>,
+        output_history: Option<eqiora_assembly::CsrMatrix<f64>>,
+    ) -> Result<Self, Diagnostic> {
+        let history = self
+            .history
+            .as_mut()
+            .ok_or_else(|| invalid("observations require a time step"))?;
+        if times.iter().any(|time| {
+            !time.is_finite() || *time <= history.interval[0] || *time > history.interval[1]
+        }) || times.windows(2).any(|pair| pair[0] >= pair[1])
+            || output_history.as_ref().is_some_and(|matrix| {
+                matrix.rows() != self.output.output_dimension()
+                    || matrix.columns() != history.previous.len()
+            })
+        {
+            return Err(invalid(
+                "step observations differ from their interval or history layout",
+            ));
+        }
+        history.selected_output_history = output_history;
+        self.observation_times = Some(times);
         Ok(self)
     }
 
@@ -268,10 +351,10 @@ impl CommonDifferentiationLinearization {
         self.output.values()
     }
 
-    /// Threshold derived from the original equations and the Plan's controls.
+    /// Original-equation criterion derived from the Plan and accepted solve.
     #[must_use]
-    pub const fn residual_target(&self) -> f64 {
-        self.residual_target
+    pub const fn acceptance(&self) -> &PrimalAcceptance {
+        &self.acceptance
     }
 
     /// Nonlinear seed residual; absent for products without a retained seed.
@@ -285,9 +368,20 @@ impl CommonDifferentiationLinearization {
     /// Validate only the update-count facts implied by the rederived seed and
     /// accepted point. This does not authenticate a producer or solve history.
     pub fn validate_nonlinear_update_count(&self, iterations: usize) -> Result<(), Diagnostic> {
+        let target = match &self.acceptance {
+            PrimalAcceptance::Residual(target) => *target,
+            // Physical correction controls admit a zero-update seed only if
+            // its original residual is exactly zero.
+            PrimalAcceptance::NewtonCorrection { .. } => 0.,
+            PrimalAcceptance::Blocks(_) => {
+                return Err(invalid(
+                    "composed solves require separately validated nonlinear update counts",
+                ));
+            }
+        };
         self.initial
             .ok_or_else(|| invalid("nonlinear update count requires a nonlinear accepted point"))?
-            .validate_updates(self.residual_target, iterations)
+            .validate_updates(target, iterations)
     }
 }
 

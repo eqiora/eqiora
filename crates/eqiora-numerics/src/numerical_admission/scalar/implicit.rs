@@ -1,6 +1,9 @@
 //! Continuous spatial equations in free real coordinates, including analytic trace rates.
 mod initial;
 mod midpoint;
+mod observations;
+mod partials;
+mod products;
 mod rate;
 mod recovery;
 mod replay;
@@ -14,6 +17,9 @@ use crate::region_assembly::mapping::{
 };
 use crate::spatial_expression::Coefficient;
 use eqiora_time::ImplicitTimeSystem;
+pub(in crate::numerical_admission) use midpoint::MidpointStep;
+pub(in crate::numerical_admission) use observations::MidpointObservation;
+pub(in crate::numerical_admission) use products::MidpointPartials;
 
 type RealRegionAssembly<S> =
     MappedRegionAssembly<S, <RegionDofMap<S> as RegionAlgebraicCoordinates<f64, S>>::Projection>;

@@ -439,8 +439,8 @@ fn assert_evaluation_matches(
         expected_primal.evidence().steps()[0].accepted_state()
     );
     assert_eq!(
-        actual_primal.evidence().steps()[0].primal_solve(),
-        expected_primal.evidence().steps()[0].primal_solve()
+        actual_primal.evidence().steps()[0].primal_solve(0),
+        expected_primal.evidence().steps()[0].primal_solve(0)
     );
     assert_eq!(actual_primal.evidence(), expected_primal.evidence());
 }

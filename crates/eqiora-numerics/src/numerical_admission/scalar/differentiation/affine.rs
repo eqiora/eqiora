@@ -29,7 +29,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         let target = match &primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
             Primal::Affine(report) => report.residual_target(),
-            Primal::Nonlinear { .. } => unreachable!("static linear solve"),
+            Primal::Nonlinear { .. } | Primal::Midpoint(_) => unreachable!("static linear solve"),
         };
         let linearization = self.linearize(system, values, target)?;
         if let Primal::Linear(receipt) = &primal
@@ -82,10 +82,12 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         target: f64,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let state_coordinates = coordinates(values).collect::<Vec<_>>();
-        let (residual, output) =
-            self.output_partials(&system.mapping, &state_coordinates, |coordinate| {
-                self.affine_parameter_partial(system, coordinate, &state_coordinates)
-            })?;
+        let (residual, output) = self.output_partials(
+            &system.mapping,
+            &state_coordinates,
+            state_coordinates.len(),
+            |coordinate| self.affine_parameter_partial(system, coordinate, &state_coordinates),
+        )?;
         let relation = AssembledLinearizedRelation::from_shared_canonical(
             A::real_system(&system.core)?,
             state_coordinates,
@@ -97,7 +99,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             relation,
             A::DOMAIN,
             output,
-            target,
+            eqiora_differentiation::PrimalAcceptance::Residual(target),
             None,
         ))
     }

@@ -6,7 +6,7 @@ import pytest
 from test_nonlinear_spatial_differentiation import linear_policy, newton_policy
 
 
-def step_plan(nonlinear, complex_field, *, observables=False, observable_output="total"):
+def step_plan(nonlinear, complex_field, *, observables=False, observable_output="total", midpoint=False):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={
@@ -38,7 +38,12 @@ def step_plan(nonlinear, complex_field, *, observables=False, observable_output=
         "right": (geometry.selection("right"), body),
     })
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(2,))))
-    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), temporal=q.time.BackwardEuler(1.),
+    temporal = (q.time.ImplicitMidpoint(
+        step_s=1., relative_tolerance=1e-10,
+        absolute_tolerances={(model.field("h"), 0, 0, imaginary): 1e-12
+                             for imaginary in ((False, True) if complex_field else (False,))},
+    ) if midpoint else q.time.BackwardEuler(1.))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), temporal=temporal,
                      solve=newton_policy() if nonlinear else linear_policy())
     plan = q.Plan.from_bytes(plan.to_bytes())
     if observables:
@@ -240,4 +245,52 @@ def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, com
     for member in reopened[0]:
         for actual, wanted in zip(member.result.output, values, strict=True):
             np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
+    assert state.to_bytes() == before
+
+
+@pytest.mark.parametrize("nonlinear", [False, True])
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_midpoint_trajectory_products_follow_stage_and_endpoint_meaning(nonlinear, complex_field):
+    plan, parameter, (total, energy) = step_plan(
+        nonlinear, complex_field, observables=True, midpoint=True)
+    state = q.State.initial(plan, time_s=0.)
+    before = state.to_bytes()
+    times = np.array([1., 3.])
+
+    def reference(p):
+        # Midpoint stage m satisfies m^3+2*m=2*v_previous+p (or
+        # 3*m=2*v_previous+p). The closed inverse selects its unique real root.
+        v, d = 0., 0.
+        values, derivatives = [], []
+        for _ in range(3):
+            rhs = 2*v+p
+            m = (2*np.sqrt(2/3)*np.sinh(np.arcsinh(3*np.sqrt(3)*rhs/(4*np.sqrt(2)))/3)
+                 if nonlinear else rhs/3)
+            slope = 3*m*m if nonlinear else 1.
+            v, d = 2*m-v, (1+(1-.5*slope)*d)/(1+.5*slope)
+            values.append(v)
+            derivatives.append(d)
+        phase = 1+2j if complex_field else 1.
+        h, dh = (phase*np.asarray(x)[[0, 2]] for x in (values, derivatives))
+        return ((np.repeat(h[:, None], 3, axis=1), times*(h.real+p), np.abs(h)**2),
+                (np.repeat(dh[:, None], 3, axis=1), times*(dh.real+1), 2*(h.conj()*dh).real))
+
+    ordinary = q.run(plan, state=state, until_s=3., output_times_s=(1., 3.))
+    canonical, _ = reference(2.)
+    for index in range(2):
+        np.testing.assert_allclose(
+            ordinary.observe(total, output_index=index, quadrature_points=2).value,
+            canonical[1][index], rtol=0, atol=1e-9)
+    program = q.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0], total, energy),
+        state=state, until_s=3., output_times_s=(1., 3.), quadrature_points=2)
+    point = program.evaluate((4.,))
+    values, tangents = reference(4.)
+    for actual, expected in zip(point.primal().output, values, strict=True):
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9)
+    for actual, expected in zip(point.jvp((1.,)).tangent, tangents, strict=True):
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9)
+    weights = (np.full((2, 3), 1+3j if complex_field else 1.),
+               np.array([2., -1.]), np.array([-.5, 2.]))
+    paired = sum(np.vdot(w, d).real for w, d in zip(weights, tangents, strict=True))
+    np.testing.assert_allclose(point.vjp(weights).input_cotangent, [paired], rtol=0, atol=1e-9)
     assert state.to_bytes() == before

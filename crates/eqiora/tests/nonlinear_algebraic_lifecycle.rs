@@ -214,7 +214,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             point.linearization(),
             point.linearization().relation().state_jacobian(),
             point.linearization().state_scalar_domain(),
-            point.linearization().residual_target(),
+            point.linearization().acceptance(),
         )
         .unwrap();
         let forward = forward_output_sensitivity(
@@ -282,17 +282,17 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         .evaluate(&support::real_point(&program, &[4.0]).unwrap())
         .unwrap();
     assert_eq!(
-        default.primal().evidence().steps()[0].nonlinear_iterations(),
+        default.primal().evidence().steps()[0].nonlinear_iterations(0),
         Some(0)
     );
     assert!(
         default.primal().evidence().steps()[0]
-            .nonlinear_initial_state_identity()
+            .nonlinear_initial_state_identity(0)
             .is_some()
     );
     assert!(
         default.primal().evidence().steps()[0]
-            .primal_solve()
+            .primal_solve(0)
             .is_none()
     );
     assert_eq!(
@@ -335,7 +335,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             DerivativeImplementation::OperatorIr
         );
         assert_eq!(
-            reverse.evidence().steps()[0].nonlinear_initial_state_identity(),
+            reverse.evidence().steps()[0].nonlinear_initial_state_identity(0),
             Some(initial.identity())
         );
         assert_eq!(
@@ -446,12 +446,12 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         .execute()
         .unwrap();
         assert_eq!(
-            map.evidence(0).unwrap().steps()[0].nonlinear_iterations(),
+            map.evidence(0).unwrap().steps()[0].nonlinear_iterations(0),
             Some(0)
         );
         assert!(
             map.evidence(1).unwrap().steps()[0]
-                .nonlinear_iterations()
+                .nonlinear_iterations(0)
                 .unwrap()
                 > 0
         );
@@ -558,12 +558,12 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
     )
     .unwrap();
     assert_eq!(
-        program.primal().evidence().steps()[0].nonlinear_iterations(),
+        program.primal().evidence().steps()[0].nonlinear_iterations(0),
         Some(0)
     );
     assert!(
         program.primal().evidence().steps()[0]
-            .primal_solve()
+            .primal_solve(0)
             .is_none()
     );
     let error = EvaluationMapPlan::new(
@@ -592,7 +592,10 @@ fn supplied_finite_candidate_reuses_original_acceptance_without_a_solve() {
     assert_eq!(accepted.relation().design_values(), &[9.0]);
     assert_eq!(accepted.output_values(), &[12.0]);
     assert_eq!(accepted.initial_residual_norm(), Some(8.0));
-    assert_eq!(accepted.residual_target(), 1e-12);
+    assert_eq!(
+        accepted.acceptance(),
+        &eqiora::differentiation::PrimalAcceptance::Residual(1e-12)
+    );
     let mut action = [0.0];
     accepted
         .relation()

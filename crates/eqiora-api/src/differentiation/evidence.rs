@@ -71,8 +71,17 @@ pub struct DifferentiationEvidence {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiationStepEvidence {
     acceptance: Acceptance,
-    pub(super) primal: PrimalEvidence,
+    pub(super) primal: Vec<DifferentiationPrimalEvidence>,
     derivative_solve: Option<CommonSolveEvidence>,
+}
+
+/// One original primal solve within an accepted step. Midpoint stage, endpoint
+/// recovery and observation recoveries retain separate update counts and reports.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct DifferentiationPrimalEvidence {
+    pub(super) primal: PrimalEvidence,
+    primal_residual_norm: f64,
+    residual_tolerance: Option<f64>,
 }
 
 impl DifferentiationEvidence {
@@ -136,10 +145,92 @@ impl DifferentiationStepEvidence {
         self.acceptance.primal_residual_norm
     }
 
-    /// Threshold used to admit the linearization.
+    /// Residual threshold; absent for physical Newton-correction acceptance.
     #[must_use]
-    pub const fn residual_tolerance(&self) -> f64 {
+    pub const fn residual_tolerance(&self) -> Option<f64> {
         self.acceptance.residual_tolerance
+    }
+
+    /// Number of original solves in equation order, including zero-update solves.
+    /// Midpoint orders its stage, optional endpoint, then requested observation
+    /// recoveries; this order does not claim global execution chronology.
+    #[must_use]
+    pub fn primal_solve_count(&self) -> usize {
+        self.primal.len()
+    }
+
+    /// Single linear report for the indexed solve; nonlinear solves expose updates separately.
+    #[must_use]
+    pub fn primal_solve(&self, solve: usize) -> Option<&CommonSolveEvidence> {
+        self.primal.get(solve)?.primal_solve()
+    }
+
+    /// All actual linear updates for one original solve, including an empty seed acceptance.
+    #[must_use]
+    pub fn primal_solves(&self, solve: usize) -> Option<&[CommonSolveEvidence]> {
+        Some(self.primal.get(solve)?.primal_solves())
+    }
+
+    /// External seed identity for one original solve; subsequent recoveries use retained inputs.
+    #[must_use]
+    pub fn nonlinear_initial_state_identity(&self, solve: usize) -> Option<&str> {
+        self.primal.get(solve)?.nonlinear_initial_state_identity()
+    }
+
+    /// Accepted update count for one original nonlinear solve.
+    #[must_use]
+    pub fn nonlinear_iterations(&self, solve: usize) -> Option<usize> {
+        self.primal.get(solve)?.nonlinear_iterations()
+    }
+
+    /// Original seed residual for one nonlinear solve.
+    #[must_use]
+    pub fn nonlinear_initial_residual_norm(&self, solve: usize) -> Option<f64> {
+        self.primal.get(solve)?.nonlinear_initial_residual_norm()
+    }
+
+    /// Original residual norm for one equation block.
+    #[must_use]
+    pub fn solve_residual_norm(&self, solve: usize) -> Option<f64> {
+        Some(self.primal.get(solve)?.primal_residual_norm())
+    }
+
+    /// Original residual threshold, absent for physical correction acceptance.
+    #[must_use]
+    pub fn solve_residual_tolerance(&self, solve: usize) -> Option<f64> {
+        self.primal.get(solve)?.residual_tolerance()
+    }
+
+    /// Canonical identity of the accepted unknown coordinates paired with the Jacobian.
+    #[must_use]
+    pub const fn accepted_state(&self) -> AcceptedOutputFingerprintV1 {
+        self.acceptance.accepted_state
+    }
+
+    /// Canonical identity of the selected output coordinates in signature order.
+    #[must_use]
+    pub const fn accepted_output(&self) -> AcceptedOutputFingerprintV1 {
+        self.acceptance.accepted_output
+    }
+
+    /// Normal or transposed derivative solve, absent for primal publication.
+    #[must_use]
+    pub const fn derivative_solve(&self) -> Option<&CommonSolveEvidence> {
+        self.derivative_solve.as_ref()
+    }
+}
+
+impl DifferentiationPrimalEvidence {
+    /// Original equation residual norm for this solve's block.
+    #[must_use]
+    pub const fn primal_residual_norm(&self) -> f64 {
+        self.primal_residual_norm
+    }
+
+    /// Original residual threshold, absent for physical correction acceptance.
+    #[must_use]
+    pub const fn residual_tolerance(&self) -> Option<f64> {
+        self.residual_tolerance
     }
 
     /// Solve that established the accepted primal point.
@@ -193,24 +284,6 @@ impl DifferentiationStepEvidence {
             PrimalEvidence::Linear(_) => None,
         }
     }
-
-    /// Canonical identity of the accepted unknown coordinates paired with the Jacobian.
-    #[must_use]
-    pub const fn accepted_state(&self) -> AcceptedOutputFingerprintV1 {
-        self.acceptance.accepted_state
-    }
-
-    /// Canonical identity of the selected output coordinates in signature order.
-    #[must_use]
-    pub const fn accepted_output(&self) -> AcceptedOutputFingerprintV1 {
-        self.acceptance.accepted_output
-    }
-
-    /// Normal or transposed derivative solve, absent for primal publication.
-    #[must_use]
-    pub const fn derivative_solve(&self) -> Option<&CommonSolveEvidence> {
-        self.derivative_solve.as_ref()
-    }
 }
 
 impl DifferentiableEvaluation {
@@ -238,28 +311,40 @@ impl DifferentiableEvaluation {
             .zip(&self.acceptance)
             .enumerate()
             .map(|(index, (point, acceptance))| {
-                let primal = match point.nonlinear_iterations() {
-                    None => PrimalEvidence::Linear(Box::new(CommonSolveEvidence::from_report(
-                        point
-                            .linear_solves()
-                            .first()
-                            .expect("accepted linear primal solve"),
-                    ))),
-                    Some(iterations) => PrimalEvidence::Nonlinear {
-                        initial_state_identity: point
-                            .nonlinear_initial_state()
-                            .map(|state| state.identity().to_owned()),
-                        linear_solves: point
-                            .linear_solves()
-                            .iter()
-                            .map(CommonSolveEvidence::from_report)
-                            .collect(),
-                        iterations,
-                        initial_residual_norm: point
-                            .linearization()
-                            .initial_residual_norm()
-                            .expect("accepted nonlinear initial residual"),
-                    },
+                let candidate = point.candidate();
+                let primal = if candidate.coordinates().is_none() {
+                    midpoint_primal_evidence(
+                        &candidate,
+                        point.linearization(),
+                        if index == 0 {
+                            self.identity.initial_state_identity.clone()
+                        } else {
+                            None
+                        },
+                    )
+                    .expect("accepted midpoint solve inventory")
+                } else {
+                    let primal = match point.nonlinear_iterations() {
+                        None => PrimalEvidence::Linear(Box::new(
+                            point
+                                .linear_solves()
+                                .into_iter()
+                                .next()
+                                .expect("accepted linear solve"),
+                        )),
+                        Some(iterations) => PrimalEvidence::Nonlinear {
+                            initial_state_identity: point
+                                .nonlinear_initial_state()
+                                .map(|state| state.identity().to_owned()),
+                            linear_solves: point.linear_solves(),
+                            iterations,
+                            initial_residual_norm: point
+                                .linearization()
+                                .initial_residual_norm()
+                                .expect("accepted nonlinear seed"),
+                        },
+                    };
+                    vec![DifferentiationPrimalEvidence::single(primal, acceptance)]
                 };
                 DifferentiationStepEvidence {
                     acceptance: acceptance.clone(),
@@ -287,7 +372,7 @@ impl DifferentiableEvaluation {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct Acceptance {
     primal_residual_norm: f64,
-    pub(super) residual_tolerance: f64,
+    pub(super) residual_tolerance: Option<f64>,
     state_system: CanonicalCsrAgreementFingerprintV1,
     accepted_state: AcceptedOutputFingerprintV1,
     accepted_output: AcceptedOutputFingerprintV1,
@@ -307,7 +392,8 @@ impl Acceptance {
                     value.coordinate_count() / value.sample_times_s().map_or(1, <[f64]>::len)
                 })
                 .sum::<usize>()
-                != linearization.output_dimension()
+                .checked_mul(linearization.observation_times().map_or(1, <[f64]>::len))
+                != Some(linearization.output_dimension())
         {
             return Err(invalid(
                 "accepted linearization differs from the Model/Plan value signatures",
@@ -318,11 +404,11 @@ impl Acceptance {
             linearization,
             relation.state_jacobian(),
             linearization.state_scalar_domain(),
-            linearization.residual_target(),
+            linearization.acceptance(),
         )?;
         Ok(Self {
             primal_residual_norm: accepted.relation().primal_residual_norm(),
-            residual_tolerance: linearization.residual_target(),
+            residual_tolerance: accepted.relation().residual_tolerance(),
             state_system: relation.state_jacobian().agreement_fingerprint(),
             accepted_state: AcceptedOutputFingerprintV1::from_values(relation.accepted_unknowns())?,
             accepted_output: AcceptedOutputFingerprintV1::from_values(
@@ -338,7 +424,7 @@ impl DifferentiationEvidence {
         point: DifferentiableValues,
         implementation: DerivativeImplementation,
         acceptance: Vec<Acceptance>,
-        primal: Vec<PrimalEvidence>,
+        primal: Vec<Vec<DifferentiationPrimalEvidence>>,
     ) -> Self {
         Self {
             identity,
@@ -357,4 +443,73 @@ impl DifferentiationEvidence {
             linearization_state: LinearizationState::Established,
         }
     }
+}
+
+impl DifferentiationPrimalEvidence {
+    pub(super) fn single(primal: PrimalEvidence, acceptance: &Acceptance) -> Self {
+        Self {
+            primal,
+            primal_residual_norm: acceptance.primal_residual_norm,
+            residual_tolerance: acceptance.residual_tolerance,
+        }
+    }
+}
+
+pub(super) fn midpoint_primal_evidence(
+    candidate: &eqiora_numerics::CommonDifferentiationCandidate,
+    linearization: &CommonDifferentiationLinearization,
+    initial_state_identity: Option<String>,
+) -> Result<Vec<DifferentiationPrimalEvidence>, Diagnostic> {
+    let eqiora_differentiation::PrimalAcceptance::Blocks(blocks) = linearization.acceptance()
+    else {
+        return Err(invalid(
+            "midpoint evidence requires separately accepted equation blocks",
+        ));
+    };
+    if blocks.len() != candidate.solve_count() {
+        return Err(invalid(
+            "midpoint evidence differs from its original solve inventory",
+        ));
+    }
+    let mut residual = vec![0.; linearization.relation().residual_dimension()];
+    linearization.relation().primal(&mut residual)?;
+    let mut offset = 0usize;
+    blocks
+        .iter()
+        .enumerate()
+        .map(|(index, (count, _))| {
+            let end = offset
+                .checked_add(*count)
+                .ok_or_else(|| invalid("midpoint equation block overflows"))?;
+            let values = residual
+                .get(offset..end)
+                .ok_or_else(|| invalid("midpoint equation block differs from residual"))?;
+            let norm = eqiora_solver::FixedOrderInnerProduct::norm(
+                &eqiora_solver::SERIAL_LINEAR_EXECUTION,
+                values,
+            )?;
+            offset = end;
+            Ok(DifferentiationPrimalEvidence {
+                primal: PrimalEvidence::Nonlinear {
+                    initial_state_identity: if index == 0 {
+                        initial_state_identity.clone()
+                    } else {
+                        None
+                    },
+                    linear_solves: candidate
+                        .linear_solves(index)
+                        .ok_or_else(|| invalid("midpoint solve omitted reports"))?
+                        .to_vec(),
+                    iterations: candidate
+                        .iterations(index)
+                        .ok_or_else(|| invalid("midpoint solve omitted update count"))?,
+                    initial_residual_norm: candidate
+                        .initial_residual_norm(index)
+                        .ok_or_else(|| invalid("midpoint solve omitted seed residual"))?,
+                },
+                primal_residual_norm: norm,
+                residual_tolerance: candidate.residual_tolerance(index),
+            })
+        })
+        .collect()
 }

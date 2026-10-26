@@ -87,4 +87,4 @@ def test_complex_spatial_parameter_actions_use_real_pairing(method):
         gf = np.sum(f[:, None]*weights/a, axis=0)
         for actual, oracle in zip(reverse.input_cotangent, (ga, gp, gf), strict=True):
             np.testing.assert_allclose(actual, oracle, rtol=0, atol=2e-10)
-        assert reverse.evidence.steps[0].primal_solve is not None
+        assert reverse.evidence.steps[0].primal_solves[0] is not None

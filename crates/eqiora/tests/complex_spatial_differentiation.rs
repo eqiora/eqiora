@@ -246,7 +246,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                 primal.evidence().implementation(),
                 DerivativeImplementation::AnalyticAssembled
             );
-            assert!(primal.evidence().steps()[0].primal_solve().is_some());
+            assert!(primal.evidence().steps()[0].primal_solve(0).is_some());
             let directions = direction.map(|v| (v.re, v.im));
             let tangent = DifferentiableTangent::from_components(
                 program.identity().inputs(),
@@ -299,8 +299,8 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
             assert_eq!(reopened, record);
             let encoded: serde_json::Value =
                 serde_json::from_slice(&record.to_bytes().unwrap()).unwrap();
-            assert_eq!(encoded["state"].as_array().unwrap().len(), 1);
-            let mut candidate = encoded["state"][0]
+            assert_eq!(encoded["steps"].as_array().unwrap().len(), 1);
+            let mut candidate = encoded["steps"][0]["unknown"]
                 .as_array()
                 .unwrap()
                 .iter()

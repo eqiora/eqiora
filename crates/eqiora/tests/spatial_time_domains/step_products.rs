@@ -18,7 +18,7 @@ fn check_products(
         point,
         relation.state_jacobian(),
         point.state_scalar_domain(),
-        point.residual_target(),
+        point.acceptance(),
     )
     .unwrap();
     let properties = relation.state_jacobian().properties();
@@ -252,7 +252,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
                 relation,
                 point.relation().state_jacobian(),
                 point.state_scalar_domain(),
-                point.residual_target(),
+                point.acceptance(),
             )
             .unwrap()
         })
@@ -564,7 +564,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
     let candidates = trajectory
         .steps()
         .iter()
-        .map(|p| p.linearization().relation().accepted_unknowns().to_vec())
+        .map(|p| p.candidate())
         .collect::<Vec<_>>();
     let replay = spatial
         .validate_differentiated_trajectory_values(
@@ -604,7 +604,9 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
             .is_err()
     );
     let mut altered = candidates.clone();
-    altered[1][0] += 0.125;
+    let mut unknown = altered[1].coordinates().unwrap().to_vec();
+    unknown[0] += 0.125;
+    altered[1] = eqiora_numerics::CommonDifferentiationCandidate::from_coordinates(unknown);
     let error = spatial
         .validate_differentiated_trajectory_values(
             &request,
@@ -631,7 +633,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
                 view,
                 point.relation().state_jacobian(),
                 point.state_scalar_domain(),
-                point.residual_target(),
+                point.acceptance(),
             )
             .unwrap()
         })
@@ -725,7 +727,7 @@ fn trajectory_selected_outputs_keep_unobserved_history_and_direct_boundary_terms
                 output,
                 point.relation().state_jacobian(),
                 point.state_scalar_domain(),
-                point.residual_target(),
+                point.acceptance(),
             )
             .unwrap()
         })
@@ -820,13 +822,7 @@ fn trajectory_observables_share_endpoint_time_quadrature_and_direct_partials() {
     let candidates = trajectory
         .steps()
         .iter()
-        .map(|point| {
-            point
-                .linearization()
-                .relation()
-                .accepted_unknowns()
-                .to_vec()
-        })
+        .map(|point| point.candidate())
         .collect::<Vec<_>>();
     let replay = spatial
         .validate_differentiated_trajectory_values(

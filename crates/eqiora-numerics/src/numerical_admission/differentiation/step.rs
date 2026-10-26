@@ -23,6 +23,7 @@ pub(super) struct StepHistory {
     pub(super) previous: Vec<f64>,
     pub(super) interval: [f64; 2],
     pub(super) output: crate::linearized_output::FieldCoefficientLinearization,
+    pub(super) selected_output_history: Option<eqiora_assembly::CsrMatrix<f64>>,
 }
 
 /// Borrow an accepted spatial step as `[previous State, Model Parameters]`.
@@ -36,21 +37,23 @@ pub struct CommonDiscreteStepLinearization<'a> {
 }
 
 /// Borrow a step output with independent `[previous State, Model Parameters]` inputs.
-/// Its original direct Parameter action is preserved; previous-state effects
-/// enter through the residual solve, so this projection adds no dense zero block.
+/// Its original direct Parameter action and any direct predecessor interpolation
+/// action are retained separately from the implicit residual solve.
 #[derive(Debug, Clone, Copy)]
-pub struct CommonDiscreteStepOutput<'a> {
+struct CommonDiscreteStepOutput<'a> {
     source: &'a dyn LinearizedOutput<f64>,
     previous_dimension: usize,
+    previous_jacobian: Option<&'a eqiora_assembly::CsrMatrix<f64>>,
 }
 
 impl<'point> CommonDiscreteStepLinearization<'point> {
     /// Selected complete outputs paired with this same accepted step.
     #[must_use]
-    pub fn selected_output(&self) -> CommonDiscreteStepOutput<'point> {
+    pub fn selected_output(&self) -> impl LinearizedOutput<f64> + 'point + use<'point> {
         CommonDiscreteStepOutput {
             source: self.point,
             previous_dimension: self.history.previous.len(),
+            previous_jacobian: self.history.selected_output_history.as_ref(),
         }
     }
 
@@ -58,6 +61,7 @@ impl<'point> CommonDiscreteStepLinearization<'point> {
         CommonDiscreteStepOutput {
             source: &self.history.output,
             previous_dimension: self.history.previous.len(),
+            previous_jacobian: None,
         }
     }
 
@@ -245,7 +249,18 @@ impl LinearizedOutput<f64> for CommonDiscreteStepOutput<'_> {
             ));
         }
         self.source
-            .jvp(unknown, &parameter[self.previous_dimension..], output)
+            .jvp(unknown, &parameter[self.previous_dimension..], output)?;
+        if let Some(matrix) = self.previous_jacobian {
+            let mut action = vec![0.; output.len()];
+            matrix.apply(&parameter[..self.previous_dimension], &mut action)?;
+            for (value, action) in output.iter_mut().zip(action) {
+                *value += action;
+            }
+            if output.iter().any(|value| !value.is_finite()) {
+                return Err(invalid("interpolated output tangent is non-finite"));
+            }
+        }
+        Ok(())
     }
     fn vjp(
         &self,
@@ -258,7 +273,47 @@ impl LinearizedOutput<f64> for CommonDiscreteStepOutput<'_> {
         }
         let (previous, model) = parameter.split_at_mut(self.previous_dimension);
         self.source.vjp(input, unknown, model)?;
-        previous.fill(0.);
+        match self.previous_jacobian {
+            Some(matrix) => matrix.apply_oriented(
+                LinearOperatorOrientation::ConjugateTransposed,
+                input,
+                previous,
+            )?,
+            None => previous.fill(0.),
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn selected_output_keeps_direct_history_separate_from_parameter_actions() {
+        let source =
+            eqiora_ir::DenseOutputLinearization::new(vec![0.], vec![2., 3.], vec![5.]).unwrap();
+        let history = eqiora_assembly::CsrMatrix::from_sorted_csr(
+            1,
+            2,
+            vec![0, 2],
+            vec![0, 1],
+            vec![7., -11.],
+        )
+        .unwrap();
+        let output = CommonDiscreteStepOutput {
+            source: &source,
+            previous_dimension: 2,
+            previous_jacobian: Some(&history),
+        };
+        let mut tangent = [0.];
+        output
+            .jvp(&[13., 17.], &[19., 23., 29.], &mut tangent)
+            .unwrap();
+        assert_eq!(tangent, [102.]);
+        let mut unknown = [0.; 2];
+        let mut inputs = [0.; 3];
+        output.vjp(&[31.], &mut unknown, &mut inputs).unwrap();
+        assert_eq!(unknown, [62., 93.]);
+        assert_eq!(inputs, [217., -341., 155.]);
     }
 }

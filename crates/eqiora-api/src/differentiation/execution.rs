@@ -4,9 +4,7 @@ use eqiora_differentiation::{
     DiscreteTrajectoryLinearization, discrete_trajectory_adjoint, discrete_trajectory_sensitivity,
 };
 use eqiora_ir::DiscreteStepLinearization;
-use eqiora_numerics::{
-    CommonDifferentiationTrajectory, CommonDiscreteStepLinearization, CommonDiscreteStepOutput,
-};
+use eqiora_numerics::{CommonDifferentiationTrajectory, CommonDiscreteStepLinearization};
 use eqiora_solver::SolveReport;
 mod projection;
 pub(super) use projection::OutputProjection;
@@ -190,17 +188,17 @@ fn accepted_point(
         linearization,
         linearization.relation().state_jacobian(),
         linearization.state_scalar_domain(),
-        linearization.residual_target(),
+        linearization.acceptance(),
     )
 }
 
-fn with_trajectory<T>(
-    trajectory: &CommonDifferentiationTrajectory,
-    action: impl FnOnce(
+fn with_trajectory<'point, T>(
+    trajectory: &'point CommonDifferentiationTrajectory,
+    action: impl for<'view> FnOnce(
         &[AcceptedOutputLinearization<
-            '_,
-            CommonDiscreteStepLinearization<'_>,
-            CommonDiscreteStepOutput<'_>,
+            'view,
+            CommonDiscreteStepLinearization<'point>,
+            dyn LinearizedOutput<f64> + 'point,
         >],
     ) -> Result<T, Diagnostic>,
 ) -> Result<T, Diagnostic> {
@@ -216,22 +214,27 @@ fn with_trajectory<T>(
         .collect::<Result<Vec<_>, _>>()?;
     let outputs = relations
         .iter()
-        .map(CommonDiscreteStepLinearization::selected_output)
+        .map(|relation| relation.selected_output())
         .collect::<Vec<_>>();
-    let accepted = relations
-        .iter()
-        .zip(&outputs)
-        .zip(trajectory.steps())
-        .map(|((relation, output), point)| {
-            let point = point.linearization();
+    let mut accepted: Vec<
+        AcceptedOutputLinearization<
+            '_,
+            CommonDiscreteStepLinearization<'point>,
+            dyn LinearizedOutput<f64> + 'point,
+        >,
+    > = Vec::with_capacity(relations.len());
+    for ((relation, output), point) in relations.iter().zip(&outputs).zip(trajectory.steps()) {
+        let output: &(dyn LinearizedOutput<f64> + 'point) = output;
+        let point = point.linearization();
+        accepted.push(
             AcceptedOutputLinearization::new_with_canonical_state_jacobian(
                 relation,
                 output,
                 point.relation().state_jacobian(),
                 point.state_scalar_domain(),
-                point.residual_target(),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+                point.acceptance(),
+            )?,
+        );
+    }
     action(&accepted)
 }

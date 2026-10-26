@@ -159,7 +159,14 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         .unwrap();
     let steps = [&step_0, &step_1, &step_2, &step_3]
         .into_iter()
-        .map(|step| AcceptedOutputLinearization::new(step, step, 1.0e-12).unwrap())
+        .map(|step| {
+            AcceptedOutputLinearization::new(
+                step,
+                step,
+                &eqiora::differentiation::PrimalAcceptance::Residual(1.0e-12),
+            )
+            .unwrap()
+        })
         .collect::<Vec<_>>();
     let boundary =
         DiscreteTrajectoryCheckpoint::new(2, checkpoint.time(), checkpoint.state().to_vec())
@@ -230,7 +237,11 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
                 step.output(),
                 source,
                 eqiora::ScalarDomain::Real,
-                step.relation().residual_tolerance(),
+                &eqiora::differentiation::PrimalAcceptance::Residual(
+                    step.relation()
+                        .residual_tolerance()
+                        .expect("residual-based fixture"),
+                ),
             )
             .unwrap()
         })

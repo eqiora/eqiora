@@ -328,10 +328,10 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
             assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
             let primal = point.primal();
             assert!((primal.output().fixture_coordinates()[0] - (2. * p * p + p)).abs() < 1e-9);
-            assert!(primal.evidence().steps()[0].primal_solve().is_some());
+            assert!(primal.evidence().steps()[0].primal_solve(0).is_some());
             assert!(
                 primal.evidence().steps()[0]
-                    .nonlinear_iterations()
+                    .nonlinear_iterations(0)
                     .is_none()
             );
             assert!(
@@ -429,7 +429,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         point.linearization(),
         point.linearization().relation().state_jacobian(),
         point.linearization().state_scalar_domain(),
-        point.linearization().residual_target(),
+        point.linearization().acceptance(),
     )
     .unwrap();
     let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear());
@@ -1434,7 +1434,7 @@ fn parameter_points_rederive_the_actual_domain_without_changing_solver_controls(
                 linear,
                 linear.relation().state_jacobian(),
                 domain,
-                linear.residual_target(),
+                linear.acceptance(),
             )
             .unwrap();
             let solve = LinearSolveRequest::new(backend, plan.linear());

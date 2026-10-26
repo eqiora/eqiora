@@ -20,7 +20,11 @@ fn converged_implicit_relation_supports_forward_and_adjoint_sensitivity() {
         DifferentiationRole::Parameter,
     ];
     let linearized = ir.linearize(&[2.0, 1.0, 5.0, 7.0], &roles).unwrap();
-    let accepted = AcceptedLinearization::new(&linearized, 1.0e-14).unwrap();
+    let accepted = AcceptedLinearization::new(
+        &linearized,
+        &eqiora::differentiation::PrimalAcceptance::Residual(1.0e-14),
+    )
+    .unwrap();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1.0e-12,
@@ -75,7 +79,13 @@ fn converged_implicit_relation_supports_forward_and_adjoint_sensitivity() {
     }
 
     let unaccepted = ir.linearize(&[2.0, 1.0, 5.0, 7.1], &roles).unwrap();
-    assert!(AcceptedLinearization::new(&unaccepted, 1.0e-14).is_err());
+    assert!(
+        AcceptedLinearization::new(
+            &unaccepted,
+            &eqiora::differentiation::PrimalAcceptance::Residual(1.0e-14)
+        )
+        .is_err()
+    );
 }
 
 fn nonsymmetric_implicit_relation() -> ScalarOperatorIr {
@@ -161,8 +171,18 @@ fn primal_acceptance_preserves_tiny_and_large_residuals() {
         let linearized = ir
             .linearize(&point, &[DifferentiationRole::Unknown; 2])
             .unwrap();
-        assert!(AcceptedLinearization::new(&linearized, 4. * scale).is_err());
-        let accepted = AcceptedLinearization::new(&linearized, 5. * scale).unwrap();
+        assert!(
+            AcceptedLinearization::new(
+                &linearized,
+                &eqiora::differentiation::PrimalAcceptance::Residual(4. * scale)
+            )
+            .is_err()
+        );
+        let accepted = AcceptedLinearization::new(
+            &linearized,
+            &eqiora::differentiation::PrimalAcceptance::Residual(5. * scale),
+        )
+        .unwrap();
         assert_eq!(accepted.primal_residual_norm(), 5. * scale);
     }
 }

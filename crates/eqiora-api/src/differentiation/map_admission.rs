@@ -57,9 +57,16 @@ impl DifferentiableProgram {
             .ok_or_else(overflow)?;
         let report = eqiora_numerics::CommonSolveEvidence::planned_storage_bytes(self.plan())
             .ok_or_else(overflow)?;
-        for _ in self.default.native.points() {
+        for point in self.default.native.points() {
+            let groups = primal_group_count(point);
             let step = size_of::<DifferentiationStepEvidence>()
-                .checked_add(report.checked_mul(updates).ok_or_else(overflow)?)
+                .checked_add(product(
+                    groups,
+                    sum_bytes(&[
+                        size_of::<super::evidence::DifferentiationPrimalEvidence>(),
+                        product(report, updates)?,
+                    ])?,
+                )?)
                 .ok_or_else(overflow)?;
             bytes = bytes.checked_add(step).ok_or_else(overflow)?;
         }
@@ -138,6 +145,7 @@ impl DifferentiableProgram {
             let linearization = point.linearization();
             let relation = linearization.relation();
             let n = relation.unknown_dimension();
+            let groups = primal_group_count(point);
             let o = linearization.output_dimension();
             let history = linearization.discrete_step().map_or(0, |step| {
                 eqiora_ir::DiscreteStepLinearization::state_coordinates(&step).len()
@@ -154,7 +162,45 @@ impl DifferentiableProgram {
                 product(o, size_of::<f64>() + size_of::<Option<usize>>())?,
                 product(product(o, n)?, size_of::<f64>())?,
                 product(product(o, p)?, size_of::<f64>())?,
-                product(updates, size_of::<SolveReport>())?,
+                product(product(updates, groups)?, size_of::<SolveReport>())?,
+                // Retained multi-solve candidate and correction acceptance own
+                // coordinate witnesses and sparse original correction systems.
+                if groups > 1
+                    || point.linearization().observation_times().is_some()
+                        && matches!(
+                            point.linearization().acceptance(),
+                            eqiora_differentiation::PrimalAcceptance::Blocks(_)
+                        )
+                {
+                    sum_bytes(&[
+                        // Each retained stage and acceptance block owns metadata
+                        // independently of its numerical coordinate buffers.
+                        product(
+                            groups,
+                            size_of::<eqiora_numerics::CommonDifferentiationCandidate>(),
+                        )?,
+                        product(
+                            groups,
+                            size_of::<(usize, eqiora_differentiation::PrimalAcceptance)>(),
+                        )?,
+                        product(groups, size_of::<eqiora_solver::CanonicalCsrSystemView>())?,
+                        product(n, 8 * size_of::<f64>())?,
+                        product(product(n, n)?, size_of::<f64>() + size_of::<usize>())?,
+                        product(
+                            n.checked_add(groups).ok_or_else(overflow)?,
+                            size_of::<usize>(),
+                        )?,
+                        product(
+                            product(updates, groups)?,
+                            eqiora_numerics::CommonSolveEvidence::planned_storage_bytes(
+                                self.plan(),
+                            )
+                            .ok_or_else(overflow)?,
+                        )?,
+                    ])?
+                } else {
+                    0
+                },
                 product(p, size_of::<f64>())?,
                 // The history CSR owns a separate row-offset array and shared coordinate identity.
                 if history == 0 {
@@ -202,8 +248,13 @@ fn validate_host_execution(
     // declared placement before dispatch, and every actual report on acceptance.
     if placement != ExecutionReport::host_serial()
         || native.linear_solves().iter().any(|report| {
-            report.execution() != ExecutionReport::host_serial()
-                || report.verification() != ExecutionReport::host_serial()
+            report.execution().topology()
+                != eqiora_numerics::CommonExecutionTopology::Host { workers: 1 }
+                || report.verification().topology()
+                    != eqiora_numerics::CommonExecutionTopology::Host { workers: 1 }
+                || report.execution().adapter() != ExecutionReport::host_serial().adapter().as_str()
+                || report.verification().adapter()
+                    != ExecutionReport::host_serial().adapter().as_str()
         })
         || native.receipt().is_some_and(|receipt| {
             receipt.acceptance_verification() != ExecutionReport::host_serial()
@@ -220,4 +271,11 @@ fn validate_host_execution(
 
 fn overflow() -> Diagnostic {
     invalid("evaluation map retained numerical storage estimate overflows usize")
+}
+
+fn primal_group_count(point: &CommonDifferentiationPoint) -> usize {
+    match point.linearization().acceptance() {
+        eqiora_differentiation::PrimalAcceptance::Blocks(blocks) => blocks.len(),
+        _ => 1,
+    }
 }
