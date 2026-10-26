@@ -6,6 +6,7 @@ mod nonlinear_interfaces;
 mod observables;
 mod planar;
 mod result_replay;
+mod solver_diagonal;
 mod stationary_state;
 mod storage;
 mod structured;

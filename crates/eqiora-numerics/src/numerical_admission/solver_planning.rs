@@ -54,6 +54,27 @@ pub(crate) fn resolve_linear(
     NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
 }
 
+/// Only exact Jacobi requests need a new structural fact in this admission slice.
+/// Automatic selection retains its existing independently admitted profile.
+pub(super) fn requests_diagonal(request: CommonLinearRequest) -> bool {
+    request
+        .exact_request()
+        .is_some_and(|(plan, _)| plan.preconditioner() == PreconditionerPolicy::Jacobi)
+}
+
+/// Ask the canonical operator's existing diagonal owner about structural availability.
+/// A stored zero is available here; numerical Jacobi validity remains execution-owned.
+pub(super) fn complete_diagonal<S>(
+    system: &eqiora_solver::CanonicalCsrSystemView<S>,
+) -> Result<bool, Diagnostic>
+where
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+{
+    use eqiora_solver::LinearOperator;
+    let mut diagonal = vec![S::zero(); system.rows()];
+    Ok(system.diagonal(&mut diagonal)? == eqiora_solver::DiagonalAvailability::Available)
+}
+
 /// Resolve the typed complex implementation of the selected provider. The
 /// current automatic host profile describes real storage, so complex controls
 /// remain explicit until that profile owns complex facts.
@@ -155,6 +176,74 @@ mod tests {
             .with_preconditioner(PreconditionerPolicy::Identity)
             .with_reduction(reduction);
         CommonLinearRequest::exact(plan, provider).unwrap()
+    }
+
+    #[test]
+    fn canonical_solver_diagonal_fact_does_not_claim_numeric_jacobi_validity() {
+        let storage = eqiora_assembly::CsrMatrix::from_sorted_csr(
+            2,
+            2,
+            vec![0, 2, 4],
+            vec![0, 1, 0, 1],
+            vec![0., 1., 1., 0.],
+        )
+        .unwrap();
+        let system = eqiora_solver::CanonicalCsrSystemView::new(
+            &storage,
+            &[1., 2.],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        assert!(complete_diagonal(&system).unwrap());
+        let request = exact(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+            REFERENCE_LINEAR_SOLVER.provider(),
+        );
+        let (plan, provider) = request.exact_request().unwrap();
+        let request = CommonLinearRequest::exact(
+            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            provider,
+        )
+        .unwrap();
+        let decision = resolve_linear(
+            request,
+            LinearOperatorProperties::General,
+            Some(true),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+        let checked = decision
+            .checked_backend(&REFERENCE_LINEAR_SOLVER, None)
+            .unwrap();
+        let error = LinearSolveRequest::new(&checked, decision.solver)
+            .solve(&system.linear_problem().unwrap())
+            .unwrap_err();
+        assert!(
+            error.message().contains("finite nonzero diagonal"),
+            "{error}"
+        );
+        let absent = eqiora_assembly::CsrMatrix::from_sorted_csr(
+            2,
+            2,
+            vec![0, 1, 2],
+            vec![1, 0],
+            vec![1., 1.],
+        )
+        .unwrap();
+        let absent = eqiora_solver::CanonicalCsrSystemView::new(
+            &absent,
+            &[1., 2.],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        assert!(!complete_diagonal(&absent).unwrap());
+        let error = LinearSolveRequest::new(&checked, decision.solver)
+            .solve(&absent.linear_problem().unwrap())
+            .unwrap_err();
+        assert!(error.message().contains("profile"), "{error}");
     }
 
     #[test]

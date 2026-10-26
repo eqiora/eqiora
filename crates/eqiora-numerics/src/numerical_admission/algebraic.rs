@@ -122,6 +122,15 @@ impl CommonAlgebraicPlan {
         } else {
             None
         };
+        let diagonal = if solver_planning::requests_diagonal(request)
+            && complex_system.is_none()
+            && gauge.is_none()
+            && nonlinear.is_none()
+        {
+            problem.complete_diagonal()?
+        } else {
+            None
+        };
         let linear = if complex_system.is_some() {
             solver_planning::resolve_complex_linear(
                 request,
@@ -136,7 +145,7 @@ impl CommonAlgebraicPlan {
                 } else {
                     LinearOperatorProperties::General
                 },
-                None,
+                diagonal,
                 None,
                 None,
                 backend,

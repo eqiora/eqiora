@@ -27,6 +27,56 @@ impl RecognizedNativeAdmission {
         })
     }
 
+    /// A fixed affine operator can supply its actual reduced CSR diagonal before selection.
+    /// State/history-dependent and augmented operators keep their separate solve-time owners.
+    pub(in crate::numerical_admission) fn stationary_diagonal(
+        &self,
+        request: CommonLinearRequest,
+        spatial: &NativeSpatialPolicy,
+        scaling: &eqiora_realization::SystemScaling,
+        nonlinear: Option<NonlinearSolvePlan>,
+        temporal: Option<&CommonTemporalPolicy>,
+    ) -> Result<Option<bool>, Diagnostic> {
+        if !super::super::solver_planning::requests_diagonal(request)
+            || nonlinear.is_some()
+            || temporal.is_some()
+            || spatial.scalar_constraint().is_some()
+        {
+            return Ok(None);
+        }
+        let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
+            return Ok(None);
+        };
+        if equations
+            .regions
+            .iter()
+            .any(|region| region.form.is_transient())
+        {
+            return Ok(None);
+        }
+        let properties = self.operator_properties(spatial, None)?;
+        let (mapping, input) = equations.static_assembly(
+            &self.resources,
+            &self.discretizations(spatial)?,
+            scaling,
+            properties,
+        )?;
+        let coordinates = crate::region_assembly::mapping::RegionRealCoordinates::new(&mapping)?;
+        let (reduced, _, _) = match &self.resources {
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                coordinates.assemble_static(mesh.mesh(), &input)?
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
+                coordinates.assemble_static(mesh.mesh(), &input)?
+            }
+            _ => return Err(invalid("static diagonal admission requires its exact Mesh")),
+        };
+        let canonical =
+            eqiora_solver::CanonicalCsrSystemView::new(&reduced, reduced.rhs(), properties)?;
+        super::super::solver_planning::complete_diagonal(&canonical).map(Some)
+    }
+
     pub(in crate::numerical_admission) fn numerical_scalar_domain(
         &self,
         spatial: &NativeSpatialPolicy,

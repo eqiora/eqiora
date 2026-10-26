@@ -126,6 +126,7 @@ impl ResolvedCommonPlan {
                     false,
                     "coordinate cell-integrated equality",
                     LinearOperatorProperties::SymmetricPositiveDefinite,
+                    None,
                     Some(structure),
                     linear_backend,
                 )?;
@@ -187,6 +188,13 @@ impl ResolvedCommonPlan {
                 let (linear_request, nonlinear) =
                     resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
                 let properties = recognized.operator_properties(&spatial, nonlinear)?;
+                let diagonal = recognized.stationary_diagonal(
+                    linear_request,
+                    &spatial,
+                    &system_scaling,
+                    nonlinear,
+                    temporal.as_ref(),
+                )?;
                 let (linear, temporal) = resolve_linear_requirements(
                     CommonSolvePolicy::Linear(linear_request),
                     scaling,
@@ -197,6 +205,7 @@ impl ResolvedCommonPlan {
                         .any(|region| region.form.is_transient()),
                     "linear conservation form",
                     properties,
+                    diagonal,
                     Some(structure),
                     linear_backend,
                 )?;
@@ -445,6 +454,7 @@ fn resolve_linear_requirements(
     has_storage: bool,
     mathematical_form: &str,
     properties: LinearOperatorProperties,
+    complete_diagonal: Option<bool>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<(NativeLinearPolicy, Option<CommonTemporalPolicy>), Diagnostic> {
@@ -459,8 +469,15 @@ fn resolve_linear_requirements(
             "{mathematical_form} does not admit incompressible-flow scaling"
         )));
     }
-    resolve_linear(solve, properties, None, None, structure, backend)
-        .map(|linear| (linear, temporal))
+    resolve_linear(
+        solve,
+        properties,
+        complete_diagonal,
+        None,
+        structure,
+        backend,
+    )
+    .map(|linear| (linear, temporal))
 }
 
 fn resolve_temporal_requirement(
