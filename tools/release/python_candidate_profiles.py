@@ -51,6 +51,8 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("examples/research-conductivity/conductivity.eqi"),
+    Path("examples/research-conductivity/research_workflow.py"),
     Path("verify/language/factor-integrals/models/nonlocal-interaction.eqi"),
     Path("verify/language/factor-integrals/models/radial-diffusion.eqi"),
     Path("crates/eqiora-api/schemas/compile-v2.schema.json"),

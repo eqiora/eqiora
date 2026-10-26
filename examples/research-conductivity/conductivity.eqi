@@ -1,0 +1,25 @@
+public component LayeredRod(
+    support body:volume(ambient_dimension=1),
+    support left:boundary(parent=body),
+    support right:boundary(parent=body),
+    parameter log_k:array<1,2>,
+    parameter heating:W/m^3,
+    parameter right_temperature:K
+) {
+    coordinate x:m on body from body[0];
+    let conductivity:W/m/K =
+        (if x < 0.5[m] then math.exp(log_k[0]) else math.exp(log_k[1])) * 1[W/m/K];
+    variable temperature:K on body in h1;
+    relation balance on body {
+        -div(conductivity * grad(temperature)) = heating;
+    }
+    relation left_value on left {trace(temperature)=300[K];}
+    relation right_value on right {trace(temperature)=right_temperature;}
+    observable left_mean:K = integral(
+        (if x < 0.5[m] then 2[1/m] else 0[1/m])*temperature, measure(body));
+    observable right_mean:K = integral(
+        (if x < 0.5[m] then 0[1/m] else 2[1/m])*temperature, measure(body));
+    observable mean_flux:W/m^2 = integral(
+        -conductivity * partial(temperature,wrt=x) / 1[m], measure(body));
+    observable profile:K on body = temperature;
+}

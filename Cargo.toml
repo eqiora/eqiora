@@ -159,7 +159,7 @@ lto = "fat"
 # Keep Python adapter code compact; linear algebra backends retain the
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
-opt-level = "s"
+opt-level = "z"
 codegen-units = 1
 
 # Compact authoring and parsing code without changing numerical optimization.
@@ -202,4 +202,8 @@ opt-level = "s"
 opt-level = "s"
 
 [profile.release.package.eqiora-io-xml]
+opt-level = "s"
+
+# Keep the native file-image codec compact alongside the packaged research recipe.
+[profile.release.package.eqiora-io-hdf5]
 opt-level = "s"
