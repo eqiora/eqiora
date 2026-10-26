@@ -228,10 +228,10 @@ fn nonlinear_spatial_program_pairs_total_products_and_reauthenticates_records() 
             record
         );
         assert!(RecordedDifferentiableEvaluation::from_bytes(&encoded, &plan, None).is_err());
-        for key in ["state", "output", "point"] {
+        for key in ["unknown", "output", "point"] {
             let mut wire: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
-            let coordinate = if key == "state" {
-                &mut wire[key][0][0]
+            let coordinate = if key == "unknown" {
+                &mut wire["steps"][0][key][0]
             } else {
                 &mut wire[key][0]
             };
