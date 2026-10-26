@@ -215,8 +215,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 102 || new Set(SITE_ROUTES).size !== 102) {
-    throw new Error('route authority is not 102 unique entries');
+  if (SITE_ROUTES.length !== 104 || new Set(SITE_ROUTES).size !== 104) {
+    throw new Error('route authority is not 104 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -234,7 +234,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 17, C: 84 } as const;
+  const cardinalities = { A: 1, B: 18, C: 85 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -246,12 +246,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 102 || seen.size !== 102) {
-    throw new Error('ORDER-UNION is not exactly 102 entries');
+  if (entries.length !== 104 || seen.size !== 104) {
+    throw new Error('ORDER-UNION is not exactly 104 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 102) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 104) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);
