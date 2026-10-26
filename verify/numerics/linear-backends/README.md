@@ -81,3 +81,25 @@ python3 verify/numerics/linear-backends/oracle/sparse_lu_oracle.py --summary
 See [the oracle reference](references/sparse-lu-oracle.md) for the witnesses,
 the falsifiers, the acceptance threshold and the plan it binds, the fixture
 digest, and the nonclaims.
+
+## Ordinary provider continuity
+
+The `provider_continuity` module binds one compiled Model and authenticated
+2-by-2-cell unit-square mesh to the ordinary TPFA Plan/Result path. Both exact
+Reference CG/Identity/Reproducible and pinned faer CG/Identity/Fast receive the
+same captured CSR and RHS. Independent integral cell balance fixes diagonal 6,
+neighbor entries -1, RHS 1/4, and solution 1/16. Each output and original-operator
+residual is checked independently, with the existing component bound 5e-13 and
+requested residual target 5e-13; agreement alone is insufficient.
+
+Successful solves of 2A fail original-A acceptance. Stale same-ID adapter or
+library releases, unknown providers, unsupported reduction and changed supplied
+backend capabilities reject before solver work. An explicit Reference fallback
+under an admitted faer identity fails provenance acceptance. Exact Plan/Result
+identities differ while Model, mesh, CSR/RHS and Field meaning remain the same.
+The fixture and falsifiers were frozen in
+[#454](https://github.com/eqiora/eqiora/issues/454#issuecomment-6428433551) before
+implementation. See the [adapter migration record](../../../crates/eqiora-backend-faer/README.md)
+for dependency ownership, update checks and the removal surface. This is one
+steady real SPD host TPFA boundary, without a performance, general interchangeability
+or published-artifact claim. The sparse-LU oracle above is unchanged.
