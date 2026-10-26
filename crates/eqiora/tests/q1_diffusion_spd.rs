@@ -231,7 +231,9 @@ fn material_q1_cg_identity_and_jacobi_preserve_run_fields_observables_and_produc
                 &[-2. / 3., 1. / 3.],
             );
             for (evidence, orientation) in [
-                point.primal().evidence().steps()[0].primal_solve().unwrap(),
+                point.primal().evidence().steps()[0]
+                    .primal_solve(0)
+                    .unwrap(),
                 left.evidence().steps()[0].derivative_solve().unwrap(),
                 reverse.evidence().steps()[0].derivative_solve().unwrap(),
             ]
@@ -693,7 +695,9 @@ fn stronger_spd_admission_preserves_existing_faer_bicgstab_products_and_replay()
             &[-2. / 3., 1. / 3.],
         );
         for (evidence, orientation) in [
-            point.primal().evidence().steps()[0].primal_solve().unwrap(),
+            point.primal().evidence().steps()[0]
+                .primal_solve(0)
+                .unwrap(),
             forward.evidence().steps()[0].derivative_solve().unwrap(),
             reverse.evidence().steps()[0].derivative_solve().unwrap(),
         ]

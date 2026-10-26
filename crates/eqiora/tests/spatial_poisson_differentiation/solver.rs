@@ -175,7 +175,9 @@ fn tpfa_cg_jacobi_retains_forward_and_adjoint_diagonals_and_provenance() {
             < 2e-10
     );
     for (evidence, orientation) in [
-        point.primal().evidence().steps()[0].primal_solve().unwrap(),
+        point.primal().evidence().steps()[0]
+            .primal_solve(0)
+            .unwrap(),
         forward.evidence().steps()[0].derivative_solve().unwrap(),
         reverse.evidence().steps()[0].derivative_solve().unwrap(),
     ]

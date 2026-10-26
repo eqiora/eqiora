@@ -139,5 +139,17 @@ def test_steady_law_model_replay_executes_with_exact_geometry_admission():
     assert reversed_source != module.to_eqi()
     reversed_model = eqiora.compile(source=reversed_source, geometry=geometry,
                                     entry="Diffusion", bindings=bindings(geometry))
-    with pytest.raises(eqiora.ExecutionError, match="positive finite diffusion"):
-        execute(reversed_model, mesh, reversed_model.field("definition.u").id)
+    # Q1 energy admission prepares the actual diffusion coefficients before
+    # choosing a solver, so an invalid sign now rejects during Plan validation.
+    with pytest.raises(eqiora.ValidationError, match="positive finite diffusion"):
+        eqiora.resolve(
+            reversed_model, mesh=mesh, spatial=eqiora.fem.Q1(),
+            solve=eqiora.solve.Linear(
+                algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+                preconditioner=eqiora.solve.Preconditioner.Identity,
+                reduction=eqiora.solve.Reduction.Reproducible,
+                provider=eqiora.solve.SolverProvider.reference(),
+                relative_tolerance=1e-12, absolute_tolerance=1e-14,
+                maximum_iterations=100,
+            ),
+        )
