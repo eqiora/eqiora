@@ -105,6 +105,21 @@ impl AlgebraicProblem {
         Ok(Self::Conserving(problem))
     }
 
+    /// Only a single fixed affine system has a Plan-time diagonal fact.
+    pub(super) fn complete_diagonal(&self) -> Result<Option<bool>, Diagnostic> {
+        match self {
+            Self::Conserving(problem) => {
+                solver_planning::complete_diagonal(problem.canonical_system()).map(Some)
+            }
+            Self::Constrained(problem)
+                if !problem.is_nonlinear() && problem.enforcement().is_none() =>
+            {
+                solver_planning::complete_diagonal(&problem.linear_system()?).map(Some)
+            }
+            _ => Ok(None),
+        }
+    }
+
     pub(super) fn complex_linear_system(
         &self,
     ) -> Result<Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>, Diagnostic>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v2.
+"""Independent exact General-profile oracle for host-serial solver planning v3.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,11 +17,13 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v2"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v2.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v3"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v3.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
+REFERENCE_IDENTITY_ID = "eqiora.reference.bicgstab-general-identity-reproducible-f64"
+FAER_IDENTITY_ID = "eqiora.faer.bicgstab-general-identity-fast-f64"
 FAER_SPARSE_LU_ID = "eqiora.faer.sparse-lu-general-identity-fast-f64"
 
 # This is an independent literal policy table, not a transcription of Rust.
@@ -32,13 +34,13 @@ POLICY_TABLE = {
         ("reduction", {"Fast": 0, "Reproducible": 1}),
         (
             "algorithm",
-            {"SparseLu": 0, "BiConjugateGradientStabilized": 1},
+            {"SparseLu": 0, "BiConjugateGradientStabilized": 1, "ConjugateGradient": 1},
         ),
     ),
     "LowMemory": (
         (
             "algorithm",
-            {"BiConjugateGradientStabilized": 0, "SparseLu": 1},
+            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "SparseLu": 1},
         ),
     ),
 }
@@ -50,24 +52,24 @@ SELECTED_REASON = {
 }
 
 EXPECTED_SELECTION = {
-    "Robust": REFERENCE_ID,
+    "Robust": REFERENCE_IDENTITY_ID,
     "Fast": FAER_SPARSE_LU_ID,
-    "LowMemory": FAER_BICGSTAB_ID,
+    "LowMemory": FAER_IDENTITY_ID,
 }
 
 REFERENCE_PROVIDER = {
     "id": "eqiora.reference",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [],
 }
 FAER_PROVIDER = {
     "id": "eqiora.faer",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [{"name": "faer", "version": "0.24.4"}],
 }
 EXECUTION_PROVIDER = {
     "id": "eqiora.host.serial",
-    "implementation_version": "0.1.0-alpha.3",
+    "implementation_version": "0.1.3",
     "libraries": [],
 }
 
@@ -97,6 +99,30 @@ CANDIDATES = (
         },
     },
     {
+        "id": REFERENCE_IDENTITY_ID,
+        "evidence_case": "fluid.cell-centered-navier-stokes-fvm-2d",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Identity",
+            "reduction": "Reproducible",
+            "scalar_type": "F64",
+        },
+    },
+    {
+        "id": FAER_IDENTITY_ID,
+        "evidence_case": "electrical.parallel-dc-network",
+        "solver_provider": FAER_PROVIDER,
+        "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_type": "F64",
+        },
+    },
+    {
         "id": FAER_SPARSE_LU_ID,
         "evidence_case": "numerics.linear-backends",
         "solver_provider": FAER_PROVIDER,
@@ -113,6 +139,8 @@ CANDIDATES = (
 REASON_VOCABULARY = (
     "catalog.evidence-mismatch",
     "catalog.provider-mismatch",
+    "catalog.provider-unavailable",
+    "catalog.scalar-domain-mismatch",
     "catalog.plan-mismatch",
     "profile.general-required",
     "profile.normal-required",
@@ -136,6 +164,11 @@ INVENTORY_FAILURES = (
 FALSIFIERS = (
     "input-permutation",
     "missing-candidate-id",
+    "foreign-domain-complete-catalog",
+    "foreign-operator-class-complete-catalog",
+    "typed-backend-with-real-only-capabilities",
+    "absent-optional-typed-provider",
+    "absent-optional-provider-with-required-fast-reduction",
     "duplicate-candidate-id",
     "unknown-candidate-id",
     "stale-evidence-id",
@@ -241,12 +274,14 @@ def ordered_rejection_trace(
 
 def zero_numerical_ledger() -> dict[str, Any]:
     return {
-        "faer_bicgstab_backend_solve_calls": 0,
+        "faer_bicgstab_jacobi_backend_solve_calls": 0,
+        "faer_bicgstab_identity_backend_solve_calls": 0,
         "faer_sparse_lu_backend_solve_calls": 0,
         "operator_identity": "exact-owned-canonical-view",
         "operator_apply_calls": 0,
         "operator_diagonal_calls": 0,
-        "reference_backend_solve_calls": 0,
+        "reference_jacobi_backend_solve_calls": 0,
+        "reference_identity_backend_solve_calls": 0,
     }
 
 
@@ -518,6 +553,101 @@ def build_expected() -> dict[str, Any]:
     }
 
 
+# Each pair is an exact rational complex number (real, imaginary). These literal
+# fixtures are independent of provider assembly and every Rust catalog record.
+def cadd(a, b):
+    return (a[0] + b[0], a[1] + b[1])
+
+
+def cneg(a):
+    return (-a[0], -a[1])
+
+
+def cmul(a, b):
+    return (a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0])
+
+
+def cdiv(a, b):
+    denominator = b[0] ** 2 + b[1] ** 2
+    return (Fraction(a[0] * b[0] + a[1] * b[1], denominator),
+            Fraction(a[1] * b[0] - a[0] * b[1], denominator))
+
+
+def cadjoint(matrix):
+    return [[(matrix[j][i][0], -matrix[j][i][1]) for j in range(2)] for i in range(2)]
+
+
+def csolve(matrix, rhs):
+    a, b = matrix[0]
+    c, d = matrix[1]
+    determinant = cadd(cmul(a, d), cneg(cmul(b, c)))
+    return [cdiv(cadd(cmul(rhs[0], d), cneg(cmul(b, rhs[1]))), determinant),
+            cdiv(cadd(cmul(a, rhs[1]), cneg(cmul(rhs[0], c))), determinant)]
+
+
+def complex_oracles():
+    reference_general = {
+        "id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+        "evidence_case": "numerics.host-serial-solver-planning",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {"algorithm": "BiConjugateGradientStabilized", "operator_properties": "General",
+                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
+    }
+    reference_hpd = {
+        "id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+        "evidence_case": "numerics.host-serial-solver-planning",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {"algorithm": "ConjugateGradient", "operator_properties": "HermitianPositiveDefinite",
+                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
+    }
+    fixtures = [
+        ("General", "general", [[(1, 1), (2, 0)], [(0, 3), (4, -1)]], [(-5, 5), (-13, 9)], [(10, -6), (5, 11)], reference_general),
+        ("ComplexSymmetric", "complex-symmetric", [[(2, 1), (1, 2)], [(1, 2), (4, -1)]], [(-4, 2), (-10, 10)], [(10, -3), (1, 8)], None),
+        ("Hermitian", "hermitian", [[(-2, 0), (0, 1)], [(0, -1), (3, 0)]], [(-3, -6), (-4, 2)], [(-7, 3), (2, 7)], None),
+        ("HermitianPositiveDefinite", "hpd", [[(4, 0), (0, 1)], [(0, -1), (3, 0)]], [(3, 6), (-4, 2)], [(5, -3), (2, 7)], reference_hpd),
+    ]
+    oracles = []
+    for properties, suffix, matrix, rhs, adjoint_rhs, reference in fixtures:
+        solution = csolve(matrix, rhs)
+        adjoint_solution = csolve(cadjoint(matrix), adjoint_rhs)
+        assert solution == [(1, 2), (-2, 1)]
+        assert adjoint_solution == [(2, -1), (1, 3)]
+        unconjugated = [[matrix[j][i] for j in range(2)] for i in range(2)]
+        assert csolve(unconjugated, adjoint_rhs) != adjoint_solution
+        if properties.startswith("Hermitian"):
+            assert matrix == cadjoint(matrix)
+            determinant = cadd(cmul(matrix[0][0], matrix[1][1]), cneg(cmul(matrix[0][1], matrix[1][0])))
+            if properties == "HermitianPositiveDefinite":
+                assert matrix[0][0][0] > 0 and determinant[0] > 0 and determinant[1] == 0
+            else:
+                assert determinant[0] < 0 and determinant[1] == 0
+        else:
+            assert matrix != cadjoint(matrix)
+            assert (matrix[0][1] == matrix[1][0]) == (properties == "ComplexSymmetric")
+        direct = {
+            "id": f"eqiora.faer.sparse-lu-{suffix}-identity-fast-complex-f64",
+            "evidence_case": "numerics.host-serial-solver-planning",
+            "solver_provider": FAER_PROVIDER,
+            "tuple": {"algorithm": "SparseLu", "operator_properties": properties,
+                      "preconditioner": "Identity", "reduction": "Fast", "scalar_domain": "Complex", "scalar_type": "F64"},
+        }
+        candidates = tuple([reference, direct] if reference else [direct])
+        objectives = []
+        for objective in POLICY_TABLE:
+            selected = min(candidates, key=lambda candidate: rank_key(candidate, objective))["id"]
+            assert selected == (direct["id"] if objective == "Fast" or reference is None else reference["id"])
+            trace = ordered_trace(candidates, objective)
+            for permutation in itertools.permutations(candidates):
+                assert ordered_trace(permutation, objective) == trace
+            objectives.append({"objective": objective, "selected_candidate_id": selected, "ordered_reasons": trace})
+        oracles.append({"properties": properties, "matrix": matrix, "right_hand_side": rhs,
+                        "solution": [[ratio(v) for v in z] for z in solution],
+                        "adjoint_right_hand_side": adjoint_rhs,
+                        "adjoint_solution": [[ratio(v) for v in z] for z in adjoint_solution],
+                        "componentwise_error_bound": "2^-40", "candidates": candidates, "objectives": objectives})
+    return oracles
+
+
 def validate_mutants(expected: dict[str, Any]) -> None:
     candidates = tuple(expected["candidates"])
     by_id = {candidate["id"]: candidate for candidate in candidates}
@@ -644,7 +774,7 @@ def validate_mutants(expected: dict[str, Any]) -> None:
             assert swapped == ordinary
 
     # Input enumeration cannot replace the final ID tie-break.
-    reversed_bicgstab = [by_id[REFERENCE_ID], by_id[FAER_BICGSTAB_ID]]
+    reversed_bicgstab = [by_id[REFERENCE_IDENTITY_ID], by_id[FAER_IDENTITY_ID]]
     assert reversed_bicgstab[0]["id"] != EXPECTED_SELECTION["LowMemory"]
 
     assert solve_exact() == ([Fraction(1), Fraction(2)], [Fraction(0), Fraction(0)])
@@ -668,6 +798,7 @@ def main() -> int:
     arguments = parser.parse_args()
 
     expected = build_expected()
+    expected["complex_profiles"] = complex_oracles()
     validate_mutants(expected)
     rendered = json.dumps(expected, indent=2, sort_keys=True) + "\n"
     if arguments.print_expected:
@@ -679,9 +810,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v2.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v3.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v2 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v3 oracle: exact derivation and mutants passed")
     return 0
 
 

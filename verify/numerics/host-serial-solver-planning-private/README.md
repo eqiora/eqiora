@@ -3,7 +3,7 @@
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
 selects one exact `eqiora-solver` library-test aggregator. The public case owns
-the three live backend executions and public observations. This private case
+the five real and six complex live backend tuple executions and public observations. This private case
 owns the complete adversarial catalog, control, profile, capability, reranking,
 problem-identity, zero-work, and exactly-once checks. The capability is verified
 only when both cases pass.
@@ -34,7 +34,7 @@ oracle does not choose between the simultaneous
 `profile.normal-required` and `profile.canonical-csr-required` sub-gates.
 
 For successful and failing execution, every objective records exactly one call
-to its selected backend, zero calls to both unselected backends, no retry or
+to its selected backend, zero calls to all unselected backends, no retry or
 fallback, no plan mutation, the address of the exact `LinearProblem` borrowed
 at resolution, and the identity of its exact owned canonical operator. The
 successful fake backend delegates true-residual acceptance through the supplied
@@ -52,13 +52,20 @@ cargo run --locked -p eqiora-verify -- run \
   --case numerics.host-serial-solver-planning-private
 ```
 
-For structurally missing diagonal entries, the v2 check independently rejects
-both Jacobi candidates and retains identity-preconditioned SparseLU. LU does not
-require diagonal storage to admit a nonsingular matrix. Resolution still performs
+For structurally missing diagonal entries, the v3 check independently rejects
+both Jacobi candidates and retains Identity BiCGSTAB and SparseLU. These tuples do not
+require diagonal storage for admission. Resolution still performs
 zero numerical actions; numerical nonsingularity and original-residual acceptance
 remain execution responsibilities. The original General rational oracle and all
 other exact catalog, control, and provider falsifiers remain applicable.
 
-This registered case covers the General catalog projection. SPD and symmetric-
+The typed companion checks reject complete foreign-domain and foreign-class
+catalogs, real-only capabilities on a typed complex adapter, changed complex
+policy tuples, and foreign provider identities before any backend call. Inventory
+is selected from the requested domain and operator class, never inferred from
+untrusted candidate IDs. Missing optional implementations retain their distinct
+`catalog.provider-unavailable` reason.
+
+This registered case covers the real General and typed complex catalog projections. Real SPD and symmetric-
 indefinite profiles have separate ordinary product tests; this case does not prove
 typed constraint/gauge authenticity or common Python integration for those profiles.

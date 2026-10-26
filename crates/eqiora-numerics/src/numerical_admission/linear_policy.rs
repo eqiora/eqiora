@@ -48,11 +48,14 @@ impl NativeLinearPolicy {
         })
     }
 
-    pub(crate) fn with_planning(
+    pub(crate) fn with_planning<
+        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+    >(
         mut self,
-        decision: &ResolvedHostSerialSolverPlan<'_>,
+        decision: &ResolvedHostSerialSolverPlan<'_, S>,
     ) -> Result<Self, Diagnostic> {
-        if self.solver != decision.solver_plan()
+        if self.scalar_domain != S::DOMAIN
+            || self.solver != decision.solver_plan()
             || self.provider != decision.solver_provider()
             || self.execution != decision.execution_provider()
         {

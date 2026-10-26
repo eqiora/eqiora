@@ -1,7 +1,7 @@
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarDomain, ScalarType};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
-use eqiora_solver::LinearSolverBackend;
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
 use super::acceptance::{accept_step, require_consistent_initial_state};
 use super::api::{
@@ -92,7 +92,6 @@ where
         &plan,
     )?
     .bind(body_force)?;
-    let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
     advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
         mesh,
         &prepared,
@@ -103,7 +102,7 @@ where
         facet_quadrature,
         assembly,
         solver,
-        prepared_linear.as_deref_mut(),
+        None,
     )
 }
 
@@ -118,10 +117,24 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_a
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
-    mut prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
+    prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+    solver.capabilities().require_problem(
+        plan.linear_solver(),
+        ScalarDomain::Real,
+        ScalarType::F64,
+        LinearOperatorProperties::General,
+    )?;
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     prepared.require_quadrature(cell_quadrature, facet_quadrature)?;
+    let mut owned_prepared = if prepared_linear.is_none() {
+        solver.prepare_linear(plan.linear_solver())?
+    } else {
+        None
+    };
+    let mut prepared_linear = prepared_linear.or(owned_prepared
+        .as_mut()
+        .map(|prepared| prepared.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver));
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory

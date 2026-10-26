@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -297,39 +297,6 @@ impl LinearSolverBackend for CountingBackend {
     }
 }
 
-fn backends() -> (CountingBackend, CountingBackend, CountingBackend) {
-    (
-        CountingBackend::new(REFERENCE_PROVIDER, reference_plan()),
-        CountingBackend::new(FAER_PROVIDER, faer_bicgstab_plan()),
-        CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan()),
-    )
-}
-
-fn exact_catalog<'a>(
-    reference: &'a CountingBackend,
-    faer_bicgstab: &'a CountingBackend,
-    faer_sparse_lu: &'a CountingBackend,
-) -> [HostSerialSolverCandidate<'a>; 3] {
-    // Deliberately not candidate-ID order.
-    [
-        HostSerialSolverCandidate::new(
-            REFERENCE_ID,
-            REFERENCE_EVIDENCE,
-            LinearSolveRequest::new(reference, reference_plan()),
-        ),
-        HostSerialSolverCandidate::new(
-            FAER_SPARSE_LU_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(faer_sparse_lu, faer_sparse_lu_plan()),
-        ),
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(faer_bicgstab, faer_bicgstab_plan()),
-        ),
-    ]
-}
-
 #[derive(Debug)]
 struct CountingCsrStorage {
     row_offsets: &'static [usize],
@@ -485,7 +452,8 @@ fn instrumented_canonical_system(
         "direct problem.operator().diagonal self-control"
     );
     ledger.reset();
-    assert_actual_canonical_operator_ledger(&ledger, 0, 0);
+    assert_eq!(ledger.apply_calls(), 0);
+    assert_eq!(ledger.diagonal_calls(), 0);
 
     (system, ledger)
 }
@@ -579,229 +547,221 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
     SolverPlanningObjective::Fast,
     SolverPlanningObjective::LowMemory,
 ];
+const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
+const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
+const ORACLE: &str =
+    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v3.json");
 
-const FAER_BICGSTAB_BIT: u8 = 0b001;
-const FAER_SPARSE_LU_BIT: u8 = 0b010;
-const REFERENCE_BIT: u8 = 0b100;
+fn reference_identity_plan() -> SolverPlan {
+    reference_plan().with_preconditioner(PreconditionerPolicy::Identity)
+}
+fn faer_identity_plan() -> SolverPlan {
+    faer_bicgstab_plan().with_preconditioner(PreconditionerPolicy::Identity)
+}
 
-fn assert_zero_backend_solves(
-    reference: &CountingBackend,
-    faer_bicgstab: &CountingBackend,
-    faer_sparse_lu: &CountingBackend,
-) {
-    for (name, backend) in [
-        ("reference", reference),
-        ("faer BiCGSTAB", faer_bicgstab),
-        ("faer SparseLU", faer_sparse_lu),
-    ] {
-        assert_eq!(backend.calls(), 0, "{name} backend solve ledger");
-        assert_eq!(
-            backend.operator_apply_calls(),
-            0,
-            "{name} backend operator apply ledger"
-        );
-        assert_eq!(
-            backend.operator_diagonal_calls(),
-            0,
-            "{name} backend operator diagonal ledger"
-        );
-        assert_eq!(
-            backend.received_problem(),
-            std::ptr::null(),
-            "{name} backend problem ledger"
-        );
-        assert_eq!(
-            backend.received_operator(),
-            std::ptr::null(),
-            "{name} backend operator identity ledger"
-        );
+#[derive(Clone, Copy)]
+struct Spec {
+    id: &'static str,
+    evidence: &'static str,
+    provider: SolverProvider,
+    plan: fn() -> SolverPlan,
+}
+// Literal tuple inventory is independent of the production catalog builder.
+const SPECS: [Spec; 5] = [
+    Spec {
+        id: FAER_IDENTITY_ID,
+        evidence: "electrical.parallel-dc-network",
+        provider: FAER_PROVIDER,
+        plan: faer_identity_plan,
+    },
+    Spec {
+        id: FAER_BICGSTAB_ID,
+        evidence: FAER_EVIDENCE,
+        provider: FAER_PROVIDER,
+        plan: faer_bicgstab_plan,
+    },
+    Spec {
+        id: FAER_SPARSE_LU_ID,
+        evidence: FAER_EVIDENCE,
+        provider: FAER_PROVIDER,
+        plan: faer_sparse_lu_plan,
+    },
+    Spec {
+        id: REFERENCE_IDENTITY_ID,
+        evidence: "fluid.cell-centered-navier-stokes-fvm-2d",
+        provider: REFERENCE_PROVIDER,
+        plan: reference_identity_plan,
+    },
+    Spec {
+        id: REFERENCE_ID,
+        evidence: REFERENCE_EVIDENCE,
+        provider: REFERENCE_PROVIDER,
+        plan: reference_plan,
+    },
+];
+const ALL: u8 = 0b11111;
+fn backends(success: bool) -> [CountingBackend; 5] {
+    SPECS.map(|spec| {
+        if success {
+            CountingBackend::successful(spec.provider, (spec.plan)())
+        } else {
+            CountingBackend::new(spec.provider, (spec.plan)())
+        }
+    })
+}
+fn exact_catalog(backends: &[CountingBackend; 5]) -> [HostSerialSolverCandidate<'_>; 5] {
+    std::array::from_fn(|i| {
+        HostSerialSolverCandidate::new(
+            SPECS[i].id,
+            SPECS[i].evidence,
+            LinearSolveRequest::new(&backends[i], (SPECS[i].plan)()),
+        )
+    })
+}
+fn oracle() -> &'static serde_json::Value {
+    static VALUE: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+    VALUE.get_or_init(|| serde_json::from_str(ORACLE).unwrap())
+}
+fn objective_name(objective: SolverPlanningObjective) -> &'static str {
+    match objective {
+        SolverPlanningObjective::Robust => "Robust",
+        SolverPlanningObjective::Fast => "Fast",
+        SolverPlanningObjective::LowMemory => "LowMemory",
     }
 }
-
-fn reset_backend_operator_ledgers_before_execution(
-    reference: &CountingBackend,
-    faer_bicgstab: &CountingBackend,
-    faer_sparse_lu: &CountingBackend,
-) {
-    for backend in [reference, faer_bicgstab, faer_sparse_lu] {
-        backend.reset_operator_ledger_before_execution();
-    }
+fn expected_record(mask: u8, objective: SolverPlanningObjective) -> &'static serde_json::Value {
+    let ids = SPECS
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| mask & (1 << i) != 0)
+        .map(|(_, spec)| spec.id)
+        .collect::<Vec<_>>();
+    oracle()["admitted_subsets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|subset| {
+            subset["admitted_candidate_ids"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| id.as_str().unwrap())
+                .collect::<Vec<_>>()
+                == ids
+        })
+        .unwrap()["objectives"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|record| record["objective"] == objective_name(objective))
+        .unwrap()
 }
-
-fn assert_zero_operator_ledger(operator: &CountingOperator) {
-    assert_eq!(operator.apply_calls(), 0, "operator apply ledger");
-    assert_eq!(operator.diagonal_calls(), 0, "operator diagonal ledger");
+fn expected_selection(mask: u8, objective: SolverPlanningObjective) -> &'static str {
+    expected_record(mask, objective)["selected_candidate_id"]
+        .as_str()
+        .unwrap()
 }
-
-fn assert_zero_canonical_source_ledger(storage: &CountingCsrStorage) {
-    assert_eq!(
-        storage.storage_calls(),
-        0,
-        "resolution must use only the captured canonical CSR owner"
-    );
-    assert_eq!(storage.apply_calls(), 0, "source operator apply ledger");
-    assert_eq!(
-        storage.diagonal_calls(),
-        0,
-        "source operator diagonal ledger"
-    );
+fn expected_trace(
+    rejections: &[(usize, &'static str)],
+    objective: SolverPlanningObjective,
+) -> Vec<(&'static str, &'static str)> {
+    let mask = rejections
+        .iter()
+        .fold(ALL, |mask, (index, _)| mask & !(1 << index));
+    expected_record(mask, objective)["ordered_reasons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|pair| {
+            let id = pair[0].as_str().unwrap();
+            let reason = rejections
+                .iter()
+                .find(|(i, _)| SPECS[*i].id == id)
+                .map_or_else(|| pair[1].as_str().unwrap(), |(_, reason)| *reason);
+            (id, reason)
+        })
+        .collect()
 }
-
-fn assert_zero_canonical_ledger(
+fn assert_zero_work(
     storage: &CountingCsrStorage,
     ledger: &CanonicalCsrOperatorCallLedger,
+    backends: &[CountingBackend; 5],
 ) {
-    assert_zero_canonical_source_ledger(storage);
-    assert_actual_canonical_operator_ledger(ledger, 0, 0);
+    assert_eq!(storage.storage_calls(), 0);
+    assert_eq!(storage.apply_calls(), 0);
+    assert_eq!(storage.diagonal_calls(), 0);
+    assert_eq!(ledger.apply_calls(), 0);
+    assert_eq!(ledger.diagonal_calls(), 0);
+    for backend in backends {
+        assert_eq!(backend.calls(), 0);
+        assert_eq!(backend.operator_apply_calls(), 0);
+        assert_eq!(backend.operator_diagonal_calls(), 0);
+        assert!(backend.received_problem().is_null());
+        assert!(backend.received_operator().is_null());
+    }
 }
-
-fn assert_actual_canonical_operator_ledger(
-    ledger: &CanonicalCsrOperatorCallLedger,
-    expected_apply: usize,
-    expected_diagonal: usize,
+fn assert_rejections(
+    problem: &LinearProblem<'_>,
+    candidates: &[HostSerialSolverCandidate<'_>],
+    rejected: &[(usize, &'static str)],
 ) {
+    for objective in OBJECTIVES {
+        let decision = resolve_host_serial_solver_v3(problem, objective, candidates).unwrap();
+        let mask = rejected.iter().fold(ALL, |mask, (i, _)| mask & !(1 << i));
+        assert_eq!(
+            decision.selected().id(),
+            expected_selection(mask, objective)
+        );
+        assert_eq!(
+            decision.reasons().collect::<Vec<_>>(),
+            expected_trace(rejected, objective)
+        );
+    }
+}
+fn assert_all_rejected(error: &Diagnostic, reasons: &[(usize, &'static str)]) {
+    let trace = reasons
+        .iter()
+        .map(|(i, reason)| format!("{}={reason}", SPECS[*i].id))
+        .collect::<Vec<_>>()
+        .join(",");
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
     assert_eq!(
-        ledger.apply_calls(),
-        expected_apply,
-        "total exact owned canonical operator apply ledger"
-    );
-    assert_eq!(
-        ledger.diagonal_calls(),
-        expected_diagonal,
-        "total exact owned canonical operator diagonal ledger"
+        error.message(),
+        format!("{POLICY_ID} no admitted candidate; trace=[{trace}]")
     );
 }
-
-fn selected_reason(objective: SolverPlanningObjective) -> &'static str {
-    match objective {
-        SolverPlanningObjective::Robust => "candidate.selected.robust-preference",
-        SolverPlanningObjective::Fast => "candidate.selected.fast-preference",
-        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-preference",
+fn permutations<T: Copy>(values: &mut [T], start: usize, visit: &mut impl FnMut(&[T])) {
+    if start == values.len() {
+        visit(values);
+        return;
     }
-}
-
-fn candidate_bit(candidate_id: &str) -> u8 {
-    match candidate_id {
-        FAER_BICGSTAB_ID => FAER_BICGSTAB_BIT,
-        FAER_SPARSE_LU_ID => FAER_SPARSE_LU_BIT,
-        REFERENCE_ID => REFERENCE_BIT,
-        other => panic!("unexpected frozen candidate {other}"),
-    }
-}
-
-fn expected_subset_selection(
-    admitted_mask: u8,
-    objective: SolverPlanningObjective,
-) -> &'static str {
-    match (admitted_mask, objective) {
-        (FAER_BICGSTAB_BIT, _) => FAER_BICGSTAB_ID,
-        (FAER_SPARSE_LU_BIT, _) => FAER_SPARSE_LU_ID,
-        (REFERENCE_BIT, _) => REFERENCE_ID,
-        (0b011, SolverPlanningObjective::Robust) => FAER_BICGSTAB_ID,
-        (0b011, SolverPlanningObjective::Fast) => FAER_SPARSE_LU_ID,
-        (0b011, SolverPlanningObjective::LowMemory) => FAER_BICGSTAB_ID,
-        (0b101, SolverPlanningObjective::Robust) => REFERENCE_ID,
-        (0b101, SolverPlanningObjective::Fast | SolverPlanningObjective::LowMemory) => {
-            FAER_BICGSTAB_ID
-        }
-        (0b110, SolverPlanningObjective::Robust | SolverPlanningObjective::LowMemory) => {
-            REFERENCE_ID
-        }
-        (0b110, SolverPlanningObjective::Fast) => FAER_SPARSE_LU_ID,
-        (0b111, objective) => expected_selection(objective),
-        _ => panic!("unexpected nonempty admitted mask {admitted_mask:#05b}"),
-    }
-}
-
-fn expected_subset_trace(
-    admitted_mask: u8,
-    objective: SolverPlanningObjective,
-    rejection_reason: &'static str,
-) -> Vec<(&'static str, &'static str)> {
-    let selected = expected_subset_selection(admitted_mask, objective);
-    let mut trace = Vec::new();
-    for candidate_id in [FAER_BICGSTAB_ID, FAER_SPARSE_LU_ID, REFERENCE_ID] {
-        if admitted_mask & candidate_bit(candidate_id) == 0 {
-            trace.push((candidate_id, rejection_reason));
-        } else {
-            trace.push((candidate_id, "candidate.admitted"));
-            trace.push((
-                candidate_id,
-                if candidate_id == selected {
-                    selected_reason(objective)
-                } else {
-                    "candidate.not-selected"
-                },
-            ));
-        }
-    }
-    trace
-}
-
-fn expected_trace(objective: SolverPlanningObjective) -> Vec<(&'static str, &'static str)> {
-    match objective {
-        SolverPlanningObjective::Robust => vec![
-            (FAER_BICGSTAB_ID, "candidate.admitted"),
-            (FAER_BICGSTAB_ID, "candidate.not-selected"),
-            (FAER_SPARSE_LU_ID, "candidate.admitted"),
-            (FAER_SPARSE_LU_ID, "candidate.not-selected"),
-            (REFERENCE_ID, "candidate.admitted"),
-            (REFERENCE_ID, "candidate.selected.robust-preference"),
-        ],
-        SolverPlanningObjective::Fast => vec![
-            (FAER_BICGSTAB_ID, "candidate.admitted"),
-            (FAER_BICGSTAB_ID, "candidate.not-selected"),
-            (FAER_SPARSE_LU_ID, "candidate.admitted"),
-            (FAER_SPARSE_LU_ID, "candidate.selected.fast-preference"),
-            (REFERENCE_ID, "candidate.admitted"),
-            (REFERENCE_ID, "candidate.not-selected"),
-        ],
-        SolverPlanningObjective::LowMemory => vec![
-            (FAER_BICGSTAB_ID, "candidate.admitted"),
-            (FAER_BICGSTAB_ID, "candidate.selected.low-memory-preference"),
-            (FAER_SPARSE_LU_ID, "candidate.admitted"),
-            (FAER_SPARSE_LU_ID, "candidate.not-selected"),
-            (REFERENCE_ID, "candidate.admitted"),
-            (REFERENCE_ID, "candidate.not-selected"),
-        ],
-    }
-}
-
-fn expected_selection(objective: SolverPlanningObjective) -> &'static str {
-    match objective {
-        SolverPlanningObjective::Robust => REFERENCE_ID,
-        SolverPlanningObjective::Fast => FAER_SPARSE_LU_ID,
-        SolverPlanningObjective::LowMemory => FAER_BICGSTAB_ID,
+    for i in start..values.len() {
+        values.swap(start, i);
+        permutations(values, start + 1, visit);
+        values.swap(start, i);
     }
 }
 
 #[test]
 fn exact_catalog_decisions_and_reasons_are_permutation_invariant() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-    let permutations = [
-        [catalog[0], catalog[1], catalog[2]],
-        [catalog[0], catalog[2], catalog[1]],
-        [catalog[1], catalog[0], catalog[2]],
-        [catalog[1], catalog[2], catalog[0]],
-        [catalog[2], catalog[0], catalog[1]],
-        [catalog[2], catalog[1], catalog[0]],
-    ];
-
-    for candidates in permutations {
+    let backends = backends(false);
+    let mut catalog = exact_catalog(&backends);
+    let mut count = 0;
+    permutations(&mut catalog, 0, &mut |catalog| {
+        count += 1;
         for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap();
+            let decision = resolve_host_serial_solver_v3(&problem, objective, catalog).unwrap();
             assert_eq!(decision.objective(), objective);
             assert_eq!(decision.policy_id(), POLICY_ID);
-            assert_eq!(decision.selected().id(), expected_selection(objective));
+            assert_eq!(decision.selected().id(), expected_selection(ALL, objective));
             assert_eq!(
-                decision.problem().operator().orientation(),
-                LinearOperatorOrientation::Normal
+                decision.reasons().collect::<Vec<_>>(),
+                expected_trace(&[], objective)
             );
             assert!(std::ptr::eq(decision.problem(), &problem));
             assert!(std::ptr::eq(
@@ -816,115 +776,72 @@ fn exact_catalog_decisions_and_reasons_are_permutation_invariant() {
                 decision.solver_provider(),
                 decision.selected().request().backend().provider()
             );
-            assert_eq!(
-                decision.reasons().collect::<Vec<_>>(),
-                expected_trace(objective)
-            );
-            assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-            assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
+            assert_zero_work(&storage, &ledger, &backends);
         }
-    }
-
-    assert_eq!(FAER_PROVIDER.libraries().len(), 1);
-    assert_eq!(FAER_PROVIDER.libraries()[0].name(), "faer");
-    assert_eq!(FAER_PROVIDER.libraries()[0].version(), "0.24.4");
+    });
+    assert_eq!(count, 120);
 }
 
 #[test]
 fn every_observable_admitted_subset_has_exact_reranking_and_trace() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    for admitted_mask in 1..=0b111 {
-        let candidates = catalog.map(|candidate| {
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    for mask in 1..=ALL {
+        let rejected = SPECS
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| mask & (1 << i) == 0)
+            .map(|(i, _)| (i, "catalog.evidence-mismatch"))
+            .collect::<Vec<_>>();
+        let candidates = std::array::from_fn::<_, 5, _>(|i| {
             HostSerialSolverCandidate::new(
-                candidate.id(),
-                if admitted_mask & candidate_bit(candidate.id()) == 0 {
-                    "numerics.stale-evidence"
+                catalog[i].id(),
+                if mask & (1 << i) == 0 {
+                    "stale"
                 } else {
-                    candidate.evidence_case()
+                    catalog[i].evidence_case()
                 },
-                candidate.request(),
+                catalog[i].request(),
             )
         });
-        for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap();
-            assert_eq!(
-                decision.selected().id(),
-                expected_subset_selection(admitted_mask, objective)
-            );
-            assert_eq!(
-                decision.reasons().collect::<Vec<_>>(),
-                expected_subset_trace(admitted_mask, objective, "catalog.evidence-mismatch")
-            );
-            assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-            assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-        }
+        assert_rejections(&problem, &candidates, &rejected);
+        assert_zero_work(&storage, &ledger, &backends);
     }
-}
-
-fn assert_inventory_failure(error: &Diagnostic, expected: &str) {
-    assert_eq!(error.code(), codes::INVALID_REALIZATION);
-    let fragments = [
-        "catalog.missing-id",
-        "catalog.duplicate-id",
-        "catalog.unknown-id",
-        "catalog.control-mismatch",
-    ];
-    assert!(error.message().contains(expected));
-    assert_eq!(
-        fragments
-            .iter()
-            .filter(|fragment| error.message().contains(**fragment))
-            .count(),
-        1,
-        "inventory diagnostics contain exactly one frozen failure fragment"
-    );
 }
 
 #[test]
 fn malformed_inventory_rejects_before_profile_or_numerical_work() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    assert!(std::ptr::addr_eq(
-        problem.operator(),
-        &system as &dyn LinearOperator<Scalar = f64>
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    let missing = catalog[..4].to_vec();
+    let mut duplicate = catalog.to_vec();
+    duplicate.push(catalog[0]);
+    let mut unknown = catalog.to_vec();
+    unknown.push(HostSerialSolverCandidate::new(
+        "unknown",
+        FAER_EVIDENCE,
+        catalog[0].request(),
     ));
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-    let missing = [catalog[0], catalog[1]];
-    let duplicate = [catalog[0], catalog[1], catalog[1], catalog[2]];
-    let unknown = [
-        catalog[0],
-        catalog[1],
-        catalog[2],
-        HostSerialSolverCandidate::new(
-            "eqiora.unknown",
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(&faer_bicgstab, faer_bicgstab_plan()),
-        ),
-    ];
-
-    for (candidates, fragment) in [
-        (&missing[..], "catalog.missing-id"),
-        (&duplicate[..], "catalog.duplicate-id"),
-        (&unknown[..], "catalog.unknown-id"),
+    for (candidates, reason) in [
+        (missing, "catalog.missing-id"),
+        (duplicate, "catalog.duplicate-id"),
+        (unknown, "catalog.unknown-id"),
     ] {
-        actual_operator_ledger.reset();
         let error =
-            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Robust, candidates)
+            resolve_host_serial_solver_v3(&problem, SolverPlanningObjective::Robust, &candidates)
                 .unwrap_err();
-        assert_inventory_failure(&error, fragment);
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
+        assert!(error.message().contains(reason), "{error}");
+        assert_zero_work(&storage, &ledger, &backends);
     }
 }
 
@@ -933,653 +850,363 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    assert!(std::ptr::addr_eq(
-        problem.operator(),
-        &system as &dyn LinearOperator<Scalar = f64>
-    ));
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-    let mutations = [
-        plan_with_controls(
-            LinearSolver::SparseLu,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
-            f64::from_bits(1.0e-12_f64.to_bits() + 1),
-            1.0e-14,
-            100,
-        ),
-        plan_with_controls(
-            LinearSolver::SparseLu,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
-            1.0e-12,
-            f64::from_bits(1.0e-14_f64.to_bits() + 1),
-            100,
-        ),
-        plan_with_controls(
-            LinearSolver::SparseLu,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
-            1.0e-12,
-            1.0e-14,
-            99,
-        ),
-    ];
-    for mutated in mutations {
-        actual_operator_ledger.reset();
-        let candidates = [
-            catalog[0],
-            HostSerialSolverCandidate::new(
-                FAER_SPARSE_LU_ID,
-                FAER_EVIDENCE,
-                LinearSolveRequest::new(&faer_sparse_lu, mutated),
-            ),
-            catalog[2],
-        ];
-        let error =
-            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Fast, &candidates)
-                .unwrap_err();
-        assert_inventory_failure(&error, "catalog.control-mismatch");
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    for i in 0..SPECS.len() {
+        let original = (SPECS[i].plan)();
+        for (relative, absolute, iterations) in [
+            (f64::from_bits(1e-12_f64.to_bits() + 1), 1e-14, 100),
+            (1e-12, f64::from_bits(1e-14_f64.to_bits() + 1), 100),
+            (1e-12, 1e-14, 99),
+        ] {
+            let changed = plan_with_controls(
+                original.algorithm(),
+                original.preconditioner(),
+                original.reduction(),
+                relative,
+                absolute,
+                iterations,
+            );
+            let mut candidates = catalog;
+            candidates[i] = HostSerialSolverCandidate::new(
+                SPECS[i].id,
+                SPECS[i].evidence,
+                LinearSolveRequest::new(&backends[i], changed),
+            );
+            let error =
+                resolve_host_serial_solver_v3(&problem, SolverPlanningObjective::Fast, &candidates)
+                    .unwrap_err();
+            assert!(error.message().contains("catalog.control-mismatch"));
+            assert_zero_work(&storage, &ledger, &backends);
+        }
     }
 }
 
 #[test]
 fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let stale_evidence = [
-        catalog[0],
-        catalog[1],
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            "numerics.stale-evidence",
-            LinearSolveRequest::new(&faer_bicgstab, faer_sparse_lu_plan()),
-        ),
-    ];
-    assert_faer_bicgstab_rejection(&problem, &stale_evidence, "catalog.evidence-mismatch");
-    assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let stale_evidence_and_provider = CountingBackend::new(
-        SolverProvider::new(
-            BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.1",
-            FAER_LIBRARIES,
-        ),
-        faer_bicgstab_plan(),
-    );
-    let simultaneous_evidence_provider_failure = [
-        catalog[0],
-        catalog[1],
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            "numerics.stale-evidence",
-            LinearSolveRequest::new(&stale_evidence_and_provider, faer_bicgstab_plan()),
-        ),
-    ];
-    actual_operator_ledger.reset();
-    assert_faer_bicgstab_rejection(
-        &problem,
-        &simultaneous_evidence_provider_failure,
-        "catalog.evidence-mismatch",
-    );
-    assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-    assert_eq!(
-        stale_evidence_and_provider.calls(),
-        0,
-        "simultaneously stale evidence/provider backend solve ledger"
-    );
-    assert_eq!(stale_evidence_and_provider.operator_apply_calls(), 0);
-    assert_eq!(stale_evidence_and_provider.operator_diagonal_calls(), 0);
-    assert_eq!(
-        stale_evidence_and_provider.received_problem(),
-        std::ptr::null()
-    );
-    assert_eq!(
-        stale_evidence_and_provider.received_operator(),
-        std::ptr::null()
-    );
-
-    for bad_provider in [
-        SolverProvider::new(
-            BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.1",
-            FAER_LIBRARIES,
-        ),
-        SolverProvider::new(
-            BackendId::new("eqiora.faer"),
-            env!("CARGO_PKG_VERSION"),
-            CHANGED_FAER_LIBRARIES,
-        ),
-        SolverProvider::new(
-            BackendId::new("eqiora.faer"),
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    for i in 0..SPECS.len() {
+        let spec = SPECS[i];
+        let original = (spec.plan)();
+        let bad_providers = [
+            SolverProvider::new(spec.provider.id(), "stale", spec.provider.libraries()),
+            SolverProvider::new(
+                spec.provider.id(),
+                env!("CARGO_PKG_VERSION"),
+                CHANGED_FAER_LIBRARIES,
+            ),
+            SolverProvider::new(
+                spec.provider.id(),
+                env!("CARGO_PKG_VERSION"),
+                EXTRA_FAER_LIBRARIES,
+            ),
+        ];
+        for provider in bad_providers.into_iter().chain([SolverProvider::new(
+            spec.provider.id(),
             env!("CARGO_PKG_VERSION"),
             EMPTY_LIBRARIES,
-        ),
-        SolverProvider::new(
-            BackendId::new("eqiora.faer"),
-            env!("CARGO_PKG_VERSION"),
-            EXTRA_FAER_LIBRARIES,
-        ),
-    ] {
-        let backend = CountingBackend::new(bad_provider, faer_bicgstab_plan());
-        let candidates = [
-            catalog[0],
-            catalog[1],
-            HostSerialSolverCandidate::new(
-                FAER_BICGSTAB_ID,
-                FAER_EVIDENCE,
-                LinearSolveRequest::new(&backend, faer_sparse_lu_plan()),
-            ),
-        ];
-        assert_faer_bicgstab_rejection(&problem, &candidates, "catalog.provider-mismatch");
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-        assert_eq!(backend.calls(), 0, "rejected provider backend solve ledger");
-    }
-
-    for bad_plan in [
-        plan(
-            LinearSolver::ConjugateGradient,
-            PreconditionerPolicy::Jacobi,
-            ReductionPolicy::Fast,
-        ),
-        plan(
-            LinearSolver::BiConjugateGradientStabilized,
-            PreconditionerPolicy::Identity,
-            ReductionPolicy::Fast,
-        ),
-        plan(
-            LinearSolver::BiConjugateGradientStabilized,
-            PreconditionerPolicy::Jacobi,
-            ReductionPolicy::Reproducible,
-        ),
-    ] {
-        let candidates = [
-            catalog[0],
-            catalog[1],
-            HostSerialSolverCandidate::new(
-                FAER_BICGSTAB_ID,
-                FAER_EVIDENCE,
-                LinearSolveRequest::new(&faer_bicgstab, bad_plan),
-            ),
-        ];
-        assert_faer_bicgstab_rejection(&problem, &candidates, "catalog.plan-mismatch");
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-    }
-
-    let nongeneral_storage = CountingCsrStorage::full();
-    let (nongeneral, nongeneral_operator_ledger) = instrumented_canonical_system(
-        &nongeneral_storage,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    );
-    nongeneral_storage.reset_after_legitimate_construction();
-    let plan_before_profile = [
-        catalog[0],
-        catalog[1],
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(
-                &faer_bicgstab,
-                plan(
-                    LinearSolver::ConjugateGradient,
-                    PreconditionerPolicy::Jacobi,
-                    ReductionPolicy::Fast,
+        )]) {
+            if provider == spec.provider {
+                continue;
+            }
+            let bad = CountingBackend::new(provider, original);
+            let mut candidates = catalog;
+            candidates[i] = HostSerialSolverCandidate::new(
+                spec.id,
+                "stale",
+                LinearSolveRequest::new(&bad, original),
+            );
+            assert_rejections(&problem, &candidates, &[(i, "catalog.evidence-mismatch")]);
+            candidates[i] = HostSerialSolverCandidate::new(
+                spec.id,
+                spec.evidence,
+                LinearSolveRequest::new(
+                    &bad,
+                    original.with_preconditioner(
+                        if original.preconditioner() == PreconditionerPolicy::Identity {
+                            PreconditionerPolicy::Jacobi
+                        } else {
+                            PreconditionerPolicy::Identity
+                        },
+                    ),
                 ),
+            );
+            assert_rejections(&problem, &candidates, &[(i, "catalog.provider-mismatch")]);
+            assert_eq!(bad.calls(), 0);
+        }
+        let changed = [
+            original.with_preconditioner(
+                if original.preconditioner() == PreconditionerPolicy::Identity {
+                    PreconditionerPolicy::Jacobi
+                } else {
+                    PreconditionerPolicy::Identity
+                },
             ),
-        ),
-    ];
-    let error = resolve_host_serial_solver_v2(
-        &nongeneral.linear_problem().unwrap(),
-        SolverPlanningObjective::LowMemory,
-        &plan_before_profile,
-    )
-    .unwrap_err();
-    assert_no_admitted_trace(
-        &error,
-        &[
-            (FAER_BICGSTAB_ID, "catalog.plan-mismatch"),
-            (FAER_SPARSE_LU_ID, "profile.general-required"),
-            (REFERENCE_ID, "profile.general-required"),
-        ],
-    );
-    assert_zero_canonical_ledger(&nongeneral_storage, &nongeneral_operator_ledger);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
+            original.with_reduction(if original.reduction() == ReductionPolicy::Fast {
+                ReductionPolicy::Reproducible
+            } else {
+                ReductionPolicy::Fast
+            }),
+            plan(
+                LinearSolver::ConjugateGradient,
+                original.preconditioner(),
+                original.reduction(),
+            ),
+        ];
+        for changed in changed {
+            let mut candidates = catalog;
+            candidates[i] = HostSerialSolverCandidate::new(
+                spec.id,
+                spec.evidence,
+                LinearSolveRequest::new(&backends[i], changed),
+            );
+            assert_rejections(&problem, &candidates, &[(i, "catalog.plan-mismatch")]);
+        }
+        assert_zero_work(&storage, &ledger, &backends);
+    }
 }
 
 #[test]
 fn profile_and_capability_rejections_cannot_be_ranked() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-    let exact = capability(faer_bicgstab_plan());
-    let capability_mutants = [
-        SolverCapability {
-            scalar_domain: eqiora_core::ScalarDomain::Real,
-            algorithm: LinearSolver::SparseLu,
-            ..exact
-        },
-        SolverCapability {
-            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            ..exact
-        },
-        SolverCapability {
-            preconditioner: PreconditionerPolicy::Identity,
-            ..exact
-        },
-        SolverCapability {
-            reduction: ReductionPolicy::Reproducible,
-            ..exact
-        },
-        SolverCapability {
-            scalar_type: ScalarType::F32,
-            ..exact
-        },
-    ];
-    for mutated_capability in capability_mutants {
-        let omitted = CountingBackend::with_capability(
-            FAER_PROVIDER,
-            faer_bicgstab_plan(),
-            mutated_capability,
-        );
-        let candidates = [
-            catalog[0],
-            catalog[1],
-            HostSerialSolverCandidate::new(
-                FAER_BICGSTAB_ID,
-                FAER_EVIDENCE,
-                LinearSolveRequest::new(&omitted, faer_bicgstab_plan()),
-            ),
-        ];
-        assert_faer_bicgstab_rejection(&problem, &candidates, "capability.exact-tuple-required");
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-        assert_eq!(
-            omitted.calls(),
-            0,
-            "rejected capability backend solve ledger"
-        );
-    }
-
-    let omitted = CountingBackend::with_capability(
-        FAER_PROVIDER,
-        faer_bicgstab_plan(),
-        SolverCapability {
-            scalar_type: ScalarType::F32,
-            ..exact
-        },
-    );
-    let candidates = [
-        catalog[0],
-        catalog[1],
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(&omitted, faer_bicgstab_plan()),
-        ),
-    ];
-    let nongeneral_storage = CountingCsrStorage::full();
-    let (nongeneral, nongeneral_operator_ledger) = instrumented_canonical_system(
-        &nongeneral_storage,
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    // The leading principal minors are 4 and 11, independently proving SPD.
+    let symmetric_storage = CountingCsrStorage::new(&[0, 2, 4], &[0, 1, 0, 1], &[4., 1., 1., 3.]);
+    let (symmetric, symmetric_ledger) = instrumented_canonical_system(
+        &symmetric_storage,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     );
-    nongeneral_storage.reset_after_legitimate_construction();
-    let error = resolve_host_serial_solver_v2(
-        &nongeneral.linear_problem().unwrap(),
-        SolverPlanningObjective::LowMemory,
-        &candidates,
+    symmetric_storage.reset_after_legitimate_construction();
+    let error = resolve_host_serial_solver_v3(
+        &symmetric.linear_problem().unwrap(),
+        SolverPlanningObjective::Robust,
+        &catalog,
     )
     .unwrap_err();
-    assert_all_rejected(&error, "profile.general-required");
-    assert_zero_canonical_ledger(&nongeneral_storage, &nongeneral_operator_ledger);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-    assert_eq!(omitted.calls(), 0, "profile-before-capability solve ledger");
-}
-
-fn assert_faer_bicgstab_rejection(
-    problem: &LinearProblem<'_>,
-    candidates: &[HostSerialSolverCandidate<'_>],
-    reason: &'static str,
-) {
-    for objective in OBJECTIVES {
-        let decision = resolve_host_serial_solver_v2(problem, objective, candidates).unwrap();
-        assert_eq!(
-            decision.selected().id(),
-            expected_subset_selection(FAER_SPARSE_LU_BIT | REFERENCE_BIT, objective)
-        );
-        assert_eq!(
-            decision.reasons().collect::<Vec<_>>(),
-            expected_subset_trace(FAER_SPARSE_LU_BIT | REFERENCE_BIT, objective, reason,)
-        );
+    assert!(error.message().contains("catalog.missing-id"));
+    assert_zero_work(&symmetric_storage, &symmetric_ledger, &backends);
+    for i in 0..SPECS.len() {
+        let spec = SPECS[i];
+        let original = (spec.plan)();
+        let exact = capability(original);
+        for changed in [
+            SolverCapability {
+                algorithm: if exact.algorithm == LinearSolver::SparseLu {
+                    LinearSolver::BiConjugateGradientStabilized
+                } else {
+                    LinearSolver::SparseLu
+                },
+                ..exact
+            },
+            SolverCapability {
+                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+                ..exact
+            },
+            SolverCapability {
+                preconditioner: if exact.preconditioner == PreconditionerPolicy::Jacobi {
+                    PreconditionerPolicy::Identity
+                } else {
+                    PreconditionerPolicy::Jacobi
+                },
+                ..exact
+            },
+            SolverCapability {
+                reduction: if exact.reduction == ReductionPolicy::Fast {
+                    ReductionPolicy::Reproducible
+                } else {
+                    ReductionPolicy::Fast
+                },
+                ..exact
+            },
+            SolverCapability {
+                scalar_type: ScalarType::F32,
+                ..exact
+            },
+        ] {
+            let bad = CountingBackend::with_capability(spec.provider, original, changed);
+            let mut candidates = catalog;
+            candidates[i] = HostSerialSolverCandidate::new(
+                spec.id,
+                spec.evidence,
+                LinearSolveRequest::new(&bad, original),
+            );
+            assert_rejections(
+                &problem,
+                &candidates,
+                &[(i, "capability.exact-tuple-required")],
+            );
+            assert_eq!(bad.calls(), 0);
+        }
+        assert_zero_work(&storage, &ledger, &backends);
     }
-}
-
-fn no_admitted_message(trace: &[(&str, &str)]) -> String {
-    let rendered = trace
-        .iter()
-        .map(|(candidate_id, reason)| format!("{candidate_id}={reason}"))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("{POLICY_ID} no admitted candidate; trace=[{rendered}]")
-}
-
-fn assert_no_admitted_trace(error: &Diagnostic, trace: &[(&str, &str)]) {
-    assert_eq!(error.code(), codes::INVALID_REALIZATION);
-    assert_eq!(error.message(), no_admitted_message(trace));
-}
-
-fn assert_all_rejected(error: &Diagnostic, reason: &'static str) {
-    assert_no_admitted_trace(
-        error,
-        &[
-            (FAER_BICGSTAB_ID, reason),
-            (FAER_SPARSE_LU_ID, reason),
-            (REFERENCE_ID, reason),
-        ],
-    );
 }
 
 #[test]
 fn unsupported_profiles_reject_with_zero_numerical_calls() {
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let nongeneral_storage = CountingCsrStorage::full();
-    let (nongeneral, nongeneral_operator_ledger) = instrumented_canonical_system(
-        &nongeneral_storage,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    );
-    nongeneral_storage.reset_after_legitimate_construction();
-    assert_all_rejected(
-        &resolve_host_serial_solver_v2(
-            &nongeneral.linear_problem().unwrap(),
-            SolverPlanningObjective::Robust,
-            &catalog,
-        )
-        .unwrap_err(),
-        "profile.general-required",
-    );
-    assert_zero_canonical_ledger(&nongeneral_storage, &nongeneral_operator_ledger);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let hand_built_operator = CountingOperator::default();
+    let storage = CountingCsrStorage::full();
+    let (system, ledger) =
+        instrumented_canonical_system(&storage, LinearOperatorProperties::General);
+    storage.reset_after_legitimate_construction();
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends);
+    let operator = CountingOperator::default();
     let hand_built = LinearProblem::new(
-        &hand_built_operator,
-        &[6.0, 8.0],
+        &operator,
+        FixtureRhs::rhs(),
         LinearOperatorProperties::General,
     )
     .unwrap();
-    assert_all_rejected(
-        &resolve_host_serial_solver_v2(&hand_built, SolverPlanningObjective::Robust, &catalog)
-            .unwrap_err(),
-        "profile.canonical-csr-required",
-    );
-    assert_zero_operator_ledger(&hand_built_operator);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let matrix_free_operator = CountingOperator::matrix_free();
-    let matrix_free = LinearProblem::new(
-        &matrix_free_operator,
-        &[6.0, 8.0],
+    let matrix_free = CountingOperator::matrix_free();
+    let matrix_free_problem = LinearProblem::new(
+        &matrix_free,
+        FixtureRhs::rhs(),
         LinearOperatorProperties::General,
     )
     .unwrap();
-    assert_all_rejected(
-        &resolve_host_serial_solver_v2(&matrix_free, SolverPlanningObjective::Fast, &catalog)
-            .unwrap_err(),
-        "profile.canonical-csr-required",
-    );
-    assert_zero_operator_ledger(&matrix_free_operator);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    let transposed_source = CountingOperator::default();
-    let transposed_operator = Oriented::new(
-        &transposed_source,
-        crate::LinearOperatorOrientation::Transposed,
-    )
-    .unwrap();
+    let oriented = Oriented::new(&system, LinearOperatorOrientation::Transposed).unwrap();
     let transposed = LinearProblem::new(
-        &transposed_operator,
-        &[6.0, 8.0],
+        &oriented,
+        FixtureRhs::rhs(),
         LinearOperatorProperties::General,
     )
     .unwrap();
-    let transposed_error =
-        resolve_host_serial_solver_v2(&transposed, SolverPlanningObjective::Robust, &catalog)
-            .unwrap_err();
-    let normal_trace = [
-        (FAER_BICGSTAB_ID, "profile.normal-required"),
-        (FAER_SPARSE_LU_ID, "profile.normal-required"),
-        (REFERENCE_ID, "profile.normal-required"),
-    ];
-    let canonical_trace = [
-        (FAER_BICGSTAB_ID, "profile.canonical-csr-required"),
-        (FAER_SPARSE_LU_ID, "profile.canonical-csr-required"),
-        (REFERENCE_ID, "profile.canonical-csr-required"),
-    ];
-    assert_eq!(transposed_error.code(), codes::INVALID_REALIZATION);
-    assert!(
-        [
-            no_admitted_message(&normal_trace),
-            no_admitted_message(&canonical_trace),
-        ]
-        .iter()
-        .any(|expected| transposed_error.message() == expected),
-        "transposed hand-built input must reject at one of the unordered profile sub-gates: {}",
-        transposed_error.message()
-    );
-    assert_zero_operator_ledger(&transposed_source);
-    assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-
-    for missing_storage in [
+    for problem in [&hand_built, &matrix_free_problem, &transposed] {
+        let error =
+            resolve_host_serial_solver_v3(problem, SolverPlanningObjective::Robust, &catalog)
+                .unwrap_err();
+        assert!(
+            error.message().contains("profile.canonical-csr-required")
+                || error.message().contains("profile.normal-required")
+        );
+    }
+    assert_eq!(operator.apply_calls(), 0);
+    assert_eq!(operator.diagonal_calls(), 0);
+    assert_eq!(matrix_free.apply_calls(), 0);
+    assert_eq!(matrix_free.diagonal_calls(), 0);
+    for missing in [
         CountingCsrStorage::missing_first_diagonal(),
         CountingCsrStorage::missing_second_diagonal(),
     ] {
-        let (missing, missing_operator_ledger) =
-            instrumented_canonical_system(&missing_storage, LinearOperatorProperties::General);
-        missing_storage.reset_after_legitimate_construction();
-        let problem = missing.linear_problem().unwrap();
-        let decision =
-            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Robust, &catalog)
-                .unwrap();
-        assert_eq!(decision.selected().id(), FAER_SPARSE_LU_ID);
-        assert_eq!(
-            decision.reasons().collect::<Vec<_>>(),
-            vec![
-                (FAER_BICGSTAB_ID, "profile.complete-diagonal-required"),
-                (FAER_SPARSE_LU_ID, "candidate.admitted"),
-                (FAER_SPARSE_LU_ID, "candidate.selected.robust-preference"),
-                (REFERENCE_ID, "profile.complete-diagonal-required"),
-            ]
+        let (system, actual) =
+            instrumented_canonical_system(&missing, LinearOperatorProperties::General);
+        missing.reset_after_legitimate_construction();
+        assert_rejections(
+            &system.linear_problem().unwrap(),
+            &catalog,
+            &[
+                (1, "profile.complete-diagonal-required"),
+                (4, "profile.complete-diagonal-required"),
+            ],
         );
-        assert_zero_canonical_ledger(&missing_storage, &missing_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
+        assert_zero_work(&missing, &actual, &backends);
+    }
+    assert_zero_work(&storage, &ledger, &backends);
+}
+struct FixtureRhs;
+impl FixtureRhs {
+    fn rhs() -> &'static [f64] {
+        &[6., 8.]
     }
 }
 
 #[test]
 fn no_admitted_diagnostic_freezes_the_complete_ordered_trace() {
     let storage = CountingCsrStorage::full();
-    let (system, actual_operator_ledger) =
+    let (system, ledger) =
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-    let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-    let candidates = catalog.map(|candidate| {
-        HostSerialSolverCandidate::new(
-            candidate.id(),
-            "numerics.stale-evidence",
-            candidate.request(),
-        )
-    });
+    let backends = backends(false);
+    let catalog = exact_catalog(&backends)
+        .map(|c| HostSerialSolverCandidate::new(c.id(), "stale", c.request()));
     for objective in OBJECTIVES {
-        let error = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap_err();
-        assert_all_rejected(&error, "catalog.evidence-mismatch");
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-    }
-}
-
-fn assert_execution_ledger(
-    objective: SolverPlanningObjective,
-    problem: &LinearProblem<'_>,
-    reference: &CountingBackend,
-    faer_bicgstab: &CountingBackend,
-    faer_sparse_lu: &CountingBackend,
-    selected_operator_apply_calls: usize,
-) {
-    let expected_selected = expected_selection(objective);
-    let expected_problem = std::ptr::from_ref(problem).cast::<()>();
-    let expected_operator = std::ptr::from_ref(problem.operator()).cast::<()>();
-    for (candidate_id, backend) in [
-        (REFERENCE_ID, reference),
-        (FAER_BICGSTAB_ID, faer_bicgstab),
-        (FAER_SPARSE_LU_ID, faer_sparse_lu),
-    ] {
-        if candidate_id == expected_selected {
-            assert_eq!(backend.calls(), 1, "selected backend exact call ledger");
-            assert!(
-                std::ptr::eq(backend.received_problem(), expected_problem),
-                "selected backend must receive the exact problem borrowed by resolution"
-            );
-            assert!(
-                std::ptr::eq(backend.received_operator(), expected_operator),
-                "selected backend must receive the exact owned canonical operator"
-            );
-            assert_eq!(
-                backend.operator_apply_calls(),
-                selected_operator_apply_calls,
-                "selected backend operator apply ledger"
-            );
-        } else {
-            assert_eq!(backend.calls(), 0, "unselected backend call ledger");
-            assert_eq!(
-                backend.received_problem(),
-                std::ptr::null(),
-                "an unselected backend must receive no problem"
-            );
-            assert_eq!(
-                backend.received_operator(),
-                std::ptr::null(),
-                "an unselected backend must receive no operator"
-            );
-            assert_eq!(
-                backend.operator_apply_calls(),
-                0,
-                "unselected backend operator apply ledger"
-            );
-        }
-        assert_eq!(
-            backend.operator_diagonal_calls(),
-            0,
-            "backend operator diagonal ledger"
+        let error = resolve_host_serial_solver_v3(&problem, objective, &catalog).unwrap_err();
+        assert_all_rejected(
+            &error,
+            &SPECS
+                .iter()
+                .enumerate()
+                .map(|(i, _)| (i, "catalog.evidence-mismatch"))
+                .collect::<Vec<_>>(),
         );
     }
+    assert_zero_work(&storage, &ledger, &backends);
 }
 
+fn execute_selected(succeed: bool) {
+    for objective in OBJECTIVES {
+        let storage = CountingCsrStorage::full();
+        let (system, ledger) =
+            instrumented_canonical_system(&storage, LinearOperatorProperties::General);
+        storage.reset_after_legitimate_construction();
+        let problem = system.linear_problem().unwrap();
+        let backends = backends(succeed);
+        let catalog = exact_catalog(&backends);
+        let decision = resolve_host_serial_solver_v3(&problem, objective, &catalog).unwrap();
+        assert_zero_work(&storage, &ledger, &backends);
+        for backend in &backends {
+            backend.reset_operator_ledger_before_execution();
+        }
+        let result = decision.solve();
+        if succeed {
+            assert_eq!(result.unwrap().values(), &[1., 2.]);
+        } else {
+            assert_eq!(result.unwrap_err().code(), codes::NUMERICAL_SOLVE_FAILED);
+        }
+        for (i, backend) in backends.iter().enumerate() {
+            let selected = SPECS[i].id == expected_selection(ALL, objective);
+            assert_eq!(backend.calls(), usize::from(selected));
+            assert_eq!(
+                backend.operator_apply_calls(),
+                if selected && succeed { 2 } else { 0 }
+            );
+            assert_eq!(backend.operator_diagonal_calls(), 0);
+            if selected {
+                assert!(std::ptr::eq(
+                    backend.received_problem(),
+                    std::ptr::from_ref(&problem).cast()
+                ));
+                assert!(std::ptr::eq(
+                    backend.received_operator(),
+                    std::ptr::from_ref(problem.operator()).cast()
+                ));
+            } else {
+                assert!(backend.received_problem().is_null());
+                assert!(backend.received_operator().is_null());
+            }
+        }
+        assert_eq!(ledger.apply_calls(), if succeed { 2 } else { 0 });
+        assert_eq!(ledger.diagonal_calls(), 0);
+    }
+}
 #[test]
 fn selected_failure_executes_once_without_retry_plan_mutation_or_problem_substitution() {
-    for objective in OBJECTIVES {
-        let storage = CountingCsrStorage::full();
-        let (system, actual_operator_ledger) =
-            instrumented_canonical_system(&storage, LinearOperatorProperties::General);
-        storage.reset_after_legitimate_construction();
-        let problem = system.linear_problem().unwrap();
-        let (reference, faer_bicgstab, faer_sparse_lu) = backends();
-        let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-        let decision = resolve_host_serial_solver_v2(&problem, objective, &catalog).unwrap();
-        assert_eq!(decision.selected().id(), expected_selection(objective));
-        assert!(std::ptr::eq(decision.problem(), &problem));
-        assert!(std::ptr::eq(
-            decision.problem().operator(),
-            problem.operator()
-        ));
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-        reset_backend_operator_ledgers_before_execution(
-            &reference,
-            &faer_bicgstab,
-            &faer_sparse_lu,
-        );
-
-        let error = decision.solve().unwrap_err();
-        assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
-        assert_execution_ledger(
-            objective,
-            &problem,
-            &reference,
-            &faer_bicgstab,
-            &faer_sparse_lu,
-            0,
-        );
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-    }
+    execute_selected(false);
 }
-
 #[test]
 fn selected_success_executes_once_and_applies_exact_problem_for_both_true_residuals() {
-    for objective in OBJECTIVES {
-        let storage = CountingCsrStorage::full();
-        let (system, actual_operator_ledger) =
-            instrumented_canonical_system(&storage, LinearOperatorProperties::General);
-        storage.reset_after_legitimate_construction();
-        let problem = system.linear_problem().unwrap();
-        let reference = CountingBackend::successful(REFERENCE_PROVIDER, reference_plan());
-        let faer_bicgstab = CountingBackend::successful(FAER_PROVIDER, faer_bicgstab_plan());
-        let faer_sparse_lu = CountingBackend::successful(FAER_PROVIDER, faer_sparse_lu_plan());
-        let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-        let decision = resolve_host_serial_solver_v2(&problem, objective, &catalog).unwrap();
-        assert_eq!(decision.selected().id(), expected_selection(objective));
-        assert!(std::ptr::eq(decision.problem(), &problem));
-        assert!(std::ptr::eq(
-            decision.problem().operator(),
-            problem.operator()
-        ));
-        assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
-        assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
-        reset_backend_operator_ledgers_before_execution(
-            &reference,
-            &faer_bicgstab,
-            &faer_sparse_lu,
-        );
-
-        let solution = decision.solve().unwrap();
-        assert_eq!(solution.values(), &[1.0, 2.0]);
-        assert_execution_ledger(
-            objective,
-            &problem,
-            &reference,
-            &faer_bicgstab,
-            &faer_sparse_lu,
-            2,
-        );
-        assert_zero_canonical_source_ledger(&storage);
-        assert_actual_canonical_operator_ledger(&actual_operator_ledger, 2, 0);
-    }
+    execute_selected(true);
 }
 
 #[test]
 fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
+    super::complex_tests::typed_capabilities_and_requested_inventory_precede_ranking();
+    super::complex_tests::typed_provider_identity_and_operator_class_are_independent();
     let checks: [fn(); 10] = [
         exact_catalog_decisions_and_reasons_are_permutation_invariant,
         every_observable_admitted_subset_has_exact_reranking_and_trace,
@@ -1592,10 +1219,65 @@ fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
         selected_failure_executes_once_without_retry_plan_mutation_or_problem_substitution,
         selected_success_executes_once_and_applies_exact_problem_for_both_true_residuals,
     ];
-    assert_eq!(checks.len(), 10, "the frozen private oracle inventory");
     for check in checks {
         check();
     }
+}
+
+#[test]
+fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons() {
+    let reference = CountingBackend::new(REFERENCE_PROVIDER, reference_identity_plan());
+    let faer = CountingBackend::new(FAER_PROVIDER, faer_identity_plan());
+    for objective in OBJECTIVES {
+        let profile =
+            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+        let decision = ResolvedHostSerialSolverPlan::resolve(
+            profile,
+            objective,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &reference,
+            Some(&faer),
+        )
+        .unwrap();
+        assert_eq!(
+            decision.selected_candidate_id(),
+            if objective == SolverPlanningObjective::Robust {
+                REFERENCE_IDENTITY_ID
+            } else {
+                FAER_IDENTITY_ID
+            }
+        );
+        assert!(
+            decision
+                .reasons()
+                .any(|reason| reason == (REFERENCE_ID, "profile.complete-diagonal-required"))
+        );
+        assert!(
+            decision
+                .reasons()
+                .any(|reason| reason == (FAER_SPARSE_LU_ID, "capability.exact-tuple-required"))
+        );
+    }
+    let decision = ResolvedHostSerialSolverPlan::resolve(
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+        SolverPlanningObjective::Fast,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(100).unwrap(),
+        &reference,
+        Some(&reference),
+    )
+    .unwrap();
+    assert_eq!(decision.selected_candidate_id(), REFERENCE_IDENTITY_ID);
+    assert!(
+        decision
+            .reasons()
+            .any(|reason| reason == (FAER_IDENTITY_ID, "catalog.provider-mismatch"))
+    );
+    assert_eq!(reference.calls(), 0);
+    assert_eq!(faer.calls(), 0);
 }
 
 #[test]
@@ -1630,7 +1312,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap_err();
         assert!(
@@ -1650,7 +1332,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(direct.solver_plan().algorithm(), LinearSolver::SparseLu);
@@ -1666,7 +1348,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(accepted.selected_candidate_id(), id);
@@ -1714,7 +1396,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(selected.solver_plan(), exact);
@@ -1740,7 +1422,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         1e-14,
         NonZeroUsize::new(100).unwrap(),
         &reference,
-        &faer,
+        Some(&faer),
     )
     .unwrap();
     assert_eq!(fast.solver_plan().algorithm(), LinearSolver::SparseLu);

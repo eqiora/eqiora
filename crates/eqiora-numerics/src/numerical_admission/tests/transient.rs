@@ -546,8 +546,15 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     let low_memory = resolve_program_controlled(SolverPlanningObjective::LowMemory);
     assert_solver_structure(&mini, &ResolveOnlyBackend, true);
     assert_solver_structure(&fvm, &REFERENCE_LINEAR_SOLVER, true);
-    for planned in [&robust, &fast, &low_memory] {
-        assert_solver_structure(planned, &PlanningFaerBackend, true);
+    for (planned, backend) in [
+        (
+            &robust,
+            &REFERENCE_LINEAR_SOLVER as &dyn LinearSolverBackend,
+        ),
+        (&fast, &PlanningFaerBackend),
+        (&low_memory, &REFERENCE_LINEAR_SOLVER),
+    ] {
+        assert_solver_structure(planned, backend, true);
     }
     // Replacing one essential boundary with zero traction removes the pressure
     // nullspace mathematically; the solver profile must lose exactly that gauge.
@@ -645,7 +652,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     assert_ne!(fast.identity(), low_memory.identity());
     assert_eq!(
         robust.selected_solver_candidate_id(),
-        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
+        Some("eqiora.reference.bicgstab-general-identity-reproducible-f64")
     );
     assert_eq!(
         fast.selected_solver_candidate_id(),
@@ -653,16 +660,21 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
     assert_eq!(
         low_memory.selected_solver_candidate_id(),
-        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
+        Some("eqiora.reference.bicgstab-general-identity-reproducible-f64")
     );
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.host-serial-solver-planning/v2")
+            Some("eqiora.host-serial-solver-planning/v3")
         );
-        assert_eq!(plan.solver_planning_reasons().len(), 4);
+        assert_eq!(plan.solver_planning_reasons().len(), 7);
         assert!(plan.selected_solver_evidence_case().is_some());
     }
+    // This test provider advertises Jacobi BiCGStab and LU, but omits Identity BiCGStab.
+    assert!(low_memory.solver_planning_reasons().contains(&(
+        "eqiora.faer.bicgstab-general-identity-fast-f64",
+        "capability.exact-tuple-required"
+    )));
     let planned_mini = ResolvedCommonPlan::resolve(
         &model,
         affine_resources(&geometry),
@@ -686,7 +698,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     .unwrap();
     assert_eq!(
         planned_mini.selected_solver_candidate_id(),
-        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
+        Some("eqiora.reference.bicgstab-general-identity-reproducible-f64")
     );
     assert_eq!(
         mini.formulation().effective(),

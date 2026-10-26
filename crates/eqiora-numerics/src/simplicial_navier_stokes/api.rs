@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_realization::Target;
-use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan};
+use eqiora_solver::{HostSerialSolverProfile, LinearOperatorProperties, SolveReport, SolverPlan};
 
 use super::invalid;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -36,9 +36,9 @@ impl MiniNavierStokesStepPlan2d {
     ///
     /// # Errors
     /// Returns `EQ0801` for non-positive physical/time data or nested linear
-    /// relative tolerance at or above one, and `EQ0807` when the linear policy
-    /// is not serial identity-preconditioned fast-reduction sparse LU. Production
-    /// preconditioning is intentionally a later claim.
+    /// relative tolerance at or above one, and `EQ0807` unless the linear policy
+    /// accepts a general Newton operator without an unproved diagonal and the
+    /// target is serial host. Exact provider capabilities are checked at execution.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         density: f64,
@@ -82,16 +82,23 @@ impl MiniNavierStokesStepPlan2d {
                 "MINI Navier--Stokes linear relative tolerance must be below one",
             ));
         }
-        if linear_solver.algorithm() != LinearSolver::SparseLu
-            || linear_solver.preconditioner() != PreconditionerPolicy::Identity
-            || linear_solver.reduction() != ReductionPolicy::Fast
-            || target
-                != (Target::HostCpu {
-                    threads: NonZeroUsize::MIN,
-                })
+        if !linear_solver
+            .algorithm()
+            .accepts(LinearOperatorProperties::General)
         {
             return Err(invalid(
-                "bounded MINI Navier--Stokes requires serial-host identity-preconditioned fast-reduction sparse LU",
+                "MINI Navier--Stokes Newton actions require a general-operator solver plan",
+            ));
+        }
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+            .require_plan(linear_solver)?;
+        if target
+            != (Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            })
+        {
+            return Err(invalid(
+                "MINI Navier--Stokes requires the serial HostCpu target",
             ));
         }
         Ok(Self {
@@ -471,7 +478,7 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use eqiora_realization::Target;
-    use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
+    use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 
     use super::MiniNavierStokesStepPlan2d;
 
@@ -479,14 +486,7 @@ mod tests {
         linear_relative: f64,
         linear_absolute: f64,
     ) -> Result<MiniNavierStokesStepPlan2d, eqiora_core::Diagnostic> {
-        MiniNavierStokesStepPlan2d::new(
-            1.0,
-            1.0e-3,
-            1.0e-2,
-            1.0e-9,
-            1.0e-11,
-            NonZeroUsize::new(8).unwrap(),
-            12,
+        step_plan(
             SolverPlan::new(
                 LinearSolver::SparseLu,
                 linear_relative,
@@ -501,10 +501,87 @@ mod tests {
         )
     }
 
+    fn step_plan(
+        linear: SolverPlan,
+        target: Target,
+    ) -> Result<MiniNavierStokesStepPlan2d, eqiora_core::Diagnostic> {
+        MiniNavierStokesStepPlan2d::new(
+            1.0,
+            1.0e-3,
+            1.0e-2,
+            1.0e-9,
+            1.0e-11,
+            NonZeroUsize::new(8).unwrap(),
+            12,
+            linear,
+            target,
+        )
+    }
+
     #[test]
     fn linear_absolute_tolerance_need_not_bound_the_nonlinear_absolute_tolerance() {
         assert!(plan(1.0e-6, 1.0e-11).is_ok());
         assert!(plan(1.0e-6, 1.0e-9).is_ok());
         assert!(plan(1.0, 0.0).is_err());
+    }
+
+    #[test]
+    fn general_operator_admission_precedes_any_newton_work() {
+        let serial = Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        };
+        for algorithm in [
+            LinearSolver::SparseLu,
+            LinearSolver::BiConjugateGradientStabilized,
+        ] {
+            for reduction in [ReductionPolicy::Fast, ReductionPolicy::Reproducible] {
+                let linear =
+                    SolverPlan::new(algorithm, 1e-10, 1e-12, NonZeroUsize::new(100).unwrap())
+                        .unwrap()
+                        .with_reduction(reduction);
+                assert!(step_plan(linear, serial).is_ok());
+                let error = step_plan(
+                    linear.with_preconditioner(PreconditionerPolicy::Jacobi),
+                    serial,
+                )
+                .unwrap_err();
+                assert!(
+                    error
+                        .message()
+                        .contains("profile.complete-diagonal-required")
+                );
+            }
+        }
+        for algorithm in [
+            LinearSolver::ConjugateGradient,
+            LinearSolver::MinimumResidual,
+        ] {
+            let linear =
+                SolverPlan::new(algorithm, 1e-10, 1e-12, NonZeroUsize::new(100).unwrap()).unwrap();
+            assert!(
+                step_plan(linear, serial)
+                    .unwrap_err()
+                    .message()
+                    .contains("general-operator")
+            );
+        }
+        let linear = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-10,
+            1e-12,
+            NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            step_plan(
+                linear,
+                Target::HostCpu {
+                    threads: NonZeroUsize::new(2).unwrap()
+                }
+            )
+            .unwrap_err()
+            .message()
+            .contains("serial HostCpu")
+        );
     }
 }

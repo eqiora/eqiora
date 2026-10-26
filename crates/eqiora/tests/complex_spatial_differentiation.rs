@@ -57,6 +57,20 @@ fn fixture_source(
     backend: &dyn eqiora::solver::LinearSolverBackend,
     solver: SolverPlan,
 ) -> (ModelDocument, ResolvedCommonPlan) {
+    fixture_request(
+        method,
+        source,
+        backend,
+        CommonLinearRequest::exact(solver, backend.provider()).unwrap(),
+    )
+}
+
+fn fixture_request(
+    method: CommonSpatialPolicy,
+    source: &str,
+    backend: &dyn eqiora::solver::LinearSolverBackend,
+    request: CommonLinearRequest,
+) -> (ModelDocument, ResolvedCommonPlan) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0., 3.]).unwrap();
     let boundaries = interval.boundaries();
@@ -143,7 +157,7 @@ fn fixture_source(
         &ModelEnvelope::from_program(document.program()).unwrap(),
         owner,
         method,
-        CommonSolvePolicy::Linear(CommonLinearRequest::exact(solver, backend.provider()).unwrap()),
+        CommonSolvePolicy::Linear(request),
         None,
         None,
         backend,
@@ -335,6 +349,55 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                     )
                     .is_err()
             );
+        }
+    }
+}
+
+#[test]
+fn complex_spatial_objectives_admit_structure_before_selecting_typed_backend() {
+    use eqiora::solver::SolverPlanningObjective;
+    use eqiora_backend_faer::FaerLinearSolver;
+    let parameters = [
+        C::new(2., 3.),
+        C::new(5., 7.),
+        C::new(-1., 4.),
+        C::new(11., -2.),
+        C::new(3., 8.),
+    ];
+    for method in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        for (objective, backend) in [
+            (
+                SolverPlanningObjective::Robust,
+                &REFERENCE_LINEAR_SOLVER as &'static dyn eqiora::solver::LinearSolverBackend,
+            ),
+            (SolverPlanningObjective::Fast, &FaerLinearSolver),
+            (SolverPlanningObjective::LowMemory, &REFERENCE_LINEAR_SOLVER),
+        ] {
+            let request = CommonLinearRequest::program_controlled(
+                1e-14,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+                objective,
+            )
+            .unwrap();
+            let (document, plan) = fixture_request(method, SOURCE, &FaerLinearSolver, request);
+            assert_eq!(plan.linear_solver_provider(), Some(backend.provider()));
+            let inputs = ["a", "p", "q"].map(|name| document.parameter_ref(name).unwrap());
+            let program = DifferentiableProgram::compile(
+                plan,
+                &inputs,
+                &[document.field_ref("definition.u").unwrap().erase()],
+                Default::default(),
+                None,
+                backend,
+            )
+            .unwrap();
+            let point = program.evaluate(program.default_point()).unwrap();
+            let (expected, _) = oracle(method, &parameters, &[C::new(0., 0.); 5]);
+            near(&point.primal().output().fixture_coordinates(), &expected);
         }
     }
 }
