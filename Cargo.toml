@@ -193,7 +193,13 @@ opt-level = "s"
 [profile.release.package.eqiora-differentiation]
 opt-level = "s"
 
-# Package manifests and offline filesystem orchestration do not need kernel-style
-# code expansion in the installed extension.
+# Package manifests, graph storage and XML codecs are orchestration rather than
+# numerical kernels; keep their installed code compact as well.
 [profile.release.package.eqiora-package]
+opt-level = "s"
+
+[profile.release.package.eqiora-graph]
+opt-level = "s"
+
+[profile.release.package.eqiora-io-xml]
 opt-level = "s"
