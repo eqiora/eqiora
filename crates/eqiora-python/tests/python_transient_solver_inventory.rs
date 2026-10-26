@@ -52,16 +52,52 @@ manual = eqiora.solve.Linear(
     reduction=eqiora.solve.Reduction.Fast,
     provider=eqiora.solve.SolverProvider.faer(),
     relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
-planned = eqiora.solve.Linear(objective=eqiora.solve.Robust,
-    relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
-outputs = []
-for linear in (manual, planned):
-    plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.MiniP1(),
+def resolve(linear):
+    return eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.MiniP1(),
         solve=eqiora.solve.Newton(linear=linear),
         scaling=eqiora.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=1.0, pressure_pa=1.0),
         temporal=eqiora.time.BackwardEuler(step_s=0.01))
+
+# These exact pairs follow the existing independently derived General catalog
+# after the mixed pressure rows exclude Jacobi's unproved diagonal.
+requests = [("direct-lu", manual, "sparse-lu", "fast", eqiora.solve.SolverProvider.faer())]
+for name, objective, provider, reduction, reduction_name in (
+    ("robust", eqiora.solve.Robust, eqiora.solve.SolverProvider.reference(), eqiora.solve.Reduction.Reproducible, "reproducible"),
+    ("low-memory", eqiora.solve.LowMemory, eqiora.solve.SolverProvider.faer(), eqiora.solve.Reduction.Fast, "fast"),
+):
+    explicit = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity, reduction=reduction, provider=provider,
+        relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
+    automatic = eqiora.solve.Linear(objective=objective,
+        relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
+    requests.extend((name + suffix, request, "bicgstab", reduction_name, provider)
+                    for suffix, request in (("-explicit", explicit), ("-automatic", automatic)))
+
+# Reject unproved SPD before any State or Newton residual is constructed.
+invalid = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+    preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible,
+    provider=eqiora.solve.SolverProvider.reference(),
+    relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
+try:
+    resolve(invalid)
+except eqiora.EqioraError as error:
+    assert "general" in str(error).lower()
+else:
+    raise AssertionError("CG admitted an unproved positive-definite Newton operator")
+
+outputs = {}
+for name, linear, algorithm, reduction, provider in requests:
+    plan = resolve(linear)
+    assert plan.solve.linear.provider == provider
+    assert plan.solve.linear.algorithm == algorithm
+    assert plan.solve.linear.preconditioner == "identity"
+    assert plan.solve.linear.reduction == reduction
     replay = eqiora.Plan.from_bytes(plan.to_bytes())
     assert replay.identity == plan.identity
+    assert replay.solve.linear.provider == provider
+    assert replay.solve.linear.algorithm == algorithm
+    assert replay.solve.linear.preconditioner == "identity"
+    assert replay.solve.linear.reduction == reduction
     v, p = replay.capability.velocity, replay.capability.pressure
     velocity = np.tile([1.0, 0.0], (mesh.vertex_count, 1))
     initial = eqiora.State.initial(replay, time_s=0.0, fields=(
@@ -74,6 +110,9 @@ for linear in (manual, planned):
     result = eqiora.run(replay, state=initial, until_s=0.02, output_times_s=(0.01, 0.02))
     restored = eqiora.Result.from_bytes(replay, result.to_bytes())
     assert restored.to_bytes() == result.to_bytes()
+    # The legacy MINI Result does not project Newton correction reports.
+    # Method-native evidence checks the actual producer; this boundary retains
+    # the exact selected tuple and independently checks the accepted fields.
     final = restored.trajectory.states[-1]
     accepted_velocity = final.field(v).values("vertex")
     accepted_pressure = final.field(p).values("vertex")
@@ -89,9 +128,12 @@ for linear in (manual, planned):
         area = abs(a[0]*b[1]-a[1]*b[0])/2
         flux += area*(coefficients[1,0]+coefficients[2,1])
     assert abs(flux) < 1e-9
-    outputs.append((accepted_velocity, accepted_pressure))
-np.testing.assert_allclose(outputs[0][0], outputs[1][0], rtol=0, atol=1e-9)
-np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=0, atol=1e-9)
+    outputs[name] = (accepted_velocity, accepted_pressure)
+for name in ("robust", "low-memory"):
+    explicit = outputs[name + "-explicit"]
+    automatic = outputs[name + "-automatic"]
+    np.testing.assert_allclose(explicit[0], automatic[0], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(explicit[1], automatic[1], rtol=0, atol=1e-9)
 "#), Some(&locals), Some(&locals))
     })
 }

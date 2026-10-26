@@ -307,6 +307,66 @@ mod tests {
                 "uniform throughflow residual {value:e}"
             );
         }
+        let linear = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            plan.linear_solver().relative_tolerance(),
+            plan.linear_solver().absolute_tolerance(),
+            plan.linear_solver().maximum_iterations(),
+        )
+        .unwrap();
+        let krylov_plan = MiniNavierStokesStepPlan2d::new(
+            plan.density(),
+            plan.viscosity(),
+            plan.time_step(),
+            plan.nonlinear_relative_tolerance(),
+            plan.nonlinear_absolute_tolerance(),
+            plan.maximum_newton_iterations(),
+            plan.maximum_line_search_steps(),
+            linear,
+            plan.target(),
+        )
+        .unwrap();
+        let perturbed = SimplicialMiniNavierStokesState2d::new(
+            0.,
+            previous.velocity().clone(),
+            SimplicialP1Field::new(mesh.clone(), vec![1.; 9]).unwrap(),
+            SimplicialMiniStokesPressureReference2d::BoundaryTraction,
+        )
+        .unwrap();
+        let trajectory = super::super::advance_simplicial_mini_navier_stokes_2d(
+            &mesh,
+            &boundary,
+            &essential,
+            &load,
+            perturbed,
+            NonZeroStepCount::new(NonZeroUsize::MIN),
+            krylov_plan,
+            &cell_rule,
+            &facet_rule,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+        assert!(trajectory.steps()[0].nonlinear_iterations() > 0);
+        assert!(!trajectory.steps()[0].linear_solves().is_empty());
+        for report in trajectory.steps()[0].linear_solves() {
+            assert_eq!(
+                report.solver_provider(),
+                eqiora_solver::REFERENCE_LINEAR_SOLVER.provider()
+            );
+            assert_eq!(report.solver_plan(), linear);
+            assert!(report.true_residual_norm() <= report.residual_target());
+        }
+        let final_state = trajectory.states().last().unwrap();
+        for velocity in final_state.velocity().vertex_values() {
+            assert!((velocity[0] - 2.).abs() < 1e-9 && (velocity[1] - 3.).abs() < 1e-9);
+        }
+        assert!(
+            final_state
+                .pressure()
+                .vertex_values()
+                .iter()
+                .all(|value| value.abs() < 1e-9)
+        );
         let verification = plan
             .verify_accepted_jacobian(
                 &mesh,
@@ -419,6 +479,21 @@ mod tests {
         let prepared_trace_evaluations = AtomicUsize::new(0);
         crate::jacobian_audit::reset_centered_residual_assembly_count();
         super::super::assembly::reset_packet_evaluations();
+        let rejected = super::super::advance_simplicial_mini_navier_stokes_2d(
+            &mesh,
+            &boundary,
+            &|_| Ok([0.0; 2]),
+            &|_| Ok([0.0; 2]),
+            state(0.0),
+            NonZeroStepCount::new(NonZeroUsize::MIN),
+            plan.clone(),
+            &cell_quadrature,
+            &facet_quadrature,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap_err();
+        assert!(rejected.message().contains("does not support the exact"));
+        assert_eq!(super::super::assembly::packet_evaluations(), [0; 3]);
         let trajectory = super::super::advance_simplicial_mini_navier_stokes_2d(
             &mesh,
             &boundary,
