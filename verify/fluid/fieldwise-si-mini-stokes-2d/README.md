@@ -101,12 +101,21 @@ cargo test --locked -p eqiora --test fieldwise_si_mini_stokes_2d
 cargo run --locked -p eqiora-verify -- run --case fluid.fieldwise-si-mini-stokes-2d
 ```
 
+The direct Model also executes with explicitly selected Reference BiCGStab /
+Identity / Reproducible. It retains the exact solver in current Realization
+round-trip and SolveReport provenance, and meets the same physical velocity,
+pressure, gauge, force-balance and true-residual bounds above. Fast reduction
+with the Reference provider rejects during capability resolution; CG remains
+mathematically incompatible, and no complete mixed diagonal is asserted for
+Jacobi. Provider availability is separate from mathematical admission. This
+adds no solver fallback or convergence guarantee for other mixed systems.
+
 ## Bounded claim
 
 This verifies one connected 2D Cartesian rectangle, affine triangles, one
 exact conservative affine force potential, complete homogeneous velocity
 trace, MINI/P1 with one global pressure constraint, and the reproducible
-identity-preconditioned reference MINRES backend. It does not claim natural,
+identity-preconditioned reference MINRES and BiCGStab backend policies. It does not claim natural,
 open, slip, or live-Port boundaries; nonconservative vector forcing; other
 stable pairs or stabilization; disconnected domains; automatic scale choice;
 transient or Navier--Stokes flow; production preconditioning; parallel solve,
