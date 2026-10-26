@@ -78,7 +78,7 @@ pub struct DifferentiationStepEvidence {
 /// One original primal solve within an accepted step. Midpoint stage, endpoint
 /// recovery and observation recoveries retain separate update counts and reports.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct DifferentiationPrimalEvidence {
+pub(crate) struct DifferentiationPrimalEvidence {
     pub(super) primal: PrimalEvidence,
     primal_residual_norm: f64,
     residual_tolerance: Option<f64>,

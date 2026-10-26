@@ -225,6 +225,9 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
         + size_of::<outcomes::Outcome>()
         + size_of::<crate::DifferentiationEvidence>()
         + size_of::<crate::DifferentiationStepEvidence>()
+        // This stationary fixture retains one separately allocated primal group
+        // per occurrence; the step's inline Vec owns only its header.
+        + size_of::<crate::differentiation::DifferentiationPrimalEvidence>()
         + 3 * size_of::<f64>() // evidence's frozen Parameter point
         + first.program_identity().unwrap().plan_identity().len()
         + 64 // canonical Model digest

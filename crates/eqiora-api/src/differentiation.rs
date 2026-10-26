@@ -20,6 +20,8 @@ use crate::ModelDocument;
 pub(crate) mod context;
 use context::Context;
 mod evidence;
+#[cfg(test)]
+pub(crate) use evidence::DifferentiationPrimalEvidence;
 mod execution;
 use execution::{NativeEvaluation, OutputProjection};
 mod record;
