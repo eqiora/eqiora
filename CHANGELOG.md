@@ -10,6 +10,9 @@ listed here.
 
 ### Added
 
+- Finite real and complex Models use the shared automatic solver planner,
+  retaining exact provider choices and admission reasons. Transient MINI flow
+  accepts the supported General solver policies through the same checks.
 - An installed heterogeneous-conductivity study combines fields and physical
   observations, multi-load fitting with SciPy, held-out predictions, ordered
   parameter datasets, and saved failure/retry history. Physical inputs, mesh
@@ -39,7 +42,6 @@ listed here.
 - Differentiable evaluation records use v4. Python evidence exposes grouped
   `primal_solves` instead of the singular `primal_solve`; regenerate displaced
   development evaluation records.
-
 
 - Removed the Rust compatibility aliases `PoissonSolution1d`,
   `PoissonComparisonRow`, and `SteadyStokesScaleProfile2d`. Use

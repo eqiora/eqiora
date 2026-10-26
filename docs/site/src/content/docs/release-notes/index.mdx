@@ -17,6 +17,10 @@ fitting, held-out predictions, parameter studies and saved results. Change its
 physical inputs, mesh resolution and direct/iterative solver selection through
 the documented command line. Failure and retry history remain inspectable.
 
+Finite real and complex Models now use the shared automatic solver planner.
+Resolved Plans retain exact provider choices and admission reasons; transient
+MINI flow accepts the supported General solver policies through the same checks.
+
 Spatial first-order trajectory products now include implicit-midpoint stages
 and observation clocks. Saved evaluations retain grouped solve evidence and
 can be reopened without solving. This does not add adaptive/event/moving-geometry
