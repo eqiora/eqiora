@@ -281,3 +281,59 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
             .contains("profile.canonical-csr-mismatch")
     );
 }
+
+#[test]
+fn automatic_complex_provenance_survives_parameter_domain_rebinding() {
+    let request = CommonLinearRequest::program_controlled(
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(16).unwrap(),
+        SolverPlanningObjective::Robust,
+    )
+    .unwrap();
+    let original = super::super::solver_planning::resolve_complex_linear(
+        request,
+        LinearOperatorProperties::General,
+        None,
+        None,
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    assert_eq!(
+        original.selected_candidate_id,
+        Some("eqiora.reference.bicgstab-general-identity-reproducible-complex-f64")
+    );
+    let system = CanonicalCsrSystemView::new(
+        &ScalarSystem,
+        ScalarSystem.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let coordinates = system
+        .real_coordinate_system(
+            eqiora_solver::LinearOperatorOrientation::Normal,
+            system.right_hand_side(),
+        )
+        .unwrap();
+    let real = original.at_parameter_problem(&coordinates, None).unwrap();
+    assert_eq!(real.scalar_domain, eqiora_core::ScalarDomain::Real);
+    assert_eq!(real.selected_candidate_id, original.selected_candidate_id);
+    assert_eq!(real.planning_reasons, original.planning_reasons);
+    assert_eq!(real.solver, original.solver);
+    assert_eq!(real.provider, original.provider);
+    assert_eq!(real.at_parameter_problem(&system, None).unwrap(), original);
+    let decision = ResolvedHostSerialSolverPlan::<C>::resolve(
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+        SolverPlanningObjective::Robust,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(16).unwrap(),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let wrong_domain =
+        NativeLinearPolicy::exact::<f64>(decision.solver_plan(), &REFERENCE_LINEAR_SOLVER).unwrap();
+    assert!(wrong_domain.with_planning(&decision).is_err());
+}

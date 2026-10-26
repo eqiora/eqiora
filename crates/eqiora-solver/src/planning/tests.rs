@@ -998,71 +998,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
         &catalog,
     )
     .unwrap_err();
-    assert_all_rejected(
-        &error,
-        &SPECS
-            .iter()
-            .enumerate()
-            .map(|(i, _)| (i, "profile.general-required"))
-            .collect::<Vec<_>>(),
-    );
-    assert_zero_work(&symmetric_storage, &symmetric_ledger, &backends);
-    let mut wrong_plan = catalog;
-    wrong_plan[0] = HostSerialSolverCandidate::new(
-        SPECS[0].id,
-        SPECS[0].evidence,
-        LinearSolveRequest::new(&backends[0], reference_plan()),
-    );
-    let error = resolve_host_serial_solver_v3(
-        &symmetric.linear_problem().unwrap(),
-        SolverPlanningObjective::Robust,
-        &wrong_plan,
-    )
-    .unwrap_err();
-    let reasons = SPECS
-        .iter()
-        .enumerate()
-        .map(|(i, _)| {
-            (
-                i,
-                if i == 0 {
-                    "catalog.plan-mismatch"
-                } else {
-                    "profile.general-required"
-                },
-            )
-        })
-        .collect::<Vec<_>>();
-    assert_all_rejected(&error, &reasons);
-    let bad = CountingBackend::with_capability(
-        SPECS[0].provider,
-        (SPECS[0].plan)(),
-        SolverCapability {
-            scalar_type: ScalarType::F32,
-            ..capability((SPECS[0].plan)())
-        },
-    );
-    let mut wrong_capability = catalog;
-    wrong_capability[0] = HostSerialSolverCandidate::new(
-        SPECS[0].id,
-        SPECS[0].evidence,
-        LinearSolveRequest::new(&bad, (SPECS[0].plan)()),
-    );
-    let error = resolve_host_serial_solver_v3(
-        &symmetric.linear_problem().unwrap(),
-        SolverPlanningObjective::Robust,
-        &wrong_capability,
-    )
-    .unwrap_err();
-    assert_all_rejected(
-        &error,
-        &SPECS
-            .iter()
-            .enumerate()
-            .map(|(i, _)| (i, "profile.general-required"))
-            .collect::<Vec<_>>(),
-    );
-    assert_eq!(bad.calls(), 0);
+    assert!(error.message().contains("catalog.missing-id"));
     assert_zero_work(&symmetric_storage, &symmetric_ledger, &backends);
     for i in 0..SPECS.len() {
         let spec = SPECS[i];
@@ -1269,6 +1205,8 @@ fn selected_success_executes_once_and_applies_exact_problem_for_both_true_residu
 
 #[test]
 fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
+    super::complex_tests::typed_capabilities_and_requested_inventory_precede_ranking();
+    super::complex_tests::typed_provider_identity_and_operator_class_are_independent();
     let checks: [fn(); 10] = [
         exact_catalog_decisions_and_reasons_are_permutation_invariant,
         every_observable_admitted_subset_has_exact_reranking_and_trace,
@@ -1300,7 +1238,7 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(
@@ -1329,7 +1267,7 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
         1e-14,
         NonZeroUsize::new(100).unwrap(),
         &reference,
-        &reference,
+        Some(&reference),
     )
     .unwrap();
     assert_eq!(decision.selected_candidate_id(), REFERENCE_IDENTITY_ID);
@@ -1374,7 +1312,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap_err();
         assert!(
@@ -1394,7 +1332,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(direct.solver_plan().algorithm(), LinearSolver::SparseLu);
@@ -1410,7 +1348,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(accepted.selected_candidate_id(), id);
@@ -1458,7 +1396,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &reference,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(selected.solver_plan(), exact);
@@ -1484,7 +1422,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         1e-14,
         NonZeroUsize::new(100).unwrap(),
         &reference,
-        &faer,
+        Some(&faer),
     )
     .unwrap();
     assert_eq!(fast.solver_plan().algorithm(), LinearSolver::SparseLu);

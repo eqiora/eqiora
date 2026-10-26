@@ -32,6 +32,21 @@ the oracle requires exact ordered equality of that inventory and rejects a
 changed, missing, or extra dependency. It creates no fake second dependency
 and makes no same-members reorder claim.
 
+## Exact complex fixtures
+
+The same independent script now derives the four complex profiles with pairs of
+`Fraction` components. It solves each 2x2 system by exact Cramer determinants,
+checks the genuine mathematical class, and solves its conjugate transpose for a
+second, separately frozen right-hand side. The nonreal Hermitian off-diagonal
+entries cannot be replaced by a real symmetric witness. HPD leading principal
+minors are 4 and 11; the separate Hermitian fixture has determinant -7.
+
+The literal complex catalogs contain only two reference and four faer tuples
+already implemented by the typed providers. Normal and conjugate-transposed
+manual execution of every tuple is the independent numerical authority for
+these catalog evidence links. This adds no complex Jacobi, faer iterative,
+MINRES, or ordinary HPD recognition claim.
+
 ## Provider source identity
 
 The v3 table binds the inspected Cargo release `0.1.3` for solver and execution

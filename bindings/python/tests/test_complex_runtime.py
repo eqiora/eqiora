@@ -205,3 +205,35 @@ def test_explicit_finite_wavefunction_probability_uses_native_component_projecti
     for index, expected in enumerate((0.36,0.64)):
         assert amplitude.project_component("squared_magnitude",index)[0] == pytest.approx(expected, abs=1e-12)
     assert result.observe(model.observable("probability")).value == pytest.approx(1,abs=1e-12)
+
+
+@pytest.mark.parametrize("objective,candidate,provider,algorithm,reduction", [
+    (eqiora.solve.Robust, "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64", "eqiora.reference", "bicgstab", "reproducible"),
+    (eqiora.solve.Fast, "eqiora.faer.sparse-lu-general-identity-fast-complex-f64", "eqiora.faer", "sparse-lu", "fast"),
+    (eqiora.solve.LowMemory, "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64", "eqiora.reference", "bicgstab", "reproducible"),
+])
+def test_complex_automatic_objectives_keep_exact_selection_through_replay(
+    objective, candidate, provider, algorithm, reduction,
+):
+    model = eqiora.compile(source="""model M(){
+        variable z:array<complex<1>,2>;
+        relation r{
+            math.complex(1,1)*z[0]+2*z[1]=math.complex(-5,5);
+            math.complex(0,3)*z[0]+math.complex(4,-1)*z[1]=math.complex(-13,9);
+        }
+        observable first:complex<1>=z[0];
+        observable second:complex<1>=z[1];
+    }""")
+    plan, result = run(model, solve=eqiora.solve.Linear(
+        relative_tolerance=1e-12, absolute_tolerance=1e-14,
+        maximum_iterations=100, objective=objective,
+    ))
+    assert plan.solve.objective is objective
+    assert plan.solve.planning_policy_id == "eqiora.host-serial-solver-planning/v3"
+    assert plan.solve.selected_candidate_id == candidate
+    assert plan.solve.backend == provider
+    assert plan.solve.algorithm == algorithm
+    assert plan.solve.reduction == reduction
+    # Independently: A*[1+2i,-2+i]=[-5+5i,-13+9i].
+    assert result.observe(model.observable("first")).value == pytest.approx(1+2j, abs=1e-10)
+    assert result.observe(model.observable("second")).value == pytest.approx(-2+1j, abs=1e-10)

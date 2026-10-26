@@ -3,7 +3,7 @@
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
 selects one exact `eqiora-solver` library-test aggregator. The public case owns
-the five live backend tuple executions and public observations. This private case
+the five real and six complex live backend tuple executions and public observations. This private case
 owns the complete adversarial catalog, control, profile, capability, reranking,
 problem-identity, zero-work, and exactly-once checks. The capability is verified
 only when both cases pass.
@@ -59,6 +59,13 @@ zero numerical actions; numerical nonsingularity and original-residual acceptanc
 remain execution responsibilities. The original General rational oracle and all
 other exact catalog, control, and provider falsifiers remain applicable.
 
-This registered case covers the General catalog projection. SPD and symmetric-
+The typed companion checks reject complete foreign-domain and foreign-class
+catalogs, real-only capabilities on a typed complex adapter, changed complex
+policy tuples, and foreign provider identities before any backend call. Inventory
+is selected from the requested domain and operator class, never inferred from
+untrusted candidate IDs. Missing optional implementations retain their distinct
+`catalog.provider-unavailable` reason.
+
+This registered case covers the real General and typed complex catalog projections. Real SPD and symmetric-
 indefinite profiles have separate ordinary product tests; this case does not prove
 typed constraint/gauge authenticity or common Python integration for those profiles.

@@ -34,13 +34,13 @@ POLICY_TABLE = {
         ("reduction", {"Fast": 0, "Reproducible": 1}),
         (
             "algorithm",
-            {"SparseLu": 0, "BiConjugateGradientStabilized": 1},
+            {"SparseLu": 0, "BiConjugateGradientStabilized": 1, "ConjugateGradient": 1},
         ),
     ),
     "LowMemory": (
         (
             "algorithm",
-            {"BiConjugateGradientStabilized": 0, "SparseLu": 1},
+            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "SparseLu": 1},
         ),
     ),
 }
@@ -139,6 +139,8 @@ CANDIDATES = (
 REASON_VOCABULARY = (
     "catalog.evidence-mismatch",
     "catalog.provider-mismatch",
+    "catalog.provider-unavailable",
+    "catalog.scalar-domain-mismatch",
     "catalog.plan-mismatch",
     "profile.general-required",
     "profile.normal-required",
@@ -162,6 +164,11 @@ INVENTORY_FAILURES = (
 FALSIFIERS = (
     "input-permutation",
     "missing-candidate-id",
+    "foreign-domain-complete-catalog",
+    "foreign-operator-class-complete-catalog",
+    "typed-backend-with-real-only-capabilities",
+    "absent-optional-typed-provider",
+    "absent-optional-provider-with-required-fast-reduction",
     "duplicate-candidate-id",
     "unknown-candidate-id",
     "stale-evidence-id",
@@ -546,6 +553,101 @@ def build_expected() -> dict[str, Any]:
     }
 
 
+# Each pair is an exact rational complex number (real, imaginary). These literal
+# fixtures are independent of provider assembly and every Rust catalog record.
+def cadd(a, b):
+    return (a[0] + b[0], a[1] + b[1])
+
+
+def cneg(a):
+    return (-a[0], -a[1])
+
+
+def cmul(a, b):
+    return (a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0])
+
+
+def cdiv(a, b):
+    denominator = b[0] ** 2 + b[1] ** 2
+    return (Fraction(a[0] * b[0] + a[1] * b[1], denominator),
+            Fraction(a[1] * b[0] - a[0] * b[1], denominator))
+
+
+def cadjoint(matrix):
+    return [[(matrix[j][i][0], -matrix[j][i][1]) for j in range(2)] for i in range(2)]
+
+
+def csolve(matrix, rhs):
+    a, b = matrix[0]
+    c, d = matrix[1]
+    determinant = cadd(cmul(a, d), cneg(cmul(b, c)))
+    return [cdiv(cadd(cmul(rhs[0], d), cneg(cmul(b, rhs[1]))), determinant),
+            cdiv(cadd(cmul(a, rhs[1]), cneg(cmul(rhs[0], c))), determinant)]
+
+
+def complex_oracles():
+    reference_general = {
+        "id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+        "evidence_case": "numerics.host-serial-solver-planning",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {"algorithm": "BiConjugateGradientStabilized", "operator_properties": "General",
+                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
+    }
+    reference_hpd = {
+        "id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+        "evidence_case": "numerics.host-serial-solver-planning",
+        "solver_provider": REFERENCE_PROVIDER,
+        "tuple": {"algorithm": "ConjugateGradient", "operator_properties": "HermitianPositiveDefinite",
+                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
+    }
+    fixtures = [
+        ("General", "general", [[(1, 1), (2, 0)], [(0, 3), (4, -1)]], [(-5, 5), (-13, 9)], [(10, -6), (5, 11)], reference_general),
+        ("ComplexSymmetric", "complex-symmetric", [[(2, 1), (1, 2)], [(1, 2), (4, -1)]], [(-4, 2), (-10, 10)], [(10, -3), (1, 8)], None),
+        ("Hermitian", "hermitian", [[(-2, 0), (0, 1)], [(0, -1), (3, 0)]], [(-3, -6), (-4, 2)], [(-7, 3), (2, 7)], None),
+        ("HermitianPositiveDefinite", "hpd", [[(4, 0), (0, 1)], [(0, -1), (3, 0)]], [(3, 6), (-4, 2)], [(5, -3), (2, 7)], reference_hpd),
+    ]
+    oracles = []
+    for properties, suffix, matrix, rhs, adjoint_rhs, reference in fixtures:
+        solution = csolve(matrix, rhs)
+        adjoint_solution = csolve(cadjoint(matrix), adjoint_rhs)
+        assert solution == [(1, 2), (-2, 1)]
+        assert adjoint_solution == [(2, -1), (1, 3)]
+        unconjugated = [[matrix[j][i] for j in range(2)] for i in range(2)]
+        assert csolve(unconjugated, adjoint_rhs) != adjoint_solution
+        if properties.startswith("Hermitian"):
+            assert matrix == cadjoint(matrix)
+            determinant = cadd(cmul(matrix[0][0], matrix[1][1]), cneg(cmul(matrix[0][1], matrix[1][0])))
+            if properties == "HermitianPositiveDefinite":
+                assert matrix[0][0][0] > 0 and determinant[0] > 0 and determinant[1] == 0
+            else:
+                assert determinant[0] < 0 and determinant[1] == 0
+        else:
+            assert matrix != cadjoint(matrix)
+            assert (matrix[0][1] == matrix[1][0]) == (properties == "ComplexSymmetric")
+        direct = {
+            "id": f"eqiora.faer.sparse-lu-{suffix}-identity-fast-complex-f64",
+            "evidence_case": "numerics.host-serial-solver-planning",
+            "solver_provider": FAER_PROVIDER,
+            "tuple": {"algorithm": "SparseLu", "operator_properties": properties,
+                      "preconditioner": "Identity", "reduction": "Fast", "scalar_domain": "Complex", "scalar_type": "F64"},
+        }
+        candidates = tuple([reference, direct] if reference else [direct])
+        objectives = []
+        for objective in POLICY_TABLE:
+            selected = min(candidates, key=lambda candidate: rank_key(candidate, objective))["id"]
+            assert selected == (direct["id"] if objective == "Fast" or reference is None else reference["id"])
+            trace = ordered_trace(candidates, objective)
+            for permutation in itertools.permutations(candidates):
+                assert ordered_trace(permutation, objective) == trace
+            objectives.append({"objective": objective, "selected_candidate_id": selected, "ordered_reasons": trace})
+        oracles.append({"properties": properties, "matrix": matrix, "right_hand_side": rhs,
+                        "solution": [[ratio(v) for v in z] for z in solution],
+                        "adjoint_right_hand_side": adjoint_rhs,
+                        "adjoint_solution": [[ratio(v) for v in z] for z in adjoint_solution],
+                        "componentwise_error_bound": "2^-40", "candidates": candidates, "objectives": objectives})
+    return oracles
+
+
 def validate_mutants(expected: dict[str, Any]) -> None:
     candidates = tuple(expected["candidates"])
     by_id = {candidate["id"]: candidate for candidate in candidates}
@@ -696,6 +798,7 @@ def main() -> int:
     arguments = parser.parse_args()
 
     expected = build_expected()
+    expected["complex_profiles"] = complex_oracles()
     validate_mutants(expected)
     rendered = json.dumps(expected, indent=2, sort_keys=True) + "\n"
     if arguments.print_expected:

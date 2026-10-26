@@ -259,3 +259,107 @@ fn complex_plan_admits_only_the_selected_providers_matching_typed_capabilities()
         assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
     }
 }
+
+#[test]
+fn automatic_complex_bridge_distinguishes_absent_and_foreign_typed_providers() {
+    let (document, _) = fixture();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let request = CommonSolvePolicy::Linear(
+        CommonLinearRequest::program_controlled(
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            eqiora::solver::SolverPlanningObjective::Fast,
+        )
+        .unwrap(),
+    );
+    let missing = ObservedReference {
+        custom: true,
+        missing: true,
+        ..Default::default()
+    };
+    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, &missing).unwrap();
+    let resolved = eqiora_numerics::ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    assert_eq!(
+        resolved.selected_solver_candidate_id(),
+        Some("eqiora.reference.bicgstab-general-identity-reproducible-complex-f64")
+    );
+    assert!(resolved.solver_planning_reasons().contains(&(
+        "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+        "catalog.provider-unavailable"
+    )));
+    plan.run_result(&plan.initial_state(&[]).unwrap(), &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    let foreign = ObservedReference {
+        custom: true,
+        foreign: true,
+        ..Default::default()
+    };
+    let error =
+        CommonAlgebraicPlan::resolve(&model, request, None, &[], None, &foreign).unwrap_err();
+    assert!(error.message().contains("different provider"));
+    assert_eq!(missing.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(foreign.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn automatic_complex_program_keeps_selected_provider_for_forward_and_adjoint_products() {
+    use eqiora::api::DifferentiableProgram;
+    use eqiora::solver::SolverPlanningObjective;
+    use eqiora_backend_faer::FaerLinearSolver;
+    use eqiora_numerics::ResolvedCommonPlan;
+    let (document, _) = fixture();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    for (objective, backend) in [
+        (
+            SolverPlanningObjective::Robust,
+            &REFERENCE_LINEAR_SOLVER as &'static dyn LinearSolverBackend,
+        ),
+        (SolverPlanningObjective::Fast, &FaerLinearSolver),
+        (SolverPlanningObjective::LowMemory, &REFERENCE_LINEAR_SOLVER),
+    ] {
+        let request = CommonSolvePolicy::Linear(
+            CommonLinearRequest::program_controlled(
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+                objective,
+            )
+            .unwrap(),
+        );
+        let plan =
+            CommonAlgebraicPlan::resolve(&model, request, None, &[], None, &FaerLinearSolver)
+                .unwrap();
+        assert_eq!(plan.solver_provider(), backend.provider());
+        let program = DifferentiableProgram::compile(
+            ResolvedCommonPlan::Algebraic(Box::new(plan)),
+            &[document.parameter_ref("p").unwrap()],
+            &[document.observable_ref("output").unwrap().erase()],
+            Default::default(),
+            None,
+            backend,
+        )
+        .unwrap();
+        let point = program
+            .evaluate(&support::real_point(&program, &[5.]).unwrap())
+            .unwrap();
+        assert!((point.primal().output().fixture_coordinates()[0] - 55.).abs() < 1e-9);
+        let forward = point
+            .jvp(&support::derivative_products::tangent(point.identity(), &[2.]).unwrap())
+            .unwrap();
+        let adjoint = point
+            .vjp(&support::derivative_products::cotangent(point.identity(), &[1.]).unwrap())
+            .unwrap();
+        assert!((forward.derivative().fixture_coordinates()[0] - 42.).abs() < 1e-9);
+        assert!((adjoint.derivative().fixture_coordinates()[0] - 21.).abs() < 1e-9);
+        // The differentiated solves expose the actual selected typed producer.
+        assert_eq!(
+            point.primal().evidence().steps()[0]
+                .primal_solve()
+                .unwrap()
+                .solver()
+                .id(),
+            backend.provider().id().as_str()
+        );
+    }
+}

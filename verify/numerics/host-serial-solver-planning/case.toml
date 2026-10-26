@@ -1,10 +1,12 @@
 id = "numerics.host-serial-solver-planning"
 status = "implemented"
-scope = "deterministic-host-serial-general-csr-solver-planning-v3"
+scope = "deterministic-host-serial-real-and-complex-csr-solver-planning-v3"
 reference_kind = "independent-exact-rational-and-literal-policy-table"
 
 capabilities = [
-  "exact-frozen-five-candidate-catalog",
+  "exact-frozen-five-candidate-real-general-catalog",
+  "exact-typed-complex-catalogs-and-adjoint-solves",
+  "optional-provider-availability-before-ranking",
   "deterministic-robust-fast-low-memory-policy-v3",
   "inspectable-provider-plan-evidence-and-reasons",
   "hard-capability-admission-before-ranking",
@@ -30,6 +32,15 @@ exact_solution = "[1, 2]"
 count = 5
 identity = "exact candidate ID, evidence case, provider release and dependencies, and solver-policy tuple"
 policy = "eqiora.host-serial-solver-planning/v3"
+
+[complex_catalog]
+count = 6
+profiles = ["General", "ComplexSymmetric", "Hermitian", "HermitianPositiveDefinite"]
+scalar = "complex f64"
+normal_solution = "[1+2i, -2+i]"
+adjoint_solution = "[2-i, 1+3i]"
+hpd_proof = "leading principal minors 4 and 11"
+ordinary_hpd_recognition = false
 
 [acceptance]
 componentwise_solution_error = "<= 2^-40"

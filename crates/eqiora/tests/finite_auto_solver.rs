@@ -199,32 +199,113 @@ fn finite_auto_identity_binds_effective_selection_and_replay_does_not_switch_it(
 }
 
 #[test]
-fn finite_complex_objective_retains_the_exact_control_gate() {
+fn complex_finite_objectives_execute_and_reopen_the_selected_typed_provider() {
+    // Independent product: A*[1+2i,-2+i]=[-5+5i,-13+9i]. Both squared
+    // magnitudes are 5, hence the real selected observable equals 55.
     let compiled = CompiledModel::compile_selected(
         "finite-complex-auto.eqi",
-        "model Finite() { variable x:complex<1>; relation value {x=math.complex(1,2);} }",
-        "Finite",
-        &[],
-    )
-    .unwrap();
-    let (transaction, model, _) = compiled.into_parts();
+        "model Finite() { variable z:array<complex<1>,2>; relation value {math.complex(1,1)*z[0]+2*z[1]=math.complex(-5,5);math.complex(0,3)*z[0]+math.complex(4,-1)*z[1]=math.complex(-13,9);} observable objective:1=math.abs2(z[0])+10*math.abs2(z[1]); }",
+        "Finite", &[],
+    ).unwrap();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let observable = symbols.get("objective").unwrap().downcast().unwrap();
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
     let model = ModelEnvelope::from_program(&kernel).unwrap();
-    let error = CommonAlgebraicPlan::resolve(
+    let faer = FaerLinearSolver;
+    for (objective, id, backend, algorithm, reduction) in [
+        (
+            SolverPlanningObjective::Robust,
+            "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+            &REFERENCE_LINEAR_SOLVER as &dyn LinearSolverBackend,
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+        ),
+        (
+            SolverPlanningObjective::Fast,
+            "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+            &faer,
+            LinearSolver::SparseLu,
+            ReductionPolicy::Fast,
+        ),
+        (
+            SolverPlanningObjective::LowMemory,
+            "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+            &REFERENCE_LINEAR_SOLVER,
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+        ),
+    ] {
+        let plan = resolve(&model, objective, &faer);
+        let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+        assert_eq!(resolved.selected_solver_candidate_id(), Some(id));
+        assert_eq!(
+            resolved.solver_planning_policy_id(),
+            Some("eqiora.host-serial-solver-planning/v3")
+        );
+        assert_eq!(plan.linear(), expected_plan(algorithm, reduction));
+        assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));
+        let initial = plan.initial_state(&[]).unwrap();
+        let result = plan.run_result(&initial, backend).unwrap();
+        for (actual, expected) in result
+            .finite_values()
+            .unwrap()
+            .iter()
+            .zip([1., 2., -2., 1.])
+        {
+            assert!((actual - expected).abs() <= 2_f64.powi(-40));
+        }
+        let observation = result
+            .observe(&model, observable, &Default::default(), None)
+            .unwrap();
+        assert!((observation.value().real_scalar_value().unwrap().value() - 55.).abs() < 1e-10);
+        let evidence = result.solve_evidence(None, None).unwrap();
+        evidence.validate_plan(&resolved).unwrap();
+        assert_eq!(evidence.algorithm(), algorithm);
+        assert_eq!(evidence.solver().id(), backend.provider().id().as_str());
+        let reopened =
+            ResolvedCommonPlan::from_bytes(&resolved.to_bytes().unwrap(), &faer, &[]).unwrap();
+        assert_eq!(reopened, resolved);
+        assert_eq!(
+            CommonResult::from_bytes(&result.to_bytes().unwrap(), &reopened).unwrap(),
+            result
+        );
+        let manual = CommonAlgebraicPlan::resolve(
+            &model,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(plan.linear(), backend.provider()).unwrap(),
+            ),
+            None,
+            &[],
+            None,
+            backend,
+        )
+        .unwrap();
+        let manual_result = manual
+            .run_result(&manual.initial_state(&[]).unwrap(), backend)
+            .unwrap();
+        assert_eq!(manual_result.finite_values(), result.finite_values());
+        assert_eq!(
+            manual_result.solve_evidence(None, None),
+            result.solve_evidence(None, None)
+        );
+    }
+    let fast = resolve(&model, SolverPlanningObjective::Fast, &faer);
+    let reference = resolve(
         &model,
-        CommonSolvePolicy::Linear(request(SolverPlanningObjective::Fast)),
-        None,
-        &[],
-        None,
-        &FaerLinearSolver,
-    )
-    .unwrap_err();
+        SolverPlanningObjective::Fast,
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    assert_ne!(fast.identity(), reference.identity());
     assert!(
-        error
-            .message()
-            .contains("complex Plan requires exact linear controls"),
-        "{error}"
+        ResolvedCommonPlan::from_bytes(
+            &ResolvedCommonPlan::Algebraic(Box::new(fast))
+                .to_bytes()
+                .unwrap(),
+            &REFERENCE_LINEAR_SOLVER,
+            &[]
+        )
+        .is_err()
     );
 }

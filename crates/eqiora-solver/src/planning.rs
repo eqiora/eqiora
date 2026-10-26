@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar, ScalarDomain};
 
 use crate::{
     BackendId, ExecutionProvider, LinearOperatorOrientation, LinearOperatorProperties,
@@ -23,6 +23,16 @@ const FAER_CG_ID: &str = "eqiora.faer.cg-spd-jacobi-fast-f64";
 const FAER_SPD_LU_ID: &str = "eqiora.faer.sparse-lu-spd-identity-fast-f64";
 const REFERENCE_MINRES_ID: &str = "eqiora.reference.minres-indefinite-identity-reproducible-f64";
 const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-fast-f64";
+
+const REFERENCE_COMPLEX_ID: &str =
+    "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64";
+const FAER_COMPLEX_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-complex-f64";
+const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
+    "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64";
+const FAER_HERMITIAN_LU_ID: &str = "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64";
+const REFERENCE_HPD_ID: &str = "eqiora.reference.cg-hpd-identity-reproducible-complex-f64";
+const FAER_HPD_LU_ID: &str = "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64";
+const COMPLEX_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
 const FAER_EVIDENCE: &str = "numerics.linear-backends";
@@ -116,11 +126,15 @@ impl HostSerialSolverProfile {
         structure: crate::AlgebraicStructure,
     ) -> Result<Self, Diagnostic> {
         if !structure.constraints().is_empty()
-            && self.facts.properties == LinearOperatorProperties::SymmetricPositiveDefinite
+            && matches!(
+                self.facts.properties,
+                LinearOperatorProperties::SymmetricPositiveDefinite
+                    | LinearOperatorProperties::HermitianPositiveDefinite
+            )
         {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
-                "profile.gauge-multiplier-incompatible-with-spd",
+                "profile.gauge-multiplier-incompatible-with-positive-definite",
             ));
         }
         self.structure = Some(structure);
@@ -202,28 +216,41 @@ impl HostSerialSolverProfile {
 
 /// One untrusted member of the frozen host-serial solver catalog.
 #[derive(Debug, Clone, Copy)]
-struct HostSerialSolverCandidate<'backend> {
+struct HostSerialSolverCandidate<'backend, S = f64> {
     id: &'static str,
     evidence_case: &'static str,
-    request: LinearSolveRequest<'backend>,
+    plan: SolverPlan,
+    backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
 }
 
-impl<'backend> HostSerialSolverCandidate<'backend> {
-    /// Bind a candidate identity and evidence claim to an executable request.
-    ///
-    /// Construction performs no admission. The shared catalog resolver
-    /// validates the complete catalog before ranking.
-    #[must_use]
+impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    HostSerialSolverCandidate<'backend, S>
+{
+    #[cfg(test)]
     const fn new(
         id: &'static str,
         evidence_case: &'static str,
-        request: LinearSolveRequest<'backend>,
+        request: LinearSolveRequest<'backend, S>,
+    ) -> Self {
+        Self::planned(id, evidence_case, request.plan(), Some(request.backend()))
+    }
+
+    const fn planned(
+        id: &'static str,
+        evidence_case: &'static str,
+        plan: SolverPlan,
+        backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
     ) -> Self {
         Self {
             id,
             evidence_case,
-            request,
+            plan,
+            backend,
         }
+    }
+
+    const fn plan(self) -> SolverPlan {
+        self.plan
     }
 
     /// Frozen catalog identity supplied by the caller.
@@ -240,8 +267,12 @@ impl<'backend> HostSerialSolverCandidate<'backend> {
 
     /// Exact backend and solver plan supplied by the caller.
     #[must_use]
-    const fn request(self) -> LinearSolveRequest<'backend> {
-        self.request
+    const fn request(self) -> LinearSolveRequest<'backend, S> {
+        LinearSolveRequest::new(
+            self.backend
+                .expect("admitted candidate has a typed backend"),
+            self.plan,
+        )
     }
 }
 
@@ -305,61 +336,63 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     /// Returns the selected backend's capability or numerical diagnostic. No
     /// retry, fallback, plan mutation, or problem substitution is performed.
     fn solve(&self) -> Result<LinearSolution, Diagnostic> {
-        self.selected.request.solve(self.problem)
+        self.selected.request().solve(self.problem)
     }
 }
 
 /// Exact executable plan selected from the v3 host-serial catalog using
 /// admitted operator facts.
 #[derive(Debug)]
-pub struct ResolvedHostSerialSolverPlan<'backend> {
+pub struct ResolvedHostSerialSolverPlan<'backend, S = f64> {
     profile: HostSerialSolverProfile,
     objective: SolverPlanningObjective,
-    selected: HostSerialSolverCandidate<'backend>,
+    selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
 }
 
-impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
+impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    ResolvedHostSerialSolverPlan<'backend, S>
+{
     /// Plan one exact executable candidate from the frozen v3 host-serial catalog
     /// using structural operator facts and caller-owned convergence controls.
     ///
     /// # Errors
     /// Returns `EQ0807` when controls, provider identity, the exact capability
     /// tuples, or the structural profile fail admission. Planning performs no
-    /// numerical operator action and executes no backend.
+    /// numerical operator action and executes no backend. An absent optional
+    /// provider rejects its catalog members before ranking; reference candidates
+    /// remain independently eligible.
     pub fn resolve(
         profile: HostSerialSolverProfile,
         objective: SolverPlanningObjective,
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: NonZeroUsize,
-        reference_backend: &'backend dyn crate::LinearSolverBackend,
-        faer_backend: &'backend dyn crate::LinearSolverBackend,
+        reference_backend: &'backend dyn crate::LinearSolverBackend<S>,
+        faer_backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
     ) -> Result<Self, Diagnostic> {
-        let candidates = catalog_ids(profile.facts.properties)
+        let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
             .iter()
             .map(|id| {
                 let expected = expected_candidate(id);
                 let backend = if expected.provider == REFERENCE_PROVIDER {
-                    reference_backend
+                    Some(reference_backend)
                 } else {
                     faer_backend
                 };
-                Ok(HostSerialSolverCandidate::new(
+                Ok(HostSerialSolverCandidate::planned(
                     id,
                     expected.evidence_case,
-                    LinearSolveRequest::new(
-                        backend,
-                        catalog_plan(
-                            expected.algorithm,
-                            expected.preconditioner,
-                            expected.reduction,
-                            relative_tolerance,
-                            absolute_tolerance,
-                            maximum_iterations,
-                        )?,
-                    ),
+                    catalog_plan(
+                        expected.algorithm,
+                        expected.preconditioner,
+                        expected.reduction,
+                        relative_tolerance,
+                        absolute_tolerance,
+                        maximum_iterations,
+                    )?,
+                    backend,
                 ))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -406,7 +439,7 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// Exact selected solver plan.
     #[must_use]
     pub const fn solver_plan(&self) -> SolverPlan {
-        self.selected.request().plan()
+        self.selected.plan()
     }
 
     /// Exact selected solver provider release.
@@ -434,9 +467,9 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// backend's capability/numerical diagnostic. No retry or fallback occurs.
     pub fn solve(
         &self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         structure: Option<&crate::AlgebraicStructure>,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         self.profile.require_structure(structure)?;
         self.profile.require_plan(self.solver_plan())?;
         self.profile.require_problem(problem)?;
@@ -476,14 +509,14 @@ impl PlanningProfileFacts {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct CandidateEvaluation<'backend> {
-    candidate: HostSerialSolverCandidate<'backend>,
+struct CandidateEvaluation<'backend, S = f64> {
+    candidate: HostSerialSolverCandidate<'backend, S>,
     rejection: Option<&'static str>,
 }
 
 #[derive(Debug)]
-struct ResolvedCandidateSet<'backend> {
-    selected: HostSerialSolverCandidate<'backend>,
+struct ResolvedCandidateSet<'backend, S = f64> {
+    selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
 }
@@ -538,12 +571,12 @@ fn resolve_host_serial_solver_v3<'problem, 'backend>(
     })
 }
 
-fn resolve_candidates<'backend>(
+fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     profile: HostSerialSolverProfile,
     objective: SolverPlanningObjective,
-    candidates: &[HostSerialSolverCandidate<'backend>],
-) -> Result<ResolvedCandidateSet<'backend>, Diagnostic> {
-    validate_inventory(candidates)?;
+    candidates: &[HostSerialSolverCandidate<'backend, S>],
+) -> Result<ResolvedCandidateSet<'backend, S>, Diagnostic> {
+    validate_inventory(catalog_ids(S::DOMAIN, profile.facts.properties), candidates)?;
     validate_common_controls(candidates)?;
 
     let mut ordered = candidates.to_vec();
@@ -578,7 +611,10 @@ fn resolve_candidates<'backend>(
 
     admitted.sort_by_key(|candidate| rank_key(objective, *candidate));
     let selected = admitted[0];
-    let solver_provider = selected.request().backend().provider();
+    let solver_provider = selected
+        .backend
+        .expect("selected candidate has a typed backend")
+        .provider();
     let selected_id = selected.id();
     let selected_reason = selected_reason(objective);
     let mut reasons = Vec::with_capacity(evaluations.len() * 2);
@@ -605,49 +641,47 @@ fn resolve_candidates<'backend>(
     })
 }
 
-fn catalog_ids(properties: LinearOperatorProperties) -> &'static [&'static str] {
-    match properties {
-        LinearOperatorProperties::General => &[
+fn catalog_ids(
+    domain: ScalarDomain,
+    properties: LinearOperatorProperties,
+) -> &'static [&'static str] {
+    match (domain, properties) {
+        (ScalarDomain::Real, LinearOperatorProperties::General) => &[
             REFERENCE_ID,
             REFERENCE_IDENTITY_ID,
             FAER_BICGSTAB_ID,
             FAER_IDENTITY_ID,
             FAER_SPARSE_LU_ID,
         ],
-        LinearOperatorProperties::SymmetricPositiveDefinite => {
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => {
             &[REFERENCE_CG_ID, FAER_CG_ID, FAER_SPD_LU_ID]
         }
-        LinearOperatorProperties::SymmetricIndefinite => {
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => {
             &[REFERENCE_MINRES_ID, FAER_INDEFINITE_LU_ID]
         }
-        LinearOperatorProperties::Symmetric
-        | LinearOperatorProperties::ComplexSymmetric
-        | LinearOperatorProperties::Hermitian
-        | LinearOperatorProperties::HermitianPositiveDefinite => &[],
+        (ScalarDomain::Complex, LinearOperatorProperties::General) => {
+            &[REFERENCE_COMPLEX_ID, FAER_COMPLEX_LU_ID]
+        }
+        (ScalarDomain::Complex, LinearOperatorProperties::ComplexSymmetric) => {
+            &[FAER_COMPLEX_SYMMETRIC_LU_ID]
+        }
+        (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[FAER_HERMITIAN_LU_ID],
+        (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => {
+            &[REFERENCE_HPD_ID, FAER_HPD_LU_ID]
+        }
+        _ => &[],
     }
 }
 
-fn validate_inventory(candidates: &[HostSerialSolverCandidate<'_>]) -> Result<(), Diagnostic> {
-    // A catalog is complete for one exact operator class. Mixed-class catalogs
-    // cannot be used to reinterpret the supplied mathematical properties.
-    let ids = if candidates
-        .iter()
-        .any(|c| catalog_ids(LinearOperatorProperties::General).contains(&c.id()))
-    {
-        catalog_ids(LinearOperatorProperties::General)
-    } else if candidates
-        .iter()
-        .any(|c| catalog_ids(LinearOperatorProperties::SymmetricPositiveDefinite).contains(&c.id()))
-    {
-        catalog_ids(LinearOperatorProperties::SymmetricPositiveDefinite)
-    } else if candidates
-        .iter()
-        .any(|c| catalog_ids(LinearOperatorProperties::SymmetricIndefinite).contains(&c.id()))
-    {
-        catalog_ids(LinearOperatorProperties::SymmetricIndefinite)
-    } else {
-        return Err(invalid_catalog("catalog.missing-id"));
-    };
+fn validate_inventory<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+    ids: &[&str],
+    candidates: &[HostSerialSolverCandidate<'_, S>],
+) -> Result<(), Diagnostic> {
+    // The requested domain and mathematical class own the inventory. Candidate
+    // IDs cannot reinterpret either fact, including a complete foreign catalog.
+    if ids.is_empty() {
+        return Err(invalid_catalog("catalog.unsupported-profile"));
+    }
     if ids
         .iter()
         .any(|id| !candidates.iter().any(|candidate| candidate.id() == *id))
@@ -672,16 +706,15 @@ fn validate_inventory(candidates: &[HostSerialSolverCandidate<'_>]) -> Result<()
     Ok(())
 }
 
-fn validate_common_controls(
-    candidates: &[HostSerialSolverCandidate<'_>],
+fn validate_common_controls<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+    candidates: &[HostSerialSolverCandidate<'_, S>],
 ) -> Result<(), Diagnostic> {
     let first = candidates
         .first()
         .expect("inventory validation requires a complete nonempty catalog")
-        .request()
         .plan();
     let controls_match = candidates.iter().all(|candidate| {
-        let plan = candidate.request().plan();
+        let plan = candidate.plan();
         plan.relative_tolerance().to_bits() == first.relative_tolerance().to_bits()
             && plan.absolute_tolerance().to_bits() == first.absolute_tolerance().to_bits()
             && plan.maximum_iterations() == first.maximum_iterations()
@@ -692,18 +725,24 @@ fn validate_common_controls(
     Ok(())
 }
 
-fn rejection_reason(
+fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     profile: &HostSerialSolverProfile,
-    candidate: HostSerialSolverCandidate<'_>,
+    candidate: HostSerialSolverCandidate<'_, S>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
+    if S::DOMAIN != expected.scalar_domain {
+        return Some("catalog.scalar-domain-mismatch");
+    }
     if candidate.evidence_case() != expected.evidence_case {
         return Some("catalog.evidence-mismatch");
     }
-    if candidate.request().backend().provider() != expected.provider {
+    let Some(backend) = candidate.backend else {
+        return Some("catalog.provider-unavailable");
+    };
+    if backend.provider() != expected.provider {
         return Some("catalog.provider-mismatch");
     }
-    if !plan_tuple_matches(candidate.request().plan(), expected) {
+    if !plan_tuple_matches(candidate.plan(), expected) {
         return Some("catalog.plan-mismatch");
     }
     if profile.facts.properties != expected.properties {
@@ -725,24 +764,18 @@ fn rejection_reason(
     if !profile.facts.canonical_csr {
         return Some("profile.canonical-csr-required");
     }
-    if let Some(reason) = profile.plan_rejection(candidate.request().plan()) {
+    if let Some(reason) = profile.plan_rejection(candidate.plan()) {
         return Some(reason);
     }
     let required = SolverCapability {
-        scalar_domain: eqiora_core::ScalarDomain::Real,
+        scalar_domain: expected.scalar_domain,
         algorithm: expected.algorithm,
         operator_properties: expected.properties,
         preconditioner: expected.preconditioner,
         reduction: expected.reduction,
         scalar_type: ScalarType::F64,
     };
-    if !candidate
-        .request()
-        .backend()
-        .capabilities()
-        .combinations()
-        .contains(&required)
-    {
+    if !backend.capabilities().combinations().contains(&required) {
         return Some("capability.exact-tuple-required");
     }
     None
@@ -750,6 +783,7 @@ fn rejection_reason(
 
 #[derive(Debug, Clone, Copy)]
 struct ExpectedCandidate {
+    scalar_domain: ScalarDomain,
     properties: LinearOperatorProperties,
     evidence_case: &'static str,
     provider: SolverProvider,
@@ -761,6 +795,7 @@ struct ExpectedCandidate {
 fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
         REFERENCE_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
             evidence_case: REFERENCE_EVIDENCE,
             provider: REFERENCE_PROVIDER,
@@ -769,6 +804,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_BICGSTAB_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
@@ -777,6 +813,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_IDENTITY_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
             evidence_case: REFERENCE_IDENTITY_EVIDENCE,
             provider: REFERENCE_PROVIDER,
@@ -785,6 +822,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_IDENTITY_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
             evidence_case: FAER_IDENTITY_EVIDENCE,
             provider: FAER_PROVIDER,
@@ -793,6 +831,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPARSE_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
@@ -801,6 +840,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_CG_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             evidence_case: FAER_EVIDENCE,
             provider: REFERENCE_PROVIDER,
@@ -809,6 +849,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_CG_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
@@ -817,6 +858,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPD_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
@@ -825,6 +867,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_MINRES_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricIndefinite,
             evidence_case: "numerics.reference-minres-w64",
             provider: REFERENCE_PROVIDER,
@@ -833,8 +876,63 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_INDEFINITE_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricIndefinite,
             evidence_case: FAER_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        REFERENCE_COMPLEX_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::General,
+            evidence_case: COMPLEX_EVIDENCE,
+            provider: REFERENCE_PROVIDER,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        },
+        FAER_COMPLEX_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::General,
+            evidence_case: COMPLEX_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        FAER_COMPLEX_SYMMETRIC_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::ComplexSymmetric,
+            evidence_case: COMPLEX_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        FAER_HERMITIAN_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::Hermitian,
+            evidence_case: COMPLEX_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        REFERENCE_HPD_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::HermitianPositiveDefinite,
+            evidence_case: COMPLEX_EVIDENCE,
+            provider: REFERENCE_PROVIDER,
+            algorithm: LinearSolver::ConjugateGradient,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        },
+        FAER_HPD_LU_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Complex,
+            properties: LinearOperatorProperties::HermitianPositiveDefinite,
+            evidence_case: COMPLEX_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
             preconditioner: PreconditionerPolicy::Identity,
@@ -858,11 +956,11 @@ fn has_complete_diagonal(rows: usize, row_offsets: &[usize], column_indices: &[u
     })
 }
 
-fn rank_key(
+fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
-    candidate: HostSerialSolverCandidate<'_>,
+    candidate: HostSerialSolverCandidate<'_, S>,
 ) -> (u8, u8, &'static str) {
-    let plan = candidate.request().plan();
+    let plan = candidate.plan();
     match objective {
         SolverPlanningObjective::Robust => (
             u8::from(plan.reduction() != ReductionPolicy::Reproducible),
@@ -927,3 +1025,6 @@ fn no_admitted(trace: &[(&str, &str)]) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod complex_tests;

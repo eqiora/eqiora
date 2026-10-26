@@ -270,10 +270,13 @@ impl ResolvedCommonPlan {
                     nonlinear,
                     temporal.as_ref(),
                 )?;
-                let mut linear = if domain == eqiora_core::ScalarDomain::Complex {
+                let linear = if domain == eqiora_core::ScalarDomain::Complex {
                     super::solver_planning::resolve_complex_linear(
                         request,
                         properties,
+                        None,
+                        None,
+                        Some(structure.clone()),
                         linear_backend,
                     )?
                 } else {
@@ -286,11 +289,6 @@ impl ResolvedCommonPlan {
                         linear_backend,
                     )?
                 };
-                let profile =
-                    eqiora_solver::HostSerialSolverProfile::canonical_csr(properties, None, None)
-                        .with_structure(structure)?;
-                profile.require_plan(linear.solver)?;
-                linear.planning_profile = Some(profile);
                 let admission = recognized.complete(
                     spatial,
                     linear,

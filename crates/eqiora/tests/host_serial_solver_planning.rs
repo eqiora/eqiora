@@ -1,3 +1,5 @@
+#[path = "host_serial_solver_planning/complex.rs"]
+mod complex;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::process::Command;
@@ -283,7 +285,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             1.0e-14,
             NonZeroUsize::new(100).unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         assert_eq!(decision.policy_id(), oracle["policy_id"].as_str().unwrap());
@@ -455,7 +457,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 1e-14,
                 NonZeroUsize::new(100).unwrap(),
                 &REFERENCE_LINEAR_SOLVER,
-                &faer,
+                Some(&faer),
             )
             .unwrap();
             let backend: &dyn LinearSolverBackend = if objective == SolverPlanningObjective::Fast {
@@ -557,7 +559,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            &faer,
+            Some(&faer),
         )
         .unwrap();
         // Unknown diagonal facts exclude Jacobi; the three Identity tuples

@@ -5,6 +5,8 @@ reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
   "exact-catalog-control-profile-and-capability-rejection",
+  "typed-domain-and-requested-class-inventory-authentication",
+  "absent-provider-distinguished-from-identity-mismatch",
   "complete-id-ordered-rejection-traces",
   "evidence-before-provider-simultaneous-rejection-precedence",
   "observable-admitted-subset-reranking",
@@ -25,6 +27,8 @@ aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_a
 candidate_order = "ascending candidate ID"
 candidate_record = "one first rejection or candidate.admitted, followed immediately by nonselection or objective selection for admitted candidates"
 catalog_controls_profile_capability_backend_solve_calls = 0
+missing_optional_provider = "catalog.provider-unavailable before ranking; no fabricated backend"
+foreign_domain_or_class_inventory = "reject before candidate evaluation or numerical work"
 missing_diagonal = "Jacobi candidates reject; identity-preconditioned BiCGSTAB and SparseLU remain admitted without numerical work"
 actual_owned_operator_apply_calls = 0
 actual_owned_operator_diagonal_calls = 0

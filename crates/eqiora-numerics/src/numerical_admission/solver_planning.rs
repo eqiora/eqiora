@@ -25,15 +25,31 @@ pub(crate) fn resolve_linear(
         Some(structure) => profile.with_structure(structure)?,
         None => profile,
     };
+    resolve_typed_linear(
+        request,
+        properties,
+        profile,
+        &REFERENCE_LINEAR_SOLVER,
+        Some(supplied_backend),
+    )
+}
+
+fn resolve_typed_linear<S>(
+    request: CommonLinearRequest,
+    properties: LinearOperatorProperties,
+    profile: eqiora_solver::HostSerialSolverProfile,
+    reference_backend: &dyn LinearSolverBackend<S>,
+    supplied_backend: Option<&dyn LinearSolverBackend<S>>,
+) -> Result<NativeLinearPolicy, Diagnostic>
+where
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+{
     if let Some((plan, provider)) = request.exact_request() {
-        let backend = exact_backend(provider, supplied_backend)?;
+        let backend = exact_backend(provider, reference_backend, supplied_backend)?;
         profile.require_plan(plan)?;
-        backend.capabilities().require_problem(
-            plan,
-            eqiora_core::ScalarDomain::Real,
-            ScalarType::F64,
-            properties,
-        )?;
+        backend
+            .capabilities()
+            .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
         let mut selected = NativeLinearPolicy::exact(plan, backend)?;
         selected.planning_profile = Some(profile);
         return Ok(selected);
@@ -47,10 +63,14 @@ pub(crate) fn resolve_linear(
         request.relative_tolerance(),
         request.absolute_tolerance(),
         request.maximum_iterations(),
-        &REFERENCE_LINEAR_SOLVER,
+        reference_backend,
         supplied_backend,
     )?;
-    let backend = exact_backend(decision.solver_provider(), supplied_backend)?;
+    let backend = exact_backend(
+        decision.solver_provider(),
+        reference_backend,
+        supplied_backend,
+    )?;
     NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
 }
 
@@ -75,43 +95,69 @@ where
     Ok(system.diagonal(&mut diagonal)? == eqiora_solver::DiagonalAvailability::Available)
 }
 
-/// Resolve the typed complex implementation of the selected provider. The
-/// current automatic host profile describes real storage, so complex controls
-/// remain explicit until that profile owns complex facts.
+/// Resolve against the selected providers' typed complex implementations.
+/// Structural facts come from the same mathematical owner as real admission.
 pub(super) fn resolve_complex_linear(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
+    complete_diagonal: Option<bool>,
+    required_reduction: Option<ReductionPolicy>,
+    structure: Option<eqiora_solver::AlgebraicStructure>,
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
-    let (plan, provider) = request
-        .exact_request()
-        .ok_or_else(|| invalid("complex Plan requires exact linear controls"))?;
-    let backend = exact_backend(provider, supplied_backend)?;
-    let complex = backend
-        .complex_backend()
-        .ok_or_else(|| invalid("selected provider has no typed complex linear implementation"))?;
-    if complex.provider() != provider {
+    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+        properties,
+        complete_diagonal,
+        required_reduction,
+    );
+    let profile = match structure {
+        Some(structure) => profile.with_structure(structure)?,
+        None => profile,
+    };
+    let reference = typed_complex(&REFERENCE_LINEAR_SOLVER)?
+        .expect("reference implements complex linear solves");
+    // Manual selection only needs the selected provider's implementation.
+    let supplied = if let Some((_, provider)) = request.exact_request() {
+        Some(
+            typed_complex(exact_backend(
+                provider,
+                &REFERENCE_LINEAR_SOLVER,
+                Some(supplied_backend),
+            )?)?
+            .ok_or_else(|| {
+                invalid("selected provider has no typed complex linear implementation")
+            })?,
+        )
+    } else {
+        typed_complex(supplied_backend)?
+    };
+    resolve_typed_linear(request, properties, profile, reference, supplied)
+}
+
+fn typed_complex(
+    backend: &dyn LinearSolverBackend,
+) -> Result<Option<&dyn LinearSolverBackend<num_complex::Complex64>>, Diagnostic> {
+    let Some(complex) = backend.complex_backend() else {
+        return Ok(None);
+    };
+    if complex.provider() != backend.provider() {
         return Err(invalid(
             "complex implementation belongs to a different provider",
         ));
     }
-    complex.capabilities().require_problem(
-        plan,
-        eqiora_core::ScalarDomain::Complex,
-        ScalarType::F64,
-        properties,
-    )?;
-    NativeLinearPolicy::exact(plan, complex)
+    Ok(Some(complex))
 }
 
-fn exact_backend(
+fn exact_backend<'a, S: eqiora_core::Scalar>(
     provider: SolverProvider,
-    supplied_backend: &dyn LinearSolverBackend,
-) -> Result<&dyn LinearSolverBackend, Diagnostic> {
-    if provider == REFERENCE_LINEAR_SOLVER.provider() {
-        Ok(&REFERENCE_LINEAR_SOLVER)
-    } else if provider == supplied_backend.provider() {
-        Ok(supplied_backend)
+    reference_backend: &'a dyn LinearSolverBackend<S>,
+    supplied_backend: Option<&'a dyn LinearSolverBackend<S>>,
+) -> Result<&'a dyn LinearSolverBackend<S>, Diagnostic> {
+    if provider == reference_backend.provider() {
+        Ok(reference_backend)
+    } else if let Some(supplied) = supplied_backend.filter(|backend| backend.provider() == provider)
+    {
+        Ok(supplied)
     } else {
         Err(invalid(
             "exact solver provider identity, implementation version, and library inventory must match an admitted backend",

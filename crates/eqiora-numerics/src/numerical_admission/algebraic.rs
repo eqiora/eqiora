@@ -112,12 +112,6 @@ impl CommonAlgebraicPlan {
         let gauge = authored.map(|form| problem.gauge(form)).transpose()?;
         let symbols = problem.symbols();
         let dimensions = problem.dimensions();
-        if request.objective().is_some() && symbols.iter().any(|symbol| {
-            matches!(symbol, SymbolRef::Field(field) if matches!(kernel.node(field.erase()),
-                Some(KernelNode::Field(definition)) if definition.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex))
-        }) {
-            return Err(invalid("complex Plan requires exact linear controls"));
-        }
         let complex_system = if nonlinear.is_none() {
             problem.complex_linear_system()?
         } else {
@@ -137,6 +131,12 @@ impl CommonAlgebraicPlan {
             solver_planning::resolve_complex_linear(
                 request,
                 LinearOperatorProperties::General,
+                complex_system
+                    .as_ref()
+                    .map(solver_planning::complete_diagonal)
+                    .transpose()?,
+                None,
+                None,
                 backend,
             )?
         } else {

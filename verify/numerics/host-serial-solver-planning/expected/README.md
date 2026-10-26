@@ -17,3 +17,7 @@ simultaneous stale-evidence/stale-provider mutation, whose only rejection is
 The Rust tests consume these values; the implementation writer may wire them
 but must not change them. Run `derive_policy_v3.py` to compare the checked-in
 JSON byte-for-byte with a fresh exact derivation.
+
+The `complex_profiles` projection independently binds genuine General,
+complex-symmetric, Hermitian and HPD matrices, forward/adjoint right-hand sides
+and exact solutions, all six typed tuple descriptors, and every objective trace.
