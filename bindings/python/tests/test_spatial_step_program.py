@@ -99,19 +99,40 @@ def held_step_program(nonlinear, complex_field, advanced):
                              state=state, steps=1, output_steps=(1,))
     return program, state
 
+def trajectory_reference(parameter, nonlinear, complex_field):
+    """Closed cubic inverse and implicit derivative, independent of solver output.
+
+    Uniform h=phase*v reduces the three BE steps to v+v^3=p+v_previous
+    (or 2*v=p+v_previous). The cubic is strictly increasing on the real
+    line. Its hyperbolic closed form selects its unique real root; no Newton
+    iteration or Eqiora differentiation is used by this reference.
+    """
+    previous, derivative = 0., 0.
+    values, derivatives = [], []
+    for _ in range(3):
+        rhs = parameter + previous
+        previous = (2 / np.sqrt(3) * np.sinh(np.arcsinh(3*np.sqrt(3)*rhs/2)/3)
+                    if nonlinear else rhs/2)
+        derivative = (1 + derivative) / (1 + 3*previous**2 if nonlinear else 2)
+        values.append(previous)
+        derivatives.append(derivative)
+    phase = 1+2j if complex_field else 1.
+    return tuple(np.repeat(np.asarray(v)[[0, 2], None], 3, axis=1)*phase
+                 for v in (values, derivatives))
+
+
+@pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(complex_field):
-    plan, parameter = step_plan(False, complex_field)
+def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(complex_field, nonlinear):
+    plan, parameter = step_plan(nonlinear, complex_field)
     state = q.State.initial(plan, time_s=0.)
     program = q.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
                              state=state, steps=3, output_steps=(1, 3))
     assert program.outputs[0].shape == (2, 3)
     assert program.outputs[0].sample_times_s == (1., 3.)
     assert program.inputs[0].sample_times_s is None
-    phase = 1+2j if complex_field else 1.
     point = program.evaluate((4.,))
-    expected = np.array([[2.]*3, [3.5]*3]) * phase
-    derivative = np.array([[.5]*3, [.875]*3]) * phase
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
     np.testing.assert_allclose(point.primal().output[0], expected, rtol=0, atol=1e-10)
     forward = point.jvp((1.,))
     np.testing.assert_allclose(forward.tangent[0], derivative, rtol=0, atol=1e-10)
@@ -120,7 +141,7 @@ def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(compl
     weight = 1+3j if complex_field else 1.
     pairing = 7. if complex_field else 1.
     np.testing.assert_allclose(point.vjp((np.full((2, 3), weight),)).input_cotangent,
-                               [4.125*pairing], rtol=0, atol=1e-10)
+                               [derivative.real.sum()*pairing], rtol=0, atol=1e-10)
     collection = program.map((np.array([4., 4.]),), point_shape=(2,)).execute_recorded()
     encoded = collection.to_bytes()
     reopened = q.EvaluationCollection.from_bytes(encoded)
@@ -130,4 +151,4 @@ def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(compl
         assert len(member.result.evidence.steps) == 3
     shared = program.map((), point_shape=(2,), shared_inputs=(parameter,), shared=(4.,)).execute()
     np.testing.assert_allclose(shared.vjp((np.full((2, 2, 3), weight),)).shared_cotangents[0],
-                               8.25*pairing, rtol=0, atol=1e-10)
+                               2*derivative.real.sum()*pairing, rtol=0, atol=1e-10)

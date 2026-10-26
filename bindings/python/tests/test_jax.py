@@ -772,22 +772,33 @@ def test_fixed_history_spatial_step_composes_with_jit_products_and_map(
                                rtol=0, atol=1e-10)
     assert state.to_bytes() == before
 
+@pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_field):
-    from test_spatial_step_program import step_plan
+def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_field, nonlinear):
+    from test_spatial_step_program import step_plan, trajectory_reference
 
-    plan, parameter = step_plan(False, complex_field)
+    plan, parameter = step_plan(nonlinear, complex_field)
     program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
         state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
     solve = eqjax.bind(program)
-    phase = 1+2j if complex_field else 1.
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
     point = (jnp.asarray(4., dtype=jnp.float64),)
     operation = jax.jit(solve)
     output, tangent = jax.jvp(operation, (point,), ((jnp.asarray(1., dtype=jnp.float64),),))
-    np.testing.assert_allclose(output[0], np.array([[2.]*3, [3.5]*3])*phase, rtol=0, atol=1e-10)
-    np.testing.assert_allclose(tangent[0], np.array([[.5]*3, [.875]*3])*phase, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(output[0], expected, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(tangent[0], derivative, rtol=0, atol=1e-10)
     gradient = jax.jit(jax.grad(lambda p: jnp.real(jnp.sum(solve((p,))[0]))))(point[0])
-    np.testing.assert_allclose(gradient, 4.125, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(gradient, derivative.real.sum(), rtol=0, atol=1e-10)
     mapped = jax.jit(jax.vmap(lambda p: solve((p,))[0]))(jnp.array([2.,4.,4.]))
     assert mapped.shape == (3, 2, 3)
     np.testing.assert_allclose(mapped[1], output[0], rtol=0, atol=1e-10)
+    points = jnp.array([[2., 4., 4.], [4., 2., 4.]], dtype=jnp.float64).T
+    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field)[1].real.sum()
+                                   for p in row] for row in points])
+    def loss(p):
+        return jnp.real(jnp.sum(solve((p,))[0]))
+
+    gradients = jax.jit(jax.vmap(jax.vmap(jax.grad(loss))))(points)
+    np.testing.assert_allclose(gradients, expected_gradients, rtol=0, atol=1e-10)
+    shared_gradient = jax.jit(jax.grad(lambda p: jax.vmap(jax.vmap(loss))(p + points - 4).sum()))
+    np.testing.assert_allclose(shared_gradient(point[0]), expected_gradients.sum(), rtol=0, atol=1e-10)
