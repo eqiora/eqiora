@@ -9,6 +9,26 @@ A summary of each release. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 has the full history. Until 1.0, any release may change APIs and saved formats.
 
+## 0.1.4 — reproducible conductivity studies
+
+The installed `eqiora.examples.research_conductivity` example combines a
+heterogeneous material model, forward fields and observations, SciPy parameter
+fitting, held-out predictions, parameter studies and saved results. Change its
+physical inputs, mesh resolution and direct/iterative solver selection through
+the documented command line. Failure and retry history remain inspectable.
+
+Spatial first-order trajectory products now include implicit-midpoint stages
+and observation clocks. Saved evaluations retain grouped solve evidence and
+can be reopened without solving. This does not add adaptive/event/moving-geometry
+derivatives or higher derivatives.
+
+Models and Model Transactions use v49, Realizations use v11, and differentiable
+evaluation records use v4. Recompile retired artifacts and update Python
+`primal_solve` consumers to grouped `primal_solves`. The
+<ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
+lists the full changes and removed aliases. Python wheels retain the tested
+ordinary-GIL CPython 3.11–3.14, Linux x86-64 boundary.
+
 ## 0.1.3 — coupled fields on the common solver
 
 Eqiora 0.1.3 runs coupled scalar and vector fields, physical interfaces, and
