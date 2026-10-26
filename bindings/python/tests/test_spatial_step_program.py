@@ -113,7 +113,7 @@ def held_step_program(nonlinear, complex_field, advanced):
                              state=state, steps=1, output_steps=(1,))
     return program, state
 
-def trajectory_reference(parameter, nonlinear, complex_field):
+def trajectory_reference(parameter, nonlinear, complex_field, observable_output=None):
     """Closed cubic inverse and implicit derivative, independent of solver output.
 
     Uniform h=phase*v reduces the three BE steps to v+v^3=p+v_previous
@@ -131,8 +131,28 @@ def trajectory_reference(parameter, nonlinear, complex_field):
         values.append(previous)
         derivatives.append(derivative)
     phase = 1+2j if complex_field else 1.
-    return tuple(np.repeat(np.asarray(v)[[0, 2], None], 3, axis=1)*phase
-                 for v in (values, derivatives))
+    field, tangent = tuple(np.repeat(np.asarray(v)[[0, 2], None], 3, axis=1)*phase
+                           for v in (values, derivatives))
+    if observable_output is None:
+        return field, tangent
+    times = np.array([1., 3.])
+    if observable_output == "amount":
+        return times*field[:, 0], times*tangent[:, 0]
+    assert observable_output == "total"
+    return times*(field[:, 0].real+parameter), times*(tangent[:, 0].real+1)
+
+
+def trajectory_program(nonlinear, complex_field, observable_output):
+    if observable_output is None:
+        plan, parameter = step_plan(nonlinear, complex_field)
+        output, quadrature = plan.fields[0], None
+    else:
+        plan, parameter, (output, _) = step_plan(
+            nonlinear, complex_field, observables=True, observable_output=observable_output)
+        quadrature = 2
+    return q.diff.compile(plan, inputs=(parameter,), outputs=(output,),
+        state=q.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3),
+        quadrature_points=quadrature)
 
 
 @pytest.mark.parametrize("nonlinear", [False, True])

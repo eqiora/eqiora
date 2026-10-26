@@ -365,15 +365,14 @@ def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear
 
 @pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_spatial_trajectory_composes_with_backward_and_compile(complex_field, nonlinear):
-    from test_spatial_step_program import step_plan, trajectory_reference
+@pytest.mark.parametrize("observable_output", [None, "total", "amount"])
+def test_spatial_trajectory_composes_with_backward_and_compile(complex_field, nonlinear, observable_output):
+    from test_spatial_step_program import trajectory_program, trajectory_reference
 
-    plan, parameter = step_plan(nonlinear, complex_field)
-    program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
-        state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
+    program = trajectory_program(nonlinear, complex_field, observable_output)
     solve = eqtorch.bind(program)
-    assert solve.outputs[0].shape == (2, 3)
-    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
+    assert solve.outputs[0].shape == ((2, 3) if observable_output is None else (2,))
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field, observable_output)
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([4.], dtype=torch.float64, requires_grad=True)
         output, = operation(tuple(point.unbind()))
@@ -387,7 +386,7 @@ def test_spatial_trajectory_composes_with_backward_and_compile(complex_field, no
         return solve((p,))[0].real.sum()
 
     points = torch.tensor([[2., 4., 4.], [4., 2., 4.]], dtype=torch.float64).T
-    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field)[1].real.sum()
+    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field, observable_output)[1].real.sum()
                                    for p in row] for row in points])
     operation = torch.vmap(torch.vmap(torch.func.grad(loss)))
     for mapped in (operation, torch.compile(operation, backend="aot_eager", fullgraph=True)):
