@@ -466,7 +466,13 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         let profile = plan.admission.linear.planning_profile.as_ref().unwrap();
         profile.require_structure(Some(&expected)).unwrap();
         assert!(profile.require_structure(None).is_err());
-        if !planned {
+        let execution_backend: &dyn LinearSolverBackend =
+            if plan.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
+                &REFERENCE_LINEAR_SOLVER
+            } else {
+                supplied
+            };
+        if execution_backend.provider() == REFERENCE_LINEAR_SOLVER.provider() {
             let accepted = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             assert_eq!(accepted.field_count(), 3);
             for index in 0..3 {
@@ -501,7 +507,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
                 Some(structure) => replacement.with_structure(structure).unwrap(),
                 None => replacement,
             });
-            let error = changed.run_result(None, supplied).unwrap_err();
+            let error = changed.run_result(None, execution_backend).unwrap_err();
             assert!(error.message().contains("structure"), "{error:?}");
         }
     }

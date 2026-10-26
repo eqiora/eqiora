@@ -148,11 +148,25 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
         SolverPlanningObjective::Robust,
     )
     .unwrap();
-    assert!(
-        resolve(CommonSpatialPolicy::Q1, automatic)
-            .unwrap_err()
-            .message()
-            .contains("exact linear controls")
+    let automatic = replay_plan(
+        resolve(CommonSpatialPolicy::Q1, automatic).unwrap(),
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    let automatic_scalar = automatic.as_spatial().unwrap();
+    assert_eq!(
+        automatic_scalar.solver_provider(),
+        REFERENCE_LINEAR_SOLVER.provider()
+    );
+    let automatic_result = automatic_scalar
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    assert_eq!(
+        automatic_result.field_block(0, 0).unwrap(),
+        result.field_block(0, 0).unwrap()
+    );
+    assert_eq!(
+        crate::CommonResult::from_bytes(&automatic_result.to_bytes().unwrap(), &automatic).unwrap(),
+        automatic_result
     );
     let cg = exact_reference_linear(
         LinearSolver::ConjugateGradient,
