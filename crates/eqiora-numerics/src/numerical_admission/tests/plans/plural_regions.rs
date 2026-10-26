@@ -4,7 +4,7 @@ use super::*;
 use eqiora_core::RawId;
 use eqiora_meshing::QuadratureRule;
 
-fn chain_source(order: &[usize], names: &[&str]) -> String {
+pub(super) fn chain_source(order: &[usize], names: &[&str]) -> String {
     let count = order.len();
     let mut source = String::from(
         r#"
@@ -69,7 +69,10 @@ model Chain() {
     source + "}"
 }
 
-fn source_model(source: &str, names: &[&str]) -> (ModelEnvelope, BTreeMap<String, RawId>) {
+pub(super) fn source_model(
+    source: &str,
+    names: &[&str],
+) -> (ModelEnvelope, BTreeMap<String, RawId>) {
     let (transaction, model, symbols) = eqiora_compiler::compile("plural-chain.eqi", source)
         .unwrap()
         .remove(0)

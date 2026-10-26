@@ -599,6 +599,7 @@ mod discretizations;
 mod execute;
 pub(in crate::numerical_admission) use execute::StaticRegionSystem;
 pub(in crate::numerical_admission) use execute::StaticSpatialSystem;
+mod q1_diffusion;
 mod tpfa;
 
 #[cfg(test)]

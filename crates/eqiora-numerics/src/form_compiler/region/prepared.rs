@@ -60,6 +60,26 @@ pub(crate) struct PreparedRegionCell<S: Coefficient, P: Projection<S> = Native> 
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
+    /// Original primal flags exclude input partials, rate/history and tangents.
+    pub(crate) fn has_original_q1_diffusion_energy(&self, quadrature: &QuadratureRule) -> bool {
+        S::DOMAIN == eqiora_core::ScalarDomain::Real
+            && self.reference == eqiora_meshing::ReferenceCell::segment()
+            && self.fields.len() == 1
+            && !self.form.is_nonlinear()
+            && self.time.is_none()
+            && !quadrature.points().is_empty()
+            && quadrature
+                .points()
+                .iter()
+                .all(|point| point.weight.is_finite() && point.weight > 0.)
+            && self.fields[0].space
+                == eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+            && self
+                .form
+                .conservative_system()
+                .is_ok_and(|row| row.is_scalar_self_diffusion())
+    }
+
     pub(crate) fn prepare_cell(
         &self,
         geometry: &AffineGeometryMap,
@@ -194,6 +214,23 @@ impl<S: Coefficient> BoundRegionForm<S> {
             AffineInput::Current,
             evaluate,
         )?;
+        // In the proved real interval Q1 case the local affine action is a
+        // positive multiple of [[1,-1],[-1,1]]. Raw positive subnormal data
+        // can still underflow after integration weights/scales are applied.
+        // Check representability of that existing primal energy, not rank.
+        // Input partials clear positive_diffusion, even when no partial tag is
+        // retained; derivative/rate/history/tangent actions have no such guard.
+        if self.has_original_q1_diffusion_energy(quadrature)
+            && (affine.rows() != 2
+                || affine.columns() != 2
+                || [affine.matrix()[0], affine.matrix()[3]]
+                    .iter()
+                    .any(|energy| !energy.is_finite() || energy.im() != 0. || energy.re() <= 0.))
+        {
+            return Err(invalid(
+                "Q1 diffusion requires representable positive prepared cell energy",
+            ));
+        }
         let (rate, rate_tangent) = if has_rate {
             let (value, tangent) = self.prepare_affine_actions_with::<P>(
                 Some(&mut quadrature_cache),

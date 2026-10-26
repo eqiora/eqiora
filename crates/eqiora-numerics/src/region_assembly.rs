@@ -20,6 +20,7 @@ mod newton;
 pub(crate) use newton::RegionNewtonSolution;
 pub(crate) mod nonlinear;
 mod point;
+mod q1_diffusion;
 pub(crate) use point::RegionPoint;
 mod reactions;
 pub(crate) mod residual;
