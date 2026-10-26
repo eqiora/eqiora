@@ -91,7 +91,7 @@ conductivity inputs reject before conversion to log coordinates.
 
 | Substitution | Meaning and checked boundary |
 | --- | --- |
-| Sparse LU / faer to BiCGStab / reference | Compatible linear solver swap on the same Q1 problem; primal and tangent fields are compared at a numerical tolerance. |
+| Sparse LU / faer to BiCGStab / reference | Compatible linear solver swap on the same Q1 problem; Run fields/observations, native JVP/VJP, ordered maps and reopened collections retain exact provider provenance and the independently derived accuracy criterion. |
 | 16 to 32 Q1 cells | A different discrete problem; compare spatial error and convergence rather than exact result identity. |
 | Fixed positive conductivities, known source and boundary values | Ordinary parameter changes; the map retains each exact point and solved output. |
 | FVM or another mesh family | A distinct discretization; this example's Q1 accuracy and derivative checks do not establish its behavior. |
@@ -133,6 +133,11 @@ reduce that error by four. The default fine-reference mean error is bounded by
 A centred difference independently checks the fixed-mesh objective gradient.
 The first-order-corrected Taylor remainder must decay quadratically. Deliberately
 negating the gradient produces a first-order remainder and fails that criterion.
+The solver comparison also checks the forward/reverse transpose pairing for the
+complete field and all three reduced observations, including ordered maps. A fresh
+interpreter reopens both providers’ saved collections and ordinary Results with
+execution entry points disabled. This is a check of these two declared host
+profiles on this Q1 problem, without a general solver-interchangeability claim.
 These checks establish derivatives of the selected discrete program; continuum
 sensitivity is a separate mesh-dependence question.
 

@@ -293,7 +293,7 @@ def run(output, cells=16, solver="direct", conductivities=(2.0, 5.0),
     # Examine the declared bounded parameter box, not only the recovered point.
     domain_smin = [float(np.linalg.svd(sensitivity(program, np.log([left, right]), loads),
         compute_uv=False)[-1]) for left in (0.5, 2.0, 10.0) for right in (0.5, 5.0, 10.0)]
-    evidence = fitted[0].primal().evidence.steps[0].primal_solve
+    evidence = fitted[0].primal().evidence.steps[0].primal_solves[0]
     summary = {
         "environment": {"platform": platform.platform(), "python": platform.python_version(),
             **{name: importlib.metadata.version(name) for name in ("eqiora", "numpy", "scipy")}},

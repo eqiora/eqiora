@@ -65,7 +65,7 @@ def test_forward_reference_spatial_error_and_solver_acceptance(workflow, conduct
         expected_error = np.array([-heating / (12 * cells**2 * k) for k in conductivity] + [0.0])
         np.testing.assert_allclose(observed - expected, expected_error, rtol=0, atol=2e-9)
         errors.append(np.abs(observed[:2] - expected[:2]))
-        evidence = primal.evidence.steps[0].primal_solve
+        evidence = primal.evidence.steps[0].primal_solves[0]
         assert evidence.true_residual_norm <= evidence.residual_target
         assert program.outputs[1].value_type == q.ValueType.real(q.Dimension(temperature=1))
         assert program.outputs[3].value_type == q.ValueType.real(q.Dimension(mass=1, time=-3))
@@ -140,18 +140,152 @@ def test_bounded_recovery_uses_distinct_reference_discretization(workflow, condu
         assert np.max(np.abs(prediction - reference_value) / workflow["SCALES"]) < (1 if noisy else 0.2)
 
 
-def test_compatible_solver_swap_keeps_discrete_problem(workflow):
-    outputs, plans = [], []
-    for solver in ("direct", "iterative"):
-        model, plan, program = workflow["prepare"](8, solver)
+def test_compatible_solver_swap_keeps_discrete_problem(workflow, tmp_path):
+    cells = 8
+    coordinates = np.linspace(0, 1, cells + 1)
+    nominal = np.array([*np.log([2.0, 5.0]), 40.0, 302.0])
+    direction = np.array([0.3, -0.2, 0.7, -0.4])
+    cotangent = (np.linspace(0.25, 1.25, cells + 1), 0.7, -0.4, 0.2)
+
+    def flat(values):
+        return np.concatenate([np.asarray(value).ravel() for value in values])
+
+    def leaves(values):
+        return (np.ascontiguousarray(values[:2]), values[2], values[3])
+
+    def reference(values):
+        conductivity = np.exp(values[:2])
+        field, _ = continuum_temperature(coordinates, conductivity, values[2], values[3])
+        observations = continuum_observations(conductivity, values[2], values[3])
+        # Exact Q1 regional-mean bias, independently derived above; flux is exact.
+        observations[:2] -= values[2] / (12 * cells**2 * conductivity)
+        return (field, *observations)
+
+    def jacobian(values):
+        return np.stack([flat(reference(values + 1e-30j * unit)).imag / 1e-30
+                         for unit in np.eye(4)], axis=-1)
+
+    def accepted(summary, provider, orientation="normal"):
+        for name, expected in provider.items():
+            assert getattr(summary, name) == expected
+        if orientation == "reverse":
+            # Both orientations are the transpose of this real operator.
+            assert summary.orientation in ("transposed", "conjugate-transposed")
+        else:
+            assert summary.orientation == orientation
+        assert summary.true_residual_norm <= summary.residual_target
+
+    providers = [
+        dict(backend="eqiora.faer", algorithm="sparse-lu", reduction="fast",
+             preconditioner="identity", adapter="eqiora.host.serial", verification_adapter="eqiora.host.serial"),
+        dict(backend="eqiora.reference", algorithm="bicgstab", reduction="reproducible",
+             preconditioner="identity", adapter="eqiora.host.serial", verification_adapter="eqiora.host.serial"),
+    ]
+    points = np.array([nominal, [*np.log([1.5, 4.5]), 20.0, 310.0], nominal])
+    directions = np.array([direction, 2 * direction, -direction])
+    weights = tuple(np.ascontiguousarray(np.array([1.0, 0.5, -0.25]).reshape(
+        (3,) + (1,) * np.ndim(value)) * np.asarray(value)) for value in cotangent)
+    outputs, plans, collections = [], [], []
+    for solver, provider in zip(("direct", "iterative"), providers, strict=True):
+        model, plan, program = workflow["prepare"](cells, solver, heating=40.0, right_temperature=302.0)
         plans.append(plan)
-        point = program.evaluate((np.log([2.0, 5.0]), 40.0, 302.0))
-        outputs.append((point.primal().output, point.jvp((np.array([0.3, -0.2]), 0.0, 0.0)).tangent))
         assert model.digest == plans[0].model.digest
+        assert model.to_bytes() == plans[0].model.to_bytes()
+        assert plan.mesh.digest == plans[0].mesh.digest
+        requested_provider = (q.solve.SolverProvider.faer() if solver == "direct"
+                              else q.solve.SolverProvider.reference())
+        assert plan.solve.provider == requested_provider  # Includes implementation and library versions.
+        for name in ("backend", "algorithm", "preconditioner", "reduction"):
+            assert getattr(plan.solve, name) == provider[name]
+
+        ordinary = q.run(plan)
+        accepted(ordinary.solve, provider)
+        ordinary_outputs = (ordinary.output(plan.fields[0]).values("vertex").numpy(),
+            *(ordinary.observe(model.observable("definition." + name), quadrature_points=2).value
+              for name in workflow["SENSOR_NAMES"]))
+        np.testing.assert_allclose(flat(ordinary_outputs), flat(reference(nominal)), rtol=0, atol=2e-9)
+        (tmp_path / (solver + ".eqresult")).write_bytes(ordinary.to_bytes())
+
+        point = program.evaluate(leaves(nominal))
+        primal, forward = point.primal(), point.jvp(leaves(direction))
+        reverse = point.vjp(cotangent)
+        accepted(primal.evidence.steps[0].primal_solves[0], provider)
+        accepted(forward.evidence.steps[0].derivative_solve, provider)
+        accepted(reverse.evidence.steps[0].derivative_solve, provider, "reverse")
+        np.testing.assert_allclose(flat(primal.output), flat(reference(nominal)), rtol=0, atol=2e-9)
+        np.testing.assert_allclose(flat(forward.tangent), jacobian(nominal) @ direction, rtol=0, atol=2e-7)
+        np.testing.assert_allclose(flat(reverse.input_cotangent), jacobian(nominal).T @ flat(cotangent),
+                                   rtol=0, atol=2e-7)
+        np.testing.assert_allclose(np.dot(flat(cotangent), flat(forward.tangent)),
+            np.dot(direction, flat(reverse.input_cotangent)), rtol=0, atol=2e-7)
+        outputs.append((primal.output, forward.tangent, reverse.input_cotangent))
+
+        mapped = program.map((np.ascontiguousarray(points[:, :2]),
+            np.ascontiguousarray(points[:, 2]), np.ascontiguousarray(points[:, 3])), point_shape=(3,)).execute()
+        assert isinstance(mapped, q.CompleteEvaluationMap)
+        mapped_forward = mapped.jvp((np.ascontiguousarray(directions[:, :2]),
+            np.ascontiguousarray(directions[:, 2]), np.ascontiguousarray(directions[:, 3])))
+        mapped_reverse = mapped.vjp(weights)
+        for index, values in enumerate(points):
+            expected = jacobian(values)
+            np.testing.assert_allclose(flat(tuple(value[index] for value in mapped.primal())),
+                flat(reference(values)), rtol=0, atol=2e-9)
+            np.testing.assert_allclose(flat(tuple(value[index] for value in mapped_forward.tangent)),
+                expected @ directions[index], rtol=0, atol=2e-7)
+            np.testing.assert_allclose(flat(tuple(value[index] for value in mapped_reverse.mapped_cotangents)),
+                expected.T @ flat(tuple(value[index] for value in weights)), rtol=0, atol=2e-7)
+            accepted(mapped[index].primal().evidence.steps[0].primal_solves[0], provider)
+            accepted(mapped_forward.member(index).evidence.steps[0].derivative_solve, provider)
+            accepted(mapped_reverse.member(index).evidence.steps[0].derivative_solve, provider, "reverse")
+        np.testing.assert_allclose(sum(np.sum(seed * tangent) for seed, tangent in
+            zip(weights, mapped_forward.tangent, strict=True)), sum(np.sum(seed * gradient) for seed, gradient in
+            zip((directions[:, :2], directions[:, 2], directions[:, 3]),
+                mapped_reverse.mapped_cotangents, strict=True)), rtol=0, atol=2e-7)
+        collections.append(mapped.record())
+
     assert plans[0].identity != plans[1].identity
     for direct, iterative in zip(outputs[0], outputs[1], strict=True):
-        for left, right in zip(direct, iterative, strict=True):
-            np.testing.assert_allclose(left, right, rtol=0, atol=2e-7)
+        np.testing.assert_allclose(flat(direct), flat(iterative), rtol=0, atol=2e-7)
+    saved = tmp_path / "solver-comparison.eqcollection"
+    q.EvaluationCollection.combine(collections).write(saved)
+    script = """
+import json, pathlib, sys
+import eqiora as q
+import numpy as np
+def forbidden(*args, **kwargs):
+    raise AssertionError('offline solver comparison invoked execution')
+q.run = q.submit = q.resolve = q.compile = q.diff.compile = forbidden
+path = pathlib.Path(sys.argv[1])
+providers, identities, expected = json.loads(sys.argv[2])
+collection = q.EvaluationCollection.read(path)
+assert collection.to_bytes() == path.read_bytes() and collection.complete and len(collection) == 2
+for index, (group, provider) in enumerate(zip(collection, providers, strict=True)):
+    assert group.plan.identity == identities[index]
+    requested_provider = q.solve.SolverProvider.faer() if index == 0 else q.solve.SolverProvider.reference()
+    assert group.plan.solve.provider == requested_provider
+    assert group[0].reference == group[2].reference
+    assert group[0].occurrence_id != group[2].occurrence_id
+    result_path = path.parent / (('direct' if index == 0 else 'iterative') + '.eqresult')
+    result = q.Result.from_bytes(group.plan, result_path.read_bytes())
+    for key, value in provider.items():
+        assert getattr(result.solve, key) == value
+    field = result.output(group.plan.fields[0]).values('vertex').numpy()
+    np.testing.assert_allclose(field, expected[0][0], rtol=0, atol=2e-9)
+    for signature, value in zip(group.outputs[1:], expected[0][1:], strict=True):
+        actual = result.observe(group.plan.model.observable(signature.id), quadrature_points=2)
+        np.testing.assert_allclose(actual.value, value, rtol=0, atol=2e-9)
+    for member, wanted in zip(group, expected, strict=True):
+        assert member.status == 'accepted' and not hasattr(member.result, 'jvp')
+        assert member.result.evidence.plan_identity == group.plan.identity
+        for key, value in provider.items():
+            assert getattr(member.result.evidence.steps[0].primal_solves[0], key) == value
+        for actual, target in zip(member.result.output, wanted, strict=True):
+            np.testing.assert_allclose(actual, target, rtol=0, atol=2e-9)
+"""
+    expected = [[np.asarray(value).tolist() for value in reference(values)] for values in points]
+    subprocess.run([sys.executable, "-I", "-c", script, str(saved),
+        json.dumps([providers, [plan.identity for plan in plans], expected])],
+        cwd=tmp_path, check=True, timeout=120)
 
 
 def test_dataset_splits_normalization_identity_and_failed_history(workflow, tmp_path):
