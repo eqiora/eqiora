@@ -363,22 +363,39 @@ def test_fixed_history_spatial_step_composes_with_backward_and_compile(nonlinear
     assert state.to_bytes() == before
 
 
+@pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_spatial_trajectory_composes_with_backward_and_compile(complex_field):
-    from test_spatial_step_program import step_plan
+def test_spatial_trajectory_composes_with_backward_and_compile(complex_field, nonlinear):
+    from test_spatial_step_program import step_plan, trajectory_reference
 
-    plan, parameter = step_plan(False, complex_field)
+    plan, parameter = step_plan(nonlinear, complex_field)
     program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
         state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
     solve = eqtorch.bind(program)
     assert solve.outputs[0].shape == (2, 3)
-    phase = 1+2j if complex_field else 1.
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
     for operation in (solve, torch.compile(solve, backend="aot_eager", fullgraph=True)):
         point = torch.tensor([4.], dtype=torch.float64, requires_grad=True)
         output, = operation(tuple(point.unbind()))
-        np.testing.assert_allclose(output.detach().numpy(), np.array([[2.]*3, [3.5]*3])*phase, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(output.detach().numpy(), expected, rtol=0, atol=1e-10)
         gradient, = torch.autograd.grad(output.real.sum(), point)
-        np.testing.assert_allclose(gradient.detach().numpy(), [4.125], rtol=0, atol=1e-10)
+        np.testing.assert_allclose(gradient.detach().numpy(), [derivative.real.sum()], rtol=0, atol=1e-10)
+
+    # Physical point axes precede retained time/Field axes; gradient sums also
+    # include the unobserved second step through the native history products.
+    def loss(p):
+        return solve((p,))[0].real.sum()
+
+    points = torch.tensor([[2., 4., 4.], [4., 2., 4.]], dtype=torch.float64).T
+    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field)[1].real.sum()
+                                   for p in row] for row in points])
+    operation = torch.vmap(torch.vmap(torch.func.grad(loss)))
+    for mapped in (operation, torch.compile(operation, backend="aot_eager", fullgraph=True)):
+        np.testing.assert_allclose(mapped(points).numpy(), expected_gradients, rtol=0, atol=1e-10)
+    shared_gradient = torch.func.grad(lambda p: torch.vmap(torch.vmap(loss))(p + points - 4).sum())
+    for operation in (shared_gradient, torch.compile(shared_gradient, backend="aot_eager", fullgraph=True)):
+        np.testing.assert_allclose(operation(torch.tensor(4., dtype=torch.float64)).numpy(),
+                                   expected_gradients.sum(), rtol=0, atol=1e-10)
 
 
 def test_structured_complex_leaves_preserve_shapes_and_real_pairing():
