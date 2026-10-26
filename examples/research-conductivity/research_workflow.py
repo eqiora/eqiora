@@ -108,7 +108,8 @@ def objective_gradient(program, log_k, loads, observed, scales=SCALES):
 
 def fit(program, loads, observed, initial=(3.0, 3.0)):
     """No regularizer: bounds enforce positivity; data must provide rank itself."""
-    from scipy.optimize import least_squares
+    # SciPy is optional and does not bundle type information.
+    from scipy.optimize import least_squares  # type: ignore[import-untyped]
 
     result = least_squares(
         lambda eta: ((sensor_values(evaluate_loads(program, eta, loads)) - observed) / SCALES).ravel(),
