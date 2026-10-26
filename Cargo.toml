@@ -203,3 +203,7 @@ opt-level = "s"
 
 [profile.release.package.eqiora-io-xml]
 opt-level = "s"
+
+# Keep the native file-image codec compact alongside the packaged research recipe.
+[profile.release.package.eqiora-io-hdf5]
+opt-level = "s"
