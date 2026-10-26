@@ -6,7 +6,7 @@ import pytest
 from test_nonlinear_spatial_differentiation import linear_policy, newton_policy
 
 
-def step_plan(nonlinear, complex_field):
+def step_plan(nonlinear, complex_field, *, observables=False):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={
@@ -16,11 +16,22 @@ def step_plan(nonlinear, complex_field):
     scalar = "complex<1>" if complex_field else "1"
     phase = "math.complex(1,2)" if complex_field else "1"
     reaction = f"{phase}*(h/({phase}))^3" if nonlinear else "h"
+    observations = ""
+    if observables:
+        amount_type = "complex<m>" if complex_field else "m"
+        amount = "math.real(amount)" if complex_field else "amount"
+        energy = "math.abs2(h)" if complex_field else "h*h"
+        observations = f"""
+        observable amount:{amount_type}=integral(h*time()/1[s],measure(body));
+        observable total:1={amount}/1[m]+p*time()/1[s];
+        observable energy:m=integral({energy},measure(body));
+        """
     source = f"""public model Main(support body:volume(ambient_dimension=1),
         support left:boundary(parent=body),support right:boundary(parent=body)) {{
         parameter p:1=2; state h:{scalar} on body in h1;
         initial {{h=0;}}
         relation evolution on body {{1[s]*derivative(h)+{reaction}=({phase})*p;}}
+        {observations}
     }}"""
     model = q.compile(source=source, entry="Main", geometry=geometry, bindings={
         "body": body, "left": (geometry.selection("left"), body),
@@ -30,6 +41,9 @@ def step_plan(nonlinear, complex_field):
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), temporal=q.time.BackwardEuler(1.),
                      solve=newton_policy() if nonlinear else linear_policy())
     plan = q.Plan.from_bytes(plan.to_bytes())
+    if observables:
+        return plan, plan.model.parameter(model.parameter("p").id), tuple(
+            plan.model.observable(model.observable(name).id) for name in ("total", "energy"))
     return plan, plan.model.parameter(model.parameter("p").id)
 
 
@@ -152,3 +166,53 @@ def test_trajectory_program_keeps_sample_axis_all_steps_and_shared_reverse(compl
     shared = program.map((), point_shape=(2,), shared_inputs=(parameter,), shared=(4.,)).execute()
     np.testing.assert_allclose(shared.vjp((np.full((2, 2, 3), weight),)).shared_cotangents[0],
                                2*derivative.real.sum()*pairing, rtol=0, atol=1e-10)
+
+
+@pytest.mark.parametrize("nonlinear", [False, True])
+@pytest.mark.parametrize("complex_field", [False, True])
+def test_trajectory_observables_keep_time_direct_terms_and_replay(nonlinear, complex_field):
+    plan, parameter, (total, energy) = step_plan(nonlinear, complex_field, observables=True)
+    state = q.State.initial(plan, time_s=0.)
+    before = state.to_bytes()
+    outputs = (total, plan.fields[0], energy)
+    options = dict(inputs=(parameter,), outputs=outputs, state=state,
+                   steps=3, output_steps=(1, 3))
+    with pytest.raises(q.ValidationError):
+        q.diff.compile(plan, **options)
+    program = q.diff.compile(plan, **options, quadrature_points=2)
+    assert tuple(output.shape for output in program.outputs) == ((2,), (2, 3), (2,))
+    assert all(output.sample_times_s == (1., 3.) for output in program.outputs)
+    times = np.array([1., 3.])
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
+    h, dh = expected[:, 0], derivative[:, 0]
+    values = (times*(h.real+4), expected, np.abs(h)**2)
+    tangents = (times*(dh.real+1), derivative, 2*(h.conj()*dh).real)
+    point = program.evaluate((4.,))
+    scalar_program = q.diff.compile(plan, **(options | {"outputs": (total,)}), quadrature_points=2)
+    scalar = scalar_program.evaluate((4.,))
+    np.testing.assert_allclose(scalar.primal().output[0], values[0], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(scalar.jvp((1.,)).tangent[0], tangents[0], rtol=0, atol=1e-9)
+    # Ordinary Result observations and differentiated evaluation use the same
+    # accepted endpoint meaning, including the time inside the spatial integral.
+    result = q.run(plan, state=state, steps=3, output_steps=(1, 3))
+    result = q.Result.from_bytes(plan, result.to_bytes())
+    canonical = program.primal().output
+    for index in range(2):
+        np.testing.assert_allclose(result.observe(total, output_index=index, quadrature_points=2).value,
+                                   canonical[0][index], rtol=0, atol=1e-9)
+    for actual, wanted in zip(point.primal().output, values, strict=True):
+        np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
+    for actual, wanted in zip(point.jvp((1.,)).tangent, tangents, strict=True):
+        np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
+    weights = (np.array([2., -1.]), np.full((2, 3), 1+3j if complex_field else 1.),
+               np.array([-.5, 2.]))
+    paired = sum(np.vdot(w, d).real for w, d in zip(weights, tangents, strict=True))
+    np.testing.assert_allclose(point.vjp(weights).input_cotangent, [paired], rtol=0, atol=1e-9)
+    collection = program.map((np.array([4., 4.]),), point_shape=(2,)).execute_recorded()
+    encoded = collection.to_bytes()
+    reopened = q.EvaluationCollection.from_bytes(encoded)
+    assert reopened.to_bytes() == encoded
+    for member in reopened[0]:
+        for actual, wanted in zip(member.result.output, values, strict=True):
+            np.testing.assert_allclose(actual, wanted, rtol=0, atol=1e-9)
+    assert state.to_bytes() == before

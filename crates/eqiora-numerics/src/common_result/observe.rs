@@ -30,12 +30,13 @@ pub(crate) struct SpatialPointOutputs {
 pub(crate) fn spatial_point_outputs<'a>(
     plan: &'a crate::CommonSpatialPlan,
     parameters: &'a crate::parameter_point::ParameterPoint,
+    time_s: Option<f64>,
     fields: impl IntoIterator<Item = (Id<kinds::Field>, &'a [f64])>,
     observables: &[Id<kinds::Observable>],
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     selected: Option<&[eqiora_ir::ScalarSymbolCoordinate]>,
 ) -> Result<SpatialPointOutputs, Diagnostic> {
-    let occurrence = Occurrence::from_point(plan, Some(parameters), fields)?;
+    let occurrence = Occurrence::from_point(plan, Some(parameters), time_s, fields)?;
     let (values, partials) = composite::evaluate_with_partials(
         &occurrence,
         plan.kernel(),

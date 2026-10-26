@@ -18,15 +18,16 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let grid = self.validate_step_request(request, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .accept_step_point(equations, request.state(), grid, candidate),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .accept_step_point(equations, request.state(), grid, candidate),
             _ => Err(invalid("step acceptance requires exact spatial equations")),
         }

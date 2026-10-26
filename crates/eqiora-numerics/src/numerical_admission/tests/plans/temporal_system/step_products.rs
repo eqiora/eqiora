@@ -117,7 +117,9 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         vec![1],
                     )
                     .unwrap();
-                    let linearization = plan.linearize_step(step, &[parameter], &[field]).unwrap();
+                    let linearization = plan
+                        .linearize_step(step, &[parameter], &[field], &Default::default())
+                        .unwrap();
                     let output = output_tangent(plan, &linearization);
                     // Each normalized predecessor component has gain 1/2 at p=1,
                     // independently of forcing and the accepted loading history.
@@ -156,6 +158,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                             &[parameter],
                             Some(&[3.]),
                             &[field],
+                            &Default::default(),
                             &REFERENCE_LINEAR_SOLVER,
                         )
                         .unwrap();
@@ -165,6 +168,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                             &[parameter],
                             Some(&[3.]),
                             &[field],
+                            &Default::default(),
                             evaluated.linearization().relation().accepted_unknowns(),
                         )
                         .unwrap();
@@ -186,6 +190,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                             &[parameter],
                             Some(&[3.]),
                             &[field],
+                            &Default::default(),
                             &altered,
                         )
                         .unwrap_err();
@@ -219,7 +224,8 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         &coordinates(&vec![tangent; nodes], complex),
                     );
                     assert_eq!(
-                        plan.linearize_step(step, &[parameter], &[field]).unwrap(),
+                        plan.linearize_step(step, &[parameter], &[field], &Default::default())
+                            .unwrap(),
                         linearization
                     );
                 }
@@ -229,6 +235,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         &[parameter],
                         Some(&[3.]),
                         &[field],
+                        &Default::default(),
                         &REFERENCE_LINEAR_SOLVER,
                     )
                     .unwrap();
@@ -249,6 +256,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                         &[parameter],
                         Some(&[3.]),
                         &[field],
+                        &Default::default(),
                         &candidates,
                     )
                     .unwrap();

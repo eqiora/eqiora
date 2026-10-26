@@ -70,6 +70,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         let output = crate::common_result::observe::spatial_point_outputs(
             self.plan,
             &self.point,
+            self.time_interval.map(|[_, current]| current),
             fields.iter().map(|(id, values)| (*id, values.as_slice())),
             &selected,
             &self.quadratures,

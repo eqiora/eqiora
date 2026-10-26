@@ -290,6 +290,7 @@ fn check_parameter_point(plan: &ResolvedCommonPlan, result: &crate::CommonResult
     let evaluated = crate::common_result::observe::spatial_point_outputs(
         spatial,
         &point,
+        None,
         fields.iter().copied(),
         &outputs,
         &rules,
@@ -321,6 +322,7 @@ fn check_parameter_point(plan: &ResolvedCommonPlan, result: &crate::CommonResult
         crate::common_result::observe::spatial_point_outputs(
             spatial,
             &point,
+            None,
             std::iter::empty(),
             &outputs,
             &rules,
@@ -359,6 +361,7 @@ fn check_parameter_point(plan: &ResolvedCommonPlan, result: &crate::CommonResult
     let restricted = crate::common_result::observe::spatial_point_outputs(
         spatial,
         &point,
+        None,
         fields.iter().copied(),
         &outputs,
         &rules,

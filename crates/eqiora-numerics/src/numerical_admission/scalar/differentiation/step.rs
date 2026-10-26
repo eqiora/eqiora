@@ -13,7 +13,8 @@ impl CommonSpatialPlan {
     ///
     /// Selected Parameter changes hold the preceding physical State and both
     /// endpoint times fixed. This is not a derivative through earlier steps.
-    /// Outputs are complete Fields, in the requested order. The original step
+    /// Outputs may mix complete Fields and reduced Observables, in requested order.
+    /// Spatial reductions use the supplied exact-Domain quadratures at the step endpoint. The original step
     /// is reaccepted before its residual and Parameter actions are constructed.
     /// The returned relation/output pair composes with the existing forward and
     /// adjoint sensitivity APIs using its canonical sparse State Jacobian.
@@ -22,21 +23,21 @@ impl CommonSpatialPlan {
     /// Rejects foreign checkpoints, noncanonical or duplicate Parameter selections,
     /// unavailable input derivatives, and unsupported output/realization bindings.
     /// Currently requires dimensional equations on a fixed affine Mesh without
-    /// eliminated kinematics. Temporal Observables and derivatives through prior steps remain
-    /// separate, unavailable compositions.
+    /// eliminated kinematics. Derivatives through prior steps use the separate trajectory operation.
     pub fn linearize_step(
         &self,
         step: &CommonAcceptedSpatialStep,
         selected: &[Id<kinds::Parameter>],
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let accepted = self.accept_step_product(step, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_parameter_point(equations, selected, None, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, None, outputs, quadratures)?
                 .linearize_step(equations, &accepted),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_parameter_point(equations, selected, None, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, None, outputs, quadratures)?
                 .linearize_step(equations, &accepted),
             _ => Err(invalid(
                 "step linearization requires exact spatial equations",
@@ -81,7 +82,7 @@ impl CommonSpatialPlan {
         request.state().time_grid()?.advance(1)
     }
 
-    /// Validate the exact Run and complete Field output roles for trajectory products.
+    /// Validate the exact Run and Field/reduced Observable roles for trajectory products.
     ///
     /// # Errors
     /// Rejects foreign Plans and unsupported temporal or output bindings.
@@ -105,14 +106,7 @@ impl CommonSpatialPlan {
             .as_ref()
             .ok_or_else(|| invalid("step linearization requires a temporal Plan"))?
             .require_backward_euler()?;
-        if outputs
-            .iter()
-            .any(|id| !self.fields().any(|(field, _)| field.erase() == *id))
-        {
-            return Err(invalid(
-                "step linearization currently requires complete Field outputs",
-            ));
-        }
+        self.differentiation_output_fields(outputs)?;
         Ok(())
     }
 }
