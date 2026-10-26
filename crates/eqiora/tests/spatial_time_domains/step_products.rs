@@ -87,7 +87,14 @@ fn step_request_products_need_no_previously_solved_canonical_step() {
     let field = document.field_ref("h").unwrap().id().erase();
     let backend = CountSolves::default();
     let point = spatial
-        .differentiate_step(&request, &[parameter], Some(&[3.]), &[field], &backend)
+        .differentiate_step(
+            &request,
+            &[parameter],
+            Some(&[3.]),
+            &[field],
+            &Default::default(),
+            &backend,
+        )
         .unwrap();
     // h_next=(h_previous+p)/2 with h_previous=0: h=3/2, dh/dp=1/2.
     for value in point.linearization().output_values() {
@@ -101,6 +108,7 @@ fn step_request_products_need_no_previously_solved_canonical_step() {
             &[parameter],
             Some(&[3.]),
             &[field],
+            &Default::default(),
             point.linearization().relation().accepted_unknowns(),
         )
         .unwrap();
@@ -108,7 +116,14 @@ fn step_request_products_need_no_previously_solved_canonical_step() {
     let longer =
         CommonTransientRunRequest::from_steps(plan.clone(), initial.clone(), 2, vec![2]).unwrap();
     let error = spatial
-        .differentiate_step(&longer, &[parameter], None, &[field], &backend)
+        .differentiate_step(
+            &longer,
+            &[parameter],
+            None,
+            &[field],
+            &Default::default(),
+            &backend,
+        )
         .unwrap_err();
     assert!(
         error.message().contains("exactly one requested step"),
@@ -128,7 +143,14 @@ fn step_request_products_need_no_previously_solved_canonical_step() {
     let foreign_request =
         CommonTransientRunRequest::from_steps(foreign, foreign_initial, 1, vec![1]).unwrap();
     let error = spatial
-        .differentiate_step(&foreign_request, &[parameter], None, &[field], &backend)
+        .differentiate_step(
+            &foreign_request,
+            &[parameter],
+            None,
+            &[field],
+            &Default::default(),
+            &backend,
+        )
         .unwrap_err();
     assert!(error.message().contains("foreign Plan"), "{error:?}");
     assert_eq!(backend.0.load(std::sync::atomic::Ordering::Relaxed), 1);
@@ -168,7 +190,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         .unwrap();
         let before = step.state().to_bytes().unwrap();
         let product = spatial
-            .linearize_step(step, &[parameter], &[field])
+            .linearize_step(step, &[parameter], &[field], &Default::default())
             .unwrap();
         // Two Q1 cells: M_ii=1/3, sum M_if=1/6, K_ii=4, sum K_if=-4.
         // Fixed-history interior derivative is t*(4-1/6)/(4+1/3)=23*t/26.
@@ -181,6 +203,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
                 &[parameter],
                 Some(&[3.]),
                 &[field],
+                &Default::default(),
                 &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
@@ -195,6 +218,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
                 &[parameter],
                 Some(&[3.]),
                 &[field],
+                &Default::default(),
                 changed.linearization().relation().accepted_unknowns(),
             )
             .unwrap();
@@ -403,6 +427,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             &steps[0].1,
             &[foreign_document.parameter_ref("p").unwrap().id()],
             &[foreign_document.field_ref("h").unwrap().id().erase()],
+            &Default::default(),
         )
         .unwrap_err();
     assert!(error.message().contains("checkpoint"), "{error:?}");
@@ -426,6 +451,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
             &steps[0].1,
             &[document.parameter_ref("p").unwrap().id()],
             &[document.field_ref("h").unwrap().id().erase()],
+            &Default::default(),
         )
         .unwrap();
     // h+h^3=p=2 gives h=1 and dh/dp=1/(1+3h^2)=1/4.
@@ -442,6 +468,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -456,6 +483,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             changed.linearization().relation().accepted_unknowns(),
         )
         .unwrap();
@@ -470,6 +498,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             &[1.; 3],
         )
         .unwrap_err();
@@ -483,6 +512,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
                 &[parameter],
                 Some(&[f64::NAN]),
                 &[field],
+                &Default::default(),
                 &REFERENCE_LINEAR_SOLVER,
             )
             .is_err()
@@ -512,6 +542,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -541,6 +572,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             &candidates,
         )
         .unwrap();
@@ -554,6 +586,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
                 &[parameter],
                 Some(&[10.]),
                 &[field],
+                &Default::default(),
                 &candidates[..1],
             )
             .is_err()
@@ -565,6 +598,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
                 &[parameter],
                 Some(&[2.]),
                 &[field],
+                &Default::default(),
                 &candidates,
             )
             .is_err()
@@ -577,6 +611,7 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
             &[parameter],
             Some(&[10.]),
             &[field],
+            &Default::default(),
             &altered,
         )
         .unwrap_err();
@@ -666,6 +701,7 @@ fn trajectory_selected_outputs_keep_unobserved_history_and_direct_boundary_terms
             &[parameter],
             Some(&[3.]),
             &[h],
+            &Default::default(),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -732,4 +768,87 @@ fn trajectory_selected_outputs_keep_unobserved_history_and_direct_boundary_terms
     )
     .unwrap();
     assert!((reverse.parameter_gradient()[0] - (6. + 23. / 26. + 317. / 169.)).abs() < 1e-10);
+}
+
+#[test]
+fn trajectory_observables_share_endpoint_time_quadrature_and_direct_partials() {
+    let source = source(
+        "1[s]*derivative(h)+h=p;",
+        "observable amount:m=integral(h*time()/1[s],measure(body));
+         observable total:1=amount/1[m]+p*time()/1[s];",
+    );
+    let (document, plan) =
+        resolve_source_document(&source, 1., CommonSolvePolicy::Linear(linear())).unwrap();
+    let spatial = plan.as_spatial().unwrap();
+    let parameter = document.parameter_ref("p").unwrap().id();
+    let total = document.observable_ref("total").unwrap().id();
+    let field = document.field_ref("h").unwrap().id().erase();
+    let outputs = [total.erase(), field];
+    let rules = plan.observation_quadratures(&[total], 2).unwrap();
+    let request = CommonTransientRunRequest::from_steps(
+        plan.clone(),
+        spatial.initial_state(Some(0.), Vec::new()).unwrap(),
+        2,
+        vec![2],
+    )
+    .unwrap();
+    let trajectory = spatial
+        .differentiate_trajectory(
+            &request,
+            &[parameter],
+            Some(&[3.]),
+            &outputs,
+            &rules,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+    // h1=3/2, h2=9/4, O_n=t_n*(h_n+p). These products hold the
+    // preceding physical State fixed; through-history products are separate.
+    for (index, point) in trajectory.steps().iter().enumerate() {
+        let time = (index + 1) as f64;
+        let value = [1.5, 2.25][index];
+        let expected = [time * (value + 3.), value, value, value];
+        for (actual, expected) in point.linearization().output_values().iter().zip(expected) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        check_products(
+            point.linearization(),
+            spatial.linear(),
+            &[1.5 * time, 0.5, 0.5, 0.5],
+        );
+    }
+    let candidates = trajectory
+        .steps()
+        .iter()
+        .map(|point| {
+            point
+                .linearization()
+                .relation()
+                .accepted_unknowns()
+                .to_vec()
+        })
+        .collect::<Vec<_>>();
+    let replay = spatial
+        .validate_differentiated_trajectory_values(
+            &request,
+            &[parameter],
+            Some(&[3.]),
+            &outputs,
+            &rules,
+            &candidates,
+        )
+        .unwrap();
+    assert!((replay[1].output_values()[0] - 10.5).abs() < 1e-10);
+    assert!(
+        spatial
+            .differentiate_trajectory(
+                &request,
+                &[parameter],
+                Some(&[3.]),
+                &outputs,
+                &Default::default(),
+                &REFERENCE_LINEAR_SOLVER,
+            )
+            .is_err()
+    );
 }

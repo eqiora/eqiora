@@ -16,7 +16,8 @@ enum Source<'a> {
     Result(&'a CommonResult),
     Spatial {
         plan: &'a CommonSpatialPlan,
-        state: Option<&'a CommonState>,
+        state_identity: Option<&'a str>,
+        time_s: Option<f64>,
         parameters: Option<&'a crate::parameter_point::ParameterPoint>,
     },
 }
@@ -31,9 +32,13 @@ impl<'a> Occurrence<'a> {
     pub(super) fn from_point(
         plan: &'a CommonSpatialPlan,
         parameters: Option<&'a crate::parameter_point::ParameterPoint>,
+        time_s: Option<f64>,
         fields: impl IntoIterator<Item = (Id<kinds::Field>, &'a [f64])>,
     ) -> Result<Self, Diagnostic> {
         plan.require_fixed_observation_geometry()?;
+        if time_s.is_some_and(|time| !time.is_finite()) {
+            return Err(invalid("observation point time must be finite"));
+        }
         let mut coefficients = HashMap::new();
         for (field, values) in fields {
             let value_type = plan
@@ -68,7 +73,8 @@ impl<'a> Occurrence<'a> {
         Ok(Self {
             source: Source::Spatial {
                 plan,
-                state: None,
+                state_identity: None,
+                time_s,
                 parameters,
             },
             output_index: None,
@@ -113,12 +119,13 @@ impl<'a> Occurrence<'a> {
         let fields = spatial
             .state_fields(state)?
             .map(|(field, _, _, values)| (field, values));
-        let mut occurrence = Self::from_point(spatial, None, fields)?;
+        let mut occurrence = Self::from_point(spatial, None, state.time_s(), fields)?;
         if let Source::Spatial {
-            state: accepted, ..
+            state_identity: accepted,
+            ..
         } = &mut occurrence.source
         {
-            *accepted = Some(state);
+            *accepted = Some(state.identity());
         }
         Ok(occurrence)
     }
@@ -153,7 +160,7 @@ impl<'a> Occurrence<'a> {
 
     pub(super) fn time_s(&self) -> Option<f64> {
         match self.source {
-            Source::Spatial { state, .. } => state.and_then(CommonState::time_s),
+            Source::Spatial { time_s, .. } => time_s,
             Source::Result(_) => None,
         }
     }
@@ -161,12 +168,18 @@ impl<'a> Occurrence<'a> {
     pub(super) fn output(&self) -> Option<(usize, f64, String)> {
         match self.source {
             Source::Spatial {
-                state: Some(state), ..
+                state_identity: Some(identity),
+                time_s,
+                ..
             } => self
                 .output_index
-                .zip(state.time_s())
-                .map(|(index, time)| (index, time, state.identity().to_owned())),
-            Source::Result(_) | Source::Spatial { state: None, .. } => None,
+                .zip(time_s)
+                .map(|(index, time)| (index, time, identity.to_owned())),
+            Source::Result(_)
+            | Source::Spatial {
+                state_identity: None,
+                ..
+            } => None,
         }
     }
 

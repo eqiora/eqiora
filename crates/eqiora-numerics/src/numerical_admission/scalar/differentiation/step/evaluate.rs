@@ -7,7 +7,8 @@ impl CommonSpatialPlan {
     /// The supplied one-step Run request binds the preceding physical State and
     /// endpoint times without requiring a previously solved canonical step. Selected
     /// values change only the current equations and traces;
-    /// omitted values use the canonical Model point. Outputs are complete Fields.
+    /// omitted values use the canonical Model point. Outputs are complete Fields or
+    /// reduced Observables using explicit spatial quadratures at the step endpoint.
     /// The result retains actual solver reports and composes with the existing
     /// forward/adjoint sensitivity owners; it is not a new reusable State checkpoint.
     ///
@@ -20,15 +21,16 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         let grid = self.validate_step_request(request, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .solve_step(equations, request.state(), grid, backend),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .solve_step(equations, request.state(), grid, backend),
             _ => Err(invalid(
                 "step differentiation requires exact spatial equations",

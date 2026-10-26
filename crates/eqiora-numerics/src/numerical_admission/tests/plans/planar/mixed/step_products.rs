@@ -89,7 +89,7 @@ fn mixed_step_products_preserve_certified_operator_properties() {
                 .unwrap();
             let fields = plan.fields().map(|(id, _)| id.erase()).collect::<Vec<_>>();
             let product = plan
-                .linearize_step(&steps[0].1, &[parameter], &fields)
+                .linearize_step(&steps[0].1, &[parameter], &fields, &Default::default())
                 .unwrap();
             let reopened = plan
                 .validate_differentiated_step_values(
@@ -97,6 +97,7 @@ fn mixed_step_products_preserve_certified_operator_properties() {
                     &[parameter],
                     None,
                     &fields,
+                    &Default::default(),
                     product.relation().accepted_unknowns(),
                 )
                 .unwrap();

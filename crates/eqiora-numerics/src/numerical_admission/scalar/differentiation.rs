@@ -95,6 +95,42 @@ impl CommonSpatialPlan {
         self.prepare_parameter_point(template, selected, values, outputs, quadratures)
     }
 
+    fn differentiation_output_fields(
+        &self,
+        outputs: &[eqiora_core::RawId],
+    ) -> Result<Vec<eqiora_core::RawId>, Diagnostic> {
+        let unique = outputs
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        if outputs.is_empty() || unique.len() != outputs.len() {
+            return Err(invalid(
+                "spatial outputs require nonempty distinct selections",
+            ));
+        }
+        let mut selected_fields = Vec::new();
+        for &output in outputs {
+            if self.fields().any(|(field, _)| field.erase() == output) {
+                selected_fields.push(output);
+            } else if let Some(observable) = output.downcast::<kinds::Observable>() {
+                if self
+                    .kernel()
+                    .observable_output_support(observable)?
+                    .is_some()
+                {
+                    return Err(invalid(
+                        "spatial products require reduced Observable outputs",
+                    ));
+                }
+            } else {
+                return Err(invalid(
+                    "spatial output is not an exact Plan Field or Model Observable",
+                ));
+            }
+        }
+        Ok(selected_fields)
+    }
+
     fn prepare_parameter_point<S: DifferentiationScalar>(
         &self,
         template: &ExecutableSpatialEquations<S>,
@@ -130,28 +166,7 @@ impl CommonSpatialPlan {
         for region in &mut equations.regions {
             region.form = region.form.bind_inputs(&point)?;
         }
-        let unique = outputs
-            .iter()
-            .copied()
-            .collect::<std::collections::BTreeSet<_>>();
-        if outputs.is_empty() || unique.len() != outputs.len() {
-            return Err(invalid(
-                "spatial outputs require nonempty distinct selections",
-            ));
-        }
-        let mut selected_fields = Vec::new();
-        for &output in outputs {
-            if self.fields().any(|(field, _)| field.erase() == output) {
-                selected_fields.push(output);
-            } else if !matches!(
-                self.kernel().node(output),
-                Some(eqiora_schema::kernel::KernelNode::Observable(_))
-            ) {
-                return Err(invalid(
-                    "spatial output is not an exact Plan Field or Model Observable",
-                ));
-            }
-        }
+        let selected_fields = self.differentiation_output_fields(outputs)?;
         Ok(PreparedPoint {
             plan: self,
             time_interval: None,

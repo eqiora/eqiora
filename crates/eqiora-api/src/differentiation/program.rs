@@ -278,7 +278,14 @@ fn accept_plan_point(
         return plan
             .as_spatial()
             .ok_or_else(|| invalid("Run differentiation requires its spatial Plan"))?
-            .differentiate_trajectory(request.native(), selected, values, outputs, backend)
+            .differentiate_trajectory(
+                request.native(),
+                selected,
+                values,
+                outputs,
+                quadratures,
+                backend,
+            )
             .map(|trajectory| NativeEvaluation::Trajectory(Box::new(trajectory)));
     }
     match plan {

@@ -48,13 +48,15 @@ def compile(
     Array or no-transfer CPU DLPack producer. Tangents and cotangents use the same ordered leaf structure,
     bound to the input and output signatures respectively. Finite nonlinear Plans require
     their initial ``state``; ``outputs`` selects ordered exact Field or Observable
-    references. Static spatial Plans select ordered complete real/complex Fields
+    references. Spatial Plans select ordered complete real/complex Fields
     and reduced Observables, while retaining the complete coupled solve. Spatial
     integrals require explicit ``quadrature_points``; the resulting rules belong
     to the immutable Program and its saved identity.
     Spatial backward-Euler Plans take the ordinary Run controls: ``state`` and
     either ``steps``/``output_steps`` or ``until_s``/``output_times_s``. Complete
-    Field outputs carry a leading physical-time axis, even for one sample.
+    Fields and reduced Observable outputs carry a leading physical-time axis,
+    even for one sample. Observables use the accepted endpoint time and retain
+    direct Parameter terms as well as the solved Field response.
     Parameter changes hold the initial physical State fixed; derivatives propagate
     through all accepted steps, including unobserved intermediate steps. Maps and
     saved collections retain the same request, and reopen every accepted candidate

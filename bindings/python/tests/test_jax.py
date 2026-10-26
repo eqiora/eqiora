@@ -774,14 +774,13 @@ def test_fixed_history_spatial_step_composes_with_jit_products_and_map(
 
 @pytest.mark.parametrize("nonlinear", [False, True])
 @pytest.mark.parametrize("complex_field", [False, True])
-def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_field, nonlinear):
-    from test_spatial_step_program import step_plan, trajectory_reference
+@pytest.mark.parametrize("observable_output", [None, "total", "amount"])
+def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_field, nonlinear, observable_output):
+    from test_spatial_step_program import trajectory_program, trajectory_reference
 
-    plan, parameter = step_plan(nonlinear, complex_field)
-    program = eqiora.diff.compile(plan, inputs=(parameter,), outputs=(plan.fields[0],),
-        state=eqiora.State.initial(plan, time_s=0.), steps=3, output_steps=(1, 3))
+    program = trajectory_program(nonlinear, complex_field, observable_output)
     solve = eqjax.bind(program)
-    expected, derivative = trajectory_reference(4., nonlinear, complex_field)
+    expected, derivative = trajectory_reference(4., nonlinear, complex_field, observable_output)
     point = (jnp.asarray(4., dtype=jnp.float64),)
     operation = jax.jit(solve)
     output, tangent = jax.jvp(operation, (point,), ((jnp.asarray(1., dtype=jnp.float64),),))
@@ -790,10 +789,10 @@ def test_spatial_trajectory_keeps_temporal_and_batch_axes_under_jit(complex_fiel
     gradient = jax.jit(jax.grad(lambda p: jnp.real(jnp.sum(solve((p,))[0]))))(point[0])
     np.testing.assert_allclose(gradient, derivative.real.sum(), rtol=0, atol=1e-10)
     mapped = jax.jit(jax.vmap(lambda p: solve((p,))[0]))(jnp.array([2.,4.,4.]))
-    assert mapped.shape == (3, 2, 3)
+    assert mapped.shape == ((3, 2, 3) if observable_output is None else (3, 2))
     np.testing.assert_allclose(mapped[1], output[0], rtol=0, atol=1e-10)
     points = jnp.array([[2., 4., 4.], [4., 2., 4.]], dtype=jnp.float64).T
-    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field)[1].real.sum()
+    expected_gradients = np.array([[trajectory_reference(float(p), nonlinear, complex_field, observable_output)[1].real.sum()
                                    for p in row] for row in points])
     def loss(p):
         return jnp.real(jnp.sum(solve((p,))[0]))

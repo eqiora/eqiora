@@ -44,15 +44,16 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationTrajectory, Diagnostic> {
         self.validate_trajectory_differentiation_request(request, outputs)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .solve_trajectory(equations, request, backend),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .solve_trajectory(equations, request, backend),
             _ => Err(invalid(
                 "trajectory differentiation requires exact spatial equations",
@@ -76,6 +77,7 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         outputs: &[eqiora_core::RawId],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         candidates: &[Vec<f64>],
     ) -> Result<Vec<CommonDifferentiationLinearization>, Diagnostic> {
         self.validate_trajectory_differentiation_request(request, outputs)?;
@@ -86,10 +88,10 @@ impl CommonSpatialPlan {
         }
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .accept_trajectory(equations, request, candidates),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_parameter_point(equations, selected, values, outputs, &HashMap::new())?
+                .prepare_parameter_point(equations, selected, values, outputs, quadratures)?
                 .accept_trajectory(equations, request, candidates),
             _ => Err(invalid(
                 "trajectory acceptance requires exact spatial equations",

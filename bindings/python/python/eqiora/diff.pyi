@@ -47,8 +47,10 @@ def compile(
     shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
     Spatial backward-Euler Programs bind the complete Run request and initial State.
-    Outputs have a leading physical-time axis; derivatives propagate through every
-    accepted step, independently of the output schedule.
+    Fields and reduced Observables have a leading physical-time axis; derivatives
+    propagate through every accepted step, independently of the output schedule.
+    Observables retain endpoint Time and direct Parameter dependence. Spatial
+    integrals use the same explicit quadrature rules as stationary Programs.
 
     Authority: ``bindings/python/python/eqiora/diff.py::compile``.
     """
