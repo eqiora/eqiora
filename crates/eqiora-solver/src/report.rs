@@ -474,6 +474,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearSolution<S> {
         values: Vec<S>,
         execution: &dyn ReplicatedLinearExecution<S>,
     ) -> Result<LinearSolution<S>, Diagnostic> {
+        problem.require_candidate_check_execution(execution.report())?;
         execution.require_reduction(plan.reduction())?;
         crate::LinearSolution::accept_with_verifier(
             problem,
@@ -556,9 +557,11 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
 
     /// Independently verify a backend-produced solution using admitted buffers.
     ///
-    /// This is the allocation-free execution counterpart of
+    /// With no method-owned check, this is the allocation-free execution counterpart of
     /// [`crate::LinearSolution::accept_with_verifier`]. It is intended for transports
     /// that must prove all dynamic workspace exists before communication begins.
+    /// An optional method check is admitted only on exact host-serial execution
+    /// and may allocate its own physical-assessment workspace.
     ///
     /// # Errors
     /// Returns the same diagnostics as [`crate::LinearSolution::accept_with_verifier`],
@@ -577,6 +580,8 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
         values: Vec<S>,
         verifier: &dyn ReplicatedLinearExecution<S>,
     ) -> Result<LinearSolution<S>, Diagnostic> {
+        problem.require_candidate_check_execution(execution)?;
+        problem.require_candidate_check_execution(verifier.report())?;
         verifier.require_reduction(ReductionPolicy::Reproducible)?;
         if values.len() != problem.operator().columns() {
             return Err(solve_failed(format!(
@@ -613,6 +618,11 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
             true_residual_norm,
             residual_target,
         )?;
+        if !problem.candidate_is_accepted(&values)? {
+            return Err(solve_failed(
+                "linear candidate did not satisfy method-owned acceptance",
+            ));
+        }
         LinearSolution::new(values, report)
     }
 }

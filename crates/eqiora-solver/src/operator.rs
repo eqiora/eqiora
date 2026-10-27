@@ -154,6 +154,15 @@ pub struct LinearProblem<'a, S = f64> {
     initial_guess: Option<&'a [S]>,
     properties: LinearOperatorProperties,
     canonical_csr_system: Option<&'a CanonicalCsrSystemView<S>>,
+    candidate_check: Option<CandidateCheck<'a, S>>,
+}
+
+struct CandidateCheck<'a, S>(&'a (dyn Fn(&[S]) -> Result<bool, Diagnostic> + Sync));
+
+impl<S> std::fmt::Debug for CandidateCheck<'_, S> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("method-owned candidate check")
+    }
 }
 
 impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
@@ -196,6 +205,7 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
             initial_guess: None,
             properties,
             canonical_csr_system: None,
+            candidate_check: None,
         })
     }
 
@@ -236,6 +246,64 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         }
         self.initial_guess = Some(initial_guess);
         Ok(self)
+    }
+
+    /// Attach an additional method-owned acceptance check for this primal candidate.
+    ///
+    /// This is a host-serial check. The check must be deterministic and read-only. `false` means that the
+    /// candidate is not yet accepted; errors retain structural/domain failures.
+    /// It does not replace the original true-residual contract, change the exact
+    /// solver controls, reset an iteration budget, or authorize another provider.
+    /// The borrowing caller owns recovery into physical coordinates. Derivative
+    /// right-hand sides must not inherit a primal-coordinate check. It is not serialized.
+    #[must_use]
+    pub fn with_candidate_check(
+        mut self,
+        check: &'a (dyn Fn(&[S]) -> Result<bool, Diagnostic> + Sync),
+    ) -> Self {
+        self.candidate_check = Some(CandidateCheck(check));
+        self
+    }
+
+    pub(crate) fn has_candidate_check(&self) -> bool {
+        self.candidate_check.is_some()
+    }
+
+    /// Admit the optional method check before execution or verification work.
+    /// Direct backend implementations must call this with their actual execution.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` for an attached check outside exact host-serial execution.
+    pub fn require_candidate_check_execution(
+        &self,
+        execution: crate::ExecutionReport,
+    ) -> Result<(), Diagnostic> {
+        if self.candidate_check.is_some() && execution != crate::ExecutionReport::host_serial() {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "method-owned candidate checks require exact host-serial execution",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Assess the additional method criterion; absence accepts this criterion only.
+    /// The caller must still establish the original true-residual contract.
+    ///
+    /// # Errors
+    /// Rejects malformed/nonfinite coordinates and propagates method-owned
+    /// structural/domain diagnostics separately from numerical non-convergence.
+    pub fn candidate_is_accepted(&self, values: &[S]) -> Result<bool, Diagnostic> {
+        if values.len() != self.operator.columns() || values.iter().any(|value| !value.is_finite())
+        {
+            return Err(solve_failed(
+                "candidate check requires complete finite coordinates",
+            ));
+        }
+        match &self.candidate_check {
+            Some(check) => (check.0)(values),
+            None => Ok(true),
+        }
     }
 
     /// Operator action.

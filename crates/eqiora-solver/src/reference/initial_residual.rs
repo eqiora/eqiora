@@ -32,7 +32,14 @@ pub(super) fn initial_residual<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     let right_hand_side_norm = FixedOrderInnerProduct::norm(execution, problem.right_hand_side())?;
     let target = plan.residual_target(right_hand_side_norm)?;
     let initial_residual_norm = FixedOrderInnerProduct::norm(execution, &residual)?;
-    let accepted_report = if initial_residual_norm <= target {
+    let candidate_accepted =
+        initial_residual_norm <= target && problem.candidate_is_accepted(&solution)?;
+    if initial_residual_norm == 0. && !candidate_accepted {
+        return Err(solve_failed(
+            "method-owned acceptance rejected a zero linear residual",
+        ));
+    }
+    let accepted_report = if candidate_accepted {
         Some(SolveReport::accepted(
             provider,
             execution.provider(),

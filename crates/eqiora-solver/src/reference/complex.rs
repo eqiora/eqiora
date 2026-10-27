@@ -25,6 +25,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
+        problem.require_candidate_check_execution(execution.report())?;
         self.capabilities().require_problem(
             plan,
             problem.scalar_domain(),
@@ -58,6 +59,20 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         let block = source
             .real_coordinate_system(problem.operator().orientation(), problem.right_hand_side())?;
         let mut block_problem = block.linear_problem()?;
+        // Lower only coordinates: the method still assesses physical complex
+        // candidates and the real recurrence retains the original total budget.
+        let candidate_check = |values: &[f64]| {
+            let values = values
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| Complex64::new(pair[0], pair[1]))
+                .collect::<Vec<_>>();
+            problem.candidate_is_accepted(&values)
+        };
+        if problem.has_candidate_check() {
+            block_problem = block_problem.with_candidate_check(&candidate_check);
+        }
         let initial = problem.initial_guess().map(pack);
         if let Some(initial) = &initial {
             block_problem = block_problem.with_initial_guess(initial)?;
