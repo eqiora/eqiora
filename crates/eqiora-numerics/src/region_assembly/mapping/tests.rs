@@ -1,3 +1,4 @@
+mod constraints;
 mod nonlinear;
 mod primal_reactions;
 
@@ -265,6 +266,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                 )
             })
             .collect::<Vec<_>>();
+        constraints::check_stationary(&mesh, &mapping, &forms, count);
         nonlinear::check_stationary(&mesh, &mapping, &forms, count);
         let cells = (0..2 * count)
             .map(|index| RegionAssemblyCell {
