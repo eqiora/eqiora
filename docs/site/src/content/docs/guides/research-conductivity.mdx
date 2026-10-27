@@ -168,9 +168,18 @@ its normalization is fitted only to accepted training calibration rows. Native
 collection bytes remain authoritative. No derivative targets or surrogate accuracy
 are claimed by this dataset.
 
-## Inspect failure and retry
+## Run an ordered study, inspect failure and retry
 
-The example deliberately requests `log_k_left=1000`. Eqiora reports `EQ0505`,
+The development recipe uses `EvaluationMapPlan.from_parameters` for ordinary
+stationary Runs, selecting the original Model's `log_k`, `heating` and
+`right_temperature` Parameters. Its ordered points are the command-line baseline,
+a changed case with conductivities $(1.5,4.5)$, heating 40 and right temperature
+302 K, the baseline again, an invalid input, and the changed case again. Each
+accepted occurrence retains its own exact Plan and typed temperature Field.
+This ordinary-Run extension requires a candidate containing `from_parameters`;
+the package version alone does not prove that the extension is present.
+
+The invalid point deliberately requests `log_k_left=1000`. Eqiora reports `EQ0505`,
 “unary mathematics produced a nonfinite result”. Inspect the saved collection:
 
 ```python
@@ -183,13 +192,22 @@ for group in history:
               [(d.code, d.message) for d in member.diagnostics])
 ```
 
-The first group contains `accepted`, `failed`, `not_started`. An exact retry
-requests only the two unsuccessful occurrences and still fails at the invalid
-point. A third execution explicitly corrects that point to $(2,5)$ and evaluates
-the previously unstarted duplicate. It is a **changed request**, with a new input
-identity and new execution occurrences. The initial successful member remains
-unchanged. This example uses common native maps and collection combination;
-it does not supply a separate study scheduler or generic retry API.
+The first group contains three `accepted` occurrences, then `failed` and
+`not_started`. The duplicate baseline stays a separate occurrence. An exact retry
+reads the selected Parameters and two unsuccessful points from the reopened group;
+it still fails at the invalid point. A third execution explicitly restores that
+point's conductivity to the command-line baseline (default $(2,5)$) and evaluates
+the previously unstarted changed case. It is a **changed request**, with a new
+input identity and new execution occurrences. All three initially accepted
+members retain their exact bytes and occurrence identities.
+
+`summary.json` exposes this group as `ordered_parameter_study`: Parameter IDs,
+ordered physical input values, statuses and diagnostics, each accepted Plan
+identity, and nodal temperatures in K. `--reopen` projects the same information
+without solving. The dataset and inverse derivative calculations still use their
+existing differentiable maps; the ordinary study does not change their accepted
+targets. This uses the common map and collection owners, without a separate study
+scheduler or generic retry API.
 
 If a multi-load objective fails, its `IncompleteEvaluation` exception retains
 `exception.collection` for inspection. No partial objective or training statistic
