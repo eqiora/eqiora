@@ -131,7 +131,8 @@ Real Jacobi MINRES adds numeric setup `3Fn` and per-solve work
 `5n+4nk+nk(k+1)+k(k+1)(2k+1)/6` to `M`: declared weights for initial scaling/norm,
 `W A W`, correction recovery and repeated projected triangular solves. It counts
 original-residual acceptance `Hk(2z+5n)` across the horizon. The other listed
-methods add `H(2z+5n)` for acceptance. Complex Reference CG/MINRES estimates stay
+methods add `H(2z+5n)` as a final independent acceptance allowance. These
+scoring weights do not count every intermediate provider callback or executed action. Complex Reference CG/MINRES estimates stay
 unknown; these real MINRES formulas do not model realification.
 All arithmetic is checked; missing dimensions or overflow stay unknown. These
 are declared ranking units, not a FLOP, timing, convergence or optimality claim.
