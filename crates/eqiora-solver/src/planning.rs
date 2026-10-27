@@ -60,6 +60,10 @@ const REFERENCE_COMPLEX_SYMMETRIC_ID: &str =
     "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64";
 const REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID: &str =
     "eqiora.reference.bicgstab-complex-symmetric-jacobi-reproducible-complex-f64";
+const REFERENCE_HERMITIAN_MINRES_ID: &str =
+    "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64";
+const REFERENCE_HPD_MINRES_ID: &str =
+    "eqiora.reference.minres-hpd-identity-reproducible-complex-f64";
 const REFERENCE_HERMITIAN_ID: &str =
     "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64";
 const REFERENCE_HERMITIAN_JACOBI_ID: &str =
@@ -788,11 +792,13 @@ fn catalog_ids(
             FAER_COMPLEX_SYMMETRIC_LU_ID,
         ],
         (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[
+            REFERENCE_HERMITIAN_MINRES_ID,
             REFERENCE_HERMITIAN_ID,
             REFERENCE_HERMITIAN_JACOBI_ID,
             FAER_HERMITIAN_LU_ID,
         ],
         (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => &[
+            REFERENCE_HPD_MINRES_ID,
             REFERENCE_HPD_ID,
             REFERENCE_HPD_JACOBI_ID,
             REFERENCE_HPD_BICGSTAB_ID,

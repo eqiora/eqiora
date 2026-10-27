@@ -5,11 +5,11 @@ import pytest
 import eqiora
 
 
-def linear():
+def linear(*, preconditioner=eqiora.solve.Preconditioner.Identity):
     return eqiora.solve.Linear(
         relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
         algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
-        preconditioner=eqiora.solve.Preconditioner.Identity,
+        preconditioner=preconditioner,
         reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
     )
 
@@ -128,16 +128,17 @@ def test_observable_domain_errors_do_not_silently_project_or_promote(expression)
         result.observe(model.observable("output"))
 
 
-@pytest.mark.parametrize(("solve", "provider"), [
-    (linear(), eqiora.solve.SolverProvider.reference()),
+@pytest.mark.parametrize(("solve", "provider", "preconditioner"), [
+    (linear(), eqiora.solve.SolverProvider.reference(), "identity"),
+    (linear(preconditioner=eqiora.solve.Preconditioner.Jacobi), eqiora.solve.SolverProvider.reference(), "jacobi"),
     (eqiora.solve.Linear(
         relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
         algorithm=eqiora.solve.LinearSolver.SparseLu,
         preconditioner=eqiora.solve.Preconditioner.Identity,
         reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
-    ), eqiora.solve.SolverProvider.faer()),
+    ), eqiora.solve.SolverProvider.faer(), "identity"),
 ])
-def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay(solve, provider):
+def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay(solve, provider, preconditioner):
     model = eqiora.compile(source="""model M(){
         variable z:array<complex<1>,2>;
         relation r{
@@ -149,6 +150,10 @@ def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay
     }""")
     plan, result = run(model, solve=solve)
     assert plan.solve.backend == provider.id
+    assert plan.solve.preconditioner == preconditioner
+    assert plan.solve.maximum_iterations == 8
+    assert plan.solve.relative_tolerance == 1e-13
+    assert plan.solve.absolute_tolerance == 1e-15
     assert result.observe(model.observable("first")).value == pytest.approx(1+2j, abs=1e-10)
     assert result.observe(model.observable("second")).value == pytest.approx(-2+1j, abs=1e-10)
 

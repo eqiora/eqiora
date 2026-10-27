@@ -36,6 +36,8 @@ listed here.
   previous Plan schemas are rejected rather than migrated.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
+  Identity MINRES admits complex Hermitian/HPD through the existing realification,
+  with the original iteration budget and final typed residual acceptance.
   Unknown-shape Fast planning keeps sparse LU first, then CG/MINRES before BiCGSTAB
   among iterative fallbacks after reduction priority.
 

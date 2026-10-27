@@ -7172,6 +7172,23 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.reference",
+            "implementation_version": "0.1.4",
+            "libraries": []
+          },
+          "tuple": {
+            "algorithm": "MinimumResidual",
+            "operator_properties": "Hermitian",
+            "preconditioner": "Identity",
+            "reduction": "Reproducible",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -7243,14 +7260,26 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.robust-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.robust-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": null,
@@ -7283,6 +7312,18 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64"
@@ -7313,14 +7354,26 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.low-memory-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": true,
@@ -7348,7 +7401,7 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.robust-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
@@ -7361,9 +7414,21 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.robust-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": true,
@@ -7404,6 +7469,18 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64"
@@ -7434,7 +7511,7 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
@@ -7447,9 +7524,21 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.low-memory-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         }
       ],
       "properties": "Hermitian",
@@ -7504,14 +7593,26 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.robust-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.robust-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": null,
@@ -7531,14 +7632,26 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.fast-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.fast-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": null,
@@ -7558,14 +7671,26 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.low-memory-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": true,
@@ -7585,7 +7710,7 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.robust-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
@@ -7598,9 +7723,21 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.robust-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": true,
@@ -7620,7 +7757,7 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.fast-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
@@ -7633,9 +7770,21 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.fast-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         },
         {
           "complete_diagonal": true,
@@ -7655,7 +7804,7 @@
             ],
             [
               "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
@@ -7668,9 +7817,21 @@
             [
               "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
+              "candidate.selected.low-memory-preference"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64"
         }
       ]
     },
@@ -7778,6 +7939,23 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.reference",
+            "implementation_version": "0.1.4",
+            "libraries": []
+          },
+          "tuple": {
+            "algorithm": "MinimumResidual",
+            "operator_properties": "HermitianPositiveDefinite",
+            "preconditioner": "Identity",
+            "reduction": "Reproducible",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -7870,6 +8048,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -7921,6 +8111,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64"
@@ -7972,6 +8174,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8039,6 +8253,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8106,6 +8332,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64"
@@ -8172,6 +8410,18 @@
             ],
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
               "candidate.not-selected"
             ]
           ],
@@ -8251,6 +8501,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8294,6 +8556,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8337,6 +8611,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8396,6 +8682,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8455,6 +8753,18 @@
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
               "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
@@ -8513,6 +8823,18 @@
             ],
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
               "candidate.not-selected"
             ]
           ],
@@ -8934,6 +9256,7 @@
           "ordered_values": [
             "BiConjugateGradientStabilized",
             "ConjugateGradient",
+            "MinimumResidual",
             "SparseLu"
           ]
         },
