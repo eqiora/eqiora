@@ -133,16 +133,13 @@ fn structural_errors_and_zero_residual_rejection_do_not_become_success() {
     }
 }
 #[derive(Debug)]
-struct ForbiddenExecution;
+struct ForbiddenExecution(ExecutionReport);
 impl ReplicatedLinearExecution for ForbiddenExecution {
     fn provider(&self) -> eqiora_solver::ExecutionProvider {
         SERIAL_EXECUTION_PROVIDER
     }
     fn report(&self) -> ExecutionReport {
-        ExecutionReport::host(
-            ExecutionId::new("test.parallel"),
-            NonZeroUsize::new(2).unwrap(),
-        )
+        self.0
     }
     fn require_reduction(&self, _: ReductionPolicy) -> Result<(), Diagnostic> {
         panic!("reduction admission must not run")
@@ -161,14 +158,29 @@ impl ReplicatedLinearExecution for ForbiddenExecution {
 }
 #[test]
 fn admission_rejects_actual_producer_and_verifier_before_execution() {
+    for report in [
+        ExecutionReport::distributed(ExecutionId::new("test.distributed"), NonZeroUsize::MIN),
+        ExecutionReport::cuda(ExecutionId::new("test.cuda"), 0),
+    ] {
+        check_forbidden_execution(&ForbiddenExecution(report));
+    }
+}
+
+fn check_forbidden_execution(forbidden: &ForbiddenExecution) {
     let check = |_: &[f64]| -> Result<bool, Diagnostic> { panic!("callback must not run") };
     let problem = LinearProblem::new(&Diagonal, &[0., 0.], LinearOperatorProperties::General)
         .unwrap()
         .with_candidate_check(&check);
+    problem
+        .require_candidate_check_execution(ExecutionReport::host(
+            ExecutionId::new("test.parallel"),
+            NonZeroUsize::new(4).unwrap(),
+        ))
+        .unwrap();
     let policy = plan(LinearSolver::BiConjugateGradientStabilized);
     assert_eq!(
         REFERENCE_LINEAR_SOLVER
-            .solve_with_execution(&problem, policy, &ForbiddenExecution)
+            .solve_with_execution(&problem, policy, forbidden)
             .unwrap_err()
             .code(),
         codes::INVALID_REALIZATION
@@ -182,7 +194,7 @@ fn admission_rejects_actual_producer_and_verifier_before_execution() {
             1,
             0.,
             vec![0., 0.],
-            &ForbiddenExecution
+            forbidden
         )
         .unwrap_err()
         .code(),
@@ -190,10 +202,10 @@ fn admission_rejects_actual_producer_and_verifier_before_execution() {
     );
     for (producer, verifier) in [
         (
-            ForbiddenExecution.report(),
+            forbidden.report(),
             &SERIAL_LINEAR_EXECUTION as &dyn ReplicatedLinearExecution,
         ),
-        (ExecutionReport::host_serial(), &ForbiddenExecution),
+        (ExecutionReport::host_serial(), forbidden),
     ] {
         assert_eq!(
             eqiora_solver::LinearSolution::accept_with_verifier(

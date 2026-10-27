@@ -275,7 +275,9 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     /// Attach an additional method-owned acceptance check for this primal candidate.
     ///
-    /// This is a host-serial check. The check must be deterministic and read-only. `false` means that the
+    /// This host-local check runs synchronously on the solver coordinator after
+    /// execution actions have joined, never inside a parallel row task. The
+    /// check must be deterministic and read-only. `false` means that the
     /// candidate is not yet accepted; errors retain structural/domain failures.
     /// It does not replace the original true-residual contract, change the exact
     /// solver controls, reset an iteration budget, or authorize another provider.
@@ -300,15 +302,17 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     /// Direct backend implementations must call this with their actual execution.
     ///
     /// # Errors
-    /// Returns `EQ0807` for an attached check outside exact host-serial execution.
+    /// Returns `EQ0807` for an attached check outside host-local execution.
     pub fn require_candidate_check_execution(
         &self,
         execution: crate::ExecutionReport,
     ) -> Result<(), Diagnostic> {
-        if self.candidate_check.is_some() && execution != crate::ExecutionReport::host_serial() {
+        if self.candidate_check.is_some()
+            && !matches!(execution.topology(), crate::ExecutionTopology::Host { .. })
+        {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
-                "method-owned candidate checks require exact host-serial execution",
+                "method-owned candidate checks require host-local execution",
             ));
         }
         Ok(())
