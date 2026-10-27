@@ -2,6 +2,8 @@
 
 from ._eqiora import (
     Linear,
+    SolverCost,
+    SolverCandidateCost,
     HermitianEigen,
     EigenPlanView,
     EigenCoordinateMap,
@@ -33,6 +35,8 @@ __all__ = [
     "Fast",
     "LowMemory",
     "Linear",
+    "SolverCost",
+    "SolverCandidateCost",
     "HermitianEigen",
     "EigenPlanView",
     "EigenCoordinateMap",

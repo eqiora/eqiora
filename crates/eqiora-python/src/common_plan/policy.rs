@@ -324,7 +324,7 @@ impl PyLinear {
 #[pymethods]
 impl PyLinear {
     #[new]
-    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations, objective=None, algorithm=None, preconditioner=None, reduction=None, provider=None))]
+    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations, objective=None, algorithm=None, preconditioner=None, reduction=None, provider=None, cost=None))]
     #[allow(
         clippy::too_many_arguments,
         reason = "one explicit exact tuple or ranked objective accompanies common controls"
@@ -339,6 +339,7 @@ impl PyLinear {
         preconditioner: Option<PyPreconditioner>,
         reduction: Option<PyReduction>,
         provider: Option<PySolverProvider>,
+        cost: Option<super::cost::PySolverCost>,
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
@@ -352,7 +353,15 @@ impl PyLinear {
             }
             _ => return Err(PyTypeError::new_err("Linear requires either objective or the complete exact algorithm, preconditioner, reduction, provider tuple; mixed and incomplete intent is invalid")),
         }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let native = cost.map_or(native, |cost| native.with_cost(cost.native));
         Ok(Self { native })
+    }
+
+    #[getter]
+    fn cost(&self) -> Option<super::cost::PySolverCost> {
+        self.native
+            .cost()
+            .map(|native| super::cost::PySolverCost { native })
     }
 
     #[getter]
@@ -408,6 +417,7 @@ impl PyLinear {
         self.absolute_tolerance().to_bits().hash(&mut hasher);
         self.maximum_iterations().hash(&mut hasher);
         self.objective().hash(&mut hasher);
+        self.native.cost().hash(&mut hasher);
         self.algorithm().hash(&mut hasher);
         self.preconditioner().hash(&mut hasher);
         self.reduction().hash(&mut hasher);

@@ -265,6 +265,8 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
     use eqiora_solver::PreparedLinearSolver;
     let mut checked = ProfileCheckedPreparedLinear {
         prepared: Box::new(UnexecutedPrepared),
+        plan: policy().solver,
+        provider: policy().provider,
         profile: Some(HostSerialSolverProfile::general_canonical_csr()),
     };
     let structure =
@@ -294,6 +296,7 @@ fn automatic_complex_provenance_survives_parameter_domain_rebinding() {
     let original = super::super::solver_planning::resolve_complex_linear(
         request,
         LinearOperatorProperties::General,
+        None,
         None,
         None,
         None,

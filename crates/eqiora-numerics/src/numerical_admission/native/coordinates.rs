@@ -47,26 +47,33 @@ impl RecognizedNativeAdmission {
         scaling: &eqiora_realization::SystemScaling,
         nonlinear: Option<NonlinearSolvePlan>,
         temporal: Option<&CommonTemporalPolicy>,
-    ) -> Result<(LinearOperatorProperties, Option<bool>), Diagnostic> {
+    ) -> Result<
+        (
+            LinearOperatorProperties,
+            Option<bool>,
+            Option<eqiora_solver::SolverPlanningSize>,
+        ),
+        Diagnostic,
+    > {
         let properties = self.form_operator_properties(spatial, nonlinear)?;
         if nonlinear.is_some() || temporal.is_some() || spatial.scalar_constraint().is_some() {
-            return Ok((properties, None));
+            return Ok((properties, None, None));
         }
         let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
-            return Ok((properties, None));
+            return Ok((properties, None, None));
         };
         if equations
             .regions
             .iter()
             .any(|region| region.form.is_transient())
         {
-            return Ok((properties, None));
+            return Ok((properties, None, None));
         }
         let selected = self.discretizations(spatial)?;
         let fields = equations.q1_diffusion_fields(&self.resources, &selected, scaling)?;
         let diagonal = request.is_some_and(super::super::solver_planning::requests_diagonal);
         if fields.is_none() && !diagonal {
-            return Ok((properties, None));
+            return Ok((properties, None, None));
         }
         // General admits assembly without assuming the property being proved.
         // The same prepared map/input supplies both energy and diagonal facts.
@@ -127,8 +134,8 @@ impl RecognizedNativeAdmission {
         } else {
             (properties, None)
         };
-        if !diagonal {
-            return Ok((properties, None));
+        if !diagonal && assembled.is_none() {
+            return Ok((properties, None, None));
         }
         let reduced = if let Some(reduced) = assembled {
             reduced
@@ -154,6 +161,10 @@ impl RecognizedNativeAdmission {
             Some(super::super::solver_planning::complete_diagonal(
                 &canonical,
             )?),
+            Some(eqiora_solver::SolverPlanningSize::exact(
+                canonical.rows(),
+                canonical.column_indices().len(),
+            )),
         ))
     }
 

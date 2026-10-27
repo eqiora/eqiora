@@ -29,6 +29,11 @@ impl NativeLinearPolicy {
             profile.require_plan(self.solver)?;
             profile.require_structure(structure)?;
             profile.require_problem(&system.linear_problem()?)?;
+            profile.require_problem_resources(
+                self.solver,
+                self.provider,
+                &system.linear_problem()?,
+            )?;
         } else if structure.is_some() {
             return Err(invalid("typed algebraic structure lacks solver admission"));
         }

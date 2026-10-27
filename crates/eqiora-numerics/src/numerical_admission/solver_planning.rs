@@ -12,19 +12,19 @@ pub(crate) fn resolve_linear(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
+    size: Option<eqiora_solver::SolverPlanningSize>,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
-    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+    let profile = planning_profile(
+        request,
         properties,
         complete_diagonal,
+        size,
         required_reduction,
-    );
-    let profile = match structure {
-        Some(structure) => profile.with_structure(structure)?,
-        None => profile,
-    };
+        structure,
+    )?;
     resolve_typed_linear(
         request,
         properties,
@@ -32,6 +32,43 @@ pub(crate) fn resolve_linear(
         &REFERENCE_LINEAR_SOLVER,
         Some(supplied_backend),
     )
+}
+
+fn planning_profile(
+    request: CommonLinearRequest,
+    properties: LinearOperatorProperties,
+    complete_diagonal: Option<bool>,
+    size: Option<eqiora_solver::SolverPlanningSize>,
+    required_reduction: Option<ReductionPolicy>,
+    structure: Option<eqiora_solver::AlgebraicStructure>,
+) -> Result<eqiora_solver::HostSerialSolverProfile, Diagnostic> {
+    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+        properties,
+        complete_diagonal,
+        required_reduction,
+    );
+    let profile = match size {
+        Some(size) => profile.with_size(size),
+        None => profile,
+    };
+    let profile = match request.cost() {
+        Some(cost) => {
+            // No current common admission owner supplies a known retained preparation horizon.
+            // A forecast is not authority to amortize setup across independent Runs/solves.
+            if cost.structures() != cost.solves() || cost.numeric_preparations() != cost.solves() {
+                return Err(invalid(
+                    "common cost planning has no admitted retained preparation horizon; count each preparation independently",
+                ));
+            }
+            profile.with_cost_request(cost)
+        }
+        None => profile,
+    };
+    let profile = match structure {
+        Some(structure) => profile.with_structure(structure)?,
+        None => profile,
+    };
+    Ok(profile)
 }
 
 fn resolve_typed_linear<S>(
@@ -50,7 +87,10 @@ where
         backend
             .capabilities()
             .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
+        profile.require_resources(plan, backend.provider(), S::DOMAIN, S::STORAGE)?;
         let mut selected = NativeLinearPolicy::exact(plan, backend)?;
+        selected.planning_costs =
+            vec![profile.estimate_cost("manual", plan, backend.provider(), S::DOMAIN, S::STORAGE)];
         selected.planning_profile = Some(profile);
         return Ok(selected);
     }
@@ -101,19 +141,19 @@ pub(super) fn resolve_complex_linear(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
+    size: Option<eqiora_solver::SolverPlanningSize>,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
-    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+    let profile = planning_profile(
+        request,
         properties,
         complete_diagonal,
+        size,
         required_reduction,
-    );
-    let profile = match structure {
-        Some(structure) => profile.with_structure(structure)?,
-        None => profile,
-    };
+        structure,
+    )?;
     let reference = typed_complex(&REFERENCE_LINEAR_SOLVER)?
         .expect("reference implements complex linear solves");
     // Manual selection only needs the selected provider's implementation.
@@ -258,6 +298,7 @@ mod tests {
             Some(true),
             None,
             None,
+            None,
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -321,6 +362,7 @@ mod tests {
                 Some(false),
                 None,
                 None,
+                None,
                 &ResolveOnlySparseBackend,
             )
             .unwrap();
@@ -347,6 +389,7 @@ mod tests {
                 Some(true),
                 None,
                 None,
+                None,
                 &ResolveOnlySparseBackend
             )
             .unwrap_err()
@@ -365,6 +408,7 @@ mod tests {
                 Some(true),
                 None,
                 None,
+                None,
                 &ResolveOnlySparseBackend
             )
             .is_err()
@@ -380,6 +424,7 @@ mod tests {
                 jacobi,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(false),
+                None,
                 None,
                 None,
                 &ResolveOnlySparseBackend

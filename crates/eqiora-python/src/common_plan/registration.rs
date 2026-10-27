@@ -16,6 +16,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCellCentered>()?;
     module.add_class::<PySolverPlanningObjective>()?;
     module.add_class::<PyLinear>()?;
+    module.add_class::<PySolverCost>()?;
+    module.add_class::<PySolverCandidateCost>()?;
     module.add_class::<enforcement::PyConstraintTolerance>()?;
     module.add_class::<enforcement::PyActiveSet>()?;
     module.add_class::<enforcement::PyStrictInterior>()?;
