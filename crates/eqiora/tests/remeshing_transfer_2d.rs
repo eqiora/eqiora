@@ -46,6 +46,21 @@ fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
 }
 
 #[test]
+fn faer_bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
+    let base = transfer_plan().solver();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        base.relative_tolerance(),
+        base.absolute_tolerance(),
+        base.maximum_iterations(),
+    )
+    .unwrap()
+    .with_preconditioner(base.preconditioner())
+    .with_reduction(ReductionPolicy::Fast);
+    run_remesh_target_continuation_and_replay(&FaerLinearSolver, transfer_plan_with_solver(plan));
+}
+
+#[test]
 fn sparse_lu_closes_remesh_target_continuation_and_trajectory_replay() {
     let base = transfer_plan().solver();
     let plan = SolverPlan::new(
