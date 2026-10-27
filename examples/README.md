@@ -47,5 +47,28 @@ states its mesh, discretization, solver, and placement choices explicitly.
 The [numerical simulation lessons](https://eqiora.org/learn/numerical-simulation/)
 explain how equations, discretization, and a numerical solve fit together.
 
+## Writing examples and tutorials
+
+Examples use the [standard packages](https://eqiora.org/reference/standard-packages/)
+by default. Import well-known equations and boundary conditions rather than
+re-deriving them. This applies to examples in this directory, gallery models,
+the README, Get started, and reference pages. If the standard library lacks a
+component an example needs, record the gap in
+[#1743](https://github.com/eqiora/eqiora/issues/1743) and do not hide it with a
+hand-written workaround. Examples that exist to show hand-written equations
+are the exception, such as `steady-cylinder-source`.
+
+Tutorials and Learn lessons say that both paths are supported:
+
+- import standard components;
+- write the equations directly; or
+- mix the two, for example by adding a custom boundary law to a standard Stokes body.
+
+Each Learn path includes at least one lesson that writes the same problem both
+ways and shows where to read a standard component's equations.
+
+Some existing examples predate this policy and still write their equations by
+hand. They move to the standard packages through #1743.
+
 The cylinder examples share one exact geometry. Their mesh approximates the
 circle with 50 chords, within a controlled boundary error.
