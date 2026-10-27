@@ -8,6 +8,9 @@ use faer::complex::Complex64;
 
 use crate::FaerLinearSolver;
 
+#[cfg(test)]
+mod krylov_tests;
+
 impl LinearSolverBackend<Complex64> for FaerLinearSolver {
     fn provider(&self) -> SolverProvider {
         Self::provider(self)
