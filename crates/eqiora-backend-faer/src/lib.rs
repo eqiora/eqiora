@@ -47,7 +47,7 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[ProviderLibrary::new("faer", FAER_VERSION)],
 );
 
-/// Stateless faer adapter for real CG/BiCGSTAB and real/complex sparse LU.
+/// Stateless faer adapter for real/complex CG, BiCGSTAB and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
 
@@ -62,31 +62,61 @@ impl FaerLinearSolver {
     #[must_use]
     pub fn capabilities(&self) -> SolverCapabilities {
         let mut combinations = Vec::new();
-        for (algorithm, operator_properties) in [
+        for (scalar_domain, algorithm, operator_properties) in [
             (
+                ScalarDomain::Real,
                 LinearSolver::ConjugateGradient,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::General,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::Symmetric,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricIndefinite,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::ConjugateGradient,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::General,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::ComplexSymmetric,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::Hermitian,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::HermitianPositiveDefinite,
             ),
         ] {
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 combinations.push(SolverCapability {
-                    scalar_domain: ScalarDomain::Real,
+                    scalar_domain,
                     algorithm,
                     operator_properties,
                     preconditioner,
@@ -475,7 +505,7 @@ mod tests {
 
     #[test]
     fn faer_does_not_infer_unverified_cross_product_tuples() {
-        let unsupported = plan(LinearSolver::BiConjugateGradientStabilized)
+        let unsupported = plan(LinearSolver::ConjugateGradient)
             .with_preconditioner(PreconditionerPolicy::Identity)
             .with_reduction(ReductionPolicy::Fast);
         let error = FaerLinearSolver
@@ -484,12 +514,12 @@ mod tests {
                 unsupported,
                 eqiora_core::ScalarDomain::Complex,
                 ScalarType::F64,
-                LinearOperatorProperties::General,
+                LinearOperatorProperties::ComplexSymmetric,
             )
             .unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
-        assert!(error.message().contains("BiConjugateGradientStabilized"));
+        assert!(error.message().contains("ConjugateGradient"));
         assert!(error.message().contains("Complex"));
         assert!(error.message().contains("exact"));
     }
