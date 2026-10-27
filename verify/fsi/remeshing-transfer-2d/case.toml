@@ -32,7 +32,7 @@ displacement = "absolute material-chart P1 L2 projection before target harmonic 
 velocity = "one coupled constrained projection; fluid in current spatial chart and solid in material chart"
 pressure = "absolute current-spatial P1 L2 projection without gauge recentering"
 target_execution = "ordinary finalized fixed-topology ALE FSI operator after the zero-time seam"
-transfer_policy = "exact five-by-five triangle Duffy quadrature and identity-preconditioned reproducible MINRES"
+transfer_policy = "exact five-by-five triangle Duffy quadrature; Identity preconditioning for SPD mass and symmetric-indefinite KKT projections; reference MINRES/BiCGSTAB Reproducible and Faer SparseLU Fast"
 normalization = "one typed L/U/P profile shared exactly by both Realizations and the transfer plan"
 
 [acceptance]
