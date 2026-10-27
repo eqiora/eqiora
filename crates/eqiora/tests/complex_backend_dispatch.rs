@@ -316,7 +316,7 @@ fn automatic_complex_program_keeps_selected_provider_for_forward_and_adjoint_pro
             &REFERENCE_LINEAR_SOLVER as &'static dyn LinearSolverBackend,
         ),
         (SolverPlanningObjective::Fast, &FaerLinearSolver),
-        (SolverPlanningObjective::LowMemory, &REFERENCE_LINEAR_SOLVER),
+        (SolverPlanningObjective::LowMemory, &FaerLinearSolver),
     ] {
         let request = CommonSolvePolicy::Linear(
             CommonLinearRequest::program_controlled(
