@@ -145,6 +145,7 @@ fn execute<const D: usize>(
         },
         NonZeroUsize::MIN,
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
+        None,
     )?;
     Ok(output.fields[&field]
         .coefficients

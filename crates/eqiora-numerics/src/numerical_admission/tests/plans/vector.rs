@@ -331,6 +331,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             &input,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
+            None,
         )
         .unwrap();
     let (_, unclassified) = equations
@@ -346,6 +347,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             &unclassified,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
+            None,
         )
         .err()
         .unwrap();

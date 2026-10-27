@@ -97,7 +97,9 @@ where
                 },
             )
         } else {
-            let solved = self.plan.solve_region_linear(mapping, input, request)?;
+            let solved = self
+                .plan
+                .solve_region_linear(mapping, input, request, None)?;
             let values = RegionRealCoordinates::new(mapping)?
                 .encode(&mapping.physical_predictor(&solved.fields)?)?;
             let linearization = self.linearize_step_values(

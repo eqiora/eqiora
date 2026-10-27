@@ -14,6 +14,7 @@ pub(crate) struct RegionSolveOutput<S: Coefficient> {
     pub(crate) fields: BTreeMap<RawId, RecoveredRegionField<S>>,
     pub(crate) solve_report: SolveReport,
     pub(crate) assembly_report: AssemblyReport,
+    pub(crate) residual_target: f64,
 }
 
 /// Dimension-independent view of the existing authenticated geometry action.
@@ -198,6 +199,14 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             work,
             packet_domains: _,
         } = self.prepare_numeric_assembly(mesh, input)?;
+        // Seal the actual packet maps through the existing assembly owner.
+        // Reading maps does not evaluate any numeric local contribution.
+        let plan = plan.prepare(
+            work.packets
+                .iter()
+                .map(|packet| packet.mappings.to_vec())
+                .collect(),
+        )?;
         let (mut systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
             .into_parts();
@@ -249,6 +258,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         input: &RegionSolveInput<S>,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, A>,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver<A>>,
     ) -> Result<RegionSolveOutput<S>, Diagnostic>
     where
         Self: RegionAlgebraicCoordinates<A, S>,
@@ -256,7 +266,17 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         let (core, assembly_report, _) =
             self.finalize_linear::<A>(mesh, input, workers, request.plan())?;
         let step = kinematic_step(&input.forms)?;
-        let solution = request.solve(&core.linear_problem()?)?;
+        let problem = core.linear_problem()?;
+        let residual_target = core.residual_target()?;
+        let solution = match prepared {
+            Some(prepared) => prepared.solve(
+                assembly_report.structure_identity().ok_or_else(|| {
+                    invalid("prepared Region solve requires its assembly structure identity")
+                })?,
+                &problem,
+            )?,
+            None => request.solve(&problem)?,
+        };
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
         let values = self.decode_coordinates(&values)?;
@@ -274,6 +294,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             fields,
             solve_report,
             assembly_report,
+            residual_target,
         })
     }
 }
