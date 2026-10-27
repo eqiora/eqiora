@@ -155,6 +155,69 @@ def test_common_run_cost_manual_controls_complete_run_counts_and_existing_oracle
     }, indent=2))
 
 
+@pytest.mark.parametrize("steps,outputs", [(1, (1,)), (5, (1, 5))])
+def test_common_run_cost_complete_auto_and_manual_alternatives(tmp_path, steps, outputs):
+    cost = q.solve.SolverCost(solves=2, structures=2, numeric_preparations=2,
+                            identity_iterations=1, jacobi_iterations=1)
+    model, automatic = _heat(cells=2, cost=cost)
+    assert automatic.mesh is not None
+    controls = dict(relative_tolerance=automatic.solve.relative_tolerance,
+                    absolute_tolerance=automatic.solve.absolute_tolerance,
+                    maximum_iterations=automatic.solve.maximum_iterations, cost=cost)
+    variants = [("auto-fast", automatic)]
+    for label, algorithm, reduction, provider in [
+        ("reference-bicgstab", q.solve.LinearSolver.BiConjugateGradientStabilized,
+         q.solve.Reduction.Reproducible, q.solve.SolverProvider.reference()),
+        ("faer-lu", q.solve.LinearSolver.SparseLu,
+         q.solve.Reduction.Fast, q.solve.SolverProvider.faer()),
+    ]:
+        variants.append((label, q.resolve(model, mesh=automatic.mesh, spatial=q.fem.Q1(),
+            temporal=q.time.BackwardEuler(1/24), solve=q.solve.Linear(
+                algorithm=algorithm, preconditioner=q.solve.Preconditioner.Identity,
+                reduction=reduction, provider=provider, **controls))))
+    measurements = []
+    for label, original in variants:
+        planned = original.for_run(steps=steps, output_steps=outputs)
+        assert planned.model_digest == automatic.model_digest
+        assert planned.mesh_digest == automatic.mesh_digest
+        result, profile = _measure(planned, steps, outputs)
+        # The existing nine-vertex/four-cell closed form checks every output
+        # for every solver. The c4 selection-switch fixture remains separate.
+        _check_four_cell_oracle(model, result, outputs)
+        solved = planned.solve
+        if label != "auto-fast":
+            assert solved.backend == ("eqiora.reference" if label == "reference-bicgstab" else "eqiora.faer")
+            assert solved.algorithm == ("bicgstab" if label == "reference-bicgstab" else "sparse-lu")
+            assert solved.preconditioner == "identity"
+            assert solved.reduction == ("reproducible" if label == "reference-bicgstab" else "fast")
+        measurements.append({
+            "variant": label, "plan_identity": planned.identity,
+            "algorithm": solved.algorithm, "preconditioner": solved.preconditioner,
+            "reduction": solved.reduction, "backend": solved.backend,
+            "provider": {"id": solved.provider.id,
+                         "implementation_version": solved.provider.implementation_version,
+                         "libraries": solved.provider.libraries},
+            "relative_tolerance": solved.relative_tolerance,
+            "absolute_tolerance": solved.absolute_tolerance,
+            "maximum_iterations": solved.maximum_iterations,
+            "forecast_costs": _work(planned), "seconds": profile.total_seconds,
+            "symbolic_factorizations": _factor_calls(profile, "symbolic_factorization"),
+            "numeric_factorizations": _factor_calls(profile, "numeric_factorization"),
+        })
+    # These are complete ordinary Run/Profile samples in this environment,
+    # not an elapsed-time optimum, speedup, or portable performance assertion.
+    (tmp_path/"auto-manual-complete-runs.json").write_text(json.dumps({
+        "measurement": "ordinary installed Run/Profile; initialization excluded",
+        "platform": platform.platform(), "machine": platform.machine(),
+        "processor": platform.processor(), "python": sys.version,
+        "eqiora": q.__version__, "numpy": np.__version__, "pytest": pytest.__version__,
+        "affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+        "model_digest": automatic.model_digest, "mesh_digest": automatic.mesh_digest,
+        "steps": steps, "output_steps": outputs, "expected_finalizations": 2*steps+len(outputs),
+        "variants": measurements,
+    }, indent=2))
+
+
 def test_common_run_cost_schedule_and_persisted_proof_tampering_reject():
     _, original = _heat(manual=True)
     planned = original.for_run(steps=3, output_steps=(1, 3))
