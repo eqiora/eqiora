@@ -51,7 +51,7 @@ ranking. The literal table retains the existing specialized CG/MINRES preference
 when shape is unknown. Version5 applies that specialization to Fast's iterative
 fallback after its reduction and sparse-LU priorities as well, including when
 the optional faer provider is absent. The independently frozen absence traces
-therefore keep CG on HPD rather than selecting BiCGSTAB by ID spelling. This adds no complex MINRES, faer iterative, or ordinary HPD recognition
+therefore keep CG on HPD rather than selecting BiCGSTAB by ID spelling. Identity MINRES also admits Hermitian/HPD through the existing realification. This adds no complex Jacobi MINRES, faer iterative, or ordinary HPD recognition
 claim.
 
 ## Provider source identity
