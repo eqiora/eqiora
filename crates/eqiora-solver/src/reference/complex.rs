@@ -5,7 +5,7 @@ use num_complex::Complex64;
 
 use crate::{
     FixedOrderInnerProduct, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolverBackend, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
+    LinearSolverBackend, ReplicatedLinearExecution, SolverPlan,
 };
 
 use super::{ReferenceLinearSolver, invalid_realization, solve_failed};
@@ -32,11 +32,12 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             problem.scalar_type(),
             problem.properties(),
         )?;
-        if execution.provider() != SERIAL_LINEAR_EXECUTION.provider()
-            || execution.report() != SERIAL_LINEAR_EXECUTION.report()
-        {
+        if !matches!(
+            execution.report().topology(),
+            crate::ExecutionTopology::Host { .. }
+        ) {
             return Err(invalid_realization(
-                "complex reference solves require the host-serial execution profile",
+                "complex reference solves require a host-local execution profile",
             ));
         }
         execution.require_reduction(plan.reduction())?;
@@ -66,6 +67,17 @@ fn solve_real_coordinates(
     execution: &dyn ReplicatedLinearExecution<Complex64>,
     source: &crate::CanonicalCsrSystemView<Complex64>,
 ) -> Result<LinearSolution<Complex64>, Diagnostic> {
+    let real_execution = execution.real_execution().ok_or_else(|| {
+        invalid_realization("complex reference lowering requires a matching real execution")
+    })?;
+    if real_execution.provider() != execution.provider()
+        || real_execution.report() != execution.report()
+    {
+        return Err(invalid_realization(
+            "real-coordinate execution must preserve the complex provider and placement",
+        ));
+    }
+    real_execution.require_reduction(plan.reduction())?;
     let block = source
         .real_coordinate_system(problem.operator().orientation(), problem.right_hand_side())?;
     let mut block_problem = block.linear_problem()?;
@@ -98,14 +110,14 @@ fn solve_real_coordinates(
             ReferenceLinearSolver.provider(),
             &block_problem,
             plan,
-            &SERIAL_LINEAR_EXECUTION,
+            real_execution,
         )?
     } else {
         <ReferenceLinearSolver as LinearSolverBackend<f64>>::solve_with_execution(
             &ReferenceLinearSolver,
             &block_problem,
             plan,
-            &SERIAL_LINEAR_EXECUTION,
+            real_execution,
         )?
     };
     let values = real

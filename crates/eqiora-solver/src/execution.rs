@@ -211,6 +211,14 @@ pub trait ReplicatedLinearExecution<S = f64>: Debug + Sync {
     /// Placement evidence for every action performed through this execution.
     fn report(&self) -> ExecutionReport;
 
+    /// Matching real-coordinate execution for an admitted scalar lowering.
+    ///
+    /// The provider, full placement report and selected reduction must agree
+    /// with this execution. Absence does not authorize a serial fallback.
+    fn real_execution(&self) -> Option<&dyn ReplicatedLinearExecution<f64>> {
+        None
+    }
+
     /// Validate a floating-point reduction policy before numerical work.
     ///
     /// # Errors
@@ -274,6 +282,10 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> ReplicatedLinearExecution<S>
 
     fn report(&self) -> ExecutionReport {
         self.report()
+    }
+
+    fn real_execution(&self) -> Option<&dyn ReplicatedLinearExecution<f64>> {
+        Some(self)
     }
 
     fn require_reduction(&self, _policy: ReductionPolicy) -> Result<(), Diagnostic> {
