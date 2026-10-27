@@ -143,6 +143,7 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
                 )
                 .unwrap(),
             ),
+            None,
         )
     };
     assert!(

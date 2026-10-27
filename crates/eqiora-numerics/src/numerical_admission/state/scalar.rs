@@ -1,0 +1,60 @@
+//! One private provider session for the accepted actions of one scalar Run.
+use super::*;
+
+pub(super) struct PreparedScalarExecution<'a> {
+    plan: &'a CommonSpatialPlan,
+    backend: &'a dyn LinearSolverBackend,
+    linear: Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
+}
+
+impl<'a> PreparedScalarExecution<'a> {
+    pub(super) fn new(
+        plan: &'a CommonSpatialPlan,
+        state: &CommonState,
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        plan.reauthenticate_portable_realization()?;
+        plan.admission.revalidate()?;
+        if state.state_space_identity() != plan.identity() {
+            return Err(invalid(
+                "State belongs to a different exact common state space",
+            ));
+        }
+        let linear = if plan.admission.nonlinear.is_none() {
+            let structure = match plan.admission.recognized_model() {
+                RecognizedNativeModel::Spatial(equations) => equations.algebraic_structure(None)?,
+                RecognizedNativeModel::ComplexSpatial(equations) => {
+                    equations.algebraic_structure(None)?
+                }
+                _ => return Err(invalid("missing spatial inventory")),
+            };
+            plan.admission
+                .linear
+                .checked_backend(backend, Some(&structure))?
+                .prepare_linear(plan.admission.linear.solver)?
+        } else {
+            None
+        };
+        Ok(Self {
+            plan,
+            backend,
+            linear,
+        })
+    }
+
+    pub(super) fn advance(
+        &mut self,
+        state: &CommonState,
+    ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
+        // This owner never escapes advance_prepared_actions. Any later spatial
+        // acceptance error returns through `?` and drops the whole session;
+        // only a completely accepted action can reach the next callback/solve.
+        self.plan.advance_scalar_prepared(
+            state,
+            self.backend,
+            self.linear
+                .as_mut()
+                .map(|prepared| prepared.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver),
+        )
+    }
+}
