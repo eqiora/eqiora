@@ -5,13 +5,12 @@ Eqiora lets you write equations, run them synchronously or asynchronously, read
 results as NumPy or DLPack arrays, differentiate them with PyTorch or JAX, and
 plot them with Matplotlib or in a notebook viewer.
 
-This source prepares release `0.1.5`; the installation instructions below retain
-the validated published `0.1.4` baseline until the new package is published. The [Gallery](https://eqiora.org/gallery/) has complete
+These instructions target Eqiora `0.1.5`. The [Gallery](https://eqiora.org/gallery/) has complete
 worked examples.
 
 ## Install
 
-Eqiora `0.1.4` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.5` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
@@ -21,7 +20,7 @@ uv add eqiora
 ```
 
 In an existing uv project, just run `uv add eqiora`. A matching prebuilt wheel
-needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.1.4`.
+needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.1.5`.
 
 Automatic meshing, used by the cylinder examples, requires Gmsh 4.15.2. On
 Linux, install it with:
@@ -59,7 +58,7 @@ CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
 [Get started](https://eqiora.org/get-started/) walks through a complete decay
 example with the published package. Lessons that need features newer than
-`0.1.4` say so and link to the [development-build instructions](https://eqiora.org/get-started/#development-build).
+`0.1.5` say so and link to the [development-build instructions](https://eqiora.org/get-started/#development-build).
 
 A spatial workflow has five steps:
 
@@ -207,7 +206,7 @@ for complete setup, input shapes, and framework examples.
 
 ## Compatibility
 
-`0.1.4` is a pre-1.0 release, so Python APIs and saved-file formats may change;
+`0.1.5` is a pre-1.0 release, so Python APIs and saved-file formats may change;
 the release notes describe each change and how to migrate. Fixes to a published
 package are always released under a new version.
 
