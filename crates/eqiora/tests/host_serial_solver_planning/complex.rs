@@ -49,6 +49,7 @@ fn tuple(value: &Value) -> SolverPlan {
         match value["algorithm"].as_str().unwrap() {
             "BiConjugateGradientStabilized" => LinearSolver::BiConjugateGradientStabilized,
             "ConjugateGradient" => LinearSolver::ConjugateGradient,
+            "MinimumResidual" => LinearSolver::MinimumResidual,
             "SparseLu" => LinearSolver::SparseLu,
             other => panic!("unsupported complex tuple {other}"),
         },
