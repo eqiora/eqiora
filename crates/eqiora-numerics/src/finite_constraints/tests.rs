@@ -314,7 +314,7 @@ impl eqiora_solver::LinearSolverBackend for InflatedTargetBackend {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Reproducible);
-        let solution = eqiora_solver::accept_linear_solution_with_execution(
+        let solution = eqiora_solver::LinearSolution::accept_with_execution(
             problem,
             loose,
             self.provider(),

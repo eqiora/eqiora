@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v4";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -276,7 +276,7 @@ impl LinearSolverBackend for CountingBackend {
                 expected_operator: problem.operator(),
                 operator_apply_calls: &self.operator_apply_calls,
             };
-            crate::accept_linear_solution_with_verifier(
+            crate::LinearSolution::accept_with_verifier(
                 problem,
                 selected_plan,
                 self.provider,
@@ -550,7 +550,7 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
 const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const ORACLE: &str =
-    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v3.json");
+    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v4.json");
 
 fn reference_identity_plan() -> SolverPlan {
     reference_plan().with_preconditioner(PreconditionerPolicy::Identity)
@@ -706,7 +706,7 @@ fn assert_rejections(
     rejected: &[(usize, &'static str)],
 ) {
     for objective in OBJECTIVES {
-        let decision = resolve_host_serial_solver_v3(problem, objective, candidates).unwrap();
+        let decision = resolve_host_serial_solver_v4(problem, objective, candidates).unwrap();
         let mask = rejected.iter().fold(ALL, |mask, (i, _)| mask & !(1 << i));
         assert_eq!(
             decision.selected().id(),
@@ -755,7 +755,7 @@ fn exact_catalog_decisions_and_reasons_are_permutation_invariant() {
     permutations(&mut catalog, 0, &mut |catalog| {
         count += 1;
         for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v3(&problem, objective, catalog).unwrap();
+            let decision = resolve_host_serial_solver_v4(&problem, objective, catalog).unwrap();
             assert_eq!(decision.objective(), objective);
             assert_eq!(decision.policy_id(), POLICY_ID);
             assert_eq!(decision.selected().id(), expected_selection(ALL, objective));
@@ -838,7 +838,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
         (unknown, "catalog.unknown-id"),
     ] {
         let error =
-            resolve_host_serial_solver_v3(&problem, SolverPlanningObjective::Robust, &candidates)
+            resolve_host_serial_solver_v4(&problem, SolverPlanningObjective::Robust, &candidates)
                 .unwrap_err();
         assert!(error.message().contains(reason), "{error}");
         assert_zero_work(&storage, &ledger, &backends);
@@ -878,7 +878,7 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
                 LinearSolveRequest::new(&backends[i], changed),
             );
             let error =
-                resolve_host_serial_solver_v3(&problem, SolverPlanningObjective::Fast, &candidates)
+                resolve_host_serial_solver_v4(&problem, SolverPlanningObjective::Fast, &candidates)
                     .unwrap_err();
             assert!(error.message().contains("catalog.control-mismatch"));
             assert_zero_work(&storage, &ledger, &backends);
@@ -992,7 +992,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
         LinearOperatorProperties::SymmetricPositiveDefinite,
     );
     symmetric_storage.reset_after_legitimate_construction();
-    let error = resolve_host_serial_solver_v3(
+    let error = resolve_host_serial_solver_v4(
         &symmetric.linear_problem().unwrap(),
         SolverPlanningObjective::Robust,
         &catalog,
@@ -1087,7 +1087,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     .unwrap();
     for problem in [&hand_built, &matrix_free_problem, &transposed] {
         let error =
-            resolve_host_serial_solver_v3(problem, SolverPlanningObjective::Robust, &catalog)
+            resolve_host_serial_solver_v4(problem, SolverPlanningObjective::Robust, &catalog)
                 .unwrap_err();
         assert!(
             error.message().contains("profile.canonical-csr-required")
@@ -1135,7 +1135,7 @@ fn no_admitted_diagnostic_freezes_the_complete_ordered_trace() {
     let catalog = exact_catalog(&backends)
         .map(|c| HostSerialSolverCandidate::new(c.id(), "stale", c.request()));
     for objective in OBJECTIVES {
-        let error = resolve_host_serial_solver_v3(&problem, objective, &catalog).unwrap_err();
+        let error = resolve_host_serial_solver_v4(&problem, objective, &catalog).unwrap_err();
         assert_all_rejected(
             &error,
             &SPECS
@@ -1157,7 +1157,7 @@ fn execute_selected(succeed: bool) {
         let problem = system.linear_problem().unwrap();
         let backends = backends(succeed);
         let catalog = exact_catalog(&backends);
-        let decision = resolve_host_serial_solver_v3(&problem, objective, &catalog).unwrap();
+        let decision = resolve_host_serial_solver_v4(&problem, objective, &catalog).unwrap();
         assert_zero_work(&storage, &ledger, &backends);
         for backend in &backends {
             backend.reset_operator_ledger_before_execution();
@@ -1292,6 +1292,11 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             LinearOperatorProperties::SymmetricIndefinite,
             LinearSolver::MinimumResidual,
             "eqiora.reference.minres-indefinite-identity-reproducible-f64",
+        ),
+        (
+            LinearOperatorProperties::Symmetric,
+            LinearSolver::MinimumResidual,
+            "eqiora.reference.minres-symmetric-identity-reproducible-f64",
         ),
     ] {
         let exact = plan(

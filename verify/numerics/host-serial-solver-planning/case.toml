@@ -1,13 +1,16 @@
 id = "numerics.host-serial-solver-planning"
 status = "implemented"
-scope = "deterministic-host-serial-real-and-complex-csr-solver-planning-v3"
+scope = "deterministic-host-serial-real-and-complex-csr-solver-planning-v4"
 reference_kind = "independent-exact-rational-and-literal-policy-table"
 
 capabilities = [
   "exact-frozen-five-candidate-real-general-catalog",
   "exact-typed-complex-catalogs-and-adjoint-solves",
+  "declared-real-spd-indefinite-symmetric-tuples",
+  "bounded-work-proxy-with-explicit-horizon-assumptions",
+  "scoped-numeric-payload-preflight-and-current-system-recheck",
   "optional-provider-availability-before-ranking",
-  "deterministic-robust-fast-low-memory-policy-v3",
+  "deterministic-robust-fast-low-memory-policy-v4",
   "inspectable-provider-plan-evidence-and-reasons",
   "hard-capability-admission-before-ranking",
   "exact-manual-decision-execution-parity",
@@ -20,7 +23,7 @@ capabilities = [
 required_companion_case = "numerics.host-serial-solver-planning-private"
 verification_requires_both_cases = true
 public_observation_owner = "crates/eqiora/tests/host_serial_solver_planning.rs"
-policy_oracle = "expected/policy-v3.json"
+policy_oracle = "expected/policy-v4.json"
 
 [problem]
 profile = "one immutable normal-orientation canonical-CSR complete-diagonal General f64 system"
@@ -31,7 +34,15 @@ exact_solution = "[1, 2]"
 [catalog]
 count = 5
 identity = "exact candidate ID, evidence case, provider release and dependencies, and solver-policy tuple"
-policy = "eqiora.host-serial-solver-planning/v3"
+policy = "eqiora.host-serial-solver-planning/v4"
+
+[real_class_catalogs]
+count = 22
+profiles = ["SymmetricPositiveDefinite", "SymmetricIndefinite", "Symmetric"]
+spd_proof = "leading principal minors 4 and 11"
+indefinite_proof = "eigenvalues 3 and -1"
+payload_scope = "typed CSR/RHS and supported Reference real heap numeric workspace; not RSS"
+work_scope = "declared deterministic proxy; not measured timing or reuse authority"
 
 [complex_catalog]
 count = 6

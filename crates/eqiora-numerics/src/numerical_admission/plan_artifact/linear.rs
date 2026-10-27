@@ -16,6 +16,64 @@ pub(super) struct WireLinearControls {
     absolute_tolerance: f64,
     maximum_iterations: usize,
     intent: WireLinearIntent,
+    cost: Option<WireCostRequest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireCostRequest {
+    solves: usize,
+    structures: usize,
+    numeric_preparations: usize,
+    identity_iterations: Option<usize>,
+    jacobi_iterations: Option<usize>,
+    numeric_payload_limit: Option<usize>,
+    declared_horizon: bool,
+}
+
+impl From<eqiora_solver::SolverCostRequest> for WireCostRequest {
+    fn from(value: eqiora_solver::SolverCostRequest) -> Self {
+        Self {
+            solves: value.solves().get(),
+            structures: value.structures().get(),
+            numeric_preparations: value.numeric_preparations().get(),
+            identity_iterations: value.identity_iterations().map(NonZeroUsize::get),
+            jacobi_iterations: value.jacobi_iterations().map(NonZeroUsize::get),
+            numeric_payload_limit: value.numeric_payload_limit().map(NonZeroUsize::get),
+            declared_horizon: value.declared_horizon(),
+        }
+    }
+}
+
+impl WireCostRequest {
+    fn to_native(&self) -> Result<eqiora_solver::SolverCostRequest, Diagnostic> {
+        let mut request = if self.declared_horizon {
+            eqiora_solver::SolverCostRequest::new(
+                nonzero(self.solves, "cost solves")?,
+                nonzero(self.structures, "cost structures")?,
+                nonzero(self.numeric_preparations, "cost numeric preparations")?,
+            )?
+        } else {
+            if (self.solves, self.structures, self.numeric_preparations) != (1, 1, 1) {
+                return Err(invalid(
+                    "undeclared cost horizon must be the one-shot assumption",
+                ));
+            }
+            eqiora_solver::SolverCostRequest::default()
+        };
+        request = request.with_iteration_forecasts(
+            self.identity_iterations
+                .map(|value| nonzero(value, "Identity iteration forecast"))
+                .transpose()?,
+            self.jacobi_iterations
+                .map(|value| nonzero(value, "Jacobi iteration forecast"))
+                .transpose()?,
+        );
+        if let Some(limit) = self.numeric_payload_limit {
+            request = request.with_numeric_payload_limit(nonzero(limit, "numeric payload limit")?);
+        }
+        Ok(request)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,7 +118,7 @@ impl WireLinearControls {
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRequest, Diagnostic> {
         let maximum = nonzero(self.maximum_iterations, "linear maximum_iterations")?;
-        match &self.intent {
+        let request = match &self.intent {
             WireLinearIntent::ProgramControlled { objective } => {
                 CommonLinearRequest::program_controlled(
                     self.relative_tolerance,
@@ -112,6 +170,10 @@ impl WireLinearControls {
                 .with_reduction(reduction);
                 CommonLinearRequest::exact(plan, provider)
             }
+        }?;
+        match &self.cost {
+            Some(cost) => Ok(request.with_cost(cost.to_native()?)),
+            None => Ok(request),
         }
     }
 }
@@ -171,6 +233,7 @@ impl From<CommonLinearRequest> for WireLinearControls {
             absolute_tolerance: request.absolute_tolerance(),
             maximum_iterations: request.maximum_iterations().get(),
             intent,
+            cost: request.cost().map(Into::into),
         }
     }
 }

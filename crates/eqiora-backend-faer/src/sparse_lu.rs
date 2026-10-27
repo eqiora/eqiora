@@ -3,7 +3,6 @@ use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
     ConvergenceReason, FixedOrderInnerProduct, LinearOperatorOrientation, LinearProblem,
     LinearSolution, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
-    accept_linear_solution,
 };
 
 use crate::FAER_SOLVER_PROVIDER;
@@ -60,7 +59,7 @@ pub(super) fn accepted_initial<S: SparseLuScalar>(
     {
         return Ok(None);
     }
-    accept_linear_solution(
+    eqiora_solver::LinearSolution::accept(
         problem,
         plan,
         FAER_SOLVER_PROVIDER,
@@ -104,7 +103,7 @@ pub(super) fn solve_factored<S: SparseLuScalar>(
         }
         norm = residual_norm(problem, &values, &mut residual)?;
     }
-    accept_linear_solution(
+    eqiora_solver::LinearSolution::accept(
         problem,
         plan,
         FAER_SOLVER_PROVIDER,

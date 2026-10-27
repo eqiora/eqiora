@@ -11,9 +11,11 @@ use crate::{
 };
 
 mod catalog;
+mod cost;
 use catalog::{expected_candidate, rejection_reason};
+pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v4";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -24,6 +26,29 @@ const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64
 const REFERENCE_CG_ID: &str = "eqiora.reference.cg-spd-identity-reproducible-f64";
 const FAER_CG_ID: &str = "eqiora.faer.cg-spd-jacobi-fast-f64";
 const FAER_SPD_LU_ID: &str = "eqiora.faer.sparse-lu-spd-identity-fast-f64";
+const REFERENCE_CG_JACOBI_ID: &str = "eqiora.reference.cg-spd-jacobi-reproducible-f64";
+const REFERENCE_SPD_MINRES_ID: &str = "eqiora.reference.minres-spd-identity-reproducible-f64";
+const REFERENCE_SPD_BICGSTAB_ID: &str = "eqiora.reference.bicgstab-spd-identity-reproducible-f64";
+const REFERENCE_SPD_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-spd-jacobi-reproducible-f64";
+const FAER_CG_IDENTITY_ID: &str = "eqiora.faer.cg-spd-identity-fast-f64";
+const FAER_SPD_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-spd-identity-fast-f64";
+const FAER_SPD_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-spd-jacobi-fast-f64";
+const REFERENCE_INDEFINITE_BICGSTAB_ID: &str =
+    "eqiora.reference.bicgstab-indefinite-identity-reproducible-f64";
+const REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-indefinite-jacobi-reproducible-f64";
+const REFERENCE_SYMMETRIC_MINRES_ID: &str =
+    "eqiora.reference.minres-symmetric-identity-reproducible-f64";
+const REFERENCE_SYMMETRIC_BICGSTAB_ID: &str =
+    "eqiora.reference.bicgstab-symmetric-identity-reproducible-f64";
+const REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-symmetric-jacobi-reproducible-f64";
+const FAER_SYMMETRIC_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-symmetric-identity-fast-f64";
+const FAER_SYMMETRIC_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-symmetric-jacobi-fast-f64";
+const FAER_INDEFINITE_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-indefinite-identity-fast-f64";
+const FAER_INDEFINITE_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-indefinite-jacobi-fast-f64";
+const FAER_SYMMETRIC_LU_ID: &str = "eqiora.faer.sparse-lu-symmetric-identity-fast-f64";
 const REFERENCE_MINRES_ID: &str = "eqiora.reference.minres-indefinite-identity-reproducible-f64";
 const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-fast-f64";
 
@@ -35,7 +60,7 @@ const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
 const FAER_HERMITIAN_LU_ID: &str = "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64";
 const REFERENCE_HPD_ID: &str = "eqiora.reference.cg-hpd-identity-reproducible-complex-f64";
 const FAER_HPD_LU_ID: &str = "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64";
-const COMPLEX_EVIDENCE: &str = "numerics.host-serial-solver-planning";
+const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
 const FAER_EVIDENCE: &str = "numerics.linear-backends";
@@ -56,15 +81,15 @@ const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     FAER_LIBRARIES,
 );
 
-/// Deterministic preference table used by bounded host-serial solver planning.
+/// Deterministic work/payload preferences used by bounded host-serial solver planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverPlanningObjective {
-    /// Prefer the frozen reproducible-reduction candidate.
+    /// Prefer reproducible reductions, then the available work proxy.
     Robust,
-    /// Prefer Fast reduction and then the frozen direct candidate.
+    /// Prefer Fast reduction, then the available work proxy.
     Fast,
-    /// Prefer catalog iterative candidates before direct factorization.
-    /// This is a deterministic preference, not a memory-usage guarantee.
+    /// Prefer a known accounted numeric payload, then work.
+    /// Without size facts use the declared iterative preference; this never bounds RSS.
     LowMemory,
 }
 
@@ -74,6 +99,8 @@ pub struct HostSerialSolverProfile {
     facts: PlanningProfileFacts,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<crate::AlgebraicStructure>,
+    size: Option<SolverPlanningSize>,
+    cost_request: Option<SolverCostRequest>,
 }
 
 impl HostSerialSolverProfile {
@@ -85,6 +112,8 @@ impl HostSerialSolverProfile {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
             required_reduction: None,
             structure: None,
+            size: None,
+            cost_request: None,
         }
     }
 
@@ -117,6 +146,8 @@ impl HostSerialSolverProfile {
             },
             required_reduction,
             structure: None,
+            size: None,
+            cost_request: None,
         }
     }
 
@@ -178,6 +209,14 @@ impl HostSerialSolverProfile {
     }
 
     fn plan_rejection(&self, plan: SolverPlan) -> Option<&'static str> {
+        if self.cost_request.is_some_and(|cost| {
+            [cost.identity_iterations(), cost.jacobi_iterations()]
+                .into_iter()
+                .flatten()
+                .any(|iterations| iterations > plan.maximum_iterations())
+        }) {
+            return Some("cost.iteration-forecast-exceeds-maximum");
+        }
         if self
             .required_reduction
             .is_some_and(|required| plan.reduction() != required)
@@ -352,6 +391,7 @@ pub struct ResolvedHostSerialSolverPlan<'backend, S = f64> {
     selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
+    costs: Vec<SolverCandidateCost>,
 }
 
 impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
@@ -406,6 +446,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
             selected: resolved.selected,
             solver_provider: resolved.solver_provider,
             reasons: resolved.reasons,
+            costs: resolved.costs,
         })
     }
 
@@ -476,6 +517,11 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         self.profile.require_structure(structure)?;
         self.profile.require_plan(self.solver_plan())?;
         self.profile.require_problem(problem)?;
+        self.profile.require_problem_resources(
+            self.solver_plan(),
+            self.solver_provider(),
+            problem,
+        )?;
         self.selected.request().solve(problem)
     }
 }
@@ -515,6 +561,7 @@ impl PlanningProfileFacts {
 struct CandidateEvaluation<'backend, S = f64> {
     candidate: HostSerialSolverCandidate<'backend, S>,
     rejection: Option<&'static str>,
+    cost: Option<SolverCandidateCost>,
 }
 
 #[derive(Debug)]
@@ -522,6 +569,7 @@ struct ResolvedCandidateSet<'backend, S = f64> {
     selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
+    costs: Vec<SolverCandidateCost>,
 }
 
 fn catalog_plan(
@@ -551,7 +599,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v3<'problem, 'backend>(
+fn resolve_host_serial_solver_v4<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -561,6 +609,8 @@ fn resolve_host_serial_solver_v3<'problem, 'backend>(
             facts: PlanningProfileFacts::from_problem(problem),
             required_reduction: None,
             structure: None,
+            size: None,
+            cost_request: None,
         },
         objective,
         candidates,
@@ -586,9 +636,26 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
     ordered.sort_by_key(|candidate| candidate.id());
     let evaluations = ordered
         .into_iter()
-        .map(|candidate| CandidateEvaluation {
-            candidate,
-            rejection: rejection_reason(&profile, candidate),
+        .map(|candidate| {
+            let rejection = rejection_reason(&profile, candidate);
+            let cost = rejection.is_none().then(|| {
+                profile.estimate_cost(
+                    candidate.id(),
+                    candidate.plan(),
+                    candidate.backend.expect("admitted provider").provider(),
+                    S::DOMAIN,
+                    S::STORAGE,
+                )
+            });
+            CandidateEvaluation {
+                candidate,
+                rejection: rejection.or_else(|| {
+                    cost.and_then(|estimate| {
+                        cost::resource_rejection(estimate, profile.cost_request.unwrap_or_default())
+                    })
+                }),
+                cost,
+            }
         })
         .collect::<Vec<_>>();
 
@@ -612,7 +679,13 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
         return Err(no_admitted(trace.as_slice()));
     }
 
-    admitted.sort_by_key(|candidate| rank_key(objective, *candidate));
+    admitted.sort_by_key(|candidate| {
+        let estimate = evaluations
+            .iter()
+            .find(|evaluation| evaluation.candidate.id() == candidate.id())
+            .and_then(|evaluation| evaluation.cost);
+        cost::rank(objective, *candidate, profile.size, estimate)
+    });
     let selected = admitted[0];
     let solver_provider = selected
         .backend
@@ -626,6 +699,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
             reasons.push((evaluation.candidate.id(), rejection));
         } else {
             reasons.push((evaluation.candidate.id(), "candidate.admitted"));
+            cost::append_reasons(&mut reasons, &profile, evaluation.candidate);
             reasons.push((
                 evaluation.candidate.id(),
                 if evaluation.candidate.id() == selected_id {
@@ -641,6 +715,10 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
         selected,
         solver_provider,
         reasons,
+        costs: evaluations
+            .iter()
+            .filter_map(|evaluation| evaluation.cost)
+            .collect(),
     })
 }
 
@@ -656,12 +734,34 @@ fn catalog_ids(
             FAER_IDENTITY_ID,
             FAER_SPARSE_LU_ID,
         ],
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => {
-            &[REFERENCE_CG_ID, FAER_CG_ID, FAER_SPD_LU_ID]
-        }
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => {
-            &[REFERENCE_MINRES_ID, FAER_INDEFINITE_LU_ID]
-        }
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => &[
+            REFERENCE_CG_ID,
+            REFERENCE_CG_JACOBI_ID,
+            REFERENCE_SPD_MINRES_ID,
+            REFERENCE_SPD_BICGSTAB_ID,
+            REFERENCE_SPD_BICGSTAB_JACOBI_ID,
+            FAER_CG_IDENTITY_ID,
+            FAER_CG_ID,
+            FAER_SPD_BICGSTAB_ID,
+            FAER_SPD_BICGSTAB_JACOBI_ID,
+            FAER_SPD_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => &[
+            REFERENCE_MINRES_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_BICGSTAB_ID,
+            FAER_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[
+            REFERENCE_SYMMETRIC_MINRES_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_BICGSTAB_ID,
+            FAER_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_LU_ID,
+        ],
         (ScalarDomain::Complex, LinearOperatorProperties::General) => {
             &[REFERENCE_COMPLEX_ID, FAER_COMPLEX_LU_ID]
         }
@@ -744,7 +844,7 @@ fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     match objective {
         SolverPlanningObjective::Robust => (
             u8::from(plan.reduction() != ReductionPolicy::Reproducible),
-            0,
+            fallback_algorithm_rank(plan.algorithm()),
             candidate.id(),
         ),
         SolverPlanningObjective::Fast => (
@@ -754,9 +854,20 @@ fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         ),
         SolverPlanningObjective::LowMemory => (
             u8::from(plan.algorithm() == LinearSolver::SparseLu),
-            0,
+            fallback_algorithm_rank(plan.algorithm()),
             candidate.id(),
         ),
+    }
+}
+
+// Without size/conditioning evidence retain the specialized symmetric-method
+// preference. Adding a general-purpose tuple must not demote CG/MINRES solely
+// because its name sorts first; this is a declared preference, not a cost claim.
+const fn fallback_algorithm_rank(algorithm: LinearSolver) -> u8 {
+    match algorithm {
+        LinearSolver::ConjugateGradient | LinearSolver::MinimumResidual => 0,
+        LinearSolver::BiConjugateGradientStabilized => 1,
+        LinearSolver::SparseLu => 2,
     }
 }
 

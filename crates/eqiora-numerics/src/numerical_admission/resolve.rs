@@ -127,6 +127,7 @@ impl ResolvedCommonPlan {
                     "coordinate cell-integrated equality",
                     LinearOperatorProperties::SymmetricPositiveDefinite,
                     None,
+                    None,
                     Some(structure),
                     linear_backend,
                 )?;
@@ -187,7 +188,7 @@ impl ResolvedCommonPlan {
                     .any(|region| region.form.is_nonlinear());
                 let (linear_request, nonlinear) =
                     resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
-                let (properties, diagonal) = recognized.stationary_solver_facts(
+                let (properties, diagonal, size) = recognized.stationary_solver_facts(
                     Some(linear_request),
                     &spatial,
                     &system_scaling,
@@ -205,6 +206,7 @@ impl ResolvedCommonPlan {
                     "linear conservation form",
                     properties,
                     diagonal,
+                    size,
                     Some(structure),
                     linear_backend,
                 )?;
@@ -280,6 +282,7 @@ impl ResolvedCommonPlan {
                         properties,
                         None,
                         None,
+                        None,
                         Some(structure.clone()),
                         linear_backend,
                     )?
@@ -287,6 +290,7 @@ impl ResolvedCommonPlan {
                     super::solver_planning::resolve_linear(
                         request,
                         properties,
+                        None,
                         None,
                         None,
                         Some(structure.clone()),
@@ -334,6 +338,7 @@ impl ResolvedCommonPlan {
                 let linear = resolve_linear(
                     solve,
                     LinearOperatorProperties::SymmetricIndefinite,
+                    None,
                     None,
                     None,
                     Some(binding.algebraic_structure()?),
@@ -388,6 +393,7 @@ impl ResolvedCommonPlan {
                 let linear = resolve_linear(
                     linear,
                     LinearOperatorProperties::General,
+                    None,
                     None,
                     None,
                     Some(transient_algebraic_structure(
@@ -457,6 +463,7 @@ fn resolve_linear_requirements(
     mathematical_form: &str,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
+    size: Option<eqiora_solver::SolverPlanningSize>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<(NativeLinearPolicy, Option<CommonTemporalPolicy>), Diagnostic> {
@@ -475,6 +482,7 @@ fn resolve_linear_requirements(
         solve,
         properties,
         complete_diagonal,
+        size,
         None,
         structure,
         backend,

@@ -1,5 +1,7 @@
 #[path = "host_serial_solver_planning/complex.rs"]
 mod complex;
+#[path = "host_serial_solver_planning/cost.rs"]
+mod cost;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::process::Command;
@@ -14,7 +16,7 @@ use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v3.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v4.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
@@ -168,7 +170,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v3.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v4.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -185,7 +187,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.host-serial-solver-planning/v3"
+        "eqiora.host-serial-solver-planning/v4"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -464,8 +466,8 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 assert_eq!(decision.solver_plan().algorithm(), LinearSolver::SparseLu);
                 &faer
             } else if diagonal && objective == SolverPlanningObjective::LowMemory {
-                // Both CG candidates have the same fixed-vector rank; exact ID
-                // order puts eqiora.faer before eqiora.reference.
+                // Unknown-size fallback preserves the specialized CG preference;
+                // exact IDs select Faer Identity before Jacobi.
                 assert_eq!(
                     decision.solver_plan().algorithm(),
                     LinearSolver::ConjugateGradient
@@ -483,11 +485,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 } else {
                     iterative
                 },
-                if diagonal && objective == SolverPlanningObjective::LowMemory {
-                    PreconditionerPolicy::Jacobi
-                } else {
-                    PreconditionerPolicy::Identity
-                },
+                PreconditionerPolicy::Identity,
                 if uses_faer {
                     ReductionPolicy::Fast
                 } else {

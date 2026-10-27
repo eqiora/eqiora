@@ -49,6 +49,9 @@ pub(crate) struct PyResolvedLinear {
     operator: LinearOperatorProperties,
     provider: SolverProvider,
     audit: Option<SolverPlanningAudit>,
+    size: Option<eqiora::solver::SolverPlanningSize>,
+    costs: Vec<eqiora::solver::SolverCandidateCost>,
+    cost_request: eqiora::solver::SolverCostRequest,
 }
 
 impl PyResolvedLinear {
@@ -57,12 +60,18 @@ impl PyResolvedLinear {
         operator: LinearOperatorProperties,
         provider: SolverProvider,
         audit: Option<SolverPlanningAudit>,
+        size: Option<eqiora::solver::SolverPlanningSize>,
+        costs: Vec<eqiora::solver::SolverCandidateCost>,
+        cost_request: eqiora::solver::SolverCostRequest,
     ) -> Self {
         Self {
             plan,
             operator,
             provider,
             audit,
+            size,
+            costs,
+            cost_request,
         }
     }
 }
@@ -177,6 +186,32 @@ impl PyResolvedLinear {
         self.audit
             .as_ref()
             .map_or_else(Vec::new, |audit| audit.reasons.clone())
+    }
+
+    #[getter]
+    fn planning_rows(&self) -> Option<usize> {
+        self.size.map(|size| size.rows())
+    }
+    #[getter]
+    fn planning_stored_slots(&self) -> Option<usize> {
+        self.size.map(|size| size.stored_slots())
+    }
+    #[getter]
+    fn planning_slots_exact(&self) -> Option<bool> {
+        self.size.map(|size| size.is_exact())
+    }
+    #[getter]
+    fn cost_assumptions(&self) -> super::cost::PySolverCost {
+        super::cost::PySolverCost {
+            native: self.cost_request,
+        }
+    }
+    #[getter]
+    fn planning_costs(&self) -> Vec<super::cost::PySolverCandidateCost> {
+        self.costs
+            .iter()
+            .map(|native| super::cost::PySolverCandidateCost { native: *native })
+            .collect()
     }
 
     fn __repr__(&self) -> String {
@@ -310,6 +345,15 @@ pub(super) fn resolved_solve_from_native(
                 .linear_solver_provider()
                 .expect("spatial Plan owns its exact provider"),
             solver_planning_audit,
+            native.solver_planning_size(),
+            native.solver_planning_costs().to_vec(),
+            native
+                .canonical_solve_request()
+                .and_then(|request| match request {
+                    CommonSolvePolicy::Linear(linear)
+                    | CommonSolvePolicy::Newton { linear, .. } => linear.cost(),
+                })
+                .unwrap_or_default(),
         ),
     )?;
     Ok(

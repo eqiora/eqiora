@@ -21,7 +21,7 @@ use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution,
-    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider, accept_linear_solution,
+    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
 };
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::matrix_free::{
@@ -71,6 +71,14 @@ impl FaerLinearSolver {
             (
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::Symmetric,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::SymmetricIndefinite,
             ),
         ] {
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
@@ -241,7 +249,7 @@ fn solve_cg(
     );
     failure.take()?;
     let info = result.map_err(|error| solve_failed(format!("faer CG failed: {error:?}")))?;
-    accept_linear_solution(
+    eqiora_solver::LinearSolution::accept(
         problem,
         plan,
         provider,
@@ -693,15 +701,15 @@ mod tests {
             .capabilities()
             .require_problem(
                 unsupported,
-                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
                 ScalarType::F64,
-                LinearOperatorProperties::SymmetricIndefinite,
+                LinearOperatorProperties::General,
             )
             .unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert!(error.message().contains("BiConjugateGradientStabilized"));
-        assert!(error.message().contains("SymmetricIndefinite"));
+        assert!(error.message().contains("Complex"));
         assert!(error.message().contains("exact"));
     }
 

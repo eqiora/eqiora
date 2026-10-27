@@ -205,10 +205,14 @@ for name, plan in planned.items():
     objective, candidate, backend, algorithm, reduction = expected_planning[name]
     resolved = plan.solve.linear
     assert resolved.objective is objective
-    assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v3"
+    assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v4"
     assert resolved.selected_candidate_id == candidate
     assert resolved.selected_evidence_case is not None
-    assert len(resolved.planning_reasons) == 8
+    # This Newton owner has no assembled shape at selection time. Its public
+    # explanation must expose that fallback; the registered oracle owns the
+    # complete candidate/rejection inventory, not a presentation list length.
+    assert resolved.planning_rows is None
+    assert (candidate, "cost.shape-unavailable-preference-fallback") in resolved.planning_reasons
     assert resolved.backend == backend
     assert resolved.algorithm == algorithm
     assert resolved.reduction == reduction

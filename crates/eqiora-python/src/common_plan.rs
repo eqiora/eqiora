@@ -42,9 +42,11 @@ use capability_view::{
     PyFormulationKind, PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView,
     PySpatialPlanView, PyTimePlanView,
 };
+mod cost;
 mod event_policy;
 mod forward_policy;
 mod policy;
+use cost::{PySolverCandidateCost, PySolverCost};
 mod registration;
 mod solver_request;
 use policy::{

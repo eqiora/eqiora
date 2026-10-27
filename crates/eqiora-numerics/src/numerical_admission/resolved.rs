@@ -234,7 +234,7 @@ impl ResolvedCommonPlan {
         }
     }
 
-    fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
+    pub(super) fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
         match self {
             Self::Algebraic(plan) => Some(&plan.linear),
             Self::Eigen(_) => None,
@@ -286,6 +286,19 @@ impl ResolvedCommonPlan {
     pub fn solver_planning_reasons(&self) -> &[(&'static str, &'static str)] {
         self.linear_policy()
             .map_or(&[], |linear| linear.planning_reasons.as_slice())
+    }
+
+    /// Decision-time typed solver size facts, absent when the owner did not establish them.
+    #[must_use]
+    pub fn solver_planning_size(&self) -> Option<eqiora_solver::SolverPlanningSize> {
+        self.linear_policy()?.planning_profile.as_ref()?.size()
+    }
+
+    /// Decision-time candidate work proxies and scoped numeric payload estimates.
+    #[must_use]
+    pub fn solver_planning_costs(&self) -> &[eqiora_solver::SolverCandidateCost] {
+        self.linear_policy()
+            .map_or(&[], |linear| linear.planning_costs.as_slice())
     }
 
     /// Borrow the ODE capability of a finite-time Plan, when admitted.

@@ -34,7 +34,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v23";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v24";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -215,6 +215,14 @@ impl ResolvedCommonPlan {
             ),
         }
         .expect("resolved Plan retains validated linear controls");
+        let linear = match self
+            .linear_policy()
+            .and_then(|policy| policy.planning_profile.as_ref())
+            .and_then(|profile| profile.cost_request())
+        {
+            Some(cost) => linear.with_cost(cost),
+            None => linear,
+        };
         Some(match self {
             Self::TransientFlow(plan) => CommonSolvePolicy::Newton {
                 nonlinear: plan.nonlinear(),

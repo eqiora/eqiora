@@ -564,7 +564,7 @@ assert portable_q1.requested_solve == linear
 assert portable_q1.requested_solve.provider == linear.provider
 import copy, json
 plan_payload = json.loads(q1_bytes)
-assert plan_payload["schema"] == "eqiora.resolved-common-plan/v23"
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v24"
 assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
 for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
     payload = copy.deepcopy(plan_payload)
@@ -600,7 +600,7 @@ assert file_q1.to_bytes() == q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v23", b"resolved-common-plan/v999")),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v24", b"resolved-common-plan/v999")),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
@@ -1557,12 +1557,14 @@ assert output.associations == ("vertex",)
 assert result.mesh(plan.fields[0]) is mesh
 assert package.submit(plan).result().output(plan.fields[0]).coefficient_count("vertex") == 12
 # The known SPD class with no diagonal claim admits reference CG/Identity and
-# identity LU. Exact provider selection, manual parity, and replay are observed
-# through ordinary Linear authoring, rather than a Newton-only adapter.
+# identity LU. No size is captured for this vector elasticity owner, so LowMemory
+# retains the declared symmetric-method fallback then candidate-ID tie-break:
+# Faer CG/Identity precedes reference CG/Identity. This is not a payload claim.
+# Exact provider selection, manual parity and replay use ordinary Linear authoring.
 for objective, algorithm, provider, reduction in (
     (package.solve.Robust, package.solve.LinearSolver.ConjugateGradient, package.solve.SolverProvider.reference(), package.solve.Reduction.Reproducible),
     (package.solve.Fast, package.solve.LinearSolver.SparseLu, package.solve.SolverProvider.faer(), package.solve.Reduction.Fast),
-    (package.solve.LowMemory, package.solve.LinearSolver.ConjugateGradient, package.solve.SolverProvider.reference(), package.solve.Reduction.Reproducible),
+    (package.solve.LowMemory, package.solve.LinearSolver.ConjugateGradient, package.solve.SolverProvider.faer(), package.solve.Reduction.Fast),
 ):
     common_controls = dict(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
     ranked_request = package.solve.Linear(**common_controls, objective=objective)
@@ -1575,6 +1577,9 @@ for objective, algorithm, provider, reduction in (
     assert ranked_plan.solve.backend == provider.id
     assert ranked_plan.solve.backend_version == provider.implementation_version
     assert ranked_plan.solve.objective is objective
+    assert ranked_plan.solve.planning_rows is None
+    assert (ranked_plan.solve.selected_candidate_id,
+            "cost.shape-unavailable-preference-fallback") in ranked_plan.solve.planning_reasons
     assert manual_plan.solve.objective is None
     assert ranked_plan.solve.algorithm == manual_plan.solve.algorithm
     assert ranked_plan.solve.preconditioner == manual_plan.solve.preconditioner == "identity"

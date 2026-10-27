@@ -21,7 +21,6 @@ use eqiora_solver::{
     LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
     ProviderLibrary, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution,
     SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
-    accept_linear_solution_with_verifier,
 };
 
 use super::binding::{DistributedExecutorDescriptor, ProcessGroupSlot};
@@ -757,7 +756,7 @@ fn solve_with_providers(
     solver: SolverProvider,
     execution: ExecutionProvider,
 ) -> eqiora_solver::LinearSolution {
-    accept_linear_solution_with_verifier(
+    eqiora_solver::LinearSolution::accept_with_verifier(
         &system.linear_problem().unwrap(),
         plan,
         solver,
@@ -776,7 +775,7 @@ fn cuda_solution(
     system: &CanonicalCsrSystemView,
     plan: SolverPlan,
 ) -> eqiora_solver::LinearSolution {
-    accept_linear_solution_with_verifier(
+    eqiora_solver::LinearSolution::accept_with_verifier(
         &system.linear_problem().unwrap(),
         plan,
         solver_provider(TEST_CUDA_BACKEND),
@@ -796,7 +795,7 @@ fn distributed_solution(
     plan: SolverPlan,
     partitions: NonZeroUsize,
 ) -> eqiora_solver::LinearSolution {
-    accept_linear_solution_with_verifier(
+    eqiora_solver::LinearSolution::accept_with_verifier(
         &system.linear_problem().unwrap(),
         plan,
         solver_provider(TEST_DISTRIBUTED_BACKEND),
@@ -1609,7 +1608,7 @@ fn same_id_provider_version_and_library_substitution_fail_at_receipt_boundary() 
     ] {
         let admitted =
             AdmittedExecution::admit_host_linear(&graph, &system, serial_binding(&graph)).unwrap();
-        let solution = accept_linear_solution_with_verifier(
+        let solution = eqiora_solver::LinearSolution::accept_with_verifier(
             &system.linear_problem().unwrap(),
             plan,
             expected_solver,

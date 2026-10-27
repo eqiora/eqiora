@@ -14,7 +14,7 @@ use eqiora_execution::{
 use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, ExecutionId, ExecutionProvider,
     ExecutionReport, LinearSolution, LinearSolver, ProviderLibrary, SERIAL_LINEAR_EXECUTION,
-    SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+    SolverPlan, SolverProvider,
 };
 
 use crate::blas::{BlasError, BlasHandle};
@@ -676,7 +676,7 @@ fn solve(
     let device_to_host = device_to_host_started.elapsed();
 
     let verification_started = Instant::now();
-    let solution = accept_linear_solution_with_verifier(
+    let solution = eqiora_solver::LinearSolution::accept_with_verifier(
         &problem,
         plan,
         CUDA_LINEAR_SOLVER_PROVIDER,

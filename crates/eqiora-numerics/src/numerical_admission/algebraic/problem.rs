@@ -105,18 +105,33 @@ impl AlgebraicProblem {
         Ok(Self::Conserving(problem))
     }
 
-    /// Only a single fixed affine system has a Plan-time diagonal fact.
-    pub(super) fn complete_diagonal(&self) -> Result<Option<bool>, Diagnostic> {
-        match self {
-            Self::Conserving(problem) => {
-                solver_planning::complete_diagonal(problem.canonical_system()).map(Some)
-            }
+    /// Reuse the already required affine matrix; otherwise retain only a coordinate bound.
+    pub(super) fn linear_facts(
+        &self,
+        diagonal: bool,
+    ) -> Result<(Option<bool>, Option<eqiora_solver::SolverPlanningSize>), Diagnostic> {
+        let system = match self {
+            Self::Conserving(problem) => Some(problem.canonical_system().clone()),
             Self::Constrained(problem)
-                if !problem.is_nonlinear() && problem.enforcement().is_none() =>
+                if diagonal && !problem.is_nonlinear() && problem.enforcement().is_none() =>
             {
-                solver_planning::complete_diagonal(&problem.linear_system()?).map(Some)
+                Some(problem.linear_system()?)
             }
-            _ => Ok(None),
+            _ => None,
+        };
+        if let Some(system) = system {
+            Ok((
+                Some(solver_planning::complete_diagonal(&system)?),
+                Some(eqiora_solver::SolverPlanningSize::exact(
+                    system.rows(),
+                    system.column_indices().len(),
+                )),
+            ))
+        } else {
+            Ok((
+                None,
+                eqiora_solver::SolverPlanningSize::dense_bound(self.coordinate_count()),
+            ))
         }
     }
 

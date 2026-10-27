@@ -189,9 +189,12 @@ impl<'a, S: Scalar + ComplexFloat<Real = f64>> FixedOrderInnerProduct<'a, S> {
     }
 
     fn evaluate_serial(self) -> Result<S, Diagnostic> {
-        let partials = (0..self.partial_count())
-            .map(|index| self.evaluate_partial(index))
-            .collect::<Result<Vec<_>, _>>()?;
+        // Request exactly the known numeric payload; Result collection has no
+        // exact-size lower bound and can otherwise grow its allocation.
+        let mut partials = Vec::with_capacity(self.partial_count());
+        for index in 0..self.partial_count() {
+            partials.push(self.evaluate_partial(index)?);
+        }
         self.finish(&partials)
     }
 }
@@ -300,6 +303,49 @@ mod tests {
     use super::*;
 
     #[test]
+    fn explicitly_sized_serial_partials_keep_cancellation_and_boundary_bits() {
+        for (count, expected) in [
+            (0, 0_f64),
+            (1, 1e16),
+            (2, 1e16),
+            (3, 0.),
+            (4, 3.),
+            (1023, 3.),
+            (1024, 3.),
+            (1025, 8.),
+            (2049, 21.),
+        ] {
+            let left = vec![1.; count];
+            let mut right = vec![0.; count];
+            for (index, value) in [(0, 1e16), (1, 1.), (2, -1e16), (3, 3.), (1024, 5.)] {
+                if index < count {
+                    right[index] = value;
+                }
+            }
+            if count == 2049 {
+                right[1024..1028].copy_from_slice(&[1e16, 1., -1e16, 7.]);
+                right[2048] = 11.;
+            }
+            // The local left-to-right folds lose each isolated +1 between
+            // +/-1e16. The final fold is 3+5, or 3+7+11 at two boundaries.
+            assert_eq!(
+                FixedOrderInnerProduct::new(&left, &right)
+                    .unwrap()
+                    .evaluate_serial()
+                    .unwrap()
+                    .to_bits(),
+                expected.to_bits()
+            );
+        }
+        assert!(
+            FixedOrderInnerProduct::new(&[f64::MAX; 2], &[1.; 2])
+                .unwrap()
+                .evaluate_serial()
+                .is_err()
+        );
+    }
+
+    #[test]
     fn norm_is_identical_in_complex_and_real_coordinates() {
         use num_complex::Complex64 as C;
         // Coordinate conversion is an exact Euclidean isometry. Exercise both
@@ -391,7 +437,7 @@ mod tests {
     fn acceptance_distinguishes_zero_from_tiny_real_and_complex_solutions() {
         use crate::{
             ConvergenceReason, LinearOperatorProperties, LinearProblem, LinearSolver,
-            REFERENCE_SOLVER_PROVIDER, SolverPlan, accept_linear_solution,
+            REFERENCE_SOLVER_PROVIDER, SolverPlan,
         };
         use num_complex::Complex64 as C;
         use std::{marker::PhantomData, num::NonZeroUsize};
@@ -425,7 +471,7 @@ mod tests {
             )
             .unwrap();
             let accept = |value| {
-                accept_linear_solution(
+                crate::LinearSolution::accept(
                     &problem,
                     plan,
                     REFERENCE_SOLVER_PROVIDER,

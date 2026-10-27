@@ -3,7 +3,7 @@
 This private companion maintains no expected-value file. All exact decisions,
 rejection rerankings, reason traces, controls, and ledgers are frozen once in
 the primary case's
-[`policy-v3.json`](../../host-serial-solver-planning/expected/policy-v3.json).
+[`policy-v4.json`](../../host-serial-solver-planning/expected/policy-v4.json).
 That authority identifies the exact owned canonical operator, freezes the
 direct apply/diagonal self-control and reset, records two total applications
 and zero diagonal calls for successful true-residual acceptance, and zero of
