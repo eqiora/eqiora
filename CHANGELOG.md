@@ -18,21 +18,27 @@ listed here.
 
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.
-  Planner v7 admits these ten exact tuples; native work remains bounded by the
+  Planner v8 admits these ten exact tuples; native work remains bounded by the
   requested budget and acceptance uses the original residual and physical checks.
 
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
   `accept_with_execution` or `accept_with_verifier`. The former free functions
   are removed; all methods retain the same independent residual verification.
-- Host solver planning v7 uses explicit work forecasts and scoped numeric
+- Host solver planning v8 uses explicit work forecasts and scoped numeric
   payload bounds where existing assembly owners supply size facts. Exact manual
   controls remain unchanged; forecasts do not grant prepared-state reuse or
   predict elapsed time or process RSS. Current common Plan artifacts use v25;
   previous Plan schemas are rejected rather than migrated.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
-  Identity MINRES admits complex Hermitian/HPD through the existing realification,
-  with the original iteration budget and final typed residual acceptance.
+  Reference MINRES supports Identity/Jacobi on real symmetric, SPD and
+  symmetric-indefinite operators and complex Hermitian/HPD through the existing
+  realification. Jacobi requires a finite strictly positive real diagonal and
+  uses symmetric correction coordinates, retaining the original residual target,
+  physical acceptance and iteration budget. Planning v8 catalogs 30 real and
+  28 complex tuples. Its real MINRES Jacobi work proxy includes diagonal setup,
+  coordinate recovery and per-iterate original-residual checks; this is no
+  convergence or memory bound.
   Complex Reference CG/MINRES work estimates remain unknown until realification
   and conversion costs are modeled.
   Unknown-shape Fast planning keeps sparse LU first, then CG/MINRES before BiCGSTAB

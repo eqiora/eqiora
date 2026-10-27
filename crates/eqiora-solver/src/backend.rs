@@ -167,6 +167,37 @@ impl SolverCapabilities {
                 scalar_type: ScalarType::F64,
             });
         }
+        for (scalar_domain, operator_properties) in [
+            (
+                eqiora_core::ScalarDomain::Real,
+                LinearOperatorProperties::Symmetric,
+            ),
+            (
+                eqiora_core::ScalarDomain::Real,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            ),
+            (
+                eqiora_core::ScalarDomain::Real,
+                LinearOperatorProperties::SymmetricIndefinite,
+            ),
+            (
+                eqiora_core::ScalarDomain::Complex,
+                LinearOperatorProperties::Hermitian,
+            ),
+            (
+                eqiora_core::ScalarDomain::Complex,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+        ] {
+            combinations.push(SolverCapability {
+                scalar_domain,
+                algorithm: LinearSolver::MinimumResidual,
+                operator_properties,
+                preconditioner: PreconditionerPolicy::Jacobi,
+                reduction: ReductionPolicy::Reproducible,
+                scalar_type: ScalarType::F64,
+            });
+        }
         Self::exact(combinations).expect("reference exact capability set is nonempty")
     }
 

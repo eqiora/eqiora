@@ -113,7 +113,9 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
                 )
                 .unwrap();
             let request = LinearSolveRequest::new(backend, manual);
-            let solution = request.solve(&problem).unwrap();
+            let solution = request.solve(&problem).unwrap_or_else(|error| {
+                panic!("{properties:?} normal candidate {candidate}: {error:?}")
+            });
             assert_values(solution.values(), &fixture["solution"]);
             assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
             let adjoint = request

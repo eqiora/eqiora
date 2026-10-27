@@ -12,10 +12,10 @@ use crate::{
 
 mod catalog;
 mod cost;
-use catalog::{expected_candidate, rejection_reason};
+use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v7";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v8";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -93,6 +93,15 @@ const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
 const FAER_HERMITIAN_LU_ID: &str = "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64";
 const REFERENCE_HPD_ID: &str = "eqiora.reference.cg-hpd-identity-reproducible-complex-f64";
 const FAER_HPD_LU_ID: &str = "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64";
+const REFERENCE_SPD_MINRES_JACOBI_ID: &str = "eqiora.reference.minres-spd-jacobi-reproducible-f64";
+const REFERENCE_SYMMETRIC_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-symmetric-jacobi-reproducible-f64";
+const REFERENCE_INDEFINITE_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-indefinite-jacobi-reproducible-f64";
+const REFERENCE_HERMITIAN_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-hermitian-jacobi-reproducible-complex-f64";
+const REFERENCE_HPD_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-hpd-jacobi-reproducible-complex-f64";
 const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
@@ -652,7 +661,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v7<'problem, 'backend>(
+fn resolve_host_serial_solver_v8<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -774,84 +783,6 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
             .filter_map(|evaluation| evaluation.cost)
             .collect(),
     })
-}
-
-fn catalog_ids(
-    domain: ScalarDomain,
-    properties: LinearOperatorProperties,
-) -> &'static [&'static str] {
-    match (domain, properties) {
-        (ScalarDomain::Real, LinearOperatorProperties::General) => &[
-            REFERENCE_ID,
-            REFERENCE_IDENTITY_ID,
-            FAER_BICGSTAB_ID,
-            FAER_IDENTITY_ID,
-            FAER_SPARSE_LU_ID,
-        ],
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => &[
-            REFERENCE_CG_ID,
-            REFERENCE_CG_JACOBI_ID,
-            REFERENCE_SPD_MINRES_ID,
-            REFERENCE_SPD_BICGSTAB_ID,
-            REFERENCE_SPD_BICGSTAB_JACOBI_ID,
-            FAER_CG_IDENTITY_ID,
-            FAER_CG_ID,
-            FAER_SPD_BICGSTAB_ID,
-            FAER_SPD_BICGSTAB_JACOBI_ID,
-            FAER_SPD_LU_ID,
-        ],
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => &[
-            REFERENCE_MINRES_ID,
-            REFERENCE_INDEFINITE_BICGSTAB_ID,
-            REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
-            FAER_INDEFINITE_BICGSTAB_ID,
-            FAER_INDEFINITE_BICGSTAB_JACOBI_ID,
-            FAER_INDEFINITE_LU_ID,
-        ],
-        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[
-            REFERENCE_SYMMETRIC_MINRES_ID,
-            REFERENCE_SYMMETRIC_BICGSTAB_ID,
-            REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID,
-            FAER_SYMMETRIC_BICGSTAB_ID,
-            FAER_SYMMETRIC_BICGSTAB_JACOBI_ID,
-            FAER_SYMMETRIC_LU_ID,
-        ],
-        (ScalarDomain::Complex, LinearOperatorProperties::General) => &[
-            FAER_COMPLEX_BICGSTAB_ID,
-            FAER_COMPLEX_BICGSTAB_JACOBI_ID,
-            REFERENCE_COMPLEX_ID,
-            REFERENCE_COMPLEX_JACOBI_ID,
-            FAER_COMPLEX_LU_ID,
-        ],
-        (ScalarDomain::Complex, LinearOperatorProperties::ComplexSymmetric) => &[
-            FAER_COMPLEX_SYMMETRIC_BICGSTAB_ID,
-            FAER_COMPLEX_SYMMETRIC_BICGSTAB_JACOBI_ID,
-            REFERENCE_COMPLEX_SYMMETRIC_ID,
-            REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID,
-            FAER_COMPLEX_SYMMETRIC_LU_ID,
-        ],
-        (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[
-            FAER_HERMITIAN_BICGSTAB_ID,
-            FAER_HERMITIAN_BICGSTAB_JACOBI_ID,
-            REFERENCE_HERMITIAN_MINRES_ID,
-            REFERENCE_HERMITIAN_ID,
-            REFERENCE_HERMITIAN_JACOBI_ID,
-            FAER_HERMITIAN_LU_ID,
-        ],
-        (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => &[
-            FAER_HPD_BICGSTAB_ID,
-            FAER_HPD_BICGSTAB_JACOBI_ID,
-            FAER_HPD_CG_ID,
-            FAER_HPD_CG_JACOBI_ID,
-            REFERENCE_HPD_MINRES_ID,
-            REFERENCE_HPD_ID,
-            REFERENCE_HPD_JACOBI_ID,
-            REFERENCE_HPD_BICGSTAB_ID,
-            REFERENCE_HPD_BICGSTAB_JACOBI_ID,
-            FAER_HPD_LU_ID,
-        ],
-        _ => &[],
-    }
 }
 
 fn validate_inventory<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
