@@ -65,6 +65,99 @@ struct Observation {
 }
 
 #[test]
+fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
+    use eqiora::realization::{
+        DiscretizationMethod, MeshKind, SpatialDimensionSupport, TargetCapabilities,
+        VectorLayoutKind,
+    };
+    use eqiora::solver::{LinearSolver, PreconditionerPolicy};
+    let document = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).unwrap();
+    let program = document.program();
+    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).unwrap();
+    let mesh_reference = mesh.artifact_reference().unwrap();
+    let lowered = lower_steady_incompressible_stokes_cartesian_2d(program).unwrap();
+    let solver = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1.0e-11,
+        1.0e-13,
+        NonZeroUsize::new(10_000).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Reproducible);
+    let plan = steady_stokes_mini_plan_2d(&lowered, mesh_reference, profile_a(), solver)
+        .expect("mathematically compatible Reference BiCGStab policy");
+    let capabilities = RealizationCapabilities::cartesian_product(
+        [DiscretizationMethod::ContinuousGalerkin],
+        [(
+            MeshKind::ImportedAffineSimplicial,
+            SpatialDimensionSupport::exact(NonZeroUsize::new(2).unwrap()),
+        )],
+        [VectorLayoutKind::Replicated],
+        REFERENCE_LINEAR_SOLVER.capabilities(),
+        TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
+    )
+    .unwrap();
+    let unavailable = steady_stokes_mini_plan_2d(
+        &lowered,
+        mesh_reference,
+        profile_a(),
+        solver.with_reduction(ReductionPolicy::Fast),
+    )
+    .unwrap();
+    assert!(
+        resolve_fieldwise(
+            &FieldwiseRealizationRequest::explicit(
+                program.model(),
+                SemanticRevision::new(program.revision().0),
+                RealizationRevision::new(1),
+                unavailable,
+            ),
+            steady_stokes_fieldwise_requirements_2d(&lowered),
+            &capabilities,
+        )
+        .is_err()
+    );
+    let resolved = resolve_fieldwise(
+        &FieldwiseRealizationRequest::explicit(
+            program.model(),
+            SemanticRevision::new(program.revision().0),
+            RealizationRevision::new(1),
+            plan,
+        ),
+        steady_stokes_fieldwise_requirements_2d(&lowered),
+        &capabilities,
+    )
+    .unwrap();
+    let model = ModelEnvelope::from_program(program).unwrap();
+    let realization = RealizationEnvelope::new(
+        &model,
+        resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
+    let bytes = realization.canonical_json().unwrap();
+    let replay = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), bytes);
+    assert_eq!(replay.solver_plan(), solver);
+    replay.validate_model_artifact(&model).unwrap();
+    replay.validate_mesh_artifact(&model, &mesh).unwrap();
+    let (model, solution) = eqiora_numerics::fluid::solve_resolved_steady_stokes_mini_2d(
+        program,
+        &resolved,
+        mesh_reference,
+        mesh.mesh(),
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    assert_physical_solution(&solution, &model);
+    let report = solution.dimensionless_solution().solve_report();
+    assert_eq!(report.solver_plan(), solver);
+    assert_eq!(report.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
+    assert!(report.true_residual_norm() <= report.residual_target());
+}
+
+#[test]
 fn direct_and_packaged_models_share_one_fieldwise_si_mini_realization() {
     let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct physical Stokes Model compiles");

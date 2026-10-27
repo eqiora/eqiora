@@ -15,9 +15,10 @@ pub(crate) fn steady_stokes_algebraic_structure(
 ///
 /// `q` remains immutable canonical coefficient data and receives no discrete
 /// unknown block. The plan derives gauge and functional scales from `L/U/P`,
-/// fixes positive degree-four Duffy assembly, and admits only the exact
-/// reference-MINRES and host-sparse-LU solver tuples verified for this path,
-/// without a fluid-named generic space tag.
+/// fixes positive degree-four Duffy assembly, and admits algorithms compatible
+/// with the symmetric-indefinite operator. Provider/reduction availability is
+/// checked by exact capability resolution; no complete diagonal is asserted
+/// for Jacobi. No fluid-named generic space tag is introduced.
 ///
 /// # Errors
 /// Returns `EQ0807` for an unsupported solver tuple or invalid derived plan.

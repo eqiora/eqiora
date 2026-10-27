@@ -21,8 +21,7 @@ use eqiora_realization::{
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    ReductionPolicy, SolverPlan,
+    HostSerialSolverProfile, LinearOperatorProperties, LinearSolverBackend, SolverPlan,
 };
 
 use super::{
@@ -797,18 +796,13 @@ fn cartesian_essential_velocity(
 }
 
 fn require_mini_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
-    let admitted = solver.preconditioner() == PreconditionerPolicy::Identity
-        && matches!(
-            (solver.algorithm(), solver.reduction()),
-            (LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)
-                | (LinearSolver::SparseLu, ReductionPolicy::Fast)
-        );
-    if !admitted {
+    let properties = LinearOperatorProperties::SymmetricIndefinite;
+    if !solver.algorithm().accepts(properties) {
         return Err(invalid_realization(
-            "coherent-SI MINI Stokes requires identity-preconditioned reproducible MINRES or host-fast sparse LU",
+            "coherent-SI MINI Stokes requires an algorithm admitting its symmetric-indefinite operator",
         ));
     }
-    Ok(())
+    HostSerialSolverProfile::canonical_csr(properties, None, None).require_plan(solver)
 }
 
 fn requires_zero_integral_constraint(

@@ -1,7 +1,8 @@
 use super::*;
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 
 #[test]
-fn mini_solver_admission_is_an_exact_two_tuple_union() {
+fn mini_solver_admission_separates_mathematics_from_provider_availability() {
     for (algorithm, preconditioner, reduction, admitted) in [
         (
             LinearSolver::MinimumResidual,
@@ -19,13 +20,13 @@ fn mini_solver_admission_is_an_exact_two_tuple_union() {
             LinearSolver::MinimumResidual,
             PreconditionerPolicy::Identity,
             ReductionPolicy::Fast,
-            false,
+            true,
         ),
         (
             LinearSolver::SparseLu,
             PreconditionerPolicy::Identity,
             ReductionPolicy::Reproducible,
-            false,
+            true,
         ),
         (
             LinearSolver::SparseLu,
@@ -37,6 +38,18 @@ fn mini_solver_admission_is_an_exact_two_tuple_union() {
             LinearSolver::BiConjugateGradientStabilized,
             PreconditionerPolicy::Identity,
             ReductionPolicy::Fast,
+            true,
+        ),
+        (
+            LinearSolver::ConjugateGradient,
+            PreconditionerPolicy::Identity,
+            ReductionPolicy::Reproducible,
+            false,
+        ),
+        (
+            LinearSolver::BiConjugateGradientStabilized,
+            PreconditionerPolicy::Jacobi,
+            ReductionPolicy::Reproducible,
             false,
         ),
     ] {
