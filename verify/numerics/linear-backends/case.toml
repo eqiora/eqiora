@@ -9,6 +9,7 @@ capabilities = [
   "reference-cg",
   "faer-cg",
   "faer-bicgstab",
+  "faer-bicgstab-spd-identity-jacobi-normal-transpose",
   "faer-sparse-lu",
   "captured-csr-direct-solve",
   "deployment-bound-faer-provider-release",

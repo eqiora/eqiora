@@ -15,9 +15,9 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     CanonicalCsrSystemView, ConvergenceReason, CsrStorage, DiagonalAvailability, LinearOperator,
-    LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend, Oriented,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearProblem, LinearSolveRequest, LinearSolver, LinearSolverBackend,
+    Oriented, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,
@@ -240,6 +240,16 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         },
     ]);
+    for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+        expected.insert(SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            preconditioner,
+            reduction: ReductionPolicy::Fast,
+            scalar_type: ScalarType::F64,
+        });
+    }
     expected.extend(
         oracle
             .contract_expectations
@@ -320,7 +330,7 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     for (unsupported, properties) in [
         (
             plan.with_preconditioner(PreconditionerPolicy::Identity),
-            LinearOperatorProperties::SymmetricPositiveDefinite,
+            LinearOperatorProperties::SymmetricIndefinite,
         ),
         (
             plan.with_reduction(ReductionPolicy::Reproducible),
@@ -336,6 +346,66 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             )
             .unwrap_err();
         assert!(error.message().contains("exact"));
+    }
+}
+
+#[test]
+fn faer_bicgstab_spd_identity_and_jacobi_retain_normal_and_transpose_actions() {
+    // Leading principal minors 4 and 11 prove SPD independently. The two
+    // exact products are A*[1,2]=[6,7] and A^T*[-2,3]=[-5,7].
+    let storage = FixtureStorage {
+        n: 2,
+        row_offsets: vec![0, 2, 4],
+        column_indices: vec![0, 1, 0, 1],
+        values: vec![4., 1., 1., 3.],
+        right_hand_side: vec![6., 7.],
+    };
+    let system = CanonicalCsrSystemView::new(
+        &storage,
+        storage.rhs(),
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )
+    .unwrap();
+    for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+        let plan = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(preconditioner)
+        .with_reduction(ReductionPolicy::Fast);
+        for (orientation, rhs, expected) in [
+            (
+                eqiora_solver::LinearOperatorOrientation::Normal,
+                [6., 7.],
+                [1., 2.],
+            ),
+            (
+                eqiora_solver::LinearOperatorOrientation::Transposed,
+                [-5., 7.],
+                [-2., 3.],
+            ),
+        ] {
+            let solution = LinearSolveRequest::new(&FaerLinearSolver, plan)
+                .solve_canonical_oriented(&system, &rhs, orientation)
+                .unwrap();
+            for (actual, expected) in solution.values().iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-12);
+            }
+            let report = solution.report();
+            assert_eq!(report.solver_provider(), FAER_SOLVER_PROVIDER);
+            assert_eq!(
+                report.algorithm(),
+                LinearSolver::BiConjugateGradientStabilized
+            );
+            assert_eq!(report.preconditioner(), preconditioner);
+            assert_eq!(report.reduction(), ReductionPolicy::Fast);
+            assert_eq!(report.orientation(), orientation);
+            assert!(report.completed_iterations() <= 100);
+            assert!(report.true_residual_norm() <= report.residual_target());
+        }
     }
 }
 

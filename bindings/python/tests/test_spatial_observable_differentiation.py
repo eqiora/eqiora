@@ -147,3 +147,98 @@ def test_spatial_observable_frozen_inputs_respect_selected_parameters(method, co
         gradient = point.vjp((1.,)).input_cotangent
         np.testing.assert_allclose(gradient[0], -moment*load/np.conjugate(a)**2, rtol=0, atol=2e-10)
         np.testing.assert_allclose(gradient[1], [4.5, 0.], rtol=0, atol=2e-10)
+
+
+@pytest.mark.parametrize("preconditioner", [q.solve.Preconditioner.Identity, q.solve.Preconditioner.Jacobi])
+def test_interval_diffusion_cg_retains_observations_products_and_offline_primal(preconditioner, tmp_path):
+    import subprocess
+    import sys
+
+    graph = q.geometry.GeometryGraph()
+    interval = graph.interval(bounds=(0., 1.))
+    geometry = graph.build(interval, named_topology={"body": interval.region,
+        "left": interval.boundaries[0], "right": interval.boundaries[1]})
+    body = geometry.selection("body")
+    source = """
+    public component Piecewise(support body:volume(ambient_dimension=1),
+        support left:boundary(parent=body), support right:boundary(parent=body),
+        parameter log_k:array<1,2>) {
+        coordinate x:m on body from body[0];
+        let conductivity:W/m/K=(if x<0.5[m] then math.exp(log_k[0]) else math.exp(log_k[1]))*1[W/m/K];
+        variable temperature:K on body in h1;
+        relation balance on body {-div(conductivity*grad(temperature))=0[W/m^3];}
+        relation fixedL on left {trace(temperature)=300[K];}
+        relation fixedR on right {trace(temperature)=301[K];}
+        observable left_mean:K=integral((if x<0.5[m] then 2[1/m] else 0[1/m])*temperature,measure(body));
+        observable right_mean:K=integral((if x<0.5[m] then 0[1/m] else 2[1/m])*temperature,measure(body));
+        observable mean_flux:W/m^2=integral(-conductivity*partial(temperature,wrt=x)/1[m],measure(body));
+    }"""
+    values = np.log([1., 2.])
+    model = q.compile(source=source, entry="Piecewise", geometry=geometry, bindings={
+        "body": body, "left": (geometry.selection("left"), body),
+        "right": (geometry.selection("right"), body), "log_k": values.tolist()})
+    mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(4,))))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
+        algorithm=q.solve.LinearSolver.ConjugateGradient, preconditioner=preconditioner,
+        reduction=q.solve.Reduction.Reproducible, provider=q.solve.SolverProvider.reference(),
+        relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    ordinary = q.run(plan)
+    assert q.Result.from_bytes(plan, ordinary.to_bytes()).to_bytes() == ordinary.to_bytes()
+    # Constant flux gives resistance 1/(2*kL)+1/(2*kR)=3/4. The represented
+    # four-cell profile is exact piecewise affine; differentiate that formula.
+    expected_field = np.array([300., 300+1/3, 300+2/3, 300+5/6, 301.])
+    expected_observations = np.array([300+1/3, 300+5/6, -4/3])
+    observables = tuple(model.observable("definition."+name)
+                        for name in ("left_mean", "right_mean", "mean_flux"))
+    np.testing.assert_allclose(ordinary.output(plan.fields[0]).values("vertex").numpy(),
+                               expected_field, rtol=0, atol=2e-10)
+    np.testing.assert_allclose([ordinary.observe(o, quadrature_points=2).value for o in observables],
+                               expected_observations, rtol=0, atol=2e-10)
+    program = q.diff.compile(plan, inputs=(model.parameter("log_k"),),
+        outputs=(plan.fields[0], *observables), quadrature_points=2)
+    point = program.evaluate((values,))
+    primal = point.primal()
+    np.testing.assert_allclose(primal.output[0], expected_field, rtol=0, atol=2e-10)
+    np.testing.assert_allclose(primal.output[1:], expected_observations, rtol=0, atol=2e-10)
+    products = []
+    for direction, field, observations in (
+        ([1., 0.], [0., -1/9, -2/9, -1/9, 0.], [-1/9, -1/9, -8/9]),
+        ([0., 1.], [0., 1/9, 2/9, 1/9, 0.], [1/9, 1/9, -4/9]),
+    ):
+        product = point.jvp((np.array(direction),))
+        np.testing.assert_allclose(product.tangent[0], field, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(product.tangent[1:], observations, rtol=0, atol=2e-10)
+        products.append(product)
+    reverse = point.vjp((np.zeros(5), 3., 0., 0.))
+    np.testing.assert_allclose(reverse.input_cotangent[0], [-1/3, 1/3], rtol=0, atol=2e-10)
+    expected_preconditioner = "jacobi" if preconditioner == q.solve.Preconditioner.Jacobi else "identity"
+    reports = [(ordinary.solve, "normal"), (primal.evidence.steps[0].primal_solves[0], "normal"),
+        *((product.evidence.steps[0].derivative_solve, "normal") for product in products),
+        (reverse.evidence.steps[0].derivative_solve, "conjugate-transposed")]
+    for report, orientation in reports:
+        assert report.backend == "eqiora.reference"
+        assert report.algorithm == "conjugate-gradient"
+        assert report.preconditioner == expected_preconditioner
+        assert report.reduction == "reproducible"
+        assert report.orientation == orientation
+        assert report.true_residual_norm <= report.residual_target
+    collection = program.map((np.array([values, values]),), point_shape=(2,)).execute_recorded()
+    path = tmp_path / "q1-primal.eqcollection"
+    collection.write(path)
+    # Persisted collection members retain primal outputs, not executable JVP/VJP.
+    script = """
+import sys
+import eqiora as q
+import numpy as np
+def forbidden(*args, **kwargs):
+    raise AssertionError('offline reopening invoked a public execution entry')
+q.run = q.submit = q.resolve = q.compile = q.differentiate = forbidden
+collection = q.EvaluationCollection.read(sys.argv[1])
+assert collection.complete and len(collection[0]) == 2
+for member in collection[0]:
+    assert not hasattr(member.result, 'jvp')
+    np.testing.assert_allclose(member.result.output[0], [300,300+1/3,300+2/3,300+5/6,301], rtol=0, atol=2e-10)
+    np.testing.assert_allclose(member.result.output[1:], [300+1/3,300+5/6,-4/3], rtol=0, atol=2e-10)
+"""
+    subprocess.run([sys.executable, "-I", "-c", script, str(path)], cwd=tmp_path, check=True, timeout=120)

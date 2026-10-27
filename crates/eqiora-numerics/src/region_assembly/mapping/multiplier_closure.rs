@@ -16,7 +16,46 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         &self,
         multipliers: &BTreeSet<RawId>,
     ) -> Result<Vec<Vec<usize>>, Diagnostic> {
-        for field in multipliers {
+        Ok(self
+            .nodal_components(multipliers)?
+            .into_iter()
+            .filter(|component| {
+                !component
+                    .iter()
+                    .any(|&global| self.constraints.free_index(global).is_none())
+            })
+            .map(|component| {
+                component
+                    .into_iter()
+                    .map(|global| {
+                        self.constraints
+                            .free_index(global)
+                            .expect("free component")
+                            .index()
+                    })
+                    .collect()
+            })
+            .collect())
+    }
+
+    /// Each constant nodal mode must meet a prescribed coordinate after the
+    /// exact same trace quotient used for rows and columns. This is topological;
+    /// it neither samples matrix rank nor uses the multiplier action tolerance.
+    pub(crate) fn nodal_components_are_anchored(
+        &self,
+        fields: &BTreeSet<RawId>,
+    ) -> Result<bool, Diagnostic> {
+        let components = self.nodal_components(fields)?;
+        Ok(!components.is_empty()
+            && components.iter().all(|component| {
+                component
+                    .iter()
+                    .any(|&global| self.constraints.free_index(global).is_none())
+            }))
+    }
+
+    fn nodal_components(&self, fields: &BTreeSet<RawId>) -> Result<Vec<Vec<usize>>, Diagnostic> {
+        for field in fields {
             let (_, layout) = self
                 .fields
                 .get(field)
@@ -37,7 +76,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         for keys in &self.cell_keys {
             let mut local = BTreeMap::<RawId, Vec<usize>>::new();
             for key in keys {
-                if multipliers.contains(&key.field) && key.entity.dimension() == 0 {
+                if fields.contains(&key.field) && key.entity.dimension() == 0 {
                     local.entry(key.field).or_default().push(self.globals[key]);
                 }
             }
@@ -62,25 +101,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 }
                 cursor += 1;
             }
-            // A prescribed multiplier removes its component's constant shift.
-            // Hierarchical bubbles contribute zero to a physical constant.
-            if component
-                .iter()
-                .any(|&global| self.constraints.free_index(global).is_none())
-            {
-                continue;
-            }
-            modes.push(
-                component
-                    .into_iter()
-                    .map(|global| {
-                        self.constraints
-                            .free_index(global)
-                            .expect("free component")
-                            .index()
-                    })
-                    .collect::<Vec<_>>(),
-            );
+            modes.push(component);
         }
         Ok(modes)
     }
@@ -152,6 +173,75 @@ mod tests {
 
     fn matrix<S: Coefficient + Sync>(values: [S; 4]) -> CsrMatrix<S> {
         CsrMatrix::from_sorted_csr(2, 2, vec![0, 2, 4], vec![0, 1, 0, 1], values.to_vec()).unwrap()
+    }
+
+    #[test]
+    fn every_disconnected_nodal_component_requires_its_own_anchor() {
+        use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType, entity::kinds};
+        use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
+        let domains = [
+            Id::<kinds::Domain>::new().erase(),
+            Id::<kinds::Domain>::new().erase(),
+        ];
+        let fields = [
+            Id::<kinds::Field>::new().erase(),
+            Id::<kinds::Field>::new().erase(),
+        ];
+        let mesh = SimplicialMesh::new(
+            1,
+            vec![vec![0.], vec![1.], vec![2.], vec![3.]],
+            vec![vec![0, 1], vec![2, 3]],
+            MeshQualityGate::new(0.01).unwrap(),
+        )
+        .unwrap();
+        let layouts = domains
+            .into_iter()
+            .zip(fields)
+            .map(|(domain, field)| {
+                (
+                    domain,
+                    vec![RegionFieldLayout {
+                        field,
+                        value_type: ValueType::scalar(
+                            ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        )
+                        .unwrap(),
+                        space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                        range: 0..2,
+                        components: 1,
+                        scale: 1.,
+                    }],
+                )
+            })
+            .collect();
+        let key = |field, vertex| FieldDof {
+            field,
+            entity: MeshEntity::new(0, vertex),
+            slot: 0,
+            component: 0,
+        };
+        for second_anchored in [false, true] {
+            let mut prescribed = BTreeMap::from([(key(fields[0], 0), 0.)]);
+            if second_anchored {
+                prescribed.insert(key(fields[1], 3), 0.);
+            }
+            let mapping = RegionDofMap::<f64>::new(
+                &mesh,
+                &layouts,
+                ReferenceCell::simplex(1).unwrap(),
+                &domains,
+                &[],
+                &prescribed,
+            )
+            .unwrap();
+            assert_eq!(
+                mapping
+                    .nodal_components_are_anchored(&BTreeSet::from(fields))
+                    .unwrap(),
+                second_anchored
+            );
+        }
     }
 
     #[test]

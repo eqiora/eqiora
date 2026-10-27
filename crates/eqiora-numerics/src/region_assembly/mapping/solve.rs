@@ -8,7 +8,7 @@ use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule, SimplicialMesh,
 };
 use eqiora_realization::{Target, VectorLayoutKind};
-use eqiora_solver::{LinearSolveRequest, SolveReport};
+use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest, SolveReport};
 
 pub(crate) struct RegionSolveOutput<S: Coefficient> {
     pub(crate) fields: BTreeMap<RawId, RecoveredRegionField<S>>,
@@ -202,6 +202,29 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             .assemble(&plan, &work)?
             .into_parts();
         self.require_numeric_multiplier_closure(systems[0].matrix(), &multipliers)?;
+        if input.operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
+            && input.conservative.is_none()
+            && input.geometry_action.is_none()
+            && input.previous.is_none()
+            && input
+                .forms
+                .iter()
+                .all(|(form, quadrature)| form.has_original_q1_diffusion_energy(quadrature))
+        {
+            let fields = input
+                .forms
+                .iter()
+                .flat_map(|(form, _)| form.fields().iter().map(|field| field.field))
+                .collect();
+            if !self.nodal_components_are_anchored(&fields)?
+                || !work.preserves_q1_diffusion_energy(&plan, systems[0].matrix())?
+            {
+                return Err(invalid(
+                    "bound Q1 diffusion SPD representability margin is unproved",
+                ));
+            }
+        }
+
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
             systems[0].rhs(),

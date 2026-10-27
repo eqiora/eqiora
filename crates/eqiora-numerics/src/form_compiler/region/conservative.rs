@@ -242,6 +242,20 @@ impl<'a, S: Coefficient, P: Projection<S>> ConservativeSystem<'a, S, P> {
         })
     }
 
+    /// Pure scalar self-diffusion is structurally eligible for a Q1 energy
+    /// proof. Positivity is checked by ordinary coefficient preparation at EVERY
+    /// actual quadrature sample, not inferred from this orientation flag.
+    pub(crate) fn is_scalar_self_diffusion(&self) -> bool {
+        self.rows.len() == 1
+            && self.components() == 1
+            && self.has_positive_diffusion()
+            && !self.has_reaction()
+            && self
+                .rows
+                .values()
+                .all(|row| row.value_type.shape().is_scalar())
+    }
+
     pub(crate) fn diffusion(
         &self,
         test: usize,

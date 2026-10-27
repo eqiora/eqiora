@@ -8,6 +8,9 @@ The executable evidence includes:
 
 - reference CG and faer CG agreement on a symmetric positive-definite system;
 - faer BiCGSTAB on a nonsymmetric manufactured system;
+- exact faer BiCGSTAB SPD Identity/Jacobi Fast tuples on the independent
+  `[[4,1],[1,3]]` matrix, with normal and transposed actions, distinct exact
+  right-hand sides/solutions, retained provider/policy, and true-residual acceptance;
 - Faer partial-pivot sparse LU on a precommitted exact-rational,
   non-structurally-symmetric canonical CSR system;
 - zero-work acceptance of the exact initial guess, one factor-and-solve attempt
@@ -31,7 +34,7 @@ Numeric factorization and solve receive `Par::Seq` explicitly; process-global
 parallelism wrappers are structurally excluded. Eqiora replays the true residual
 through its own operator before accepting the returned values.
 
-The claim is host-local, `f64`, replicated, normal-orientation, captured-CSR,
+The frozen sparse-LU claim is host-local, `f64`, replicated, normal-orientation, captured-CSR,
 Identity, Fast, and single-worker. It is not a matrix-free, transpose,
 threaded, distributed, accelerator, Realization-admission, performance, scale,
 fill, memory, pseudo-inverse, least-squares, or singularity-diagnosis claim.

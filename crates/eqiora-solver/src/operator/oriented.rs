@@ -1,4 +1,5 @@
 use super::*;
+use num_complex::ComplexFloat;
 
 /// Explicit availability and action of normal, transpose and conjugate transpose.
 /// A conjugate transpose uses the Euclidean pairing; no metric adjoint is implied.
@@ -50,7 +51,10 @@ impl<'a, O: OrientedLinearOperator + ?Sized> Oriented<'a, O> {
     }
 }
 
-impl<O: OrientedLinearOperator + ?Sized> LinearOperator for Oriented<'_, O> {
+impl<O: OrientedLinearOperator + ?Sized> LinearOperator for Oriented<'_, O>
+where
+    O::Scalar: ComplexFloat,
+{
     type Scalar = O::Scalar;
     fn rows(&self) -> usize {
         if self.orientation == LinearOperatorOrientation::Normal {
@@ -80,11 +84,113 @@ impl<O: OrientedLinearOperator + ?Sized> LinearOperator for Oriented<'_, O> {
         }
     }
     fn diagonal(&self, output: &mut [Self::Scalar]) -> Result<DiagonalAvailability, Diagnostic> {
-        if self.orientation == LinearOperatorOrientation::ConjugateTransposed {
-            // An arbitrary scalar requires explicit conjugation by its owner.
-            Ok(DiagonalAvailability::Unavailable)
-        } else {
-            self.source.diagonal(output)
+        let availability = self.source.diagonal(output)?;
+        if availability == DiagonalAvailability::Available
+            && self.orientation == LinearOperatorOrientation::ConjugateTransposed
+        {
+            for value in output {
+                *value = value.conj();
+            }
+        }
+        Ok(availability)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_complex::Complex64;
+
+    #[test]
+    fn adjoint_does_not_invent_an_unavailable_diagonal() {
+        #[derive(Debug)]
+        struct NoDiagonal;
+        impl LinearOperator for NoDiagonal {
+            type Scalar = f64;
+            fn rows(&self) -> usize {
+                1
+            }
+            fn columns(&self) -> usize {
+                1
+            }
+            fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+                output.copy_from_slice(input);
+                Ok(())
+            }
+        }
+        impl OrientedLinearOperator for NoDiagonal {
+            fn supports_orientation(&self, _: LinearOperatorOrientation) -> bool {
+                true
+            }
+            fn apply_oriented(
+                &self,
+                _: LinearOperatorOrientation,
+                input: &[f64],
+                output: &mut [f64],
+            ) -> Result<(), Diagnostic> {
+                self.apply(input, output)
+            }
+        }
+        let mut output = [7.];
+        assert_eq!(
+            Oriented::new(&NoDiagonal, LinearOperatorOrientation::ConjugateTransposed)
+                .unwrap()
+                .diagonal(&mut output)
+                .unwrap(),
+            DiagonalAvailability::Unavailable
+        );
+        assert_eq!(output, [7.]);
+    }
+
+    #[test]
+    fn adjoint_diagonal_conjugates_only_an_available_source_diagonal() {
+        use crate::{CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties};
+        #[derive(Debug)]
+        struct Storage;
+        impl CsrStorage<Complex64> for Storage {
+            fn rows(&self) -> usize {
+                1
+            }
+            fn columns(&self) -> usize {
+                1
+            }
+            fn row_offsets(&self) -> &[usize] {
+                &[0, 1]
+            }
+            fn column_indices(&self) -> &[usize] {
+                &[0]
+            }
+            fn values(&self) -> &[Complex64] {
+                const VALUES: [Complex64; 1] = [Complex64::new(2., 3.)];
+                &VALUES
+            }
+        }
+        let source = CanonicalCsrSystemView::new(
+            &Storage,
+            &[Complex64::new(0., 0.)],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        let mut diagonal = [Complex64::new(0., 0.)];
+        for (orientation, expected) in [
+            (LinearOperatorOrientation::Normal, Complex64::new(2., 3.)),
+            (
+                LinearOperatorOrientation::Transposed,
+                Complex64::new(2., 3.),
+            ),
+            (
+                LinearOperatorOrientation::ConjugateTransposed,
+                Complex64::new(2., -3.),
+            ),
+        ] {
+            assert_eq!(
+                Oriented::new(&source, orientation)
+                    .unwrap()
+                    .diagonal(&mut diagonal)
+                    .unwrap(),
+                DiagonalAvailability::Available
+            );
+            assert_eq!(diagonal, [expected]);
         }
     }
 }

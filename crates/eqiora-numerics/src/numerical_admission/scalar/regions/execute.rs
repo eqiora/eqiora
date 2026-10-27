@@ -14,8 +14,37 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
-        let (mapping, input) =
-            self.static_assembly(resources, selected, scaling, operator_properties)?;
+        let q1_spd = operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
+            && self.is_real_interval_q1(resources, selected);
+        let (mapping, mut input) = self.static_assembly(
+            resources,
+            selected,
+            scaling,
+            if q1_spd {
+                LinearOperatorProperties::General
+            } else {
+                operator_properties
+            },
+        )?;
+        if q1_spd {
+            let fields = self
+                .q1_diffusion_fields(resources, selected, scaling)?
+                .ok_or_else(|| {
+                    invalid(
+                        "bound Parameter point no longer proves the admitted Q1 diffusion property",
+                    )
+                })?;
+            if !self.q1_diffusion_is_anchored(&mapping, &input, &fields)? {
+                return Err(invalid(
+                    "bound Q1 diffusion operator has an unanchored nodal component",
+                ));
+            }
+            // finalize_linear prepares every actual quadrature coefficient through
+            // Term::require_coefficient before constructing a canonical system.
+            // Together with rechecked shape/anchoring, this authenticates the
+            // bound point's discrete energy instead of copying a stale assertion.
+            input.operator_properties = LinearOperatorProperties::SymmetricPositiveDefinite;
+        }
         let (core, assembly_report, full) = match resources {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?

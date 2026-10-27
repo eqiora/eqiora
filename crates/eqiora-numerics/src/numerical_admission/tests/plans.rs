@@ -1374,3 +1374,5 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
 
 mod physical_interface;
 mod plural_regions;
+
+mod q1_diffusion_spd;

@@ -240,7 +240,7 @@ pub(super) struct RecognizedNativeAdmission {
 }
 
 impl RecognizedNativeAdmission {
-    pub(super) fn operator_properties(
+    pub(super) fn form_operator_properties(
         &self,
         spatial: &NativeSpatialPolicy,
         nonlinear: Option<NonlinearSolvePlan>,
@@ -401,7 +401,8 @@ impl RecognizedNativeAdmission {
             ));
         }
         validate_resources(&spatial, &self.resources)?;
-        let operator_properties = self.operator_properties(&spatial, nonlinear)?;
+        let operator_properties =
+            self.operator_properties(&spatial, &system_scaling, nonlinear, temporal.as_ref())?;
         require_policy_compatibility(
             operator_properties,
             &linear,

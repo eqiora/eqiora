@@ -187,9 +187,8 @@ impl ResolvedCommonPlan {
                     .any(|region| region.form.is_nonlinear());
                 let (linear_request, nonlinear) =
                     resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
-                let properties = recognized.operator_properties(&spatial, nonlinear)?;
-                let diagonal = recognized.stationary_diagonal(
-                    linear_request,
+                let (properties, diagonal) = recognized.stationary_solver_facts(
+                    Some(linear_request),
                     &spatial,
                     &system_scaling,
                     nonlinear,
@@ -262,7 +261,12 @@ impl ResolvedCommonPlan {
                     temporal,
                     "complex spatial form",
                 )?;
-                let properties = recognized.operator_properties(&spatial, nonlinear)?;
+                let properties = recognized.operator_properties(
+                    &spatial,
+                    &system_scaling,
+                    nonlinear,
+                    temporal.as_ref(),
+                )?;
                 let structure = equations.algebraic_structure(None)?;
                 let domain = recognized.numerical_scalar_domain(
                     &spatial,
