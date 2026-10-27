@@ -23,16 +23,22 @@ listed here.
 
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.
-  Planner v7 admits these ten exact tuples; native work remains bounded by the
+  Planner v8 admits these ten exact tuples; native work remains bounded by the
   requested budget and acceptance uses the original residual and physical checks.
 
 ### Changed
 
-- Host solver planning advances to policy v7 for the expanded complex catalog and bounded Run forecasts.
+- Host solver planning advances to policy v8 for the expanded complex and MINRES Jacobi catalog and bounded Run forecasts.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
-  Identity MINRES admits complex Hermitian/HPD through the existing realification,
-  with the original iteration budget and final typed residual acceptance.
+  Reference MINRES supports Identity/Jacobi on real symmetric, SPD and
+  symmetric-indefinite operators and complex Hermitian/HPD through the existing
+  realification. Jacobi requires a finite strictly positive real diagonal and
+  uses symmetric correction coordinates, retaining the original residual target,
+  physical acceptance and iteration budget. Planning v8 catalogs 30 real and
+  28 complex tuples. Its real MINRES Jacobi work proxy includes diagonal setup,
+  coordinate recovery and per-iterate original-residual checks; this is no
+  convergence or memory bound.
   Complex Reference CG/MINRES work estimates remain unknown until realification
   and conversion costs are modeled.
   Unknown-shape Fast planning keeps sparse LU first, then CG/MINRES before BiCGSTAB

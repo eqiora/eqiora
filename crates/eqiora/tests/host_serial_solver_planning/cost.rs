@@ -661,8 +661,8 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         SparseLu as Lu,
     };
     use PreconditionerPolicy::{Identity as I, Jacobi as J};
-    // Independent inventory: reference CG(I,J), MINRES(I), BiCGSTAB(I,J),
-    // faer CG(I,J), BiCGSTAB(I,J), LU(I) for SPD; reference MINRES(I),
+    // Independent inventory: reference CG(I,J), MINRES(I,J), BiCGSTAB(I,J),
+    // faer CG(I,J), BiCGSTAB(I,J), LU(I) for SPD; reference MINRES(I,J),
     // BiCGSTAB(I,J), faer BiCGSTAB(I,J)/LU(I) for indefinite; the same
     // MINRES/BiCGSTAB/LU combinations for plain symmetric. Zero diagonal
     // excludes Jacobi independently, without inventing a definiteness proof.
@@ -685,6 +685,12 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             false,
             Minres,
             I,
+        ),
+        (
+            "eqiora.reference.minres-spd-jacobi-reproducible-f64",
+            false,
+            Minres,
+            J,
         ),
         (
             "eqiora.reference.bicgstab-spd-identity-reproducible-f64",
@@ -724,6 +730,12 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             I,
         ),
         (
+            "eqiora.reference.minres-indefinite-jacobi-reproducible-f64",
+            false,
+            Minres,
+            J,
+        ),
+        (
             "eqiora.reference.bicgstab-indefinite-identity-reproducible-f64",
             false,
             Bicg,
@@ -748,6 +760,12 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             false,
             Minres,
             I,
+        ),
+        (
+            "eqiora.reference.minres-symmetric-jacobi-reproducible-f64",
+            false,
+            Minres,
+            J,
         ),
         (
             "eqiora.reference.bicgstab-symmetric-identity-reproducible-f64",

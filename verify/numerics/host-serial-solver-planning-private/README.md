@@ -3,7 +3,7 @@
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
 selects one exact `eqiora-solver` library-test aggregator. The public case owns
-27 real and 26 complex live backend tuple executions and public observations. This private case
+30 real and 28 complex live backend tuple executions and public observations. This private case
 owns the complete adversarial catalog, control, profile, capability, reranking,
 problem-identity, zero-work, and exactly-once checks. The capability is verified
 only when both cases pass.
@@ -66,6 +66,7 @@ is selected from the requested domain and operator class, never inferred from
 untrusted candidate IDs. Missing optional implementations retain their distinct
 `catalog.provider-unavailable` reason.
 
-This registered case covers the real General and typed complex catalog projections. Real SPD and symmetric-
-indefinite profiles have separate ordinary product tests; this case does not prove
+This registered case covers the real General and typed complex adversarial catalog
+projections. Its public companion also executes real SPD, symmetric-indefinite
+and symmetric tuples, including positive-diagonal MINRES Jacobi; this case does not prove
 typed constraint/gauge authenticity or common Python integration for those profiles.
