@@ -53,4 +53,5 @@ rustix = { workspace = true, optional = true, features = ["process"] }
 workspace = true
 
 [dev-dependencies]
+num-complex = { workspace = true }
 eqiora-backend-faer = { workspace = true }

@@ -1,7 +1,7 @@
 //! Typed static Field output projected from one accepted Result.
 
 use eqiora::DimExponents;
-use pyo3::exceptions::PyKeyError;
+use pyo3::exceptions::{PyKeyError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -88,7 +88,7 @@ impl FieldOutputBlock {
     }
 }
 
-/// Immutable coefficients for one exact Model Field on one exact Mesh.
+/// Immutable typed coefficients for one exact Field; finite global values have no Mesh.
 #[pyclass(
     name = "FieldOutput",
     module = "eqiora._eqiora",
@@ -97,7 +97,7 @@ impl FieldOutputBlock {
 )]
 pub(crate) struct PyFieldOutput {
     field: Py<PyModelFieldRef>,
-    mesh: Py<PyMesh>,
+    mesh: Option<Py<PyMesh>>,
     value_type: eqiora::ValueType,
     coefficient_dimension: DimExponents,
     space: &'static str,
@@ -107,7 +107,7 @@ pub(crate) struct PyFieldOutput {
 impl PyFieldOutput {
     pub(super) fn new(
         field: Py<PyModelFieldRef>,
-        mesh: Py<PyMesh>,
+        mesh: Option<Py<PyMesh>>,
         value_type: eqiora::ValueType,
         coefficient_dimension: DimExponents,
         space: &'static str,
@@ -123,8 +123,11 @@ impl PyFieldOutput {
         }
     }
 
-    pub(crate) fn mesh_handle(&self, py: Python<'_>) -> Py<PyMesh> {
-        self.mesh.clone_ref(py)
+    pub(crate) fn mesh_handle(&self, py: Python<'_>) -> PyResult<Py<PyMesh>> {
+        self.mesh
+            .as_ref()
+            .map(|mesh| mesh.clone_ref(py))
+            .ok_or_else(|| PyTypeError::new_err("finite global Field coefficients have no Mesh"))
     }
 
     pub(crate) fn field_handle(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
@@ -159,8 +162,8 @@ impl PyFieldOutput {
     }
 
     #[getter]
-    fn mesh(&self, py: Python<'_>) -> Py<PyMesh> {
-        self.mesh.clone_ref(py)
+    fn mesh(&self, py: Python<'_>) -> Option<Py<PyMesh>> {
+        self.mesh.as_ref().map(|mesh| mesh.clone_ref(py))
     }
 
     /// Complete mathematical type from the exact Model Field.
@@ -195,7 +198,7 @@ impl PyFieldOutput {
         Ok(self.block(association)?.values.clone_ref(py))
     }
 
-    /// Number of support entities represented by one coefficient block.
+    /// Number of support entities, or one global finite value, in the coefficient block.
     #[pyo3(signature = (association, /))]
     fn coefficient_count(&self, association: &str) -> PyResult<usize> {
         Ok(self.block(association)?.coefficient_count)

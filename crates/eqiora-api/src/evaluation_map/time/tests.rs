@@ -117,7 +117,7 @@ fn independent_processes_preserve_order_repeats_and_recompute() {
                     || false,
                     |id, occurrence| {
                         let index = id.index();
-                        let EvaluationMapOccurrence::TimeAccepted(result) = occurrence else {
+                        let EvaluationMapOccurrence::RunAccepted(result) = occurrence else {
                             panic!("time Result")
                         };
                         delivered.push(index);
@@ -134,19 +134,19 @@ fn independent_processes_preserve_order_repeats_and_recompute() {
             assert_eq!(complete.plan().time_requests().unwrap(), requests);
             assert!(EvaluationMapProducts::new(&complete, &[4], &[], &[0], LIMIT).is_err());
             for (index, expected) in expected.iter().enumerate() {
-                assert_eq!(complete.time_evidence(index), Some(expected.identity()));
+                assert_eq!(complete.run_evidence(index), Some(expected.identity()));
                 match retention {
                     EvaluationMapRetention::Retain => {
                         assert_eq!(
-                            complete.time_result(index).unwrap().to_bytes().unwrap(),
+                            complete.run_result(index).unwrap().to_bytes().unwrap(),
                             expected.to_bytes().unwrap()
                         );
-                        assert!(complete.recompute_time(index).is_err());
+                        assert!(complete.recompute_run(index).is_err());
                     }
                     EvaluationMapRetention::Recompute => {
-                        assert!(complete.time_result(index).is_none());
+                        assert!(complete.run_result(index).is_none());
                         assert_eq!(
-                            complete.recompute_time(index).unwrap().to_bytes().unwrap(),
+                            complete.recompute_run(index).unwrap().to_bytes().unwrap(),
                             expected.to_bytes().unwrap()
                         );
                     }
@@ -178,22 +178,22 @@ fn recomputation_ignores_wall_time_but_rejects_changed_acceptance() {
     )
     .unwrap();
     let mut complete = map.execute().unwrap();
-    let recomputed = complete.recompute_time(0).unwrap();
-    assert_ne!(Some(recomputed.identity()), complete.time_evidence(0));
+    let recomputed = complete.recompute_run(0).unwrap();
+    assert_ne!(Some(recomputed.identity()), complete.run_evidence(0));
     assert_eq!(
         Some(recomputed.with_elapsed_seconds(0.).unwrap().identity()),
-        complete.time_evidence(0)
+        complete.run_evidence(0)
     );
-    let CompleteMembers::Time(Completed::Released(evidence)) = &mut complete.members else {
+    let CompleteMembers::Runs(Completed::Released(evidence)) = &mut complete.members else {
         panic!("released time members");
     };
     evidence.swap(0, 1);
     assert!(
-        complete.recompute_time(0).unwrap_err()[0]
+        complete.recompute_run(0).unwrap_err()[0]
             .message()
             .contains("changed its original acceptance")
     );
-    assert!(complete.time_result(0).is_none());
+    assert!(complete.run_result(0).is_none());
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn interrupted_member_retains_atomic_checkpoint_and_original_sample() {
     .unwrap();
     for (index, request) in requests.iter().enumerate() {
         assert_eq!(
-            resumed.time_result(index).unwrap().to_bytes().unwrap(),
+            resumed.run_result(index).unwrap().to_bytes().unwrap(),
             run(request, None)
                 .unwrap()
                 .continue_value()
@@ -283,7 +283,7 @@ fn failed_or_foreign_member_cannot_replace_its_occurrence() {
             .message()
             .contains("exact requested Run")
     );
-    assert!(report.time_result(0).is_none());
+    assert!(report.run_result(0).is_none());
     assert!(matches!(
         report.occurrence(1),
         Some(EvaluationMapOccurrence::NotStarted)
@@ -306,8 +306,8 @@ fn failed_or_foreign_member_cannot_replace_its_occurrence() {
     .unwrap();
     let report = map.execute().unwrap_err();
     assert_eq!(report.stopped_index(), 1);
-    assert!(report.recompute_time(0).is_ok());
-    assert!(report.recompute_time(1).is_err());
+    assert!(report.recompute_run(0).is_ok());
+    assert!(report.recompute_run(1).is_err());
     assert!(matches!(
         report.occurrence(2),
         Some(EvaluationMapOccurrence::NotStarted)
@@ -340,7 +340,7 @@ fn cancellation_does_not_run_inactive_members_or_consume_their_paths() {
     assert_eq!(calls.load(Ordering::SeqCst), 4);
     for (index, request) in requests.iter().enumerate() {
         assert_eq!(
-            result.time_result(index).unwrap().identity(),
+            result.run_result(index).unwrap().identity(),
             run(request, None)
                 .unwrap()
                 .continue_value()

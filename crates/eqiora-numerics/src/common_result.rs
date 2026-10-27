@@ -174,6 +174,23 @@ impl CommonResult {
         }
     }
 
+    /// Complete finite Field values with their declared mathematical types and units.
+    /// These global coefficients have no Mesh or spatial coefficient association.
+    pub fn finite_field_values(
+        &self,
+    ) -> Result<
+        Vec<(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueLiteral,
+        )>,
+        Diagnostic,
+    > {
+        let (Some(plan), Some(values)) = (self.plan().as_algebraic(), self.finite_values()) else {
+            return Err(invalid("finite Field values require an algebraic Result"));
+        };
+        plan.field_values(values)
+    }
+
     /// Original typed condition values and activity, independently checked against this Result's Plan.
     #[must_use]
     pub(crate) fn constraint_assessment(
@@ -386,6 +403,7 @@ impl CommonResult {
         Ok(self)
     }
     #[must_use]
+    /// Number of spatial coefficient Fields; finite global values use `finite_field_values`.
     pub fn field_count(&self) -> usize {
         match &self.payload {
             CommonResultPayload::Static(payload) => payload.fields.len(),

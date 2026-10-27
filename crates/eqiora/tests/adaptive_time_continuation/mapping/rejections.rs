@@ -130,7 +130,7 @@ fn rejected_trials_and_accepted_histories_remain_occurrence_local() {
     for (index, (trajectory, _)) in expected.iter().enumerate() {
         assert_eq!(
             complete
-                .time_result(index)
+                .run_result(index)
                 .unwrap()
                 .trajectory()
                 .unwrap()

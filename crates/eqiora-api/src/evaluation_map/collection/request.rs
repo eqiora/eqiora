@@ -12,6 +12,13 @@ pub(super) enum RecordedRequest {
         shared: Vec<Parameter>,
         samples: Option<Vec<SampledParameterPoint>>,
     },
+    Parameters {
+        template: ResolvedCommonPlan,
+        parameters: Vec<Parameter>,
+        points: Vec<Vec<eqiora_core::ValueLiteral>>,
+        policy: EvaluationMapExecutionPolicy,
+        member_bytes_limit: usize,
+    },
     Time {
         plan: ResolvedCommonPlan,
         requests: Vec<CommonTimeRunRequest>,
@@ -34,6 +41,13 @@ impl RecordedRequest {
                 shared: shared_inputs.to_vec(),
                 samples: samples.as_ref().map(|v| v.to_vec()),
             },
+            Inputs::Parameters(inputs) => Self::Parameters {
+                template: inputs.template.as_ref().clone(),
+                parameters: inputs.parameters.to_vec(),
+                points: inputs.points.to_vec(),
+                policy: plan.policy(),
+                member_bytes_limit: inputs.member_bytes_limit,
+            },
             Inputs::Time(inputs) => Self::Time {
                 plan: ResolvedCommonPlan::Time(Box::new(inputs.plan.as_ref().clone())),
                 requests: inputs.requests.to_vec(),
@@ -48,6 +62,7 @@ impl RecordedRequest {
     pub(super) fn len(&self) -> usize {
         match self {
             Self::Evaluations { points, .. } => points.len(),
+            Self::Parameters { points, .. } => points.len(),
             Self::Time { requests, .. } => requests.len(),
         }
     }
@@ -55,6 +70,7 @@ impl RecordedRequest {
         match self {
             Self::Evaluations { context, .. } => context.plan(),
             Self::Time { plan, .. } => plan,
+            Self::Parameters { template, .. } => template,
         }
     }
     pub(super) fn program_identity(&self) -> Option<&DifferentiableProgramIdentity> {
@@ -126,6 +142,18 @@ impl RecordedRequest {
                     ));
                 }
             }
+            Self::Parameters {
+                template,
+                parameters: selected,
+                points,
+                policy,
+                member_bytes_limit,
+            } => {
+                parameters::validate_template(template)?;
+                let original = parameters::document(template).map_err(crate::first_diagnostic)?;
+                parameters::validate_points(&original, selected, points)?;
+                parameters::storage_charge(selected, points, *policy, *member_bytes_limit)?;
+            }
             Self::Time {
                 plan,
                 requests,
@@ -175,7 +203,21 @@ impl RecordedRequest {
                     ));
                 }
             }
-            (Self::Time { requests, .. }, RecordedEvaluationOutcome::TimeAccepted(result)) => {
+            (
+                Self::Parameters {
+                    template,
+                    parameters: selected,
+                    points,
+                    member_bytes_limit,
+                    ..
+                },
+                RecordedEvaluationOutcome::RunAccepted(result),
+            ) => {
+                parameters::check_member_size(result, *member_bytes_limit)?;
+                let original = parameters::document(template).map_err(crate::first_diagnostic)?;
+                parameters::validate_result(&original, selected, &points[index], result)?;
+            }
+            (Self::Time { requests, .. }, RecordedEvaluationOutcome::RunAccepted(result)) => {
                 time::validate_request(&requests[index], result)?
             }
             (
@@ -208,5 +250,47 @@ impl RecordedRequest {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recorded_parameter_request_rejects_a_time_template_before_outcome_admission() {
+        let components =
+            include_str!("../../../packages/Eqiora.Stochastic.Processes/src/processes.eqi");
+        let composition = include_str!("../../../../../examples/stochastic-processes/src/main.eqi")
+            .replace(
+                "import Eqiora.Stochastic.Processes.processes as processes;",
+                "",
+            )
+            .replace("processes.", "");
+        let original = crate::ModelDocument::compile(
+            "foreign-time-template.eqi",
+            &format!("{components}\n{composition}"),
+        )
+        .unwrap();
+        let model = eqiora_artifact::ModelEnvelope::from_program(original.program()).unwrap();
+        let time =
+            eqiora_numerics::CommonTimePlan::resolve_euler_maruyama(&model, original.program(), 3)
+                .unwrap();
+        let request = RecordedRequest::Parameters {
+            template: ResolvedCommonPlan::Time(Box::new(time)),
+            parameters: vec![],
+            points: vec![vec![]],
+            policy: EvaluationMapExecutionPolicy::retained(1 << 28),
+            member_bytes_limit: 1 << 20,
+        };
+        let error = request
+            .wire()
+            .unwrap()
+            .replay(&eqiora_solver::REFERENCE_LINEAR_SOLVER, &[])
+            .unwrap_err();
+        assert!(
+            error[0].message().contains("require a stationary Plan"),
+            "{error:?}"
+        );
     }
 }

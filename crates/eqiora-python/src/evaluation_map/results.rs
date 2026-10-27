@@ -43,7 +43,7 @@ impl PyCompleteEvaluationMap {
     }
     /// Inspect one ordinary accepted evaluation without changing its lineage.
     fn member(&self, py: Python<'_>, index: usize) -> PyResult<Py<PyAny>> {
-        if let Some(value) = self.native.time_result(index) {
+        if let Some(value) = self.native.run_result(index) {
             return time::result(py, &self.plan, value);
         }
         let value = self
@@ -241,8 +241,8 @@ impl PyEvaluationMapTerminalReport {
                 Some(
                     EvaluationMapOccurrence::Accepted(_)
                     | EvaluationMapOccurrence::Released(_)
-                    | EvaluationMapOccurrence::TimeAccepted(_)
-                    | EvaluationMapOccurrence::TimeReleased(_),
+                    | EvaluationMapOccurrence::RunAccepted(_)
+                    | EvaluationMapOccurrence::RunReleased(_),
                 ) => "accepted",
                 Some(EvaluationMapOccurrence::Failed(_)) => "failed",
                 Some(
@@ -262,7 +262,7 @@ impl PyEvaluationMapTerminalReport {
             EvaluationMapOccurrence::Accepted(value) => evaluation_result(py, value.clone())
                 .and_then(|value| Py::new(py, value))
                 .map(|value| Some(value.into_any())),
-            EvaluationMapOccurrence::TimeAccepted(value) => {
+            EvaluationMapOccurrence::RunAccepted(value) => {
                 time::result(py, &self.plan, value).map(Some)
             }
             _ => Ok(None),

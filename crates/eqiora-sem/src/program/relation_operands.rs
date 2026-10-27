@@ -4,7 +4,7 @@ use eqiora_core::ValueLiteral;
 
 impl KernelProgram {
     /// Evaluate original ordered Relation operands at exact typed numerical candidates.
-    /// Unselected Parameters retain their immutable Model values. This evaluates mathematical
+    /// Unselected Parameters retain their revision-local Model values. This evaluates mathematical
     /// values; it does not enforce constraints or interpret solver success.
     ///
     /// # Errors
@@ -104,6 +104,7 @@ impl KernelProgram {
                         parameter_candidates
                             .get(&id.erase())
                             .copied()
+                            .or_else(|| self.typed_value(id.erase()))
                             .unwrap_or_else(|| parameter.value())
                             .clone(),
                     ),

@@ -50,12 +50,12 @@ fn complete_time_collection_preserves_repeated_samples_and_original_checkpoint_r
         let recorded = group.time_checkpoints().unwrap()[0].as_ref().unwrap();
         assert_eq!(recorded.as_bytes(), checkpoint.to_bytes().unwrap());
         assert_eq!(recorded.restore().unwrap(), checkpoint);
-        let (first_id, RecordedEvaluationOutcome::TimeAccepted(first)) =
+        let (first_id, RecordedEvaluationOutcome::RunAccepted(first)) =
             group.occurrence(0).unwrap()
         else {
             panic!("accepted time Result")
         };
-        let (repeat_id, RecordedEvaluationOutcome::TimeAccepted(repeated)) =
+        let (repeat_id, RecordedEvaluationOutcome::RunAccepted(repeated)) =
             group.occurrence(2).unwrap()
         else {
             panic!("accepted time Result")
@@ -91,7 +91,7 @@ fn interrupted_time_collection_retains_individual_results_and_requires_explicit_
     let group = &restored.groups()[0];
     assert!(matches!(
         group.occurrence(0).unwrap().1,
-        RecordedEvaluationOutcome::TimeAccepted(_)
+        RecordedEvaluationOutcome::RunAccepted(_)
     ));
     assert!(matches!(
         group.occurrence(2).unwrap().1,
@@ -155,7 +155,7 @@ fn saved_time_estimator_binds_every_occurrence_without_reducing_on_read() {
     .unwrap();
     let complete = map.execute().unwrap();
     let results: Arc<[_]> = (0..complete.len())
-        .map(|i| complete.time_result(i).unwrap().clone())
+        .map(|i| complete.run_result(i).unwrap().clone())
         .collect();
     let reduction = MomentReduction::Empirical(ProbabilityMoment::Expectation);
     let estimator = MomentEstimator::from_time_results(
@@ -263,5 +263,44 @@ fn saved_time_estimator_binds_every_occurrence_without_reducing_on_read() {
             errors.iter().any(|error| error.message().contains(message)),
             "{errors:?}"
         );
+    }
+}
+
+#[test]
+fn time_collection_has_one_canonical_shared_plan_and_rejects_member_plan_payloads() {
+    use base64::Engine as _;
+    let (plan, requests) = fixture();
+    let collection = EvaluationMapPlan::from_time_requests(
+        plan,
+        &requests,
+        None,
+        policy(1, 1, EvaluationMapRetention::Retain),
+        MEMBER_LIMIT,
+        run,
+    )
+    .unwrap()
+    .execute_recorded(|| false)
+    .unwrap();
+    let wire: serde_json::Value = serde_json::from_slice(&collection.to_bytes().unwrap()).unwrap();
+    assert!(
+        wire["groups"][0]["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|member| member["outcome"]["plan"].is_null())
+    );
+    for index in [0, 2] {
+        let mut bad = wire.clone();
+        bad["groups"][0]["members"][index]["outcome"]["plan"] = serde_json::json!(
+            base64::engine::general_purpose::STANDARD
+                .encode(collection.groups()[0].plan().to_bytes().unwrap())
+        );
+        let errors = EvaluationCollection::from_bytes(
+            &serde_json::to_vec(&bad).unwrap(),
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+            &[eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES],
+        )
+        .unwrap_err();
+        assert!(errors[0].message().contains("Plan"), "{errors:?}");
     }
 }

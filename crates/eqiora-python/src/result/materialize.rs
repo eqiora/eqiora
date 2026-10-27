@@ -223,9 +223,11 @@ fn materialize_common_result_unprofiled(
             py,
             PyFieldOutput::new(
                 field,
-                mesh.as_ref()
-                    .expect("spatial field owns mesh")
-                    .clone_ref(py),
+                Some(
+                    mesh.as_ref()
+                        .expect("spatial field owns mesh")
+                        .clone_ref(py),
+                ),
                 value_type,
                 coefficient_dimension,
                 space,
@@ -234,6 +236,51 @@ fn materialize_common_result_unprofiled(
         )?;
         lookup.insert(field_id, outputs.len());
         outputs.push(output);
+    }
+    if result.plan().as_algebraic().is_some() {
+        for (id, value) in result
+            .finite_field_values()
+            .map_err(|error| crate::error::validation_error(py, &[error]))?
+        {
+            let field_id = id.ulid().to_string();
+            let field = Py::new(
+                py,
+                PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
+            )?;
+            let components = value.components().ok_or_else(|| {
+                PyRuntimeError::new_err("finite Field has no floating coefficients")
+            })?;
+            let buffer = if value.value_type().scalar_domain() == eqiora::ScalarDomain::Complex {
+                PyArrayBuffer::from_owned_complex_result(
+                    py,
+                    components
+                        .map(|(real, imaginary)| numpy::Complex64::new(real, imaginary))
+                        .collect(),
+                )?
+            } else {
+                PyArrayBuffer::from_owned_result(py, components.map(|(real, _)| real).collect())?
+            };
+            let shape = value
+                .value_type()
+                .shape()
+                .extents()
+                .iter()
+                .map(|extent| extent.get() as usize)
+                .collect();
+            let output = Py::new(
+                py,
+                PyFieldOutput::new(
+                    field,
+                    None,
+                    value.value_type().clone(),
+                    value.value_type().dimension(),
+                    "finite",
+                    vec![FieldOutputBlock::new("global", buffer, 1, shape)],
+                ),
+            )?;
+            lookup.insert(field_id, outputs.len());
+            outputs.push(output);
+        }
     }
     let solve = if result.nonlinear_iterations(None).is_some() {
         Py::new(

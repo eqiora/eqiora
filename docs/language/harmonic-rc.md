@@ -6,7 +6,7 @@ equations as the time-domain model. Forms written in `.eqi` source and forms bui
 compile to the same representation and run through the usual complex Plan and Result. The
 [verification case](../../verify/numerics/harmonic-response/README.md) checks RC and RLC
 amplitudes, a one-dimensional scalar wave, reconstruction, sign conventions, and a comparison
-with the RC transient. Frequency sweeps are not supported.
+with the RC transient. Ordered frequency sweeps use independent ordinary Runs as described below.
 
 ## The model and its harmonic form
 
@@ -173,3 +173,44 @@ spatial Result, `result.reconstruct_harmonic_field_block(original_field, time_se
 returns real coefficients in the layout of the amplitude block. Both give the steady harmonic
 response, not the solution of the initial-value problem. Pass the original Field, not the
 amplitude Field. Derivatives of the reconstructed response are not supported and raise an error.
+
+## Ordered frequency Runs
+
+Use `EvaluationMapPlan.from_parameters` with the original Model's `omega` Parameter and one
+complete value per selected Parameter in each point. Values use the Parameter's declared coherent
+SI units; angular frequency is in inverse seconds. Convert cyclic frequency explicitly with
+`omega = 2 * math.pi * frequency_hz`.
+
+```python
+import eqiora as q
+
+# Keep the original compiled Model handle used to resolve plan.
+omega = model.parameter("omega")
+sweep = q.EvaluationMapPlan.from_parameters(
+    plan, [omega], [(500.0,), (1000.0,), (500.0,)], workers=1,
+)
+collection = sweep.execute_recorded()
+collection.write("rc-sweep.eqcollection")
+for member in collection[0]:
+    if member.status == "accepted":
+        for name, original, amplitude in member.plan.harmonic_amplitudes:
+            print(name, member.result.output(amplitude).values("global"))
+    else:
+        print(member.status, member.diagnostics)
+```
+
+Source aliases belong to the original compiled Model handle. The artifact-backed
+`plan.harmonic_original_model` accepts exact Parameter IDs, not those source aliases.
+
+Every point starts from the same original Model and repeats harmonic reduction with the selected
+frequency. Each accepted occurrence retains its own exact Plan and Result. Select amplitude Fields
+from `member.plan`, since a changed frequency changes the reduced Model identity. Finite amplitudes
+use the `global` association and have no Mesh; spatial amplitudes retain their spatial associations.
+Order and duplicate occurrences survive collection reopening. Zero and negative angular frequencies
+are recorded as failed occurrences; accepted siblings remain available.
+
+This route also handles ordinary stationary scalar-wave Plans through the same map and collection
+owners. Each occurrence executes an independent Run: the map does not reuse a factorization across
+frequencies or provide harmonic derivatives. Read saved results with `EvaluationCollection.read`
+without executing the solver; retry selected unsuccessful points as a new map and retain both groups
+with `EvaluationCollection.combine`.

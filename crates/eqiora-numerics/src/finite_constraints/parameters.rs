@@ -33,6 +33,7 @@ impl FiniteConstraintProblem {
             let value = point
                 .parameter_candidates
                 .get(id)
+                .or_else(|| self.kernel.typed_value(id.erase()))
                 .unwrap_or(parameter.value());
             *binding = coordinate.read_value(value)?;
         }

@@ -40,7 +40,7 @@ pub(super) fn add_field_output(
             "private v0 viewer accepts scalar FieldOutput values only",
         ));
     }
-    let mesh = output.mesh_handle(py);
+    let mesh = output.mesh_handle(py)?;
     let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
     let field = output.field_handle(py);
     let field = field.borrow(py);

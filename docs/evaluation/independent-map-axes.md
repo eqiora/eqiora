@@ -294,8 +294,8 @@ without a live controller or random path. Reading a reference does not assert th
 state can resume. Calling `restore()` explicitly applies the original checkpoint admission before
 execution can use it; there is no weaker continuation path or second checkpoint format.
 
-Native and Python collection reopening cover accepted primal/time Result records and incomplete
-inventories. Python `complete.record()` and `report.record()` capture retained members;
+Native and Python collection reopening cover accepted primal and ordinary stationary/time Result
+records and incomplete inventories. Python `complete.record()` and `report.record()` capture retained members;
 `mapped.execute_recorded()` captures the original execution directly. The same bounded file writer
 owns `.eqcollection` files:
 
@@ -307,13 +307,18 @@ for group in reopened:
     for member in group:
         print(member.occurrence_id, member.status, member.sampling)
         if member.result is not None:
-            # A typed primal or ordinary time Result; no derivative executor is reopened.
+            # A typed primal or ordinary Run Result; no derivative executor is reopened.
             print(member.reference, member.result)
 ```
 
-Each group exposes its exact Plan and, for Parameter evaluations, static Program bytes, typed input
-and output signatures, and shared-input IDs. Each member retains its point or exact time-request
-bytes, optional frozen Parameter-sample bytes, accepted content reference and original diagnostics.
+Each group exposes its exact request. Differentiable Parameter evaluations retain static Program
+bytes, typed input and output signatures, and shared-input IDs. Ordinary stationary Parameter Runs
+retain a template Plan and an exact Plan for each accepted member (`member.plan`), because binding
+a Parameter may change the reduced Model and operator. Their ordered points are complete typed
+values of Parameters from the template's retained original Model. Reopening rederives each member
+Plan from that template and point, then admits its existing Result bytes without solving. The
+current collection format is `eqiora.evaluation-collection/v4`; displaced formats reject. Each member
+retains its point or exact time-request bytes, optional frozen Parameter-sample bytes, accepted content reference and original diagnostics.
 `EvaluationCollection.combine([...])` explicitly associates independent groups. It rejects adding
 the same execution twice. `member.input_checkpoint` and `member.checkpoint` expose read-only records;
 only `.restore()` creates an `ExecutionCheckpoint` accepted for continuation. Reopened collections

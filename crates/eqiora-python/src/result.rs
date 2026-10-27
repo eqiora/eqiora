@@ -677,7 +677,7 @@ impl PyRunResult {
         if let ResultPayload::Fields(_) = &self.payload {
             return self
                 .common_output(py, field)
-                .map(|output| output.borrow(py).mesh_handle(py));
+                .and_then(|output| output.borrow(py).mesh_handle(py));
         }
         Err(PyKeyError::new_err(field.exact_id().to_owned()))
     }
@@ -719,7 +719,7 @@ impl PyRunResult {
     ) -> PyResult<Py<PyBoundaryFlux>> {
         let payload = self.steady_stokes_payload(py, "boundary-flux")?;
         let selected = selection.borrow(py);
-        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+        let mesh = payload.outputs[0].borrow(py).mesh_handle(py)?;
         Self::validate_observable_selection(&selected, mesh.borrow(py).source_digest_value())?;
         let name = selected.canonical_name().to_owned();
         let value = self
