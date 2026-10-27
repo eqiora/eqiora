@@ -176,7 +176,8 @@ impl SolverCandidateCost {
     pub const fn solve_work(self) -> Option<u128> {
         self.solve_work
     }
-    /// Independent residual acceptance proxy over the declared horizon.
+    /// Independent true linear-residual acceptance proxy over the declared horizon.
+    /// Physical method/State assessment is outside this typed-solver proxy.
     #[must_use]
     pub const fn acceptance_work(self) -> Option<u128> {
         self.acceptance_work
@@ -187,7 +188,7 @@ impl SolverCandidateCost {
         self.total_work
     }
     /// Accounted input CSR/RHS payload plus bounded solver-owned numeric workspace.
-    /// Excludes caller guesses, assembly copies, outputs, metadata and allocator/RSS overhead.
+    /// Excludes caller guesses, assembly/physical assessment, outputs, metadata and allocator/RSS overhead.
     #[must_use]
     pub const fn numeric_payload_bytes(self) -> Option<usize> {
         self.numeric_payload_bytes
