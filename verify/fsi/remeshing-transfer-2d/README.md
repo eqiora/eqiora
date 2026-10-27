@@ -77,14 +77,14 @@ physical acceptance contracts and far below the slice's discretization error.
 ## Projection solver substitution
 
 The same public transfer/continuation fixture runs reference MINRES and BiCGSTAB
-with Identity/Reproducible, and Faer SparseLU with Identity/Fast. Equations,
+with Identity/Reproducible, and Faer BiCGSTAB and SparseLU with Identity/Fast. Equations,
 physical scales, mesh revisions, constraints and the original solver controls
 remain fixed. Exact provider capability checks require both SPD mass and
 symmetric-indefinite velocity projections. The KKT multiplier block has zero
 diagonal, so this projection requires Identity; that does not exclude Jacobi
 from other problems with an invertible diagonal.
 
-All three paths consume canonical CSR captured from the already assembled dense
+All four paths consume canonical CSR captured from the already assembled dense
 coefficients, then independently replay the original raw-matrix residual and
 physical constraints. The existing per-matrix sixteen-million coefficient limit,
 four-million auxiliary limit and sixty-four-million orthogonalization-work limit
