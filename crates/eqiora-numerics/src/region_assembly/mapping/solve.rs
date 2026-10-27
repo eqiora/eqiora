@@ -39,6 +39,9 @@ impl<const D: usize> RegionGeometryHistory for FixedTopologyGeometryAction<D> {
     }
 }
 
+pub(crate) type RegionCandidateCheck<'a, S> =
+    dyn Fn(&BTreeMap<RawId, RecoveredRegionField<S>>) -> Result<bool, Diagnostic> + Sync + 'a;
+
 /// Exact local forms, exterior loads, and physical history consumed by one solve.
 pub(crate) struct RegionSolveInput<S: Coefficient> {
     /// Derived from admitted mathematics, never inferred from the selected solver.
@@ -252,6 +255,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Execute an exact mapped region system. The caller authenticates
     /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
     /// retains physical coefficient interpretation in the recovered inventory.
+    #[cfg(test)] // Cold test reference; production callers supply their check explicitly.
     pub(crate) fn solve<'mesh, A: Coefficient + Send + Sync>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
@@ -263,10 +267,46 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     where
         Self: RegionAlgebraicCoordinates<A, S>,
     {
+        self.solve_with_candidate_check(mesh, input, workers, request, prepared, None)
+    }
+
+    /// Primal physical checks accompany the original canonical solve; derivative
+    /// right-hand sides use `solve` without a physical-State criterion.
+    pub(crate) fn solve_with_candidate_check<'mesh, A: Coefficient + Send + Sync>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: &RegionSolveInput<S>,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_, A>,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver<A>>,
+        candidate_check: Option<&RegionCandidateCheck<'_, S>>,
+    ) -> Result<RegionSolveOutput<S>, Diagnostic>
+    where
+        Self: RegionAlgebraicCoordinates<A, S>,
+    {
         let (core, assembly_report, _) =
             self.finalize_linear::<A>(mesh, input, workers, request.plan())?;
         let step = kinematic_step(&input.forms)?;
-        let problem = core.linear_problem()?;
+        let recover = |values: &[A]| {
+            let values = self.decode_coordinates(values)?;
+            if let Some(step) = &step {
+                self.recover_step(
+                    &values,
+                    input.previous.as_ref().expect("validated step history"),
+                    step,
+                    &input.prescribed_states,
+                )
+            } else {
+                self.recover(&values, &self.fields.keys().copied().collect::<Vec<_>>())
+            }
+        };
+        let check = |values: &[A]| {
+            candidate_check.expect("attached physical candidate check")(&recover(values)?)
+        };
+        let mut problem = core.linear_problem()?;
+        if candidate_check.is_some() {
+            problem = problem.with_candidate_check(&check);
+        }
         let residual_target = core.residual_target()?;
         let solution = match prepared {
             Some(prepared) => prepared.solve(
@@ -279,17 +319,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         };
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        let values = self.decode_coordinates(&values)?;
-        let fields = if let Some(step) = &step {
-            self.recover_step(
-                &values,
-                input.previous.as_ref().expect("validated step history"),
-                step,
-                &input.prescribed_states,
-            )?
-        } else {
-            self.recover(&values, &self.fields.keys().copied().collect::<Vec<_>>())?
-        };
+        let fields = recover(&values)?;
         Ok(RegionSolveOutput {
             fields,
             solve_report,

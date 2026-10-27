@@ -184,6 +184,36 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonTransientRunRequest::from_steps(manual_resolved.clone(), initial.clone(), 1, vec![1])
             .is_err()
     );
+    let substituted = ResolvedCommonPlan::resolve(
+        &model,
+        resources.clone(),
+        scoped.clone(),
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1.0e-11,
+            1.0e-13,
+            NonZeroUsize::new(20_000).unwrap(),
+        )),
+        None,
+        Some(temporal.clone()),
+        &ResolveOnlyBackend,
+        None,
+        None,
+    )
+    .unwrap();
+    let substituted = replay_plan(substituted, &ResolveOnlyBackend);
+    let substituted_plan = substituted.as_spatial().unwrap();
+    let substituted_initial = substituted_plan
+        .initial_state(Some(0.), fields.clone())
+        .unwrap();
+    let substituted_step = substituted_plan
+        .advance_scalar(&substituted_initial, &REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    let substituted_state = substituted_step.state();
+    assert_eq!(
+        CommonState::from_bytes(&substituted_state.to_bytes().unwrap(), &substituted).unwrap(),
+        *substituted_state
+    );
     let manual_initial = manual.initial_state(Some(0.), fields).unwrap();
     let accepted_step = automatic
         .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER)

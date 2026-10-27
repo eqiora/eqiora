@@ -64,7 +64,9 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     return geometry, eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
 
 
-def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
+def admitted(
+    algorithm: eqiora.solve.LinearSolver = eqiora.solve.LinearSolver.MinimumResidual,
+) -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
     geometry, mesh = geometry_and_mesh()
     model = eqiora.compile(path=files(eqiora).joinpath('examples', 'fixed-reference-fsi.eqi'), geometry=geometry, entry='FixedReferenceFsi2d', bindings={**support_bindings(geometry, ['fluid', 'solid'], [('fluid_x_lower', 'fluid'), ('fluid_x_upper', 'fluid'), ('fluid_y_lower', 'fluid'), ('fluid_y_upper', 'fluid'), ('solid_x_lower', 'solid'), ('solid_x_upper', 'solid'), ('solid_y_lower', 'solid'), ('solid_y_upper', 'solid')]), **PARAMETERS})
     plan = eqiora.resolve(
@@ -76,7 +78,7 @@ def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
         ),
         temporal=eqiora.time.BackwardEuler(step_s=0.05),
         solve=eqiora.solve.Linear(
-            algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+            algorithm=algorithm,
             preconditioner=eqiora.solve.Preconditioner.Identity,
             reduction=eqiora.solve.Reduction.Reproducible,
             provider=eqiora.solve.SolverProvider.reference(),
@@ -257,8 +259,14 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
         eqiora.InitialField(model.field("definition.fluid_pressure"), values=[0.0])
 
 
-def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
-    model, mesh, plan = admitted()
+@pytest.mark.parametrize("algorithm", [
+    eqiora.solve.LinearSolver.MinimumResidual,
+    eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+])
+def test_common_worker_run_outputs_restart_and_observation_evidence(
+    algorithm: eqiora.solve.LinearSolver,
+) -> None:
+    model, mesh, plan = admitted(algorithm)
     state = initial(model, mesh, plan)
     run = eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2))
     result = run.result()
@@ -301,7 +309,7 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
     for observation, output in zip(observations, outputs, strict=True):
         assert observation.state_identity == output.digest
         assert observation.trajectory_identity == trajectory.digest
-        assert observation.solve.algorithm == "minimum-residual"
+        assert observation.solve.algorithm == plan.solve.algorithm
         assert observation.solve.true_residual_norm <= observation.solve.residual_target
         assert observation.balance_error is None
 

@@ -42,7 +42,7 @@ mod replay;
 mod solve;
 pub(crate) use binding::{bind_region_cells, bind_region_topology};
 pub(crate) use recovery::RecoveredRegionField;
-pub(crate) use solve::{RegionSolveInput, RegionSolveOutput};
+pub(crate) use solve::{RegionCandidateCheck, RegionSolveInput, RegionSolveOutput};
 
 /// Bind topology without requiring an affine or linear equation compiler.
 pub(crate) fn field_layouts(
