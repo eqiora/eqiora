@@ -23,6 +23,9 @@ listed here.
 
 ### Changed
 
+- Evaluation collections use v4 to retain exact ordinary-Run member Plans and
+  retry occurrences. Retired collection codecs are rejected without silent
+  migration; retain the producing release to reopen historical archives.
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
   `accept_with_execution` or `accept_with_verifier`. The former free functions
   are removed; all methods retain the same independent residual verification.
