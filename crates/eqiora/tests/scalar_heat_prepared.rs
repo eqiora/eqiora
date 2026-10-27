@@ -268,7 +268,7 @@ fn stale_provider_candidate(
     solution: LinearSolution,
 ) -> Result<LinearSolution, Diagnostic> {
     let (values, report) = solution.into_parts();
-    eqiora::solver::accept_linear_solution(
+    eqiora::solver::LinearSolution::accept(
         problem,
         report.solver_plan(),
         SolverProvider::new(
