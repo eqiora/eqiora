@@ -1,5 +1,6 @@
 use super::*;
 mod grid;
+mod scalar;
 use crate::prepared_execution::advance_prepared_actions;
 pub(super) use grid::TimeGrid;
 use std::ops::ControlFlow;
@@ -220,8 +221,8 @@ impl CommonTransientRunRequest {
                 self.accepted_steps()?.get(),
                 &self.output_steps()?,
                 step_s,
-                |_| Ok(()),
-                |(), state| plan.advance_scalar(state, backend),
+                |state| scalar::PreparedScalarExecution::new(plan, state, backend),
+                |prepared, state| prepared.advance(state),
                 stop_at_boundary,
             );
         }

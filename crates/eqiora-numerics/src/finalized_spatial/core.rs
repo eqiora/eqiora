@@ -119,7 +119,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
         Ok(())
     }
 
-    fn residual_target(&self) -> Result<f64, Diagnostic> {
+    pub(crate) fn residual_target(&self) -> Result<f64, Diagnostic> {
         self.solver.residual_target(FixedOrderInnerProduct::norm(
             &SERIAL_LINEAR_EXECUTION,
             self.canonical_system.right_hand_side(),

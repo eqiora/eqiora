@@ -376,6 +376,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
                 },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, admission.linear.solver),
+                None,
             )
             .unwrap();
         // For -Delta z=1 with zero trace, the interior P1 row is

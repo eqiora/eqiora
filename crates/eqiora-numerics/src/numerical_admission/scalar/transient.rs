@@ -9,6 +9,7 @@ impl CommonSpatialPlan {
         mapping: &RegionDofMap<S>,
         input: &crate::region_assembly::mapping::RegionSolveInput<S>,
         request: LinearSolveRequest<'_>,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<crate::region_assembly::mapping::RegionSolveOutput<S>, Diagnostic>
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
@@ -18,15 +19,20 @@ impl CommonSpatialPlan {
             .as_ref()
             .map(|action| action.current_mesh());
         match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => {
-                mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)
-            }
+            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
+                mesh.mesh(),
+                input,
+                self.admission.linear.workers,
+                request,
+                prepared,
+            ),
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
                 current_mesh.unwrap_or_else(|| mesh.mesh()),
                 input,
                 self.admission.linear.workers,
                 request,
+                prepared,
             ),
             _ => Err(invalid(
                 "Region linear solve requires its exact affine Mesh",
@@ -360,20 +366,30 @@ impl CommonSpatialPlan {
         Ok((mapping, input))
     }
 
+    #[cfg(test)] // Internal cold single-step reference; Runs own their provider session.
     pub(in crate::numerical_admission) fn advance_scalar(
         &self,
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
+        self.advance_scalar_prepared(state, backend, None)
+    }
+
+    pub(in crate::numerical_admission) fn advance_scalar_prepared(
+        &self,
+        state: &CommonState,
+        backend: &dyn LinearSolverBackend,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let grid = state.time_grid()?.advance(1)?;
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => {
-                self.advance_typed(equations, state, backend, grid)
+                self.advance_typed(equations, state, backend, grid, prepared)
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
-                self.advance_typed(equations, state, backend, grid)
+                self.advance_typed(equations, state, backend, grid, prepared)
             }
             _ => Err(invalid("missing spatial inventory")),
         }
@@ -385,6 +401,7 @@ impl CommonSpatialPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
         grid: TimeGrid,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic>
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
@@ -414,7 +431,7 @@ impl CommonSpatialPlan {
             let execution = super::nonlinear::newton_execution(&output.solve);
             (output.fields, residual, execution)
         } else {
-            let output = self.solve_region_linear(&mapping, &input, request)?;
+            let output = self.solve_region_linear(&mapping, &input, request, prepared)?;
             let execution = CommonSpatialExecution {
                 solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
                     crate::common_result::evidence::CommonSolveEvidence::from_report(
@@ -425,6 +442,16 @@ impl CommonSpatialPlan {
                     &output.assembly_report,
                 ),
             };
+            // Validate operational provenance before publishing a State or
+            // allowing another action to reuse the provider session. Targets
+            // and counts come from the finalized ordinary assembly/core.
+            execution.validate(
+                self,
+                output.residual_target,
+                output.assembly_report.packet_count(),
+                output.assembly_report.target_count(),
+                None,
+            )?;
             (output.fields, None, execution)
         };
         let mut values = Vec::new();

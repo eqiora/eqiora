@@ -103,6 +103,7 @@ fn execute<S: Coefficient + Send + Sync>(
                 },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
+                None,
             )
             .unwrap();
         mapping.validate_physical(&output.fields).unwrap();
@@ -170,6 +171,7 @@ fn execute<S: Coefficient + Send + Sync>(
                 },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
+                None,
             )
             .err()
             .unwrap();

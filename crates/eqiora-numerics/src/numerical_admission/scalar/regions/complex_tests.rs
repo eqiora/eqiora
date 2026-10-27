@@ -71,6 +71,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
             &input,
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
+            None,
         )
         .unwrap();
     let output = CommonLinearRunOutput {
