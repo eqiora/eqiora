@@ -276,7 +276,7 @@ impl LinearSolverBackend for CountingBackend {
                 expected_operator: problem.operator(),
                 operator_apply_calls: &self.operator_apply_calls,
             };
-            crate::accept_linear_solution_with_verifier(
+            crate::LinearSolution::accept_with_verifier(
                 problem,
                 selected_plan,
                 self.provider,

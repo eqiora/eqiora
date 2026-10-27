@@ -42,7 +42,6 @@ pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
 pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER};
 pub use report::{
     ConvergenceReason, ExecutionId, ExecutionReport, ExecutionTopology, LinearAcceptanceWorkspace,
-    LinearSolution, SolveReport, accept_linear_solution, accept_linear_solution_with_execution,
-    accept_linear_solution_with_verifier,
+    LinearSolution, SolveReport,
 };
 pub use structure::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};

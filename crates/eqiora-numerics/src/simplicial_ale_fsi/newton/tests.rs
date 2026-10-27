@@ -9,7 +9,6 @@ use eqiora_solver::{
     BackendId, ConvergenceReason, ExecutionReport, LinearOperator, LinearProblem, LinearSolution,
     LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
     ReplicatedLinearExecution, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
-    accept_linear_solution_with_execution,
 };
 
 use super::*;
@@ -492,7 +491,7 @@ impl LinearSolverBackend for DenseGeneralSolver {
             }
         }
         let values = solve_dense(matrix, problem.right_hand_side().to_vec())?;
-        accept_linear_solution_with_execution(
+        eqiora_solver::LinearSolution::accept_with_execution(
             problem,
             plan,
             self.provider(),

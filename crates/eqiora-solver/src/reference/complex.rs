@@ -6,7 +6,6 @@ use num_complex::Complex64;
 use crate::{
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolverBackend,
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
-    accept_linear_solution_with_execution,
 };
 
 use super::{ReferenceLinearSolver, invalid_realization, solve_failed};
@@ -77,7 +76,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             .map(|pair| Complex64::new(pair[0], pair[1]))
             .collect();
         // Verify the original typed action, not the numerical lowering.
-        accept_linear_solution_with_execution(
+        crate::LinearSolution::accept_with_execution(
             problem,
             plan,
             self.provider(),

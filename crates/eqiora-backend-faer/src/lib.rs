@@ -21,7 +21,7 @@ use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution,
-    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider, accept_linear_solution,
+    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
 };
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::matrix_free::{
@@ -249,7 +249,7 @@ fn solve_cg(
     );
     failure.take()?;
     let info = result.map_err(|error| solve_failed(format!("faer CG failed: {error:?}")))?;
-    accept_linear_solution(
+    eqiora_solver::LinearSolution::accept(
         problem,
         plan,
         provider,

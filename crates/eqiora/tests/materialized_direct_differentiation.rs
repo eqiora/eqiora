@@ -10,7 +10,7 @@ use eqiora::solver::{
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
     LinearSolveRequest, LinearSolver, LinearSolverBackend, OrientedLinearOperator,
     PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
-    SolverPlan, SolverProvider, accept_linear_solution_with_execution,
+    SolverPlan, SolverProvider,
 };
 use eqiora::{Id, entity::kinds};
 use eqiora_backend_faer::FaerLinearSolver;
@@ -300,7 +300,7 @@ impl LinearSolverBackend for CanonicalRhsMutant {
         assert_eq!(wrong.report().completed_iterations(), 1);
         self.factor_and_solve_reached.store(true, Ordering::SeqCst);
 
-        accept_linear_solution_with_execution(
+        eqiora_solver::LinearSolution::accept_with_execution(
             problem,
             plan,
             FaerLinearSolver.provider(),
@@ -361,7 +361,7 @@ impl LinearSolverBackend for TransposeReturnsNormalMutant {
             problem.right_hand_side(),
             problem.properties(),
         )?;
-        let accepted = accept_linear_solution_with_execution(
+        let accepted = eqiora_solver::LinearSolution::accept_with_execution(
             &reported_problem,
             plan,
             FaerLinearSolver.provider(),

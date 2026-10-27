@@ -103,7 +103,7 @@ pub(super) fn solve(
             "faer BiCGSTAB exhausted its iteration budget before meeting the true-residual target",
         ));
     }
-    accept_linear_solution(
+    eqiora_solver::LinearSolution::accept(
         problem,
         plan,
         provider,
