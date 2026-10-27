@@ -16,6 +16,11 @@ listed here.
   Only proven Faer sparse-LU retention forecasts one preparation; unknown work
   remains unknown. Common Plan v25 replaces v24 without a compatibility decoder.
 
+- The Faer adapter's real/complex BiCGSTAB now uses one private single-RHS
+  recurrence with conjugate-first products, correcting the pinned library's
+  complex bilinear products. Alpha and omega candidates retain independent
+  original-residual and physical acceptance within the requested budget.
+
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.
   Planner v8 admits these ten exact tuples; native work remains bounded by the
