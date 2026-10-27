@@ -1426,7 +1426,8 @@ Parameter dimensions from its declarations, and returns the ordinary immutable
 `Model` used by every resolver:
 
 
-Optional `cost=eqiora.solve.SolverCost(...)` carries explicit planning assumptions.
+Development-only: `cost=eqiora.solve.SolverCost(...)` carries explicit planning
+assumptions and is not included in the 0.1.4 distribution.
 `identity_iterations` and `jacobi_iterations` forecast iteration counts separately;
 omitting them uses the requested iteration ceiling, without claiming conditioning
 or convergence. `solves`, `structures`, and `numeric_preparations` must be declared

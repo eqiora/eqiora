@@ -6,6 +6,14 @@ listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- Host solver planning v4 uses explicit work forecasts and scoped numeric
+  payload bounds where existing assembly owners supply size facts. Exact manual
+  controls remain unchanged; forecasts do not grant prepared-state reuse or
+  predict elapsed time or process RSS. Current common Plan artifacts use v24;
+  previous Plan schemas are rejected rather than migrated.
+
 ## [0.1.4] - 2026-10-27
 
 ### Added
