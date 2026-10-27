@@ -36,6 +36,14 @@ count = 5
 identity = "exact candidate ID, evidence case, provider release and dependencies, and solver-policy tuple"
 policy = "eqiora.host-serial-solver-planning/v4"
 
+[real_class_catalogs]
+count = 15
+profiles = ["SymmetricPositiveDefinite", "SymmetricIndefinite", "Symmetric"]
+spd_proof = "leading principal minors 4 and 11"
+indefinite_proof = "eigenvalues 3 and -1"
+payload_scope = "typed CSR/RHS and supported Reference real heap numeric workspace; not RSS"
+work_scope = "declared deterministic proxy; not measured timing or reuse authority"
+
 [complex_catalog]
 count = 6
 profiles = ["General", "ComplexSymmetric", "Hermitian", "HermitianPositiveDefinite"]

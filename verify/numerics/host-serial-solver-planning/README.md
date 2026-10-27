@@ -120,3 +120,7 @@ planner. It never grants reuse authority. Ordinary common Plans currently
 require `S=F=H`; no prepared-state amortization or whole-Run measurement is
 claimed by this evidence. Existing no-size catalog oracles retain their literal
 fallback ranking and now name that limitation in each admitted trace.
+
+For `LowMemory`, known numeric payload bounds take precedence over unknown ones.
+Among candidates whose payload is unproved, the declared iterative-before-LU
+preference remains; a smaller work proxy is not evidence of smaller memory use.

@@ -430,7 +430,13 @@ pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
             candidate.id(),
         ),
         SolverPlanningObjective::LowMemory => (
-            u8::from(payload == u128::MAX),
+            if payload != u128::MAX {
+                0
+            } else if candidate.plan().algorithm() == LinearSolver::SparseLu {
+                2
+            } else {
+                1
+            },
             payload,
             work,
             candidate.id(),

@@ -234,7 +234,7 @@ impl ResolvedCommonPlan {
         }
     }
 
-    fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
+    pub(super) fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
         match self {
             Self::Algebraic(plan) => Some(&plan.linear),
             Self::Eigen(_) => None,

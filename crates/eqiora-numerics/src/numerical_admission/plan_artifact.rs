@@ -215,6 +215,14 @@ impl ResolvedCommonPlan {
             ),
         }
         .expect("resolved Plan retains validated linear controls");
+        let linear = match self
+            .linear_policy()
+            .and_then(|policy| policy.planning_profile.as_ref())
+            .and_then(|profile| profile.cost_request())
+        {
+            Some(cost) => linear.with_cost(cost),
+            None => linear,
+        };
         Some(match self {
             Self::TransientFlow(plan) => CommonSolvePolicy::Newton {
                 nonlinear: plan.nonlinear(),

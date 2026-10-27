@@ -84,12 +84,13 @@ fn real_finite_objectives_execute_reopen_and_preserve_exact_selection() {
             expected_plan(LinearSolver::SparseLu, ReductionPolicy::Fast),
         ),
         (
+            // Known Reference numeric payload is preferred over an unproved Faer bound.
             SolverPlanningObjective::LowMemory,
-            "eqiora.faer.bicgstab-general-identity-fast-f64",
-            &faer,
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+            &REFERENCE_LINEAR_SOLVER,
             expected_plan(
                 LinearSolver::BiConjugateGradientStabilized,
-                ReductionPolicy::Fast,
+                ReductionPolicy::Reproducible,
             ),
         ),
     ] {
@@ -308,4 +309,53 @@ fn complex_finite_objectives_execute_and_reopen_the_selected_typed_provider() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn canonical_finite_request_retains_forecasts_and_payload_limit_on_reopen() {
+    let (model, _, _) = model();
+    let cost = eqiora::solver::SolverCostRequest::new(
+        NonZeroUsize::new(2).unwrap(),
+        NonZeroUsize::new(2).unwrap(),
+        NonZeroUsize::new(2).unwrap(),
+    )
+    .unwrap()
+    .with_iteration_forecasts(NonZeroUsize::new(3), NonZeroUsize::new(1))
+    .with_numeric_payload_limit(NonZeroUsize::new(4096).unwrap());
+    let exact = CommonLinearRequest::exact(
+        expected_plan(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+        ),
+        REFERENCE_LINEAR_SOLVER.provider(),
+    )
+    .unwrap();
+    for requested in [exact, request(SolverPlanningObjective::LowMemory)] {
+        let requested = requested.with_cost(cost);
+        let plan = CommonAlgebraicPlan::resolve(
+            &model,
+            CommonSolvePolicy::Linear(requested),
+            None,
+            &[],
+            None,
+            &FaerLinearSolver,
+        )
+        .unwrap();
+        let plan = ResolvedCommonPlan::Algebraic(Box::new(plan));
+        assert_eq!(
+            plan.canonical_solve_request(),
+            Some(CommonSolvePolicy::Linear(requested))
+        );
+        let bytes = plan.to_bytes().unwrap();
+        let reopened = ResolvedCommonPlan::from_bytes(&bytes, &FaerLinearSolver, &[]).unwrap();
+        assert_eq!(reopened.to_bytes().unwrap(), bytes);
+        assert_eq!(
+            reopened.canonical_solve_request(),
+            plan.canonical_solve_request()
+        );
+        assert_eq!(
+            reopened.solver_planning_costs(),
+            plan.solver_planning_costs()
+        );
+    }
 }
