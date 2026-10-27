@@ -31,8 +31,9 @@ fn plan(algorithm: LinearSolver) -> SolverPlan {
     SolverPlan::new(algorithm, 2f64.powi(-20), 2f64.powi(-40), NonZeroUsize::MIN).unwrap()
 }
 fn row_check(x: &[f64]) -> Result<bool, Diagnostic> {
-    // Independently: |2*x_1-1| <= rtol * (|2*x_1|+|b_1|+1).
-    Ok((2. * x[1] - 1.).abs() <= 2f64.powi(-20) * (2. * x[1].abs() + 2.))
+    // Independently: |2*x_1-1| <= max(atol, rtol * (|2*x_1|+|b_1|)).
+    let target = 2f64.powi(-40).max(2f64.powi(-20) * (2. * x[1].abs() + 1.));
+    Ok((2. * x[1] - 1.).abs() <= target)
 }
 #[test]
 fn bicgstab_completes_omega_in_the_same_original_iteration() {
