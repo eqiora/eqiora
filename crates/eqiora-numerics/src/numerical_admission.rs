@@ -217,6 +217,7 @@ pub struct CommonLinearRequest {
     absolute_tolerance: f64,
     maximum_iterations: NonZeroUsize,
     selection: CommonLinearSelection,
+    cost: Option<eqiora_solver::SolverCostRequest>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -279,7 +280,22 @@ impl CommonLinearRequest {
             absolute_tolerance,
             maximum_iterations,
             selection,
+            cost: None,
         })
+    }
+
+    /// Retain explicit planning forecasts and a scoped numeric-buffer payload limit.
+    /// These assumptions never authorize preparation reuse or alter numerical tolerances.
+    #[must_use]
+    pub const fn with_cost(mut self, cost: eqiora_solver::SolverCostRequest) -> Self {
+        self.cost = Some(cost);
+        self
+    }
+
+    /// Explicit cost assumptions; absent means an assumed one-shot solve.
+    #[must_use]
+    pub const fn cost(self) -> Option<eqiora_solver::SolverCostRequest> {
+        self.cost
     }
 
     /// Requested relative residual tolerance.

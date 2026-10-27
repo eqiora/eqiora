@@ -34,7 +34,8 @@ pub use operator::{
 };
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{
-    HostSerialSolverProfile, ResolvedHostSerialSolverPlan, SolverPlanningObjective,
+    HostSerialSolverProfile, ResolvedHostSerialSolverPlan, SolverCandidateCost, SolverCostRequest,
+    SolverPlanningObjective, SolverPlanningSize,
 };
 pub use prepared::{PreparedLinearSolver, PreparedLinearStructureIdentity};
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};

@@ -288,6 +288,19 @@ impl ResolvedCommonPlan {
             .map_or(&[], |linear| linear.planning_reasons.as_slice())
     }
 
+    /// Decision-time typed solver size facts, absent when the owner did not establish them.
+    #[must_use]
+    pub fn solver_planning_size(&self) -> Option<eqiora_solver::SolverPlanningSize> {
+        self.linear_policy()?.planning_profile.as_ref()?.size()
+    }
+
+    /// Decision-time candidate work proxies and scoped numeric payload estimates.
+    #[must_use]
+    pub fn solver_planning_costs(&self) -> &[eqiora_solver::SolverCandidateCost] {
+        self.linear_policy()
+            .map_or(&[], |linear| linear.planning_costs.as_slice())
+    }
+
     /// Borrow the ODE capability of a finite-time Plan, when admitted.
     #[must_use]
     pub fn as_ode(&self) -> Option<&CommonOdePlan> {

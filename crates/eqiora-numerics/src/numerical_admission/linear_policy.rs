@@ -14,6 +14,7 @@ pub(crate) struct NativeLinearPolicy {
     pub(crate) planning_policy_id: Option<&'static str>,
     pub(crate) selected_candidate_id: Option<&'static str>,
     pub(crate) selected_evidence_case: Option<&'static str>,
+    pub(crate) planning_costs: Vec<eqiora_solver::SolverCandidateCost>,
     pub(crate) planning_reasons: Vec<(&'static str, &'static str)>,
 }
 
@@ -45,6 +46,7 @@ impl NativeLinearPolicy {
             selected_candidate_id: None,
             selected_evidence_case: None,
             planning_reasons: Vec::new(),
+            planning_costs: Vec::new(),
         })
     }
 
@@ -69,6 +71,7 @@ impl NativeLinearPolicy {
         self.selected_candidate_id = Some(decision.selected_candidate_id());
         self.selected_evidence_case = Some(decision.selected_evidence_case());
         self.planning_reasons = decision.reasons().collect();
+        self.planning_costs = decision.costs().to_vec();
         Ok(self)
     }
 
@@ -174,6 +177,8 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
         Ok(Some(Box::new(ProfileCheckedPreparedLinear {
             prepared,
             profile: self.profile.clone(),
+            plan: self.plan,
+            provider: self.backend.provider(),
         })))
     }
     fn solve_with_execution(
@@ -187,6 +192,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
         }
         if let Some(profile) = &self.profile {
             profile.require_problem(problem)?;
+            profile.require_problem_resources(plan, self.backend.provider(), problem)?;
         }
         self.backend.solve_with_execution(problem, plan, execution)
     }
@@ -196,6 +202,8 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
 pub(super) struct ProfileCheckedPreparedLinear<S> {
     pub(super) prepared: Box<dyn eqiora_solver::PreparedLinearSolver<S>>,
     pub(super) profile: Option<eqiora_solver::HostSerialSolverProfile>,
+    pub(super) plan: SolverPlan,
+    pub(super) provider: SolverProvider,
 }
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
@@ -208,6 +216,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
         if let Some(profile) = &self.profile {
             profile.require_problem(problem)?;
+            profile.require_problem_resources(self.plan, self.provider, problem)?;
         }
         self.prepared.solve(structure, problem)
     }

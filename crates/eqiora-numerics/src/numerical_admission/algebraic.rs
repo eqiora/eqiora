@@ -117,24 +117,35 @@ impl CommonAlgebraicPlan {
         } else {
             None
         };
-        let diagonal = if (solver_planning::requests_diagonal(request)
-            || request.objective().is_some())
-            && complex_system.is_none()
-            && gauge.is_none()
-            && nonlinear.is_none()
-        {
-            problem.complete_diagonal()?
+        let (diagonal, size) = if let Some(system) = &complex_system {
+            (
+                Some(solver_planning::complete_diagonal(system)?),
+                Some(eqiora_solver::SolverPlanningSize::exact(
+                    system.rows(),
+                    system.column_indices().len(),
+                )),
+            )
+        } else if gauge.is_some() {
+            (
+                None,
+                problem
+                    .coordinate_count()
+                    .checked_add(1)
+                    .and_then(eqiora_solver::SolverPlanningSize::dense_bound),
+            )
         } else {
-            None
+            problem.linear_facts(
+                nonlinear.is_none()
+                    && (solver_planning::requests_diagonal(request)
+                        || request.objective().is_some()),
+            )?
         };
         let linear = if complex_system.is_some() {
             solver_planning::resolve_complex_linear(
                 request,
                 LinearOperatorProperties::General,
-                complex_system
-                    .as_ref()
-                    .map(solver_planning::complete_diagonal)
-                    .transpose()?,
+                diagonal,
+                size,
                 None,
                 None,
                 backend,
@@ -148,6 +159,7 @@ impl CommonAlgebraicPlan {
                     LinearOperatorProperties::General
                 },
                 diagonal,
+                size,
                 None,
                 None,
                 backend,

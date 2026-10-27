@@ -11,7 +11,9 @@ use crate::{
 };
 
 mod catalog;
+mod cost;
 use catalog::{expected_candidate, rejection_reason};
+pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
 const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
 
@@ -74,6 +76,8 @@ pub struct HostSerialSolverProfile {
     facts: PlanningProfileFacts,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<crate::AlgebraicStructure>,
+    size: Option<SolverPlanningSize>,
+    cost_request: Option<SolverCostRequest>,
 }
 
 impl HostSerialSolverProfile {
@@ -85,6 +89,8 @@ impl HostSerialSolverProfile {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
             required_reduction: None,
             structure: None,
+            size: None,
+            cost_request: None,
         }
     }
 
@@ -117,6 +123,8 @@ impl HostSerialSolverProfile {
             },
             required_reduction,
             structure: None,
+            size: None,
+            cost_request: None,
         }
     }
 
@@ -178,6 +186,14 @@ impl HostSerialSolverProfile {
     }
 
     fn plan_rejection(&self, plan: SolverPlan) -> Option<&'static str> {
+        if self.cost_request.is_some_and(|cost| {
+            [cost.identity_iterations(), cost.jacobi_iterations()]
+                .into_iter()
+                .flatten()
+                .any(|iterations| iterations > plan.maximum_iterations())
+        }) {
+            return Some("cost.iteration-forecast-exceeds-maximum");
+        }
         if self
             .required_reduction
             .is_some_and(|required| plan.reduction() != required)
@@ -352,6 +368,7 @@ pub struct ResolvedHostSerialSolverPlan<'backend, S = f64> {
     selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
+    costs: Vec<SolverCandidateCost>,
 }
 
 impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
@@ -406,6 +423,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
             selected: resolved.selected,
             solver_provider: resolved.solver_provider,
             reasons: resolved.reasons,
+            costs: resolved.costs,
         })
     }
 
@@ -476,6 +494,11 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         self.profile.require_structure(structure)?;
         self.profile.require_plan(self.solver_plan())?;
         self.profile.require_problem(problem)?;
+        self.profile.require_problem_resources(
+            self.solver_plan(),
+            self.solver_provider(),
+            problem,
+        )?;
         self.selected.request().solve(problem)
     }
 }
@@ -515,6 +538,7 @@ impl PlanningProfileFacts {
 struct CandidateEvaluation<'backend, S = f64> {
     candidate: HostSerialSolverCandidate<'backend, S>,
     rejection: Option<&'static str>,
+    cost: Option<SolverCandidateCost>,
 }
 
 #[derive(Debug)]
@@ -522,6 +546,7 @@ struct ResolvedCandidateSet<'backend, S = f64> {
     selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
+    costs: Vec<SolverCandidateCost>,
 }
 
 fn catalog_plan(
@@ -561,6 +586,8 @@ fn resolve_host_serial_solver_v3<'problem, 'backend>(
             facts: PlanningProfileFacts::from_problem(problem),
             required_reduction: None,
             structure: None,
+            size: None,
+            cost_request: None,
         },
         objective,
         candidates,
@@ -586,9 +613,26 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
     ordered.sort_by_key(|candidate| candidate.id());
     let evaluations = ordered
         .into_iter()
-        .map(|candidate| CandidateEvaluation {
-            candidate,
-            rejection: rejection_reason(&profile, candidate),
+        .map(|candidate| {
+            let rejection = rejection_reason(&profile, candidate);
+            let cost = rejection.is_none().then(|| {
+                profile.estimate_cost(
+                    candidate.id(),
+                    candidate.plan(),
+                    candidate.backend.expect("admitted provider").provider(),
+                    S::DOMAIN,
+                    S::STORAGE,
+                )
+            });
+            CandidateEvaluation {
+                candidate,
+                rejection: rejection.or_else(|| {
+                    cost.and_then(|estimate| {
+                        cost::resource_rejection(estimate, profile.cost_request.unwrap_or_default())
+                    })
+                }),
+                cost,
+            }
         })
         .collect::<Vec<_>>();
 
@@ -612,7 +656,13 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
         return Err(no_admitted(trace.as_slice()));
     }
 
-    admitted.sort_by_key(|candidate| rank_key(objective, *candidate));
+    admitted.sort_by_key(|candidate| {
+        let estimate = evaluations
+            .iter()
+            .find(|evaluation| evaluation.candidate.id() == candidate.id())
+            .and_then(|evaluation| evaluation.cost);
+        cost::rank(objective, *candidate, profile.size, estimate)
+    });
     let selected = admitted[0];
     let solver_provider = selected
         .backend
@@ -641,6 +691,10 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
         selected,
         solver_provider,
         reasons,
+        costs: evaluations
+            .iter()
+            .filter_map(|evaluation| evaluation.cost)
+            .collect(),
     })
 }
 
