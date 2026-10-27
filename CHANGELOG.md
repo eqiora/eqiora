@@ -6,13 +6,17 @@ listed here.
 
 ## [Unreleased]
 
-## [0.1.4] - 2026-10-26
+## [0.1.4] - 2026-10-27
 
 ### Added
 
 - Finite real and complex Models use the shared automatic solver planner,
-  retaining exact provider choices and admission reasons. Transient MINI flow
-  accepts the supported General solver policies through the same checks.
+  retaining exact provider choices and admission reasons. Steady and transient
+  MINI flow use shared admission for their supported solver policies.
+- Anchored one-dimensional Q1 diffusion supports compatible CG policies,
+  including Jacobi, for checked primal and derivative solves. The represented
+  SPD proof covers its bounded piecewise-diffusion profile; general tangents
+  and other unproved positive-definiteness claims remain excluded.
 - An installed heterogeneous-conductivity study combines fields and physical
   observations, multi-load fitting with SciPy, held-out predictions, ordered
   parameter datasets, and saved failure/retry history. Physical inputs, mesh

@@ -18,8 +18,10 @@ physical inputs, mesh resolution and direct/iterative solver selection through
 the documented command line. Failure and retry history remain inspectable.
 
 Finite real and complex Models now use the shared automatic solver planner.
-Resolved Plans retain exact provider choices and admission reasons; transient
-MINI flow accepts the supported General solver policies through the same checks.
+Resolved Plans retain exact provider choices and admission reasons; steady and
+transient MINI flow use shared admission for their supported solver policies.
+Anchored one-dimensional piecewise Q1 diffusion also supports compatible CG
+policies, including Jacobi, for its checked primal and derivative solves.
 
 Spatial first-order trajectory products now include implicit-midpoint stages
 and observation clocks. Saved evaluations retain grouped solve evidence and
