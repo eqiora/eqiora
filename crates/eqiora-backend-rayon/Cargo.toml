@@ -13,6 +13,7 @@ eqiora-core = { workspace = true }
 eqiora-execution = { workspace = true }
 eqiora-realization = { workspace = true }
 eqiora-solver = { workspace = true }
+num-complex = { workspace = true }
 rayon = { workspace = true }
 
 [build-dependencies]
