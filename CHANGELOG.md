@@ -6,7 +6,46 @@ listed here.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-27
+
+### Added
+
+- Finite real and complex Models use the shared automatic solver planner,
+  retaining exact provider choices and admission reasons. Steady and transient
+  MINI flow use shared admission for their supported solver policies.
+- Anchored one-dimensional Q1 diffusion supports compatible CG policies,
+  including Jacobi, for checked primal and derivative solves. The represented
+  SPD proof covers its bounded piecewise-diffusion profile; general tangents
+  and other unproved positive-definiteness claims remain excluded.
+- An installed heterogeneous-conductivity study combines fields and physical
+  observations, multi-load fitting with SciPy, held-out predictions, ordered
+  parameter datasets, and saved failure/retry history. Physical inputs, mesh
+  resolution and direct/iterative solver choices can be changed. The package
+  example and guide use one canonical source.
+- First-order spatial trajectory products compose implicit-midpoint stages,
+  endpoints and observation clocks, with grouped solve evidence and solve-free
+  reacceptance of saved evaluations. Adaptive/event/moving-geometry derivatives
+  and higher derivatives remain outside this boundary.
+- Common workflows add coupled nonlinear Region equations, supported mixed,
+  tetrahedral and ALE execution, field point/path sampling and affine
+  integration, temporal interpolation/window observations, and replayable
+  affine triangle refinement within their documented execution profiles.
+- Measured CSV data and typed observations share exact numeric-unit
+  normalization and common result export. Finite stochastic laws, typed
+  moment/probability estimands and ensemble reductions distinguish sample
+  gradients from expectation gradients.
+- Accepted-boundary adaptive Run continuation and supported spatial trajectory
+  derivatives compose with installed Python JAX/PyTorch interfaces. These are
+  products of native Eqiora programs, not arbitrary framework differentiation.
+
 ### Changed
+
+- Current Model and Model Transaction envelopes are v49, structural semantic
+  fingerprints are v45, and Realization envelopes are v11. Recompile displaced
+  artifacts from authored inputs; retired codecs are not silently migrated.
+- Differentiable evaluation records use v4. Python evidence exposes grouped
+  `primal_solves` instead of the singular `primal_solve`; regenerate displaced
+  development evaluation records.
 
 - Removed the Rust compatibility aliases `PoissonSolution1d`,
   `PoissonComparisonRow`, and `SteadyStokesScaleProfile2d`. Use
@@ -556,7 +595,8 @@ safety certification.
 The [capability matrix](docs/capability-matrix.md) and the cases in
 [`verify/`](verify/) describe exactly what is and is not supported.
 
-[Unreleased]: https://github.com/eqiora/eqiora/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/eqiora/eqiora/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/eqiora/eqiora/releases/tag/v0.1.4
 [0.1.3]: https://github.com/eqiora/eqiora/releases/tag/v0.1.3
 [0.1.2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.2
 [0.1.1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1
