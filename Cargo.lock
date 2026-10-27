@@ -736,6 +736,7 @@ dependencies = [
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-time",
+ "num-complex",
  "rustix 1.1.5",
  "serde",
  "serde_json",

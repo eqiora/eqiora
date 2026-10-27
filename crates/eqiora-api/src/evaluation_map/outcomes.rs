@@ -19,7 +19,7 @@ pub(super) enum Outcome<M = DifferentiableEvaluation, E = DifferentiationEvidenc
 #[derive(Debug, Clone)]
 pub(super) enum CompleteMembers {
     Evaluations(Completed<DifferentiableEvaluation, DifferentiationEvidence>),
-    Time(Completed<time::TimeMember, String>),
+    Runs(Completed<time::RunMember, String>),
 }
 
 /// Complete membership and its retention invariant have one owner for all maps.
@@ -93,7 +93,7 @@ impl CompleteEvaluationMap {
                 members.len()
             }
             CompleteMembers::Evaluations(Completed::Released(records)) => records.len(),
-            CompleteMembers::Time(members) => members.validate(&self.plan)?,
+            CompleteMembers::Runs(members) => members.validate(&self.plan)?,
         };
         if count != self.plan.len() {
             return Err(invalid("complete map is missing an accepted occurrence"));
@@ -170,7 +170,7 @@ impl CompleteEvaluationMap {
     pub fn members(&self) -> Option<&[DifferentiableEvaluation]> {
         match &self.members {
             CompleteMembers::Evaluations(Completed::Retained(values)) => Some(values),
-            CompleteMembers::Evaluations(Completed::Released(_)) | CompleteMembers::Time(_) => None,
+            CompleteMembers::Evaluations(Completed::Released(_)) | CompleteMembers::Runs(_) => None,
         }
     }
     /// Select a retained occurrence without recomputation.
@@ -188,7 +188,7 @@ impl CompleteEvaluationMap {
             CompleteMembers::Evaluations(Completed::Released(values)) => {
                 values.get(index).map(Cow::Borrowed)
             }
-            CompleteMembers::Time(_) => None,
+            CompleteMembers::Runs(_) => None,
         }
     }
     /// Explicitly recompute one released occurrence from the frozen exact point.
@@ -237,10 +237,10 @@ pub enum EvaluationMapOccurrence<'a> {
     Accepted(&'a DifferentiableEvaluation),
     /// Accepted state delivered and released; its original evidence is retained.
     Released(&'a DifferentiationEvidence),
-    /// Accepted ordinary time Result with its complete original Run request.
-    TimeAccepted(&'a eqiora_numerics::CommonResult),
+    /// Accepted ordinary Result with its own exact Plan and original request association.
+    RunAccepted(&'a eqiora_numerics::CommonResult),
     /// Canonical acceptance fingerprint excluding only elapsed wall time.
-    TimeReleased(&'a str),
+    RunReleased(&'a str),
     /// Atomic physical and solver/path checkpoint for this exact occurrence.
     TimeCancelled(&'a eqiora_numerics::CommonTimeCheckpoint),
     /// Original nonempty diagnostics for this exact failed occurrence.
@@ -265,7 +265,7 @@ pub struct EvaluationMapTerminalReport {
 #[derive(Debug, Clone)]
 pub(super) enum TerminalMembers {
     Evaluations(Vec<Outcome>),
-    Time(Vec<time::TimeOutcome>),
+    Runs(Vec<time::RunOutcome>),
 }
 
 impl EvaluationMapTerminalReport {
@@ -289,7 +289,7 @@ impl EvaluationMapTerminalReport {
     fn evaluations(&self) -> Option<&[Outcome]> {
         match &self.outcomes {
             TerminalMembers::Evaluations(values) => Some(values),
-            TerminalMembers::Time(_) => None,
+            TerminalMembers::Runs(_) => None,
         }
     }
     /// Retained steady evaluations paired with their original occurrence indices.
@@ -345,7 +345,7 @@ impl EvaluationMapTerminalReport {
     #[must_use]
     pub fn occurrence(&self, index: usize) -> Option<EvaluationMapOccurrence<'_>> {
         let TerminalMembers::Evaluations(outcomes) = &self.outcomes else {
-            let TerminalMembers::Time(outcomes) = &self.outcomes else {
+            let TerminalMembers::Runs(outcomes) = &self.outcomes else {
                 unreachable!()
             };
             return outcomes.get(index).map(time::occurrence);

@@ -40,6 +40,7 @@ impl FiniteConstraintProblem {
                 let value = self
                     .parameter_candidates
                     .get(id)
+                    .or_else(|| self.kernel.typed_value(id.erase()))
                     .unwrap_or(parameter.value());
                 let role = if selected.contains(&id) {
                     DifferentiationRole::Parameter

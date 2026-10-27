@@ -187,6 +187,14 @@ impl PyEvaluationCollectionGroup {
             })
             .transpose()
     }
+    /// Original typed Parameter basis for ordinary stationary point columns.
+    #[getter]
+    fn parameters(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
+        self.native()
+            .parameters()
+            .map(|ids| parameters::refs(py, self.native().plan(), ids))
+            .transpose()
+    }
     #[getter]
     fn inputs(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
         self.native()

@@ -181,6 +181,12 @@ impl AuthenticatedCommonMesh {
         self.resources.geometry().ok()
     }
 
+    /// Additional exact Geometry roots retained for Model replay.
+    #[must_use]
+    pub fn model_geometries(&self) -> &[CanonicalGeometryV1] {
+        &self.model_geometries
+    }
+
     /// Structured Cartesian Mesh root, when this is a Cartesian occurrence.
     #[must_use]
     pub fn cartesian_mesh(&self) -> Option<&CartesianMeshEnvelopeV1> {

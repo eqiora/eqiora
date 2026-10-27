@@ -174,6 +174,8 @@ fn collection_rejects_reordered_duplicate_missing_foreign_and_false_complete_mem
     let mut wrong_reference = original.clone();
     wrong_reference["groups"][0]["members"][0]["outcome"]["reference"] =
         original["groups"][0]["members"][1]["outcome"]["reference"].clone();
+    let mut foreign_plan = original.clone();
+    foreign_plan["groups"][0]["members"][0]["outcome"]["plan"] = serde_json::json!("foreign");
     let mut truncated_inventory = original.clone();
     truncated_inventory["groups"][0]["members"]
         .as_array_mut()
@@ -185,6 +187,7 @@ fn collection_rejects_reordered_duplicate_missing_foreign_and_false_complete_mem
         (missing, "reference is missing"),
         (wrong_reference, "requested Program or point"),
         (truncated_inventory, "missing planned occurrences"),
+        (foreign_plan, "cannot carry an ordinary Run Plan"),
     ] {
         let errors = reopen(&serde_json::to_vec(&bad).unwrap()).unwrap_err();
         assert!(errors[0].message().contains(expected), "{errors:?}");

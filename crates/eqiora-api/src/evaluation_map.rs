@@ -15,6 +15,7 @@ pub use collection::{EvaluationCollection, EvaluationCollectionGroup, RecordedEv
 mod occurrence_id;
 pub use occurrence_id::EvaluationMapOccurrenceId;
 mod outcomes;
+mod parameters;
 pub(crate) mod partition;
 mod policy;
 mod products;
@@ -26,7 +27,7 @@ pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMap
 pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
 pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
-/// An admitted ordered inventory of complete inputs for one immutable Program or time Plan.
+/// An admitted ordered inventory of complete inputs for one immutable Program or an ordinary Run template.
 ///
 /// Position identifies an occurrence within one execution. Equal inputs remain separate: no sorting,
 /// deduplication, default anchor, retry or sampling occurs during execution.
@@ -46,6 +47,7 @@ enum Inputs {
         samples: Option<Arc<[SampledParameterPoint]>>,
     },
     Time(time::TimeInputs),
+    Parameters(parameters::ParameterInputs),
 }
 
 impl EvaluationMapPlan {
@@ -153,16 +155,19 @@ impl EvaluationMapPlan {
     pub(crate) fn program(&self) -> Result<&DifferentiableProgram, Diagnostic> {
         match self.inputs.as_ref() {
             Inputs::Evaluations { program, .. } => Ok(program),
-            Inputs::Time(_) => Err(invalid("time maps have no differentiable steady program")),
+            Inputs::Time(_) | Inputs::Parameters(_) => Err(invalid(
+                "ordinary Run maps have no differentiable steady program",
+            )),
         }
     }
 
-    /// Exact Model shared by every admitted occurrence.
+    /// Exact original Model that supplies the requested occurrence inputs.
     #[must_use]
     pub fn model(&self) -> &eqiora_artifact::ModelArtifactReference {
         match self.inputs.as_ref() {
             Inputs::Evaluations { program, .. } => program.identity().model(),
             Inputs::Time(inputs) => &inputs.model,
+            Inputs::Parameters(inputs) => &inputs.model,
         }
     }
 
@@ -172,6 +177,7 @@ impl EvaluationMapPlan {
         match self.inputs.as_ref() {
             Inputs::Evaluations { points, .. } => points.len(),
             Inputs::Time(inputs) => inputs.requests.len(),
+            Inputs::Parameters(inputs) => inputs.points.len(),
         }
     }
 
@@ -190,7 +196,9 @@ impl EvaluationMapPlan {
     pub fn shared_inputs(&self) -> Result<&[Parameter], Diagnostic> {
         match self.inputs.as_ref() {
             Inputs::Evaluations { shared_inputs, .. } => Ok(shared_inputs),
-            Inputs::Time(_) => Err(invalid("time maps have no shared derivative inputs")),
+            Inputs::Time(_) | Inputs::Parameters(_) => Err(invalid(
+                "ordinary Run maps have no shared derivative inputs",
+            )),
         }
     }
 
@@ -198,7 +206,9 @@ impl EvaluationMapPlan {
     pub fn points(&self) -> Result<&[DifferentiableValues], Diagnostic> {
         match self.inputs.as_ref() {
             Inputs::Evaluations { points, .. } => Ok(points),
-            Inputs::Time(_) => Err(invalid("time maps contain Run requests, not steady points")),
+            Inputs::Time(_) | Inputs::Parameters(_) => Err(invalid(
+                "ordinary Run maps do not contain differentiable points",
+            )),
         }
     }
 
@@ -208,7 +218,7 @@ impl EvaluationMapPlan {
     pub fn samples(&self) -> Option<&[SampledParameterPoint]> {
         match self.inputs.as_ref() {
             Inputs::Evaluations { samples, .. } => samples.as_deref(),
-            Inputs::Time(_) => None,
+            Inputs::Time(_) | Inputs::Parameters(_) => None,
         }
     }
     /// Explicit scheduling and accepted-state lifetime.
@@ -271,6 +281,14 @@ impl EvaluationMapPlan {
         if let Inputs::Time(inputs) = self.inputs.as_ref() {
             return time::execute(self, inputs, &mut should_cancel, &mut deliver);
         }
+        if let Inputs::Parameters(inputs) = self.inputs.as_ref() {
+            return time::execute_common(
+                self,
+                &|index| inputs.evaluate(index),
+                &mut should_cancel,
+                &mut deliver,
+            );
+        }
         schedule::execute(
             self,
             &|program, point| program.evaluate(point),
@@ -326,6 +344,7 @@ impl PartialEq for EvaluationMapPlan {
                     })
             }
             (Inputs::Time(a), Inputs::Time(b)) => a.same_inputs(b),
+            (Inputs::Parameters(a), Inputs::Parameters(b)) => a.same_inputs(b),
             _ => false,
         }
     }

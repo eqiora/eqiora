@@ -1,4 +1,4 @@
-//! Independent time Runs use the existing bounded map scheduler.
+//! Ordinary Results share bounded scheduling, retention and acceptance; time requests add checkpoints.
 use super::*;
 use eqiora_artifact::{CanonicalModelArtifact, ModelArtifactReference};
 use eqiora_numerics::{CommonResult, CommonTimeCheckpoint, CommonTimePlan, CommonTimeRunRequest};
@@ -7,9 +7,10 @@ use std::{fmt, ops::ControlFlow};
 mod members;
 #[cfg(test)]
 mod tests;
+pub(super) use members::admit_common_result;
 use members::admit_result;
 pub(super) use members::{
-    TimeMember, TimeOutcome, acceptance_fingerprint, occurrence, validate_request,
+    RunMember, RunOutcome, acceptance_fingerprint, occurrence, validate_request,
 };
 
 type Run = dyn Fn(
@@ -47,7 +48,7 @@ impl TimeInputs {
             && self.checkpoints == other.checkpoints
     }
 
-    fn evaluate(&self, index: usize) -> TimeOutcome {
+    fn evaluate(&self, index: usize) -> RunOutcome {
         let request = &self.requests[index];
         let result =
             (self.run)(request, self.checkpoints[index].as_ref()).and_then(
@@ -188,7 +189,7 @@ impl EvaluationMapPlan {
                 count,
                 add(
                     add(
-                        size_of::<TimeOutcome>(),
+                        size_of::<RunOutcome>(),
                         size_of::<Option<CommonTimeCheckpoint>>(),
                     )?,
                     add(size_of::<String>(), 64)?,
@@ -200,7 +201,7 @@ impl EvaluationMapPlan {
             charge,
             resources::multiply(
                 workers,
-                add(size_of::<TimeOutcome>(), 4 * size_of::<usize>())?,
+                add(size_of::<RunOutcome>(), 4 * size_of::<usize>())?,
             )?,
         )?;
         if charge > policy.storage_bytes_limit() || charge > isize::MAX as usize {
@@ -251,15 +252,6 @@ impl EvaluationMapPlan {
     }
 }
 
-fn inputs(plan: &EvaluationMapPlan) -> Result<&TimeInputs, Diagnostic> {
-    match plan.inputs.as_ref() {
-        Inputs::Time(inputs) => Ok(inputs),
-        _ => Err(invalid(
-            "this map contains steady evaluations, not time Runs",
-        )),
-    }
-}
-
 fn check_size(bytes: usize, limit: usize) -> Result<(), Diagnostic> {
     if bytes > limit {
         return Err(invalid("time map member exceeds its encoded byte limit"));
@@ -277,15 +269,34 @@ where
     C: FnMut() -> bool,
     D: FnMut(EvaluationMapOccurrenceId, EvaluationMapOccurrence<'_>),
 {
+    execute_common(
+        plan,
+        &|index| inputs.evaluate(index),
+        should_cancel,
+        deliver,
+    )
+}
+
+pub(super) fn execute_common<E, C, D>(
+    plan: &EvaluationMapPlan,
+    evaluator: &E,
+    should_cancel: &mut C,
+    deliver: &mut D,
+) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
+where
+    E: Fn(usize) -> RunOutcome + Sync,
+    C: FnMut() -> bool,
+    D: FnMut(EvaluationMapOccurrenceId, EvaluationMapOccurrence<'_>),
+{
     let (execution, outcomes) = schedule::execute_members(
         plan.len(),
         plan.policy(),
-        &|index| inputs.evaluate(index),
+        evaluator,
         should_cancel,
-        &mut |index, member: &TimeMember| {
-            deliver(index, EvaluationMapOccurrence::TimeAccepted(&member.result))
+        &mut |index, member: &RunMember| {
+            deliver(index, EvaluationMapOccurrence::RunAccepted(&member.result))
         },
-        &|member: &TimeMember| member.fingerprint.clone(),
+        &|member: &RunMember| member.fingerprint.clone(),
         &mut |_| {},
     );
     members::finish(plan, execution, outcomes)

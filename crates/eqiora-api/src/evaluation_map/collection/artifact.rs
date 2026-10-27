@@ -6,7 +6,7 @@ use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 
-pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v3";
+pub(super) const SCHEMA: &str = "eqiora.evaluation-collection/v4";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,9 +34,16 @@ struct WireMember {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireOutcome {
-    Accepted { reference: String },
-    Failed { diagnostics: Vec<DiagnosticRecord> },
-    Cancelled { checkpoint: Option<String> },
+    Accepted {
+        reference: String,
+        plan: Option<String>,
+    },
+    Failed {
+        diagnostics: Vec<DiagnosticRecord>,
+    },
+    Cancelled {
+        checkpoint: Option<String>,
+    },
     NotStarted,
 }
 
@@ -119,9 +126,10 @@ impl WireGroup {
                     }
                     WireOutcome::Accepted {
                         reference: record.identity().to_owned(),
+                        plan: None,
                     }
                 }
-                RecordedEvaluationOutcome::TimeAccepted(result) => {
+                RecordedEvaluationOutcome::RunAccepted(result) => {
                     if !records.contains_key(result.identity()) {
                         records.insert(
                             result.identity().to_owned(),
@@ -130,6 +138,9 @@ impl WireGroup {
                     }
                     WireOutcome::Accepted {
                         reference: result.identity().to_owned(),
+                        plan: matches!(&group.request, RecordedRequest::Parameters { .. })
+                            .then(|| result.plan().to_bytes().map(|bytes| STANDARD.encode(bytes)))
+                            .transpose()?,
                     }
                 }
                 RecordedEvaluationOutcome::Failed(diagnostics) => WireOutcome::Failed {
@@ -193,17 +204,40 @@ impl WireGroup {
                 )));
             }
             let outcome = match member.outcome {
-                WireOutcome::Accepted { reference } => {
+                WireOutcome::Accepted {
+                    reference,
+                    plan: member_plan,
+                } => {
                     let encoded = self.records.get(&reference).ok_or_else(|| {
                         one(invalid("collection accepted member reference is missing"))
                     })?;
                     used.insert(reference.clone());
+                    if let Some(outcome) = accepted.get(&reference) {
+                        let expected_plan = match (&request, outcome) {
+                            (
+                                RecordedRequest::Parameters { .. },
+                                RecordedEvaluationOutcome::RunAccepted(result),
+                            ) => Some(STANDARD.encode(result.plan().to_bytes().map_err(one)?)),
+                            _ => None,
+                        };
+                        if member_plan != expected_plan {
+                            return Err(one(invalid(
+                                "collection duplicate member has a foreign Plan association",
+                            )));
+                        }
+                    }
+
                     if let Some(outcome) = accepted.get(&reference) {
                         outcome.clone()
                     } else {
                         let bytes = decode(encoded).map_err(one)?;
                         let outcome = match &request {
                             RecordedRequest::Evaluations { context, .. } => {
+                                if member_plan.is_some() {
+                                    return Err(one(invalid(
+                                        "differentiable collection member cannot carry an ordinary Run Plan",
+                                    )));
+                                }
                                 let record = RecordedDifferentiableEvaluation::from_context_bytes(
                                     &bytes, context,
                                 )?;
@@ -214,14 +248,53 @@ impl WireGroup {
                                 }
                                 RecordedEvaluationOutcome::Accepted(Arc::new(record))
                             }
+                            RecordedRequest::Parameters {
+                                template,
+                                parameters: selected,
+                                points,
+                                ..
+                            } => {
+                                let encoded_plan = member_plan.as_ref().ok_or_else(|| {
+                                    one(invalid("stationary member requires its exact Plan"))
+                                })?;
+                                let member_plan = eqiora_numerics::ResolvedCommonPlan::from_bytes(
+                                    &decode(encoded_plan).map_err(one)?,
+                                    backend,
+                                    time_backend,
+                                )
+                                .map_err(one)?;
+                                let original = parameters::document(template)?;
+                                let model = parameters::bind(&original, selected, &points[index])?;
+                                let expected = template
+                                    .resolve_parameter_model(&model, backend)
+                                    .map_err(one)?;
+                                if member_plan != expected {
+                                    return Err(one(invalid(
+                                        "stationary member Plan differs from its exact request policies or Parameter point",
+                                    )));
+                                }
+                                let result =
+                                    CommonResult::from_bytes(&bytes, &member_plan).map_err(one)?;
+                                if result.identity() != reference {
+                                    return Err(one(invalid(
+                                        "stationary Result reference differs from its content",
+                                    )));
+                                }
+                                RecordedEvaluationOutcome::RunAccepted(Arc::new(result))
+                            }
                             RecordedRequest::Time { plan, .. } => {
+                                if member_plan.is_some() {
+                                    return Err(one(invalid(
+                                        "time collection members use their exact request Plan without a member Plan payload",
+                                    )));
+                                }
                                 let result = CommonResult::from_bytes(&bytes, plan).map_err(one)?;
                                 if result.identity() != reference {
                                     return Err(one(invalid(
                                         "collection time Result reference differs from its content",
                                     )));
                                 }
-                                RecordedEvaluationOutcome::TimeAccepted(Arc::new(result))
+                                RecordedEvaluationOutcome::RunAccepted(Arc::new(result))
                             }
                         };
                         accepted.insert(reference, outcome.clone());
@@ -272,7 +345,7 @@ impl WireGroup {
 pub(super) fn outcome_bytes(value: &RecordedEvaluationOutcome) -> Result<usize, Diagnostic> {
     match value {
         RecordedEvaluationOutcome::Accepted(value) => value.to_bytes().map(|v| v.len()),
-        RecordedEvaluationOutcome::TimeAccepted(value) => value.to_bytes().map(|v| v.len()),
+        RecordedEvaluationOutcome::RunAccepted(value) => value.to_bytes().map(|v| v.len()),
         _ => Err(invalid("only accepted delivery has a record payload")),
     }
 }
