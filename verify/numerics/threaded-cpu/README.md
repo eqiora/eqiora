@@ -75,18 +75,35 @@ lookups in the original source-row order, preserving compensated sums. A full
 square transposed action uses `O(n² log(degree))` lookups; this is no transpose
 speedup claim.
 
+The same registered target also covers every advertised Reference complex
+Reproducible tuple (14 at this revision), normal and conjugate-transposed,
+with one and four workers. General and complex-symmetric BiCGSTAB, HPD CG,
+and Hermitian/HPD MINRES use their admitted Identity/Jacobi combinations.
+Independent literal products and inverse-norm bounds in `references/README.md`
+check original coordinates; serial parity is supplemental. Complex coordinate
+lowering retains the same execution provider, worker count and reduction.
+
+An ordinary complex algebraic Model executes with an explicit Rust
+`CommonLinearRequest::with_execution` request and reopens its exact Result.
+Plan v26 retains the execution provider release, dependency inventory and
+worker count. Both solve and verifier reports must match that Plan; serial
+substitution, changed workers and forged verifier metadata fail closed.
+Automatic ranking remains host-serial. Nonserial numeric-payload caps reject
+as unproved: the serial reduction-buffer bound is not a Rayon memory bound.
+These are Rust host-execution claims, not a new Python placement interface.
+
 The execution receipt is an in-memory host contract, not a graph artifact or
 general scheduler. This is a replicated, host-local `f64`
 generated-Cartesian P1/Q1 FEM,
 orthogonal TPFA, and reference-CG claim for dimensions one through three, plus
-the two bounded real MINRES/Jacobi systems above. It
+the bounded real and complex solver systems above. It
 claims exact pairing only for the generic Realization admission axes. Exact
 space, order, quadrature, and method-specific structure remain the typed plan
 validators' responsibility; the capability set is not a second execution
 graph. It does not claim imported-simplex or adaptive assembly,
 nonorthogonal FVM, fast
 accumulation/reductions, faer threading, distributed/device assembly, NUMA
-placement, complex Rayon solves, CUDA/MPI execution DAGs, graph persistence, or performance
+placement, complex spatial assembly, CUDA/MPI execution DAGs, graph persistence, or performance
 superiority.
 
 Run:

@@ -1,3 +1,7 @@
+#[cfg(feature = "rayon")]
+#[path = "threaded_cpu/complex.rs"]
+mod complex;
+
 use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 

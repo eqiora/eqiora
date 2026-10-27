@@ -28,11 +28,7 @@ impl LinearSolverBackend<Complex64> for ThreadedLinearSolver<'_> {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
-        if execution.report() != SERIAL_LINEAR_EXECUTION.report() {
-            return Err(invalid_realization(
-                "a Rayon solver cannot be nested inside another replicated execution",
-            ));
-        }
+        Self::require_serial_entry(execution)?;
         let backend = self.complex_implementation().ok_or_else(|| {
             invalid_realization(
                 "the wrapped provider has no matching reproducible complex implementation",

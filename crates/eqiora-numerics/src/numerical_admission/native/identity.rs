@@ -157,12 +157,14 @@ pub(in crate::numerical_admission) fn push_linear_policy_identity(
     }
     push_framed(bytes, linear.provider.id().as_str().as_bytes());
     push_framed(bytes, linear.provider.implementation_version().as_bytes());
+    bytes.extend_from_slice(&linear.provider.libraries().len().to_be_bytes());
     for library in linear.provider.libraries() {
         push_framed(bytes, library.name().as_bytes());
         push_framed(bytes, library.version().as_bytes());
     }
     push_framed(bytes, linear.execution.id().as_str().as_bytes());
     push_framed(bytes, linear.execution.implementation_version().as_bytes());
+    bytes.extend_from_slice(&linear.execution.libraries().len().to_be_bytes());
     for library in linear.execution.libraries() {
         push_framed(bytes, library.name().as_bytes());
         push_framed(bytes, library.version().as_bytes());
@@ -264,5 +266,41 @@ fn spatial_policy_tag(policy: CommonSpatialPolicy) -> &'static [u8] {
         CommonSpatialPolicy::TetrahedralFace => b"tetrahedral-face-moment-duffy3",
         CommonSpatialPolicy::CellCentered => b"linear-cell-constant",
         CommonSpatialPolicy::CellCenteredTpfa => b"scalar-tpfa",
+    }
+}
+
+#[cfg(test)]
+mod execution_identity_tests {
+    use super::*;
+    use eqiora_solver::{BackendId, ExecutionId, ProviderLibrary, REFERENCE_LINEAR_SOLVER};
+
+    #[test]
+    fn library_inventory_boundaries_cannot_shift_between_solver_and_executor() {
+        let plan = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            0.,
+            1e-12,
+            NonZeroUsize::MIN,
+        )
+        .unwrap();
+        let mut first = NativeLinearPolicy::exact::<f64>(plan, &REFERENCE_LINEAR_SOLVER).unwrap();
+        const EXECUTION_LIBRARIES: [ProviderLibrary; 1] = [ProviderLibrary::new("test.omega", "2")];
+        const SOLVER_LIBRARIES: [ProviderLibrary; 1] = [ProviderLibrary::new("test.alpha", "1")];
+        first.provider = SolverProvider::new(BackendId::new("test.solver"), "1", &[]);
+        first.execution =
+            ExecutionProvider::new(ExecutionId::new("test.alpha"), "1", &EXECUTION_LIBRARIES);
+        let mut second = first.clone();
+        second.provider =
+            SolverProvider::new(BackendId::new("test.solver"), "1", &SOLVER_LIBRARIES);
+        second.execution = ExecutionProvider::new(ExecutionId::new("test.omega"), "2", &[]);
+        for policy in [&first, &second] {
+            policy.provider.validate().unwrap();
+            policy.execution.validate().unwrap();
+        }
+        let mut first_bytes = Vec::new();
+        let mut second_bytes = Vec::new();
+        push_linear_policy_identity(&mut first_bytes, &first);
+        push_linear_policy_identity(&mut second_bytes, &second);
+        assert_ne!(first_bytes, second_bytes);
     }
 }

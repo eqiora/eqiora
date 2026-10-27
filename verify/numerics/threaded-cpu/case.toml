@@ -26,14 +26,29 @@ capabilities = [
   "reference-minres-jacobi-spd-and-symmetric-indefinite",
   "minres-jacobi-original-residual-and-exact-rayon-provenance",
   "minres-jacobi-nonpositive-diagonal-rejection",
+  "canonical-normal-transpose-adjoint-row-actions",
+  "all-advertised-reference-complex-reproducible-tuples",
+  "complex-lowering-preserves-exact-host-execution",
+  "explicit-common-host-plan-result-reopening",
+  "nonserial-numeric-payload-bound-unproved-rejection",
 ]
 
 [problem]
 model = "canonical one-, two-, and three-dimensional Poisson; two exact real symmetric 2x2 CSR systems"
 method = "continuous P1/Q1 Galerkin FEM and orthogonal cell-centered TPFA"
-scalar = "f64"
+scalar = "f64 assembly; real/complex binary64 linear solves"
 layout = "replicated"
 workers = "one and four"
+
+[complex_solver]
+properties = "General, ComplexSymmetric, Hermitian, HermitianPositiveDefinite"
+selection = "every advertised Reference complex Reproducible tuple"
+orientations = "normal and conjugate-transposed"
+relative_tolerance = "0"
+absolute_tolerance = "2^-40"
+componentwise_error = "<= 2^-39"
+maximum_iterations = 16
+performance = false
 
 [evidence]
 package = "eqiora"

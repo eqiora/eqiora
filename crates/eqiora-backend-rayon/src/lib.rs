@@ -238,6 +238,19 @@ impl fmt::Debug for ThreadedLinearSolver<'_> {
 }
 
 impl ThreadedLinearSolver<'_> {
+    fn require_serial_entry<S>(
+        execution: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<(), Diagnostic> {
+        if execution.provider() != SERIAL_LINEAR_EXECUTION.provider()
+            || execution.report() != SERIAL_LINEAR_EXECUTION.report()
+        {
+            return Err(invalid_realization(
+                "a Rayon solver cannot be nested inside another replicated execution",
+            ));
+        }
+        Ok(())
+    }
+
     fn complex_implementation(&self) -> Option<&dyn LinearSolverBackend<Complex64>> {
         let backend = self.backend.complex_backend()?;
         (backend.provider() == self.backend.provider()
@@ -307,11 +320,7 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        if execution.report() != SERIAL_LINEAR_EXECUTION.report() {
-            return Err(invalid_realization(
-                "a Rayon solver cannot be nested inside another replicated execution",
-            ));
-        }
+        Self::require_serial_entry(execution)?;
         self.supported_capabilities()?.require_problem(
             plan,
             problem.scalar_domain(),

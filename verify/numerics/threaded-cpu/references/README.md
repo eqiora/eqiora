@@ -29,3 +29,30 @@ diagonal requirement through the pool adapter.
 
 - <https://docs.rs/rayon/1.12.0/rayon/struct.ThreadPoolBuilder.html>
 - <https://docs.rs/rayon/1.12.0/rayon/struct.ThreadPool.html>
+
+## Complex solver and ordinary-Run witnesses
+
+Every advertised complex Reference tuple uses an independently specified
+property witness, with Identity/Jacobi selected only where advertised. For
+`x=[1+i,2-i]`, the HPD matrix `[[4,i],[-i,1]]` gives
+`b=[5+6i,3-2i]`; its determinant is 3 and inverse Frobenius norm is
+`sqrt(19)/3<1.5`. Replacing off-diagonal `i` by `3i` gives a Hermitian
+indefinite matrix with determinant -5, `b=[7+10i,5-4i]`, and inverse norm
+`sqrt(35)/5<1.2`. Both equal their conjugate transpose.
+
+For `x=[1+2i,-2+i]`, the General matrix `[[2+i,1-2i],[3+i,4-i]]`
+gives `A*x=[10i,-6+13i]` and `A^H*x=[-1+8i,-12+6i]`. Its determinant
+is `4+7i` and inverse Frobenius norm squared is `37/65<1`.
+The complex-symmetric, non-Hermitian diagonal matrix `diag(2+i,4-i)` gives
+`A*x=[5i,-7+6i]` and `A^H*x=[4+3i,-9+2i]`, with inverse norm squared
+`1/5+1/17<1`. Conjugate transpose preserves each inverse Frobenius norm.
+Thus the fixed absolute residual target `2^-40` bounds component error by
+`2^-39` for every normal/adjoint tuple; the fixed iteration cap is 16.
+No expectation comes from a serial or threaded solver output.
+
+The ordinary Model `(1+2i)*z=(3+i)*p` has `z=p-ip` and observable
+`|z|²+p=2p²+p`, hence `z=3-3i` and observable 21 at `p=3`.
+It checks exact Result reopening with the same explicit host placement.
+A separate real `2*z=6` control admits a large serial BiCGSTAB numeric-payload
+cap before the same cap is rejected as unproved for Rayon; this reaches the
+execution-specific resource boundary rather than an unknown complex bound.
