@@ -294,6 +294,56 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             preconditioner: PreconditionerPolicy::Jacobi,
             ..expected_candidate(REFERENCE_HPD_ID)
         },
+        FAER_COMPLEX_BICGSTAB_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_COMPLEX_ID)
+        },
+        FAER_COMPLEX_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_COMPLEX_JACOBI_ID)
+        },
+        FAER_COMPLEX_SYMMETRIC_BICGSTAB_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_COMPLEX_SYMMETRIC_ID)
+        },
+        FAER_COMPLEX_SYMMETRIC_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID)
+        },
+        FAER_HERMITIAN_BICGSTAB_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HERMITIAN_ID)
+        },
+        FAER_HERMITIAN_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HERMITIAN_JACOBI_ID)
+        },
+        FAER_HPD_BICGSTAB_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HPD_BICGSTAB_ID)
+        },
+        FAER_HPD_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HPD_BICGSTAB_JACOBI_ID)
+        },
+        FAER_HPD_CG_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HPD_ID)
+        },
+        FAER_HPD_CG_JACOBI_ID => ExpectedCandidate {
+            provider: FAER_PROVIDER,
+            reduction: ReductionPolicy::Fast,
+            ..expected_candidate(REFERENCE_HPD_JACOBI_ID)
+        },
         FAER_COMPLEX_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::General,

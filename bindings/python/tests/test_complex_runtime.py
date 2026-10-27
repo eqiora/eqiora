@@ -133,6 +133,18 @@ def test_observable_domain_errors_do_not_silently_project_or_promote(expression)
     (linear(preconditioner=eqiora.solve.Preconditioner.Jacobi), eqiora.solve.SolverProvider.reference(), "jacobi"),
     (eqiora.solve.Linear(
         relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+    ), eqiora.solve.SolverProvider.faer(), "identity"),
+    (eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Jacobi,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+    ), eqiora.solve.SolverProvider.faer(), "jacobi"),
+    (eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
         algorithm=eqiora.solve.LinearSolver.SparseLu,
         preconditioner=eqiora.solve.Preconditioner.Identity,
         reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
@@ -215,7 +227,7 @@ def test_explicit_finite_wavefunction_probability_uses_native_component_projecti
 @pytest.mark.parametrize("objective,candidate,provider,algorithm,reduction", [
     (eqiora.solve.Robust, "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64", "eqiora.reference", "bicgstab", "reproducible"),
     (eqiora.solve.Fast, "eqiora.faer.sparse-lu-general-identity-fast-complex-f64", "eqiora.faer", "sparse-lu", "fast"),
-    (eqiora.solve.LowMemory, "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64", "eqiora.reference", "bicgstab", "reproducible"),
+    (eqiora.solve.LowMemory, "eqiora.faer.bicgstab-general-identity-fast-complex-f64", "eqiora.faer", "bicgstab", "fast"),
 ])
 def test_complex_automatic_objectives_keep_exact_selection_through_replay(
     objective, candidate, provider, algorithm, reduction,
@@ -234,7 +246,7 @@ def test_complex_automatic_objectives_keep_exact_selection_through_replay(
         maximum_iterations=100, objective=objective,
     ))
     assert plan.solve.objective is objective
-    assert plan.solve.planning_policy_id == "eqiora.host-serial-solver-planning/v5"
+    assert plan.solve.planning_policy_id == "eqiora.host-serial-solver-planning/v6"
     assert plan.solve.selected_candidate_id == candidate
     assert plan.solve.backend == provider
     assert plan.solve.algorithm == algorithm

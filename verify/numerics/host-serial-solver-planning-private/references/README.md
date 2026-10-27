@@ -2,7 +2,7 @@
 
 This directory contains no second derivation. The authoritative literal policy
 and exact rational derivation remains
-[`derive_policy_v5.py`](../../host-serial-solver-planning/references/derive_policy_v5.py),
+[`derive_policy_v6.py`](../../host-serial-solver-planning/references/derive_policy_v6.py),
 which generates the primary case's single machine-readable policy oracle.
 Its execution ledger attaches isolated test-only counters to the exact owned
 canonical operator, self-controls and resets them, then distinguishes the two
