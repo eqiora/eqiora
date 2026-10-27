@@ -1,6 +1,5 @@
 """Real-paired complex sensitivities through the common Python Program."""
 import eqiora
-import pytest
 
 
 def _reference_linear():
@@ -12,8 +11,13 @@ def _reference_linear():
     )
 
 
-@pytest.mark.parametrize("provider,preconditioner", [("reference", "Identity"), ("faer", "Identity"), ("faer", "Jacobi")])
-def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point(provider, preconditioner):
+def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
+    # This same contract is executed by the embedded native Python witness.
+    for provider, preconditioner in (("reference", "Identity"), ("faer", "Identity"), ("faer", "Jacobi")):
+        _check_common_complex_sensitivity(provider, preconditioner)
+
+
+def _check_common_complex_sensitivity(provider, preconditioner):
     import numpy as np
 
     # Both equations imply z=p-ip, J=2p²+p, and dJ/dp=4p+1.

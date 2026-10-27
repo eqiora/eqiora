@@ -58,8 +58,9 @@ The exact rational solution and tolerances are unchanged.
 The independent oracle freezes four genuine complex 2x2 systems. Reference
 BiCGSTAB admits Identity and Jacobi with Reproducible reduction on General,
 complex-symmetric, Hermitian and HPD profiles. HPD also admits Reference CG with
-Identity or Jacobi. Each class retains the existing faer Identity/Fast SparseLU
-tuple: ten reference and four faer tuples in total. The Hermitian fixtures have
+Identity or Jacobi; Hermitian and HPD also admit Reference Identity MINRES.
+Faer CG on HPD and BiCGSTAB on all four classes support Identity/Jacobi, and each
+class retains Faer Identity/Fast SparseLU: 12 Reference and 14 Faer tuples in total. The Hermitian fixtures have
 nonreal off-diagonal entries. HPD is established independently by leading
 principal minors 4 and 11; it is not inferred from a Field declaration.
 
@@ -113,7 +114,8 @@ Structural setup is `S(n+z)`. LU numeric setup is `Fn^3` and each solve is
 prediction. CG each iteration is `2z+8n+jn`; BiCGSTAB is `4z+20n+2jn`, where
 `j=1` for Jacobi and 0 for Identity. Their numeric setup is `Fjn`. MINRES uses
 `k=min(forecast,n)` and `k(2z+8n)+4nk(k+1)` for retained-basis actions and
-reorthogonalization. Every solve adds original residual acceptance `2z+5n`.
+reorthogonalization. Every solve adds `2z+5n` as a final independent acceptance allowance. These
+scoring weights do not count every intermediate provider callback or executed action.
 All arithmetic is checked; missing dimensions or overflow stay unknown. These
 are declared ranking units, not a FLOP, timing, convergence or optimality claim.
 Identity/Jacobi forecasts are separate; omitted forecasts use the iteration

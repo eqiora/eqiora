@@ -41,9 +41,10 @@ second, separately frozen right-hand side. The nonreal Hermitian off-diagonal
 entries cannot be replaced by a real symmetric witness. HPD leading principal
 minors are 4 and 11; the separate Hermitian fixture has determinant -7.
 
-The literal complex catalogs contain ten reference and four faer tuples:
+The literal complex catalogs contain 12 Reference and 14 Faer tuples:
 Identity/Jacobi Reproducible BiCGSTAB on each of the four classes, HPD
-Identity/Jacobi Reproducible CG, and the existing Identity/Fast faer SparseLU
+Identity/Jacobi Reproducible CG, Hermitian/HPD Identity MINRES, Faer HPD CG
+and all-class BiCGSTAB with Identity/Jacobi, and Identity/Fast Faer SparseLU
 on each class. Normal and conjugate-transposed manual execution of every tuple
 is the independent numerical authority for these catalog evidence links.
 Known diagonal presence admits Jacobi; an unproved diagonal rejects it before
