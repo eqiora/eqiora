@@ -437,7 +437,7 @@ mod tests {
     fn acceptance_distinguishes_zero_from_tiny_real_and_complex_solutions() {
         use crate::{
             ConvergenceReason, LinearOperatorProperties, LinearProblem, LinearSolver,
-            REFERENCE_SOLVER_PROVIDER, SolverPlan, accept_linear_solution,
+            REFERENCE_SOLVER_PROVIDER, SolverPlan,
         };
         use num_complex::Complex64 as C;
         use std::{marker::PhantomData, num::NonZeroUsize};
@@ -471,7 +471,7 @@ mod tests {
             )
             .unwrap();
             let accept = |value| {
-                accept_linear_solution(
+                crate::LinearSolution::accept(
                     &problem,
                     plan,
                     REFERENCE_SOLVER_PROVIDER,

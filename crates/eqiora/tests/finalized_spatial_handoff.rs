@@ -18,7 +18,7 @@ use eqiora::solver::{
     ExecutionTopology, FixedOrderInnerProduct, LinearOperator, LinearOperatorProperties,
     LinearSolution, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+    SolverPlan, SolverProvider,
 };
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution, scalar::finalize_scalar_elliptic_cartesian,
@@ -117,7 +117,7 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
         .unwrap_err();
     assert!(plan_mismatch.message().contains("different SolverPlan"));
 
-    let cuda_claim = accept_linear_solution_with_verifier(
+    let cuda_claim = eqiora_solver::LinearSolution::accept_with_verifier(
         &fem_problem.linear_problem().unwrap(),
         solver,
         test_solver_provider(BackendId::new("eqiora.test.cross-wire")),
@@ -148,7 +148,7 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
     let invalid_verifier = ClaimedVerifier {
         report: ExecutionReport::cuda(ExecutionId::new("eqiora.test.invalid-verifier"), 0),
     };
-    let invalid_verification_claim = accept_linear_solution_with_verifier(
+    let invalid_verification_claim = eqiora_solver::LinearSolution::accept_with_verifier(
         &fem_problem.linear_problem().unwrap(),
         solver,
         test_solver_provider(BackendId::new("eqiora.test.invalid-verification")),
@@ -428,7 +428,7 @@ fn distributed_candidate(
     let host = REFERENCE_LINEAR_SOLVER
         .solve(&problem.linear_problem().unwrap(), plan)
         .unwrap();
-    accept_linear_solution_with_verifier(
+    eqiora_solver::LinearSolution::accept_with_verifier(
         &problem.linear_problem().unwrap(),
         plan,
         test_solver_provider(BackendId::new("eqiora.test.distributed-loopback")),

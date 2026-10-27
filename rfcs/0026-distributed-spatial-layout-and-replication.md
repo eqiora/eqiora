@@ -387,7 +387,7 @@ API. It performs the following ordered phases on every rank:
    topology;
 4. normatively ordered `all_gather_owned` into one complete
    global-index-ordered candidate; and
-5. `accept_linear_solution_with_verifier` against the host `LinearProblem`
+5. `LinearSolution::accept_with_verifier` against the host `LinearProblem`
    constructed internally from that canonical view using
    `SERIAL_LINEAR_EXECUTION` and its fixed-order inner product.
 

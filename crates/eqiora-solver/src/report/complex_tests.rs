@@ -41,7 +41,7 @@ fn complex_acceptance_checks_the_original_action_and_imaginary_residual() {
     let rhs = [C::new(5.0, -5.0), C::new(-4.0, 7.0)];
     let values = vec![C::new(1.0, -3.0), C::new(-2.0, 1.0)];
     let problem = LinearProblem::new(&Diagonal, &rhs, LinearOperatorProperties::General).unwrap();
-    let accepted = accept_linear_solution(
+    let accepted = crate::LinearSolution::accept(
         &problem,
         plan(),
         provider(),
@@ -64,7 +64,7 @@ fn complex_acceptance_checks_the_original_action_and_imaginary_residual() {
     let mut wrong = values.clone();
     wrong[0].im += 1.0;
     assert!(
-        accept_linear_solution(
+        crate::LinearSolution::accept(
             &problem,
             plan(),
             provider(),
@@ -76,7 +76,7 @@ fn complex_acceptance_checks_the_original_action_and_imaginary_residual() {
         .is_err()
     );
     let initial_problem = problem.with_initial_guess(&values).unwrap();
-    let initial = accept_linear_solution(
+    let initial = crate::LinearSolution::accept(
         &initial_problem,
         plan(),
         provider(),
@@ -120,7 +120,7 @@ fn complex_acceptance_rejects_a_nonreal_norm_from_the_verifier() {
     let values = vec![C::new(1.0, -3.0), C::new(-2.0, 1.0)];
     let problem = LinearProblem::new(&Diagonal, &rhs, LinearOperatorProperties::General).unwrap();
     assert!(
-        accept_linear_solution_with_execution(
+        crate::LinearSolution::accept_with_execution(
             &problem,
             plan(),
             provider(),

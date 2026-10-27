@@ -422,110 +422,112 @@ impl<S> LinearSolution<S> {
     }
 }
 
-/// Independently verify and accept a backend-produced solution.
-///
-/// The backend supplies only operational evidence. Eqiora recomputes the
-/// initial and final residuals through the admitted operator, derives the
-/// target from the sole [`SolverPlan`], and constructs the public report only
-/// after the true residual passes.
-///
-/// # Errors
-/// Returns `EQ0802` for shape/non-finite operator behavior, inconsistent
-/// termination/iteration evidence, or when the true residual exceeds the
-/// declared target.
-#[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution<S: Scalar + ComplexFloat<Real = f64> + Sync>(
-    problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
-    solver_provider: SolverProvider,
-    reason: ConvergenceReason,
-    completed_iterations: usize,
-    reported_residual_norm: f64,
-    values: Vec<S>,
-) -> Result<LinearSolution<S>, Diagnostic> {
-    accept_linear_solution_with_execution(
-        problem,
-        plan,
-        solver_provider,
-        reason,
-        completed_iterations,
-        reported_residual_norm,
-        values,
-        &SERIAL_LINEAR_EXECUTION,
-    )
-}
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearSolution<S> {
+    /// Independently verify and accept a backend-produced solution.
+    ///
+    /// The backend supplies only operational evidence. Eqiora recomputes the
+    /// initial and final residuals through the admitted operator, derives the
+    /// target from the sole [`SolverPlan`], and constructs the public report only
+    /// after the true residual passes.
+    ///
+    /// # Errors
+    /// Returns `EQ0802` for shape/non-finite operator behavior, inconsistent
+    /// termination/iteration evidence, or when the true residual exceeds the
+    /// declared target.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept(
+        problem: &LinearProblem<'_, S>,
+        plan: SolverPlan,
+        solver_provider: SolverProvider,
+        reason: ConvergenceReason,
+        completed_iterations: usize,
+        reported_residual_norm: f64,
+        values: Vec<S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
+        crate::LinearSolution::accept_with_execution(
+            problem,
+            plan,
+            solver_provider,
+            reason,
+            completed_iterations,
+            reported_residual_norm,
+            values,
+            &SERIAL_LINEAR_EXECUTION,
+        )
+    }
 
-/// Independently verify and accept a backend-produced solution through the
-/// exact execution that produced it.
-///
-/// # Errors
-/// Returns `EQ0802` for shape/non-finite execution behavior, inconsistent
-/// termination/iteration evidence, or when the true residual exceeds the
-/// declared target, and `EQ0807` for an incompatible reduction policy.
-#[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution_with_execution<S: Scalar + ComplexFloat<Real = f64> + Sync>(
-    problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
-    solver_provider: SolverProvider,
-    reason: ConvergenceReason,
-    completed_iterations: usize,
-    reported_residual_norm: f64,
-    values: Vec<S>,
-    execution: &dyn ReplicatedLinearExecution<S>,
-) -> Result<LinearSolution<S>, Diagnostic> {
-    execution.require_reduction(plan.reduction())?;
-    accept_linear_solution_with_verifier(
-        problem,
-        plan,
-        solver_provider,
-        execution.provider(),
-        execution.report(),
-        reason,
-        completed_iterations,
-        reported_residual_norm,
-        values,
-        execution,
-    )
-}
+    /// Independently verify and accept a backend-produced solution through the
+    /// exact execution that produced it.
+    ///
+    /// # Errors
+    /// Returns `EQ0802` for shape/non-finite execution behavior, inconsistent
+    /// termination/iteration evidence, or when the true residual exceeds the
+    /// declared target, and `EQ0807` for an incompatible reduction policy.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_with_execution(
+        problem: &LinearProblem<'_, S>,
+        plan: SolverPlan,
+        solver_provider: SolverProvider,
+        reason: ConvergenceReason,
+        completed_iterations: usize,
+        reported_residual_norm: f64,
+        values: Vec<S>,
+        execution: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
+        execution.require_reduction(plan.reduction())?;
+        crate::LinearSolution::accept_with_verifier(
+            problem,
+            plan,
+            solver_provider,
+            execution.provider(),
+            execution.report(),
+            reason,
+            completed_iterations,
+            reported_residual_norm,
+            values,
+            execution,
+        )
+    }
 
-/// Independently verify a backend-produced solution through a distinct
-/// verifier while preserving the execution that produced the values.
-///
-/// Verification always uses Eqiora's fixed-order inner-product action. This
-/// keeps a backend-native fast reduction out of the acceptance oracle and
-/// makes heterogeneous production/verification evidence explicit.
-///
-/// # Errors
-/// Returns `EQ0802` for shape/non-finite verification behavior, inconsistent
-/// termination/iteration evidence, or when the true residual exceeds the
-/// declared target, and `EQ0807` when the verifier cannot execute the
-/// reproducible acceptance reduction.
-#[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution_with_verifier<S: Scalar + ComplexFloat<Real = f64> + Sync>(
-    problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
-    solver_provider: SolverProvider,
-    execution_provider: ExecutionProvider,
-    execution: ExecutionReport,
-    reason: ConvergenceReason,
-    completed_iterations: usize,
-    reported_residual_norm: f64,
-    values: Vec<S>,
-    verifier: &dyn ReplicatedLinearExecution<S>,
-) -> Result<LinearSolution<S>, Diagnostic> {
-    let mut workspace = LinearAcceptanceWorkspace::new(problem)?;
-    workspace.accept_with_verifier(
-        problem,
-        plan,
-        solver_provider,
-        execution_provider,
-        execution,
-        reason,
-        completed_iterations,
-        reported_residual_norm,
-        values,
-        verifier,
-    )
+    /// Independently verify a backend-produced solution through a distinct
+    /// verifier while preserving the execution that produced the values.
+    ///
+    /// Verification always uses Eqiora's fixed-order inner-product action. This
+    /// keeps a backend-native fast reduction out of the acceptance oracle and
+    /// makes heterogeneous production/verification evidence explicit.
+    ///
+    /// # Errors
+    /// Returns `EQ0802` for shape/non-finite verification behavior, inconsistent
+    /// termination/iteration evidence, or when the true residual exceeds the
+    /// declared target, and `EQ0807` when the verifier cannot execute the
+    /// reproducible acceptance reduction.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_with_verifier(
+        problem: &LinearProblem<'_, S>,
+        plan: SolverPlan,
+        solver_provider: SolverProvider,
+        execution_provider: ExecutionProvider,
+        execution: ExecutionReport,
+        reason: ConvergenceReason,
+        completed_iterations: usize,
+        reported_residual_norm: f64,
+        values: Vec<S>,
+        verifier: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
+        let mut workspace = LinearAcceptanceWorkspace::new(problem)?;
+        workspace.accept_with_verifier(
+            problem,
+            plan,
+            solver_provider,
+            execution_provider,
+            execution,
+            reason,
+            completed_iterations,
+            reported_residual_norm,
+            values,
+            verifier,
+        )
+    }
 }
 
 /// Reusable buffers for independent true-residual acceptance.
@@ -555,11 +557,11 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
     /// Independently verify a backend-produced solution using admitted buffers.
     ///
     /// This is the allocation-free execution counterpart of
-    /// [`accept_linear_solution_with_verifier`]. It is intended for transports
+    /// [`crate::LinearSolution::accept_with_verifier`]. It is intended for transports
     /// that must prove all dynamic workspace exists before communication begins.
     ///
     /// # Errors
-    /// Returns the same diagnostics as [`accept_linear_solution_with_verifier`],
+    /// Returns the same diagnostics as [`crate::LinearSolution::accept_with_verifier`],
     /// plus `EQ0802` when this workspace has the wrong shape.
     #[allow(clippy::too_many_arguments)]
     pub fn accept_with_verifier(
@@ -702,7 +704,7 @@ mod tests {
         .with_reduction(ReductionPolicy::Fast);
         let cuda = ExecutionReport::cuda(ExecutionId::new("eqiora.cuda.test"), 3);
 
-        let solution = accept_linear_solution_with_verifier(
+        let solution = crate::LinearSolution::accept_with_verifier(
             &problem,
             plan,
             solver_provider("eqiora.cuda.test-solver"),
