@@ -7,6 +7,7 @@ use faer::matrix_free::LinOp;
 
 mod acceptance;
 mod diagonal;
+mod hermitian_products;
 
 // Before execution: ||A^-1||_2 <= ||adj(A)||_F/|det(A)| < 0.76 for
 // GENERAL, and <0.54 for HPD. The fixed residual policy below bounds solution

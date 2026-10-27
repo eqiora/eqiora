@@ -161,15 +161,11 @@ fn retained_candidate_survives_no_convergence_and_charges_the_whole_call() {
         let solved = FaerLinearSolver
             .solve(&problem, plan(algorithm, 2, 1.))
             .unwrap();
-        // CG's first iterate is (1/2,1/2,1/2), second (9/10,3/5,3/10).
-        // BiCGSTAB's first omega iterate is (7/10,1/2,3/10); its second
-        // first coordinate exceeds 0.8. Neither final residual is exactly zero,
-        // so Faer's zero-only sentinel returns NoConvergence at the limit2.
-        let expected = if algorithm == LinearSolver::ConjugateGradient {
-            [0.5, 0.5, 0.5]
-        } else {
-            [0.7, 0.5, 0.3]
-        };
+        // Both methods' first alpha point is (1/2,1/2,1/2), already jointly
+        // accepted here. BiCGSTAB now publishes alpha before its omega point
+        // (7/10,1/2,3/10), so the original first-accepted rule retains alpha.
+        // Neither final residual is exactly zero; charge the whole limit2.
+        let expected = [0.5, 0.5, 0.5];
         for (actual, expected) in solved.values().iter().zip(expected) {
             assert!((actual - expected).abs() < 1e-14);
         }

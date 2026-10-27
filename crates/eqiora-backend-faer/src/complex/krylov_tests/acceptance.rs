@@ -140,11 +140,8 @@ fn complex_first_joint_candidate_survives_later_points_and_no_convergence() {
         let solution = invoke(&problem, bounded(algorithm, 2, 1.)).unwrap();
         // Multiplying the real diagonal problem by phase multiplies every
         // iterate by phase; conjugate-first products cancel |phase|².
-        let first = if algorithm == LinearSolver::ConjugateGradient {
-            [0.5, 0.5, 0.5]
-        } else {
-            [0.7, 0.5, 0.3]
-        };
+        // Both methods publish alpha=(1/2,1/2,1/2) before BiCGSTAB omega.
+        let first = [0.5, 0.5, 0.5];
         assert_values(solution.values(), &first.map(|value| value * phase));
         assert_eq!(solution.report().completed_iterations(), 2);
     }
