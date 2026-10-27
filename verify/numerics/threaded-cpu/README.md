@@ -54,17 +54,39 @@ The executable evidence requires:
 - rejection of multi-worker execution for an operator without a row-action
   capability.
 
+The same case also executes real Reference MINRES/Jacobi on two independently
+specified canonical CSR systems:
+
+- SPD `A=[[4,1],[1,1]]`, `b=[5,2]`, `x=[1,1]`, with leading minors 4 and 3;
+- symmetric-indefinite `A=[[4,3],[3,1]]`, `b=[-2,1]`, `x=[1,-2]`, with
+  determinant -5 and a finite positive diagonal.
+
+One- and four-worker `pool.solver(...)` execution preserves the exact Reference
+solver provider, Rayon execution and verification providers, Reproducible
+reduction, Jacobi policy and original two-iteration limit. Literal-matrix
+residual replay and independent solutions use the predeclared absolute target
+`2^-40` and componentwise error bound `2^-39`; serial/threaded values and all
+numerical report fields must also match exactly. The congruence `W A W`, with
+`W=1/sqrt(diag(A))`, preserves inertia; a positive diagonal does not establish
+SPD. Stored zero and negative diagonal entries reject even with zero RHS.
+Normal and transposed oriented actions retain the requested orientation on both
+one- and four-worker pools. Transposed CSR row actions use allocation-free column
+lookups in the original source-row order, preserving compensated sums. A full
+square transposed action uses `O(n² log(degree))` lookups; this is no transpose
+speedup claim.
+
 The execution receipt is an in-memory host contract, not a graph artifact or
 general scheduler. This is a replicated, host-local `f64`
 generated-Cartesian P1/Q1 FEM,
-orthogonal TPFA, and reference-CG claim for dimensions one through three. It
+orthogonal TPFA, and reference-CG claim for dimensions one through three, plus
+the two bounded real MINRES/Jacobi systems above. It
 claims exact pairing only for the generic Realization admission axes. Exact
 space, order, quadrature, and method-specific structure remain the typed plan
 validators' responsibility; the capability set is not a second execution
 graph. It does not claim imported-simplex or adaptive assembly,
 nonorthogonal FVM, fast
 accumulation/reductions, faer threading, distributed/device assembly, NUMA
-placement, CUDA/MPI execution DAGs, graph persistence, or performance
+placement, complex Rayon solves, CUDA/MPI execution DAGs, graph persistence, or performance
 superiority.
 
 Run:

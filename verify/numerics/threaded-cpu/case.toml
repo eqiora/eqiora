@@ -23,10 +23,13 @@ capabilities = [
   "pre-pool-capability-rejection",
   "exact-realization-admission-tuples",
   "resolved-operator-property-sealing",
+  "reference-minres-jacobi-spd-and-symmetric-indefinite",
+  "minres-jacobi-original-residual-and-exact-rayon-provenance",
+  "minres-jacobi-nonpositive-diagonal-rejection",
 ]
 
 [problem]
-model = "canonical one-, two-, and three-dimensional Poisson"
+model = "canonical one-, two-, and three-dimensional Poisson; two exact real symmetric 2x2 CSR systems"
 method = "continuous P1/Q1 Galerkin FEM and orthogonal cell-centered TPFA"
 scalar = "f64"
 layout = "replicated"
