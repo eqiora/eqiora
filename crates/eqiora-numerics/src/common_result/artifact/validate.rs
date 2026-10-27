@@ -164,7 +164,7 @@ pub(crate) fn require_solver_contract(
         return Err(invalid("Result solve evidence differs from the exact Plan"));
     }
     require_execution(&solve.execution, execution_provider, workers)?;
-    require_execution(&solve.verification, SERIAL_EXECUTION_PROVIDER, 1)
+    require_execution(&solve.verification, execution_provider, workers)
 }
 
 fn require_execution(

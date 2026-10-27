@@ -35,7 +35,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v25";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v26";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -229,6 +229,10 @@ impl ResolvedCommonPlan {
             ),
         }
         .expect("resolved Plan retains validated linear controls");
+        let policy = self
+            .linear_policy()
+            .expect("linear Plan retains its execution");
+        let linear = linear.with_execution(policy.execution, policy.workers);
         let linear = match self
             .linear_policy()
             .and_then(|policy| policy.planning_profile.as_ref())

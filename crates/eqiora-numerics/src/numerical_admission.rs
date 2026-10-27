@@ -218,6 +218,8 @@ pub struct CommonLinearRequest {
     maximum_iterations: NonZeroUsize,
     selection: CommonLinearSelection,
     cost: Option<eqiora_solver::SolverCostRequest>,
+    execution: ExecutionProvider,
+    workers: NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -281,7 +283,28 @@ impl CommonLinearRequest {
             maximum_iterations,
             selection,
             cost: None,
+            execution: SERIAL_EXECUTION_PROVIDER,
+            workers: NonZeroUsize::MIN,
         })
+    }
+
+    /// Bind one exact host execution provider release and worker count.
+    /// Automatic ranking remains scoped to the host-serial execution policy.
+    #[must_use]
+    pub const fn with_execution(
+        mut self,
+        execution: ExecutionProvider,
+        workers: NonZeroUsize,
+    ) -> Self {
+        self.execution = execution;
+        self.workers = workers;
+        self
+    }
+
+    /// Exact requested host execution, independent of the mathematical solver.
+    #[must_use]
+    pub const fn execution(self) -> (ExecutionProvider, NonZeroUsize) {
+        (self.execution, self.workers)
     }
 
     /// Retain explicit planning forecasts and a scoped numeric-buffer payload limit.

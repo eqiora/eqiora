@@ -169,7 +169,7 @@ impl ResolvedCommonPlan {
 
     pub(crate) fn linear_execution_provider(&self) -> Option<(ExecutionProvider, usize)> {
         match self {
-            Self::Algebraic(plan) => Some((plan.linear.execution, 1)),
+            Self::Algebraic(plan) => Some((plan.linear.execution, plan.linear.workers.get())),
             Self::Eigen(_) => None,
             Self::Time(plan) => plan
                 .as_ode()?

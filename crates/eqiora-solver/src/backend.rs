@@ -451,6 +451,11 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     /// The default solve uses serial execution. Adapters that replace that
     /// placement must report their actual execution here; explicit
     /// `solve_with_execution` calls retain their separate requested placement.
+    /// Complete provider release for the ordinary solve's execution placement.
+    fn default_execution_provider(&self) -> crate::ExecutionProvider {
+        crate::SERIAL_EXECUTION_PROVIDER
+    }
+
     fn default_execution(&self) -> crate::ExecutionReport {
         SERIAL_LINEAR_EXECUTION.report()
     }
