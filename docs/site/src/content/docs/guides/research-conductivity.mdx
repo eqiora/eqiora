@@ -8,12 +8,12 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../examples/research-conductivity/conductivity.eqi?raw';
 
 This example follows a one-metre layered rod from a forward solve to
-conductivity inference and a reusable dataset using the public **Eqiora 0.1.4**
+conductivity inference and a reusable dataset using the public **Eqiora 0.1.5**
 package. Clean installations outside the source checkout have exercised its
 ordinary public APIs and reopened every saved study in a second fresh environment.
 
-[Download conductivity.eqi](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.4/examples/research-conductivity/conductivity.eqi)
-and [research_workflow.py](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.4/examples/research-conductivity/research_workflow.py)
+[Download conductivity.eqi](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.5/examples/research-conductivity/conductivity.eqi)
+and [research_workflow.py](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.5/examples/research-conductivity/research_workflow.py)
 into the same directory if you want to inspect or edit them. These links pin the
 same source release as the installed example and its independent checks.
 
@@ -28,7 +28,7 @@ Install the published version from PyPI:
 ```bash
 uv init --python 3.13 conductivity-study
 cd conductivity-study
-uv add --index-url https://pypi.org/simple eqiora==0.1.4 numpy==2.5.4 scipy==1.18.1
+uv add --index-url https://pypi.org/simple eqiora==0.1.5 numpy==2.5.4 scipy==1.18.1
 uv run python -m eqiora.examples.research_conductivity --output accepted
 uv run python -m eqiora.examples.research_conductivity --output accepted --reopen
 ```
@@ -45,18 +45,18 @@ repository fixtures or private API. The output directory must be new; a rerun us
 a different directory and preserves the previous history.
 
 The published validation ran direct and iterative solvers, changed conductivities,
-heating and boundary temperature, and a 32-cell refinement. Its 13 independent
-checks passed, as did all four saved-study reopens in a separately installed
-environment with the exact dependency freeze. On the checked Linux host, whole
-process wall time / peak RSS were 4.07 s / 79,828 KiB (default), 3.25 s / 77,468 KiB
-(iterative), 3.20 s / 77,976 KiB (changed inputs), and 6.43 s / 79,108 KiB (32 cells).
-These are observations from that environment, not portable performance promises.
-[Publication](https://github.com/eqiora/eqiora/actions/runs/40447678300) and
-[reproduction record](https://github.com/eqiora/eqiora/issues/1708#issuecomment-6433625652).
+heating and boundary temperature, and a 32-cell refinement. Its 22 independent
+research and parameter-map checks passed, as did all four saved-study reopens in a
+separately installed environment with the exact dependency freeze. On the checked
+Linux host, whole-process wall time / peak RSS were 5.05 s / 80,240 KiB (default),
+3.40 s / 78,992 KiB (iterative), 3.41 s / 79,164 KiB (changed inputs), and
+5.83 s / 78,524 KiB (32 cells). These are observations from that environment, not
+portable performance promises.
+[Publication](https://github.com/eqiora/eqiora/actions/runs/40505348590) and
+[reproduction record](https://github.com/eqiora/eqiora/issues/1708#issuecomment-6442336540).
 
-This release uses the evaluation-map and collection history described below.
-The ordinary ordered Parameter-Run study extension remains development-only;
-these instructions do not require it.
+The published example uses the ordinary ordered Parameter-Run study described
+below, alongside its differentiable evaluation maps for fitting and datasets.
 
 ## Model, parameters and loads
 
@@ -179,7 +179,7 @@ its normalization is fitted only to accepted training calibration rows. Native
 collection bytes remain authoritative. No derivative targets or surrogate accuracy
 are claimed by this dataset.
 
-## Inspect failure and retry in 0.1.4
+## Inspect ordinary ordered studies, failure and retry
 
 The example deliberately requests `log_k_left=1000`. Eqiora reports `EQ0505`,
 “unary mathematics produced a nonfinite result”. Inspect the saved collection:
@@ -194,21 +194,7 @@ for group in history:
               [(d.code, d.message) for d in member.diagnostics])
 ```
 
-The first group contains `accepted`, `failed`, `not_started`. An exact retry
-requests only the two unsuccessful occurrences and still fails at the invalid
-point. A third execution explicitly corrects that point to $(2,5)$ and evaluates
-the previously unstarted duplicate. It is a **changed request**, with a new input
-identity and new execution occurrences. The initial successful member remains
-unchanged. This example uses common native maps and collection combination;
-it does not supply a separate study scheduler or generic retry API.
-
-## Development: ordinary ordered Parameter Runs
-
-This extension is not included in the published 0.1.4 package or downloads above.
-The following describes the development implementation. A later published package
-and matching instructions are required for this ordinary-Run study.
-
-The development recipe uses `EvaluationMapPlan.from_parameters` for ordinary
+The installed recipe uses `EvaluationMapPlan.from_parameters` for ordinary
 stationary Runs, selecting the original Model's `log_k`, `heating` and
 `right_temperature` Parameters. Its ordered points are the command-line baseline,
 a changed case with conductivities $(1.5,4.5)$, heating 40 and right temperature
@@ -242,6 +228,6 @@ handles and reordered sample attribution, and reopen saved results in a fresh
 interpreter with solver/compiler entry points disabled. See the
 <ExactSourceLink path="bindings/python/tests/test_research_conductivity_workflow.py" kind="blob">focused checks</ExactSourceLink>
 for the exact scientific expectations and falsifiers. Published-package
-installation and the remaining study extension are tracked in
+installation and study evidence are tracked in
 <ExactSourceLink path="docs/capability-matrix.md" kind="blob">the existing capability index</ExactSourceLink>
 and [the released-user delivery](https://github.com/eqiora/eqiora/issues/1708).

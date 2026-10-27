@@ -9,23 +9,80 @@ A summary of each release. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 has the full history. Until 1.0, any release may change APIs and saved formats.
 
-## 0.1.5 — release preparation: ordered studies and retry
+## Eqiora 0.1.5
 
-This source prepares the next release; the published installation guide remains
-on validated 0.1.4 until the new package passes clean-install verification.
+Eqiora 0.1.5 lets you run ordered parameter studies with ordinary stationary Runs. Each member keeps its exact Plan and lineage, you can retry only the members that failed, and a saved study reopens exactly. This release also lets compatible steps in fixed scalar heat Runs reuse a checked sparse-LU preparation, and it adds a new automatic solver-planning policy. Saved evaluation collections and Plan artifacts use new formats, so read the upgrade notes before you upgrade.
 
-Ordinary ordered Parameter Runs retain explicit sample order, duplicates and exact
-per-member Model/Plan/Result lineage. Frequency and non-frequency studies share
-one execution and collection owner, including failed/cancelled inspection, focused
-retry and offline reopening. The conductivity example uses that path for changed
-material and boundary inputs while retaining its existing fit and held-out checks.
+### What's new
 
-Fixed scalar heat Runs retain admitted Faer sparse-LU preparation across compatible
-steps. Host solver policy v4 records explicit cost assumptions and scoped numeric
-payload bounds without predicting runtime or process RSS. Common Plans use v24
-and evaluation collections use v4. Recreate retired artifacts from exact authored
-inputs; retain the producing release to reopen historical archives. There is no
-silent codec migration.
+#### Parameter studies with ordinary Runs
+
+Ordered parameter studies now run ordinary stationary Runs through the same immutable Model, Plan, Result and evaluation collection types as single Runs.
+
+- **Input order is kept.** Explicit frequency and non-frequency samples stay in the order you give them, and duplicate samples are kept.
+- **Per-member records.** Each member keeps its exact Plan and lineage.
+- **Failed and cancelled members stay visible.** You can inspect them instead of losing them.
+- **Retry only what failed.** A retry reruns the unsuccessful members and leaves the history of successful members unchanged.
+- **Exact save and reopen.** A saved collection reopens with the same members, Plans and retry occurrences.
+
+This feature connects existing workflows. It is not a general-purpose workflow scheduler.
+
+#### Updated research example
+
+The installed heterogeneous-conductivity example now uses the ordinary-Run study path. It varies material and boundary inputs, includes a member that fails on purpose and is then retried, and reopens the saved results in a new process. The multi-load parameter fitting and held-out prediction work the same as in 0.1.4.
+
+#### Sparse-LU preparation reuse in fixed scalar heat Runs
+
+In bounded fixed scalar heat Runs, compatible steps now keep their checked Faer sparse-LU preparation. Exact dependencies decide when it is reused and when it is invalidated. Reuse depends on those dependencies and does not apply in every case.
+
+#### Automatic solver planning policy v4
+
+The host-serial automatic solver planner now uses explicit work forecasts. Where the existing assembly code provides size information, it also applies scoped bounds on numeric payloads. Forecasts help choose a plan, but they do not allow reuse and do not predict wall-clock time or process memory. Exact manual solver controls work the same as before.
+
+#### Rust: solution acceptance moved onto `LinearSolution`
+
+Solution acceptance is now done through methods instead of the former free functions:
+
+- `LinearSolution::accept`
+- `LinearSolution::accept_with_execution`
+- `LinearSolution::accept_with_verifier`
+
+Independent residual verification is still required.
+
+### Upgrade notes
+
+**Breaking changes to saved formats:**
+
+- **Evaluation collections are now v4.** They now store exact ordinary-Run member Plans and retry occurrences. This is separate from the differentiable evaluation records v4 format, which already existed in 0.1.4.
+- **Common Plan artifacts are now v24.**
+- **Model artifacts stay at v49**, unchanged from 0.1.4.
+
+Older evaluation collection and Plan codecs are rejected, not migrated automatically. For saved artifacts you need to keep, either keep the release that produced them available, or regenerate the artifacts from your original inputs with 0.1.5.
+
+**Rust users:** replace calls to the former acceptance free functions with the `LinearSolution` methods listed above.
+
+### Installation
+
+```bash
+pip install eqiora==0.1.5
+```
+
+Wheels are published for standard (GIL) CPython 3.11–3.14 on Linux x86-64, with manylinux_2_17 as the minimum.
+
+The research example needs these dependencies. These versions are the independently validated example environment:
+
+```bash
+pip install numpy==2.5.4 scipy==1.18.1
+```
+
+To run the research example and then reopen its saved results in a new process:
+
+```bash
+python -m eqiora.examples.research_conductivity --output accepted
+python -m eqiora.examples.research_conductivity --output accepted --reopen
+```
+
+**Full changes:** https://github.com/eqiora/eqiora/compare/v0.1.4...v0.1.5
 
 ## 0.1.4 — reproducible conductivity studies
 
