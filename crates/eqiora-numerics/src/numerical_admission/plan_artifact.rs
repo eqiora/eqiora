@@ -26,7 +26,8 @@ pub(super) use residual_scaling::bytes as residual_scaling_bytes;
 use scaling::{WireScalingRequest, scaling_request};
 mod linear;
 use enforcement::WireEnforcement;
-use linear::WireLinearControls;
+pub(crate) use linear::solve_intent_bytes;
+use linear::{WireLinearControls, wire_solve};
 mod event_policy;
 mod forward_policy;
 mod temporal;
@@ -939,28 +940,6 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
 
 fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
     plan.canonical_solve_request().map(wire_solve)
-}
-
-pub(crate) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
-    serde_json::to_vec(&wire_solve(request))
-        .map_err(|error| invalid(format!("cannot encode solve controls: {error}")))
-}
-
-fn wire_solve(request: CommonSolvePolicy) -> WireSolve {
-    match request {
-        CommonSolvePolicy::Linear(request) => WireSolve::Linear {
-            linear: request.into(),
-        },
-        CommonSolvePolicy::Newton { linear, nonlinear } => WireSolve::Newton {
-            linear: linear.into(),
-            nonlinear: WireNonlinearControls {
-                relative_tolerance: nonlinear.relative_tolerance(),
-                absolute_tolerance: nonlinear.absolute_tolerance(),
-                maximum_iterations: nonlinear.maximum_iterations().get(),
-                maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
-            },
-        },
-    }
 }
 
 fn nonzero(value: usize, label: &str) -> Result<NonZeroUsize, Diagnostic> {
