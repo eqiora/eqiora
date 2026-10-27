@@ -335,20 +335,15 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     assert!((solution.values()[1] - 2.0).abs() < 1.0e-12);
     assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
 
-    for (unsupported, properties) in [(
-        plan.with_reduction(ReductionPolicy::Reproducible),
-        LinearOperatorProperties::General,
-    )] {
-        let error = capabilities
-            .require_problem(
-                unsupported,
-                eqiora_core::ScalarDomain::Real,
-                ScalarType::F64,
-                properties,
-            )
-            .unwrap_err();
-        assert!(error.message().contains("exact"));
-    }
+    let error = capabilities
+        .require_problem(
+            plan.with_reduction(ReductionPolicy::Reproducible),
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+            LinearOperatorProperties::General,
+        )
+        .unwrap_err();
+    assert!(error.message().contains("exact"));
 }
 
 #[test]
