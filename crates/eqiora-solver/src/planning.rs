@@ -38,6 +38,16 @@ const REFERENCE_INDEFINITE_BICGSTAB_ID: &str =
     "eqiora.reference.bicgstab-indefinite-identity-reproducible-f64";
 const REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID: &str =
     "eqiora.reference.bicgstab-indefinite-jacobi-reproducible-f64";
+const REFERENCE_SYMMETRIC_MINRES_ID: &str =
+    "eqiora.reference.minres-symmetric-identity-reproducible-f64";
+const REFERENCE_SYMMETRIC_BICGSTAB_ID: &str =
+    "eqiora.reference.bicgstab-symmetric-identity-reproducible-f64";
+const REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-symmetric-jacobi-reproducible-f64";
+const FAER_SYMMETRIC_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-symmetric-identity-fast-f64";
+const FAER_SYMMETRIC_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-symmetric-jacobi-fast-f64";
+const FAER_INDEFINITE_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-indefinite-identity-fast-f64";
+const FAER_INDEFINITE_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-indefinite-jacobi-fast-f64";
 const FAER_SYMMETRIC_LU_ID: &str = "eqiora.faer.sparse-lu-symmetric-identity-fast-f64";
 const REFERENCE_MINRES_ID: &str = "eqiora.reference.minres-indefinite-identity-reproducible-f64";
 const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-fast-f64";
@@ -740,9 +750,18 @@ fn catalog_ids(
             REFERENCE_MINRES_ID,
             REFERENCE_INDEFINITE_BICGSTAB_ID,
             REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_BICGSTAB_ID,
+            FAER_INDEFINITE_BICGSTAB_JACOBI_ID,
             FAER_INDEFINITE_LU_ID,
         ],
-        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[FAER_SYMMETRIC_LU_ID],
+        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[
+            REFERENCE_SYMMETRIC_MINRES_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_BICGSTAB_ID,
+            FAER_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_LU_ID,
+        ],
         (ScalarDomain::Complex, LinearOperatorProperties::General) => {
             &[REFERENCE_COMPLEX_ID, FAER_COMPLEX_LU_ID]
         }

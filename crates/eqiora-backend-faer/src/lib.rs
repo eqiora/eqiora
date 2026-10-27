@@ -72,6 +72,14 @@ impl FaerLinearSolver {
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::Symmetric,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::SymmetricIndefinite,
+            ),
         ] {
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 combinations.push(SolverCapability {
@@ -693,15 +701,15 @@ mod tests {
             .capabilities()
             .require_problem(
                 unsupported,
-                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
                 ScalarType::F64,
-                LinearOperatorProperties::SymmetricIndefinite,
+                LinearOperatorProperties::General,
             )
             .unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert!(error.message().contains("BiConjugateGradientStabilized"));
-        assert!(error.message().contains("SymmetricIndefinite"));
+        assert!(error.message().contains("Complex"));
         assert!(error.message().contains("exact"));
     }
 

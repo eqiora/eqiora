@@ -186,6 +186,40 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
                 })
             }
         }
+        REFERENCE_SYMMETRIC_MINRES_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::Symmetric,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_MINRES_ID)
+        },
+        REFERENCE_SYMMETRIC_BICGSTAB_ID | REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID => {
+            ExpectedCandidate {
+                properties: LinearOperatorProperties::Symmetric,
+                evidence_case: PLANNING_EVIDENCE,
+                ..expected_candidate(if id == REFERENCE_SYMMETRIC_BICGSTAB_ID {
+                    REFERENCE_IDENTITY_ID
+                } else {
+                    REFERENCE_ID
+                })
+            }
+        }
+        FAER_SYMMETRIC_BICGSTAB_ID | FAER_SYMMETRIC_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::Symmetric,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(if id == FAER_SYMMETRIC_BICGSTAB_ID {
+                FAER_IDENTITY_ID
+            } else {
+                FAER_BICGSTAB_ID
+            })
+        },
+        FAER_INDEFINITE_BICGSTAB_ID | FAER_INDEFINITE_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricIndefinite,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(if id == FAER_INDEFINITE_BICGSTAB_ID {
+                FAER_IDENTITY_ID
+            } else {
+                FAER_BICGSTAB_ID
+            })
+        },
         FAER_SYMMETRIC_LU_ID => ExpectedCandidate {
             properties: LinearOperatorProperties::Symmetric,
             evidence_case: PLANNING_EVIDENCE,

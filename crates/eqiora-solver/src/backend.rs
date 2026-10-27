@@ -95,9 +95,18 @@ impl SolverCapabilities {
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
+            SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
+                algorithm: LinearSolver::MinimumResidual,
+                operator_properties: LinearOperatorProperties::Symmetric,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Reproducible,
+                scalar_type: ScalarType::F64,
+            },
         ];
         for operator_properties in [
             LinearOperatorProperties::General,
+            LinearOperatorProperties::Symmetric,
             LinearOperatorProperties::SymmetricPositiveDefinite,
             LinearOperatorProperties::SymmetricIndefinite,
         ] {
