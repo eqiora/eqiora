@@ -115,8 +115,13 @@ def test_numeric_payload_limits_reject_insufficient_and_unknown_bounds():
     # Exact logical bound: reference BiCG workspace200, values/RHS48,
     # and seven host-sized CSR indices. Equality is admitted.
     bound = 248+7*struct.calcsize("P")
-    _run_loss(model, q.resolve(model, solve=_manual(
-        cost=q.solve.SolverCost(numeric_payload_limit=bound))))
+    limited = q.resolve(model, solve=_manual(
+        cost=q.solve.SolverCost(numeric_payload_limit=bound)))
+    replay = q.Plan.from_bytes(limited.to_bytes())
+    assert replay.solve.cost_assumptions.numeric_payload_limit == bound
+    assert replay.to_bytes() == limited.to_bytes()
+    assert limited.to_bytes() != q.resolve(model, solve=_manual()).to_bytes()
+    _run_loss(model, replay)
     with pytest.raises(q.ValidationError, match="numeric-payload-limit-exceeded"):
         q.resolve(model, solve=_manual(cost=q.solve.SolverCost(numeric_payload_limit=1)))
     with pytest.raises(q.ValidationError, match="numeric-payload-bound-unproved"):

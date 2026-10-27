@@ -1,7 +1,7 @@
-#[path = "host_serial_solver_planning/cost.rs"]
-mod cost;
 #[path = "host_serial_solver_planning/complex.rs"]
 mod complex;
+#[path = "host_serial_solver_planning/cost.rs"]
+mod cost;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::process::Command;
@@ -466,8 +466,8 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 assert_eq!(decision.solver_plan().algorithm(), LinearSolver::SparseLu);
                 &faer
             } else if diagonal && objective == SolverPlanningObjective::LowMemory {
-                // Both CG candidates have the same fixed-vector rank; exact ID
-                // order puts eqiora.faer before eqiora.reference.
+                // Unknown-size fallback preserves the specialized CG preference;
+                // exact IDs select Faer Identity before Jacobi.
                 assert_eq!(
                     decision.solver_plan().algorithm(),
                     LinearSolver::ConjugateGradient
@@ -485,11 +485,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 } else {
                     iterative
                 },
-                if diagonal && objective == SolverPlanningObjective::LowMemory {
-                    PreconditionerPolicy::Jacobi
-                } else {
-                    PreconditionerPolicy::Identity
-                },
+                PreconditionerPolicy::Identity,
                 if uses_faer {
                     ReductionPolicy::Fast
                 } else {

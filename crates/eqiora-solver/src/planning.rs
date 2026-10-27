@@ -71,15 +71,15 @@ const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     FAER_LIBRARIES,
 );
 
-/// Deterministic preference table used by bounded host-serial solver planning.
+/// Deterministic work/payload preferences used by bounded host-serial solver planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverPlanningObjective {
-    /// Prefer the frozen reproducible-reduction candidate.
+    /// Prefer reproducible reductions, then the available work proxy.
     Robust,
-    /// Prefer Fast reduction and then the frozen direct candidate.
+    /// Prefer Fast reduction, then the available work proxy.
     Fast,
-    /// Prefer catalog iterative candidates before direct factorization.
-    /// This is a deterministic preference, not a memory-usage guarantee.
+    /// Prefer a known accounted numeric payload, then work.
+    /// Without size facts use the declared iterative preference; this never bounds RSS.
     LowMemory,
 }
 
@@ -589,7 +589,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v3<'problem, 'backend>(
+fn resolve_host_serial_solver_v4<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -825,7 +825,7 @@ fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     match objective {
         SolverPlanningObjective::Robust => (
             u8::from(plan.reduction() != ReductionPolicy::Reproducible),
-            0,
+            fallback_algorithm_rank(plan.algorithm()),
             candidate.id(),
         ),
         SolverPlanningObjective::Fast => (
@@ -835,9 +835,20 @@ fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         ),
         SolverPlanningObjective::LowMemory => (
             u8::from(plan.algorithm() == LinearSolver::SparseLu),
-            0,
+            fallback_algorithm_rank(plan.algorithm()),
             candidate.id(),
         ),
+    }
+}
+
+// Without size/conditioning evidence retain the specialized symmetric-method
+// preference. Adding a general-purpose tuple must not demote CG/MINRES solely
+// because its name sorts first; this is a declared preference, not a cost claim.
+const fn fallback_algorithm_rank(algorithm: LinearSolver) -> u8 {
+    match algorithm {
+        LinearSolver::ConjugateGradient | LinearSolver::MinimumResidual => 0,
+        LinearSolver::BiConjugateGradientStabilized => 1,
+        LinearSolver::SparseLu => 2,
     }
 }
 

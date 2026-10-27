@@ -50,7 +50,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
     let reference = HostSerialSolverCandidate::planned(
         REFERENCE_COMPLEX_ID,
-        COMPLEX_EVIDENCE,
+        PLANNING_EVIDENCE,
         controls(
             LinearSolver::BiConjugateGradientStabilized,
             ReductionPolicy::Reproducible,
@@ -59,7 +59,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     );
     let direct = HostSerialSolverCandidate::planned(
         FAER_COMPLEX_LU_ID,
-        COMPLEX_EVIDENCE,
+        PLANNING_EVIDENCE,
         controls(LinearSolver::SparseLu, ReductionPolicy::Fast),
         None,
     );
@@ -86,7 +86,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     .map(|id| {
         HostSerialSolverCandidate::planned(
             id,
-            COMPLEX_EVIDENCE,
+            PLANNING_EVIDENCE,
             reference.plan(),
             Some(&backend as &dyn crate::LinearSolverBackend<C>),
         )
@@ -107,7 +107,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     assert!(error.message().contains("catalog.missing-id"));
     let changed = HostSerialSolverCandidate::planned(
         REFERENCE_COMPLEX_ID,
-        COMPLEX_EVIDENCE,
+        PLANNING_EVIDENCE,
         reference
             .plan()
             .with_preconditioner(PreconditionerPolicy::Jacobi),

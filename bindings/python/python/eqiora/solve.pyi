@@ -43,11 +43,11 @@ class SolverPlanningObjective:
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 Robust: Final[SolverPlanningObjective]
-#: Prefer fast reductions, then a direct solver.
+#: Prefer fast reductions, then the available work proxy.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 Fast: Final[SolverPlanningObjective]
-#: Prefer iterative solvers over direct factorization. Memory use is not guaranteed to be lower.
+#: Prefer the known accounted numeric payload; this does not bound process RSS.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 LowMemory: Final[SolverPlanningObjective]
