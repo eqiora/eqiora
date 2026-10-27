@@ -52,7 +52,7 @@ cargo run --locked -p eqiora-verify -- run \
   --case numerics.host-serial-solver-planning-private
 ```
 
-For structurally missing diagonal entries, the v3 check independently rejects
+For structurally missing diagonal entries, the v4 check independently rejects
 both Jacobi candidates and retains Identity BiCGSTAB and SparseLU. These tuples do not
 require diagonal storage for admission. Resolution still performs
 zero numerical actions; numerical nonsingularity and original-residual acceptance

@@ -667,7 +667,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             plan.solver_planning_policy_id(),
             Some("eqiora.host-serial-solver-planning/v4")
         );
-        assert_eq!(plan.solver_planning_reasons().len(), 7);
+        // Two admitted candidates each retain admission, unknown-size fallback,
+        // and selection reasons; three rejected candidates retain one reason.
+        assert_eq!(plan.solver_planning_reasons().len(), 9);
         assert!(plan.selected_solver_evidence_case().is_some());
     }
     // This test provider advertises Jacobi BiCGStab and LU, but omits Identity BiCGStab.

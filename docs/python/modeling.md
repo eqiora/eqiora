@@ -1425,6 +1425,36 @@ that exact Geometry selections close the selected public Component, derives
 Parameter dimensions from its declarations, and returns the ordinary immutable
 `Model` used by every resolver:
 
+
+Optional `cost=eqiora.solve.SolverCost(...)` carries explicit planning assumptions.
+`identity_iterations` and `jacobi_iterations` forecast iteration counts separately;
+omitting them uses the requested iteration ceiling, without claiming conditioning
+or convergence. `solves`, `structures`, and `numeric_preparations` must be declared
+together. Ordinary common Plans currently require all three counts to agree:
+these forecasts do not authorize factor reuse or infer a Newton solve count.
+Omission assumes one solve.
+
+The v4 planner first rejects mathematical, provider, reduction, and resource
+incompatibilities. When the existing assembly or coordinate owner supplies size
+facts, `Robust` prefers reproducible reductions and then the work proxy; `Fast`
+prefers Fast reductions and then that proxy. `LowMemory` prefers known accounted
+numeric payload, then work. Missing size facts retain deterministic preferences
+and an explicit unknown-size reason, preserving the CG/MINRES preference for their admitted symmetric classes. Inspect `plan.solve.planning_rows`,
+`planning_stored_slots`, `planning_slots_exact`, `cost_assumptions`,
+`planning_costs`, and `planning_reasons` on a linear Plan.
+
+Work units are versioned algorithmic proxies, not measured seconds or FLOPs.
+They include structural/numeric setup, repeated solves and original residual
+acceptance. LU uses a dense envelope; sparse fill is unknown. Host transfer is
+zero; binding and requested outputs outside the linear solve are unmodeled.
+A supplied `numeric_payload_limit` bounds accounted typed CSR/RHS payload plus
+supported Reference real CG/BiCGSTAB heap numeric workspace. It excludes caller
+initial guesses, assembly copies, retained outputs, vector metadata, allocator
+rounding, stack scalars and process RSS. Unknown bounds, including Faer LU and
+MINRES workspace, cannot satisfy that limit. The actual system is checked again
+before each solve. Rebinding preserves the original decision and its size audit;
+changed stored slots alone do not rerank or rewrite the decision.
+
 ```python
 from importlib.resources import files
 

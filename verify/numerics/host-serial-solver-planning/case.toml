@@ -6,6 +6,9 @@ reference_kind = "independent-exact-rational-and-literal-policy-table"
 capabilities = [
   "exact-frozen-five-candidate-real-general-catalog",
   "exact-typed-complex-catalogs-and-adjoint-solves",
+  "declared-real-spd-indefinite-symmetric-tuples",
+  "bounded-work-proxy-with-explicit-horizon-assumptions",
+  "scoped-numeric-payload-preflight-and-current-system-recheck",
   "optional-provider-availability-before-ranking",
   "deterministic-robust-fast-low-memory-policy-v4",
   "inspectable-provider-plan-evidence-and-reasons",

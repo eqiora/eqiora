@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v3.
+"""Independent exact General-profile oracle for host-serial solver planning v4.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
