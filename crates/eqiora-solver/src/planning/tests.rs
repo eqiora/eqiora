@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v4";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -550,7 +550,7 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
 const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const ORACLE: &str =
-    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v3.json");
+    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v4.json");
 
 fn reference_identity_plan() -> SolverPlan {
     reference_plan().with_preconditioner(PreconditionerPolicy::Identity)

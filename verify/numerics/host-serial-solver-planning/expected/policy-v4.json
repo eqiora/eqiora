@@ -14,6 +14,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -44,6 +48,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -71,6 +79,10 @@
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -121,6 +133,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -151,6 +167,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -178,6 +198,10 @@
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -228,6 +252,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -258,6 +286,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -285,6 +317,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -335,6 +371,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -365,6 +405,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -392,6 +436,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -442,6 +490,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.selected.robust-preference"
             ]
           ],
@@ -472,6 +524,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.selected.fast-preference"
             ]
           ],
@@ -499,6 +555,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -530,11 +590,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -564,11 +632,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -598,11 +674,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -645,6 +729,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -654,6 +742,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -679,6 +771,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -688,6 +784,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -713,6 +813,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -722,6 +826,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -760,6 +868,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -773,6 +885,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -794,6 +910,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -807,6 +927,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -828,6 +952,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -841,6 +969,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -875,6 +1007,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -895,6 +1031,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.selected.robust-preference"
             ]
           ],
@@ -906,6 +1046,10 @@
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -929,6 +1073,10 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.not-selected"
             ]
           ],
@@ -940,6 +1088,10 @@
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -960,6 +1112,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -994,11 +1150,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1028,11 +1192,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1062,11 +1234,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1109,6 +1289,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -1118,6 +1302,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1143,6 +1331,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -1152,6 +1344,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1177,6 +1373,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -1186,6 +1386,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1224,6 +1428,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -1237,6 +1445,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1258,6 +1470,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -1271,6 +1487,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1292,6 +1512,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -1305,6 +1529,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1343,11 +1571,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1377,11 +1613,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1411,11 +1655,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1458,6 +1710,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -1467,6 +1723,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1492,6 +1752,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -1501,6 +1765,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1526,6 +1794,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -1535,6 +1807,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1577,11 +1853,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1611,11 +1895,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1645,11 +1937,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1681,6 +1981,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.robust-preference"
             ],
             [
@@ -1689,11 +1993,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1719,11 +2031,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1732,6 +2052,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1757,6 +2081,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -1765,11 +2093,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1808,11 +2144,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1825,6 +2169,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1846,11 +2194,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1863,6 +2219,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1884,11 +2244,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1901,6 +2269,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -1935,11 +2307,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1956,6 +2336,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1973,11 +2357,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1994,6 +2386,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2011,11 +2407,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -2032,6 +2436,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2062,6 +2470,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2074,11 +2486,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2100,6 +2520,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2112,11 +2536,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2138,6 +2570,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -2150,11 +2586,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2189,6 +2633,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2201,6 +2649,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2210,6 +2662,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2227,6 +2683,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2239,6 +2699,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -2248,6 +2712,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2265,6 +2733,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -2277,6 +2749,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2286,6 +2762,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2316,6 +2796,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2332,11 +2816,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2351,6 +2843,10 @@
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -2370,11 +2866,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2389,6 +2893,10 @@
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -2408,11 +2916,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2447,11 +2963,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -2460,6 +2984,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2485,6 +3013,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2493,11 +3025,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2523,6 +3063,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -2531,11 +3075,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2574,11 +3126,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -2591,6 +3151,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2612,11 +3176,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -2629,6 +3201,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2650,11 +3226,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -2667,6 +3251,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2701,6 +3289,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2713,11 +3305,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2739,6 +3339,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -2751,11 +3355,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2777,6 +3389,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -2789,11 +3405,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2832,6 +3456,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2840,11 +3468,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2870,6 +3506,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -2878,11 +3518,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2908,6 +3556,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -2916,11 +3568,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -2952,11 +3612,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -2965,6 +3633,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -2973,6 +3645,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -2994,11 +3670,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3007,6 +3691,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3015,6 +3703,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3036,6 +3728,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -3044,11 +3740,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3057,6 +3761,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3091,11 +3799,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3104,6 +3820,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3116,6 +3836,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3133,11 +3857,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3146,6 +3878,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3158,6 +3894,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3175,6 +3915,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -3183,11 +3927,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3200,6 +3952,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3230,11 +3986,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3250,11 +4014,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3272,11 +4044,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3292,11 +4072,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3314,11 +4102,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3334,11 +4130,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3369,6 +4173,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -3381,6 +4189,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -3389,11 +4201,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3411,6 +4231,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -3423,6 +4247,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -3431,11 +4259,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3453,6 +4289,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -3465,11 +4305,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3478,6 +4326,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3512,11 +4364,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3525,6 +4385,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3533,6 +4397,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3554,11 +4422,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3570,11 +4446,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3596,6 +4480,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -3604,11 +4492,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3617,6 +4513,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3648,11 +4548,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3661,6 +4569,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3669,6 +4581,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3677,6 +4593,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3694,11 +4614,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -3707,6 +4635,10 @@
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3718,11 +4650,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3740,6 +4680,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -3748,11 +4692,19 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -3761,6 +4713,10 @@
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -3769,6 +4725,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -3986,6 +4946,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -3998,6 +4962,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4006,11 +4974,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4028,6 +5004,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4040,6 +5020,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -4048,11 +5032,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4070,6 +5062,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -4082,11 +5078,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -4095,6 +5099,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4118,6 +5126,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4130,6 +5142,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4138,11 +5154,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4160,6 +5184,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4172,6 +5200,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -4180,11 +5212,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4202,6 +5242,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -4214,11 +5258,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -4227,6 +5279,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4250,6 +5306,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4262,6 +5322,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4270,11 +5334,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4292,6 +5364,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4304,6 +5380,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -4312,11 +5392,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4334,6 +5422,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -4346,11 +5438,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -4359,6 +5459,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4382,6 +5486,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4394,6 +5502,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4402,11 +5514,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4424,6 +5544,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
@@ -4436,6 +5560,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.selected.fast-preference"
             ],
             [
@@ -4444,11 +5572,19 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4466,6 +5602,10 @@
             ],
             [
               "eqiora.faer.bicgstab-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-f64",
               "candidate.selected.low-memory-preference"
             ],
             [
@@ -4478,11 +5618,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -4491,6 +5639,10 @@
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4621,6 +5773,10 @@
           ],
           [
             "eqiora.faer.bicgstab-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.bicgstab-general-identity-fast-f64",
             "candidate.not-selected"
           ],
           [
@@ -4633,6 +5789,10 @@
           ],
           [
             "eqiora.faer.sparse-lu-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.sparse-lu-general-identity-fast-f64",
             "candidate.not-selected"
           ],
           [
@@ -4641,11 +5801,19 @@
           ],
           [
             "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64",
             "candidate.selected.robust-preference"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
             "candidate.admitted"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4663,6 +5831,10 @@
           ],
           [
             "eqiora.faer.bicgstab-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.bicgstab-general-identity-fast-f64",
             "candidate.not-selected"
           ],
           [
@@ -4675,6 +5847,10 @@
           ],
           [
             "eqiora.faer.sparse-lu-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.sparse-lu-general-identity-fast-f64",
             "candidate.selected.fast-preference"
           ],
           [
@@ -4683,11 +5859,19 @@
           ],
           [
             "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64",
             "candidate.not-selected"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
             "candidate.admitted"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4705,6 +5889,10 @@
           ],
           [
             "eqiora.faer.bicgstab-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.bicgstab-general-identity-fast-f64",
             "candidate.selected.low-memory-preference"
           ],
           [
@@ -4717,11 +5905,19 @@
           ],
           [
             "eqiora.faer.sparse-lu-general-identity-fast-f64",
+            "cost.shape-unavailable-preference-fallback"
+          ],
+          [
+            "eqiora.faer.sparse-lu-general-identity-fast-f64",
             "candidate.not-selected"
           ],
           [
             "eqiora.reference.bicgstab-general-identity-reproducible-f64",
             "candidate.admitted"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
           ],
           [
             "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -4730,6 +5926,10 @@
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
             "candidate.admitted"
+          ],
+          [
+            "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+            "cost.shape-unavailable-preference-fallback"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -4865,11 +6065,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
@@ -4887,11 +6095,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
@@ -4909,11 +6125,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
@@ -5047,6 +6271,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.selected.robust-preference"
             ]
           ],
@@ -5061,6 +6289,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.selected.fast-preference"
             ]
           ],
@@ -5072,6 +6304,10 @@
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
@@ -5205,6 +6441,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.selected.robust-preference"
             ]
           ],
@@ -5219,6 +6459,10 @@
             ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.selected.fast-preference"
             ]
           ],
@@ -5230,6 +6474,10 @@
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
@@ -5380,11 +6628,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
@@ -5402,11 +6658,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
@@ -5424,11 +6688,19 @@
             ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
               "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
@@ -5615,7 +6887,7 @@
   },
   "no_admitted_candidate": {
     "diagnostic_code": "EQ0807",
-    "diagnostic_message": "eqiora.host-serial-solver-planning/v3 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
+    "diagnostic_message": "eqiora.host-serial-solver-planning/v4 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
     "ordered_reasons": [
       [
         "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -5649,11 +6921,19 @@
         ],
         [
           "eqiora.faer.bicgstab-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-identity-fast-f64",
           "candidate.not-selected"
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -5662,6 +6942,10 @@
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.faer.sparse-lu-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -5670,6 +6954,10 @@
         [
           "eqiora.reference.bicgstab-general-identity-reproducible-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -5678,6 +6966,10 @@
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -5708,11 +7000,19 @@
         ],
         [
           "eqiora.faer.bicgstab-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-identity-fast-f64",
           "candidate.not-selected"
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -5721,6 +7021,10 @@
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.faer.sparse-lu-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -5732,11 +7036,19 @@
         ],
         [
           "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-identity-reproducible-f64",
           "candidate.not-selected"
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -5775,6 +7087,10 @@
         ],
         [
           "eqiora.faer.bicgstab-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-identity-fast-f64",
           "candidate.selected.low-memory-preference"
         ],
         [
@@ -5783,11 +7099,19 @@
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
+        ],
+        [
+          "eqiora.faer.bicgstab-general-jacobi-fast-f64",
           "candidate.not-selected"
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.faer.sparse-lu-general-identity-fast-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -5796,6 +7120,10 @@
         [
           "eqiora.reference.bicgstab-general-identity-reproducible-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-identity-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.reference.bicgstab-general-identity-reproducible-f64",
@@ -5804,6 +7132,10 @@
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
           "candidate.admitted"
+        ],
+        [
+          "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
+          "cost.shape-unavailable-preference-fallback"
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -5827,7 +7159,7 @@
       "selected_candidate_id": "eqiora.faer.bicgstab-general-identity-fast-f64"
     }
   ],
-  "policy_id": "eqiora.host-serial-solver-planning/v3",
+  "policy_id": "eqiora.host-serial-solver-planning/v4",
   "reason_ordering": [
     "ascending_candidate_id",
     "one_first_rejection_or_candidate.admitted",
@@ -5846,6 +7178,7 @@
     "profile.complete-diagonal-required",
     "capability.exact-tuple-required",
     "candidate.admitted",
+    "cost.shape-unavailable-preference-fallback",
     "candidate.not-selected",
     "candidate.selected.robust-preference",
     "candidate.selected.fast-preference",

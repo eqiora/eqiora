@@ -15,7 +15,7 @@ mod cost;
 use catalog::{expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v3";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v4";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -26,6 +26,19 @@ const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64
 const REFERENCE_CG_ID: &str = "eqiora.reference.cg-spd-identity-reproducible-f64";
 const FAER_CG_ID: &str = "eqiora.faer.cg-spd-jacobi-fast-f64";
 const FAER_SPD_LU_ID: &str = "eqiora.faer.sparse-lu-spd-identity-fast-f64";
+const REFERENCE_CG_JACOBI_ID: &str = "eqiora.reference.cg-spd-jacobi-reproducible-f64";
+const REFERENCE_SPD_MINRES_ID: &str = "eqiora.reference.minres-spd-identity-reproducible-f64";
+const REFERENCE_SPD_BICGSTAB_ID: &str = "eqiora.reference.bicgstab-spd-identity-reproducible-f64";
+const REFERENCE_SPD_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-spd-jacobi-reproducible-f64";
+const FAER_CG_IDENTITY_ID: &str = "eqiora.faer.cg-spd-identity-fast-f64";
+const FAER_SPD_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-spd-identity-fast-f64";
+const FAER_SPD_BICGSTAB_JACOBI_ID: &str = "eqiora.faer.bicgstab-spd-jacobi-fast-f64";
+const REFERENCE_INDEFINITE_BICGSTAB_ID: &str =
+    "eqiora.reference.bicgstab-indefinite-identity-reproducible-f64";
+const REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-indefinite-jacobi-reproducible-f64";
+const FAER_SYMMETRIC_LU_ID: &str = "eqiora.faer.sparse-lu-symmetric-identity-fast-f64";
 const REFERENCE_MINRES_ID: &str = "eqiora.reference.minres-indefinite-identity-reproducible-f64";
 const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-fast-f64";
 
@@ -37,7 +50,7 @@ const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
 const FAER_HERMITIAN_LU_ID: &str = "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64";
 const REFERENCE_HPD_ID: &str = "eqiora.reference.cg-hpd-identity-reproducible-complex-f64";
 const FAER_HPD_LU_ID: &str = "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64";
-const COMPLEX_EVIDENCE: &str = "numerics.host-serial-solver-planning";
+const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
 const FAER_EVIDENCE: &str = "numerics.linear-backends";
@@ -676,6 +689,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
             reasons.push((evaluation.candidate.id(), rejection));
         } else {
             reasons.push((evaluation.candidate.id(), "candidate.admitted"));
+            cost::append_reasons(&mut reasons, &profile, evaluation.candidate);
             reasons.push((
                 evaluation.candidate.id(),
                 if evaluation.candidate.id() == selected_id {
@@ -710,12 +724,25 @@ fn catalog_ids(
             FAER_IDENTITY_ID,
             FAER_SPARSE_LU_ID,
         ],
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => {
-            &[REFERENCE_CG_ID, FAER_CG_ID, FAER_SPD_LU_ID]
-        }
-        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => {
-            &[REFERENCE_MINRES_ID, FAER_INDEFINITE_LU_ID]
-        }
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => &[
+            REFERENCE_CG_ID,
+            REFERENCE_CG_JACOBI_ID,
+            REFERENCE_SPD_MINRES_ID,
+            REFERENCE_SPD_BICGSTAB_ID,
+            REFERENCE_SPD_BICGSTAB_JACOBI_ID,
+            FAER_CG_IDENTITY_ID,
+            FAER_CG_ID,
+            FAER_SPD_BICGSTAB_ID,
+            FAER_SPD_BICGSTAB_JACOBI_ID,
+            FAER_SPD_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => &[
+            REFERENCE_MINRES_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[FAER_SYMMETRIC_LU_ID],
         (ScalarDomain::Complex, LinearOperatorProperties::General) => {
             &[REFERENCE_COMPLEX_ID, FAER_COMPLEX_LU_ID]
         }

@@ -665,7 +665,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.host-serial-solver-planning/v3")
+            Some("eqiora.host-serial-solver-planning/v4")
         );
         assert_eq!(plan.solver_planning_reasons().len(), 7);
         assert!(plan.selected_solver_evidence_case().is_some());
