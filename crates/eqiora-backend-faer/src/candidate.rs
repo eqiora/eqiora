@@ -7,12 +7,12 @@ use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
 // Literal zero would miss alpha-only exact convergence and enter omega=0/0.
 pub(super) const ZERO_ONLY_TOLERANCE: f64 = f64::from_bits(1);
 
-pub(super) struct CandidateAcceptance {
+pub(super) struct CandidateAcceptance<S = f64> {
     target: f64,
-    accepted: Option<(Vec<f64>, f64)>,
+    accepted: Option<(Vec<S>, f64)>,
 }
 
-impl CandidateAcceptance {
+impl<S: KrylovScalar> CandidateAcceptance<S> {
     pub(super) fn new(target: f64) -> Self {
         Self {
             target,
@@ -22,8 +22,8 @@ impl CandidateAcceptance {
 
     pub(super) fn consider(
         &mut self,
-        problem: &LinearProblem<'_>,
-        values: &[f64],
+        problem: &LinearProblem<'_, S>,
+        values: &[S],
         norm: f64,
     ) -> Result<(), Diagnostic> {
         // Freeze the first jointly accepted point. Faer cannot interrupt its call;
@@ -43,11 +43,11 @@ impl CandidateAcceptance {
 
     pub(super) fn finish(
         self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
         provider: SolverProvider,
         iterations: usize,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         let (values, norm) = self.accepted.ok_or_else(|| {
             solve_failed(
                 "faer invocation ended without a jointly accepted true-residual/method candidate",
@@ -65,14 +65,14 @@ impl CandidateAcceptance {
     }
 }
 
-pub(super) fn residual_norm(
-    problem: &LinearProblem<'_>,
-    values: &[f64],
-    residual: &mut [f64],
+pub(super) fn residual_norm<S: KrylovScalar>(
+    problem: &LinearProblem<'_, S>,
+    values: &[S],
+    residual: &mut [S],
 ) -> Result<f64, Diagnostic> {
     problem.operator().apply(values, residual)?;
     for (value, rhs) in residual.iter_mut().zip(problem.right_hand_side()) {
-        *value = rhs - *value;
+        *value = *rhs - *value;
     }
     FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, residual)
 }

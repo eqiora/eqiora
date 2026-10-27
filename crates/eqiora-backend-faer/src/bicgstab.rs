@@ -4,12 +4,12 @@ use crate::candidate::{CandidateAcceptance, ZERO_ONLY_TOLERANCE, residual_norm};
 use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
 use faer::matrix_free::bicgstab::{BicgParams, bicgstab, bicgstab_scratch};
 
-pub(super) fn solve(
+pub(super) fn solve<S: KrylovScalar>(
     provider: SolverProvider,
-    problem: &LinearProblem<'_>,
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-    inverse_diagonal: Option<Vec<f64>>,
-) -> Result<LinearSolution, Diagnostic> {
+    inverse_diagonal: Option<Vec<S>>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     let dimension = problem.operator().columns();
     let mut output = initial_matrix(problem);
     let right_hand_side = right_hand_side_matrix(problem);
@@ -30,8 +30,8 @@ pub(super) fn solve(
         problem.right_hand_side(),
     )?)?;
     let mut best = output.col_as_slice(0).to_vec();
-    let mut candidate = vec![0.; dimension];
-    let mut residual = vec![0.; dimension];
+    let mut candidate = vec![S::zero(); dimension];
+    let mut residual = vec![S::zero(); dimension];
     let mut best_norm = residual_norm(problem, &best, &mut residual)?;
     let mut method = problem
         .has_candidate_check()
@@ -132,20 +132,24 @@ pub(super) fn solve(
     )
 }
 
-fn jointly_accepted(norm: f64, target: f64, method: &Option<CandidateAcceptance>) -> bool {
+fn jointly_accepted<S: KrylovScalar>(
+    norm: f64,
+    target: f64,
+    method: &Option<CandidateAcceptance<S>>,
+) -> bool {
     method
         .as_ref()
         .map_or(norm <= target, CandidateAcceptance::accepted)
 }
 
-fn retain_candidate(
-    problem: &LinearProblem<'_>,
-    candidate: &[f64],
-    residual: &mut [f64],
-    best: &mut [f64],
+fn retain_candidate<S: KrylovScalar>(
+    problem: &LinearProblem<'_, S>,
+    candidate: &[S],
+    residual: &mut [S],
+    best: &mut [S],
     best_norm: &mut f64,
     failure: &ApplyFailure,
-    method: &mut Option<CandidateAcceptance>,
+    method: &mut Option<CandidateAcceptance<S>>,
 ) {
     if candidate.iter().any(|value| !value.is_finite()) {
         return;
