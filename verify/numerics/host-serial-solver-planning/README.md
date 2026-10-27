@@ -139,3 +139,8 @@ fallback ranking and now name that limitation in each admitted trace.
 For `LowMemory`, known numeric payload bounds take precedence over unknown ones.
 Among candidates whose payload is unproved, the declared iterative-before-LU
 preference remains; a smaller work proxy is not evidence of smaller memory use.
+
+Reference complex CG/MINRES work is unknown until the expanded real system and
+conversion/typed-acceptance work are independently modeled. The native complex
+BiCGSTAB proxy is unchanged. Unknown dimensions retain the shape-unavailable
+reason; known dimensions report the unmodeled realification.
