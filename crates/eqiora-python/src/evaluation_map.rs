@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 mod collection;
 use collection::PyEvaluationCollection;
+mod parameters;
 mod products;
 mod results;
 mod time;
@@ -81,6 +82,7 @@ pub(crate) struct PyEvaluationMapPlan {
 enum MapContext {
     Evaluations(Arc<DifferentiableProgram>),
     Time(Arc<Py<crate::common_plan::PyPlan>>),
+    Parameters(Arc<Py<crate::common_plan::PyPlan>>),
 }
 
 impl PyEvaluationMapPlan {
@@ -89,6 +91,9 @@ impl PyEvaluationMapPlan {
             MapContext::Evaluations(program) => Ok(program),
             MapContext::Time(_) => Err(pyo3::exceptions::PyTypeError::new_err(
                 "time maps do not admit steady parameter or derivative operations",
+            )),
+            MapContext::Parameters(_) => Err(pyo3::exceptions::PyTypeError::new_err(
+                "stationary Run maps do not admit derivative operations",
             )),
         }
     }
@@ -132,6 +137,58 @@ impl PyEvaluationMapPlan {
         })
     }
 
+    /// Ordered ordinary stationary Runs at complete typed Parameter points.
+    /// Values use the selected Parameters' declared units and complete intrinsic shapes.
+    /// Harmonic Parameters must be selected from the retained original Model.
+    #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (plan, parameters, points, /, *, chunk_size=1, workers=1, storage_bytes_limit=67_108_864, member_bytes_limit=8_388_608))]
+    fn from_parameters(
+        py: Python<'_>,
+        plan: Py<crate::common_plan::PyPlan>,
+        parameters: Vec<PyRef<'_, PyModelParameterRef>>,
+        points: &Bound<'_, PyAny>,
+        chunk_size: usize,
+        workers: usize,
+        storage_bytes_limit: usize,
+        member_bytes_limit: usize,
+    ) -> PyResult<Self> {
+        panic_boundary(py, || {
+            parameters::plan(
+                py,
+                plan,
+                parameters,
+                points,
+                chunk_size,
+                workers,
+                storage_bytes_limit,
+                member_bytes_limit,
+            )
+        })
+    }
+    /// Selected original Parameters in the exact point-column order.
+    #[getter]
+    fn parameters(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
+        self.native
+            .parameters()
+            .map(|ids| {
+                parameters::refs(
+                    py,
+                    self.native
+                        .parameter_template()
+                        .expect("parameter inventory owns a template"),
+                    ids,
+                )
+            })
+            .transpose()
+    }
+    #[getter]
+    fn parameter_template(&self, py: Python<'_>) -> Option<Py<crate::common_plan::PyPlan>> {
+        match &self.context {
+            MapContext::Parameters(plan) => Some(plan.clone_ref(py)),
+            _ => None,
+        }
+    }
     /// Independent ordinary time Runs at one fixed observation schedule.
     /// Checkpoints bind the supplied original requests; mapping adds no trajectory AD.
     #[staticmethod]
@@ -172,7 +229,7 @@ impl PyEvaluationMapPlan {
     fn time_plan(&self, py: Python<'_>) -> Option<Py<crate::common_plan::PyPlan>> {
         match &self.context {
             MapContext::Time(plan) => Some(plan.clone_ref(py)),
-            MapContext::Evaluations(_) => None,
+            MapContext::Evaluations(_) | MapContext::Parameters(_) => None,
         }
     }
     fn __repr__(&self) -> String {
@@ -200,6 +257,9 @@ impl PyEvaluationMapPlan {
                 ),
             )
             .map(Py::into_any);
+        }
+        if let Some(points) = self.native.parameter_points() {
+            return parameters::point(py, &points[index]).map(Py::into_any);
         }
         values::project(
             py,
@@ -247,6 +307,16 @@ impl PyEvaluationMapPlan {
     /// Exact frozen complete input leaves in Program order.
     #[getter]
     fn points(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        if let Some(points) = self.native.parameter_points() {
+            return PyTuple::new(
+                py,
+                points
+                    .iter()
+                    .map(|point| parameters::point(py, point))
+                    .collect::<PyResult<Vec<_>>>()?,
+            )
+            .map(Bound::unbind);
+        }
         let points = self
             .native
             .points()

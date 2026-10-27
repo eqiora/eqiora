@@ -1140,4 +1140,21 @@ fn revision_values_preserve_complex_channels_without_scalar_value_coercion() {
     assert_eq!(old.typed_value(id.erase()), Some(&declared));
     assert_eq!(current.typed_value(id.erase()), Some(&edited));
     assert_eq!(current.value(id.erase()), None);
+    assert_eq!(
+        old.evaluate_relation_operands(relation, &[], &[], &[])
+            .unwrap(),
+        [declared.clone(), declared.clone()]
+    );
+    assert_eq!(
+        current
+            .evaluate_relation_operands(relation, &[], &[], &[])
+            .unwrap(),
+        [edited.clone(), edited]
+    );
+    assert_eq!(
+        current
+            .evaluate_relation_operands(relation, &[], &[(id, declared.clone())], &[])
+            .unwrap(),
+        [declared.clone(), declared]
+    );
 }

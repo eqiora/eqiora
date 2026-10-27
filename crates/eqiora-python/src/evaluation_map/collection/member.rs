@@ -43,7 +43,7 @@ impl PyRecordedEvaluation {
     #[getter]
     fn status(&self) -> &'static str {
         match self.outcome() {
-            RecordedEvaluationOutcome::Accepted(_) | RecordedEvaluationOutcome::TimeAccepted(_) => {
+            RecordedEvaluationOutcome::Accepted(_) | RecordedEvaluationOutcome::RunAccepted(_) => {
                 "accepted"
             }
             RecordedEvaluationOutcome::Failed(_) => "failed",
@@ -55,7 +55,7 @@ impl PyRecordedEvaluation {
     fn reference(&self) -> Option<&str> {
         match self.outcome() {
             RecordedEvaluationOutcome::Accepted(value) => Some(value.identity()),
-            RecordedEvaluationOutcome::TimeAccepted(value) => Some(value.identity()),
+            RecordedEvaluationOutcome::RunAccepted(value) => Some(value.identity()),
             _ => None,
         }
     }
@@ -67,18 +67,27 @@ impl PyRecordedEvaluation {
                     .and_then(|value| Py::new(py, value))
                     .map(|value| Some(value.into_any()))
             }
-            RecordedEvaluationOutcome::TimeAccepted(value) => {
-                let plan = Py::new(
-                    py,
-                    PyPlan::from_native_artifact(py, self.group().plan().clone())?,
-                )?;
+            RecordedEvaluationOutcome::RunAccepted(value) => {
+                let plan = Py::new(py, PyPlan::from_native_artifact(py, value.plan().clone())?)?;
                 time::recorded_result(py, plan.borrow(py), value).map(Some)
             }
             _ => Ok(None),
         }
     }
+    /// The exact Plan of this accepted ordinary Run, independent of the group template.
+    #[getter]
+    fn plan(&self, py: Python<'_>) -> PyResult<Option<PyPlan>> {
+        self.group()
+            .member_plan(self.index)
+            .cloned()
+            .map(|plan| PyPlan::from_native_artifact(py, plan))
+            .transpose()
+    }
     #[getter]
     fn point(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
+        if let Some(points) = self.group().parameter_points() {
+            return parameters::point(py, &points[self.index]).map(Some);
+        }
         self.group()
             .points()
             .map(|points| values::project(py, &points[self.index]))

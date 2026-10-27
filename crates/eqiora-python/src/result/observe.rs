@@ -379,7 +379,7 @@ impl PyRunResult {
                 ));
             }
             let payload = self.steady_stokes_payload(py, "boundary-force")?;
-            let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+            let mesh = payload.outputs[0].borrow(py).mesh_handle(py)?;
             Self::validate_observable_selection(&selected, mesh.borrow(py).source_digest_value())?;
             let force = self
                 .native

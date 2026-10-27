@@ -15,7 +15,7 @@ use request::RecordedRequest;
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedEvaluationOutcome {
     Accepted(Arc<RecordedDifferentiableEvaluation>),
-    TimeAccepted(Arc<CommonResult>),
+    RunAccepted(Arc<CommonResult>),
     Failed(Vec<DiagnosticRecord>),
     Cancelled(Option<Box<RecordedTimeCheckpoint>>),
     NotStarted,
@@ -25,13 +25,13 @@ impl RecordedEvaluationOutcome {
     fn reference(&self) -> Option<&str> {
         match self {
             Self::Accepted(record) => Some(record.identity()),
-            Self::TimeAccepted(result) => Some(result.identity()),
+            Self::RunAccepted(result) => Some(result.identity()),
             _ => None,
         }
     }
 
     pub fn is_accepted(&self) -> bool {
-        matches!(self, Self::Accepted(_) | Self::TimeAccepted(_))
+        matches!(self, Self::Accepted(_) | Self::RunAccepted(_))
     }
 }
 
@@ -93,6 +93,25 @@ impl EvaluationCollectionGroup {
     }
     pub fn plan(&self) -> &eqiora_numerics::ResolvedCommonPlan {
         self.request.plan()
+    }
+    /// Exact Plan retained by one accepted ordinary Run, including changed harmonic amplitudes.
+    pub fn member_plan(&self, index: usize) -> Option<&eqiora_numerics::ResolvedCommonPlan> {
+        match self.outcomes.get(index)? {
+            RecordedEvaluationOutcome::RunAccepted(result) => Some(result.plan()),
+            _ => None,
+        }
+    }
+    pub fn parameter_points(&self) -> Option<&[Vec<eqiora_core::ValueLiteral>]> {
+        match &self.request {
+            RecordedRequest::Parameters { points, .. } => Some(points),
+            _ => None,
+        }
+    }
+    pub fn parameters(&self) -> Option<&[Parameter]> {
+        match &self.request {
+            RecordedRequest::Parameters { parameters, .. } => Some(parameters),
+            _ => None,
+        }
     }
     pub fn shared_inputs(&self) -> Option<&[Parameter]> {
         self.request.shared_inputs()
@@ -219,11 +238,11 @@ impl EvaluationCollection {
                         ));
                     }
                 },
-                EvaluationMapOccurrence::TimeReleased(expected) => match delivered.remove(&id) {
-                    Some(RecordedEvaluationOutcome::TimeAccepted(result))
+                EvaluationMapOccurrence::RunReleased(expected) => match delivered.remove(&id) {
+                    Some(RecordedEvaluationOutcome::RunAccepted(result))
                         if time::acceptance_fingerprint(&result)? == expected =>
                     {
-                        RecordedEvaluationOutcome::TimeAccepted(result)
+                        RecordedEvaluationOutcome::RunAccepted(result)
                     }
                     _ => {
                         return Err(invalid(
@@ -280,17 +299,17 @@ impl CompleteEvaluationMap {
                     .map(EvaluationMapOccurrence::Released)
                     .collect()
             }
-            outcomes::CompleteMembers::Time(outcomes::Completed::Retained(members)) => (0..members
+            outcomes::CompleteMembers::Runs(outcomes::Completed::Retained(members)) => (0..members
                 .len())
                 .map(|i| {
-                    EvaluationMapOccurrence::TimeAccepted(
-                        self.time_result(i).expect("retained time member"),
+                    EvaluationMapOccurrence::RunAccepted(
+                        self.run_result(i).expect("retained ordinary Run member"),
                     )
                 })
                 .collect(),
-            outcomes::CompleteMembers::Time(outcomes::Completed::Released(members)) => members
+            outcomes::CompleteMembers::Runs(outcomes::Completed::Released(members)) => members
                 .iter()
-                .map(|s| EvaluationMapOccurrence::TimeReleased(s))
+                .map(|s| EvaluationMapOccurrence::RunReleased(s))
                 .collect(),
         };
         EvaluationCollection::capture(
@@ -373,8 +392,8 @@ fn record_outcome(
         EvaluationMapOccurrence::Accepted(value) => {
             RecordedEvaluationOutcome::Accepted(Arc::new(value.record()?))
         }
-        EvaluationMapOccurrence::TimeAccepted(value) => {
-            RecordedEvaluationOutcome::TimeAccepted(Arc::new(value.clone()))
+        EvaluationMapOccurrence::RunAccepted(value) => {
+            RecordedEvaluationOutcome::RunAccepted(Arc::new(value.clone()))
         }
         EvaluationMapOccurrence::TimeCancelled(value) => {
             RecordedEvaluationOutcome::Cancelled(Some(Box::new(value.record()?)))
@@ -391,7 +410,7 @@ fn record_outcome(
         ),
         EvaluationMapOccurrence::Cancelled => RecordedEvaluationOutcome::Cancelled(None),
         EvaluationMapOccurrence::NotStarted => RecordedEvaluationOutcome::NotStarted,
-        EvaluationMapOccurrence::Released(_) | EvaluationMapOccurrence::TimeReleased(_) => {
+        EvaluationMapOccurrence::Released(_) | EvaluationMapOccurrence::RunReleased(_) => {
             return Err(invalid(
                 "released occurrence has no original payload to record",
             ));

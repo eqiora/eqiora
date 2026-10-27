@@ -38,12 +38,15 @@ pub(in crate::finite_constraints) fn candidates(
             .iter()
             .find(|(candidate, _)| *candidate == id)
             .map(|(_, value)| value.clone()),
-        SymbolRef::Parameter(id) => problem.parameter_candidates.get(id).cloned().or_else(|| {
-            match kernel.node(id.erase()) {
+        SymbolRef::Parameter(id) => problem
+            .parameter_candidates
+            .get(id)
+            .cloned()
+            .or_else(|| kernel.typed_value(id.erase()).cloned())
+            .or_else(|| match kernel.node(id.erase()) {
                 Some(KernelNode::Parameter(parameter)) => Some(parameter.value().clone()),
                 _ => None,
-            }
-        }),
+            }),
         _ => None,
     })?;
     ids.into_iter()

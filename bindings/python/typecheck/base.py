@@ -96,6 +96,7 @@ def check_viewer(
     field: eqiora.FieldOutput,
 ) -> None:
     assert_type(field.value_type, eqiora.ValueType)
+    assert_type(field.mesh, Mesh | None)
     view = eqiora.View()
     assert_type(view.add(geometry), eqiora.View)
     assert_type(view.add(mesh), eqiora.View)
@@ -153,3 +154,11 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(step.boundary_work[0].entity, tuple[int, int] | None)
     assert_type(step.boundary_work[0].action_dimension, eqiora.Dimension | None)
     assert_type(step.defects, tuple[eqiora.SpatialWorkDefect, ...])
+
+
+def check_parameter_condition_metadata(
+    plan: eqiora.Plan, parameter: eqiora.ParameterRef, collection: eqiora.EvaluationCollection,
+) -> None:
+    request = eqiora.EvaluationMapPlan.from_parameters(plan, [parameter], [(2.,)])
+    assert_type(request.parameters, tuple[eqiora.ParameterRef, ...] | None)
+    assert_type(collection[0].parameters, tuple[eqiora.ParameterRef, ...] | None)

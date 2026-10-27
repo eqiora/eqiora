@@ -75,7 +75,9 @@ pub(crate) fn lower_finite_constraints(
                 )?);
             }
             KernelNode::Parameter(parameter) => {
-                let value = parameter.value();
+                let value = kernel
+                    .typed_value(parameter.id().erase())
+                    .unwrap_or(parameter.value());
                 if value.value_type().frame() != ValueFrame::Invariant
                     || (value.value_type().array_rank() != value.value_type().shape().rank()
                         && value.value_type().finite_bases().next().is_none())

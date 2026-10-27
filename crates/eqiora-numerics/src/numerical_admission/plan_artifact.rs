@@ -303,6 +303,29 @@ impl ResolvedCommonPlan {
         }
     }
 
+    /// Resolve a new Model using this stationary Plan's retained numerical requests and Mesh.
+    ///
+    /// This replays the selected authored form against the supplied Model, including a fresh
+    /// harmonic reduction. It does not establish that the supplied Model is a Parameter-only
+    /// edit; callers own that proof. The ordinary resolver rechecks numerical admission.
+    pub fn resolve_parameter_model(
+        &self,
+        model: &ModelEnvelope,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        if !matches!(self, Self::Algebraic(_) | Self::Spatial(_))
+            || self.backward_euler().is_some()
+            || self.ode_temporal().is_some()
+        {
+            return Err(invalid(
+                "numerical request replay requires a stationary Plan",
+            ));
+        }
+        let mut wire = WireResolvedCommonPlan::from_plan(self)?;
+        wire.model_base64 = encode(&model.canonical_json()?);
+        wire.resolve(backend, &[])
+    }
+
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         serde_json::to_vec(&WireResolvedCommonPlan::from_plan(self)?).map_err(|error| {

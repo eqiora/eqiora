@@ -267,7 +267,7 @@ fn references(group: &EvaluationCollectionGroup) -> Result<Vec<String>, Diagnost
     (0..group.len())
         .map(|i| match group.occurrence(i).expect("group inventory").1 {
             RecordedEvaluationOutcome::Accepted(value) => Ok(value.identity().to_owned()),
-            RecordedEvaluationOutcome::TimeAccepted(value) => Ok(value.identity().to_owned()),
+            RecordedEvaluationOutcome::RunAccepted(value) => Ok(value.identity().to_owned()),
             _ => Err(invalid("statistic cannot filter an incomplete execution")),
         })
         .collect()

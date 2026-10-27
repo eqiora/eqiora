@@ -190,7 +190,11 @@ impl FiniteConstraintProblem {
                     KernelNode::Parameter(parameter)
                         if parameter.id().ulid().to_string() == *ulid =>
                     {
-                        parameter.real_scalar_value()
+                        self.parameter_candidates
+                            .get(parameter.id())
+                            .or_else(|| self.kernel.typed_value(parameter.id().erase()))
+                            .unwrap_or(parameter.value())
+                            .real_scalar_value()
                     }
                     _ => None,
                 })

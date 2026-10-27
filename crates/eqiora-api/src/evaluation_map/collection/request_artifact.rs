@@ -18,6 +18,12 @@ pub(super) enum WireRequest {
         shared: Vec<String>,
         samples: Option<Vec<String>>,
     },
+    Parameters {
+        template: String,
+        parameters: Vec<String>,
+        points: Vec<Vec<eqiora_artifact::WireValueLiteral>>,
+        policy: (usize, usize, bool, usize, usize),
+    },
     Time {
         plan: String,
         requests: Vec<String>,
@@ -51,6 +57,32 @@ impl RecordedRequest {
                             .collect::<Result<Vec<_>, _>>()
                     })
                     .transpose()?,
+            },
+            Self::Parameters {
+                template,
+                parameters,
+                points,
+                policy,
+                member_bytes_limit,
+            } => WireRequest::Parameters {
+                template: STANDARD.encode(template.to_bytes()?),
+                parameters: parameters.iter().map(|id| id.ulid().to_string()).collect(),
+                points: points
+                    .iter()
+                    .map(|point| {
+                        point
+                            .iter()
+                            .map(eqiora_artifact::WireValueLiteral::encode)
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .collect::<Result<_, _>>()?,
+                policy: (
+                    policy.chunk_size(),
+                    policy.workers(),
+                    policy.retention() == EvaluationMapRetention::Retain,
+                    policy.storage_bytes_limit(),
+                    *member_bytes_limit,
+                ),
             },
             Self::Time {
                 plan,
@@ -147,6 +179,59 @@ impl WireRequest {
                     points,
                     shared,
                     samples,
+                }
+            }
+            Self::Parameters {
+                template,
+                parameters: selected,
+                points,
+                policy,
+            } => {
+                let template = ResolvedCommonPlan::from_bytes(
+                    &decode(&template).map_err(one)?,
+                    backend,
+                    time_backend,
+                )
+                .map_err(one)?;
+                let parameters = selected
+                    .iter()
+                    .map(|id| {
+                        id.parse::<ulid::Ulid>()
+                            .map(Parameter::from_ulid)
+                            .map_err(|_| one(invalid("invalid stationary map Parameter identity")))
+                    })
+                    .collect::<Result<_, _>>()?;
+                let points = points
+                    .iter()
+                    .map(|point| {
+                        point
+                            .iter()
+                            .map(eqiora_artifact::WireValueLiteral::decode)
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .collect::<Result<_, _>>()
+                    .map_err(one)?;
+                let (chunk, workers, retain, limit, member_bytes_limit) = policy;
+                let policy = EvaluationMapExecutionPolicy::new(
+                    chunk,
+                    eqiora_realization::Target::HostCpu {
+                        threads: std::num::NonZeroUsize::new(workers)
+                            .ok_or_else(|| one(invalid("invalid stationary map worker count")))?,
+                    },
+                    if retain {
+                        EvaluationMapRetention::Retain
+                    } else {
+                        EvaluationMapRetention::Recompute
+                    },
+                    limit,
+                )
+                .map_err(one)?;
+                RecordedRequest::Parameters {
+                    template,
+                    parameters,
+                    points,
+                    policy,
+                    member_bytes_limit,
                 }
             }
             Self::Time {

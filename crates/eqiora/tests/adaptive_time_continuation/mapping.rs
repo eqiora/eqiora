@@ -68,11 +68,11 @@ fn event_budget_failure_does_not_terminate_an_independent_inflight_member() {
             .message()
             .contains("accepted-event budget")
     );
-    assert!(report.time_result(0).is_none());
+    assert!(report.run_result(0).is_none());
     assert_eq!(report.plan().time_requests().unwrap(), requests);
     assert_eq!(
         report
-            .time_result(1)
+            .run_result(1)
             .unwrap()
             .trajectory()
             .unwrap()
@@ -152,7 +152,7 @@ fn mapped_decay_keeps_distinct_adaptive_histories_events_and_restarts() {
     for (index, expected) in expected.iter().enumerate() {
         assert_eq!(
             complete
-                .time_result(index)
+                .run_result(index)
                 .unwrap()
                 .trajectory()
                 .unwrap()
@@ -192,7 +192,7 @@ fn mapped_decay_keeps_distinct_adaptive_histories_events_and_restarts() {
     .execute()
     .unwrap();
     for (index, request) in event_requests.iter().enumerate() {
-        let trajectory = event_map.time_result(index).unwrap().trajectory().unwrap();
+        let trajectory = event_map.run_result(index).unwrap().trajectory().unwrap();
         assert_eq!(
             trajectory.to_bytes().unwrap(),
             finish(request, None).unwrap().to_bytes().unwrap()
@@ -239,7 +239,7 @@ fn mapped_decay_keeps_distinct_adaptive_histories_events_and_restarts() {
     for (index, expected) in expected.iter().enumerate() {
         assert_eq!(
             resumed
-                .time_result(index)
+                .run_result(index)
                 .unwrap()
                 .trajectory()
                 .unwrap()

@@ -115,12 +115,9 @@ pub(super) fn result(
     plan: &PyEvaluationMapPlan,
     value: &CommonResult,
 ) -> PyResult<Py<PyAny>> {
-    let MapContext::Time(plan) = &plan.context else {
-        return Err(PyTypeError::new_err(
-            "time Result requires its time map context",
-        ));
-    };
-    recorded_result(py, plan.borrow(py), value)
+    let _ = plan;
+    let member_plan = Py::new(py, PyPlan::from_native_artifact(py, value.plan().clone())?)?;
+    recorded_result(py, member_plan.borrow(py), value)
 }
 
 pub(super) fn recorded_result(
@@ -128,17 +125,9 @@ pub(super) fn recorded_result(
     plan: PyRef<'_, crate::common_plan::PyPlan>,
     value: &CommonResult,
 ) -> PyResult<Py<PyAny>> {
-    let request = value
-        .trajectory()
-        .and_then(|value| value.time_request())
-        .ok_or_else(|| PyTypeError::new_err("accepted time Result lost its original request"))?;
-    crate::result::materialize_common_result(
-        py,
-        plan,
-        crate::execution::RunIdentity::from_common_time(request),
-        value.clone(),
-        None,
-    )
-    .and_then(|result| Py::new(py, result))
-    .map(Py::into_any)
+    let identity = crate::execution::RunIdentity::from_common_result(value)
+        .ok_or_else(|| PyTypeError::new_err("accepted Result lost its original Run identity"))?;
+    crate::result::materialize_common_result(py, plan, identity, value.clone(), None)
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any)
 }
