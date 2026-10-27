@@ -83,12 +83,18 @@ does not claim ordinary finite or spatial HPD mathematical recognition.
 ## Bounded work and numeric payload
 
 The existing public test also supplies independent two-coordinate systems for
-all ten declared real SPD tuples, four symmetric-indefinite tuples and one
-symmetric-only LU tuple. The SPD matrix `[[4,1],[1,3]]` has leading minors 4 and
+all ten declared real SPD tuples, six symmetric-indefinite tuples and six
+symmetric tuples. The SPD matrix `[[4,1],[1,3]]` has leading minors 4 and
 11 and maps `[1,2]` to `[6,7]`. The indefinite matrix `[[1,2],[2,1]]` has eigenvalues
-3 and -1 and maps `[1,-1]` to `[-1,1]`. The symmetric-only matrix `[[0,1],[1,0]]`
-maps `[1,2]` to `[2,1]`. Each tuple executes with its exact provider and unchanged
-original residual acceptance. This does not prove ordinary recognition of every
+3 and -1 and maps `[1,-1]` to `[-1,1]`; the same coefficients also exercise
+an asserted symmetric profile without a stronger property claim. The zero-diagonal
+symmetric matrix `[[0,1],[1,0]]` maps `[1,2]` to `[2,1]`: Identity paths remain
+admitted while Jacobi fails its independent nonzero-diagonal prerequisite.
+Reference MINRES uses Identity/Reproducible, reference BiCGSTAB uses
+Identity/Jacobi/Reproducible, and Faer BiCGSTAB uses Identity/Jacobi/Fast.
+Each compatible tuple executes normal and transpose actions with distinct RHSs,
+its exact provider and unchanged original residual acceptance. Symmetry alone
+adds no nonsingularity, unique-solution or minimum-norm promise. This does not prove ordinary recognition of every
 matrix class or delivery of undeclared provider tuples.
 
 Versioned work units use typed rows `n`, stored slots `z`, solve count `H`,

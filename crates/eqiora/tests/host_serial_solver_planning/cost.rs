@@ -663,7 +663,9 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
     use PreconditionerPolicy::{Identity as I, Jacobi as J};
     // Independent inventory: reference CG(I,J), MINRES(I), BiCGSTAB(I,J),
     // faer CG(I,J), BiCGSTAB(I,J), LU(I) for SPD; reference MINRES(I),
-    // BiCGSTAB(I,J), faer LU(I) for indefinite; faer LU(I) for plain symmetric.
+    // BiCGSTAB(I,J), faer BiCGSTAB(I,J)/LU(I) for indefinite; the same
+    // MINRES/BiCGSTAB/LU combinations for plain symmetric. Zero diagonal
+    // excludes Jacobi independently, without inventing a definiteness proof.
     // The booleans identify faer, and the reference tuples use Reproducible.
     let spd = [
         (
@@ -704,6 +706,18 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
     ];
     let indefinite = [
         (
+            "eqiora.faer.bicgstab-indefinite-identity-fast-f64",
+            true,
+            Bicg,
+            I,
+        ),
+        (
+            "eqiora.faer.bicgstab-indefinite-jacobi-fast-f64",
+            true,
+            Bicg,
+            J,
+        ),
+        (
             "eqiora.reference.minres-indefinite-identity-reproducible-f64",
             false,
             Minres,
@@ -728,12 +742,44 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             I,
         ),
     ];
-    let symmetric = [(
-        "eqiora.faer.sparse-lu-symmetric-identity-fast-f64",
-        true,
-        Lu,
-        I,
-    )];
+    let symmetric = [
+        (
+            "eqiora.reference.minres-symmetric-identity-reproducible-f64",
+            false,
+            Minres,
+            I,
+        ),
+        (
+            "eqiora.reference.bicgstab-symmetric-identity-reproducible-f64",
+            false,
+            Bicg,
+            I,
+        ),
+        (
+            "eqiora.reference.bicgstab-symmetric-jacobi-reproducible-f64",
+            false,
+            Bicg,
+            J,
+        ),
+        (
+            "eqiora.faer.bicgstab-symmetric-identity-fast-f64",
+            true,
+            Bicg,
+            I,
+        ),
+        (
+            "eqiora.faer.bicgstab-symmetric-jacobi-fast-f64",
+            true,
+            Bicg,
+            J,
+        ),
+        (
+            "eqiora.faer.sparse-lu-symmetric-identity-fast-f64",
+            true,
+            Lu,
+            I,
+        ),
+    ];
     #[derive(Debug)]
     struct DenseTwo([f64; 4]);
     impl CsrStorage for DenseTwo {
@@ -770,6 +816,13 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         ),
         (
             LinearOperatorProperties::Symmetric,
+            [1., 2., 2., 1.],
+            [-1., 1.],
+            [1., -1.],
+            symmetric.as_slice(),
+        ),
+        (
+            LinearOperatorProperties::Symmetric,
             [0., 1., 1., 0.],
             [2., 1.],
             [1., 2.],
@@ -781,7 +834,9 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         let system = CanonicalCsrSystemView::new(&DenseTwo(values), &rhs, properties).unwrap();
         let problem = system.linear_problem().unwrap();
         let decision = choose(
-            profile(properties, 2, 4, forecast(1, 1, 1, 3, 3)),
+            HostSerialSolverProfile::canonical_csr(properties, Some(true), None)
+                .with_size(SolverPlanningSize::exact(2, 4))
+                .with_cost_request(forecast(1, 1, 1, 3, 3)),
             SolverPlanningObjective::Robust,
             &REFERENCE_LINEAR_SOLVER,
             Some(&FaerLinearSolver),
@@ -812,6 +867,19 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                     ReductionPolicy::Reproducible
                 },
             );
+            if preconditioner == J && (values[0] == 0. || values[3] == 0.) {
+                // Stored zero diagonal entries are structurally present. Exact
+                // capability admission succeeds; numeric Jacobi admission fails.
+                backend
+                    .capabilities()
+                    .require_problem(manual, ScalarDomain::Real, ScalarType::F64, properties)
+                    .unwrap();
+                let error = LinearSolveRequest::new(backend, manual)
+                    .solve(&problem)
+                    .unwrap_err();
+                assert!(error.message().contains("diagonal"), "{id}: {error}");
+                continue;
+            }
             let solution = LinearSolveRequest::new(backend, manual)
                 .solve(&problem)
                 .unwrap_or_else(|error| panic!("{id}: {error}"));
@@ -828,6 +896,26 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 solution.report().solver_provider(),
                 backend.provider(),
                 "{id}"
+            );
+            // Independently multiply the literal symmetric matrix by [-2,3].
+            // The derivative RHS differs from the captured primal RHS.
+            let transpose_rhs = [
+                -2. * values[0] + 3. * values[2],
+                -2. * values[1] + 3. * values[3],
+            ];
+            let transpose = LinearSolveRequest::new(backend, manual)
+                .solve_canonical_oriented(
+                    &system,
+                    &transpose_rhs,
+                    eqiora::solver::LinearOperatorOrientation::Transposed,
+                )
+                .unwrap_or_else(|error| panic!("{id} transpose: {error}"));
+            assert_solution(&transpose, &[-2., 3.]);
+            assert_eq!(transpose.report().solver_plan(), manual);
+            assert_eq!(transpose.report().solver_provider(), backend.provider());
+            assert_eq!(
+                transpose.report().orientation(),
+                eqiora::solver::LinearOperatorOrientation::Transposed
             );
             // Select this one literal candidate using existing required-reduction
             // and exact provider-capability admission, then execute that selection.

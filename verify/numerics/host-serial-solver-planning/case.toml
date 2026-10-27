@@ -37,7 +37,7 @@ identity = "exact candidate ID, evidence case, provider release and dependencies
 policy = "eqiora.host-serial-solver-planning/v4"
 
 [real_class_catalogs]
-count = 15
+count = 22
 profiles = ["SymmetricPositiveDefinite", "SymmetricIndefinite", "Symmetric"]
 spd_proof = "leading principal minors 4 and 11"
 indefinite_proof = "eigenvalues 3 and -1"

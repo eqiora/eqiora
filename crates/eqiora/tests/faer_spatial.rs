@@ -242,15 +242,21 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         },
     ]);
-    for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
-        expected.insert(SolverCapability {
-            scalar_domain: eqiora_core::ScalarDomain::Real,
-            algorithm: LinearSolver::BiConjugateGradientStabilized,
-            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner,
-            reduction: ReductionPolicy::Fast,
-            scalar_type: ScalarType::F64,
-        });
+    for operator_properties in [
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        LinearOperatorProperties::Symmetric,
+        LinearOperatorProperties::SymmetricIndefinite,
+    ] {
+        for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+            expected.insert(SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
+                algorithm: LinearSolver::BiConjugateGradientStabilized,
+                operator_properties,
+                preconditioner,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            });
+        }
     }
     expected.extend(
         oracle
@@ -329,16 +335,10 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     assert!((solution.values()[1] - 2.0).abs() < 1.0e-12);
     assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
 
-    for (unsupported, properties) in [
-        (
-            plan.with_preconditioner(PreconditionerPolicy::Identity),
-            LinearOperatorProperties::SymmetricIndefinite,
-        ),
-        (
-            plan.with_reduction(ReductionPolicy::Reproducible),
-            LinearOperatorProperties::General,
-        ),
-    ] {
+    for (unsupported, properties) in [(
+        plan.with_reduction(ReductionPolicy::Reproducible),
+        LinearOperatorProperties::General,
+    )] {
         let error = capabilities
             .require_problem(
                 unsupported,

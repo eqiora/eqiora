@@ -1293,6 +1293,11 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             LinearSolver::MinimumResidual,
             "eqiora.reference.minres-indefinite-identity-reproducible-f64",
         ),
+        (
+            LinearOperatorProperties::Symmetric,
+            LinearSolver::MinimumResidual,
+            "eqiora.reference.minres-symmetric-identity-reproducible-f64",
+        ),
     ] {
         let exact = plan(
             algorithm,
