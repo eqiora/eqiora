@@ -16,6 +16,7 @@ capabilities = [
   "jacobi-preconditioning",
   "true-residual-acceptance",
   "capability-fail-closed",
+  "ordinary-captured-operator-provider-continuity",
 ]
 
 [problem]
@@ -25,6 +26,17 @@ direct_nonsymmetric = "precommitted exact-rational 5x5, 14-nonzero, non-structur
 direct_rank_deficient = "precommitted structurally nonempty inconsistent 3x3 canonical CSR"
 scalar = "f64"
 layout = "replicated"
+
+[provider_continuity]
+problem = "ordinary authenticated 2x2-cell unit-square TPFA Poisson, same Model and mesh"
+operator = "integral cell balance: diagonal 6, neighboring entries -1, RHS 1/4"
+solution = "1/16 per cell; spectrum 4,6,6,8"
+providers = "reference CG/Identity/Reproducible and pinned faer CG/Identity/Fast"
+relative_tolerance = "1e-12"
+absolute_tolerance = "1e-14"
+componentwise_solution_error = "<= 5e-13"
+true_residual_norm = "<= 5e-13"
+falsifiers = "success on 2A, stale same-ID adapter/library, unknown provider, unsupported reduction, changed execution backend capabilities, silent Reference fallback"
 
 [sparse_lu_acceptance]
 relative_tolerance = "0 exactly"

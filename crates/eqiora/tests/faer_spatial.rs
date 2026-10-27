@@ -1,4 +1,6 @@
 use eqiora_core::ScalarType;
+#[path = "faer_spatial/provider_continuity.rs"]
+mod provider_continuity;
 use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
