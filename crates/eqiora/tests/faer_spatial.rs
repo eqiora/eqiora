@@ -300,6 +300,41 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         });
     }
+    // Existing generic native Krylov methods now admit complex scalars. The
+    // independent planning oracle executes all ten exact tuples and adjoints.
+    for (algorithm, operator_properties) in [
+        (
+            LinearSolver::ConjugateGradient,
+            LinearOperatorProperties::HermitianPositiveDefinite,
+        ),
+        (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::General,
+        ),
+        (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::ComplexSymmetric,
+        ),
+        (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::Hermitian,
+        ),
+        (
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::HermitianPositiveDefinite,
+        ),
+    ] {
+        for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+            expected.insert(SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Complex,
+                algorithm,
+                operator_properties,
+                preconditioner,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            });
+        }
+    }
     assert_eq!(capabilities.combinations(), &expected);
     for unsupported in &oracle.contract_expectations.capabilities.negative {
         let tuple = capability_from_fixture(unsupported);
