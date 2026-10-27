@@ -49,7 +49,7 @@ MINRES, or ordinary HPD recognition claim.
 
 ## Provider source identity
 
-The v4 table binds the inspected Cargo release `0.1.4` for solver and execution
+The v4 table binds the inspected Cargo release `0.1.5` for solver and execution
 provider descriptors. The v2 table retained `0.1.0-alpha.3` while its public test
 checked the actual Cargo version separately. The v4 test requires equality among
 the actual provider, the independent oracle, and Cargo source metadata. The exact

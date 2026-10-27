@@ -6,6 +6,21 @@ listed here.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-27
+
+### Added
+
+- Ordinary ordered Parameter Runs share the common immutable Model/Plan/Result
+  and evaluation-collection owners. Explicit frequency and non-frequency samples
+  retain order, duplicates and per-member lineage. Failed/cancelled members remain
+  inspectable, and focused retries preserve accepted history and exact reopening.
+- The installed conductivity study includes changed material and boundary inputs,
+  a deliberate failed member, retry and fresh-process reopening through that same
+  ordinary-Run path. Its multi-load fit and held-out prediction remain unchanged.
+- Fixed scalar heat Runs reuse admitted Faer sparse-LU preparation across compatible
+  steps and invalidate it when exact dependencies change. This is bounded reuse,
+  not an elapsed-time or general sparse-memory guarantee.
+
 ### Changed
 
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
@@ -606,7 +621,8 @@ safety certification.
 The [capability matrix](docs/capability-matrix.md) and the cases in
 [`verify/`](verify/) describe exactly what is and is not supported.
 
-[Unreleased]: https://github.com/eqiora/eqiora/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/eqiora/eqiora/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/eqiora/eqiora/releases/tag/v0.1.5
 [0.1.4]: https://github.com/eqiora/eqiora/releases/tag/v0.1.4
 [0.1.3]: https://github.com/eqiora/eqiora/releases/tag/v0.1.3
 [0.1.2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.2

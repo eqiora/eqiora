@@ -59,17 +59,17 @@ EXPECTED_SELECTION = {
 
 REFERENCE_PROVIDER = {
     "id": "eqiora.reference",
-    "implementation_version": "0.1.4",
+    "implementation_version": "0.1.5",
     "libraries": [],
 }
 FAER_PROVIDER = {
     "id": "eqiora.faer",
-    "implementation_version": "0.1.4",
+    "implementation_version": "0.1.5",
     "libraries": [{"name": "faer", "version": "0.24.4"}],
 }
 EXECUTION_PROVIDER = {
     "id": "eqiora.host.serial",
-    "implementation_version": "0.1.4",
+    "implementation_version": "0.1.5",
     "libraries": [],
 }
 

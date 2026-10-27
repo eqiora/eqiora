@@ -5,7 +5,8 @@ Eqiora lets you write equations, run them synchronously or asynchronously, read
 results as NumPy or DLPack arrays, differentiate them with PyTorch or JAX, and
 plot them with Matplotlib or in a notebook viewer.
 
-This is release `0.1.4`. The [Gallery](https://eqiora.org/gallery/) has complete
+This source prepares release `0.1.5`; the installation instructions below retain
+the validated published `0.1.4` baseline until the new package is published. The [Gallery](https://eqiora.org/gallery/) has complete
 worked examples.
 
 ## Install
