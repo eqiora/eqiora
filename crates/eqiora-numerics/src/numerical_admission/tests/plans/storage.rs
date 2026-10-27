@@ -7,6 +7,7 @@ mod initial;
 mod kinematic;
 mod nonlinear;
 mod regions;
+mod run_cost;
 mod time_data;
 mod vector;
 

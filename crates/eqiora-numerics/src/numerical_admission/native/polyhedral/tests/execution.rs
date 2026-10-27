@@ -251,7 +251,7 @@ fn execute<S: Coefficient + Send + Sync>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v24",
+            "eqiora.resolved-common-plan/v25",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(

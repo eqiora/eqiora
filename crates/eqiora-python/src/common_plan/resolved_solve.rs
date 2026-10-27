@@ -347,13 +347,7 @@ pub(super) fn resolved_solve_from_native(
             solver_planning_audit,
             native.solver_planning_size(),
             native.solver_planning_costs().to_vec(),
-            native
-                .canonical_solve_request()
-                .and_then(|request| match request {
-                    CommonSolvePolicy::Linear(linear)
-                    | CommonSolvePolicy::Newton { linear, .. } => linear.cost(),
-                })
-                .unwrap_or_default(),
+            native.solver_planning_cost_request().unwrap_or_default(),
         ),
     )?;
     Ok(

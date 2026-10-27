@@ -71,7 +71,7 @@ fn planning_profile(
     Ok(profile)
 }
 
-fn resolve_typed_linear<S>(
+pub(super) fn resolve_typed_linear<S>(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
     profile: eqiora_solver::HostSerialSolverProfile,

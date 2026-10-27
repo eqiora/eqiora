@@ -235,6 +235,21 @@ impl PyPlan {
 
 #[pymethods]
 impl PyPlan {
+    /// Return a new Plan resolved for this explicit relative Run schedule.
+    ///
+    /// Supports autonomous real scalar Q1 BackwardEuler with positive own storage.
+    /// Construct State from the returned Plan and use its matching Run schedule.
+    /// The schedule replaces cost-horizon forecasts while retaining exact manual
+    /// controls. Execution never reranks; changed work requires explicit replanning.
+    #[pyo3(signature = (*, steps, output_steps))]
+    fn for_run(&self, py: Python<'_>, steps: usize, output_steps: Vec<usize>) -> PyResult<Self> {
+        let native = self
+            .native
+            .for_run(steps, output_steps, &FaerLinearSolver)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Self::from_native_artifact(py, native)
+    }
+
     /// Original real Model retained by a harmonic response restriction.
     #[getter]
     fn harmonic_original_model(&self, py: Python<'_>) -> PyResult<Option<PyModel>> {
