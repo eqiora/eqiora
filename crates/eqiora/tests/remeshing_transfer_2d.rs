@@ -2,7 +2,9 @@
 
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{OverlapCoordinateChart2d, SimplicialRevisionOverlap2d};
-use eqiora::solver::REFERENCE_LINEAR_SOLVER;
+use eqiora::solver::{
+    LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
+};
 use eqiora_numerics::{
     ale::finalize_resolved_fixed_topology_ale_fsi_2d,
     ale::remesh_resolved_fixed_topology_ale_fsi_2d,
@@ -17,11 +19,51 @@ use artifact::assert_artifact_vertical_slice;
 use case::{
     Case, TIME_STEP, assert_exact_interface_bisection, assert_genuine_many_to_many,
     assert_interface_witness, assert_numerical_falsifiers, assert_scale_invariant_projection,
-    assert_strong_source_witness, one_step, state_fields, transfer_plan,
+    assert_strong_source_witness, one_step, state_fields, transfer_plan, transfer_plan_with_solver,
 };
 
 #[test]
 fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
+    run_remesh_target_continuation_and_replay(&REFERENCE_LINEAR_SOLVER, transfer_plan());
+}
+
+#[test]
+fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
+    let base = transfer_plan().solver();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        base.relative_tolerance(),
+        base.absolute_tolerance(),
+        base.maximum_iterations(),
+    )
+    .unwrap()
+    .with_preconditioner(base.preconditioner())
+    .with_reduction(base.reduction());
+    run_remesh_target_continuation_and_replay(
+        &REFERENCE_LINEAR_SOLVER,
+        transfer_plan_with_solver(plan),
+    );
+}
+
+#[test]
+fn sparse_lu_closes_remesh_target_continuation_and_trajectory_replay() {
+    let base = transfer_plan().solver();
+    let plan = SolverPlan::new(
+        LinearSolver::SparseLu,
+        base.relative_tolerance(),
+        base.absolute_tolerance(),
+        base.maximum_iterations(),
+    )
+    .unwrap()
+    .with_preconditioner(base.preconditioner())
+    .with_reduction(ReductionPolicy::Fast);
+    run_remesh_target_continuation_and_replay(&FaerLinearSolver, transfer_plan_with_solver(plan));
+}
+
+fn run_remesh_target_continuation_and_replay(
+    projection_backend: &dyn LinearSolverBackend,
+    transfer_plan: eqiora::realization::AleFsiRemeshTransferPlan2d,
+) {
     let case = Case::new();
     let source_resolved = case.resolve(case.source_reference, 1, TIME_STEP, None);
     let source_finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -58,7 +100,6 @@ fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
     .unwrap();
     assert_genuine_many_to_many(&material_probe, "material solid");
     assert_numerical_falsifiers(&case, &source_finalized, source_state, &target_resolved);
-    let transfer_plan = transfer_plan();
     let accepted = remesh_resolved_fixed_topology_ale_fsi_2d(
         &case.canonical,
         &source_finalized,
@@ -70,11 +111,28 @@ fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
         &case.target_boundary,
         transfer_plan,
         &FaerLinearSolver,
-        &REFERENCE_LINEAR_SOLVER,
+        projection_backend,
     )
     .unwrap();
     let projection = accepted.projection().clone();
     assert_eq!(projection.time(), source_state.time());
+    for report in projection
+        .evidence()
+        .displacement_solve_reports()
+        .iter()
+        .chain([
+            projection.evidence().velocity_solve_report(),
+            projection.evidence().pressure_solve_report(),
+        ])
+    {
+        assert_eq!(report.solver_plan(), transfer_plan.solver());
+        assert_eq!(report.solver_provider(), projection_backend.provider());
+        assert_eq!(
+            report.execution(),
+            eqiora::solver::ExecutionReport::host_serial()
+        );
+        assert!(report.completed_iterations() <= transfer_plan.solver().maximum_iterations().get());
+    }
     assert_genuine_many_to_many(
         projection.evidence().solid_reference_overlap(),
         "material solid",
@@ -114,6 +172,7 @@ fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
         &accepted,
         &projection,
         transfer_plan,
+        projection_backend,
     );
     let target_trajectory = accepted
         .target()

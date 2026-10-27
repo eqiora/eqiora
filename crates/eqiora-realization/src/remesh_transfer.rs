@@ -7,7 +7,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
-use eqiora_solver::{LinearSolver, PreconditionerPolicy, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, PreconditionerPolicy, SolverPlan};
 
 use crate::{PositivePhysicalScale, QuadraturePolicy, invalid_realization};
 
@@ -85,7 +85,7 @@ impl AleFsiRemeshTransferPlan2d {
     ///
     /// # Errors
     /// Returns `EQ0807` unless quadrature is the exact five-by-five triangle
-    /// Duffy rule and the common solver is identity-preconditioned MINRES.
+    /// Duffy rule and the common solver satisfies [`Self::require_solver_policy`].
     pub fn new(
         quadrature: QuadraturePolicy,
         scales: AleFsiRemeshScaleProfile2d,
@@ -101,18 +101,43 @@ impl AleFsiRemeshTransferPlan2d {
                 "ALE FSI remesh transfer requires the exact degree-eight triangle Duffy quadrature policy",
             ));
         }
-        if solver.algorithm() != LinearSolver::MinimumResidual
-            || solver.preconditioner() != PreconditionerPolicy::Identity
-        {
-            return Err(invalid_realization(
-                "ALE FSI remesh transfer requires the common identity-preconditioned MINRES policy",
-            ));
-        }
+        Self::require_solver_policy(solver)?;
         Ok(Self {
             quadrature,
             scales,
             solver,
         })
+    }
+
+    /// Admit one policy for both mass and constrained velocity projections.
+    ///
+    /// This contract uses SPD mass matrices and a symmetric-indefinite KKT
+    /// system. Its multiplier block has an exact zero diagonal, so Jacobi
+    /// preconditioning is unavailable for this projection even when a provider
+    /// implements Jacobi for other SPD or symmetric-indefinite matrices.
+    /// Exact provider availability is checked separately by execution.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` unless the algorithm admits both operator classes and
+    /// identity preconditioning is selected for the zero-diagonal KKT system.
+    pub fn require_solver_policy(solver: SolverPlan) -> Result<(), Diagnostic> {
+        if !solver
+            .algorithm()
+            .accepts(LinearOperatorProperties::SymmetricPositiveDefinite)
+            || !solver
+                .algorithm()
+                .accepts(LinearOperatorProperties::SymmetricIndefinite)
+        {
+            return Err(invalid_realization(
+                "ALE FSI remesh transfer requires one solver compatible with SPD mass and symmetric-indefinite constrained projections",
+            ));
+        }
+        if solver.preconditioner() != PreconditionerPolicy::Identity {
+            return Err(invalid_realization(
+                "ALE FSI remesh transfer requires identity preconditioning because its KKT multiplier diagonal is zero",
+            ));
+        }
+        Ok(())
     }
 
     /// Integration policy used on every common-refinement fragment.
@@ -164,7 +189,7 @@ const fn pressure_dimension() -> DimExponents {
 mod tests {
     use super::*;
     use eqiora_core::DynQuantity;
-    use eqiora_solver::{PreconditionerPolicy, ReductionPolicy};
+    use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 
     fn plan(algorithm: LinearSolver) -> SolverPlan {
         SolverPlan::new(algorithm, 1.0e-12, 1.0e-14, NonZeroUsize::new(500).unwrap())
@@ -187,15 +212,22 @@ mod tests {
             spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(5).unwrap(),
         };
-        let accepted = AleFsiRemeshTransferPlan2d::new(
-            quadrature,
-            scales(),
-            plan(LinearSolver::MinimumResidual),
-        )
-        .unwrap();
-        assert_eq!(accepted.quadrature(), quadrature);
-        assert_eq!(accepted.scales(), scales());
-        assert_eq!(accepted.solver().algorithm(), LinearSolver::MinimumResidual);
+        for algorithm in [
+            LinearSolver::MinimumResidual,
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearSolver::SparseLu,
+        ] {
+            let policy = plan(algorithm);
+            let accepted = AleFsiRemeshTransferPlan2d::new(quadrature, scales(), policy).unwrap();
+            assert_eq!(accepted.quadrature(), quadrature);
+            assert_eq!(accepted.scales(), scales());
+            assert_eq!(accepted.solver(), policy);
+            let error = AleFsiRemeshTransferPlan2d::require_solver_policy(
+                policy.with_preconditioner(PreconditionerPolicy::Jacobi),
+            )
+            .unwrap_err();
+            assert!(error.message().contains("multiplier diagonal is zero"));
+        }
 
         assert!(
             AleFsiRemeshTransferPlan2d::new(

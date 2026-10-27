@@ -323,7 +323,7 @@ pub(super) fn assert_numerical_falsifiers(
             &case.target_mesh,
             &case.target_partition,
             &case.target_boundary,
-            scale_invariance_transfer_plan(),
+            scale_invariance_transfer_plan(transfer_plan()),
             &FaerLinearSolver,
             &REFERENCE_LINEAR_SOLVER,
         )
@@ -343,7 +343,7 @@ pub(super) fn assert_numerical_falsifiers(
             &case.target_mesh,
             &case.target_partition,
             &case.target_boundary,
-            scale_invariance_transfer_plan(),
+            scale_invariance_transfer_plan(transfer_plan()),
             &FaerLinearSolver,
             &REFERENCE_LINEAR_SOLVER,
         )
@@ -581,6 +581,7 @@ pub(super) fn assert_scale_invariant_projection(
     accepted: &eqiora_numerics::ale::AcceptedResolvedAleFsiRemesh2d,
     base: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
+    backend: &dyn eqiora::solver::LinearSolverBackend,
 ) {
     let alternative_scale = FixedReferenceFsiScale::<2>::new(4.0, 2.0, 4.0).unwrap();
     let alternative = project_simplicial_ale_fsi_remesh_2d(
@@ -591,7 +592,7 @@ pub(super) fn assert_scale_invariant_projection(
         accepted.target().motion(),
         alternative_scale,
         &simplex_duffy_gauss_legendre(2, 5).unwrap(),
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, transfer_plan.solver()),
+        LinearSolveRequest::new(backend, transfer_plan.solver()),
     )
     .unwrap();
 
@@ -840,6 +841,10 @@ pub(super) fn transfer_plan() -> AleFsiRemeshTransferPlan2d {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible);
+    transfer_plan_with_solver(solver)
+}
+
+pub(super) fn transfer_plan_with_solver(solver: SolverPlan) -> AleFsiRemeshTransferPlan2d {
     AleFsiRemeshTransferPlan2d::new(
         QuadraturePolicy::SimplexDuffyGaussLegendre {
             spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
@@ -860,8 +865,9 @@ fn transfer_scales() -> AleFsiRemeshScaleProfile2d {
     .unwrap()
 }
 
-pub(super) fn scale_invariance_transfer_plan() -> AleFsiRemeshTransferPlan2d {
-    let base = transfer_plan();
+pub(super) fn scale_invariance_transfer_plan(
+    base: AleFsiRemeshTransferPlan2d,
+) -> AleFsiRemeshTransferPlan2d {
     AleFsiRemeshTransferPlan2d::new(
         base.quadrature(),
         AleFsiRemeshScaleProfile2d::new(
