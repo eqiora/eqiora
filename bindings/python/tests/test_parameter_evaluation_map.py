@@ -146,6 +146,7 @@ def test_failed_and_cancelled_frequency_occurrences_remain_inspectable_and_retry
     request = mapped(plan, omega, [500., 0., 1000.])
     original = request.execute_recorded()
     assert [member.status for member in original[0]] == ["accepted", "failed", "not_started"]
+    accepted_before = (original[0][0].occurrence_id, original[0][0].result.to_bytes())
     assert original[0][1].diagnostics and original[0][1].point == (0.,)
     assert q.EvaluationCollection.from_bytes(original.to_bytes()).to_bytes() == original.to_bytes()
     unsuccessful = [member.point if member.status == "not_started" else (1000.,)
@@ -153,6 +154,7 @@ def test_failed_and_cancelled_frequency_occurrences_remain_inspectable_and_retry
     retry = q.EvaluationMapPlan.from_parameters(plan, [omega], unsuccessful).execute_recorded()
     combined = q.EvaluationCollection.combine([original, retry])
     assert combined[0][0].reference == original[0][0].reference
+    assert (combined[0][0].occurrence_id, combined[0][0].result.to_bytes()) == accepted_before
     assert combined[0].execution_id != combined[1].execution_id
     assert len(combined[1]) == 2 and combined[1].complete
     assert original[0][1].point == (0.,) and combined[1][0].point == (1000.,)
@@ -163,8 +165,22 @@ def test_failed_and_cancelled_frequency_occurrences_remain_inspectable_and_retry
     cancellation.cancel()
     cancelled = mapped(plan, omega, [500., 1000.]).execute_recorded(cancellation=cancellation)
     assert [member.status for member in cancelled[0]] == ["cancelled", "not_started"]
-    retried = mapped(plan, omega, [member.point[0] for member in cancelled[0]]).execute_recorded()
-    assert retried.complete and retried[0].execution_id != cancelled[0].execution_id
+    cancelled_bytes = cancelled.to_bytes()
+    occurrences = [member.occurrence_id for member in cancelled[0]]
+    reopened = q.EvaluationCollection.from_bytes(cancelled_bytes)
+    assert reopened.to_bytes() == cancelled_bytes
+    points = [member.point for member in reopened[0] if member.status != "accepted"]
+    assert points == [(500.,), (1000.,)]
+    retried = q.EvaluationMapPlan.from_parameters(
+        reopened[0].plan, reopened[0].parameters, points).execute_recorded()
+    history = q.EvaluationCollection.combine([reopened, retried])
+    assert [member.status for member in history[0]] == ["cancelled", "not_started"]
+    assert [member.occurrence_id for member in history[0]] == occurrences
+    assert [member.point for member in history[0]] == points
+    assert retried.complete and len(history[1]) == 2
+    assert history[0].execution_id == reopened[0].execution_id != history[1].execution_id
+    for member, expected in zip(history[1], RC_VALUES[:2], strict=True):
+        np.testing.assert_allclose(values(member, "rc"), expected, rtol=0, atol=TOLERANCE)
     with pytest.raises(TypeError, match="original Model"):
         q.EvaluationMapPlan.from_parameters(plan, [plan.model.parameter(omega.id)], [(500.,)])
     with pytest.raises(q.ValidationError):
