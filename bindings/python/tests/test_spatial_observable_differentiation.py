@@ -149,8 +149,9 @@ def test_spatial_observable_frozen_inputs_respect_selected_parameters(method, co
         np.testing.assert_allclose(gradient[1], [4.5, 0.], rtol=0, atol=2e-10)
 
 
+@pytest.mark.parametrize("algorithm", [q.solve.LinearSolver.ConjugateGradient, q.solve.LinearSolver.MinimumResidual])
 @pytest.mark.parametrize("preconditioner", [q.solve.Preconditioner.Identity, q.solve.Preconditioner.Jacobi])
-def test_interval_diffusion_cg_retains_observations_products_and_offline_primal(preconditioner, tmp_path):
+def test_interval_diffusion_retains_observations_products_and_offline_primal(algorithm, preconditioner, tmp_path):
     import subprocess
     import sys
 
@@ -179,7 +180,7 @@ def test_interval_diffusion_cg_retains_observations_products_and_offline_primal(
         "right": (geometry.selection("right"), body), "log_k": values.tolist()})
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(4,))))
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=q.solve.Linear(
-        algorithm=q.solve.LinearSolver.ConjugateGradient, preconditioner=preconditioner,
+        algorithm=algorithm, preconditioner=preconditioner,
         reduction=q.solve.Reduction.Reproducible, provider=q.solve.SolverProvider.reference(),
         relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
     plan = q.Plan.from_bytes(plan.to_bytes())
@@ -218,7 +219,8 @@ def test_interval_diffusion_cg_retains_observations_products_and_offline_primal(
         (reverse.evidence.steps[0].derivative_solve, "conjugate-transposed")]
     for report, orientation in reports:
         assert report.backend == "eqiora.reference"
-        assert report.algorithm == "conjugate-gradient"
+        expected_algorithm = "conjugate-gradient" if algorithm == q.solve.LinearSolver.ConjugateGradient else "minimum-residual"
+        assert report.algorithm == expected_algorithm
         assert report.preconditioner == expected_preconditioner
         assert report.reduction == "reproducible"
         assert report.orientation == orientation
