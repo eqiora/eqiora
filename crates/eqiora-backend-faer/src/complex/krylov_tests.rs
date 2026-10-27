@@ -1,4 +1,4 @@
-//! Independent two-coordinate complex systems; public tuples remain unchanged.
+//! Independent two-coordinate complex systems exercise native public Krylov admission.
 use crate::*;
 use eqiora_solver::{LinearOperatorOrientation as Orientation, Oriented, OrientedLinearOperator};
 use faer::complex::Complex64 as C;
@@ -131,7 +131,7 @@ fn native_complex_cg_and_bicg_solve_normal_and_exact_adjoint_actions() {
             let problem = LinearProblem::new(&oriented, &rhs, properties).unwrap();
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 let request = plan(algorithm, preconditioner);
-                let solution = invoke(&problem, request).unwrap();
+                let solution = FaerLinearSolver.solve(&problem, request).unwrap();
                 assert_values(solution.values(), &X);
                 assert_eq!(solution.report().orientation(), orientation);
                 assert_eq!(solution.report().solver_plan(), request);

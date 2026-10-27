@@ -1,4 +1,4 @@
-//! Native complex LU shares factors, refinement and acceptance with real LU.
+//! Native complex solves share Krylov kernels, LU factors and acceptance with real solves.
 use eqiora_core::Diagnostic;
 use eqiora_solver::{
     LinearProblem, LinearSolution, LinearSolverBackend, PreparedLinearSolver,
@@ -46,7 +46,26 @@ impl LinearSolverBackend<Complex64> for FaerLinearSolver {
             problem.scalar_type(),
             problem.properties(),
         )?;
-        crate::sparse_lu::solve_sparse_lu(problem, plan)
+        match plan.algorithm() {
+            eqiora_solver::LinearSolver::ConjugateGradient => crate::cg::solve(
+                self.provider(),
+                problem,
+                plan,
+                crate::inverse_diagonal(problem, plan)?,
+            ),
+            eqiora_solver::LinearSolver::BiConjugateGradientStabilized => crate::bicgstab::solve(
+                self.provider(),
+                problem,
+                plan,
+                crate::inverse_diagonal(problem, plan)?,
+            ),
+            eqiora_solver::LinearSolver::SparseLu => {
+                crate::sparse_lu::solve_sparse_lu(problem, plan)
+            }
+            eqiora_solver::LinearSolver::MinimumResidual => Err(crate::invalid_realization(
+                "the faer adapter does not implement MINRES",
+            )),
+        }
     }
 }
 
@@ -78,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn sparse_lu_admits_exact_complex_structures_without_claiming_complex_krylov() {
+    fn exact_complex_structures_admit_supported_native_methods() {
         use Complex64 as C;
         let plan = SolverPlan::new(LinearSolver::SparseLu, 0., 1e-12, 1.try_into().unwrap())
             .unwrap()
@@ -110,6 +129,36 @@ mod tests {
             let solution = FaerLinearSolver
                 .solve(&source.linear_problem().unwrap(), plan)
                 .unwrap();
+            for algorithm in [
+                LinearSolver::ConjugateGradient,
+                LinearSolver::BiConjugateGradientStabilized,
+            ] {
+                if algorithm == LinearSolver::ConjugateGradient
+                    && properties != Properties::HermitianPositiveDefinite
+                {
+                    continue;
+                }
+                for preconditioner in [
+                    eqiora_solver::PreconditionerPolicy::Identity,
+                    eqiora_solver::PreconditionerPolicy::Jacobi,
+                ] {
+                    let request = SolverPlan::new(algorithm, 0., 1e-12, 16.try_into().unwrap())
+                        .unwrap()
+                        .with_reduction(ReductionPolicy::Fast)
+                        .with_preconditioner(preconditioner);
+                    let iterative = FaerLinearSolver
+                        .solve(&source.linear_problem().unwrap(), request)
+                        .unwrap();
+                    for (actual, expected) in iterative
+                        .values()
+                        .iter()
+                        .zip([C::new(1., 2.), C::new(-2., 1.)])
+                    {
+                        assert!((*actual - expected).norm() <= 1e-11);
+                    }
+                    assert_eq!(iterative.report().solver_plan(), request);
+                }
+            }
             for (actual, expected) in solution
                 .values()
                 .iter()
@@ -125,28 +174,24 @@ mod tests {
             .solve(&real.linear_problem().unwrap(), plan)
             .unwrap();
         assert_eq!(solution.values(), &[1., -2.]);
-        for algorithm in [
-            LinearSolver::ConjugateGradient,
-            LinearSolver::BiConjugateGradientStabilized,
-        ] {
-            let unsupported = SolverPlan::new(algorithm, 0., 1e-12, 2.try_into().unwrap())
-                .unwrap()
-                .with_reduction(ReductionPolicy::Fast);
-            assert!(
-                FaerLinearSolver
-                    .capabilities()
-                    .require_problem(
-                        unsupported,
-                        eqiora_core::ScalarDomain::Complex,
-                        eqiora_core::ScalarType::F64,
-                        if algorithm == LinearSolver::ConjugateGradient {
-                            Properties::HermitianPositiveDefinite
-                        } else {
-                            Properties::General
-                        }
-                    )
-                    .is_err()
-            );
-        }
+        let unsupported = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            0.,
+            1e-12,
+            2.try_into().unwrap(),
+        )
+        .unwrap()
+        .with_reduction(ReductionPolicy::Fast);
+        assert!(
+            FaerLinearSolver
+                .capabilities()
+                .require_problem(
+                    unsupported,
+                    eqiora_core::ScalarDomain::Complex,
+                    eqiora_core::ScalarType::F64,
+                    Properties::Hermitian,
+                )
+                .is_err()
+        );
     }
 }
