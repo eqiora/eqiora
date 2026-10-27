@@ -1,5 +1,6 @@
 """Real-paired complex sensitivities through the common Python Program."""
 import eqiora
+import pytest
 
 
 def _reference_linear():
@@ -11,12 +12,19 @@ def _reference_linear():
     )
 
 
-def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
+@pytest.mark.parametrize("provider,preconditioner", [("reference", "Identity"), ("faer", "Identity"), ("faer", "Jacobi")])
+def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point(provider, preconditioner):
     import numpy as np
 
     # Both equations imply z=p-ip, J=2p²+p, and dJ/dp=4p+1.
     for equation, controls in (
-        ("a*z=math.complex(3,1)*p", _reference_linear()),
+        ("a*z=math.complex(3,1)*p", eqiora.solve.Linear(
+            relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+            preconditioner=getattr(eqiora.solve.Preconditioner, preconditioner),
+            reduction=eqiora.solve.Reduction.Fast if provider == "faer" else eqiora.solve.Reduction.Reproducible,
+            provider=getattr(eqiora.solve.SolverProvider, provider)(),
+        )),
         ("a*z+math.conj(z)=math.complex(4,2)*p", eqiora.solve.Linear(
             relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
             algorithm=eqiora.solve.LinearSolver.SparseLu,

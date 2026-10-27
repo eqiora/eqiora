@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v5.
+"""Independent exact General-profile oracle for host-serial solver planning v6.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v5"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v5.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v6"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v6.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -652,7 +652,19 @@ def complex_oracles():
                           "preconditioner": "Identity", "reduction": "Reproducible",
                           "scalar_domain": "Complex", "scalar_type": "F64"},
             })
-        candidates = tuple(reference + [direct])
+        iterative_faer = []
+        for algorithm, spelling in [("BiConjugateGradientStabilized", "bicgstab")] + (
+                [("ConjugateGradient", "cg")] if properties == "HermitianPositiveDefinite" else []):
+            for preconditioner in ("Identity", "Jacobi"):
+                iterative_faer.append({
+                    "id": f"eqiora.faer.{spelling}-{suffix}-{preconditioner.lower()}-fast-complex-f64",
+                    "evidence_case": "numerics.host-serial-solver-planning",
+                    "solver_provider": FAER_PROVIDER,
+                    "tuple": {"algorithm": algorithm, "operator_properties": properties,
+                              "preconditioner": preconditioner, "reduction": "Fast",
+                              "scalar_domain": "Complex", "scalar_type": "F64"},
+                })
+        candidates = tuple(reference + iterative_faer + [direct])
         objectives = []
         without_faer = []
         for complete_diagonal in (None, True):
@@ -668,12 +680,26 @@ def complex_oracles():
                             "minres" if properties == "Hermitian" else "bicgstab")
                 expected_id = (direct["id"] if objective == "Fast" else
                     f"eqiora.reference.{spelling}-{suffix}-identity-reproducible-complex-f64")
+                if objective == "LowMemory" and properties in ("General", "ComplexSymmetric", "HermitianPositiveDefinite"):
+                    preferred = "cg" if properties == "HermitianPositiveDefinite" else "bicgstab"
+                    expected_id = f"eqiora.faer.{preferred}-{suffix}-identity-fast-complex-f64"
                 assert selected == expected_id
-                for permutation in itertools.permutations(candidates):
+                # Every rank key ends with a distinct candidate ID, hence sorting
+                # defines a total order independent of input order. Exercise every
+                # pair swap and cyclic placement without factorial enumeration.
+                keys = [rank_key(candidate, objective) for candidate in candidates]
+                assert len(set(keys)) == len(candidates)
+                permutations = [candidates[i:] + candidates[:i] for i in range(len(candidates))]
+                for i in range(len(candidates)):
+                    for j in range(i + 1, len(candidates)):
+                        swapped = list(candidates)
+                        swapped[i], swapped[j] = swapped[j], swapped[i]
+                        permutations.append(tuple(swapped))
+                for permutation in permutations:
                     assert ordered_rejection_trace(permutation, objective, rejected) == (selected, trace)
                 objectives.append({"complete_diagonal": complete_diagonal, "objective": objective,
                                    "selected_candidate_id": selected, "ordered_reasons": trace})
-                no_provider = {**rejected, direct["id"]: "catalog.provider-unavailable"}
+                no_provider = {**rejected, **{candidate["id"]: "catalog.provider-unavailable" for candidate in iterative_faer + [direct]}}
                 reference_id, reference_trace = ordered_rejection_trace(candidates, objective, no_provider)
                 assert reference_id == f"eqiora.reference.{spelling}-{suffix}-identity-reproducible-complex-f64"
                 without_faer.append({"complete_diagonal": complete_diagonal, "objective": objective,
@@ -849,9 +875,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v5.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v6.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v5 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v6 oracle: exact derivation and mutants passed")
     return 0
 
 

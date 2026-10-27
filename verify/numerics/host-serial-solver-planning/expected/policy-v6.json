@@ -6028,6 +6028,50 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "General",
+            "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -6078,6 +6122,22 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6112,6 +6172,22 @@
           "complete_diagonal": null,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
@@ -6148,6 +6224,22 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6169,20 +6261,44 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.bicgstab-general-identity-fast-complex-f64"
         },
         {
           "complete_diagonal": true,
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6225,6 +6341,30 @@
           "complete_diagonal": true,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
@@ -6269,6 +6409,30 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6290,7 +6454,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-complex-f64",
@@ -6305,7 +6469,7 @@
               "candidate.not-selected"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.bicgstab-general-identity-fast-complex-f64"
         }
       ],
       "properties": "General",
@@ -6347,6 +6511,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6374,6 +6546,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6400,6 +6580,14 @@
           "complete_diagonal": null,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -6428,6 +6616,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6463,6 +6659,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6497,6 +6701,14 @@
           "complete_diagonal": true,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-general-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -6600,6 +6812,50 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "ComplexSymmetric",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "ComplexSymmetric",
+            "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -6650,6 +6906,22 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6684,6 +6956,22 @@
           "complete_diagonal": null,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
@@ -6720,6 +7008,22 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6741,20 +7045,44 @@
             ],
             [
               "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-complex-symmetric-jacobi-reproducible-complex-f64",
               "profile.complete-diagonal-required"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64"
         },
         {
           "complete_diagonal": true,
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6797,6 +7125,30 @@
           "complete_diagonal": true,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
@@ -6841,6 +7193,30 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -6862,7 +7238,7 @@
             ],
             [
               "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.bicgstab-complex-symmetric-jacobi-reproducible-complex-f64",
@@ -6877,7 +7253,7 @@
               "candidate.not-selected"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64"
         }
       ],
       "properties": "ComplexSymmetric",
@@ -6919,6 +7295,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6946,6 +7330,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -6972,6 +7364,14 @@
           "complete_diagonal": null,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -7000,6 +7400,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7035,6 +7443,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7069,6 +7485,14 @@
           "complete_diagonal": true,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-complex-symmetric-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -7189,6 +7613,50 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "Hermitian",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "Hermitian",
+            "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -7239,6 +7707,22 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -7286,6 +7770,22 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -7332,6 +7832,22 @@
           "complete_diagonal": null,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
@@ -7380,6 +7896,30 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -7435,6 +7975,30 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -7489,6 +8053,30 @@
           "complete_diagonal": true,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "candidate.admitted"
@@ -7580,6 +8168,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7619,6 +8215,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7657,6 +8261,14 @@
           "complete_diagonal": null,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -7697,6 +8309,14 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7744,6 +8364,14 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -7790,6 +8418,14 @@
           "complete_diagonal": true,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hermitian-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hermitian-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -7956,6 +8592,94 @@
         },
         {
           "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "HermitianPositiveDefinite",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "BiConjugateGradientStabilized",
+            "operator_properties": "HermitianPositiveDefinite",
+            "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "ConjugateGradient",
+            "operator_properties": "HermitianPositiveDefinite",
+            "preconditioner": "Identity",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
+          "id": "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+          "solver_provider": {
+            "id": "eqiora.faer",
+            "implementation_version": "0.1.4",
+            "libraries": [
+              {
+                "name": "faer",
+                "version": "0.24.4"
+              }
+            ]
+          },
+          "tuple": {
+            "algorithm": "ConjugateGradient",
+            "operator_properties": "HermitianPositiveDefinite",
+            "preconditioner": "Jacobi",
+            "reduction": "Fast",
+            "scalar_domain": "Complex",
+            "scalar_type": "F64"
+          }
+        },
+        {
+          "evidence_case": "numerics.host-serial-solver-planning",
           "id": "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
@@ -8006,6 +8730,38 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -8068,6 +8824,38 @@
           "complete_diagonal": null,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.admitted"
@@ -8132,6 +8920,38 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "profile.complete-diagonal-required"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -8169,7 +8989,7 @@
             ],
             [
               "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
-              "candidate.selected.low-memory-preference"
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
@@ -8188,13 +9008,61 @@
               "candidate.not-selected"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.cg-hpd-identity-fast-complex-f64"
         },
         {
           "complete_diagonal": true,
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.admitted"
             ],
@@ -8273,6 +9141,54 @@
           "complete_diagonal": true,
           "objective": "Fast",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "candidate.admitted"
@@ -8353,52 +9269,100 @@
           "objective": "LowMemory",
           "ordered_reasons": [
             [
-              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
               "candidate.admitted"
             ],
             [
-              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
               "cost.shape-unavailable-preference-fallback"
             ],
             [
-              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
               "candidate.admitted"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
               "cost.shape-unavailable-preference-fallback"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
               "candidate.not-selected"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
               "candidate.admitted"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
               "cost.shape-unavailable-preference-fallback"
             ],
             [
-              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
-              "candidate.not-selected"
-            ],
-            [
-              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
-              "candidate.admitted"
-            ],
-            [
-              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
-              "cost.shape-unavailable-preference-fallback"
-            ],
-            [
-              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
               "candidate.selected.low-memory-preference"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
+              "candidate.not-selected"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "candidate.admitted"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "cost.shape-unavailable-preference-fallback"
+            ],
+            [
+              "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
+              "candidate.not-selected"
             ],
             [
               "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
@@ -8425,7 +9389,7 @@
               "candidate.not-selected"
             ]
           ],
-          "selected_candidate_id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64"
+          "selected_candidate_id": "eqiora.faer.cg-hpd-identity-fast-complex-f64"
         }
       ],
       "properties": "HermitianPositiveDefinite",
@@ -8467,6 +9431,22 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -8522,6 +9502,22 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -8576,6 +9572,22 @@
           "complete_diagonal": null,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -8632,6 +9644,22 @@
           "objective": "Robust",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -8703,6 +9731,22 @@
           "objective": "Fast",
           "ordered_reasons": [
             [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
             ],
@@ -8773,6 +9817,22 @@
           "complete_diagonal": true,
           "objective": "LowMemory",
           "ordered_reasons": [
+            [
+              "eqiora.faer.bicgstab-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.bicgstab-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-identity-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
+            [
+              "eqiora.faer.cg-hpd-jacobi-fast-complex-f64",
+              "catalog.provider-unavailable"
+            ],
             [
               "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
               "catalog.provider-unavailable"
@@ -8985,7 +10045,7 @@
   },
   "no_admitted_candidate": {
     "diagnostic_code": "EQ0807",
-    "diagnostic_message": "eqiora.host-serial-solver-planning/v5 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
+    "diagnostic_message": "eqiora.host-serial-solver-planning/v6 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
     "ordered_reasons": [
       [
         "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -9277,7 +10337,7 @@
       "selected_candidate_id": "eqiora.faer.bicgstab-general-identity-fast-f64"
     }
   ],
-  "policy_id": "eqiora.host-serial-solver-planning/v5",
+  "policy_id": "eqiora.host-serial-solver-planning/v6",
   "reason_ordering": [
     "ascending_candidate_id",
     "one_first_rejection_or_candidate.admitted",

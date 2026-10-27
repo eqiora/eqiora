@@ -6,12 +6,18 @@ listed here.
 
 ## [Unreleased]
 
+- Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
+  now execute Identity/Jacobi through the same typed Krylov owner as real solves.
+  Planner v6 admits these ten exact tuples; native work remains bounded by the
+  requested budget and acceptance uses the original residual and physical checks.
+
+
 ### Changed
 
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
   `accept_with_execution` or `accept_with_verifier`. The former free functions
   are removed; all methods retain the same independent residual verification.
-- Host solver planning v5 uses explicit work forecasts and scoped numeric
+- Host solver planning v6 uses explicit work forecasts and scoped numeric
   payload bounds where existing assembly owners supply size facts. Exact manual
   controls remain unchanged; forecasts do not grant prepared-state reuse or
   predict elapsed time or process RSS. Current common Plan artifacts use v24;

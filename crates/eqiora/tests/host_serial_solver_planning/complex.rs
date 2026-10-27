@@ -187,16 +187,18 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
 #[test]
 fn absent_optional_complex_provider_preserves_reference_and_required_reduction() {
     let faer = FaerLinearSolver;
-    for (properties, reference_id, direct_id) in [
+    for (properties, reference_id, direct_id, iterative_id) in [
         (
             LinearOperatorProperties::General,
             "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
             "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
+            "eqiora.faer.bicgstab-general-identity-fast-complex-f64",
         ),
         (
             LinearOperatorProperties::HermitianPositiveDefinite,
             "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
             "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
+            "eqiora.faer.cg-hpd-identity-fast-complex-f64",
         ),
     ] {
         for objective in [
@@ -256,7 +258,16 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
                 Some(&faer),
             )
             .unwrap();
-            assert_eq!(selected.selected_candidate_id(), direct_id);
+            // A required Fast reduction excludes Reference. The literal policy
+            // prefers LU only for Fast, iterative specialization otherwise.
+            assert_eq!(
+                selected.selected_candidate_id(),
+                if objective == SolverPlanningObjective::Fast {
+                    direct_id
+                } else {
+                    iterative_id
+                }
+            );
             assert!(
                 selected
                     .reasons()
