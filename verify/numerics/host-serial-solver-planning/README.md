@@ -1,7 +1,7 @@
 # Deterministic host-serial solver planning
 
 This case verifies one versioned planning policy over its frozen five-member real
-General catalog and fourteen complex tuples across four mathematical operator classes.
+General catalog and sixteen complex tuples across four mathematical operator classes.
 The real problem is the normal-orientation,
 complete-diagonal, canonical CSR `f64` system
 
@@ -20,7 +20,7 @@ the complete `SolveReport`. It independently reapplies `A x`, requires a
 componentwise solution error no larger than `2^-40`, and retains the existing
 true-residual acceptance.
 
-This public case owns five real and fourteen complex tuple executions, independent true
+This public case owns five real and sixteen complex tuple executions, independent true
 residual, exact manual/decision `LinearSolution` and complete `SolveReport`
 equality, frozen positive decisions, and public observations. The required
 companion

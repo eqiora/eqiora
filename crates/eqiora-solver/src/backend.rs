@@ -154,6 +154,19 @@ impl SolverCapabilities {
                 });
             }
         }
+        for operator_properties in [
+            LinearOperatorProperties::Hermitian,
+            LinearOperatorProperties::HermitianPositiveDefinite,
+        ] {
+            combinations.push(SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Complex,
+                algorithm: LinearSolver::MinimumResidual,
+                operator_properties,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Reproducible,
+                scalar_type: ScalarType::F64,
+            });
+        }
         Self::exact(combinations).expect("reference exact capability set is nonempty")
     }
 

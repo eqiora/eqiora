@@ -45,7 +45,7 @@ payload_scope = "typed CSR/RHS and supported Reference real heap numeric workspa
 work_scope = "declared deterministic proxy; not measured timing or reuse authority"
 
 [complex_catalog]
-count = 14
+count = 16
 profiles = ["General", "ComplexSymmetric", "Hermitian", "HermitianPositiveDefinite"]
 scalar = "complex f64"
 normal_solution = "[1+2i, -2+i]"

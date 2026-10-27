@@ -44,7 +44,7 @@ POLICY_TABLE = {
     "LowMemory": (
         (
             "algorithm",
-            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "SparseLu": 1},
+            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "MinimumResidual": 0, "SparseLu": 1},
         ),
         ("algorithm", {"ConjugateGradient": 0, "MinimumResidual": 0,
                        "BiConjugateGradientStabilized": 1, "SparseLu": 2}),
@@ -641,6 +641,17 @@ def complex_oracles():
                               "preconditioner": preconditioner, "reduction": "Reproducible",
                               "scalar_domain": "Complex", "scalar_type": "F64"},
                 })
+        if properties in ("Hermitian", "HermitianPositiveDefinite"):
+            # Hermitian realification is symmetric and retains the same spectrum;
+            # identity MINRES needs neither a positive diagonal nor definiteness.
+            reference.append({
+                "id": f"eqiora.reference.minres-{suffix}-identity-reproducible-complex-f64",
+                "evidence_case": "numerics.host-serial-solver-planning",
+                "solver_provider": REFERENCE_PROVIDER,
+                "tuple": {"algorithm": "MinimumResidual", "operator_properties": properties,
+                          "preconditioner": "Identity", "reduction": "Reproducible",
+                          "scalar_domain": "Complex", "scalar_type": "F64"},
+            })
         candidates = tuple(reference + [direct])
         objectives = []
         without_faer = []
@@ -653,7 +664,8 @@ def complex_oracles():
                 # The unchanged unknown-size axes rank reproducible first for
                 # Robust, iterative first for LowMemory, and the declared
                 # specialized CG preference on HPD before the final literal ID.
-                spelling = "cg" if properties == "HermitianPositiveDefinite" else "bicgstab"
+                spelling = ("cg" if properties == "HermitianPositiveDefinite" else
+                            "minres" if properties == "Hermitian" else "bicgstab")
                 expected_id = (direct["id"] if objective == "Fast" else
                     f"eqiora.reference.{spelling}-{suffix}-identity-reproducible-complex-f64")
                 assert selected == expected_id

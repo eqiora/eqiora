@@ -266,6 +266,14 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
                 })
             }
         }
+        REFERENCE_HERMITIAN_MINRES_ID => ExpectedCandidate {
+            algorithm: LinearSolver::MinimumResidual,
+            ..expected_candidate(REFERENCE_HERMITIAN_ID)
+        },
+        REFERENCE_HPD_MINRES_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::HermitianPositiveDefinite,
+            ..expected_candidate(REFERENCE_HERMITIAN_MINRES_ID)
+        },
         REFERENCE_HERMITIAN_ID | REFERENCE_HERMITIAN_JACOBI_ID => ExpectedCandidate {
             properties: LinearOperatorProperties::Hermitian,
             ..expected_candidate(if id == REFERENCE_HERMITIAN_ID {
