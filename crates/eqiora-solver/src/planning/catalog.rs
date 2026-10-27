@@ -142,6 +142,55 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             preconditioner: PreconditionerPolicy::Identity,
             reduction: ReductionPolicy::Fast,
         },
+        REFERENCE_CG_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_CG_ID)
+        },
+        FAER_CG_IDENTITY_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Identity,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(FAER_CG_ID)
+        },
+        REFERENCE_SPD_MINRES_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_MINRES_ID)
+        },
+        REFERENCE_SPD_BICGSTAB_ID | REFERENCE_SPD_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(if id == REFERENCE_SPD_BICGSTAB_ID {
+                REFERENCE_IDENTITY_ID
+            } else {
+                REFERENCE_ID
+            })
+        },
+        FAER_SPD_BICGSTAB_ID | FAER_SPD_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(if id == FAER_SPD_BICGSTAB_ID {
+                FAER_IDENTITY_ID
+            } else {
+                FAER_BICGSTAB_ID
+            })
+        },
+        REFERENCE_INDEFINITE_BICGSTAB_ID | REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID => {
+            ExpectedCandidate {
+                properties: LinearOperatorProperties::SymmetricIndefinite,
+                evidence_case: PLANNING_EVIDENCE,
+                ..expected_candidate(if id == REFERENCE_INDEFINITE_BICGSTAB_ID {
+                    REFERENCE_IDENTITY_ID
+                } else {
+                    REFERENCE_ID
+                })
+            }
+        }
+        FAER_SYMMETRIC_LU_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::Symmetric,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(FAER_SPARSE_LU_ID)
+        },
         REFERENCE_MINRES_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::SymmetricIndefinite,
@@ -163,7 +212,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         REFERENCE_COMPLEX_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::General,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             preconditioner: PreconditionerPolicy::Identity,
@@ -172,7 +221,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         FAER_COMPLEX_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::General,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
             preconditioner: PreconditionerPolicy::Identity,
@@ -181,7 +230,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         FAER_COMPLEX_SYMMETRIC_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::ComplexSymmetric,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
             preconditioner: PreconditionerPolicy::Identity,
@@ -190,7 +239,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         FAER_HERMITIAN_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::Hermitian,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
             preconditioner: PreconditionerPolicy::Identity,
@@ -199,7 +248,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         REFERENCE_HPD_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::HermitianPositiveDefinite,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::ConjugateGradient,
             preconditioner: PreconditionerPolicy::Identity,
@@ -208,7 +257,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
         FAER_HPD_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::HermitianPositiveDefinite,
-            evidence_case: COMPLEX_EVIDENCE,
+            evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
             preconditioner: PreconditionerPolicy::Identity,

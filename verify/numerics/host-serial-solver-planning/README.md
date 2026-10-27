@@ -33,7 +33,7 @@ only when both cases pass.
 Run:
 
 ```bash
-python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v3.py
+python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v4.py
 cargo test -p eqiora-solver planning::
 cargo test -p eqiora --test host_serial_solver_planning
 cargo run -p eqiora-verify -- run \

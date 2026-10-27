@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v3"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v3.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v4"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v4.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -148,6 +148,7 @@ REASON_VOCABULARY = (
     "profile.complete-diagonal-required",
     "capability.exact-tuple-required",
     "candidate.admitted",
+    "cost.shape-unavailable-preference-fallback",
     "candidate.not-selected",
     "candidate.selected.robust-preference",
     "candidate.selected.fast-preference",
@@ -232,6 +233,7 @@ def ordered_trace(
     trace: list[list[str]] = []
     for candidate in sorted(candidates, key=lambda candidate: candidate["id"]):
         trace.append([candidate["id"], "candidate.admitted"])
+        trace.append([candidate["id"], "cost.shape-unavailable-preference-fallback"])
         trace.append(
             [
                 candidate["id"],
@@ -261,6 +263,7 @@ def ordered_rejection_trace(
             trace.append([candidate_id, rejection_reasons[candidate_id]])
         else:
             trace.append([candidate_id, "candidate.admitted"])
+            trace.append([candidate_id, "cost.shape-unavailable-preference-fallback"])
             trace.append(
                 [
                     candidate_id,
@@ -810,9 +813,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v3.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v4.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v3 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v4 oracle: exact derivation and mutants passed")
     return 0
 
 

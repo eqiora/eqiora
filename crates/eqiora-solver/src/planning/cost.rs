@@ -437,3 +437,50 @@ pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         ),
     }
 }
+
+// Keep forecast limitations next to the candidate decision that uses them.
+pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+    reasons: &mut Vec<(&'static str, &'static str)>,
+    profile: &HostSerialSolverProfile,
+    candidate: HostSerialSolverCandidate<'_, S>,
+) {
+    let id = candidate.id();
+    let Some(size) = profile.size else {
+        reasons.push((id, "cost.shape-unavailable-preference-fallback"));
+        return;
+    };
+    reasons.push((
+        id,
+        if size.exact {
+            "cost.work-proxy-exact-stored-slots"
+        } else {
+            "cost.work-proxy-dense-slot-bound"
+        },
+    ));
+    let request = profile.cost_request.unwrap_or_default();
+    reasons.push((
+        id,
+        if request.declared_horizon {
+            "cost.declared-horizon-not-reuse-authority"
+        } else {
+            "cost.one-shot-horizon-assumed"
+        },
+    ));
+    if candidate.plan().algorithm() == LinearSolver::SparseLu {
+        reasons.push((id, "cost.lu-dense-envelope-fill-unknown"));
+    } else {
+        let forecast = match candidate.plan().preconditioner() {
+            PreconditionerPolicy::Identity => request.identity_iterations,
+            PreconditionerPolicy::Jacobi => request.jacobi_iterations,
+        };
+        reasons.push((
+            id,
+            if forecast.is_some() {
+                "cost.declared-iterations-conditioning-unproved"
+            } else {
+                "cost.iteration-ceiling-conditioning-unproved"
+            },
+        ));
+    }
+    reasons.push((id, "cost.host-transfer-zero-outputs-unmodeled"));
+}

@@ -4,8 +4,15 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::num::NonZeroUsize;
 
-#[pyclass(name = "SolverCost", module = "eqiora._eqiora", frozen, from_py_object)]
-#[derive(Debug, Clone, Copy)]
+#[pyclass(
+    name = "SolverCost",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct PySolverCost {
     pub(super) native: SolverCostRequest,
 }
