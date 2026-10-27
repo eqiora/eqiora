@@ -665,7 +665,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.host-serial-solver-planning/v4")
+            Some("eqiora.host-serial-solver-planning/v5")
         );
         // Two admitted candidates each retain admission, unknown-size fallback,
         // and selection reasons; three rejected candidates retain one reason.

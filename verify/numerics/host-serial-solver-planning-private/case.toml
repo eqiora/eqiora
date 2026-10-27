@@ -1,6 +1,6 @@
 id = "numerics.host-serial-solver-planning-private"
 status = "implemented"
-scope = "crate-private-host-serial-solver-planning-v4-adversarial-oracle"
+scope = "crate-private-host-serial-solver-planning-v5-adversarial-oracle"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
@@ -19,7 +19,7 @@ capabilities = [
 [authority]
 required_primary_case = "numerics.host-serial-solver-planning"
 verification_requires_both_cases = true
-policy_oracle = "../host-serial-solver-planning/expected/policy-v4.json"
+policy_oracle = "../host-serial-solver-planning/expected/policy-v5.json"
 private_falsifier_owner = "crates/eqiora-solver/src/planning/tests.rs"
 aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_all_private_falsifiers"
 
