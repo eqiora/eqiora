@@ -56,6 +56,7 @@ pub(super) fn accepted_initial<S: SparseLuScalar>(
             &SERIAL_LINEAR_EXECUTION,
             problem.right_hand_side(),
         )?)?
+        || !problem.candidate_is_accepted(&initial)?
     {
         return Ok(None);
     }
@@ -89,7 +90,10 @@ pub(super) fn solve_factored<S: SparseLuScalar>(
     let mut residual = vec![S::zero(); problem.operator().rows()];
     let mut norm = residual_norm(problem, &values, &mut residual)?;
     let mut iterations = 1;
-    while norm > target && iterations < plan.maximum_iterations().get() {
+    while (norm > target || !problem.candidate_is_accepted(&values)?)
+        && norm != 0.
+        && iterations < plan.maximum_iterations().get()
+    {
         let correction = solve_factored_oriented(symbolic, numeric, &residual, orientation)?;
         iterations += 1;
         let mut changed = false;
