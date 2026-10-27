@@ -270,7 +270,11 @@ pub(super) fn assert_artifact_vertical_slice(
     )
     .unwrap();
     let mut one_projection_drift = projections.clone();
-    let alternate = projection_artifacts(projection, &overlap, scale_invariance_transfer_plan());
+    let alternate = projection_artifacts(
+        projection,
+        &overlap,
+        scale_invariance_transfer_plan(transfer_plan),
+    );
     let pressure_position = one_projection_drift
         .iter()
         .position(|entry| entry.action() == RemeshProjectionActionV1::AbsolutePressure)
