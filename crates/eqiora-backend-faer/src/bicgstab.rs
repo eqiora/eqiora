@@ -1,5 +1,6 @@
 //! Bounded Faer Krylov cycles with independently recomputed restart residuals.
 use super::*;
+use crate::candidate::{CandidateAcceptance, ZERO_ONLY_TOLERANCE, residual_norm};
 use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
 use faer::matrix_free::bicgstab::{BicgParams, bicgstab, bicgstab_scratch};
 
@@ -32,9 +33,17 @@ pub(super) fn solve(
     let mut candidate = vec![0.; dimension];
     let mut residual = vec![0.; dimension];
     let mut best_norm = residual_norm(problem, &best, &mut residual)?;
+    let mut method = problem
+        .has_candidate_check()
+        .then(|| CandidateAcceptance::new(target));
+    if let Some(method) = &mut method {
+        method.consider(problem, &best, best_norm)?;
+    }
     let mut iterations = 0;
     let mut cycle_limit = dimension;
-    while best_norm > target && iterations < plan.maximum_iterations().get() {
+    while !jointly_accepted(best_norm, target, &method)
+        && iterations < plan.maximum_iterations().get()
+    {
         let before = best_norm;
         // Begin with one full-dimensional cycle, then double the allowance:
         // finite-precision Krylov convergence may need more than n steps, so
@@ -45,7 +54,11 @@ pub(super) fn solve(
         output.col_as_slice_mut(0).copy_from_slice(&best);
         let params = BicgParams {
             initial_guess: EXPLICIT_INITIAL_GUESS,
-            abs_tolerance: target,
+            abs_tolerance: if method.is_some() {
+                ZERO_ONLY_TOLERANCE
+            } else {
+                target
+            },
             rel_tolerance: 0.,
             max_iters: limit,
             ..Default::default()
@@ -68,6 +81,7 @@ pub(super) fn solve(
                     &mut best,
                     &mut best_norm,
                     &failure,
+                    &mut method,
                 );
             },
             parallelism,
@@ -81,6 +95,7 @@ pub(super) fn solve(
             &mut best,
             &mut best_norm,
             &failure,
+            &mut method,
         );
         // A nonfinite search direction belongs to the solver recurrence.
         // An actual operator failure always propagates, even if an earlier
@@ -91,12 +106,15 @@ pub(super) fn solve(
         // charge that attempted correction once instead of claiming initial
         // convergence or allowing work outside the original budget.
         iterations += result.as_ref().map_or(limit, |info| info.iter_count.max(1));
-        if breakdown && best_norm > target && best_norm >= before {
+        if breakdown && !jointly_accepted(best_norm, target, &method) && best_norm >= before {
             return Err(solve_failed(
                 "faer BiCGSTAB breakdown made no true-residual progress",
             ));
         }
         cycle_limit = cycle_limit.saturating_mul(2);
+    }
+    if let Some(method) = method {
+        return method.finish(problem, plan, provider, iterations);
     }
     if best_norm > target {
         return Err(solve_failed(
@@ -114,16 +132,10 @@ pub(super) fn solve(
     )
 }
 
-fn residual_norm(
-    problem: &LinearProblem<'_>,
-    values: &[f64],
-    residual: &mut [f64],
-) -> Result<f64, Diagnostic> {
-    problem.operator().apply(values, residual)?;
-    for (value, rhs) in residual.iter_mut().zip(problem.right_hand_side()) {
-        *value = rhs - *value;
-    }
-    FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, residual)
+fn jointly_accepted(norm: f64, target: f64, method: &Option<CandidateAcceptance>) -> bool {
+    method
+        .as_ref()
+        .map_or(norm <= target, CandidateAcceptance::accepted)
 }
 
 fn retain_candidate(
@@ -133,16 +145,23 @@ fn retain_candidate(
     best: &mut [f64],
     best_norm: &mut f64,
     failure: &ApplyFailure,
+    method: &mut Option<CandidateAcceptance>,
 ) {
     if candidate.iter().any(|value| !value.is_finite()) {
         return;
     }
     match residual_norm(problem, candidate, residual) {
-        Ok(norm) if norm < *best_norm => {
-            *best_norm = norm;
-            best.copy_from_slice(candidate);
+        Ok(norm) => {
+            if let Some(method) = method
+                && let Err(error) = method.consider(problem, candidate, norm)
+            {
+                failure.record(error);
+            }
+            if norm < *best_norm {
+                *best_norm = norm;
+                best.copy_from_slice(candidate);
+            }
         }
-        Ok(_) => {}
         Err(error) => failure.record(error),
     }
 }

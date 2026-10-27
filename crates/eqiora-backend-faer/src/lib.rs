@@ -7,6 +7,8 @@
 //! verification.
 
 mod bicgstab;
+mod candidate;
+mod cg;
 mod complex;
 mod eigen;
 mod prepared_sparse_lu;
@@ -24,10 +26,7 @@ use eqiora_solver::{
     SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
 };
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
-use faer::matrix_free::{
-    InitialGuessStatus, LinOp, Precond,
-    conjugate_gradient::{CgParams, conjugate_gradient, conjugate_gradient_scratch},
-};
+use faer::matrix_free::{InitialGuessStatus, LinOp, Precond};
 use faer::reborrow::ReborrowMut;
 use faer::{Mat, Par, mat::MatMut, mat::MatRef};
 
@@ -201,7 +200,7 @@ impl LinearSolverBackend for FaerLinearSolver {
         let inverse_diagonal = inverse_diagonal(problem, plan)?;
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {
-                solve_cg(self.provider(), problem, plan, inverse_diagonal)
+                cg::solve(self.provider(), problem, plan, inverse_diagonal)
             }
             LinearSolver::MinimumResidual => Err(invalid_realization(
                 "the faer adapter does not implement MINRES",
@@ -212,52 +211,6 @@ impl LinearSolverBackend for FaerLinearSolver {
             LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(problem, plan),
         }
     }
-}
-
-fn solve_cg(
-    provider: SolverProvider,
-    problem: &LinearProblem<'_>,
-    plan: SolverPlan,
-    inverse_diagonal: Option<Vec<f64>>,
-) -> Result<LinearSolution, Diagnostic> {
-    let dimension = problem.operator().columns();
-    let mut output = initial_matrix(problem);
-    let right_hand_side = right_hand_side_matrix(problem);
-    let failure = ApplyFailure::default();
-    let operator = FaerOperator::new(problem.operator(), failure.clone());
-    let preconditioner = FaerPreconditioner::new(dimension, inverse_diagonal);
-    let parallelism = Par::Seq;
-    let scratch =
-        conjugate_gradient_scratch(preconditioner.clone(), operator.clone(), 1, parallelism);
-    let mut workspace = MemBuffer::new(scratch);
-    let params = CgParams {
-        initial_guess: EXPLICIT_INITIAL_GUESS,
-        abs_tolerance: plan.absolute_tolerance(),
-        rel_tolerance: plan.relative_tolerance(),
-        max_iters: plan.maximum_iterations().get(),
-        ..Default::default()
-    };
-    let result = conjugate_gradient(
-        output.as_mut(),
-        preconditioner,
-        operator,
-        right_hand_side.as_ref(),
-        params,
-        |_| {},
-        parallelism,
-        MemStack::new(&mut workspace),
-    );
-    failure.take()?;
-    let info = result.map_err(|error| solve_failed(format!("faer CG failed: {error:?}")))?;
-    eqiora_solver::LinearSolution::accept(
-        problem,
-        plan,
-        provider,
-        convergence_reason(info.iter_count),
-        info.iter_count,
-        info.abs_residual,
-        output.col_as_slice(0).to_vec(),
-    )
 }
 
 fn inverse_diagonal(
