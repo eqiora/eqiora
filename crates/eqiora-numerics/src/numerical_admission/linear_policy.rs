@@ -32,14 +32,26 @@ impl NativeLinearPolicy {
         }
         let provider = backend.provider();
         provider.validate()?;
-        SERIAL_EXECUTION_PROVIDER.validate()?;
+        let execution = backend.default_execution_provider();
+        execution.validate()?;
+        let report = backend.default_execution();
+        let eqiora_solver::ExecutionTopology::Host { workers } = report.topology() else {
+            return Err(invalid(
+                "common linear policies require host-local execution",
+            ));
+        };
+        if report.adapter() != execution.id() {
+            return Err(invalid(
+                "execution report differs from its provider identity",
+            ));
+        }
         Ok(Self {
             scalar_domain: S::DOMAIN,
             solver,
             provider,
             capabilities: backend.capabilities(),
-            execution: SERIAL_EXECUTION_PROVIDER,
-            workers: NonZeroUsize::MIN,
+            execution,
+            workers,
             planning_objective: None,
             planning_profile: None,
             planning_policy_id: None,
@@ -60,6 +72,7 @@ impl NativeLinearPolicy {
             || self.solver != decision.solver_plan()
             || self.provider != decision.solver_provider()
             || self.execution != decision.execution_provider()
+            || self.workers != NonZeroUsize::MIN
         {
             return Err(invalid(
                 "solver planning audit does not authenticate the effective linear policy",
@@ -86,6 +99,9 @@ impl NativeLinearPolicy {
         if S::DOMAIN != self.scalar_domain
             || backend.provider() != self.provider
             || backend.capabilities() != self.capabilities
+            || backend.default_execution_provider() != self.execution
+            || backend.default_execution()
+                != eqiora_solver::ExecutionReport::host(self.execution.id(), self.workers)
         {
             return Err(invalid(
                 "execution backend differs from admitted exact provider or capabilities",
@@ -111,7 +127,10 @@ impl NativeLinearPolicy {
         let complex = backend.complex_backend().ok_or_else(|| {
             invalid("selected provider has no typed complex linear implementation")
         })?;
-        if backend.provider() != self.provider {
+        if backend.provider() != self.provider
+            || backend.default_execution_provider() != complex.default_execution_provider()
+            || backend.default_execution() != complex.default_execution()
+        {
             return Err(invalid(
                 "complex execution differs from admitted exact provider or capabilities",
             ));
@@ -155,6 +174,9 @@ pub(crate) struct ProfileCheckedBackend<'a, S> {
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static>
     LinearSolverBackend<S> for ProfileCheckedBackend<'_, S>
 {
+    fn default_execution_provider(&self) -> ExecutionProvider {
+        self.backend.default_execution_provider()
+    }
     fn default_execution(&self) -> eqiora_solver::ExecutionReport {
         self.backend.default_execution()
     }

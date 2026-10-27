@@ -163,6 +163,10 @@ pub(in crate::numerical_admission) fn push_linear_policy_identity(
     }
     push_framed(bytes, linear.execution.id().as_str().as_bytes());
     push_framed(bytes, linear.execution.implementation_version().as_bytes());
+    for library in linear.execution.libraries() {
+        push_framed(bytes, library.name().as_bytes());
+        push_framed(bytes, library.version().as_bytes());
+    }
     bytes.extend_from_slice(&linear.workers.get().to_be_bytes());
 }
 
