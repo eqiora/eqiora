@@ -5,7 +5,6 @@ use eqiora_solver::{
     FixedOrderInnerProduct, LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver,
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReductionPolicy,
     ReplicatedLinearExecution, SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SolverPlan,
-    
 };
 use std::{
     num::NonZeroUsize,
