@@ -16,11 +16,12 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    AlgebraicBlock, ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    AlgebraicBlock, CanonicalCsrSystemView, CsrStorage, ExecutionReport, LinearOperatorOrientation,
+    LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend, Oriented,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReductionPolicy,
+    SolveReport, SolverCapabilities, SolverCapability, SolverPlan,
 };
-use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
+use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION, RAYON_EXECUTION_PROVIDER};
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution, scalar::ResolvedScalarEllipticSolution1d,
     scalar::lower_scalar_elliptic_1d, scalar::solve_resolved_scalar_elliptic_1d,
@@ -34,6 +35,142 @@ const SOURCE_2D: &str =
     include_str!("../../../verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi");
 const SOURCE_3D: &str =
     include_str!("../../../verify/numerics/cartesian-poisson-3d-fem-fvm/models/poisson.eqi");
+
+struct MinresFixture([f64; 4]);
+
+impl CsrStorage for MinresFixture {
+    fn rows(&self) -> usize {
+        2
+    }
+    fn columns(&self) -> usize {
+        2
+    }
+    fn row_offsets(&self) -> &[usize] {
+        &[0, 2, 4]
+    }
+    fn column_indices(&self) -> &[usize] {
+        &[0, 1, 0, 1]
+    }
+    fn values(&self) -> &[f64] {
+        &self.0
+    }
+}
+
+#[test]
+fn canonical_minres_jacobi_preserves_independent_values_and_rayon_provenance() {
+    // Independent inverses have Frobenius norms sqrt(19)/3<1.5 (SPD)
+    // and sqrt(35)/5<1.2 (indefinite). Atol2^-40 therefore bounds each
+    // solution component error by2^-39, before executing either solver.
+    let tolerance = 2_f64.powi(-40);
+    let plan = SolverPlan::new(
+        LinearSolver::MinimumResidual,
+        0.,
+        tolerance,
+        NonZeroUsize::new(2).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Jacobi)
+    .with_reduction(ReductionPolicy::Reproducible);
+    for (matrix, properties, rhs, expected) in [
+        (
+            [4., 1., 1., 1.],
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            [5., 2.],
+            [1., 1.],
+        ),
+        (
+            // Positive diagonal, det=-5: congruence preserves indefiniteness.
+            [4., 3., 3., 1.],
+            LinearOperatorProperties::SymmetricIndefinite,
+            [-2., 1.],
+            [1., -2.],
+        ),
+    ] {
+        let system = CanonicalCsrSystemView::new(&MinresFixture(matrix), &rhs, properties).unwrap();
+        for worker_count in [1, 4] {
+            let workers = NonZeroUsize::new(worker_count).unwrap();
+            let pool = CpuThreadPool::new(workers).unwrap();
+            let threaded = pool
+                .solver(
+                    Target::HostCpu { threads: workers },
+                    &REFERENCE_LINEAR_SOLVER,
+                )
+                .unwrap();
+            for orientation in [
+                LinearOperatorOrientation::Normal,
+                LinearOperatorOrientation::Transposed,
+            ] {
+                let operator = Oriented::new(&system, orientation).unwrap();
+                let problem = LinearProblem::new(&operator, &rhs, properties).unwrap();
+                let serial = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+                let solution = threaded.solve(&problem, plan).unwrap();
+                for (actual, expected) in solution.values().iter().zip(expected) {
+                    assert!((actual - expected).abs() <= 2_f64.powi(-39));
+                }
+                // Replay the literal original equations, independently of CSR
+                // execution, scaling, and the solver's residual report.
+                let x = solution.values();
+                let residual = (rhs[0] - matrix[0] * x[0] - matrix[1] * x[1])
+                    .hypot(rhs[1] - matrix[2] * x[0] - matrix[3] * x[1]);
+                assert!(residual <= tolerance);
+                assert_eq!(solution.values(), serial.values());
+                let report = solution.report();
+                assert_solve_evidence(serial.report(), report, workers);
+                assert_eq!(report.solver_provider(), REFERENCE_SOLVER_PROVIDER);
+                assert_eq!(report.execution_provider(), RAYON_EXECUTION_PROVIDER);
+                assert_eq!(report.verification_provider(), RAYON_EXECUTION_PROVIDER);
+                assert_eq!(
+                    report.verification(),
+                    ExecutionReport::host(RAYON_EXECUTION, workers)
+                );
+                assert_eq!(report.orientation(), orientation);
+                assert_eq!(report.solver_plan(), plan);
+                assert!(report.completed_iterations() > 0);
+                assert!(report.completed_iterations() <= plan.maximum_iterations().get());
+                assert!(report.true_residual_norm() <= tolerance);
+                assert_eq!(report.residual_target(), tolerance);
+            }
+        }
+    }
+}
+
+#[test]
+fn rayon_minres_jacobi_rejects_zero_and_negative_diagonals_even_at_zero_rhs() {
+    let workers = NonZeroUsize::new(4).unwrap();
+    let pool = CpuThreadPool::new(workers).unwrap();
+    let threaded = pool
+        .solver(
+            Target::HostCpu { threads: workers },
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::MinimumResidual,
+        0.,
+        2_f64.powi(-40),
+        NonZeroUsize::MIN,
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Jacobi);
+    for diagonal in [0., -1.] {
+        // det=diagonal-9<0: both captured matrices are nonsingular and
+        // symmetric-indefinite, but neither has a positive Jacobi diagonal.
+        let system = CanonicalCsrSystemView::new(
+            &MinresFixture([diagonal, 3., 3., 1.]),
+            &[0., 0.],
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let error = threaded
+            .solve(&system.linear_problem().unwrap(), plan)
+            .unwrap_err();
+        assert_eq!(
+            error.code(),
+            eqiora::diagnostic::codes::NUMERICAL_SOLVE_FAILED
+        );
+        assert!(error.message().contains("finite real positive diagonal"));
+    }
+}
 
 #[test]
 fn realization_admission_rejects_unverified_axis_recombination() {
