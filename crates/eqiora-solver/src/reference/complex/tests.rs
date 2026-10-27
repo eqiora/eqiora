@@ -5,6 +5,8 @@ use crate::{
 };
 use eqiora_core::Diagnostic;
 
+mod minres;
+
 struct ComplexStorage;
 impl CsrStorage<Complex64> for ComplexStorage {
     fn rows(&self) -> usize {
