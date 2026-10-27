@@ -10,6 +10,23 @@ struct CommonAcceptedActions {
     outputs: Vec<(usize, CommonAcceptedSpatialStep)>,
 }
 
+/// One owner for a relative accepted-step horizon and its output ordinals.
+pub(super) fn validate_step_schedule(
+    steps: usize,
+    output_steps: &[usize],
+) -> Result<(), Diagnostic> {
+    if steps == 0
+        || output_steps.is_empty()
+        || output_steps.iter().any(|step| *step == 0 || *step > steps)
+        || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
+    {
+        return Err(invalid(
+            "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
+        ));
+    }
+    Ok(())
+}
+
 #[allow(clippy::type_complexity)]
 fn advance_common_prepared_actions<P>(
     initial: CommonState,
@@ -62,15 +79,7 @@ impl CommonTransientRunRequest {
         steps: usize,
         output_steps: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
-        if steps == 0
-            || output_steps.is_empty()
-            || output_steps.iter().any(|step| *step == 0 || *step > steps)
-            || output_steps.windows(2).any(|pair| pair[0] >= pair[1])
-        {
-            return Err(invalid(
-                "output_steps must be nonempty, strictly increasing accepted-step indices within the inclusive horizon",
-            ));
-        }
+        validate_step_schedule(steps, &output_steps)?;
         let dt = plan
             .backward_euler()
             .ok_or_else(|| invalid("fixed-grid transient Run requires BackwardEuler"))?
@@ -116,9 +125,16 @@ impl CommonTransientRunRequest {
         if let Some(temporal) = plan.backward_euler() {
             let grid = state.time_grid()?;
             let dt = temporal.value();
-            grid.steps_until(until_s, dt, "until_s")?;
+            let steps = grid.steps_until(until_s, dt, "until_s")?;
+            let mut outputs = Vec::with_capacity(output_times_s.len());
             for &time in &output_times_s {
-                grid.steps_until(time, dt, "output_times_s")?;
+                outputs.push(grid.steps_until(time, dt, "output_times_s")?);
+            }
+            if let Some(context) = plan
+                .as_spatial()
+                .and_then(|plan| plan.run_planning.as_ref())
+            {
+                context.require_schedule(steps, &outputs)?;
             }
         } else if plan.ode_temporal().is_none() || plan.as_spatial().is_none() {
             return Err(invalid(

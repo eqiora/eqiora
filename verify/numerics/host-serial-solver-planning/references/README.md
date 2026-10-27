@@ -1,6 +1,6 @@
 # Independent reference
 
-`derive_policy_v6.py` is the independent authority for the exact rational
+`derive_policy_v7.py` is the independent authority for the exact rational
 system and deterministic selection table. It uses Python `Fraction` arithmetic
 to derive `[1, 2]` and the zero residual, locates both diagonal entries directly
 from the captured CSR offsets and column indices, freezes the decimal control
@@ -56,9 +56,9 @@ claim.
 
 ## Provider source identity
 
-The v6 table binds the inspected Cargo release `0.1.4` for solver and execution
+The v7 table binds the inspected Cargo release `0.1.4` for solver and execution
 provider descriptors. The v2 table retained `0.1.0-alpha.3` while its public test
-checked the actual Cargo version separately. The v6 test requires equality among
+checked the actual Cargo version separately. The v7 test requires equality among
 the actual provider, the independent oracle, and Cargo source metadata. The exact
 rational solution and numerical tolerance derivations are unchanged.
 

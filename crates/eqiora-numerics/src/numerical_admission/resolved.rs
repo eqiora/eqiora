@@ -294,6 +294,15 @@ impl ResolvedCommonPlan {
         self.linear_policy()?.planning_profile.as_ref()?.size()
     }
 
+    /// Effective decision-time forecast, distinct from the original caller request.
+    #[must_use]
+    pub fn solver_planning_cost_request(&self) -> Option<eqiora_solver::SolverCostRequest> {
+        self.linear_policy()?
+            .planning_profile
+            .as_ref()?
+            .cost_request()
+    }
+
     /// Decision-time candidate work proxies and scoped numeric payload estimates.
     #[must_use]
     pub fn solver_planning_costs(&self) -> &[eqiora_solver::SolverCandidateCost] {

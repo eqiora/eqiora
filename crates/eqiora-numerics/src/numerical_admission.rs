@@ -663,6 +663,7 @@ pub struct CommonTransientRunRequest {
 /// Opaque common spatial Plan owning authenticated Model, Mesh, and policy state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonSpatialPlan {
+    run_planning: Option<run_planning::RunPlanningContext>,
     harmonic: Option<crate::form_compiler::harmonic::HarmonicReduction>,
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
@@ -784,3 +785,5 @@ pub use native::AuthenticatedCommonMesh;
 use native::*;
 #[cfg(test)]
 mod tests;
+
+mod run_planning;

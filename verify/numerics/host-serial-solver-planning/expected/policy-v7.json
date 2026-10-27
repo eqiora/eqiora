@@ -10045,7 +10045,7 @@
   },
   "no_admitted_candidate": {
     "diagnostic_code": "EQ0807",
-    "diagnostic_message": "eqiora.host-serial-solver-planning/v6 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
+    "diagnostic_message": "eqiora.host-serial-solver-planning/v7 no admitted candidate; trace=[eqiora.faer.bicgstab-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-identity-reproducible-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
     "ordered_reasons": [
       [
         "eqiora.faer.bicgstab-general-identity-fast-f64",
@@ -10337,7 +10337,7 @@
       "selected_candidate_id": "eqiora.faer.bicgstab-general-identity-fast-f64"
     }
   ],
-  "policy_id": "eqiora.host-serial-solver-planning/v6",
+  "policy_id": "eqiora.host-serial-solver-planning/v7",
   "reason_ordering": [
     "ascending_candidate_id",
     "one_first_rejection_or_candidate.admitted",

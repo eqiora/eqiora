@@ -56,7 +56,11 @@ impl RecognizedNativeAdmission {
         Diagnostic,
     > {
         let properties = self.form_operator_properties(spatial, nonlinear)?;
-        if nonlinear.is_some() || temporal.is_some() || spatial.scalar_constraint().is_some() {
+        if temporal.is_some() {
+            let size = self.fixed_scalar_transient_size(spatial, scaling, nonlinear, temporal)?;
+            return Ok((properties, None, size));
+        }
+        if nonlinear.is_some() || spatial.scalar_constraint().is_some() {
             return Ok((properties, None, None));
         }
         let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
@@ -165,6 +169,60 @@ impl RecognizedNativeAdmission {
                 canonical.rows(),
                 canonical.column_indices().len(),
             )),
+        ))
+    }
+
+    /// Shape only: no matrix evaluation, diagonal assertion or invariance proof.
+    fn fixed_scalar_transient_size(
+        &self,
+        spatial: &NativeSpatialPolicy,
+        scaling: &eqiora_realization::SystemScaling,
+        nonlinear: Option<NonlinearSolvePlan>,
+        temporal: Option<&CommonTemporalPolicy>,
+    ) -> Result<Option<eqiora_solver::SolverPlanningSize>, Diagnostic> {
+        let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
+            return Ok(None);
+        };
+        if nonlinear.is_some()
+            || spatial.scalar_constraint().is_some()
+            || temporal
+                .and_then(CommonTemporalPolicy::as_backward_euler)
+                .is_none()
+            || !matches!(self.resources, NativeMeshResources::Cartesian { .. })
+            || equations.regions.iter().any(|region| {
+                region.form.motion().is_some()
+                    || !region.form.kinematics().is_empty()
+                    || region.form.is_nonlinear()
+                    || region.form.represented_fields().iter().any(|(_, ty)| {
+                        ty.scalar_domain() != eqiora_core::ScalarDomain::Real
+                            || ty.shape() != &eqiora_core::ValueShape::scalar()
+                    })
+            })
+        {
+            return Ok(None);
+        }
+        let selected = self.discretizations(spatial)?;
+        if selected.is_empty()
+            || selected.iter().any(|domain| {
+                domain.field_spaces().iter().any(|field| {
+                    field.space() != Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                })
+            })
+        {
+            return Ok(None);
+        }
+        // static_assembly binds authenticated geometry, prescribed inputs and
+        // quotient/essential maps. It constructs no State and does not evaluate
+        // numeric assembly packets. Each canonical unique CSR slot lies in N².
+        let (mapping, _) = equations.static_assembly(
+            &self.resources,
+            &selected,
+            scaling,
+            LinearOperatorProperties::General,
+        )?;
+        let coordinates = crate::region_assembly::mapping::RegionRealCoordinates::new(&mapping)?;
+        Ok(eqiora_solver::SolverPlanningSize::dense_bound(
+            coordinates.free_count(),
         ))
     }
 

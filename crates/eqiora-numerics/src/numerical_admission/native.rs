@@ -485,6 +485,22 @@ impl RecognizedNativeModel {
 }
 
 impl NativeNumericalAdmission {
+    /// Rebuild derived admission and policy identity for a newly resolved exact tuple.
+    /// Selection stays with the planner; this owner only rechecks its supplied result.
+    pub(super) fn with_linear_policy(
+        &self,
+        linear: NativeLinearPolicy,
+    ) -> Result<Self, Diagnostic> {
+        self.recognition.clone().complete(
+            self.spatial.clone(),
+            linear,
+            self.temporal.clone(),
+            self.time_backend,
+            self.nonlinear,
+            self.system_scaling.clone(),
+        )
+    }
+
     pub(super) fn authenticated_mesh(&self) -> AuthenticatedCommonMesh {
         AuthenticatedCommonMesh {
             resources: self.resources().clone(),

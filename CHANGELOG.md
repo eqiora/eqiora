@@ -6,21 +6,28 @@ listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- `Plan.for_run(steps=..., output_steps=...)` explicitly replans a bounded autonomous
+  scalar Q1 BackwardEuler workload before State creation. Saved Plans rederive the
+  workload and cost projections; execution rejects a changed schedule before work.
+  Work proxies include assembly, State/output replay and coordinate recovery, with
+  retained coordinate payload reported separately from the solver payload cap.
+  Only proven Faer sparse-LU retention forecasts one preparation; unknown work
+  remains unknown. Common Plan v25 replaces v24 without a compatibility decoder.
+
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.
-  Planner v6 admits these ten exact tuples; native work remains bounded by the
+  Planner v7 admits these ten exact tuples; native work remains bounded by the
   requested budget and acceptance uses the original residual and physical checks.
-
-
-### Changed
 
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
   `accept_with_execution` or `accept_with_verifier`. The former free functions
   are removed; all methods retain the same independent residual verification.
-- Host solver planning v6 uses explicit work forecasts and scoped numeric
+- Host solver planning v7 uses explicit work forecasts and scoped numeric
   payload bounds where existing assembly owners supply size facts. Exact manual
   controls remain unchanged; forecasts do not grant prepared-state reuse or
-  predict elapsed time or process RSS. Current common Plan artifacts use v24;
+  predict elapsed time or process RSS. Current common Plan artifacts use v25;
   previous Plan schemas are rejected rather than migrated.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.

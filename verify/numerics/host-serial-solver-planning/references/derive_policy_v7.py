@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v6.
+"""Independent exact General-profile oracle for host-serial solver planning v7.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v6"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v6.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v7"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v7.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -875,9 +875,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v6.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v7.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v6 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v7 oracle: exact derivation and mutants passed")
     return 0
 
 

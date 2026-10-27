@@ -191,6 +191,8 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     where
         Self: RegionAlgebraicCoordinates<A, S>,
     {
+        let _phase =
+            eqiora_execution::telemetry_span!(assembly("scalar_region_finalization")).entered();
         self.validate_solve_input(mesh, input)?;
         let multipliers = input
             .forms
