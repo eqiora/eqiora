@@ -308,25 +308,76 @@ def test_dataset_splits_normalization_identity_and_failed_history(workflow, tmp_
     np.testing.assert_array_equal(data["training_std"], data["observations"][mask].std(axis=0))
     assert np.max(heldout_error[:2]) < 0.06  # Independent q*h²/(12*min(k)) bound, n=8.
     assert heldout_error[2] < 1e-8
-    statuses = workflow["failure_and_retry"](program, tmp_path)
-    assert statuses == [["accepted", "failed", "not_started"],
-                        ["failed", "not_started"], ["accepted", "accepted"]]
-    original = q.EvaluationCollection.read(tmp_path / "interrupted.eqcollection")
-    history = q.EvaluationCollection.read(tmp_path / "retry-history.eqcollection")
-    for retained, before in zip(history[0][0].result.output, original[0][0].result.output, strict=True):
-        np.testing.assert_array_equal(retained, before)
-    assert history[0][0].reference == original[0][0].reference
-    assert history[0][0].occurrence_id == original[0][0].occurrence_id
-    assert history[0][1].diagnostics[0].code == "EQ0505"
-    assert history[2][1].reference == history[0][0].reference
-    for retried, requested in zip(history[2][1].point, history[0][2].point, strict=True):
-        np.testing.assert_array_equal(retried, requested)
-    assert history[2][1].occurrence_id != history[0][2].occurrence_id
     # Common collection ownership rejects stale/reordered sample attribution.
     wire = json.loads(collection.to_bytes())
     wire["groups"][0]["members"].reverse()
     with pytest.raises(q.ValidationError, match="attribution"):
         q.EvaluationCollection.from_bytes(json.dumps(wire).encode())
+
+
+@pytest.mark.parametrize("solver,cells,conductivity,heating,boundary", [
+    ("direct", 8, (2.0, 5.0), 20.0, 310.0),
+    ("iterative", 12, (3.0, 4.0), 15.0, 308.0),
+])
+def test_ordinary_ordered_study_retries_only_unsuccessful_and_retains_history(
+        workflow, tmp_path, solver, cells, conductivity, heating, boundary):
+    model, plan, _ = workflow["prepare"](cells, solver, conductivities=conductivity,
+        heating=heating, right_temperature=boundary)
+    history = workflow["failure_and_retry"](model, plan, tmp_path)
+    assert [[member.status for member in group] for group in history] == [
+        ["accepted", "accepted", "accepted", "failed", "not_started"],
+        ["failed", "not_started"], ["accepted", "accepted"]]
+    original = q.EvaluationCollection.read(tmp_path / "interrupted.eqcollection")
+    reopened = q.EvaluationCollection.read(tmp_path / "retry-history.eqcollection")
+    assert reopened.to_bytes() == history.to_bytes()
+    group = history[0]
+    assert tuple(parameter.id for parameter in group.parameters) == tuple(
+        model.parameter(name).id for name in ("log_k", "heating", "right_temperature"))
+    assert all(parameter.model_digest == model.digest for parameter in group.parameters)
+    assert group[0].plan.identity == group[2].plan.identity == plan.identity
+    assert group[1].plan.identity != plan.identity
+    assert len({member.occurrence_id for member in group}) == 5
+    expected_points = [(np.log(conductivity), heating, boundary),
+                       (np.log([1.5, 4.5]), 40.0, 302.0),
+                       (np.log(conductivity), heating, boundary)]
+    for member, wanted in zip(list(group)[:3], expected_points, strict=True):
+        assert isinstance(member.result, q.Result)
+        for value, expected in zip(member.point, wanted, strict=True):
+            np.testing.assert_array_equal(value, expected)
+    for accepted in (group, history[2]):
+        for member in accepted:
+            if member.status != "accepted":
+                continue
+            log_k, source, temperature = member.point
+            k = np.exp(log_k)
+            expected, _ = continuum_temperature(np.linspace(0, 1, cells + 1), k, source, temperature)
+            actual = member.result.output(member.plan.fields[0]).values("vertex").numpy()
+            np.testing.assert_allclose(actual, expected, rtol=0, atol=2e-9)
+            observations = continuum_observations(k, source, temperature)
+            observations[:2] -= source / (12 * cells**2 * k)
+            for name, wanted in zip(workflow["SENSOR_NAMES"], observations, strict=True):
+                observable = member.plan.model.observable(model.observable("definition." + name).id)
+                observed = member.result.observe(observable, quadrature_points=2)
+                np.testing.assert_allclose(observed.value, wanted, rtol=0, atol=2e-9)
+            assert member.plan.solve.provider == plan.solve.provider
+            assert member.plan.mesh.digest == plan.mesh.digest
+            assert member.result.solve.true_residual_norm <= member.result.solve.residual_target
+    for index in range(3):
+        assert group[index].reference == original[0][index].reference
+        assert group[index].occurrence_id == original[0][index].occurrence_id
+        assert group[index].result.to_bytes() == original[0][index].result.to_bytes()
+    assert group[3].diagnostics and group[3].diagnostics[0].message
+    assert len({item.execution_id for item in history}) == 3
+    for index, unsuccessful in enumerate((group[3], group[4])):
+        for retried, requested in zip(history[1][index].point, unsuccessful.point, strict=True):
+            np.testing.assert_array_equal(retried, requested)
+    for retried, requested in zip(history[2][1].point, group[4].point, strict=True):
+        np.testing.assert_array_equal(retried, requested)
+    assert history[2][1].occurrence_id != group[4].occurrence_id
+    assert history[2][0].plan.identity == plan.identity
+    summary = workflow["_study_summary"](group)
+    assert summary["members"][3]["diagnostics"]
+    assert summary["members"][3]["temperature_K"] is None
 
 
 def test_invalid_coefficients_units_and_stale_observations(workflow, tmp_path):
@@ -378,8 +429,12 @@ def test_installed_research_module_runs_outside_checkout(tmp_path):
     assert retained["dataset_complete"] and retained["dataset_members"] == 18
 
 
-@pytest.mark.parametrize("solver", ["direct", "iterative"])
-def test_downloaded_source_and_fresh_process_offline_reopening(workflow, tmp_path, solver):
+@pytest.mark.parametrize("solver,cells,conductivity,heating,boundary", [
+    ("direct", 16, (2.0, 5.0), 20.0, 310.0),
+    ("iterative", 24, (3.0, 4.0), 15.0, 308.0),
+])
+def test_downloaded_source_and_fresh_process_offline_reopening(
+        workflow, tmp_path, solver, cells, conductivity, heating, boundary):
     pytest.importorskip("scipy")
     downloaded = tmp_path / "downloaded"
     downloaded.mkdir()
@@ -387,12 +442,23 @@ def test_downloaded_source_and_fresh_process_offline_reopening(workflow, tmp_pat
         shutil.copyfile(SOURCE / name, downloaded / name)
     output = tmp_path / "accepted"
     completed = subprocess.run([sys.executable, "-I", str(downloaded / "research_workflow.py"),
-        "--output", str(output), "--solver", solver], cwd=tmp_path, capture_output=True, text=True, check=True, timeout=120)
+        "--output", str(output), "--solver", solver, "--cells", str(cells),
+        "--conductivities", *(str(value) for value in conductivity), "--heating", str(heating),
+        "--right-temperature", str(boundary)],
+        cwd=tmp_path, capture_output=True, text=True, check=True, timeout=120)
     summary = json.loads(completed.stdout)
     assert summary["dataset_members"] == 18
     assert np.asarray(summary["probe_gradient_wrt_log_conductivities"]).shape == (2,)
     assert summary["probe_scaled_objective"] > summary["clean_scaled_objective"]
     assert summary["reference_temperature_mean_error_bound_K"] < 0.0005
+    study = summary["ordered_parameter_study"]
+    assert study["parameter_ids"] == summary["parameter_ids"]
+    expected = [(conductivity, heating, boundary), ((1.5, 4.5), 40.0, 302.0),
+                (conductivity, heating, boundary)]
+    for member, (k, source, temperature) in zip(study["members"][:3], expected, strict=True):
+        wanted, _ = continuum_temperature(np.linspace(0, 1, cells + 1), k, source, temperature)
+        np.testing.assert_allclose(member["temperature_K"], wanted, rtol=0, atol=2e-9)
+        assert member["status"] == "accepted"
     # Disable live entry points: offline reopening must use the persisted owners.
     script = """
 import json, pathlib, runpy, sys
@@ -410,3 +476,4 @@ print(json.dumps(source['reopen'](pathlib.Path(sys.argv[2]))))
     assert retained["plan_identity"] == summary["plan_identity"]
     assert retained["dataset_complete"] and retained["dataset_members"] == 18
     assert retained["history"] == summary["retry_history"]
+    assert retained["ordered_parameter_study"] == study
