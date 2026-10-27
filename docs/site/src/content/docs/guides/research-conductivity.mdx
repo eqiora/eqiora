@@ -212,7 +212,7 @@ The development recipe uses `EvaluationMapPlan.from_parameters` for ordinary
 stationary Runs, selecting the original Model's `log_k`, `heating` and
 `right_temperature` Parameters. Its ordered points are the command-line baseline,
 a changed case with conductivities $(1.5,4.5)$, heating 40 and right temperature
-302 K, the baseline again, an invalid input, and the changed case again. Each
+302 K, the baseline again, an invalid `log_k_left=1000` input, and the changed case again. Each
 accepted occurrence retains its own exact Plan and typed temperature Field.
 
 The first group contains three `accepted` occurrences, then `failed` and
@@ -225,7 +225,7 @@ input identity and new execution occurrences. All three initially accepted
 members retain their exact bytes and occurrence identities.
 
 `summary.json` exposes this group as `ordered_parameter_study`: Parameter IDs,
-ordered physical input values, statuses and diagnostics, each accepted Plan
+ordered typed input values, statuses and diagnostics, each accepted Plan
 identity, and nodal temperatures in K. `--reopen` projects the same information
 without solving. The dataset and inverse derivative calculations still use their
 existing differentiable maps; the ordinary study does not change their accepted
