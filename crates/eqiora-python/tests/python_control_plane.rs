@@ -320,7 +320,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
 
         let native_module = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
         let module = native_module.bind(py);
-        assert_eq!(module.getattr("__version__")?.extract::<String>()?, "0.1.4");
+        assert_eq!(module.getattr("__version__")?.extract::<String>()?, "0.1.5");
         for optional in ["numpy", "torch", "jax"] {
             assert!(
                 !loaded.contains(optional)?,

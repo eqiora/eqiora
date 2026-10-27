@@ -5662,7 +5662,7 @@
       "id": "eqiora.faer.bicgstab-general-identity-fast-f64",
       "solver_provider": {
         "id": "eqiora.faer",
-        "implementation_version": "0.1.4",
+        "implementation_version": "0.1.5",
         "libraries": [
           {
             "name": "faer",
@@ -5683,7 +5683,7 @@
       "id": "eqiora.faer.bicgstab-general-jacobi-fast-f64",
       "solver_provider": {
         "id": "eqiora.faer",
-        "implementation_version": "0.1.4",
+        "implementation_version": "0.1.5",
         "libraries": [
           {
             "name": "faer",
@@ -5704,7 +5704,7 @@
       "id": "eqiora.faer.sparse-lu-general-identity-fast-f64",
       "solver_provider": {
         "id": "eqiora.faer",
-        "implementation_version": "0.1.4",
+        "implementation_version": "0.1.5",
         "libraries": [
           {
             "name": "faer",
@@ -5725,7 +5725,7 @@
       "id": "eqiora.reference.bicgstab-general-identity-reproducible-f64",
       "solver_provider": {
         "id": "eqiora.reference",
-        "implementation_version": "0.1.4",
+        "implementation_version": "0.1.5",
         "libraries": []
       },
       "tuple": {
@@ -5741,7 +5741,7 @@
       "id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
       "solver_provider": {
         "id": "eqiora.reference",
-        "implementation_version": "0.1.4",
+        "implementation_version": "0.1.5",
         "libraries": []
       },
       "tuple": {
@@ -5949,7 +5949,7 @@
     "absolute_tolerance_f64_bits": "0x3d06849b86a12b9b",
     "execution_provider": {
       "id": "eqiora.host.serial",
-      "implementation_version": "0.1.4",
+      "implementation_version": "0.1.5",
       "libraries": []
     },
     "initial_guess": "implicit-zero",
@@ -5997,7 +5997,7 @@
           "id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -6014,7 +6014,7 @@
           "id": "eqiora.faer.sparse-lu-general-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": [
               {
                 "name": "faer",
@@ -6220,7 +6220,7 @@
           "id": "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": [
               {
                 "name": "faer",
@@ -6390,7 +6390,7 @@
           "id": "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": [
               {
                 "name": "faer",
@@ -6560,7 +6560,7 @@
           "id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -6577,7 +6577,7 @@
           "id": "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64",
           "solver_provider": {
             "id": "eqiora.faer",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": [
               {
                 "name": "faer",
