@@ -195,6 +195,225 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
     assert!(error.message().contains("authenticated mesh digest"));
 }
 
+#[test]
+fn public_finalization_retains_requested_bicgstab_harmonic_policy() {
+    let document = ModelDocument::compile("ale-motion-solver.eqi", DIRECT_SOURCE).unwrap();
+    let canonical = lower_ale_fsi_cartesian::<2>(document.program()).unwrap();
+    let fixture = Fixture::new(document, canonical);
+    let motion_solver = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(500).unwrap(),
+    )
+    .unwrap()
+    .with_reduction(ReductionPolicy::Fast);
+    let time_step = 0.01;
+    let resolved = resolve_fixed_topology_ale_coupled(
+        &FixedTopologyAleCoupledRealizationRequest::explicit(
+            fixture.canonical.model(),
+            SemanticRevision::new(fixture.canonical.semantic_revision()),
+            RealizationRevision::new(1),
+            realization_plan_with_motion_solver(
+                &fixture.canonical,
+                fixture.mesh_reference,
+                time_step,
+                nonlinear_solver_plan(),
+                motion_solver,
+            ),
+        ),
+        fixed_topology_ale_fsi_requirements(&fixture.canonical),
+        &capabilities_with_motion_solver(motion_solver),
+    )
+    .unwrap();
+    let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
+        &fixture.canonical,
+        &resolved,
+        fixture.mesh_reference,
+        &fixture.mesh,
+        &fixture.partition,
+        &fixture.boundary,
+        fixture.initial_physical(time_step),
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    assert_eq!(finalized.model(), fixture.canonical.model());
+    assert_eq!(finalized.mesh_artifact(), fixture.mesh_reference);
+    assert_eq!(finalized.initial_state().time(), 0.);
+    let [
+        eqiora::realization::GeometryActionNode::P1HarmonicExtension {
+            solver, duration, ..
+        },
+    ] = finalized.realization_graph().geometry_actions()
+    else {
+        panic!("one exact geometry action")
+    };
+    assert_eq!(*solver, motion_solver);
+    assert_eq!(duration.value(), time_step);
+    let motion = finalized.motion();
+    assert_eq!(motion.policy().solver(), motion_solver);
+    motion
+        .validate_reference(&fixture.mesh, &fixture.partition)
+        .unwrap();
+    for report in motion.influence_solve_reports() {
+        assert_eq!(report.solver_plan(), motion_solver);
+        assert_eq!(report.solver_provider(), FaerLinearSolver.provider());
+        assert_eq!(
+            report.execution(),
+            eqiora::solver::ExecutionReport::host_serial()
+        );
+        assert!(report.completed_iterations() <= motion_solver.maximum_iterations().get());
+        assert!(report.true_residual_norm() <= report.residual_target());
+    }
+    // The uniform right-triangle patch has interior stiffness 4 and
+    // four axial weights -1. Three neighbors are fixed; the fourth is
+    // (1,1/2), with affine driver (2/1024, 3/4096).
+    let driver = fixture
+        .partition
+        .domain_vertices(solid_domain(&fixture.canonical))
+        .unwrap()
+        .iter()
+        .map(|&vertex| {
+            let p = &fixture.mesh.vertices()[vertex.index()];
+            (
+                vertex,
+                [(p[0] + 2. * p[1]) / 1024., (2. * p[0] - p[1]) / 2048.],
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let displacement = motion
+        .apply([(solid_displacement(&fixture.canonical), &driver)])
+        .unwrap();
+    let interior = fixture.vertex([0.5, 0.5]);
+    for (actual, expected) in displacement[interior].iter().zip([1. / 2048., 3. / 16384.]) {
+        assert!((actual - expected).abs() < 1e-13);
+    }
+    assert_eq!(
+        displacement,
+        motion
+            .apply_jvp([(solid_displacement(&fixture.canonical), &driver)])
+            .unwrap()
+    );
+    for vertex in motion.fixed_exterior_vertices() {
+        assert_eq!(displacement[vertex.index()], [0.; COMPONENTS]);
+    }
+    for (vertex, value) in driver {
+        assert_eq!(displacement[vertex.index()], value);
+    }
+    let motion = motion.clone();
+    let trajectory = finalized
+        .solve(NonZeroStepCount::new(NonZeroUsize::MIN), &FaerLinearSolver)
+        .unwrap();
+    assert_eq!(trajectory.steps().len(), 1);
+    assert_eq!(trajectory.final_state().time(), time_step);
+    assert_harmonic_geometry_replays(&fixture, &motion, &trajectory);
+    assert_consecutive_geometry_and_evidence_for_realization(
+        &fixture,
+        &resolved,
+        &trajectory,
+        time_step,
+        LinearSolver::BiConjugateGradientStabilized,
+    );
+    assert_moving_artifact_dag_replays_for_realization(&fixture, &trajectory, &resolved);
+}
+
+#[test]
+fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
+    let document = ModelDocument::compile("ale-motion-profiles.eqi", DIRECT_SOURCE).unwrap();
+    let canonical = lower_ale_fsi_cartesian::<2>(document.program()).unwrap();
+    let fixture = Fixture::new(document, canonical);
+    let driver = fixture
+        .partition
+        .domain_vertices(solid_domain(&fixture.canonical))
+        .unwrap()
+        .iter()
+        .map(|&vertex| (vertex, [1. / 1024., -1. / 2048.]))
+        .collect::<BTreeMap<_, _>>();
+    let mut exercised = Vec::new();
+    for tuple in FaerLinearSolver
+        .capabilities()
+        .combinations()
+        .iter()
+        .filter(|tuple| {
+            tuple.scalar_domain == eqiora_core::ScalarDomain::Real
+                && tuple.scalar_type == ScalarType::F64
+                && tuple.operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
+        })
+    {
+        let solver = SolverPlan::new(
+            tuple.algorithm,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(tuple.preconditioner)
+        .with_reduction(tuple.reduction);
+        let policy = P1HarmonicMeshMotionPolicy::new(
+            [fluid_domain(&fixture.canonical)],
+            [(
+                solid_domain(&fixture.canonical),
+                solid_displacement(&fixture.canonical),
+            )],
+            [connection(&fixture.canonical)],
+            AleGeometryQualityGate::new(0.3).unwrap(),
+            solver,
+        )
+        .unwrap();
+        let action = P1HarmonicMeshMotionAction::new(
+            &fixture.mesh,
+            &fixture.partition,
+            policy,
+            eqiora::solver::LinearSolveRequest::new(&FaerLinearSolver, solver),
+        )
+        .unwrap();
+        let actual = action
+            .apply([(solid_displacement(&fixture.canonical), &driver)])
+            .unwrap();
+        // Independent four-point Laplacian: the sole free vertex is one
+        // quarter of its nonzero interface neighbor, with three fixed neighbors.
+        let interior = fixture.vertex([0.5, 0.5]);
+        for (actual, expected) in actual[interior].iter().zip([1. / 4096., -1. / 8192.]) {
+            assert!((actual - expected).abs() < 1e-13);
+        }
+        assert_eq!(
+            actual,
+            action
+                .apply_jvp([(solid_displacement(&fixture.canonical), &driver)])
+                .unwrap()
+        );
+        for report in action.influence_solve_reports() {
+            assert_eq!(report.solver_plan(), solver);
+            assert_eq!(report.solver_provider(), FaerLinearSolver.provider());
+            assert!(report.true_residual_norm() <= report.residual_target());
+            assert!(report.completed_iterations() <= solver.maximum_iterations().get());
+        }
+        exercised.push((tuple.algorithm, tuple.preconditioner));
+    }
+    assert_eq!(
+        exercised,
+        vec![
+            (
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity
+            ),
+            (
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Jacobi
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                PreconditionerPolicy::Identity
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                PreconditionerPolicy::Jacobi
+            ),
+            (LinearSolver::SparseLu, PreconditionerPolicy::Identity),
+        ]
+    );
+}
+
 struct Fixture {
     document: ModelDocument,
     canonical: AleFsiCartesianModel<2>,
@@ -406,6 +625,18 @@ fn assert_moving_artifact_dag_replays(
     trajectory: &AleFsiTrajectory<2>,
     time_step: f64,
 ) {
+    assert_moving_artifact_dag_replays_for_realization(
+        fixture,
+        trajectory,
+        &fixture.resolve(time_step),
+    );
+}
+
+fn assert_moving_artifact_dag_replays_for_realization(
+    fixture: &Fixture,
+    trajectory: &AleFsiTrajectory<2>,
+    resolved: &ResolvedFixedTopologyAleCoupledRealization,
+) {
     let model = ModelEnvelope::from_program(fixture.document.program()).unwrap();
     assert_eq!(
         model.canonical_json().unwrap(),
@@ -423,7 +654,6 @@ fn assert_moving_artifact_dag_replays(
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &fixture.mesh_artifact)
             .unwrap();
-    let resolved = fixture.resolve(time_step);
     let realization = RealizationEnvelope::new(
         &model,
         resolved.portable_graph().unwrap(),
@@ -541,10 +771,13 @@ fn assert_moving_artifact_dag_replays(
         final_root.previous_root(),
         Some(initial_root.digest().unwrap())
     );
-    assert_eq!(final_root.last_step(), 2);
+    assert_eq!(
+        final_root.last_step(),
+        u64::try_from(trajectory.steps().len()).unwrap()
+    );
     assert_eq!(
         final_root.last_geometry_state(),
-        geometry_states[2].digest().unwrap()
+        geometry_states.last().unwrap().digest().unwrap()
     );
 
     let bytes = final_root.canonical_json().unwrap();
@@ -708,9 +941,25 @@ fn assert_consecutive_geometry_and_evidence(
     time_step: f64,
     algorithm: LinearSolver,
 ) {
+    assert_consecutive_geometry_and_evidence_for_realization(
+        fixture,
+        &fixture.resolve(time_step),
+        trajectory,
+        time_step,
+        algorithm,
+    );
+}
+
+fn assert_consecutive_geometry_and_evidence_for_realization(
+    fixture: &Fixture,
+    resolved: &ResolvedFixedTopologyAleCoupledRealization,
+    trajectory: &AleFsiTrajectory<2>,
+    time_step: f64,
+    algorithm: LinearSolver,
+) {
     let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
         &fixture.canonical,
-        &fixture.resolve(time_step),
+        resolved,
         fixture.mesh_reference,
         &fixture.mesh,
         &fixture.partition,
@@ -897,6 +1146,22 @@ fn realization_plan(
     time_step: f64,
     linear_solver: SolverPlan,
 ) -> FixedTopologyAleCoupledRealizationPlan {
+    realization_plan_with_motion_solver(
+        model,
+        mesh_artifact,
+        time_step,
+        linear_solver,
+        harmonic_solver_plan(),
+    )
+}
+
+fn realization_plan_with_motion_solver(
+    model: &AleFsiCartesianModel<2>,
+    mesh_artifact: MeshArtifactReference,
+    time_step: f64,
+    linear_solver: SolverPlan,
+    motion_solver: SolverPlan,
+) -> FixedTopologyAleCoupledRealizationPlan {
     let p1 = Space::continuous_lagrange(NonZeroU16::MIN);
     let length = physical_scale(2.0, LENGTH);
     let velocity = physical_scale(1.0, VELOCITY);
@@ -971,7 +1236,7 @@ fn realization_plan(
             [(solid_domain(model), solid_displacement(model))],
             [connection(model)],
             AleGeometryQualityGate::new(0.3).unwrap(),
-            harmonic_solver_plan(),
+            motion_solver,
         )
         .unwrap(),
         GclCompatibleAlePullback::new(fluid_relation(model), fluid_velocity(model)),
@@ -981,6 +1246,19 @@ fn realization_plan(
 }
 
 fn capabilities() -> RealizationCapabilities {
+    capabilities_with_motion_solver(harmonic_solver_plan())
+}
+
+fn capabilities_with_motion_solver(motion_solver: SolverPlan) -> RealizationCapabilities {
+    FaerLinearSolver
+        .capabilities()
+        .require_problem(
+            motion_solver,
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .expect("the fixture profile must be an exact implemented provider tuple");
     RealizationCapabilities::cartesian_product(
         [DiscretizationMethod::ContinuousGalerkin],
         [(
@@ -1007,10 +1285,10 @@ fn capabilities() -> RealizationCapabilities {
             },
             SolverCapability {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
+                algorithm: motion_solver.algorithm(),
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
+                preconditioner: motion_solver.preconditioner(),
+                reduction: motion_solver.reduction(),
                 scalar_type: ScalarType::F64,
             },
         ])
