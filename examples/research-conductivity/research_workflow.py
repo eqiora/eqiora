@@ -205,24 +205,43 @@ def write_dataset(program, reference, output):
     return collection, np.max(np.abs(errors), axis=0)
 
 
-def failure_and_retry(program, output):
-    points = (np.array([[0.0, 0.0], [1000.0, 0.0], [0.0, 0.0]]),
-              np.full(3, 20.0), np.full(3, 310.0))
-    first = program.map(points, point_shape=(3,)).execute_recorded()
+def failure_and_retry(model, plan, output):
+    """An ordinary ordered study and explicit retries retain accepted history."""
+    parameters = tuple(model.parameter(name) for name in
+        ("log_k", "heating", "right_temperature"))
+    baseline = tuple(parameter.value for parameter in parameters)
+    changed = (log_conductivities((1.5, 4.5)).tolist(), 40.0, 302.0)
+    # exp(1000) cannot produce a finite conductivity. Keep the failed occurrence
+    # and its unstarted sibling; neither is an accepted observation or a dataset target.
+    invalid = ([1000.0, 0.0], baseline[1], baseline[2])
+    points = [baseline, changed, baseline, invalid, changed]
+    first = q.EvaluationMapPlan.from_parameters(plan, parameters, points).execute_recorded()
     first.write(output / "interrupted.eqcollection")
     # Offline reopening preserves accepted history before a fresh request is made.
     first = q.EvaluationCollection.read(output / "interrupted.eqcollection")
-    unsuccessful = [i for i, member in enumerate(first[0]) if member.status != "accepted"]
+    group = first[0]
+    unsuccessful = [member.point for member in group if member.status != "accepted"]
     # An exact retry of the invalid log input still fails; it must not be reported as success.
-    exact = program.map(tuple(np.ascontiguousarray(values[unsuccessful]) for values in points),
-        point_shape=(len(unsuccessful),)).execute_recorded()
+    exact = q.EvaluationMapPlan.from_parameters(
+        group.plan, group.parameters, unsuccessful).execute_recorded()
     # Correction is an explicitly changed request, with new reference and occurrence identities.
-    corrected = tuple(np.ascontiguousarray(values[unsuccessful]) for values in points)
-    corrected[0][0] = np.log([2.0, 5.0])
-    amended = program.map(corrected, point_shape=(len(unsuccessful),)).execute_recorded()
+    corrected = [(baseline[0], *unsuccessful[0][1:]), *unsuccessful[1:]]
+    amended = q.EvaluationMapPlan.from_parameters(
+        group.plan, group.parameters, corrected).execute_recorded()
     history = q.EvaluationCollection.combine([first, exact, amended])
     history.write(output / "retry-history.eqcollection")
-    return [[member.status for member in group] for group in history]
+    return history
+
+
+def _study_summary(group):
+    """Project the saved ordinary Results for user inspection; no solve is performed."""
+    return {"parameter_ids": [parameter.id for parameter in group.parameters],
+        "members": [{"point": [np.asarray(value).tolist() for value in member.point],
+            "status": member.status,
+            "diagnostics": [d.code + ": " + d.message for d in member.diagnostics],
+            "plan_identity": member.plan.identity if member.status == "accepted" else None,
+            "temperature_K": member.result.output(member.plan.fields[0]).values("vertex").numpy().tolist()
+                if member.status == "accepted" else None} for member in group]}
 
 
 def reopen(output):
@@ -233,7 +252,8 @@ def reopen(output):
     history = q.EvaluationCollection.read(output / "retry-history.eqcollection")
     return {"plan_identity": plan.identity, "result_bytes": len(result.to_bytes()),
         "dataset_members": len(dataset[0]), "dataset_complete": dataset.complete,
-        "history": [[member.status for member in group] for group in history]}
+        "history": [[member.status for member in group] for group in history],
+        "ordered_parameter_study": _study_summary(history[0])}
 
 
 def run(output, cells=16, solver="direct", conductivities=(2.0, 5.0),
@@ -285,7 +305,7 @@ def run(output, cells=16, solver="direct", conductivities=(2.0, 5.0),
     start = time.perf_counter()
     dataset, parameter_holdout_error = write_dataset(program, reference, output)
     timings["dataset_s"] = time.perf_counter() - start
-    history = failure_and_retry(program, output)
+    history = failure_and_retry(model, plan, output)
     steps, errors = taylor_remainders(program, np.log([3.0, 3.0]), loads, observed)
     _, wrong = taylor_remainders(program, np.log([3.0, 3.0]), loads, observed, wrong_gradient=True)
     singular_values = np.linalg.svd(sensitivity(program, truth, loads), compute_uv=False)
@@ -331,7 +351,9 @@ def run(output, cells=16, solver="direct", conductivities=(2.0, 5.0),
         "wrong_gradient_remainders": wrong.tolist(),
         "solver_true_residual_norm": evidence.true_residual_norm,
         "solver_residual_target": evidence.residual_target,
-        "dataset_members": len(dataset[0]), "retry_history": history,
+        "dataset_members": len(dataset[0]),
+        "ordered_parameter_study": _study_summary(history[0]),
+        "retry_history": [[member.status for member in group] for group in history],
         "timings": timings, "peak_process_rss_KiB_linux": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
