@@ -8,6 +8,9 @@ listed here.
 
 ### Changed
 
+- Linear solution acceptance is constructed with `LinearSolution::accept`,
+  `accept_with_execution` or `accept_with_verifier`. The former free functions
+  are removed; all methods retain the same independent residual verification.
 - Host solver planning v4 uses explicit work forecasts and scoped numeric
   payload bounds where existing assembly owners supply size facts. Exact manual
   controls remain unchanged; forecasts do not grant prepared-state reuse or
