@@ -374,7 +374,7 @@ fn complex_spatial_objectives_admit_structure_before_selecting_typed_backend() {
                 &REFERENCE_LINEAR_SOLVER as &'static dyn eqiora::solver::LinearSolverBackend,
             ),
             (SolverPlanningObjective::Fast, &FaerLinearSolver),
-            (SolverPlanningObjective::LowMemory, &REFERENCE_LINEAR_SOLVER),
+            (SolverPlanningObjective::LowMemory, &FaerLinearSolver),
         ] {
             let request = CommonLinearRequest::program_controlled(
                 1e-14,
