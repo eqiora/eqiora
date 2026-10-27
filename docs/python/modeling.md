@@ -1439,7 +1439,8 @@ The v4 planner first rejects mathematical, provider, reduction, and resource
 incompatibilities. When the existing assembly or coordinate owner supplies size
 facts, `Robust` prefers reproducible reductions and then the work proxy; `Fast`
 prefers Fast reductions and then that proxy. `LowMemory` prefers known accounted
-numeric payload, then work. Missing size facts retain deterministic preferences
+numeric payload, then work. Unknown payloads retain an iterative-before-LU
+preference: work is not evidence of lower memory. Missing size facts retain deterministic preferences
 and an explicit unknown-size reason, preserving the CG/MINRES preference for their admitted symmetric classes. Inspect `plan.solve.planning_rows`,
 `planning_stored_slots`, `planning_slots_exact`, `cost_assumptions`,
 `planning_costs`, and `planning_reasons` on a linear Plan.
