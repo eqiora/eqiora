@@ -11,11 +11,15 @@ listed here.
 - Linear solution acceptance is constructed with `LinearSolution::accept`,
   `accept_with_execution` or `accept_with_verifier`. The former free functions
   are removed; all methods retain the same independent residual verification.
-- Host solver planning v4 uses explicit work forecasts and scoped numeric
+- Host solver planning v5 uses explicit work forecasts and scoped numeric
   payload bounds where existing assembly owners supply size facts. Exact manual
   controls remain unchanged; forecasts do not grant prepared-state reuse or
   predict elapsed time or process RSS. Current common Plan artifacts use v24;
   previous Plan schemas are rejected rather than migrated.
+- Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
+  Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
+  Unknown-shape Fast planning keeps sparse LU first, then CG/MINRES before BiCGSTAB
+  among iterative fallbacks after reduction priority.
 
 ## [0.1.4] - 2026-10-27
 
