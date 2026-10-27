@@ -252,6 +252,40 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             preconditioner: PreconditionerPolicy::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
+        REFERENCE_COMPLEX_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            ..expected_candidate(REFERENCE_COMPLEX_ID)
+        },
+        REFERENCE_COMPLEX_SYMMETRIC_ID | REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID => {
+            ExpectedCandidate {
+                properties: LinearOperatorProperties::ComplexSymmetric,
+                ..expected_candidate(if id == REFERENCE_COMPLEX_SYMMETRIC_ID {
+                    REFERENCE_COMPLEX_ID
+                } else {
+                    REFERENCE_COMPLEX_JACOBI_ID
+                })
+            }
+        }
+        REFERENCE_HERMITIAN_ID | REFERENCE_HERMITIAN_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::Hermitian,
+            ..expected_candidate(if id == REFERENCE_HERMITIAN_ID {
+                REFERENCE_COMPLEX_ID
+            } else {
+                REFERENCE_COMPLEX_JACOBI_ID
+            })
+        },
+        REFERENCE_HPD_BICGSTAB_ID | REFERENCE_HPD_BICGSTAB_JACOBI_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::HermitianPositiveDefinite,
+            ..expected_candidate(if id == REFERENCE_HPD_BICGSTAB_ID {
+                REFERENCE_COMPLEX_ID
+            } else {
+                REFERENCE_COMPLEX_JACOBI_ID
+            })
+        },
+        REFERENCE_HPD_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            ..expected_candidate(REFERENCE_HPD_ID)
+        },
         FAER_COMPLEX_LU_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Complex,
             properties: LinearOperatorProperties::General,

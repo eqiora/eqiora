@@ -3,7 +3,7 @@
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
 selects one exact `eqiora-solver` library-test aggregator. The public case owns
-the five real and six complex live backend tuple executions and public observations. This private case
+the five real and fourteen complex live backend tuple executions and public observations. This private case
 owns the complete adversarial catalog, control, profile, capability, reranking,
 problem-identity, zero-work, and exactly-once checks. The capability is verified
 only when both cases pass.
@@ -52,7 +52,7 @@ cargo run --locked -p eqiora-verify -- run \
   --case numerics.host-serial-solver-planning-private
 ```
 
-For structurally missing diagonal entries, the v4 check independently rejects
+For structurally missing diagonal entries, the v5 check independently rejects
 both Jacobi candidates and retains Identity BiCGSTAB and SparseLU. These tuples do not
 require diagonal storage for admission. Resolution still performs
 zero numerical actions; numerical nonsingularity and original-residual acceptance
