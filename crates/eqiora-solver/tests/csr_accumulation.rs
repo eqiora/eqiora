@@ -67,3 +67,38 @@ fn real_and_complex_storage_preserves_small_components_in_both_precisions() {
         [phase, 6. * phase, 3. * phase],
     );
 }
+
+#[test]
+fn captured_transpose_row_partitions_preserve_compensated_cancellation() {
+    use eqiora_solver::{
+        CanonicalCsrSystemView, LinearOperator, LinearOperatorProperties, Oriented,
+    };
+    let large = 2f64.powi(54);
+    let phase = Complex64::new(1., 2.);
+    let storage = Matrix([large, 1., -large, 1., 2., 3., -large, 3., large].map(|v| phase * v));
+    let one = Complex64::new(1., 0.);
+    let zero = Complex64::new(0., 0.);
+    let system =
+        CanonicalCsrSystemView::new(&storage, &[zero; 3], LinearOperatorProperties::General)
+            .unwrap();
+    for orientation in [Orientation::Transposed, Orientation::ConjugateTransposed] {
+        let oriented = Oriented::new(&system, orientation).unwrap();
+        let mut actual = [zero; 3];
+        let action = oriented.row_action().unwrap();
+        action
+            .apply_rows(0..1, &[one; 3], &mut actual[..1])
+            .unwrap();
+        action
+            .apply_rows(1..3, &[one; 3], &mut actual[1..])
+            .unwrap();
+        let expected = [phase, 6. * phase, 3. * phase];
+        assert_eq!(
+            actual,
+            if orientation == Orientation::ConjugateTransposed {
+                expected.map(|v| v.conj())
+            } else {
+                expected
+            }
+        );
+    }
+}

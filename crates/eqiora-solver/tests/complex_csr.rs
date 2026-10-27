@@ -71,6 +71,24 @@ fn captured_complex_coefficients_drive_all_three_actions_without_erasing_parts()
             .apply(&x, &mut actual)
             .unwrap();
         assert_eq!(actual, expected);
+        let oriented = Oriented::new(&system, orientation).unwrap();
+        let action = oriented.row_action().expect("captured oriented row action");
+        for (row, expected_value) in expected.iter().enumerate() {
+            let mut partial = [C::new(0., 0.)];
+            action.apply_rows(row..row + 1, &x, &mut partial).unwrap();
+            assert_eq!(partial, [*expected_value]);
+        }
+        for (range, input) in [
+            (2..3, x),
+            (std::ops::Range { start: 1, end: 0 }, x),
+            (0..1, [C::new(f64::NAN, 0.); 2]),
+        ] {
+            let mut untouched = [C::new(71., 9.)];
+            assert!(action.apply_rows(range, &input, &mut untouched).is_err());
+            assert_eq!(untouched, [C::new(71., 9.)]);
+        }
+        assert!(action.apply_rows(0..2, &x, &mut [C::new(0., 0.)]).is_err());
+        action.apply_rows(2..2, &x, &mut []).unwrap();
     }
 }
 

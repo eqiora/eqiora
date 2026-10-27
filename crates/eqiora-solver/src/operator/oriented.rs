@@ -77,11 +77,10 @@ where
         self.orientation
     }
     fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = Self::Scalar>> {
-        if self.orientation == LinearOperatorOrientation::Normal {
-            self.source.row_action()
-        } else {
-            None
-        }
+        self.source
+            .row_action()
+            .filter(|action| action.supports_row_orientation(self.orientation))
+            .map(|_| self as &dyn RowLinearAction<Scalar = Self::Scalar>)
     }
     fn diagonal(&self, output: &mut [Self::Scalar]) -> Result<DiagonalAvailability, Diagnostic> {
         let availability = self.source.diagonal(output)?;
@@ -93,6 +92,30 @@ where
             }
         }
         Ok(availability)
+    }
+}
+
+impl<O: OrientedLinearOperator + ?Sized> RowLinearAction for Oriented<'_, O>
+where
+    O::Scalar: ComplexFloat,
+{
+    type Scalar = O::Scalar;
+
+    fn apply_rows(
+        &self,
+        rows: Range<usize>,
+        input: &[Self::Scalar],
+        output: &mut [Self::Scalar],
+    ) -> Result<(), Diagnostic> {
+        self.source
+            .row_action()
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    codes::INVALID_REALIZATION,
+                    "source operator has no disjoint row action",
+                )
+            })?
+            .apply_oriented_rows(self.orientation, rows, input, output)
     }
 }
 
@@ -117,6 +140,21 @@ mod tests {
                 output.copy_from_slice(input);
                 Ok(())
             }
+            fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
+                Some(self)
+            }
+        }
+        impl RowLinearAction for NoDiagonal {
+            type Scalar = f64;
+            fn apply_rows(
+                &self,
+                rows: Range<usize>,
+                input: &[f64],
+                output: &mut [f64],
+            ) -> Result<(), Diagnostic> {
+                output.copy_from_slice(&input[rows]);
+                Ok(())
+            }
         }
         impl OrientedLinearOperator for NoDiagonal {
             fn supports_orientation(&self, _: LinearOperatorOrientation) -> bool {
@@ -131,7 +169,26 @@ mod tests {
                 self.apply(input, output)
             }
         }
+        assert!(
+            Oriented::new(&NoDiagonal, LinearOperatorOrientation::Normal)
+                .unwrap()
+                .row_action()
+                .is_some()
+        );
+        let transpose = Oriented::new(&NoDiagonal, LinearOperatorOrientation::Transposed).unwrap();
+        assert!(transpose.row_action().is_none());
         let mut output = [7.];
+        assert!(
+            NoDiagonal
+                .apply_oriented_rows(
+                    LinearOperatorOrientation::Transposed,
+                    0..1,
+                    &[1.],
+                    &mut output
+                )
+                .is_err()
+        );
+        assert_eq!(output, [7.]);
         assert_eq!(
             Oriented::new(&NoDiagonal, LinearOperatorOrientation::ConjugateTransposed)
                 .unwrap()
