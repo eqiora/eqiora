@@ -66,6 +66,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def admitted(
     algorithm: eqiora.solve.LinearSolver = eqiora.solve.LinearSolver.MinimumResidual,
+    *, faer: bool = False,
 ) -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
     geometry, mesh = geometry_and_mesh()
     model = eqiora.compile(path=files(eqiora).joinpath('examples', 'fixed-reference-fsi.eqi'), geometry=geometry, entry='FixedReferenceFsi2d', bindings={**support_bindings(geometry, ['fluid', 'solid'], [('fluid_x_lower', 'fluid'), ('fluid_x_upper', 'fluid'), ('fluid_y_lower', 'fluid'), ('fluid_y_upper', 'fluid'), ('solid_x_lower', 'solid'), ('solid_x_upper', 'solid'), ('solid_y_lower', 'solid'), ('solid_y_upper', 'solid')]), **PARAMETERS})
@@ -80,8 +81,8 @@ def admitted(
         solve=eqiora.solve.Linear(
             algorithm=algorithm,
             preconditioner=eqiora.solve.Preconditioner.Identity,
-            reduction=eqiora.solve.Reduction.Reproducible,
-            provider=eqiora.solve.SolverProvider.reference(),
+            reduction=(eqiora.solve.Reduction.Fast if faer else eqiora.solve.Reduction.Reproducible),
+            provider=(eqiora.solve.SolverProvider.faer() if faer else eqiora.solve.SolverProvider.reference()),
             relative_tolerance=1.0e-11,
             absolute_tolerance=1.0e-13,
             maximum_iterations=20_000,
@@ -259,14 +260,26 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
         eqiora.InitialField(model.field("definition.fluid_pressure"), values=[0.0])
 
 
-@pytest.mark.parametrize("algorithm", [
-    eqiora.solve.LinearSolver.MinimumResidual,
-    eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+@pytest.mark.parametrize("algorithm,faer", [
+    (eqiora.solve.LinearSolver.MinimumResidual, False),
+    (eqiora.solve.LinearSolver.BiConjugateGradientStabilized, False),
+    (eqiora.solve.LinearSolver.BiConjugateGradientStabilized, True),
+    (eqiora.solve.LinearSolver.SparseLu, True),
 ])
 def test_common_worker_run_outputs_restart_and_observation_evidence(
-    algorithm: eqiora.solve.LinearSolver,
+    algorithm: eqiora.solve.LinearSolver, faer: bool,
 ) -> None:
-    model, mesh, plan = admitted(algorithm)
+    model, mesh, plan = admitted(algorithm, faer=faer)
+    assert plan.solve.algorithm == {
+        eqiora.solve.LinearSolver.MinimumResidual: "minimum-residual",
+        eqiora.solve.LinearSolver.BiConjugateGradientStabilized: "bicgstab",
+        eqiora.solve.LinearSolver.SparseLu: "sparse-lu",
+    }[algorithm]
+    assert plan.solve.backend == ("eqiora.faer" if faer else "eqiora.reference")
+    assert plan.solve.reduction == ("fast" if faer else "reproducible")
+    assert plan.solve.relative_tolerance == 1e-11
+    assert plan.solve.absolute_tolerance == 1e-13
+    assert plan.solve.maximum_iterations == 20_000
     state = initial(model, mesh, plan)
     run = eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2))
     result = run.result()
@@ -310,6 +323,12 @@ def test_common_worker_run_outputs_restart_and_observation_evidence(
         assert observation.state_identity == output.digest
         assert observation.trajectory_identity == trajectory.digest
         assert observation.solve.algorithm == plan.solve.algorithm
+        assert observation.solve.backend == plan.solve.backend
+        assert observation.solve.reduction == plan.solve.reduction
+        assert observation.solve.maximum_iterations == plan.solve.maximum_iterations
+        assert observation.solve.completed_iterations <= plan.solve.maximum_iterations
+        assert observation.solve.relative_tolerance == plan.solve.relative_tolerance
+        assert observation.solve.absolute_tolerance == plan.solve.absolute_tolerance
         assert observation.solve.true_residual_norm <= observation.solve.residual_target
         assert observation.balance_error is None
 
@@ -530,18 +549,22 @@ model decay() {
 
 
 @pytest.mark.parametrize(
-    "objective",
-    [None, eqiora.solve.Robust, eqiora.solve.Fast, eqiora.solve.LowMemory],
+    "objective,faer_algorithm",
+    [(None, None), (eqiora.solve.Robust, None), (eqiora.solve.Fast, None),
+     (eqiora.solve.LowMemory, None),
+     (None, eqiora.solve.LinearSolver.BiConjugateGradientStabilized),
+     (None, eqiora.solve.LinearSolver.SparseLu)],
 )
 def test_manual_and_planned_runs_agree_without_sharing_observation_storage(
     objective: eqiora.solve.SolverPlanningObjective | None,
+    faer_algorithm: eqiora.solve.LinearSolver | None,
 ) -> None:
     model, plan, _, first = solved()
     mesh = plan.mesh
     assert mesh is not None
     selected = (
         plan
-        if objective is None
+        if objective is None and faer_algorithm is None
         else eqiora.resolve(
             model,
             mesh=mesh,
@@ -549,6 +572,14 @@ def test_manual_and_planned_runs_agree_without_sharing_observation_storage(
             temporal=plan.temporal,
             solve=eqiora.solve.Linear(
                 objective=objective,
+                relative_tolerance=plan.solve.relative_tolerance,
+                absolute_tolerance=plan.solve.absolute_tolerance,
+                maximum_iterations=plan.solve.maximum_iterations,
+            ) if faer_algorithm is None else eqiora.solve.Linear(
+                algorithm=faer_algorithm,
+                provider=eqiora.solve.SolverProvider.faer(),
+                preconditioner=eqiora.solve.Preconditioner.Identity,
+                reduction=eqiora.solve.Reduction.Fast,
                 relative_tolerance=plan.solve.relative_tolerance,
                 absolute_tolerance=plan.solve.absolute_tolerance,
                 maximum_iterations=plan.solve.maximum_iterations,

@@ -1694,8 +1694,18 @@ original equation-local State checks. The reference iteration continues within
 the requested iteration budget when the global norm passes before an algebraic
 State equation does. This does not relax either criterion or switch providers;
 nonconvergence remains an error. Saved States and Results repeat the original
-physical acceptance checks. These substitutions are development-only until the
-next published release includes this connection.
+physical acceptance checks.
+
+Faer `BiConjugateGradientStabilized` and `SparseLu`, both with Identity
+preconditioning and Fast reduction, also execute this workflow with the same
+controls. When an additional State check is present, Faer iterative solves retain
+the first candidate that satisfies both criteria while completing their bounded
+solver call. The report charges all iterations performed, including work after
+that candidate. A later operator or method error still rejects the solve; this
+is not an interruptible stop at the first accepted candidate. The caller's
+iteration limit and original acceptance tolerances remain unchanged. These
+substitutions are development-only until the next published release includes
+this connection.
 `scaling=None` chooses coupled scales automatically; supply a complete
 `IncompressibleScaling` value to choose them manually.
 
