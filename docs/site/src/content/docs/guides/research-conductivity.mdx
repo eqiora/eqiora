@@ -6,33 +6,29 @@ description: A bounded CPU workflow for forward prediction, multi-load inference
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../examples/research-conductivity/conductivity.eqi?raw';
-import modelDownload from '../../../../../../examples/research-conductivity/conductivity.eqi?url&no-inline';
-import programDownload from '../../../../../../examples/research-conductivity/research_workflow.py?url&no-inline';
 
-This development example follows a one-metre layered rod from a forward solve to
-conductivity inference and a reusable dataset. It exercises installed public APIs;
-its focused checks also run the downloaded files outside a source checkout.
-**Published-package acceptance is pending.** A candidate wheel carrying the source
-revision is required until this workflow is validated against a published release.
-The candidate's package version alone does not identify its implementation.
+This example follows a one-metre layered rod from a forward solve to
+conductivity inference and a reusable dataset using the public **Eqiora 0.1.4**
+package. Clean installations outside the source checkout have exercised its
+ordinary public APIs and reopened every saved study in a second fresh environment.
 
-<a href={modelDownload} download="conductivity.eqi">Download conductivity.eqi</a> and
-<a href={programDownload} download="research_workflow.py">download research_workflow.py</a>
-into the same directory if you want to inspect or edit them. The tutorial,
-installed module and checks use these exact sources.
+[Download conductivity.eqi](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.4/examples/research-conductivity/conductivity.eqi)
+and [research_workflow.py](https://raw.githubusercontent.com/eqiora/eqiora/v0.1.4/examples/research-conductivity/research_workflow.py)
+into the same directory if you want to inspect or edit them. These links pin the
+same source release as the installed example and its independent checks.
 
-## Install and run the candidate
+## Install and run the published example
 
-The checked environment is Linux x86-64, ordinary-GIL CPython 3.13, NumPy 2.5.4,
+The checked environment is Linux x86-64, ordinary-GIL CPython 3.13.14, NumPy 2.5.4,
 and SciPy 1.18.1. Eqiora performs the equations, linear solves, observations and
 implicit derivative products. SciPy supplies the bounded optimizer.
 
-Use the candidate wheel supplied with the exact source revision:
+Install the published version from PyPI:
 
 ```bash
 uv init --python 3.13 conductivity-study
 cd conductivity-study
-uv add /absolute/path/to/eqiora-0.1.3-cp311-abi3-linux_x86_64.whl numpy==2.5.4 scipy==1.18.1
+uv add --index-url https://pypi.org/simple eqiora==0.1.4 numpy==2.5.4 scipy==1.18.1
 uv run python -m eqiora.examples.research_conductivity --output accepted
 uv run python -m eqiora.examples.research_conductivity --output accepted --reopen
 ```
@@ -42,10 +38,25 @@ can run in an empty working directory; downloading the two files is optional for
 inspection or editing. To execute an edited download, use
 `uv run python research_workflow.py --output edited` with `conductivity.eqi` beside it.
 
-Retain the wheel and `uv.lock` with the study while this remains a development
-route. The wheel installation and source downloads require no editable package,
-Rust toolchain, GPU, repository fixtures or private API. The output directory must
-be new; a rerun uses a different directory and preserves the previous history.
+Retain `pyproject.toml`, `uv.lock` and the accepted output with the study. A new
+environment can use `uv sync --frozen` and the same `--reopen` command. The package
+and source downloads require no editable installation, Rust toolchain, GPU,
+repository fixtures or private API. The output directory must be new; a rerun uses
+a different directory and preserves the previous history.
+
+The published validation ran direct and iterative solvers, changed conductivities,
+heating and boundary temperature, and a 32-cell refinement. Its 13 independent
+checks passed, as did all four saved-study reopens in a separately installed
+environment with the exact dependency freeze. On the checked Linux host, whole
+process wall time / peak RSS were 4.07 s / 79,828 KiB (default), 3.25 s / 77,468 KiB
+(iterative), 3.20 s / 77,976 KiB (changed inputs), and 6.43 s / 79,108 KiB (32 cells).
+These are observations from that environment, not portable performance promises.
+[Publication](https://github.com/eqiora/eqiora/actions/runs/40447678300) and
+[reproduction record](https://github.com/eqiora/eqiora/issues/1708#issuecomment-6433625652).
+
+This release uses the evaluation-map and collection history described below.
+The ordinary ordered Parameter-Run study extension remains development-only;
+these instructions do not require it.
 
 ## Model, parameters and loads
 
@@ -201,6 +212,6 @@ handles and reordered sample attribution, and reopen saved results in a fresh
 interpreter with solver/compiler entry points disabled. See the
 <ExactSourceLink path="bindings/python/tests/test_research_conductivity_workflow.py" kind="blob">focused checks</ExactSourceLink>
 for the exact scientific expectations and falsifiers. Published-package
-installation remains part of
+installation and the remaining study extension are tracked in
 <ExactSourceLink path="docs/capability-matrix.md" kind="blob">the existing capability index</ExactSourceLink>
-and the released-user acceptance work.
+and [the released-user delivery](https://github.com/eqiora/eqiora/issues/1708).
