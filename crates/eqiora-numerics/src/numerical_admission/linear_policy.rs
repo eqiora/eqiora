@@ -10,7 +10,7 @@ pub(crate) struct NativeLinearPolicy {
     pub(crate) execution: ExecutionProvider,
     pub(crate) workers: NonZeroUsize,
     pub(crate) planning_objective: Option<SolverPlanningObjective>,
-    pub(crate) planning_profile: Option<eqiora_solver::HostSerialSolverProfile>,
+    pub(crate) planning_profile: Option<eqiora_solver::HostSolverProfile>,
     pub(crate) planning_policy_id: Option<&'static str>,
     pub(crate) selected_candidate_id: Option<&'static str>,
     pub(crate) selected_evidence_case: Option<&'static str>,
@@ -66,13 +66,14 @@ impl NativeLinearPolicy {
         S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
     >(
         mut self,
-        decision: &ResolvedHostSerialSolverPlan<'_, S>,
+        decision: &ResolvedHostSolverPlan<'_, S>,
     ) -> Result<Self, Diagnostic> {
         if self.scalar_domain != S::DOMAIN
             || self.solver != decision.solver_plan()
             || self.provider != decision.solver_provider()
             || self.execution != decision.execution_provider()
-            || self.workers != NonZeroUsize::MIN
+            || eqiora_solver::ExecutionReport::host(self.execution.id(), self.workers)
+                != decision.execution()
         {
             return Err(invalid(
                 "solver planning audit does not authenticate the effective linear policy",
@@ -168,7 +169,7 @@ impl NativeLinearPolicy {
 pub(crate) struct ProfileCheckedBackend<'a, S> {
     backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
-    profile: Option<eqiora_solver::HostSerialSolverProfile>,
+    profile: Option<eqiora_solver::HostSolverProfile>,
 }
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static>
@@ -223,7 +224,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
 #[derive(Debug)]
 pub(super) struct ProfileCheckedPreparedLinear<S> {
     pub(super) prepared: Box<dyn eqiora_solver::PreparedLinearSolver<S>>,
-    pub(super) profile: Option<eqiora_solver::HostSerialSolverProfile>,
+    pub(super) profile: Option<eqiora_solver::HostSolverProfile>,
     pub(super) plan: SolverPlan,
     pub(super) provider: SolverProvider,
 }

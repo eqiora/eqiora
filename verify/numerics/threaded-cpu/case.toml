@@ -30,6 +30,9 @@ capabilities = [
   "all-advertised-reference-complex-reproducible-tuples",
   "complex-lowering-preserves-exact-host-execution",
   "explicit-common-host-plan-result-reopening",
+  "manual-and-automatic-real-complex-common-host-execution",
+  "exact-execution-authentication-before-ranking",
+  "unmodeled-host-execution-costs-remain-unknown",
   "nonserial-numeric-payload-bound-unproved-rejection",
 ]
 

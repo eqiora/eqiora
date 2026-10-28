@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v8";
+const POLICY_ID: &str = "eqiora.host-solver-planning/v9";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -550,7 +550,7 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
 const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const ORACLE: &str =
-    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v8.json");
+    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v9.json");
 
 fn reference_identity_plan() -> SolverPlan {
     reference_plan().with_preconditioner(PreconditionerPolicy::Identity)
@@ -706,7 +706,7 @@ fn assert_rejections(
     rejected: &[(usize, &'static str)],
 ) {
     for objective in OBJECTIVES {
-        let decision = resolve_host_serial_solver_v8(problem, objective, candidates).unwrap();
+        let decision = resolve_host_serial_solver_v9(problem, objective, candidates).unwrap();
         let mask = rejected.iter().fold(ALL, |mask, (i, _)| mask & !(1 << i));
         assert_eq!(
             decision.selected().id(),
@@ -755,7 +755,7 @@ fn exact_catalog_decisions_and_reasons_are_permutation_invariant() {
     permutations(&mut catalog, 0, &mut |catalog| {
         count += 1;
         for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v8(&problem, objective, catalog).unwrap();
+            let decision = resolve_host_serial_solver_v9(&problem, objective, catalog).unwrap();
             assert_eq!(decision.objective(), objective);
             assert_eq!(decision.policy_id(), POLICY_ID);
             assert_eq!(decision.selected().id(), expected_selection(ALL, objective));
@@ -838,7 +838,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
         (unknown, "catalog.unknown-id"),
     ] {
         let error =
-            resolve_host_serial_solver_v8(&problem, SolverPlanningObjective::Robust, &candidates)
+            resolve_host_serial_solver_v9(&problem, SolverPlanningObjective::Robust, &candidates)
                 .unwrap_err();
         assert!(error.message().contains(reason), "{error}");
         assert_zero_work(&storage, &ledger, &backends);
@@ -878,7 +878,7 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
                 LinearSolveRequest::new(&backends[i], changed),
             );
             let error =
-                resolve_host_serial_solver_v8(&problem, SolverPlanningObjective::Fast, &candidates)
+                resolve_host_serial_solver_v9(&problem, SolverPlanningObjective::Fast, &candidates)
                     .unwrap_err();
             assert!(error.message().contains("catalog.control-mismatch"));
             assert_zero_work(&storage, &ledger, &backends);
@@ -992,7 +992,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
         LinearOperatorProperties::SymmetricPositiveDefinite,
     );
     symmetric_storage.reset_after_legitimate_construction();
-    let error = resolve_host_serial_solver_v8(
+    let error = resolve_host_serial_solver_v9(
         &symmetric.linear_problem().unwrap(),
         SolverPlanningObjective::Robust,
         &catalog,
@@ -1087,7 +1087,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     .unwrap();
     for problem in [&hand_built, &matrix_free_problem, &transposed] {
         let error =
-            resolve_host_serial_solver_v8(problem, SolverPlanningObjective::Robust, &catalog)
+            resolve_host_serial_solver_v9(problem, SolverPlanningObjective::Robust, &catalog)
                 .unwrap_err();
         assert!(
             error.message().contains("profile.canonical-csr-required")
@@ -1135,7 +1135,7 @@ fn no_admitted_diagnostic_freezes_the_complete_ordered_trace() {
     let catalog = exact_catalog(&backends)
         .map(|c| HostSerialSolverCandidate::new(c.id(), "stale", c.request()));
     for objective in OBJECTIVES {
-        let error = resolve_host_serial_solver_v8(&problem, objective, &catalog).unwrap_err();
+        let error = resolve_host_serial_solver_v9(&problem, objective, &catalog).unwrap_err();
         assert_all_rejected(
             &error,
             &SPECS
@@ -1157,7 +1157,7 @@ fn execute_selected(succeed: bool) {
         let problem = system.linear_problem().unwrap();
         let backends = backends(succeed);
         let catalog = exact_catalog(&backends);
-        let decision = resolve_host_serial_solver_v8(&problem, objective, &catalog).unwrap();
+        let decision = resolve_host_serial_solver_v9(&problem, objective, &catalog).unwrap();
         assert_zero_work(&storage, &ledger, &backends);
         for backend in &backends {
             backend.reset_operator_ledger_before_execution();
@@ -1230,8 +1230,8 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
     let faer = CountingBackend::new(FAER_PROVIDER, faer_identity_plan());
     for objective in OBJECTIVES {
         let profile =
-            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-        let decision = ResolvedHostSerialSolverPlan::resolve(
+            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+        let decision = ResolvedHostSolverPlan::resolve(
             profile,
             objective,
             1e-12,
@@ -1260,8 +1260,8 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
                 .any(|reason| reason == (FAER_SPARSE_LU_ID, "capability.exact-tuple-required"))
         );
     }
-    let decision = ResolvedHostSerialSolverPlan::resolve(
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+    let decision = ResolvedHostSolverPlan::resolve(
+        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Fast,
         1e-12,
         1e-14,
@@ -1309,8 +1309,8 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
         // These descriptors advertise only General capabilities. The correct
         // algorithm alone cannot admit the requested symmetric operator class.
-        let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false), None);
-        let rejected = ResolvedHostSerialSolverPlan::resolve(
+        let profile = HostSolverProfile::canonical_csr(properties, Some(false), None);
+        let rejected = ResolvedHostSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1330,7 +1330,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // Sparse LU accepts all three classes, but the provider must advertise
         // the exact class. Change only that field before admitting the direct candidate.
         faer.capability.operator_properties = properties;
-        let direct = ResolvedHostSerialSolverPlan::resolve(
+        let direct = ResolvedHostSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1346,7 +1346,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             operator_properties: properties,
             ..capability(exact)
         };
-        let accepted = ResolvedHostSerialSolverPlan::resolve(
+        let accepted = ResolvedHostSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1377,7 +1377,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
     };
     let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
     faer.capability.operator_properties = LinearOperatorProperties::SymmetricIndefinite;
-    let profile = HostSerialSolverProfile::canonical_csr(
+    let profile = HostSolverProfile::canonical_csr(
         LinearOperatorProperties::SymmetricIndefinite,
         None,
         Some(ReductionPolicy::Reproducible),
@@ -1394,7 +1394,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         SolverPlanningObjective::Fast,
         SolverPlanningObjective::LowMemory,
     ] {
-        let selected = ResolvedHostSerialSolverPlan::resolve(
+        let selected = ResolvedHostSolverPlan::resolve(
             profile.clone(),
             objective,
             1e-12,
@@ -1415,12 +1415,12 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
     }
     // Change only the execution requirement: Fast now admits LU and excludes MINRES,
     // even when the caller's preference is Robust. No algorithm is forced by a name.
-    let fast_profile = HostSerialSolverProfile::canonical_csr(
+    let fast_profile = HostSolverProfile::canonical_csr(
         LinearOperatorProperties::SymmetricIndefinite,
         None,
         Some(ReductionPolicy::Fast),
     );
-    let fast = ResolvedHostSerialSolverPlan::resolve(
+    let fast = ResolvedHostSolverPlan::resolve(
         fast_profile,
         SolverPlanningObjective::Robust,
         1e-12,
@@ -1437,4 +1437,178 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
     );
     assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
     assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
+}
+
+#[derive(Debug)]
+struct HostPlanningBackend {
+    execution_provider: ExecutionProvider,
+    execution: crate::ExecutionReport,
+    provider: SolverProvider,
+}
+
+impl LinearSolverBackend for HostPlanningBackend {
+    fn provider(&self) -> SolverProvider {
+        self.provider
+    }
+    fn default_execution_provider(&self) -> ExecutionProvider {
+        self.execution_provider
+    }
+    fn default_execution(&self) -> crate::ExecutionReport {
+        self.execution
+    }
+    fn capabilities(&self) -> SolverCapabilities {
+        crate::REFERENCE_LINEAR_SOLVER.capabilities()
+    }
+    fn solve_with_execution(
+        &self,
+        _: &LinearProblem<'_>,
+        _: SolverPlan,
+        _: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        panic!("planning must not execute a backend")
+    }
+}
+
+#[test]
+fn host_planning_authenticates_execution_before_ranking_without_serial_fallback() {
+    const LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("rayon", "test")];
+    let provider =
+        ExecutionProvider::new(crate::ExecutionId::new("eqiora.rayon"), "test", LIBRARIES);
+    let workers = NonZeroUsize::new(4).unwrap();
+    let execution = crate::ExecutionReport::host(provider.id(), workers);
+    let backend = HostPlanningBackend {
+        execution_provider: provider,
+        execution,
+        provider: REFERENCE_PROVIDER,
+    };
+    let profile = HostSolverProfile::general_canonical_csr()
+        .with_size(SolverPlanningSize::exact(2, 4))
+        .with_execution(provider, execution)
+        .unwrap();
+    for objective in [
+        SolverPlanningObjective::Robust,
+        SolverPlanningObjective::Fast,
+        SolverPlanningObjective::LowMemory,
+    ] {
+        fn resolve<'a>(
+            profile: HostSolverProfile,
+            objective: SolverPlanningObjective,
+            supplied: Option<&'a dyn LinearSolverBackend>,
+        ) -> Result<ResolvedHostSolverPlan<'a>, Diagnostic> {
+            ResolvedHostSolverPlan::resolve(
+                profile,
+                objective,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+                &crate::REFERENCE_LINEAR_SOLVER,
+                supplied,
+            )
+        }
+        let decision = resolve(profile.clone(), objective, Some(&backend)).unwrap();
+        assert_eq!(decision.execution_provider(), provider);
+        assert_eq!(decision.execution(), execution);
+        assert_eq!(decision.solver_provider(), REFERENCE_PROVIDER);
+        assert!(!decision.costs().is_empty());
+        for cost in decision.costs() {
+            assert_eq!(cost.setup_work(), None);
+            assert_eq!(cost.solve_work(), None);
+            assert_eq!(cost.acceptance_work(), None);
+            assert_eq!(cost.total_work(), None);
+            assert_eq!(cost.numeric_payload_bytes(), None);
+        }
+        assert!(
+            decision
+                .reasons()
+                .any(|(_, reason)| reason == "cost.execution-overhead-unmodeled")
+        );
+        assert!(
+            resolve(profile.clone(), objective, None).is_err(),
+            "serial reference is never a host-adapter fallback"
+        );
+        for mismatched in [
+            HostPlanningBackend {
+                execution: crate::ExecutionReport::host(provider.id(), NonZeroUsize::MIN),
+                ..backend
+            },
+            HostPlanningBackend {
+                execution_provider: ExecutionProvider::new(
+                    provider.id(),
+                    "stale",
+                    provider.libraries(),
+                ),
+                ..backend
+            },
+            HostPlanningBackend {
+                execution_provider: ExecutionProvider::new(provider.id(), "test", &[]),
+                ..backend
+            },
+            HostPlanningBackend {
+                provider: SolverProvider::new(REFERENCE_PROVIDER.id(), "stale", &[]),
+                ..backend
+            },
+        ] {
+            assert!(resolve(profile.clone(), objective, Some(&mismatched)).is_err());
+        }
+        let limited = profile.clone().with_cost_request(
+            SolverCostRequest::default()
+                .with_numeric_payload_limit(NonZeroUsize::new(usize::MAX).unwrap()),
+        );
+        assert!(
+            resolve(limited.clone(), objective, Some(&backend))
+                .unwrap_err()
+                .message()
+                .contains("resource.numeric-payload-bound-unproved")
+        );
+        assert!(
+            limited
+                .require_resources(
+                    reference_plan(),
+                    REFERENCE_PROVIDER,
+                    ScalarDomain::Real,
+                    ScalarType::F64
+                )
+                .unwrap_err()
+                .message()
+                .contains("resource.numeric-payload-bound-unproved")
+        );
+    }
+    assert!(
+        HostSolverProfile::general_canonical_csr()
+            .with_execution(provider, crate::ExecutionReport::host_serial())
+            .is_err()
+    );
+    assert!(
+        HostSolverProfile::general_canonical_csr()
+            .with_execution(provider, crate::ExecutionReport::cuda(provider.id(), 0))
+            .is_err()
+    );
+    assert!(
+        HostSolverProfile::general_canonical_csr()
+            .with_execution(
+                provider,
+                crate::ExecutionReport::distributed(provider.id(), NonZeroUsize::MIN)
+            )
+            .is_err()
+    );
+    // A one-worker adapter still has unmodeled overhead and cannot borrow serial bounds.
+    let single = HostSolverProfile::general_canonical_csr()
+        .with_size(SolverPlanningSize::exact(2, 4))
+        .with_execution(
+            provider,
+            crate::ExecutionReport::host(provider.id(), NonZeroUsize::MIN),
+        )
+        .unwrap();
+    assert_eq!(
+        single
+            .estimate_cost(
+                "manual",
+                reference_plan(),
+                REFERENCE_PROVIDER,
+                ScalarDomain::Real,
+                ScalarType::F64
+            )
+            .numeric_payload_bytes(),
+        None
+    );
 }

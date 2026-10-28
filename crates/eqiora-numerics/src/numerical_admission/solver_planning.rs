@@ -41,8 +41,8 @@ fn planning_profile(
     size: Option<eqiora_solver::SolverPlanningSize>,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
-) -> Result<eqiora_solver::HostSerialSolverProfile, Diagnostic> {
-    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+) -> Result<eqiora_solver::HostSolverProfile, Diagnostic> {
+    let profile = eqiora_solver::HostSolverProfile::canonical_csr(
         properties,
         complete_diagonal,
         required_reduction,
@@ -74,13 +74,17 @@ fn planning_profile(
 pub(super) fn resolve_typed_linear<S>(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
-    profile: eqiora_solver::HostSerialSolverProfile,
+    profile: eqiora_solver::HostSolverProfile,
     reference_backend: &dyn LinearSolverBackend<S>,
     supplied_backend: Option<&dyn LinearSolverBackend<S>>,
 ) -> Result<NativeLinearPolicy, Diagnostic>
 where
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
 {
+    let profile = profile.with_execution(
+        request.execution().0,
+        eqiora_solver::ExecutionReport::host(request.execution().0.id(), request.execution().1),
+    )?;
     if let Some((plan, provider)) = request.exact_request() {
         let backend = exact_backend(
             provider,
@@ -88,47 +92,29 @@ where
             reference_backend,
             supplied_backend,
         )?;
-        if request.execution() != (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN)
-            && request
-                .cost()
-                .and_then(|cost| cost.numeric_payload_limit())
-                .is_some()
-        {
-            return Err(invalid(
-                "resource.numeric-payload-bound-unproved: this execution has no proven numeric-payload bound",
-            ));
-        }
         profile.require_plan(plan)?;
         backend
             .capabilities()
             .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
         profile.require_resources(plan, backend.provider(), S::DOMAIN, S::STORAGE)?;
         let mut selected = NativeLinearPolicy::exact(plan, backend)?;
-        if request.execution() == (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN) {
-            selected.planning_costs = vec![profile.estimate_cost(
-                "manual",
-                plan,
-                backend.provider(),
-                S::DOMAIN,
-                S::STORAGE,
-            )];
-        }
+        selected.planning_costs =
+            vec![profile.estimate_cost("manual", plan, backend.provider(), S::DOMAIN, S::STORAGE)];
         selected.planning_profile = Some(profile);
         return Ok(selected);
     }
-    if request.execution() != (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN) {
-        return Err(invalid(
-            "automatic solver ranking is implemented only for host-serial execution",
-        ));
-    }
     let supplied_backend = supplied_backend.filter(|backend| {
-        backend.default_execution_provider() == SERIAL_EXECUTION_PROVIDER
-            && backend.default_execution() == eqiora_solver::ExecutionReport::host_serial()
+        backend.default_execution_provider() == request.execution().0
+            && backend.default_execution()
+                == eqiora_solver::ExecutionReport::host(
+                    request.execution().0.id(),
+                    request.execution().1,
+                )
     });
     let objective = request
         .objective()
         .expect("linear intent is exact or program-controlled");
-    let decision = eqiora_solver::ResolvedHostSerialSolverPlan::resolve(
+    let decision = eqiora_solver::ResolvedHostSolverPlan::resolve(
         profile,
         objective,
         request.relative_tolerance(),

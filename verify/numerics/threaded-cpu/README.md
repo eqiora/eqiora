@@ -83,13 +83,21 @@ Independent literal products and inverse-norm bounds in `references/README.md`
 check original coordinates; serial parity is supplemental. Complex coordinate
 lowering retains the same execution provider, worker count and reduction.
 
-An ordinary complex algebraic Model executes with an explicit Rust
-`CommonLinearRequest::with_execution` request and reopens its exact Result.
-Plan v26 retains the execution provider release, dependency inventory and
-worker count. Both solve and verifier reports must match that Plan; serial
-substitution, changed workers and forged verifier metadata fail closed.
-Automatic ranking remains host-serial. Nonserial numeric-payload caps reject
-as unproved: the serial reduction-buffer bound is not a Rayon memory bound.
+Ordinary real and complex algebraic Models execute exact/manual and
+`Robust`, `Fast`, `LowMemory` requests within an explicitly supplied Rust
+`CommonLinearRequest::with_execution` Rayon adapter, with one and four workers.
+The single host planning owner authenticates the exact provider and execution
+report before ranking existing advertised solver tuples. It never chooses
+placement or falls back to a serial adapter. Plan v26 retains the execution
+provider release, dependency inventory and worker count. Both solve and verifier
+reports must match that Plan; serial substitution, changed workers and forged
+verifier metadata fail closed. Plan/Result reopening performs no numerical solve.
+The analytical Field/Observable expectations and solver controls are unchanged.
+Threaded setup/solve/acceptance work, total work and numeric payload are unknown,
+with `cost.execution-overhead-unmodeled` in the automatic decision trace.
+Nonserial numeric-payload caps reject as unproved even with one worker: the
+serial reduction-buffer bound is not a Rayon memory bound. Unknown costs retain
+deterministic admitted preferences, not a measured speed or memory optimum.
 These are Rust host-execution claims, not a new Python placement interface.
 
 The execution receipt is an in-memory host contract, not a graph artifact or

@@ -46,8 +46,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         .unwrap(),
         calls: AtomicUsize::new(0),
     };
-    let profile =
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+    let profile = HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
     let reference = HostSerialSolverCandidate::planned(
         REFERENCE_COMPLEX_ID,
         PLANNING_EVIDENCE,
@@ -126,7 +125,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     assert!(error.message().contains("catalog.missing-id"));
     // Nor may a complete complex General catalog reinterpret an asserted HPD class.
     let error = resolve_candidates(
-        HostSerialSolverProfile::canonical_csr(
+        HostSolverProfile::canonical_csr(
             LinearOperatorProperties::HermitianPositiveDefinite,
             None,
             None,
@@ -151,7 +150,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         reference.backend,
     );
     let error = resolve_candidates(
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
+        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
         SolverPlanningObjective::Robust,
         &[
             changed,
@@ -174,7 +173,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         [crate::AlgebraicConstraint::ZeroIntegral { field }],
     )
     .unwrap();
-    let error = HostSerialSolverProfile::canonical_csr(
+    let error = HostSolverProfile::canonical_csr(
         LinearOperatorProperties::HermitianPositiveDefinite,
         None,
         None,
@@ -192,8 +191,8 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         capabilities: crate::SolverCapabilities::reference(),
         calls: AtomicUsize::new(0),
     };
-    let error = ResolvedHostSerialSolverPlan::<C>::resolve(
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+    let error = ResolvedHostSolverPlan::<C>::resolve(
+        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Fast,
         1e-12,
         1e-14,
@@ -209,8 +208,8 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         LinearOperatorProperties::SymmetricIndefinite,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     ] {
-        let error = ResolvedHostSerialSolverPlan::<C>::resolve(
-            HostSerialSolverProfile::canonical_csr(properties, None, None),
+        let error = ResolvedHostSolverPlan::<C>::resolve(
+            HostSolverProfile::canonical_csr(properties, None, None),
             SolverPlanningObjective::Robust,
             1e-12,
             1e-14,

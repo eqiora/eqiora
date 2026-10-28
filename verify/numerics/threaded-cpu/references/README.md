@@ -52,7 +52,18 @@ No expectation comes from a serial or threaded solver output.
 
 The ordinary Model `(1+2i)*z=(3+i)*p` has `z=p-ip` and observable
 `|z|²+p=2p²+p`, hence `z=3-3i` and observable 21 at `p=3`.
-It checks exact Result reopening with the same explicit host placement.
+The real Model `2*z=2*p` has `z=p` and observable `z²+4*p`, hence
+`z=3` and observable 21 at `p=3`. Both Models retain relative/absolute
+linear tolerances `1e-13`/`1e-15`, eight iterations, Field error below `2^-39`
+and Observable error below `1e-10`. Exact/manual and all three automatic
+objectives use the same independently fixed equations and expectations with
+one/four workers. The positive facade advertises only the admitted
+BiCGSTAB/Identity/Reproducible tuple, so selecting that exact tuple follows
+from capability admission, not observed output. These tests check ordinary
+execution and exact Plan/Result reopening with no reopening solver calls;
+invalid typed adapters reject before numerical work. Threaded costs are
+explicitly unknown because this case derives neither threaded workspace
+ownership nor execution-overhead work bounds.
 A separate real `2*z=6` control admits a large serial BiCGSTAB numeric-payload
 cap before the same cap is rejected as unproved for Rayon; this reaches the
 execution-specific resource boundary rather than an unknown complex bound.

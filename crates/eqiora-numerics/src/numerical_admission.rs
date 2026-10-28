@@ -77,7 +77,7 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability,
+    ResolvedHostSolverPlan, SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability,
     SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_time::TimeBackendCapabilities;

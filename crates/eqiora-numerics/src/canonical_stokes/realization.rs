@@ -20,9 +20,7 @@ use eqiora_realization::{
 };
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{
-    HostSerialSolverProfile, LinearOperatorProperties, LinearSolverBackend, SolverPlan,
-};
+use eqiora_solver::{HostSolverProfile, LinearOperatorProperties, LinearSolverBackend, SolverPlan};
 
 use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesModel2d,
@@ -802,7 +800,7 @@ fn require_mini_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
             "coherent-SI MINI Stokes requires an algorithm admitting its symmetric-indefinite operator",
         ));
     }
-    HostSerialSolverProfile::canonical_csr(properties, None, None).require_plan(solver)
+    HostSolverProfile::canonical_csr(properties, None, None).require_plan(solver)
 }
 
 fn requires_zero_integral_constraint(

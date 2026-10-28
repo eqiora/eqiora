@@ -7,16 +7,16 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, HostSerialSolverProfile,
+    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, HostSolverProfile,
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSerialSolverPlan,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSolverPlan,
     SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v8.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v9.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
@@ -170,7 +170,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v8.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v9.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -187,7 +187,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.host-serial-solver-planning/v8"
+        "eqiora.host-solver-planning/v9"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -280,8 +280,8 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     assert_eq!(bound.to_bits(), 0x3d70_0000_0000_0000);
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
-        let decision = ResolvedHostSerialSolverPlan::resolve(
-            HostSerialSolverProfile::general_canonical_csr(),
+        let decision = ResolvedHostSolverPlan::resolve(
+            HostSolverProfile::general_canonical_csr(),
             objective,
             1.0e-12,
             1.0e-14,
@@ -450,8 +450,8 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let decision = ResolvedHostSerialSolverPlan::resolve(
-                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal), None)
+            let decision = ResolvedHostSolverPlan::resolve(
+                HostSolverProfile::canonical_csr(properties, Some(diagonal), None)
                     .with_structure(structure.clone())
                     .unwrap(),
                 objective,
@@ -549,8 +549,8 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         SolverPlanningObjective::LowMemory,
     ] {
         let profile =
-            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-        let decision = ResolvedHostSerialSolverPlan::resolve(
+            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+        let decision = ResolvedHostSolverPlan::resolve(
             profile,
             objective,
             1e-12,
@@ -590,14 +590,10 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     // Unknown is not fabricated absence. A genuinely asserted absence must
     // still reject this matrix's present diagonal before any numerical work.
     assert!(
-        HostSerialSolverProfile::canonical_csr(
-            LinearOperatorProperties::General,
-            Some(false),
-            None
-        )
-        .require_problem(&problem)
-        .unwrap_err()
-        .message()
-        .contains("diagonal-availability-mismatch")
+        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(false), None)
+            .require_problem(&problem)
+            .unwrap_err()
+            .message()
+            .contains("diagonal-availability-mismatch")
     );
 }

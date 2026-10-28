@@ -7,7 +7,7 @@ use eqiora::solver::{
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER,
     ReductionPolicy, ReplicatedLinearExecution, SERIAL_EXECUTION_PROVIDER, SolverCapabilities,
-    SolverPlan, SolverProvider,
+    SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora::{Diagnostic, ScalarDomain};
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION, RAYON_EXECUTION_PROVIDER};
@@ -200,6 +200,7 @@ fn complex_reference_policies_preserve_original_values_and_pool_placement() {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TypedMode {
     Valid,
+    ValidReal,
     Missing,
     Foreign,
     RealOnly,
@@ -216,7 +217,12 @@ fn real_capabilities() -> SolverCapabilities {
             .capabilities()
             .combinations()
             .iter()
-            .filter(|entry| entry.scalar_domain == ScalarDomain::Real)
+            .filter(|entry| {
+                entry.scalar_domain == ScalarDomain::Real
+                    && entry.algorithm == LinearSolver::BiConjugateGradientStabilized
+                    && entry.preconditioner == PreconditionerPolicy::Identity
+                    && entry.reduction == ReductionPolicy::Reproducible
+            })
             .copied(),
     )
     .unwrap()
@@ -228,7 +234,7 @@ impl LinearSolverBackend for TypedFacade {
     fn capabilities(&self) -> SolverCapabilities {
         // Valid typed support is independent of this real-only inventory.
         // Missing support must also correct an over-advertised source inventory.
-        if self.mode == TypedMode::Valid {
+        if matches!(self.mode, TypedMode::Valid | TypedMode::ValidReal) {
             real_capabilities()
         } else {
             REFERENCE_LINEAR_SOLVER.capabilities()
@@ -239,11 +245,17 @@ impl LinearSolverBackend for TypedFacade {
     }
     fn solve_with_execution(
         &self,
-        _: &LinearProblem<'_>,
-        _: SolverPlan,
-        _: &dyn ReplicatedLinearExecution,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        panic!("typed Common Run must not fall back to a real adapter")
+        assert_eq!(
+            self.mode,
+            TypedMode::ValidReal,
+            "complex Common Run must retain its typed adapter"
+        );
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        REFERENCE_LINEAR_SOLVER.solve_with_execution(problem, plan, execution)
     }
 }
 impl LinearSolverBackend<C> for TypedFacade {
@@ -265,6 +277,13 @@ impl LinearSolverBackend<C> for TypedFacade {
                 entry
             }))
             .unwrap()
+        } else if self.mode == TypedMode::Valid {
+            SolverCapabilities::exact(source.combinations().iter().copied().filter(|entry| {
+                entry.algorithm == LinearSolver::BiConjugateGradientStabilized
+                    && entry.preconditioner == PreconditionerPolicy::Identity
+                    && entry.reduction == ReductionPolicy::Reproducible
+            }))
+            .unwrap()
         } else {
             source
         }
@@ -284,13 +303,28 @@ impl LinearSolverBackend<C> for TypedFacade {
         )
     }
 }
-fn fixture(
+fn fixture_with_selection(
     backend: &dyn LinearSolverBackend,
     workers: NonZeroUsize,
+    objective: Option<SolverPlanningObjective>,
+    complex: bool,
 ) -> (ModelDocument, CommonAlgebraicPlan) {
-    let document=ModelDocument::compile("threaded-complex.eqi",
-        "model M(){parameter p:1=3;variable z:complex<1>;relation r{math.complex(1,2)*z=math.complex(3,1)*p;}observable output:1=math.abs2(z)+p;}").unwrap();
+    let source = if complex {
+        "model M(){parameter p:1=3;variable z:complex<1>;relation r{math.complex(1,2)*z=math.complex(3,1)*p;}observable output:1=math.abs2(z)+p;}"
+    } else {
+        "model M(){parameter p:1=3;variable z:1;relation r{2*z=2*p;}observable output:1=z*z+4*p;}"
+    };
+    let document = ModelDocument::compile("threaded-common.eqi", source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let request = CommonSolvePolicy::Linear(linear_request(workers, objective));
+    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, backend).unwrap();
+    (document, plan)
+}
+
+fn linear_request(
+    workers: NonZeroUsize,
+    objective: Option<SolverPlanningObjective>,
+) -> CommonLinearRequest {
     // Preserve the existing typed-provider fixture's exact controls.
     let solver = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
@@ -300,36 +334,63 @@ fn fixture(
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Reproducible);
-    let request = CommonSolvePolicy::Linear(
-        CommonLinearRequest::exact(solver, REFERENCE_SOLVER_PROVIDER)
-            .unwrap()
-            .with_execution(RAYON_EXECUTION_PROVIDER, workers),
-    );
-    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, backend).unwrap();
-    (document, plan)
+    match objective {
+        None => CommonLinearRequest::exact(solver, REFERENCE_SOLVER_PROVIDER),
+        Some(objective) => {
+            CommonLinearRequest::program_controlled(1e-13, 1e-15, 8.try_into().unwrap(), objective)
+        }
+    }
+    .unwrap()
+    .with_execution(RAYON_EXECUTION_PROVIDER, workers)
 }
 
 #[test]
 fn ordinary_complex_common_run_keeps_typed_producer_pool_and_physical_output() {
+    check_common_run(4, None, true);
+}
+
+#[test]
+fn automatic_real_and_complex_common_runs_keep_requested_pool_and_physical_output() {
+    for workers in [1, 4] {
+        for objective in [
+            None,
+            Some(SolverPlanningObjective::Robust),
+            Some(SolverPlanningObjective::Fast),
+            Some(SolverPlanningObjective::LowMemory),
+        ] {
+            for complex in [false, true] {
+                check_common_run(workers, objective, complex);
+            }
+        }
+    }
+}
+
+fn check_common_run(count: usize, objective: Option<SolverPlanningObjective>, complex: bool) {
     let backend = TypedFacade {
-        mode: TypedMode::Valid,
+        mode: if complex {
+            TypedMode::Valid
+        } else {
+            TypedMode::ValidReal
+        },
         calls: AtomicUsize::new(0),
     };
-    let workers = NonZeroUsize::new(4).unwrap();
+    let workers = NonZeroUsize::new(count).unwrap();
     let pool = CpuThreadPool::new(workers).unwrap();
     let wrapper = pool
         .solver(Target::HostCpu { threads: workers }, &backend)
         .unwrap();
-    let (document, plan) = fixture(&wrapper, workers);
+    let (document, plan) = fixture_with_selection(&wrapper, workers, objective, complex);
+    assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
     let result = plan
         .run_result(&plan.initial_state(&[]).unwrap(), &wrapper)
         .unwrap();
     assert_eq!(backend.calls.load(Ordering::SeqCst), 1);
     // (1+2i)(p-ip)=(3+i)p. At p3, z=3-3i and |z|²+p=21.
+    // The real fixture has 2z=2p, hence z=3 and z²+4p=21.
     let values = result.finite_field_values().unwrap();
     assert_eq!(values.len(), 1);
     let (re, im) = values[0].1.component(0).unwrap();
-    assert!((C::new(re, im) - C::new(3., -3.)).norm() < 2_f64.powi(-39));
+    assert!((C::new(re, im) - C::new(3., if complex { -3. } else { 0. })).norm() < 2_f64.powi(-39));
     let value = result
         .observe(
             plan.model_artifact(),
@@ -354,13 +415,47 @@ fn ordinary_complex_common_run_keeps_typed_producer_pool_and_physical_output() {
     );
     assert_eq!(
         evidence.execution().topology(),
-        CommonExecutionTopology::Host { workers: 4 }
+        CommonExecutionTopology::Host { workers: count }
     );
     assert_eq!(evidence.reduction(), ReductionPolicy::Reproducible);
     assert_eq!(evidence.maximum_iterations(), 8);
     assert!(evidence.true_residual_norm() <= evidence.residual_target());
 
     let resolved = eqiora_numerics::ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    assert_eq!(
+        resolved.linear_solver_provider(),
+        Some(REFERENCE_SOLVER_PROVIDER)
+    );
+    assert_eq!(
+        resolved.effective_solver(),
+        Some(
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-13,
+                1e-15,
+                8.try_into().unwrap()
+            )
+            .unwrap()
+        )
+    );
+    assert_eq!(resolved.solver_planning_objective(), objective);
+    if objective.is_some() {
+        let costs = resolved.solver_planning_costs();
+        assert!(!costs.is_empty());
+        for cost in costs {
+            assert_eq!(cost.setup_work(), None);
+            assert_eq!(cost.solve_work(), None);
+            assert_eq!(cost.acceptance_work(), None);
+            assert_eq!(cost.total_work(), None);
+            assert_eq!(cost.numeric_payload_bytes(), None);
+        }
+        assert!(
+            resolved
+                .solver_planning_reasons()
+                .iter()
+                .any(|(_, reason)| *reason == "cost.execution-overhead-unmodeled")
+        );
+    }
     let plan_bytes = resolved.to_bytes().unwrap();
     let reopened_plan =
         eqiora_numerics::ResolvedCommonPlan::from_bytes(&plan_bytes, &wrapper, &[]).unwrap();
@@ -393,11 +488,12 @@ fn ordinary_complex_common_run_keeps_typed_producer_pool_and_physical_output() {
     assert_eq!(backend.calls.load(Ordering::SeqCst), 1);
 
     let state = plan.initial_state(&[]).unwrap();
-    let one_worker = CpuThreadPool::new(NonZeroUsize::MIN).unwrap();
+    let one_worker =
+        CpuThreadPool::new(NonZeroUsize::new(if count == 1 { 4 } else { 1 }).unwrap()).unwrap();
     let wrong = one_worker
         .solver(
             Target::HostCpu {
-                threads: NonZeroUsize::MIN,
+                threads: one_worker.workers(),
             },
             &backend,
         )
@@ -432,37 +528,56 @@ fn absent_foreign_stale_or_fast_only_typed_implementations_are_not_advertised_or
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
-    let (_, plan) = fixture(&reference, pool.workers());
-    for mode in [
-        TypedMode::Missing,
-        TypedMode::Foreign,
-        TypedMode::RealOnly,
-        TypedMode::FastOnly,
+    for objective in [
+        None,
+        Some(SolverPlanningObjective::Robust),
+        Some(SolverPlanningObjective::Fast),
+        Some(SolverPlanningObjective::LowMemory),
     ] {
-        let backend = TypedFacade {
-            mode,
-            calls: AtomicUsize::new(0),
-        };
-        let wrapper = pool
-            .solver(
-                Target::HostCpu {
-                    threads: pool.workers(),
-                },
-                &backend,
-            )
-            .unwrap();
-        assert!(LinearSolverBackend::<f64>::complex_backend(&wrapper).is_none());
-        assert!(
-            LinearSolverBackend::<f64>::capabilities(&wrapper)
-                .combinations()
-                .iter()
-                .all(|entry| entry.scalar_domain == ScalarDomain::Real)
-        );
-        assert!(
-            plan.run_result(&plan.initial_state(&[]).unwrap(), &wrapper)
+        let (document, plan) = fixture_with_selection(&reference, pool.workers(), objective, true);
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        for mode in [
+            TypedMode::Missing,
+            TypedMode::Foreign,
+            TypedMode::RealOnly,
+            TypedMode::FastOnly,
+        ] {
+            let backend = TypedFacade {
+                mode,
+                calls: AtomicUsize::new(0),
+            };
+            let wrapper = pool
+                .solver(
+                    Target::HostCpu {
+                        threads: pool.workers(),
+                    },
+                    &backend,
+                )
+                .unwrap();
+            assert!(LinearSolverBackend::<f64>::complex_backend(&wrapper).is_none());
+            assert!(
+                LinearSolverBackend::<f64>::capabilities(&wrapper)
+                    .combinations()
+                    .iter()
+                    .all(|entry| entry.scalar_domain == ScalarDomain::Real)
+            );
+            assert!(
+                CommonAlgebraicPlan::resolve(
+                    &model,
+                    CommonSolvePolicy::Linear(linear_request(pool.workers(), objective)),
+                    None,
+                    &[],
+                    None,
+                    &wrapper,
+                )
                 .is_err()
-        );
-        assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
+            );
+            assert!(
+                plan.run_result(&plan.initial_state(&[]).unwrap(), &wrapper)
+                    .is_err()
+            );
+            assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
+        }
     }
     assert!(
         pool.solver(
@@ -476,7 +591,7 @@ fn absent_foreign_stale_or_fast_only_typed_implementations_are_not_advertised_or
 }
 
 #[test]
-fn nonserial_payload_bounds_and_automatic_ranking_reject_before_backend_work() {
+fn nonserial_payload_bounds_reject_before_backend_work() {
     let workers = NonZeroUsize::new(4).unwrap();
     let pool = CpuThreadPool::new(workers).unwrap();
     let backend = TypedFacade {
@@ -523,14 +638,12 @@ fn nonserial_payload_bounds_and_automatic_ranking_reject_before_backend_work() {
         eqiora::solver::SolverPlanningObjective::Robust,
     )
     .unwrap()
-    .with_execution(RAYON_EXECUTION_PROVIDER, workers);
-    for (request, reason) in [
-        (exact, "resource.numeric-payload-bound-unproved"),
-        (
-            automatic,
-            "automatic solver ranking is implemented only for host-serial execution",
-        ),
-    ] {
+    .with_execution(RAYON_EXECUTION_PROVIDER, workers)
+    .with_cost(
+        eqiora::solver::SolverCostRequest::default()
+            .with_numeric_payload_limit(NonZeroUsize::new(usize::MAX).unwrap()),
+    );
+    for request in [exact, automatic] {
         let error = CommonAlgebraicPlan::resolve(
             &model,
             CommonSolvePolicy::Linear(request),
@@ -540,7 +653,12 @@ fn nonserial_payload_bounds_and_automatic_ranking_reject_before_backend_work() {
             &wrapper,
         )
         .unwrap_err();
-        assert!(error.message().contains(reason), "{error:?}");
+        assert!(
+            error
+                .message()
+                .contains("resource.numeric-payload-bound-unproved"),
+            "{error:?}"
+        );
         assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
     }
 }
