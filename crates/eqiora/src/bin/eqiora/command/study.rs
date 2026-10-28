@@ -227,7 +227,7 @@ fn write_new(path: &OsString, bytes: &[u8]) -> Result<(), String> {
         .create_new(true)
         .open(path)
         .map_err(|error| error.to_string())?;
-    if let Err(error) = output.write_all(&bytes).and_then(|()| output.sync_all()) {
+    if let Err(error) = output.write_all(bytes).and_then(|()| output.sync_all()) {
         drop(output);
         let _ = std::fs::remove_file(path);
         return Err(error.to_string());
@@ -333,18 +333,28 @@ mod tests {
             })
             .unwrap();
         let artifact = ModelEnvelope::from_program(document.program()).unwrap();
+        let linear_backend = backend();
+        let reference = linear_backend.provider() == REFERENCE_SOLVER_PROVIDER;
         let policy = CommonSolvePolicy::Linear(
             CommonLinearRequest::exact(
                 SolverPlan::new(
-                    LinearSolver::BiConjugateGradientStabilized,
+                    if reference {
+                        LinearSolver::BiConjugateGradientStabilized
+                    } else {
+                        LinearSolver::SparseLu
+                    },
                     1e-12,
                     1e-14,
                     NonZeroUsize::new(64).unwrap(),
                 )
                 .unwrap()
                 .with_preconditioner(PreconditionerPolicy::Identity)
-                .with_reduction(ReductionPolicy::Reproducible),
-                REFERENCE_SOLVER_PROVIDER,
+                .with_reduction(if reference {
+                    ReductionPolicy::Reproducible
+                } else {
+                    ReductionPolicy::Fast
+                }),
+                linear_backend.provider(),
             )
             .unwrap(),
         );
@@ -355,7 +365,7 @@ mod tests {
                 None,
                 &[],
                 None,
-                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+                linear_backend.as_ref(),
             )
             .unwrap(),
         ));
