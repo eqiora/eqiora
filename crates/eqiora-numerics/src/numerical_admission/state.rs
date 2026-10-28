@@ -256,9 +256,7 @@ impl CommonTransientRunRequest {
             |state| plan.prepare_execution(state, backend),
             |prepared, state| {
                 accepted += 1;
-                prepared
-                    .advance(state, start_s + accepted as f64 * step_s)
-                    .and_then(|next| CommonAcceptedSpatialStep::new(state, next))
+                prepared.advance(state, start_s + accepted as f64 * step_s)
             },
             stop_at_boundary,
         )
