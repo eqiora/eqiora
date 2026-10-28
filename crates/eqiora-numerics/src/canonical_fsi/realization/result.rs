@@ -131,7 +131,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         self.mesh_artifact
     }
 
-    /// Exact selected host-reproducible or CUDA-fast MINRES plan.
+    /// Exact solver policy selected by the resolved Realization.
     #[must_use]
     pub const fn solver_plan(&self) -> SolverPlan {
         self.core.solver_plan()
