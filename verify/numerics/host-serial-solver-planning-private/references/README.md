@@ -2,8 +2,8 @@
 
 This directory contains no second derivation. The authoritative literal policy
 and exact rational derivation remains
-[`derive_policy_v9.py`](../../host-serial-solver-planning/references/derive_policy_v9.py),
-which generates the primary case's single machine-readable v9 policy oracle.
+[`derive_policy_v10.py`](../../host-serial-solver-planning/references/derive_policy_v10.py),
+which generates the primary case's single machine-readable v10 policy oracle.
 Its execution ledger attaches isolated test-only counters to the exact owned
 canonical operator, self-controls and resets them, then distinguishes the two
 total successful true-residual applications from every zero-work boundary.

@@ -17,7 +17,7 @@ use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 pub use selection::{SolverProviderAvailability, SolverSelection};
 
-const POLICY_ID: &str = "eqiora.host-solver-planning/v9";
+const POLICY_ID: &str = "eqiora.solver-planning/v10";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -763,7 +763,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v9<'problem, 'backend>(
+fn resolve_solver_v10<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[SolverCandidate<'backend>],

@@ -205,7 +205,7 @@ for name, plan in planned.items():
     objective, candidate, backend, algorithm, reduction = expected_planning[name]
     resolved = plan.solve.linear
     assert resolved.objective is objective
-    assert resolved.planning_policy_id == "eqiora.host-solver-planning/v9"
+    assert resolved.planning_policy_id == "eqiora.solver-planning/v10"
     assert resolved.selected_candidate_id == candidate
     assert resolved.selected_evidence_case is not None
     # This Newton owner has no assembled shape at selection time. Its public

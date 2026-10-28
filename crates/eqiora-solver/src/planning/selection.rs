@@ -195,3 +195,6 @@ pub(super) fn profile_catalog_ids(
         _ => &[],
     }
 }
+
+#[cfg(test)]
+pub(super) mod tests;
