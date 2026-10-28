@@ -72,6 +72,7 @@ fn compatible_reference_plans_preserve_affine_harmonic_extension_and_exact_repor
             LinearSolver::MinimumResidual,
             PreconditionerPolicy::Identity,
         ),
+        (LinearSolver::MinimumResidual, PreconditionerPolicy::Jacobi),
     ] {
         let plan = SolverPlan::new(algorithm, 1e-13, 1e-15, NonZeroUsize::new(100).unwrap())
             .unwrap()
@@ -163,7 +164,8 @@ fn general_only_and_unavailable_exact_profiles_reject_before_motion_assembly() {
         NonZeroUsize::new(100).unwrap(),
     )
     .unwrap()
-    .with_preconditioner(PreconditionerPolicy::Jacobi);
+    .with_preconditioner(PreconditionerPolicy::Jacobi)
+    .with_reduction(ReductionPolicy::Fast);
     let sparse = SolverPlan::new(
         LinearSolver::SparseLu,
         1e-12,
