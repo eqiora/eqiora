@@ -192,7 +192,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         capabilities: crate::SolverCapabilities::reference(),
         calls: AtomicUsize::new(0),
     };
-    let error = ResolvedHostSolverPlan::<C>::resolve(
+    let error = crate::SolverSelection::resolve_host::<C>(
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Fast,
         1e-12,
@@ -209,7 +209,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         LinearOperatorProperties::SymmetricIndefinite,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     ] {
-        let error = ResolvedHostSolverPlan::<C>::resolve(
+        let error = crate::SolverSelection::resolve_host::<C>(
             SolverPlanningProfile::canonical_csr(properties, None, None),
             SolverPlanningObjective::Robust,
             1e-12,

@@ -114,7 +114,7 @@ where
     let objective = request
         .objective()
         .expect("linear intent is exact or program-controlled");
-    let decision = eqiora_solver::ResolvedHostSolverPlan::resolve(
+    let decision = eqiora_solver::SolverSelection::resolve_host::<S>(
         profile,
         objective,
         request.relative_tolerance(),

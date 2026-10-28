@@ -356,7 +356,7 @@ fn automatic_complex_provenance_survives_parameter_domain_rebinding() {
     assert_eq!(real.solver, original.solver);
     assert_eq!(real.provider, original.provider);
     assert_eq!(real.at_parameter_problem(&system, None).unwrap(), original);
-    let decision = ResolvedHostSolverPlan::<C>::resolve(
+    let decision = SolverSelection::resolve_host::<C>(
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Robust,
         1e-12,

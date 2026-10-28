@@ -25,13 +25,13 @@ fn profile(
         .with_size(SolverPlanningSize::exact(n, z))
         .with_cost_request(request)
 }
-fn choose<'a>(
+fn choose(
     profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
-    reference: &'a dyn LinearSolverBackend,
-    faer: Option<&'a dyn LinearSolverBackend>,
-) -> Result<ResolvedHostSolverPlan<'a>, eqiora::Diagnostic> {
-    ResolvedHostSolverPlan::resolve(profile, objective, 1e-12, 1e-14, nz(100), reference, faer)
+    reference: &dyn LinearSolverBackend,
+    faer: Option<&dyn LinearSolverBackend>,
+) -> Result<SolverSelection, eqiora::Diagnostic> {
+    SolverSelection::resolve_host::<f64>(profile, objective, 1e-12, 1e-14, nz(100), reference, faer)
 }
 fn assert_solution(solution: &LinearSolution, expected: &[f64]) {
     for (value, expected) in solution.values().iter().zip(expected) {
@@ -303,12 +303,12 @@ fn actual_csr_payload_is_rechecked_without_overwriting_decision_provenance() {
         );
         assert_solution(
             &decision
-                .solve(&sparse.linear_problem().unwrap(), None)
+                .solve(&sparse.linear_problem().unwrap(), None, &backend)
                 .unwrap(),
             &[1., 2.],
         );
         assert_eq!(backend.0.load(Ordering::SeqCst), 1);
-        let result = decision.solve(&dense.linear_problem().unwrap(), None);
+        let result = decision.solve(&dense.linear_problem().unwrap(), None, &backend);
         if allowed {
             assert_solution(&result.unwrap(), &[1., 2.]);
         } else {
@@ -620,7 +620,7 @@ fn invalid_horizons_forecasts_and_arithmetic_overflow_do_not_invent_costs() {
 /// Restrict an actual provider to one of its already-declared exact tuples.
 #[derive(Debug)]
 struct RestrictedBackend<'a> {
-    backend: &'a dyn LinearSolverBackend,
+    backend: &dyn LinearSolverBackend,
     capability: SolverCapability,
 }
 impl LinearSolverBackend for RestrictedBackend<'_> {
@@ -861,7 +861,13 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         admitted.sort_unstable();
         inventory.sort_unstable();
         assert_eq!(admitted, inventory);
-        assert_solution(&decision.solve(&problem, None).unwrap(), &expected);
+        let backend: &dyn LinearSolverBackend =
+            if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
+                &REFERENCE_LINEAR_SOLVER
+            } else {
+                &FaerLinearSolver
+            };
+        assert_solution(&decision.solve(&problem, None, backend).unwrap(), &expected);
         for &(id, faer, algorithm, preconditioner) in tuples {
             let backend: &dyn LinearSolverBackend = if faer {
                 &FaerLinearSolver
@@ -962,7 +968,10 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             assert_eq!(selected.selected_candidate_id(), id);
             assert_eq!(selected.solver_plan(), manual);
             assert_eq!(selected.solver_provider(), backend.provider());
-            assert_solution(&selected.solve(&problem, None).unwrap(), &expected);
+            assert_solution(
+                &selected.solve(&problem, None, &restricted).unwrap(),
+                &expected,
+            );
         }
     }
 }

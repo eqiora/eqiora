@@ -1229,7 +1229,7 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
     for objective in OBJECTIVES {
         let profile =
             SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-        let decision = ResolvedHostSolverPlan::resolve(
+        let decision = crate::SolverSelection::resolve_host::<f64>(
             profile,
             objective,
             1e-12,
@@ -1258,7 +1258,7 @@ fn unknown_diagonal_uses_identity_and_preserves_provider_unavailability_reasons(
                 .any(|reason| reason == (FAER_SPARSE_LU_ID, "capability.exact-tuple-required"))
         );
     }
-    let decision = ResolvedHostSolverPlan::resolve(
+    let decision = crate::SolverSelection::resolve_host::<f64>(
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Fast,
         1e-12,
@@ -1308,7 +1308,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // These descriptors advertise only General capabilities. The correct
         // algorithm alone cannot admit the requested symmetric operator class.
         let profile = SolverPlanningProfile::canonical_csr(properties, Some(false), None);
-        let rejected = ResolvedHostSolverPlan::resolve(
+        let rejected = crate::SolverSelection::resolve_host::<f64>(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1328,7 +1328,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // Sparse LU accepts all three classes, but the provider must advertise
         // the exact class. Change only that field before admitting the direct candidate.
         faer.capability.operator_properties = properties;
-        let direct = ResolvedHostSolverPlan::resolve(
+        let direct = crate::SolverSelection::resolve_host::<f64>(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1344,7 +1344,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             operator_properties: properties,
             ..capability(exact)
         };
-        let accepted = ResolvedHostSolverPlan::resolve(
+        let accepted = crate::SolverSelection::resolve_host::<f64>(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1392,7 +1392,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         SolverPlanningObjective::Fast,
         SolverPlanningObjective::LowMemory,
     ] {
-        let selected = ResolvedHostSolverPlan::resolve(
+        let selected = crate::SolverSelection::resolve_host::<f64>(
             profile.clone(),
             objective,
             1e-12,
@@ -1418,7 +1418,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         None,
         Some(ReductionPolicy::Fast),
     );
-    let fast = ResolvedHostSolverPlan::resolve(
+    let fast = crate::SolverSelection::resolve_host::<f64>(
         fast_profile,
         SolverPlanningObjective::Robust,
         1e-12,
@@ -1488,12 +1488,12 @@ fn host_planning_authenticates_execution_before_ranking_without_serial_fallback(
         SolverPlanningObjective::Fast,
         SolverPlanningObjective::LowMemory,
     ] {
-        fn resolve<'a>(
+        fn resolve(
             profile: SolverPlanningProfile,
             objective: SolverPlanningObjective,
-            supplied: Option<&'a dyn LinearSolverBackend>,
-        ) -> Result<ResolvedHostSolverPlan<'a>, Diagnostic> {
-            ResolvedHostSolverPlan::resolve(
+            supplied: Option<&dyn LinearSolverBackend>,
+        ) -> Result<crate::SolverSelection, Diagnostic> {
+            crate::SolverSelection::resolve_host::<f64>(
                 profile,
                 objective,
                 1e-12,
@@ -1580,7 +1580,7 @@ fn host_planning_authenticates_execution_before_ranking_without_serial_fallback(
         .with_execution(provider, crate::ExecutionReport::cuda(provider.id(), 0))
         .unwrap();
     assert!(
-        ResolvedHostSolverPlan::<f64>::resolve(
+        crate::SolverSelection::resolve_host::<f64>(
             cuda,
             SolverPlanningObjective::Fast,
             1e-12,

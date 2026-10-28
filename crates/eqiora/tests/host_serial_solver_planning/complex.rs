@@ -130,7 +130,7 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
         }
         for (section, supplied) in [("objectives", true), ("without_faer_objectives", false)] {
             for expected in fixture[section].as_array().unwrap() {
-                let decision = ResolvedHostSolverPlan::<C>::resolve(
+                let decision = SolverSelection::resolve_host::<C>(
                     SolverPlanningProfile::canonical_csr(
                         properties,
                         expected["complete_diagonal"].as_bool(),
@@ -169,14 +169,14 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
                     .map(|row| (row[0].as_str().unwrap(), row[1].as_str().unwrap()))
                     .collect::<Vec<_>>();
                 assert_eq!(decision.reasons().collect::<Vec<_>>(), trace);
-                let solved = decision.solve(&problem, None).unwrap();
-                assert_values(solved.values(), &fixture["solution"]);
                 let backend: &dyn LinearSolverBackend<C> =
                     if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
                         &REFERENCE_LINEAR_SOLVER
                     } else {
                         &faer
                     };
+                let solved = decision.solve(&problem, None, backend).unwrap();
+                assert_values(solved.values(), &fixture["solution"]);
                 let manual = LinearSolveRequest::new(backend, decision.solver_plan())
                     .solve(&problem)
                     .unwrap();
@@ -208,7 +208,7 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let selected = ResolvedHostSolverPlan::<C>::resolve(
+            let selected = SolverSelection::resolve_host::<C>(
                 SolverPlanningProfile::canonical_csr(properties, None, None),
                 objective,
                 1e-12,
@@ -225,7 +225,7 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
                     .any(|reason| reason == (direct_id, "catalog.provider-unavailable"))
             );
         }
-        let error = ResolvedHostSolverPlan::<C>::resolve(
+        let error = SolverSelection::resolve_host::<C>(
             SolverPlanningProfile::canonical_csr(properties, None, Some(ReductionPolicy::Fast)),
             SolverPlanningObjective::Fast,
             1e-12,
@@ -246,7 +246,7 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let selected = ResolvedHostSolverPlan::<C>::resolve(
+            let selected = SolverSelection::resolve_host::<C>(
                 SolverPlanningProfile::canonical_csr(properties, None, Some(ReductionPolicy::Fast)),
                 objective,
                 1e-12,
@@ -419,7 +419,7 @@ fn absent_provider_fast_preference_retains_real_spd_specialization() {
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let decision = ResolvedHostSolverPlan::resolve(
+            let decision = SolverSelection::resolve_host::<f64>(
                 SolverPlanningProfile::canonical_csr(
                     LinearOperatorProperties::SymmetricPositiveDefinite,
                     diagonal,
@@ -441,7 +441,9 @@ fn absent_provider_fast_preference_retains_real_spd_specialization() {
                 decision.solver_plan().algorithm(),
                 LinearSolver::ConjugateGradient
             );
-            let solution = decision.solve(&problem, None).unwrap();
+            let solution = decision
+                .solve(&problem, None, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
             for (actual, expected) in solution.values().iter().zip([1., 2.]) {
                 assert!((actual - expected).abs() <= 2f64.powi(-40));
             }
