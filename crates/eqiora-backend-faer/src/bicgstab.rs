@@ -2,14 +2,14 @@
 use super::*;
 use crate::candidate::{CandidateAcceptance, ZERO_ONLY_TOLERANCE, residual_norm};
 use eqiora_solver::{FixedOrderInnerProduct, SERIAL_LINEAR_EXECUTION};
-use faer::matrix_free::bicgstab::{BicgParams, bicgstab, bicgstab_scratch};
+mod kernel;
 
-pub(super) fn solve(
+pub(super) fn solve<S: KrylovScalar>(
     provider: SolverProvider,
-    problem: &LinearProblem<'_>,
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-    inverse_diagonal: Option<Vec<f64>>,
-) -> Result<LinearSolution, Diagnostic> {
+    inverse_diagonal: Option<Vec<S>>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     let dimension = problem.operator().columns();
     let mut output = initial_matrix(problem);
     let right_hand_side = right_hand_side_matrix(problem);
@@ -17,21 +17,14 @@ pub(super) fn solve(
     let operator = FaerOperator::new(problem.operator(), failure.clone());
     let left = FaerPreconditioner::new(dimension, inverse_diagonal);
     let right = FaerPreconditioner::new(dimension, None);
-    let parallelism = Par::Seq;
-    let mut workspace = MemBuffer::new(bicgstab_scratch(
-        left.clone(),
-        right.clone(),
-        operator.clone(),
-        1,
-        parallelism,
-    ));
+    let mut kernel = kernel::Kernel::new(operator, left, right);
     let target = plan.residual_target(FixedOrderInnerProduct::norm(
         &SERIAL_LINEAR_EXECUTION,
         problem.right_hand_side(),
     )?)?;
     let mut best = output.col_as_slice(0).to_vec();
-    let mut candidate = vec![0.; dimension];
-    let mut residual = vec![0.; dimension];
+    let mut candidate = vec![S::zero(); dimension];
+    let mut residual = vec![S::zero(); dimension];
     let mut best_norm = residual_norm(problem, &best, &mut residual)?;
     let mut method = problem
         .has_candidate_check()
@@ -52,24 +45,16 @@ pub(super) fn solve(
         // numerical breakdown, to the original total iteration budget.
         let limit = cycle_limit.min(plan.maximum_iterations().get() - iterations);
         output.col_as_slice_mut(0).copy_from_slice(&best);
-        let params = BicgParams {
-            initial_guess: EXPLICIT_INITIAL_GUESS,
-            abs_tolerance: if method.is_some() {
-                ZERO_ONLY_TOLERANCE
-            } else {
-                target
-            },
-            rel_tolerance: 0.,
-            max_iters: limit,
-            ..Default::default()
+        let threshold = if method.is_some() {
+            ZERO_ONLY_TOLERANCE
+        } else {
+            target
         };
-        let result = bicgstab(
+        let result = kernel.solve(
             output.as_mut(),
-            left.clone(),
-            right.clone(),
-            operator.clone(),
             right_hand_side.as_ref(),
-            params,
+            threshold,
+            limit,
             |point| {
                 for (index, value) in candidate.iter_mut().enumerate() {
                     *value = point[(index, 0)];
@@ -84,10 +69,8 @@ pub(super) fn solve(
                     &mut method,
                 );
             },
-            parallelism,
-            MemStack::new(&mut workspace),
         );
-        // The library can return between callbacks after its first substep.
+        // Also inspect the terminal point, including the zero-RHS correction.
         retain_candidate(
             problem,
             output.col_as_slice(0),
@@ -100,12 +83,12 @@ pub(super) fn solve(
         // A nonfinite search direction belongs to the solver recurrence.
         // An actual operator failure always propagates, even if an earlier
         // iterate happened to meet the tolerance.
-        let breakdown = failure.take_breakdown()?;
+        let breakdown = failure.take_breakdown()? || result.breakdown;
         // The original guess was not accepted above. Faer's zero-RHS
         // shortcut can replace it while reporting zero Krylov iterations;
         // charge that attempted correction once instead of claiming initial
         // convergence or allowing work outside the original budget.
-        iterations += result.as_ref().map_or(limit, |info| info.iter_count.max(1));
+        iterations += result.iter_count.max(1);
         if breakdown && !jointly_accepted(best_norm, target, &method) && best_norm >= before {
             return Err(solve_failed(
                 "faer BiCGSTAB breakdown made no true-residual progress",
@@ -132,20 +115,24 @@ pub(super) fn solve(
     )
 }
 
-fn jointly_accepted(norm: f64, target: f64, method: &Option<CandidateAcceptance>) -> bool {
+fn jointly_accepted<S: KrylovScalar>(
+    norm: f64,
+    target: f64,
+    method: &Option<CandidateAcceptance<S>>,
+) -> bool {
     method
         .as_ref()
         .map_or(norm <= target, CandidateAcceptance::accepted)
 }
 
-fn retain_candidate(
-    problem: &LinearProblem<'_>,
-    candidate: &[f64],
-    residual: &mut [f64],
-    best: &mut [f64],
+fn retain_candidate<S: KrylovScalar>(
+    problem: &LinearProblem<'_, S>,
+    candidate: &[S],
+    residual: &mut [S],
+    best: &mut [S],
     best_norm: &mut f64,
     failure: &ApplyFailure,
-    method: &mut Option<CandidateAcceptance>,
+    method: &mut Option<CandidateAcceptance<S>>,
 ) {
     if candidate.iter().any(|value| !value.is_finite()) {
         return;

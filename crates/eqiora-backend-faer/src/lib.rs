@@ -11,6 +11,7 @@ mod candidate;
 mod cg;
 mod complex;
 mod eigen;
+mod krylov;
 mod prepared_sparse_lu;
 mod sparse_lu;
 mod sparse_lu_factor;
@@ -25,10 +26,13 @@ use eqiora_solver::{
     PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution,
     SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
 };
-use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
-use faer::matrix_free::{InitialGuessStatus, LinOp, Precond};
-use faer::reborrow::ReborrowMut;
-use faer::{Mat, Par, mat::MatMut, mat::MatRef};
+use faer::dyn_stack::{MemBuffer, MemStack};
+use faer::matrix_free::InitialGuessStatus;
+use faer::{Mat, Par};
+use krylov::{
+    FaerOperator, FaerPreconditioner, KrylovScalar, initial_matrix, inverse_diagonal,
+    right_hand_side_matrix,
+};
 
 /// Exact Eqiora faer adapter package version compiled into this binary.
 pub const FAER_ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -43,7 +47,7 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[ProviderLibrary::new("faer", FAER_VERSION)],
 );
 
-/// Stateless faer adapter for real CG/BiCGSTAB and real/complex sparse LU.
+/// Stateless faer adapter for real/complex CG, BiCGSTAB and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
 
@@ -58,31 +62,61 @@ impl FaerLinearSolver {
     #[must_use]
     pub fn capabilities(&self) -> SolverCapabilities {
         let mut combinations = Vec::new();
-        for (algorithm, operator_properties) in [
+        for (scalar_domain, algorithm, operator_properties) in [
             (
+                ScalarDomain::Real,
                 LinearSolver::ConjugateGradient,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::General,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::Symmetric,
             ),
             (
+                ScalarDomain::Real,
                 LinearSolver::BiConjugateGradientStabilized,
                 LinearOperatorProperties::SymmetricIndefinite,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::ConjugateGradient,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::General,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::ComplexSymmetric,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::Hermitian,
+            ),
+            (
+                ScalarDomain::Complex,
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::HermitianPositiveDefinite,
             ),
         ] {
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 combinations.push(SolverCapability {
-                    scalar_domain: ScalarDomain::Real,
+                    scalar_domain,
                     algorithm,
                     operator_properties,
                     preconditioner,
@@ -213,46 +247,6 @@ impl LinearSolverBackend for FaerLinearSolver {
     }
 }
 
-fn inverse_diagonal(
-    problem: &LinearProblem<'_>,
-    plan: SolverPlan,
-) -> Result<Option<Vec<f64>>, Diagnostic> {
-    if plan.preconditioner() == PreconditionerPolicy::Identity {
-        return Ok(None);
-    }
-    let mut diagonal = vec![0.0; problem.operator().rows()];
-    if problem.operator().diagonal(&mut diagonal)? == DiagonalAvailability::Unavailable {
-        return Err(invalid_realization(
-            "faer Jacobi preconditioning requires an available operator diagonal",
-        ));
-    }
-    let invalid = diagonal.iter().any(|value| {
-        !value.is_finite()
-            || *value == 0.0
-            || (plan.algorithm() == LinearSolver::ConjugateGradient && *value < 0.0)
-    });
-    if invalid {
-        return Err(solve_failed(
-            "Jacobi diagonal must be finite and nonzero, and positive for CG",
-        ));
-    }
-    Ok(Some(
-        diagonal.into_iter().map(|value| 1.0 / value).collect(),
-    ))
-}
-
-fn initial_matrix(problem: &LinearProblem<'_>) -> Mat<f64> {
-    Mat::from_fn(problem.operator().columns(), 1, |row, _| {
-        problem.initial_guess().map_or(0.0, |values| values[row])
-    })
-}
-
-fn right_hand_side_matrix(problem: &LinearProblem<'_>) -> Mat<f64> {
-    Mat::from_fn(problem.operator().rows(), 1, |row, _| {
-        problem.right_hand_side()[row]
-    })
-}
-
 const fn convergence_reason(iterations: usize) -> ConvergenceReason {
     if iterations == 0 {
         ConvergenceReason::InitialResidualSatisfied
@@ -311,143 +305,6 @@ impl ApplyFailure {
     }
 }
 
-#[derive(Debug, Clone)]
-struct FaerOperator<'a> {
-    operator: &'a dyn LinearOperator<Scalar = f64>,
-    failure: ApplyFailure,
-}
-
-impl<'a> FaerOperator<'a> {
-    const fn new(operator: &'a dyn LinearOperator<Scalar = f64>, failure: ApplyFailure) -> Self {
-        Self { operator, failure }
-    }
-
-    fn apply_real(&self, mut output: MatMut<'_, f64>, input: MatRef<'_, f64>) {
-        output.fill(f64::NAN);
-        let Some(input) = input.try_as_col_major() else {
-            self.failure.record(solve_failed(
-                "faer supplied a non-contiguous operator input",
-            ));
-            return;
-        };
-        let Some(mut output) = output.try_as_col_major_mut() else {
-            self.failure.record(solve_failed(
-                "faer supplied a non-contiguous operator output",
-            ));
-            return;
-        };
-        for column in 0..input.ncols() {
-            let input_column = input.col(column).as_slice();
-            let output_column = output.rb_mut().col_mut(column).as_slice_mut();
-            if input_column.iter().any(|value| !value.is_finite()) {
-                self.failure.record_nonfinite_input();
-                return;
-            }
-            if let Err(diagnostic) = self.operator.apply(input_column, output_column) {
-                self.failure.record(diagnostic);
-                return;
-            }
-        }
-    }
-}
-
-impl LinOp<f64> for FaerOperator<'_> {
-    fn apply_scratch(&self, _right_hand_side_columns: usize, _parallelism: Par) -> StackReq {
-        StackReq::EMPTY
-    }
-
-    fn nrows(&self) -> usize {
-        self.operator.rows()
-    }
-
-    fn ncols(&self) -> usize {
-        self.operator.columns()
-    }
-
-    fn apply(
-        &self,
-        output: MatMut<'_, f64>,
-        input: MatRef<'_, f64>,
-        _parallelism: Par,
-        _stack: &mut MemStack,
-    ) {
-        self.apply_real(output, input);
-    }
-
-    fn conj_apply(
-        &self,
-        output: MatMut<'_, f64>,
-        input: MatRef<'_, f64>,
-        _parallelism: Par,
-        _stack: &mut MemStack,
-    ) {
-        self.apply_real(output, input);
-    }
-}
-
-#[derive(Debug, Clone)]
-struct FaerPreconditioner {
-    dimension: usize,
-    inverse_diagonal: Option<Vec<f64>>,
-}
-
-impl FaerPreconditioner {
-    const fn new(dimension: usize, inverse_diagonal: Option<Vec<f64>>) -> Self {
-        Self {
-            dimension,
-            inverse_diagonal,
-        }
-    }
-
-    fn apply_real(&self, mut output: MatMut<'_, f64>, input: MatRef<'_, f64>) {
-        for column in 0..input.ncols() {
-            for row in 0..self.dimension {
-                output[(row, column)] = input[(row, column)]
-                    * self
-                        .inverse_diagonal
-                        .as_ref()
-                        .map_or(1.0, |inverse| inverse[row]);
-            }
-        }
-    }
-}
-
-impl LinOp<f64> for FaerPreconditioner {
-    fn apply_scratch(&self, _right_hand_side_columns: usize, _parallelism: Par) -> StackReq {
-        StackReq::EMPTY
-    }
-
-    fn nrows(&self) -> usize {
-        self.dimension
-    }
-
-    fn ncols(&self) -> usize {
-        self.dimension
-    }
-
-    fn apply(
-        &self,
-        output: MatMut<'_, f64>,
-        input: MatRef<'_, f64>,
-        _parallelism: Par,
-        _stack: &mut MemStack,
-    ) {
-        self.apply_real(output, input);
-    }
-
-    fn conj_apply(
-        &self,
-        output: MatMut<'_, f64>,
-        input: MatRef<'_, f64>,
-        _parallelism: Par,
-        _stack: &mut MemStack,
-    ) {
-        self.apply_real(output, input);
-    }
-}
-
-impl Precond<f64> for FaerPreconditioner {}
-
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
@@ -458,6 +315,7 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    use faer::{dyn_stack::StackReq, matrix_free::LinOp};
     use std::num::NonZeroUsize;
 
     use eqiora_solver::{LinearOperatorProperties, REFERENCE_LINEAR_SOLVER};
@@ -647,7 +505,7 @@ mod tests {
 
     #[test]
     fn faer_does_not_infer_unverified_cross_product_tuples() {
-        let unsupported = plan(LinearSolver::BiConjugateGradientStabilized)
+        let unsupported = plan(LinearSolver::ConjugateGradient)
             .with_preconditioner(PreconditionerPolicy::Identity)
             .with_reduction(ReductionPolicy::Fast);
         let error = FaerLinearSolver
@@ -656,12 +514,12 @@ mod tests {
                 unsupported,
                 eqiora_core::ScalarDomain::Complex,
                 ScalarType::F64,
-                LinearOperatorProperties::General,
+                LinearOperatorProperties::ComplexSymmetric,
             )
             .unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
-        assert!(error.message().contains("BiConjugateGradientStabilized"));
+        assert!(error.message().contains("ConjugateGradient"));
         assert!(error.message().contains("Complex"));
         assert!(error.message().contains("exact"));
     }

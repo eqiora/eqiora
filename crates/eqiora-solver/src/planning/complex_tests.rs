@@ -63,6 +63,23 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         controls(LinearSolver::SparseLu, ReductionPolicy::Fast),
         None,
     );
+    let iterative_faer = HostSerialSolverCandidate::planned(
+        FAER_COMPLEX_BICGSTAB_ID,
+        PLANNING_EVIDENCE,
+        controls(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Fast,
+        ),
+        None,
+    );
+    let jacobi_faer = HostSerialSolverCandidate::planned(
+        FAER_COMPLEX_BICGSTAB_JACOBI_ID,
+        PLANNING_EVIDENCE,
+        iterative_faer
+            .plan()
+            .with_preconditioner(PreconditionerPolicy::Jacobi),
+        None,
+    );
     let reference_jacobi = HostSerialSolverCandidate::planned(
         REFERENCE_COMPLEX_JACOBI_ID,
         PLANNING_EVIDENCE,
@@ -74,13 +91,19 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     let error = resolve_candidates(
         profile.clone(),
         SolverPlanningObjective::Fast,
-        &[reference, reference_jacobi, direct],
+        &[
+            reference,
+            reference_jacobi,
+            direct,
+            iterative_faer,
+            jacobi_faer,
+        ],
     )
     .unwrap_err();
     assert_eq!(
         error.message(),
         format!(
-            "{POLICY_ID} no admitted candidate; trace=[{FAER_COMPLEX_LU_ID}=catalog.provider-unavailable,{REFERENCE_COMPLEX_ID}=capability.exact-tuple-required,{REFERENCE_COMPLEX_JACOBI_ID}=profile.complete-diagonal-required]"
+            "{POLICY_ID} no admitted candidate; trace=[{FAER_COMPLEX_BICGSTAB_ID}=catalog.provider-unavailable,{FAER_COMPLEX_BICGSTAB_JACOBI_ID}=catalog.provider-unavailable,{FAER_COMPLEX_LU_ID}=catalog.provider-unavailable,{REFERENCE_COMPLEX_ID}=capability.exact-tuple-required,{REFERENCE_COMPLEX_JACOBI_ID}=profile.complete-diagonal-required]"
         )
     );
     // A complete real General catalog must not be accepted as the complex inventory.
@@ -109,7 +132,13 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
             None,
         ),
         SolverPlanningObjective::Robust,
-        &[reference, reference_jacobi, direct],
+        &[
+            reference,
+            reference_jacobi,
+            direct,
+            iterative_faer,
+            jacobi_faer,
+        ],
     )
     .unwrap_err();
     assert!(error.message().contains("catalog.missing-id"));
@@ -124,7 +153,13 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     let error = resolve_candidates(
         HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
         SolverPlanningObjective::Robust,
-        &[changed, reference_jacobi, direct],
+        &[
+            changed,
+            reference_jacobi,
+            direct,
+            iterative_faer,
+            jacobi_faer,
+        ],
     )
     .unwrap_err();
     assert!(error.message().contains("catalog.plan-mismatch"));

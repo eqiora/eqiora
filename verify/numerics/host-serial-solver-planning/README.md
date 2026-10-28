@@ -1,7 +1,7 @@
 # Deterministic host-serial solver planning
 
 This case verifies one versioned planning policy over its frozen five-member real
-General catalog and sixteen complex tuples across four mathematical operator classes.
+General catalog and twenty-six complex tuples across four mathematical operator classes.
 The real problem is the normal-orientation,
 complete-diagonal, canonical CSR `f64` system
 
@@ -20,7 +20,7 @@ the complete `SolveReport`. It independently reapplies `A x`, requires a
 componentwise solution error no larger than `2^-40`, and retains the existing
 true-residual acceptance.
 
-This public case owns five real and sixteen complex tuple executions, independent true
+This public case owns five real and twenty-six complex tuple executions, independent true
 residual, exact manual/decision `LinearSolution` and complete `SolveReport`
 equality, frozen positive decisions, and public observations. The required
 companion
@@ -33,7 +33,7 @@ only when both cases pass.
 Run:
 
 ```bash
-python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v5.py
+python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v6.py
 cargo test -p eqiora-solver planning::
 cargo test -p eqiora --test host_serial_solver_planning
 cargo run -p eqiora-verify -- run \
@@ -47,8 +47,8 @@ Selected reason codes name the caller's ranking preference: `robust-preference`,
 `fast-preference`, or `low-memory-preference`. They do not assert that the selected
 candidate uses reproducible reduction, direct factorization, or an iterative
 method: admission can exclude the preferred candidates.
-The v5 inventory also includes the existing reference and faer Identity BiCGSTAB tuples.
-Without size facts, Robust/LowMemory retain the specialized CG/MINRES preference before general-purpose BiCGSTAB. Version5 also preserves that specialization within Fast's iterative fallback, after its reduction and sparse-LU priorities; absence of an optional faer provider must not demote CG solely by candidate-ID spelling. The General catalog preference ordering remains unchanged. The final ascending-ID tie-break selects Identity
+The v6 inventory also includes the existing reference and faer Identity BiCGSTAB tuples.
+Without size facts, Robust/LowMemory retain the specialized CG/MINRES preference before general-purpose BiCGSTAB. Version6 also preserves that specialization within Fast's iterative fallback, after its reduction and sparse-LU priorities; absence of an optional faer provider must not demote CG solely by candidate-ID spelling. The General catalog preference ordering remains unchanged. The final ascending-ID tie-break selects Identity
 before Jacobi when both are admitted. Unknown or absent diagonal facts reject only
 Jacobi candidates, while unavailable provider/capability tuples retain their own reasons.
 The exact rational solution and tolerances are unchanged.
@@ -58,8 +58,9 @@ The exact rational solution and tolerances are unchanged.
 The independent oracle freezes four genuine complex 2x2 systems. Reference
 BiCGSTAB admits Identity and Jacobi with Reproducible reduction on General,
 complex-symmetric, Hermitian and HPD profiles. HPD also admits Reference CG with
-Identity or Jacobi. Each class retains the existing faer Identity/Fast SparseLU
-tuple: ten reference and four faer tuples in total. The Hermitian fixtures have
+Identity or Jacobi; Hermitian and HPD also admit Reference Identity MINRES.
+Faer CG on HPD and BiCGSTAB on all four classes support Identity/Jacobi, and each
+class retains Faer Identity/Fast SparseLU: 12 Reference and 14 Faer tuples in total. The Hermitian fixtures have
 nonreal off-diagonal entries. HPD is established independently by leading
 principal minors 4 and 11; it is not inferred from a Field declaration.
 
@@ -81,7 +82,7 @@ eligible, while a required Fast reduction can leave no admitted candidate.
 
 ## Boundary
 
-`Robust`, `Fast`, and `LowMemory` are names for this versioned v5 rule table,
+`Robust`, `Fast`, and `LowMemory` are names for this versioned v6 rule table,
 not empirical or universal optimization claims. This case proves no solver or
 provider superiority, timing, process memory, fill, scale, fallback, retry,
 portfolio, transport, advisor, learning, mutable discovery, durable decision
@@ -113,7 +114,8 @@ Structural setup is `S(n+z)`. LU numeric setup is `Fn^3` and each solve is
 prediction. CG each iteration is `2z+8n+jn`; BiCGSTAB is `4z+20n+2jn`, where
 `j=1` for Jacobi and 0 for Identity. Their numeric setup is `Fjn`. MINRES uses
 `k=min(forecast,n)` and `k(2z+8n)+4nk(k+1)` for retained-basis actions and
-reorthogonalization. Every solve adds original residual acceptance `2z+5n`.
+reorthogonalization. Every solve adds `2z+5n` as a final independent acceptance allowance. These
+scoring weights do not count every intermediate provider callback or executed action.
 All arithmetic is checked; missing dimensions or overflow stay unknown. These
 are declared ranking units, not a FLOP, timing, convergence or optimality claim.
 Identity/Jacobi forecasts are separate; omitted forecasts use the iteration

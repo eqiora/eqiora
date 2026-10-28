@@ -6,9 +6,20 @@ listed here.
 
 ## [Unreleased]
 
+- The Faer adapter's real/complex BiCGSTAB uses one private single-RHS
+  recurrence with conjugate-first products, correcting the pinned library's
+  complex bilinear products. Alpha and omega candidates retain independent
+  original-residual and physical acceptance within the requested budget.
+
+- Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
+  now execute Identity/Jacobi through the same typed Krylov owner as real solves.
+  Planner v6 admits these ten exact tuples; native work remains bounded by the
+  requested budget and acceptance uses the original residual and physical checks.
+
+
 ### Changed
 
-- Host solver planning advances to policy v5 for the expanded complex catalog.
+- Host solver planning advances to policy v6 for the expanded complex catalog.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
   Identity MINRES admits complex Hermitian/HPD through the existing realification,

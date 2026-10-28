@@ -1,6 +1,6 @@
 # Independent reference
 
-`derive_policy_v5.py` is the independent authority for the exact rational
+`derive_policy_v6.py` is the independent authority for the exact rational
 system and deterministic selection table. It uses Python `Fraction` arithmetic
 to derive `[1, 2]` and the zero residual, locates both diagonal entries directly
 from the captured CSR offsets and column indices, freezes the decimal control
@@ -41,24 +41,25 @@ second, separately frozen right-hand side. The nonreal Hermitian off-diagonal
 entries cannot be replaced by a real symmetric witness. HPD leading principal
 minors are 4 and 11; the separate Hermitian fixture has determinant -7.
 
-The literal complex catalogs contain ten reference and four faer tuples:
+The literal complex catalogs contain 12 Reference and 14 Faer tuples:
 Identity/Jacobi Reproducible BiCGSTAB on each of the four classes, HPD
-Identity/Jacobi Reproducible CG, and the existing Identity/Fast faer SparseLU
+Identity/Jacobi Reproducible CG, Hermitian/HPD Identity MINRES, Faer HPD CG
+and all-class BiCGSTAB with Identity/Jacobi, and Identity/Fast Faer SparseLU
 on each class. Normal and conjugate-transposed manual execution of every tuple
 is the independent numerical authority for these catalog evidence links.
 Known diagonal presence admits Jacobi; an unproved diagonal rejects it before
 ranking. The literal table retains the existing specialized CG/MINRES preference
-when shape is unknown. Version5 applies that specialization to Fast's iterative
+when shape is unknown. Version6 applies that specialization to Fast's iterative
 fallback after its reduction and sparse-LU priorities as well, including when
 the optional faer provider is absent. The independently frozen absence traces
-therefore keep CG on HPD rather than selecting BiCGSTAB by ID spelling. Identity MINRES also admits Hermitian/HPD through the existing realification. This adds no complex Jacobi MINRES, faer iterative, or ordinary HPD recognition
+therefore keep CG on HPD rather than selecting BiCGSTAB by ID spelling. Identity MINRES uses the existing realification on Hermitian/HPD. Faer CG on HPD and BiCGSTAB on all four classes each support Identity/Jacobi with Fast reductions. This adds no ordinary HPD recognition
 claim.
 
 ## Provider source identity
 
-The v5 table binds the inspected Cargo release `0.1.5` for solver and execution
+The v6 table binds the inspected Cargo release `0.1.5` for solver and execution
 provider descriptors. The v2 table retained `0.1.0-alpha.3` while its public test
-checked the actual Cargo version separately. The v5 test requires equality among
+checked the actual Cargo version separately. The v6 test requires equality among
 the actual provider, the independent oracle, and Cargo source metadata. The exact
 rational solution and numerical tolerance derivations are unchanged.
 

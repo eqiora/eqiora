@@ -3,7 +3,7 @@
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
 selects one exact `eqiora-solver` library-test aggregator. The public case owns
-the five real and fourteen complex live backend tuple executions and public observations. This private case
+27 real and 26 complex live backend tuple executions and public observations. This private case
 owns the complete adversarial catalog, control, profile, capability, reranking,
 problem-identity, zero-work, and exactly-once checks. The capability is verified
 only when both cases pass.
