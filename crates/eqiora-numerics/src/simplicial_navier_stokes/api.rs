@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_realization::Target;
-use eqiora_solver::{HostSolverProfile, LinearOperatorProperties, SolveReport, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, SolveReport, SolverPlan, SolverPlanningProfile};
 
 use super::invalid;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -90,7 +90,7 @@ impl MiniNavierStokesStepPlan2d {
                 "MINI Navier--Stokes Newton actions require a general-operator solver plan",
             ));
         }
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
             .require_plan(linear_solver)?;
         if target
             != (Target::HostCpu {

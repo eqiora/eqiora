@@ -20,13 +20,13 @@ fn profile(
     n: usize,
     z: usize,
     request: SolverCostRequest,
-) -> HostSolverProfile {
-    HostSolverProfile::canonical_csr(properties, Some(true), None)
+) -> SolverPlanningProfile {
+    SolverPlanningProfile::canonical_csr(properties, Some(true), None)
         .with_size(SolverPlanningSize::exact(n, z))
         .with_cost_request(request)
 }
 fn choose<'a>(
-    profile: HostSolverProfile,
+    profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
     reference: &'a dyn LinearSolverBackend,
     faer: Option<&'a dyn LinearSolverBackend>,
@@ -416,9 +416,10 @@ fn low_memory_prefers_known_bounds_and_preserves_missing_fact_provider_reasons()
             .filter(|cost| cost.candidate().starts_with("eqiora.faer."))
             .all(|cost| cost.numeric_payload_bytes().is_none())
     );
-    let unknown = HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None)
-        .with_size(SolverPlanningSize::exact(2, 4))
-        .with_cost_request(forecast(1, 1, 1, 3, 3));
+    let unknown =
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+            .with_size(SolverPlanningSize::exact(2, 4))
+            .with_cost_request(forecast(1, 1, 1, 3, 3));
     let cg = plan(
         LinearSolver::ConjugateGradient,
         PreconditionerPolicy::Identity,
@@ -843,7 +844,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         let system = CanonicalCsrSystemView::new(&DenseTwo(values), &rhs, properties).unwrap();
         let problem = system.linear_problem().unwrap();
         let decision = choose(
-            HostSolverProfile::canonical_csr(properties, Some(true), None)
+            SolverPlanningProfile::canonical_csr(properties, Some(true), None)
                 .with_size(SolverPlanningSize::exact(2, 4))
                 .with_cost_request(forecast(1, 1, 1, 3, 3)),
             SolverPlanningObjective::Robust,
@@ -940,10 +941,13 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                     reduction: manual.reduction(),
                 },
             };
-            let owner =
-                HostSolverProfile::canonical_csr(properties, Some(true), Some(manual.reduction()))
-                    .with_size(SolverPlanningSize::exact(2, 4))
-                    .with_cost_request(forecast(1, 1, 1, 3, 3));
+            let owner = SolverPlanningProfile::canonical_csr(
+                properties,
+                Some(true),
+                Some(manual.reduction()),
+            )
+            .with_size(SolverPlanningSize::exact(2, 4))
+            .with_cost_request(forecast(1, 1, 1, 3, 3));
             let selected = if faer {
                 choose(
                     owner,

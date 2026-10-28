@@ -211,7 +211,7 @@ fn assert_solver_structure(
     backend: &dyn LinearSolverBackend,
     with_gauge: bool,
 ) {
-    use eqiora_solver::{AlgebraicConstraint, AlgebraicStructure, HostSolverProfile};
+    use eqiora_solver::{AlgebraicConstraint, AlgebraicStructure, SolverPlanningProfile};
     let (velocity, pressure) = match plan.admission.recognized_model() {
         RecognizedNativeModel::Transient(model) => (model.velocity(), model.pressure()),
         RecognizedNativeModel::TransientGeometry(binding) => {
@@ -300,7 +300,7 @@ fn assert_solver_structure(
     ] {
         let mut changed = plan.clone();
         let profile =
-            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+            SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
         changed.admission.linear.planning_profile = Some(match structure {
             Some(structure) => profile.with_structure(structure).unwrap(),
             None => profile,

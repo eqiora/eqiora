@@ -46,8 +46,9 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         .unwrap(),
         calls: AtomicUsize::new(0),
     };
-    let profile = HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-    let reference = HostSerialSolverCandidate::planned(
+    let profile =
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+    let reference = SolverCandidate::planned(
         REFERENCE_COMPLEX_ID,
         PLANNING_EVIDENCE,
         controls(
@@ -56,13 +57,13 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         ),
         Some(&backend as &dyn crate::LinearSolverBackend<C>),
     );
-    let direct = HostSerialSolverCandidate::planned(
+    let direct = SolverCandidate::planned(
         FAER_COMPLEX_LU_ID,
         PLANNING_EVIDENCE,
         controls(LinearSolver::SparseLu, ReductionPolicy::Fast),
         None,
     );
-    let iterative_faer = HostSerialSolverCandidate::planned(
+    let iterative_faer = SolverCandidate::planned(
         FAER_COMPLEX_BICGSTAB_ID,
         PLANNING_EVIDENCE,
         controls(
@@ -71,7 +72,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         ),
         None,
     );
-    let jacobi_faer = HostSerialSolverCandidate::planned(
+    let jacobi_faer = SolverCandidate::planned(
         FAER_COMPLEX_BICGSTAB_JACOBI_ID,
         PLANNING_EVIDENCE,
         iterative_faer
@@ -79,13 +80,13 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
             .with_preconditioner(PreconditionerPolicy::Jacobi),
         None,
     );
-    let reference_jacobi = HostSerialSolverCandidate::planned(
+    let reference_jacobi = SolverCandidate::planned(
         REFERENCE_COMPLEX_JACOBI_ID,
         PLANNING_EVIDENCE,
         reference
             .plan()
             .with_preconditioner(PreconditionerPolicy::Jacobi),
-        reference.backend,
+        Some(reference.request().backend()),
     );
     let error = resolve_candidates(
         profile.clone(),
@@ -114,7 +115,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         FAER_SPARSE_LU_ID,
     ]
     .map(|id| {
-        HostSerialSolverCandidate::planned(
+        SolverCandidate::planned(
             id,
             PLANNING_EVIDENCE,
             reference.plan(),
@@ -125,7 +126,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     assert!(error.message().contains("catalog.missing-id"));
     // Nor may a complete complex General catalog reinterpret an asserted HPD class.
     let error = resolve_candidates(
-        HostSolverProfile::canonical_csr(
+        SolverPlanningProfile::canonical_csr(
             LinearOperatorProperties::HermitianPositiveDefinite,
             None,
             None,
@@ -141,16 +142,16 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     )
     .unwrap_err();
     assert!(error.message().contains("catalog.missing-id"));
-    let changed = HostSerialSolverCandidate::planned(
+    let changed = SolverCandidate::planned(
         REFERENCE_COMPLEX_ID,
         PLANNING_EVIDENCE,
         reference
             .plan()
             .with_preconditioner(PreconditionerPolicy::Jacobi),
-        reference.backend,
+        Some(reference.request().backend()),
     );
     let error = resolve_candidates(
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
         SolverPlanningObjective::Robust,
         &[
             changed,
@@ -173,7 +174,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         [crate::AlgebraicConstraint::ZeroIntegral { field }],
     )
     .unwrap();
-    let error = HostSolverProfile::canonical_csr(
+    let error = SolverPlanningProfile::canonical_csr(
         LinearOperatorProperties::HermitianPositiveDefinite,
         None,
         None,
@@ -192,7 +193,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         calls: AtomicUsize::new(0),
     };
     let error = ResolvedHostSolverPlan::<C>::resolve(
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Fast,
         1e-12,
         1e-14,
@@ -209,7 +210,7 @@ pub(super) fn typed_provider_identity_and_operator_class_are_independent() {
         LinearOperatorProperties::SymmetricPositiveDefinite,
     ] {
         let error = ResolvedHostSolverPlan::<C>::resolve(
-            HostSolverProfile::canonical_csr(properties, None, None),
+            SolverPlanningProfile::canonical_csr(properties, None, None),
             SolverPlanningObjective::Robust,
             1e-12,
             1e-14,

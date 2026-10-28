@@ -12,8 +12,10 @@ use crate::{
 
 mod catalog;
 mod cost;
+mod selection;
 use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
+pub use selection::{SolverProviderAvailability, SolverSelection};
 
 const POLICY_ID: &str = "eqiora.host-solver-planning/v9";
 
@@ -137,7 +139,7 @@ pub enum SolverPlanningObjective {
 
 /// Structural operator facts admitted before host numerical work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HostSolverProfile {
+pub struct SolverPlanningProfile {
     facts: PlanningProfileFacts,
     execution_provider: ExecutionProvider,
     execution: crate::ExecutionReport,
@@ -148,11 +150,11 @@ pub struct HostSolverProfile {
     run_forecast: Option<cost::RunForecast>,
 }
 
-impl HostSolverProfile {
+impl SolverPlanningProfile {
     /// Bind the explicitly requested execution; planning never chooses placement.
     ///
     /// # Errors
-    /// Rejects invalid providers, mismatched adapters, and non-host topology.
+    /// Rejects invalid providers, mismatched adapters, and unsupported topology.
     pub fn with_execution(
         mut self,
         provider: ExecutionProvider,
@@ -160,16 +162,29 @@ impl HostSolverProfile {
     ) -> Result<Self, Diagnostic> {
         provider.validate()?;
         if execution.adapter() != provider.id()
-            || !matches!(execution.topology(), crate::ExecutionTopology::Host { .. })
+            || !matches!(
+                execution.topology(),
+                crate::ExecutionTopology::Host { .. } | crate::ExecutionTopology::Cuda { .. }
+            )
         {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
-                "planning execution report must match its host provider",
+                "planning execution report must match a host or CUDA provider",
             ));
         }
         self.execution_provider = provider;
         self.execution = execution;
         Ok(self)
+    }
+
+    /// Exact explicitly requested execution provider.
+    pub const fn execution_provider(&self) -> ExecutionProvider {
+        self.execution_provider
+    }
+
+    /// Exact explicitly requested execution placement.
+    pub const fn execution(&self) -> crate::ExecutionReport {
+        self.execution
     }
 
     fn is_serial(&self) -> bool {
@@ -354,15 +369,21 @@ impl HostSolverProfile {
 
 /// One untrusted member of the frozen host-serial solver catalog.
 #[derive(Debug, Clone, Copy)]
-struct HostSerialSolverCandidate<'backend, S = f64> {
+struct SolverCandidate<'backend, S = f64> {
     id: &'static str,
     evidence_case: &'static str,
     plan: SolverPlan,
-    backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
+    source: Option<CandidateProvider<'backend, S>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CandidateProvider<'backend, S> {
+    Host(&'backend dyn crate::LinearSolverBackend<S>),
+    Declared(&'backend SolverProviderAvailability),
 }
 
 impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
-    HostSerialSolverCandidate<'backend, S>
+    SolverCandidate<'backend, S>
 {
     #[cfg(test)]
     const fn new(
@@ -383,8 +404,39 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
             id,
             evidence_case,
             plan,
-            backend,
+            source: match backend {
+                Some(backend) => Some(CandidateProvider::Host(backend)),
+                None => None,
+            },
         }
+    }
+
+    fn provider(self) -> Option<SolverProvider> {
+        self.source.map(|source| match source {
+            CandidateProvider::Host(backend) => backend.provider(),
+            CandidateProvider::Declared(available) => available.provider,
+        })
+    }
+
+    fn execution_provider(self) -> Option<ExecutionProvider> {
+        self.source.map(|source| match source {
+            CandidateProvider::Host(backend) => backend.default_execution_provider(),
+            CandidateProvider::Declared(available) => available.execution_provider,
+        })
+    }
+
+    fn execution(self) -> Option<crate::ExecutionReport> {
+        self.source.map(|source| match source {
+            CandidateProvider::Host(backend) => backend.default_execution(),
+            CandidateProvider::Declared(available) => available.execution,
+        })
+    }
+
+    fn capabilities(self) -> Option<crate::SolverCapabilities> {
+        self.source.map(|source| match source {
+            CandidateProvider::Host(backend) => backend.capabilities(),
+            CandidateProvider::Declared(available) => available.capabilities.clone(),
+        })
     }
 
     const fn plan(self) -> SolverPlan {
@@ -407,8 +459,10 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     #[must_use]
     const fn request(self) -> LinearSolveRequest<'backend, S> {
         LinearSolveRequest::new(
-            self.backend
-                .expect("admitted candidate has a typed backend"),
+            match self.source {
+                Some(CandidateProvider::Host(backend)) => backend,
+                _ => panic!("host execution requires a bound host backend"),
+            },
             self.plan,
         )
     }
@@ -420,7 +474,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 struct HostSerialSolverDecision<'problem, 'backend> {
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
-    selected: HostSerialSolverCandidate<'backend>,
+    selected: SolverCandidate<'backend>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
 }
@@ -441,7 +495,7 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
 
     /// Exact selected catalog member.
     #[must_use]
-    const fn selected(&self) -> HostSerialSolverCandidate<'backend> {
+    const fn selected(&self) -> SolverCandidate<'backend> {
         self.selected
     }
 
@@ -482,9 +536,9 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
 /// admitted operator facts.
 #[derive(Debug)]
 pub struct ResolvedHostSolverPlan<'backend, S = f64> {
-    profile: HostSolverProfile,
+    profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
-    selected: HostSerialSolverCandidate<'backend, S>,
+    selected: SolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
     costs: Vec<SolverCandidateCost>,
@@ -504,7 +558,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     /// reference candidates independently eligible. Other host execution uses only
     /// the supplied backend, authenticated against the exact profile execution.
     pub fn resolve(
-        profile: HostSolverProfile,
+        profile: SolverPlanningProfile,
         objective: SolverPlanningObjective,
         relative_tolerance: f64,
         absolute_tolerance: f64,
@@ -512,6 +566,12 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         reference_backend: &'backend dyn crate::LinearSolverBackend<S>,
         supplied_backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
     ) -> Result<Self, Diagnostic> {
+        if !matches!(
+            profile.execution.topology(),
+            crate::ExecutionTopology::Host { .. }
+        ) {
+            return Err(invalid_catalog("host-binding.host-execution-required"));
+        }
         let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
             .iter()
             .map(|id| {
@@ -523,7 +583,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
                 } else {
                     supplied_backend
                 };
-                Ok(HostSerialSolverCandidate::planned(
+                Ok(SolverCandidate::planned(
                     id,
                     expected.evidence_case,
                     catalog_plan(
@@ -551,7 +611,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     /// Mathematical and structural assertions admitted before execution.
     #[must_use]
-    pub fn profile(&self) -> HostSolverProfile {
+    pub fn profile(&self) -> SolverPlanningProfile {
         self.profile.clone()
     }
 
@@ -663,14 +723,14 @@ impl PlanningProfileFacts {
 
 #[derive(Debug, Clone, Copy)]
 struct CandidateEvaluation<'backend, S = f64> {
-    candidate: HostSerialSolverCandidate<'backend, S>,
+    candidate: SolverCandidate<'backend, S>,
     rejection: Option<&'static str>,
     cost: Option<SolverCandidateCost>,
 }
 
 #[derive(Debug)]
 struct ResolvedCandidateSet<'backend, S = f64> {
-    selected: HostSerialSolverCandidate<'backend, S>,
+    selected: SolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
     costs: Vec<SolverCandidateCost>,
@@ -706,10 +766,10 @@ fn catalog_plan(
 fn resolve_host_serial_solver_v9<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
-    candidates: &[HostSerialSolverCandidate<'backend>],
+    candidates: &[SolverCandidate<'backend>],
 ) -> Result<HostSerialSolverDecision<'problem, 'backend>, Diagnostic> {
     let resolved = resolve_candidates(
-        HostSolverProfile {
+        SolverPlanningProfile {
             facts: PlanningProfileFacts::from_problem(problem),
             execution_provider: SERIAL_EXECUTION_PROVIDER,
             execution: crate::ExecutionReport::host_serial(),
@@ -732,11 +792,14 @@ fn resolve_host_serial_solver_v9<'problem, 'backend>(
 }
 
 fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
-    profile: HostSolverProfile,
+    profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
-    candidates: &[HostSerialSolverCandidate<'backend, S>],
+    candidates: &[SolverCandidate<'backend, S>],
 ) -> Result<ResolvedCandidateSet<'backend, S>, Diagnostic> {
-    validate_inventory(catalog_ids(S::DOMAIN, profile.facts.properties), candidates)?;
+    validate_inventory(
+        selection::profile_catalog_ids(S::DOMAIN, &profile),
+        candidates,
+    )?;
     validate_common_controls(candidates)?;
 
     let mut ordered = candidates.to_vec();
@@ -749,7 +812,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
                 profile.estimate_cost(
                     candidate.id(),
                     candidate.plan(),
-                    candidate.backend.expect("admitted provider").provider(),
+                    candidate.provider().expect("admitted provider"),
                     S::DOMAIN,
                     S::STORAGE,
                 )
@@ -795,9 +858,8 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
     });
     let selected = admitted[0];
     let solver_provider = selected
-        .backend
-        .expect("selected candidate has a typed backend")
-        .provider();
+        .provider()
+        .expect("selected candidate has an admitted provider");
     let selected_id = selected.id();
     let selected_reason = selected_reason(objective);
     let mut reasons = Vec::with_capacity(evaluations.len() * 2);
@@ -831,7 +893,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
 
 fn validate_inventory<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     ids: &[&str],
-    candidates: &[HostSerialSolverCandidate<'_, S>],
+    candidates: &[SolverCandidate<'_, S>],
 ) -> Result<(), Diagnostic> {
     // The requested domain and mathematical class own the inventory. Candidate
     // IDs cannot reinterpret either fact, including a complete foreign catalog.
@@ -863,7 +925,7 @@ fn validate_inventory<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
 }
 
 fn validate_common_controls<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
-    candidates: &[HostSerialSolverCandidate<'_, S>],
+    candidates: &[SolverCandidate<'_, S>],
 ) -> Result<(), Diagnostic> {
     let first = candidates
         .first()
@@ -891,7 +953,7 @@ fn has_complete_diagonal(rows: usize, row_offsets: &[usize], column_indices: &[u
 
 fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
-    candidate: HostSerialSolverCandidate<'_, S>,
+    candidate: SolverCandidate<'_, S>,
 ) -> (u8, u8, &'static str) {
     let plan = candidate.plan();
     match objective {

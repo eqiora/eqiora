@@ -7,10 +7,10 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, HostSolverProfile,
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSolverPlan,
-    SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverPlanningObjective, SolverProvider,
+    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, LinearOperatorProperties,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSolverPlan, SERIAL_EXECUTION_PROVIDER,
+    SolverPlan, SolverPlanningObjective, SolverPlanningProfile, SolverProvider,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
@@ -281,7 +281,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
         let decision = ResolvedHostSolverPlan::resolve(
-            HostSolverProfile::general_canonical_csr(),
+            SolverPlanningProfile::general_canonical_csr(),
             objective,
             1.0e-12,
             1.0e-14,
@@ -451,7 +451,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::LowMemory,
         ] {
             let decision = ResolvedHostSolverPlan::resolve(
-                HostSolverProfile::canonical_csr(properties, Some(diagonal), None)
+                SolverPlanningProfile::canonical_csr(properties, Some(diagonal), None)
                     .with_structure(structure.clone())
                     .unwrap(),
                 objective,
@@ -549,7 +549,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         SolverPlanningObjective::LowMemory,
     ] {
         let profile =
-            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+            SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
         let decision = ResolvedHostSolverPlan::resolve(
             profile,
             objective,
@@ -590,7 +590,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     // Unknown is not fabricated absence. A genuinely asserted absence must
     // still reject this matrix's present diagonal before any numerical work.
     assert!(
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(false), None)
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, Some(false), None)
             .require_problem(&problem)
             .unwrap_err()
             .message()
