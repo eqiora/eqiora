@@ -597,10 +597,14 @@ file_q1 = package.Plan.read(plan_path)
 assert file_q1.identity == q1.identity
 assert file_q1.to_bytes() == q1_bytes
 
+unknown_version_bytes = q1_bytes.replace(
+    plan_payload["schema"].encode(), b"eqiora.resolved-common-plan/v999", 1
+)
+assert unknown_version_bytes != q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v25", b"resolved-common-plan/v999")),
+    ("unknown-version.eqplan", unknown_version_bytes),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
