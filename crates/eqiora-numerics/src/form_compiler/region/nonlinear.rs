@@ -53,6 +53,15 @@ impl RegionLinearization {
         self,
         point: &[f64],
     ) -> Result<LocalContribution<f64>, Diagnostic> {
+        self.into_contribution_and_residual(point)
+            .map(|(contribution, _)| contribution)
+    }
+
+    /// Preserve the owned residual for packet acceptance without copying it.
+    pub(crate) fn into_contribution_and_residual(
+        self,
+        point: &[f64],
+    ) -> Result<(LocalContribution<f64>, Vec<f64>), Diagnostic> {
         let rows = self.residual.len();
         let columns = point.len();
         if rows == 0 || columns == 0 || rows.checked_mul(columns) != Some(self.jacobian.len()) {
@@ -68,7 +77,8 @@ impl RegionLinearization {
                 row.iter().zip(point).map(|(j, u)| j * u).sum::<f64>() - residual
             })
             .collect();
-        LocalContribution::new(rows, columns, self.jacobian, rhs)
+        let contribution = LocalContribution::new(rows, columns, self.jacobian, rhs)?;
+        Ok((contribution, self.residual))
     }
 }
 

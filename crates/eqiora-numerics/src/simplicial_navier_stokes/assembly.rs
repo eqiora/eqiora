@@ -602,8 +602,7 @@ pub(crate) fn assemble_step_linearization_prepared(
             let point =
                 mapped_local_point(step.structure.packet_mappings[packet][0].map(), candidate)?;
             let linearization = forms[packet].linearize(&step.history[packet], &point)?;
-            let residual = linearization.residual.clone();
-            let local = linearization.into_contribution(&point)?;
+            let (local, residual) = linearization.into_contribution_and_residual(&point)?;
             Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
