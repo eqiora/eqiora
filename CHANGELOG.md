@@ -6,20 +6,29 @@ listed here.
 
 ## [Unreleased]
 
+### Changed
+
 - The Faer adapter's real/complex BiCGSTAB uses one private single-RHS
   recurrence with conjugate-first products, correcting the pinned library's
   complex bilinear products. Alpha and omega candidates retain independent
   original-residual and physical acceptance within the requested budget.
 
+- `Plan.for_run(steps=..., output_steps=...)` explicitly replans a bounded autonomous
+  scalar Q1 BackwardEuler workload before State creation. Saved Plans rederive the
+  workload and cost projections; execution rejects a changed schedule before work.
+  Work proxies include assembly, State/output replay and coordinate recovery, with
+  retained coordinate payload reported separately from the solver payload cap.
+  Only proven Faer sparse-LU retention forecasts one preparation; unknown work
+  remains unknown. Common Plan v25 replaces v24 without a compatibility decoder.
+
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.
-  Planner v6 admits these ten exact tuples; native work remains bounded by the
+  Planner v7 admits these ten exact tuples; native work remains bounded by the
   requested budget and acceptance uses the original residual and physical checks.
-
 
 ### Changed
 
-- Host solver planning advances to policy v6 for the expanded complex catalog.
+- Host solver planning advances to policy v7 for the expanded complex catalog and bounded Run forecasts.
 - Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
   Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
   Identity MINRES admits complex Hermitian/HPD through the existing realification,

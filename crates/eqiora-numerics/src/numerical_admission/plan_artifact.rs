@@ -26,7 +26,8 @@ pub(super) use residual_scaling::bytes as residual_scaling_bytes;
 use scaling::{WireScalingRequest, scaling_request};
 mod linear;
 use enforcement::WireEnforcement;
-use linear::WireLinearControls;
+pub(crate) use linear::solve_intent_bytes;
+use linear::{WireLinearControls, wire_solve};
 mod event_policy;
 mod forward_policy;
 mod temporal;
@@ -34,7 +35,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v24";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v25";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -119,6 +120,8 @@ struct WireResolvedCommonPlan {
     encoding: String,
     family: WirePlanFamily,
     identity: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_planning: Option<super::run_planning::WireRunPlanning>,
     model_base64: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     mesh_base64: Option<String>,
@@ -148,6 +151,12 @@ struct WireResolvedCommonPlan {
     backend_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     realization_base64: Option<String>,
+}
+
+/// Reuse the canonical solver-intent projection when binding requested provenance.
+pub(super) fn linear_request_bytes(request: CommonLinearRequest) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&WireLinearControls::from(request))
+        .map_err(|error| invalid(format!("cannot encode original linear request: {error}")))
 }
 
 impl ResolvedCommonPlan {
@@ -197,9 +206,14 @@ impl ResolvedCommonPlan {
         Some(request)
     }
 
-    /// Canonical solve request that reproduces this resolved Plan.
+    /// Original canonical solve request. A Run context separately rederives its workload forecast.
     #[must_use]
     pub fn canonical_solve_request(&self) -> Option<CommonSolvePolicy> {
+        if let Self::Spatial(plan) = self
+            && let Some(context) = &plan.run_planning
+        {
+            return Some(CommonSolvePolicy::Linear(context.request));
+        }
         let solver = self.effective_solver()?;
         let linear = match self.solver_planning_objective() {
             None => CommonLinearRequest::exact(
@@ -355,7 +369,11 @@ impl ResolvedCommonPlan {
         let wire: WireResolvedCommonPlan = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
-        let resolved = wire.resolve(linear_backend, time_backend)?;
+        let mut resolved = wire.resolve(linear_backend, time_backend)?;
+        if let Some(context) = &wire.run_planning {
+            resolved =
+                resolved.for_run(context.steps, context.output_steps.clone(), linear_backend)?;
+        }
         if resolved.to_bytes()? != bytes {
             return Err(invalid(
                 "resolved common Plan bytes are not the canonical encoding of their content",
@@ -388,6 +406,10 @@ impl WireResolvedCommonPlan {
             encoding: ENCODING.to_owned(),
             family: family(plan),
             identity: plan.identity().to_owned(),
+            run_planning: plan
+                .as_spatial()
+                .and_then(|plan| plan.run_planning.as_ref())
+                .map(|context| context.wire.clone()),
             model_base64: encode(&model),
             mesh_base64: mesh,
             spatial: spatial_request(plan),
@@ -918,28 +940,6 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
 
 fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
     plan.canonical_solve_request().map(wire_solve)
-}
-
-pub(crate) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
-    serde_json::to_vec(&wire_solve(request))
-        .map_err(|error| invalid(format!("cannot encode solve controls: {error}")))
-}
-
-fn wire_solve(request: CommonSolvePolicy) -> WireSolve {
-    match request {
-        CommonSolvePolicy::Linear(request) => WireSolve::Linear {
-            linear: request.into(),
-        },
-        CommonSolvePolicy::Newton { linear, nonlinear } => WireSolve::Newton {
-            linear: linear.into(),
-            nonlinear: WireNonlinearControls {
-                relative_tolerance: nonlinear.relative_tolerance(),
-                absolute_tolerance: nonlinear.absolute_tolerance(),
-                maximum_iterations: nonlinear.maximum_iterations().get(),
-                maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
-            },
-        },
-    }
 }
 
 fn nonzero(value: usize, label: &str) -> Result<NonZeroUsize, Diagnostic> {

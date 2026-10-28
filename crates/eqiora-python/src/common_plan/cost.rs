@@ -111,6 +111,14 @@ pub(crate) struct PySolverCandidateCost {
 #[pymethods]
 impl PySolverCandidateCost {
     #[getter]
+    fn run_work(&self) -> Option<u128> {
+        self.native.run_work()
+    }
+    #[getter]
+    fn retained_numeric_bytes(&self) -> Option<usize> {
+        self.native.retained_numeric_bytes()
+    }
+    #[getter]
     fn candidate(&self) -> &'static str {
         self.native.candidate()
     }

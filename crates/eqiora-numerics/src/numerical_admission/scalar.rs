@@ -411,6 +411,7 @@ impl CommonSpatialPlan {
         );
         Ok(Self {
             harmonic: None,
+            run_planning: None,
             admission,
             portable,
             formulation,

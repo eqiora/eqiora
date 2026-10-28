@@ -398,3 +398,81 @@ fn plan_tuple_matches(plan: SolverPlan, expected: ExpectedCandidate) -> bool {
         && plan.preconditioner() == expected.preconditioner
         && plan.reduction() == expected.reduction
 }
+
+pub(super) fn catalog_ids(
+    domain: ScalarDomain,
+    properties: LinearOperatorProperties,
+) -> &'static [&'static str] {
+    match (domain, properties) {
+        (ScalarDomain::Real, LinearOperatorProperties::General) => &[
+            REFERENCE_ID,
+            REFERENCE_IDENTITY_ID,
+            FAER_BICGSTAB_ID,
+            FAER_IDENTITY_ID,
+            FAER_SPARSE_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricPositiveDefinite) => &[
+            REFERENCE_CG_ID,
+            REFERENCE_CG_JACOBI_ID,
+            REFERENCE_SPD_MINRES_ID,
+            REFERENCE_SPD_BICGSTAB_ID,
+            REFERENCE_SPD_BICGSTAB_JACOBI_ID,
+            FAER_CG_IDENTITY_ID,
+            FAER_CG_ID,
+            FAER_SPD_BICGSTAB_ID,
+            FAER_SPD_BICGSTAB_JACOBI_ID,
+            FAER_SPD_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => &[
+            REFERENCE_MINRES_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_ID,
+            REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_BICGSTAB_ID,
+            FAER_INDEFINITE_BICGSTAB_JACOBI_ID,
+            FAER_INDEFINITE_LU_ID,
+        ],
+        (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[
+            REFERENCE_SYMMETRIC_MINRES_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_ID,
+            REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_BICGSTAB_ID,
+            FAER_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            FAER_SYMMETRIC_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::General) => &[
+            FAER_COMPLEX_BICGSTAB_ID,
+            FAER_COMPLEX_BICGSTAB_JACOBI_ID,
+            REFERENCE_COMPLEX_ID,
+            REFERENCE_COMPLEX_JACOBI_ID,
+            FAER_COMPLEX_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::ComplexSymmetric) => &[
+            FAER_COMPLEX_SYMMETRIC_BICGSTAB_ID,
+            FAER_COMPLEX_SYMMETRIC_BICGSTAB_JACOBI_ID,
+            REFERENCE_COMPLEX_SYMMETRIC_ID,
+            REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID,
+            FAER_COMPLEX_SYMMETRIC_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[
+            FAER_HERMITIAN_BICGSTAB_ID,
+            FAER_HERMITIAN_BICGSTAB_JACOBI_ID,
+            REFERENCE_HERMITIAN_MINRES_ID,
+            REFERENCE_HERMITIAN_ID,
+            REFERENCE_HERMITIAN_JACOBI_ID,
+            FAER_HERMITIAN_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => &[
+            FAER_HPD_BICGSTAB_ID,
+            FAER_HPD_BICGSTAB_JACOBI_ID,
+            FAER_HPD_CG_ID,
+            FAER_HPD_CG_JACOBI_ID,
+            REFERENCE_HPD_MINRES_ID,
+            REFERENCE_HPD_ID,
+            REFERENCE_HPD_JACOBI_ID,
+            REFERENCE_HPD_BICGSTAB_ID,
+            REFERENCE_HPD_BICGSTAB_JACOBI_ID,
+            FAER_HPD_LU_ID,
+        ],
+        _ => &[],
+    }
+}

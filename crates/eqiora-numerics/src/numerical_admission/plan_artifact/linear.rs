@@ -237,3 +237,25 @@ impl From<CommonLinearRequest> for WireLinearControls {
         }
     }
 }
+
+pub(crate) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&wire_solve(request))
+        .map_err(|error| invalid(format!("cannot encode solve controls: {error}")))
+}
+
+pub(super) fn wire_solve(request: CommonSolvePolicy) -> WireSolve {
+    match request {
+        CommonSolvePolicy::Linear(request) => WireSolve::Linear {
+            linear: request.into(),
+        },
+        CommonSolvePolicy::Newton { linear, nonlinear } => WireSolve::Newton {
+            linear: linear.into(),
+            nonlinear: WireNonlinearControls {
+                relative_tolerance: nonlinear.relative_tolerance(),
+                absolute_tolerance: nonlinear.absolute_tolerance(),
+                maximum_iterations: nonlinear.maximum_iterations().get(),
+                maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
+            },
+        },
+    }
+}

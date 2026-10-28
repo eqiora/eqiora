@@ -2,6 +2,14 @@
 //! No estimate is elapsed time, an allocator/RSS limit, or permission to reuse state.
 use super::*;
 
+/// Method-owned forecasts, never authority to retain provider resources.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RunForecast {
+    pub(super) common_work: Option<u128>,
+    pub(super) retained_numeric_bytes: Option<usize>,
+    pub(super) prepared_provider: Option<SolverProvider>,
+}
+
 /// Known dimensions of the typed square solver system after constraints/elimination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SolverPlanningSize {
@@ -156,11 +164,25 @@ pub struct SolverCandidateCost {
     pub(super) setup_work: Option<u128>,
     pub(super) solve_work: Option<u128>,
     pub(super) acceptance_work: Option<u128>,
+    pub(super) run_work: Option<u128>,
+    pub(super) retained_numeric_bytes: Option<usize>,
     pub(super) total_work: Option<u128>,
     pub(super) numeric_payload_bytes: Option<usize>,
 }
 
 impl SolverCandidateCost {
+    /// Method-owned assembly, physical acceptance and output work proxy.
+    /// Absent outside Run planning or when the included component is unknown.
+    #[must_use]
+    pub const fn run_work(self) -> Option<u128> {
+        self.run_work
+    }
+    /// Retained State coordinate payload only; separate from the solver payload cap.
+    /// Excludes indices, factors, scratch, metadata, allocator overhead and RSS.
+    #[must_use]
+    pub const fn retained_numeric_bytes(self) -> Option<usize> {
+        self.retained_numeric_bytes
+    }
     /// Exact candidate identity, or `manual` for an exact caller request.
     #[must_use]
     pub const fn candidate(self) -> &'static str {
@@ -182,7 +204,8 @@ impl SolverCandidateCost {
     pub const fn acceptance_work(self) -> Option<u128> {
         self.acceptance_work
     }
-    /// Total proxy; absent for unavailable facts or checked overflow.
+    /// Sum of modeled work components; absent for unknown included terms or overflow.
+    /// Unmeasured coefficient binding, metadata and provider scratch are not elapsed-time zeroes.
     #[must_use]
     pub const fn total_work(self) -> Option<u128> {
         self.total_work
@@ -204,19 +227,41 @@ pub(super) fn estimate(
     scalar_type: ScalarType,
 ) -> SolverCandidateCost {
     let size = profile.size;
-    let request = profile.cost_request.unwrap_or_default();
+    let mut request = profile.cost_request.unwrap_or_default();
+    if let Some(run) = profile.run_forecast {
+        // Only the existing exact Faer LU owner retains compatible factors.
+        // Reference and Faer iterative methods prepare on every solve.
+        let retained = run.prepared_provider == Some(provider)
+            && provider == FAER_PROVIDER
+            && plan.algorithm() == LinearSolver::SparseLu;
+        request.structures = if retained {
+            NonZeroUsize::MIN
+        } else {
+            request.solves
+        };
+        request.numeric_preparations = request.structures;
+    }
     let orientation = profile.facts.orientation;
     let work = if unmodeled_realification(plan, provider, scalar_domain) {
         None
     } else {
         size.and_then(|size| work_proxy(plan, size, request))
     };
+    let solver_work = work.and_then(|value| value.0.checked_add(value.1)?.checked_add(value.2));
+    let total_work = match profile.run_forecast {
+        Some(run) => solver_work.and_then(|value| value.checked_add(run.common_work?)),
+        None => solver_work,
+    };
     SolverCandidateCost {
         candidate,
         setup_work: work.map(|value| value.0),
         solve_work: work.map(|value| value.1),
         acceptance_work: work.map(|value| value.2),
-        total_work: work.and_then(|value| value.0.checked_add(value.1)?.checked_add(value.2)),
+        run_work: profile.run_forecast.and_then(|run| run.common_work),
+        retained_numeric_bytes: profile
+            .run_forecast
+            .and_then(|run| run.retained_numeric_bytes),
+        total_work,
         numeric_payload_bytes: size.and_then(|size| {
             if provider != REFERENCE_PROVIDER {
                 return None;
@@ -409,6 +454,111 @@ impl HostSerialSolverProfile {
     }
 }
 
+#[cfg(test)]
+mod run_forecast_tests {
+    use super::*;
+
+    fn profile(work: Option<u128>, prepared: Option<SolverProvider>) -> HostSerialSolverProfile {
+        HostSerialSolverProfile::general_canonical_csr()
+            .with_size(SolverPlanningSize::exact(4, 10))
+            .with_cost_request(
+                SolverCostRequest::new(
+                    NonZeroUsize::new(3).unwrap(),
+                    NonZeroUsize::MIN,
+                    NonZeroUsize::MIN,
+                )
+                .unwrap()
+                .with_iteration_forecasts(Some(NonZeroUsize::MIN), None),
+            )
+            .with_run_forecast(work, Some(192), prepared)
+    }
+
+    fn estimate_for(
+        profile: &HostSerialSolverProfile,
+        algorithm: LinearSolver,
+        provider: SolverProvider,
+    ) -> SolverCandidateCost {
+        let plan =
+            SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(10).unwrap()).unwrap();
+        profile.estimate_cost(
+            "manual",
+            plan,
+            provider,
+            ScalarDomain::Real,
+            ScalarType::F64,
+        )
+    }
+
+    #[test]
+    fn only_exact_retained_faer_lu_amortizes_preparation() {
+        let profile = profile(Some(7), Some(FAER_PROVIDER));
+        let lu = estimate_for(&profile, LinearSolver::SparseLu, FAER_PROVIDER);
+        // n=4,z=10,H=3: one structure14 + one numeric64; three solves44;
+        // three independently accepted residuals40, plus method-owned work7.
+        assert_eq!(
+            (
+                lu.setup_work(),
+                lu.solve_work(),
+                lu.acceptance_work(),
+                lu.run_work(),
+                lu.total_work()
+            ),
+            (Some(78), Some(132), Some(120), Some(7), Some(337))
+        );
+        assert_eq!(lu.retained_numeric_bytes(), Some(192));
+        assert_eq!(lu.numeric_payload_bytes(), None);
+        let reference = estimate_for(&profile, LinearSolver::SparseLu, REFERENCE_PROVIDER);
+        assert_eq!(reference.setup_work(), Some(234));
+        let cg = estimate_for(&profile, LinearSolver::ConjugateGradient, FAER_PROVIDER);
+        let bicg = estimate_for(
+            &profile,
+            LinearSolver::BiConjugateGradientStabilized,
+            FAER_PROVIDER,
+        );
+        assert_eq!((cg.setup_work(), bicg.setup_work()), (Some(42), Some(42)));
+        let changed = profile.with_run_forecast(Some(7), Some(192), Some(REFERENCE_PROVIDER));
+        assert_eq!(
+            estimate_for(&changed, LinearSolver::SparseLu, FAER_PROVIDER).setup_work(),
+            Some(234)
+        );
+    }
+
+    #[test]
+    fn unknown_or_overflowing_run_work_is_not_zero_and_cap_scope_is_unchanged() {
+        let ordinary = HostSerialSolverProfile::general_canonical_csr()
+            .with_size(SolverPlanningSize::exact(4, 10));
+        let baseline = estimate_for(
+            &ordinary,
+            LinearSolver::BiConjugateGradientStabilized,
+            REFERENCE_PROVIDER,
+        );
+        let unknown = ordinary.clone().with_run_forecast(None, None, None);
+        let unknown = estimate_for(
+            &unknown,
+            LinearSolver::BiConjugateGradientStabilized,
+            REFERENCE_PROVIDER,
+        );
+        assert_eq!(unknown.total_work(), None);
+        assert_eq!(unknown.run_work(), None);
+        assert_eq!(unknown.retained_numeric_bytes(), None);
+        assert_eq!(
+            unknown.numeric_payload_bytes(),
+            baseline.numeric_payload_bytes()
+        );
+        let overflow = ordinary.with_run_forecast(Some(u128::MAX), Some(usize::MAX), None);
+        let overflow = estimate_for(
+            &overflow,
+            LinearSolver::BiConjugateGradientStabilized,
+            REFERENCE_PROVIDER,
+        );
+        assert_eq!(overflow.total_work(), None);
+        assert_eq!(
+            overflow.numeric_payload_bytes(),
+            baseline.numeric_payload_bytes()
+        );
+    }
+}
+
 impl<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync> ResolvedHostSerialSolverPlan<'_, S> {
     /// Cost estimates for mathematically/provider-admitted candidates, including resource rejects.
     #[must_use]
@@ -511,7 +661,14 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
             },
         ));
     }
-    reasons.push((id, "cost.host-transfer-zero-outputs-unmodeled"));
+    reasons.push((
+        id,
+        if profile.run_forecast.is_some() {
+            "cost.host-transfer-zero-run-coordinate-output-proxy"
+        } else {
+            "cost.host-transfer-zero-outputs-unmodeled"
+        },
+    ));
 }
 
 #[cfg(test)]

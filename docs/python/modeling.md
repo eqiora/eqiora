@@ -1426,8 +1426,8 @@ Parameter dimensions from its declarations, and returns the ordinary immutable
 `Model` used by every resolver:
 
 
-Development-only: `cost=eqiora.solve.SolverCost(...)` carries explicit planning
-assumptions and is not included in the 0.1.4 distribution.
+`cost=eqiora.solve.SolverCost(...)` carries explicit planning assumptions and is
+available in the 0.1.5 distribution.
 `identity_iterations` and `jacobi_iterations` forecast iteration counts separately;
 omitting them uses the requested iteration ceiling, without claiming conditioning
 or convergence. `solves`, `structures`, and `numeric_preparations` must be declared
@@ -1435,7 +1435,7 @@ together. Ordinary common Plans currently require all three counts to agree:
 these forecasts do not authorize factor reuse or infer a Newton solve count.
 Omission assumes one solve.
 
-The v4 planner first rejects mathematical, provider, reduction, and resource
+The planner first rejects mathematical, provider, reduction, and resource
 incompatibilities. When the existing assembly or coordinate owner supplies size
 facts, `Robust` prefers reproducible reductions and then the work proxy; `Fast`
 prefers Fast reductions and then that proxy. `LowMemory` prefers known accounted

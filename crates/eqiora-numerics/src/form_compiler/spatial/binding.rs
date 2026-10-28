@@ -12,6 +12,23 @@ pub(crate) enum InputPartialScope {
 }
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
+    /// Inspect retained source dependencies before prescribed Data can fold Time away.
+    /// Unrelated Model relations do not belong to this form's input inventory.
+    pub(crate) fn depends_on_time(&self, program: &eqiora_sem::KernelProgram) -> bool {
+        self.dependencies.keys().any(|relation| {
+            matches!(
+                program.node(*relation),
+                Some(eqiora_schema::kernel::KernelNode::Relation(relation))
+                    if relation.expression().nodes().iter().any(|node| matches!(
+                        node,
+                        eqiora_schema::kernel::ExprNode::Symbol(
+                            eqiora_schema::kernel::SymbolRef::Time
+                        )
+                    ))
+            )
+        })
+    }
+
     /// Symbolic correspondence may leave Time unbound; executable admission may not.
     pub(crate) fn require_time_point(
         &self,
@@ -21,24 +38,10 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         if time.is_some_and(f64::is_finite) {
             return Ok(());
         }
-        // Inspect only this form's retained equation/coefficient/boundary inventory.
-        // A Time symbol in an unrelated Model relation is not an execution input.
-        for relation in self.dependencies.keys() {
-            if let Some(eqiora_schema::kernel::KernelNode::Relation(relation)) =
-                program.node(*relation)
-                && relation.expression().nodes().iter().any(|node| {
-                    matches!(
-                        node,
-                        eqiora_schema::kernel::ExprNode::Symbol(
-                            eqiora_schema::kernel::SymbolRef::Time
-                        )
-                    )
-                })
-            {
-                return Err(super::invalid(
-                    "coefficient Time requires an explicit finite evaluation point",
-                ));
-            }
+        if self.depends_on_time(program) {
+            return Err(super::invalid(
+                "coefficient Time requires an explicit finite evaluation point",
+            ));
         }
         Ok(())
     }
