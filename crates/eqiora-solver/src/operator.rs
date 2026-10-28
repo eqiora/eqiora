@@ -265,7 +265,9 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         self
     }
 
-    pub(crate) fn has_candidate_check(&self) -> bool {
+    /// Whether acceptance also requires an attached method-owned criterion.
+    #[must_use]
+    pub fn has_candidate_check(&self) -> bool {
         self.candidate_check.is_some()
     }
 
