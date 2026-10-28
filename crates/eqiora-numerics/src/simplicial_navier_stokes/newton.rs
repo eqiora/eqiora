@@ -117,6 +117,14 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+    solver.capabilities().require_problem(
+        plan.linear_solver(),
+        ScalarDomain::Real,
+        ScalarType::F64,
+        LinearOperatorProperties::General,
+    )?;
+    super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
+    prepared.require_quadrature(cell_quadrature, facet_quadrature)?;
     let mut linear = solver.prepare_linear(plan.linear_solver())?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
