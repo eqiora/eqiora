@@ -4,8 +4,7 @@ use eqiora_meshing::{
     SimplicialMesh,
 };
 use eqiora_solver::{
-    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
-    LinearSolveRequest, LinearSolver, PreconditionerPolicy, SolveReport,
+    CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest, SolveReport,
 };
 
 use crate::discrete_space::DiscreteSpace;
@@ -84,104 +83,82 @@ pub(super) struct CellBasis2d {
     pub(super) gradients: Vec<[f64; DIMENSION]>,
 }
 
-#[derive(Debug, Clone)]
-pub(super) struct DenseSymmetricOperator {
-    dimension: usize,
-    values: Vec<f64>,
-}
-
-impl DenseSymmetricOperator {
-    pub(super) fn new(values: Vec<f64>, dimension: usize) -> Result<Self, Diagnostic> {
-        let expected = dimension
-            .checked_mul(dimension)
-            .ok_or_else(|| super::invalid("ALE FSI remesh dense operator shape overflowed"))?;
-        if dimension == 0
-            || expected > MAX_DENSE_COEFFICIENTS
-            || values.len() != expected
-            || values.iter().any(|value| !value.is_finite())
-        {
-            return Err(super::invalid(
-                "ALE FSI remesh dense operator must be finite, square, nonempty, and within the reference resource bound",
-            ));
-        }
-        for row in 0..dimension {
-            for column in 0..row {
-                let left = values[row * dimension + column];
-                let right = values[column * dimension + row];
-                let tolerance = 16_384.0 * f64::EPSILON * (1.0 + left.abs().max(right.abs()));
-                if (left - right).abs() > tolerance {
-                    return Err(super::invalid(
-                        "ALE FSI remesh operator is not numerically symmetric",
-                    ));
-                }
+fn validate_dense_coefficients(values: &[f64], dimension: usize) -> Result<(), Diagnostic> {
+    let expected = require_dense_dimension(dimension)?;
+    if values.len() != expected || values.iter().any(|value| !value.is_finite()) {
+        return Err(super::invalid(
+            "ALE FSI remesh dense operator must be finite, square, nonempty, and within the reference resource bound",
+        ));
+    }
+    for row in 0..dimension {
+        for column in 0..row {
+            let left = values[row * dimension + column];
+            let right = values[column * dimension + row];
+            let tolerance = 16_384.0 * f64::EPSILON * (1.0 + left.abs().max(right.abs()));
+            if (left - right).abs() > tolerance {
+                return Err(super::invalid(
+                    "ALE FSI remesh operator is not numerically symmetric",
+                ));
             }
         }
-        Ok(Self { dimension, values })
     }
+    Ok(())
 }
 
-impl LinearOperator for DenseSymmetricOperator {
-    type Scalar = f64;
-
-    fn rows(&self) -> usize {
-        self.dimension
+// Preserve the existing per-matrix coefficient bound. Each CSR copy has
+// nnz <= N² admitted dense coefficients; this is not an aggregate heap bound.
+fn require_capture_budget(dense_count: usize, nonzeros: usize) -> Result<(), Diagnostic> {
+    if dense_count == 0 || dense_count > MAX_DENSE_COEFFICIENTS || nonzeros > dense_count {
+        return Err(super::invalid(
+            "ALE FSI remesh canonical capture exceeds the bounded reference per-matrix coefficient policy",
+        ));
     }
+    Ok(())
+}
 
-    fn columns(&self) -> usize {
-        self.dimension
+fn capture_dense(
+    values: &[f64],
+    right_hand_side: &[f64],
+    properties: LinearOperatorProperties,
+) -> Result<CanonicalCsrSystemView, Diagnostic> {
+    let dimension = right_hand_side.len();
+    validate_dense_coefficients(values, dimension)?;
+    let nonzeros = values.iter().filter(|&&value| value != 0.).count();
+    // Raw dense coefficients remain alive for independent residual replay.
+    // During capture finalized CSR and canonical storage each own nnz values.
+    require_capture_budget(values.len(), nonzeros)?;
+    let mut offsets = Vec::with_capacity(dimension + 1);
+    let mut columns = Vec::with_capacity(nonzeros);
+    let mut captured = Vec::with_capacity(nonzeros);
+    offsets.push(0);
+    for row in values.chunks_exact(dimension) {
+        for (column, &value) in row.iter().enumerate() {
+            if value != 0. {
+                columns.push(column);
+                captured.push(value);
+            }
+        }
+        offsets.push(captured.len());
     }
-
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
-        if input.len() != self.dimension
-            || output.len() != self.dimension
-            || input.iter().any(|value| !value.is_finite())
-        {
-            return Err(super::invalid(
-                "ALE FSI remesh dense action received an incompatible or non-finite vector",
-            ));
-        }
-        for (row, value) in output.iter_mut().enumerate() {
-            *value = self.values[row * self.dimension..(row + 1) * self.dimension]
-                .iter()
-                .zip(input)
-                .map(|(coefficient, input)| coefficient * input)
-                .sum();
-        }
-        if output.iter().any(|value| !value.is_finite()) {
-            return Err(super::invalid(
-                "ALE FSI remesh dense action produced a non-finite value",
-            ));
-        }
-        Ok(())
-    }
-
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
-        if output.len() != self.dimension {
-            return Err(super::invalid(
-                "ALE FSI remesh diagonal output has the wrong shape",
-            ));
-        }
-        for (index, value) in output.iter_mut().enumerate() {
-            *value = self.values[index * self.dimension + index];
-        }
-        Ok(DiagonalAvailability::Available)
-    }
+    let storage = eqiora_assembly::CsrMatrix::from_sorted_csr(
+        dimension, dimension, offsets, columns, captured,
+    )?;
+    CanonicalCsrSystemView::new(&storage, right_hand_side, properties)
 }
 
 pub(super) fn require_projection_solver(solver: LinearSolveRequest<'_>) -> Result<(), Diagnostic> {
-    if solver.plan().algorithm() != LinearSolver::MinimumResidual
-        || solver.plan().preconditioner() != PreconditionerPolicy::Identity
-    {
-        return Err(super::invalid(
-            "ALE FSI remesh projection requires the common identity-preconditioned MINRES plan",
-        ));
-    }
-    solver.backend().capabilities().require_problem(
-        solver.plan(),
-        eqiora_core::ScalarDomain::Real,
-        ScalarType::F64,
+    eqiora_realization::AleFsiRemeshTransferPlan2d::require_solver_policy(solver.plan())?;
+    for properties in [
+        LinearOperatorProperties::SymmetricPositiveDefinite,
         LinearOperatorProperties::SymmetricIndefinite,
-    )?;
+    ] {
+        solver.backend().capabilities().require_problem(
+            solver.plan(),
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+            properties,
+        )?;
+    }
     Ok(())
 }
 
@@ -191,16 +168,16 @@ pub(super) fn solve_dense(
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
 ) -> Result<(Vec<f64>, SolveReport, f64), Diagnostic> {
-    let operator = DenseSymmetricOperator::new(values, right_hand_side.len())?;
+    let operator = capture_dense(&values, right_hand_side, properties)?;
     solver.backend().capabilities().require_problem(
         solver.plan(),
         eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         properties,
     )?;
-    let problem = LinearProblem::new(&operator, right_hand_side, properties)?;
+    let problem = operator.linear_problem()?;
     let (solution, report) = solver.solve(&problem)?.into_parts();
-    let residual = residual_norm(&operator, &solution, right_hand_side)?;
+    let residual = residual_norm(&values, &solution, right_hand_side)?;
     let tolerance = 8.0 * report.residual_target()
         + 65_536.0
             * f64::EPSILON
@@ -217,20 +194,29 @@ pub(super) fn solve_dense(
     Ok((solution, report, residual))
 }
 
-pub(super) fn residual_norm(
-    operator: &dyn LinearOperator<Scalar = f64>,
+fn residual_norm(
+    values: &[f64],
     solution: &[f64],
     right_hand_side: &[f64],
 ) -> Result<f64, Diagnostic> {
-    let mut action = vec![0.0; operator.rows()];
-    operator.apply(solution, &mut action)?;
-    euclidean_norm(
-        &action
-            .iter()
-            .zip(right_hand_side)
-            .map(|(left, right)| left - right)
-            .collect::<Vec<_>>(),
-    )
+    let dimension = right_hand_side.len();
+    if solution.len() != dimension || solution.iter().any(|value| !value.is_finite()) {
+        return Err(super::invalid(
+            "ALE FSI remesh dense action received an incompatible or non-finite vector",
+        ));
+    }
+    let residual = values
+        .chunks_exact(dimension)
+        .zip(right_hand_side)
+        .map(|(row, rhs)| {
+            row.iter()
+                .zip(solution)
+                .map(|(coefficient, input)| coefficient * input)
+                .sum::<f64>()
+                - rhs
+        })
+        .collect::<Vec<_>>();
+    euclidean_norm(&residual)
 }
 
 pub(super) fn euclidean_norm(values: &[f64]) -> Result<f64, Diagnostic> {
@@ -467,3 +453,6 @@ pub(super) fn independent_constraints(
     }
     Ok(basis)
 }
+
+#[cfg(test)]
+mod tests;

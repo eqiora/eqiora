@@ -73,3 +73,21 @@ The registered scale-profile observation bound is one part per billion of the
 corresponding characteristic L, U, or P value. It is a regression sensitivity
 for this CPU reference case, deliberately separate from the numerical and
 physical acceptance contracts and far below the slice's discretization error.
+
+## Projection solver substitution
+
+The same public transfer/continuation fixture runs reference MINRES and BiCGSTAB
+with Identity/Reproducible, and Faer BiCGSTAB and SparseLU with Identity/Fast. Equations,
+physical scales, mesh revisions, constraints and the original solver controls
+remain fixed. Exact provider capability checks require both SPD mass and
+symmetric-indefinite velocity projections. The KKT multiplier block has zero
+diagonal, so this projection requires Identity; that does not exclude Jacobi
+from other problems with an invertible diagonal.
+
+All four paths consume canonical CSR captured from the already assembled dense
+coefficients, then independently replay the original raw-matrix residual and
+physical constraints. The existing per-matrix sixteen-million coefficient limit,
+four-million auxiliary limit and sixty-four-million orthogonalization-work limit
+remain unchanged. Raw dense coefficients and two copies of the nonzero values
+coexist during capture; these limits do not bound total heap use, indices, RHS
+or Krylov storage. No factor retention or universal convergence is promised.

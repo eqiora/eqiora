@@ -308,3 +308,18 @@ fn partition(mesh: &SimplicialMesh, ids: PartitionIds) -> FixedReferenceFsiParti
     )
     .unwrap()
 }
+
+#[test]
+fn compatible_bicgstab_projection_policy_reaches_both_operator_classes() {
+    let plan = eqiora_solver::SolverPlan::new(
+        eqiora_solver::LinearSolver::BiConjugateGradientStabilized,
+        1e-11,
+        1e-13,
+        std::num::NonZeroUsize::new(2_000).unwrap(),
+    )
+    .unwrap();
+    let request =
+        eqiora_solver::LinearSolveRequest::new(&eqiora_solver::REFERENCE_LINEAR_SOLVER, plan);
+    super::integration::require_projection_solver(request)
+        .expect("Reference BiCGSTAB Identity Reproducible implements SPD and symmetric-indefinite");
+}
