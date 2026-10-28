@@ -468,19 +468,32 @@ pub(super) fn require_solver(
     solver: SolverPlan,
     execution: FixedReferenceFsiExecutionProfile,
 ) -> Result<(), Diagnostic> {
-    if solver.algorithm() != LinearSolver::MinimumResidual
-        || solver.preconditioner() != PreconditionerPolicy::Identity
+    // Host algorithm/operator compatibility belongs to the supplied realization
+    // capabilities and selected backend. The pressure multiplier block has
+    // zero diagonal, so Jacobi cannot satisfy its nonzero-diagonal prerequisite.
+    // Device execution retains its existing MINRES implementation/evidence
+    // boundary; this is not a mathematical exclusion of other algorithms.
+    if !matches!(
+        execution,
+        FixedReferenceFsiExecutionProfile::HostReproducible
+    ) && solver.algorithm() != LinearSolver::MinimumResidual
+    {
+        return Err(invalid_realization(
+            "fixed-reference FSI CUDA execution currently implements and verifies only MINRES",
+        ));
+    }
+    if solver.preconditioner() != PreconditionerPolicy::Identity
         || solver.reduction() != execution.reduction()
     {
         return Err(invalid_realization(match execution {
             FixedReferenceFsiExecutionProfile::HostReproducible => {
-                "fixed-reference FSI host execution requires reproducible identity-preconditioned MINRES"
+                "fixed-reference FSI host execution requires identity preconditioning and reproducible reductions"
             }
             FixedReferenceFsiExecutionProfile::CudaFast { .. } => {
-                "fixed-reference FSI CUDA execution requires fast identity-preconditioned MINRES"
+                "fixed-reference FSI CUDA execution requires identity preconditioning and fast reductions"
             }
             FixedReferenceFsiExecutionProfile::DistributedCudaReproducible { .. } => {
-                "fixed-reference FSI distributed CUDA execution requires reproducible identity-preconditioned MINRES"
+                "fixed-reference FSI distributed CUDA execution requires identity preconditioning and reproducible reductions"
             }
         }));
     }

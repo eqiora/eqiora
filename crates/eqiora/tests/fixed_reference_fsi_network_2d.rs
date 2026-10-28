@@ -6,11 +6,13 @@ use std::num::NonZeroUsize;
 
 use eqiora::meshing::{CellId, MeshEntity, MeshQualityGate, SimplicialMesh};
 use eqiora::realization::{
-    CoupledFieldwiseRealizationRequest, MeshArtifactReference, RealizationCapabilities,
-    RealizationRevision, SemanticRevision, resolve_coupled_fieldwise,
+    CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshArtifactReference, MeshKind,
+    RealizationCapabilities, RealizationRevision, SemanticRevision, SpatialDimensionSupport,
+    TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
-    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::fsi::{
@@ -42,7 +44,12 @@ fn ordinary_three_domain_two_connection_model_lowers_as_one_network() {
 
 #[test]
 fn ordinary_three_domain_two_connection_run_closes_prestrained_energy() {
-    run_network(&network_source(), 0);
+    run_network(
+        &network_source(),
+        0,
+        reference_solver(),
+        &REFERENCE_LINEAR_SOLVER,
+    );
 }
 
 #[test]
@@ -74,10 +81,28 @@ fn two_fluid_pressure_spaces_close_through_one_prestrained_solid() {
             ),
         ],
     );
-    run_network(&source, 1);
+    run_network(&source, 1, reference_solver(), &REFERENCE_LINEAR_SOLVER);
 }
 
-fn run_network(source: &str, prestrain_component: usize) {
+#[test]
+fn native_network_solver_substitution_preserves_physical_acceptance() {
+    let source = network_source();
+    let solver = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        reference_solver().relative_tolerance(),
+        reference_solver().absolute_tolerance(),
+        reference_solver().maximum_iterations(),
+    )
+    .unwrap();
+    run_network(&source, 0, solver, &REFERENCE_LINEAR_SOLVER);
+}
+
+fn run_network(
+    source: &str,
+    prestrain_component: usize,
+    solver: SolverPlan,
+    backend: &dyn LinearSolverBackend,
+) {
     let document = eqiora::api::ModelDocument::compile("three-domain-network.eqi", source)
         .expect("ordinary three-Domain Model compiles");
     let model = lower_fixed_reference_fsi_cartesian_2d(document.program())
@@ -94,7 +119,7 @@ fn run_network(source: &str, prestrain_component: usize) {
             quantity(4.0, [1, -1, -2, 0, 0, 0, 0]),
         )
         .unwrap(),
-        reference_solver(),
+        solver,
     )
     .expect("plural exact FSI plan");
     let partition = FixedReferenceFsiPartition::<2>::new(
@@ -116,7 +141,7 @@ fn run_network(source: &str, prestrain_component: usize) {
         plan.spatial().trace_quotients(),
     )
     .expect("three exact Domain inventories replay both Connections");
-    let previous = prestrained_network_state(
+    let mut previous = prestrained_network_state(
         document.program(),
         &model,
         &plan,
@@ -132,105 +157,127 @@ fn run_network(source: &str, prestrain_component: usize) {
             plan,
         ),
         fixed_reference_fsi_requirements_2d(&model),
-        &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+        &RealizationCapabilities::cartesian_product(
+            [DiscretizationMethod::ContinuousGalerkin],
+            [(
+                MeshKind::ImportedAffineSimplicial,
+                SpatialDimensionSupport::exact(NonZeroUsize::new(2).unwrap()),
+            )],
+            [VectorLayoutKind::Replicated],
+            backend.capabilities(),
+            TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
+        )
+        .unwrap(),
     )
     .expect("ordinary host realization admits the plural FSI network");
-    let accepted = finalize_resolved_fixed_reference_fsi_step_2d(
-        &model,
-        &resolved,
-        mesh_reference,
-        &mesh,
-        &partition,
-        &previous,
-    )
-    .expect("plural fixed-reference operator finalizes")
-    .solve(&REFERENCE_LINEAR_SOLVER)
-    .expect("plural fixed-reference Run satisfies its acceptance");
+    assert_eq!(resolved.plan().solver(), solver);
+    // Continue from each accepted physical State through the same exact policy.
+    for _ in 0..2 {
+        let accepted = finalize_resolved_fixed_reference_fsi_step_2d(
+            &model,
+            &resolved,
+            mesh_reference,
+            &mesh,
+            &partition,
+            &previous,
+        )
+        .expect("plural fixed-reference operator finalizes")
+        .solve(backend)
+        .expect("plural fixed-reference Run satisfies its acceptance");
 
-    assert_eq!(accepted.state().fields().count(), 6);
-    assert!(accepted.numerical_evidence().residual_norm() < 1.0e-9);
-    assert!(
-        accepted
-            .numerical_evidence()
-            .energy_balance()
-            .defect()
-            .abs()
-            < 1.0e-9
-    );
-    assert_eq!(
-        accepted
-            .numerical_evidence()
-            .interface_actions()
-            .iter()
-            .map(|action| action.connection().erase())
-            .collect::<std::collections::BTreeSet<_>>()
-            .len(),
-        2
-    );
-    let maximum_velocity = model
-        .solids()
-        .flat_map(|solid| {
+        assert_eq!(
             accepted
-                .state()
-                .coefficients(solid.velocity().downcast().unwrap())
-                .unwrap()
-                .map(|(_, _, _, value)| value.abs())
-        })
-        .fold(0.0_f64, f64::max);
-    assert!(
-        maximum_velocity > 1.0e-10,
-        "prestrain must drive the accepted Run"
-    );
-    if model.fluids().count() == 2 {
-        assert_eq!(model.solids().count(), 1);
-        let pressures = model
-            .fluids()
-            .map(|fluid| fluid.pressure())
-            .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(pressures.len(), 2);
-        for fluid in model.fluids() {
-            let maximum = accepted
-                .state()
-                .coefficients(fluid.velocity().downcast().unwrap())
-                .unwrap()
-                .map(|(_, _, _, value)| value.abs())
-                .fold(0.0_f64, f64::max);
+                .numerical_evidence()
+                .solve_report()
+                .solver_provider(),
+            backend.provider()
+        );
+        assert_eq!(accepted.state().fields().count(), 6);
+        assert!(accepted.numerical_evidence().residual_norm() < 1.0e-9);
+        assert!(
+            accepted
+                .numerical_evidence()
+                .energy_balance()
+                .defect()
+                .abs()
+                < 1.0e-9
+        );
+        assert_eq!(
+            accepted
+                .numerical_evidence()
+                .interface_actions()
+                .iter()
+                .map(|action| action.connection().erase())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            2
+        );
+        let maximum_velocity = model
+            .solids()
+            .flat_map(|solid| {
+                accepted
+                    .state()
+                    .coefficients(solid.velocity().downcast().unwrap())
+                    .unwrap()
+                    .map(|(_, _, _, value)| value.abs())
+            })
+            .fold(0.0_f64, f64::max);
+        assert!(
+            maximum_velocity > 1.0e-10,
+            "prestrain must drive the accepted Run"
+        );
+        if model.fluids().count() == 2 {
+            assert_eq!(model.solids().count(), 1);
+            let pressures = model
+                .fluids()
+                .map(|fluid| fluid.pressure())
+                .collect::<std::collections::BTreeSet<_>>();
+            assert_eq!(pressures.len(), 2);
+            for fluid in model.fluids() {
+                let maximum = accepted
+                    .state()
+                    .coefficients(fluid.velocity().downcast().unwrap())
+                    .unwrap()
+                    .map(|(_, _, _, value)| value.abs())
+                    .fold(0.0_f64, f64::max);
+                assert!(
+                    maximum > 1.0e-10,
+                    "each fluid must respond to the coupled solid prestrain"
+                );
+            }
+        } else {
+            let mut interface_displacement = model
+                .solids()
+                .map(|solid| {
+                    let x = if solid.continuum().bounds()[0][0] == 0.0 {
+                        1.0
+                    } else {
+                        2.0
+                    };
+                    let vertex = mesh
+                        .vertices()
+                        .iter()
+                        .position(|point| point.as_slice() == [x, 0.5])
+                        .unwrap();
+                    let displacement = accepted
+                        .state()
+                        .coefficients(solid.continuum().displacement().downcast().unwrap())
+                        .unwrap()
+                        .find(|(entity, slot, component, _)| {
+                            *entity == MeshEntity::new(0, vertex) && *slot == 0 && *component == 0
+                        })
+                        .unwrap()
+                        .3;
+                    (solid.continuum().shear_modulus(), displacement.abs())
+                })
+                .collect::<Vec<_>>();
+            interface_displacement.sort_by_key(|(shear, _)| shear.to_bits());
             assert!(
-                maximum > 1.0e-10,
-                "each fluid must respond to the coupled solid prestrain"
+                (interface_displacement[0].1 - interface_displacement[1].1).abs() > 1.0e-10,
+                "distinct Region-local prestrains must not collapse to one solid state"
             );
         }
-    } else {
-        let mut interface_displacement = model
-            .solids()
-            .map(|solid| {
-                let x = if solid.continuum().bounds()[0][0] == 0.0 {
-                    1.0
-                } else {
-                    2.0
-                };
-                let vertex = mesh
-                    .vertices()
-                    .iter()
-                    .position(|point| point.as_slice() == [x, 0.5])
-                    .unwrap();
-                let displacement = accepted
-                    .state()
-                    .coefficients(solid.continuum().displacement().downcast().unwrap())
-                    .unwrap()
-                    .find(|(entity, slot, component, _)| {
-                        *entity == MeshEntity::new(0, vertex) && *slot == 0 && *component == 0
-                    })
-                    .unwrap()
-                    .3;
-                (solid.continuum().shear_modulus(), displacement.abs())
-            })
-            .collect::<Vec<_>>();
-        interface_displacement.sort_by_key(|(shear, _)| shear.to_bits());
-        assert!(
-            (interface_displacement[0].1 - interface_displacement[1].1).abs() > 1.0e-10,
-            "distinct Region-local prestrains must not collapse to one solid state"
-        );
+        previous = accepted.state().clone();
     }
 }
 
