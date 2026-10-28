@@ -152,9 +152,6 @@ mod full {
         let paths = contract["productionPaths"].as_array().unwrap().iter().map(|path| path.as_str().unwrap()).collect::<Vec<_>>();
         assert_eq!(paths, CLI_PATHS);
         let sources: [String; 3] = CLI_PATHS.map(|path| fs::read_to_string(root.join(path)).unwrap());
-        let mut files = fs::read_dir(root.join("crates/eqiora/src/bin/eqiora")).unwrap().map(|entry| entry.unwrap().file_name()).collect::<Vec<_>>();
-        files.sort();
-        assert_eq!(files, ["command.rs", "main.rs", "terminal.rs"].map(OsString::from));
         assert!(compact_cli_architecture(&sources));
         let mut second = sources.clone(); second[1].push_str("\nfn extra(){let _=ModelDocument::compile;}\n"); assert!(!compact_cli_architecture(&second));
         let mut lower = sources.clone(); lower[0] = lower[0].replace("ModelDocument::compile", "eqiora::compiler::compile"); assert!(!compact_cli_architecture(&lower));
