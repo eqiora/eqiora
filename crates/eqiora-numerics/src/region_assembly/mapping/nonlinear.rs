@@ -58,6 +58,10 @@ where
         self.encode_coordinates(&self.physical_predictor(initial)?)
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "physical seed, numerical policies and borrowed provider session have separate owners"
+    )]
     pub(crate) fn solve_nonlinear<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
