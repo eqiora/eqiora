@@ -9,7 +9,7 @@ against the retained committed state. They reject idle/nested/failed operation
 sequences before mutation, poison active actions on early solve errors, and admit
 zero-solve commits. Expectations and existing factorization-count falsifiers remain
 independent of implementation outputs; counts do not establish a speedup or memory
-bound. The case runs the complete bounded `prepared_sparse_lu::tests::` owner.
+bound. The existing exact `registered_exact_structure_reuse_falsifiers` test invokes the bounded identity, topology, rollback and action-sequence falsifiers.
 
 ```console
 cargo run --locked -p eqiora-verify -- run \

@@ -35,4 +35,4 @@ performance_or_scale = false
 [evidence]
 runner = "cargo-library-test"
 package = "eqiora-backend-faer"
-test = "prepared_sparse_lu::tests::"
+test = "prepared_sparse_lu::tests::registered_exact_structure_reuse_falsifiers"
