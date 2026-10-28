@@ -17,11 +17,13 @@ impl PreparedCommonTransientExecution<'_> {
         &mut self,
         state: &CommonState,
         next_time: f64,
-    ) -> Result<CommonState, Diagnostic> {
+    ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         if let Some(linear) = &mut self.prepared_linear {
             linear.begin_action()?;
         }
-        let result = self.advance_candidate(state, next_time);
+        let result = self
+            .advance_candidate(state, next_time)
+            .and_then(|current| CommonAcceptedSpatialStep::new(state, current));
         match result {
             Ok(accepted) => {
                 if let Some(linear) = &mut self.prepared_linear {
