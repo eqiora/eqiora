@@ -646,6 +646,87 @@ impl LinearSolverBackend for RestrictedBackend<'_> {
     }
 }
 
+#[derive(Debug)]
+struct MismatchedReference<'a> {
+    backend: &'a CountedReference,
+    provider: SolverProvider,
+    execution: eqiora::solver::ExecutionReport,
+}
+impl LinearSolverBackend for MismatchedReference<'_> {
+    fn provider(&self) -> SolverProvider {
+        self.provider
+    }
+    fn capabilities(&self) -> SolverCapabilities {
+        self.backend.capabilities()
+    }
+    fn default_execution(&self) -> eqiora::solver::ExecutionReport {
+        self.execution
+    }
+    fn solve_with_execution(
+        &self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, eqiora::Diagnostic> {
+        self.backend.solve_with_execution(problem, plan, execution)
+    }
+}
+
+#[test]
+fn owned_selection_rejects_changed_backend_identity_before_execution() {
+    let backend = CountedReference::default();
+    let decision = choose(
+        SolverPlanningProfile::general_canonical_csr(),
+        SolverPlanningObjective::Robust,
+        &backend,
+        None,
+    )
+    .unwrap();
+    let system =
+        CanonicalCsrSystemView::new(&Fixture, Fixture.rhs(), LinearOperatorProperties::General)
+            .unwrap();
+    let problem = system.linear_problem().unwrap();
+    let different_provider = MismatchedReference {
+        backend: &backend,
+        provider: FaerLinearSolver.provider(),
+        execution: eqiora::solver::ExecutionReport::host_serial(),
+    };
+    let different_execution = MismatchedReference {
+        backend: &backend,
+        provider: backend.provider(),
+        execution: eqiora::solver::ExecutionReport::host(SERIAL_EXECUTION_PROVIDER.id(), nz(2)),
+    };
+    let restricted = RestrictedBackend {
+        backend: &backend,
+        capability: SolverCapability {
+            scalar_domain: ScalarDomain::Real,
+            scalar_type: ScalarType::F64,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            operator_properties: LinearOperatorProperties::General,
+            preconditioner: PreconditionerPolicy::Jacobi,
+            reduction: ReductionPolicy::Reproducible,
+        },
+    };
+    for changed in [
+        &different_provider as &dyn LinearSolverBackend,
+        &different_execution,
+        &restricted,
+    ] {
+        let error = decision.solve(&problem, None, changed).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("host-binding.selected-provider-mismatch")
+        );
+        assert_eq!(backend.0.load(Ordering::SeqCst), 0);
+    }
+    assert_solution(
+        &decision.solve(&problem, None, &backend).unwrap(),
+        &[1., 2.],
+    );
+    assert_eq!(backend.0.load(Ordering::SeqCst), 1);
+}
+
 #[test]
 fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems() {
     use LinearSolver::{
