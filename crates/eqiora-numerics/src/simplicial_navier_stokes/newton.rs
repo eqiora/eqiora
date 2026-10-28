@@ -92,7 +92,7 @@ where
         &plan,
     )?
     .bind(body_force)?;
-    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
         mesh,
         &prepared,
         initial,
@@ -102,8 +102,70 @@ where
         facet_quadrature,
         assembly,
         solver,
-        None,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
+    mesh: &SimplicialMesh,
+    prepared: &PreparedStepStructure,
+    initial: SimplicialMiniNavierStokesState2d,
+    step_count: NonZeroStepCount,
+    plan: MiniNavierStokesStepPlan2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend<f64>,
+    solver: &dyn LinearSolverBackend,
+) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+    let mut linear = solver.prepare_linear(plan.linear_solver())?;
+    let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
+    for _ in 0..step_count.get() {
+        if let Some(linear) = &mut linear {
+            linear.begin_action()?;
+        }
+        let result = (|| {
+            let previous = trajectory
+                .states()
+                .last()
+                .expect("trajectory owns its initial state");
+            let candidate =
+                advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
+                    mesh,
+                    prepared,
+                    previous.clone(),
+                    NonZeroStepCount::new(std::num::NonZeroUsize::MIN),
+                    plan.clone(),
+                    cell_quadrature,
+                    facet_quadrature,
+                    assembly,
+                    solver,
+                    linear.as_mut().map(|linear| {
+                        &mut **linear as &mut dyn eqiora_solver::PreparedLinearSolver
+                    }),
+                )?;
+            trajectory.push(
+                candidate
+                    .states()
+                    .last()
+                    .expect("one accepted step")
+                    .clone(),
+                candidate.steps()[0].clone(),
+            )
+        })();
+        if let Err(error) = result {
+            if let Some(linear) = &mut linear {
+                let _ = linear.discard_action();
+            }
+            return Err(error);
+        }
+        if let Some(linear) = &mut linear {
+            if let Err(error) = linear.commit_action() {
+                let _ = linear.discard_action();
+                return Err(error);
+            }
+        }
+    }
+    Ok(trajectory)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -127,14 +189,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_a
     )?;
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     prepared.require_quadrature(cell_quadrature, facet_quadrature)?;
-    let mut owned_prepared = if prepared_linear.is_none() {
-        solver.prepare_linear(plan.linear_solver())?
-    } else {
-        None
-    };
-    let mut prepared_linear = prepared_linear.or(owned_prepared
-        .as_mut()
-        .map(|prepared| prepared.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver));
+    let mut prepared_linear = prepared_linear;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory

@@ -66,6 +66,7 @@ where
         nonlinear: NonlinearSolvePlan,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_>,
+        prepared_linear: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<RegionNonlinearOutput<S>, Diagnostic> {
         let step = self.validate_solve_input(mesh, input)?;
         let seed = self.nonlinear_predictor(input, initial)?;
@@ -81,6 +82,7 @@ where
             &seed,
             nonlinear,
             request,
+            prepared_linear,
             workers,
             |matrix| self.require_numeric_multiplier_closure(matrix, &multipliers),
         )?;

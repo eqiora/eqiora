@@ -266,6 +266,22 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         &mut self,
         previous: &AleFsiState<D>,
     ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+        if let Some(linear) = &mut self.prepared_linear {
+            linear.begin_action()?;
+        }
+        let result = self.advance_candidate(previous);
+        if result.is_err() {
+            if let Some(linear) = &mut self.prepared_linear {
+                let _ = linear.discard_action();
+            }
+        }
+        result
+    }
+
+    fn advance_candidate(
+        &mut self,
+        previous: &AleFsiState<D>,
+    ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
         let boundary = self.boundary.action(previous, &self.plan)?;
         let action = self.structure.prepare_action(
             self.reference,
@@ -345,7 +361,21 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
                     .expect("ALE FSI trajectory owns its initial state"),
             )
         },
-        |trajectory, _, (next, evidence)| trajectory.push(next, evidence),
+        |prepared, trajectory, _, (next, evidence)| {
+            if let Err(error) = trajectory.push(next, evidence) {
+                if let Some(linear) = &mut prepared.prepared_linear {
+                    let _ = linear.discard_action();
+                }
+                return Err(error);
+            }
+            if let Some(linear) = &mut prepared.prepared_linear {
+                if let Err(error) = linear.commit_action() {
+                    let _ = linear.discard_action();
+                    return Err(error);
+                }
+            }
+            Ok(())
+        },
         |_, _| None::<()>,
     )? {
         ControlFlow::Continue(trajectory) => Ok(trajectory),
@@ -390,7 +420,10 @@ pub(super) fn solve_one_step<const D: usize>(
     )?;
     let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
     let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
-    solve_one_step_prepared(
+    if let Some(linear) = &mut prepared_linear {
+        linear.begin_action()?;
+    }
+    let result = solve_one_step_prepared(
         reference,
         partition,
         &structure,
@@ -402,7 +435,24 @@ pub(super) fn solve_one_step<const D: usize>(
         assembly_backend,
         solver,
         &mut prepared_linear,
-    )
+    );
+    match result {
+        Ok(accepted) => {
+            if let Some(linear) = &mut prepared_linear {
+                if let Err(error) = linear.commit_action() {
+                    let _ = linear.discard_action();
+                    return Err(error);
+                }
+            }
+            Ok(accepted)
+        }
+        Err(error) => {
+            if let Some(linear) = &mut prepared_linear {
+                let _ = linear.discard_action();
+            }
+            Err(error)
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

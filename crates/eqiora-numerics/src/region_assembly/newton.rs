@@ -31,6 +31,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
         initial: &[f64],
         nonlinear: NonlinearSolvePlan,
         linear: LinearSolveRequest<'_>,
+        mut prepared_linear: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
         workers: NonZeroUsize,
         admit: impl Fn(&eqiora_assembly::CsrMatrix<f64>) -> Result<(), Diagnostic>,
     ) -> Result<RegionNewtonSolution, Diagnostic> {
@@ -67,7 +68,16 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
                 })
             },
             |point| residual_norm(&point.assembly.residuals[index]),
-            |_, point| point.assembly.solve_correction(index, linear, workers),
+            |_, point| {
+                point.assembly.solve_correction(
+                    index,
+                    linear,
+                    workers,
+                    prepared_linear.as_mut().map(|prepared| {
+                        &mut **prepared as &mut dyn eqiora_solver::PreparedLinearSolver
+                    }),
+                )
+            },
             |candidate, _| {
                 Ok(Some(NewtonTrial {
                     residual_norm: residual_norm(&self.residual(
@@ -111,9 +121,21 @@ impl RegionAssemblyLinearization {
         index: usize,
         linear: LinearSolveRequest<'_>,
         workers: NonZeroUsize,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<(Vec<f64>, eqiora_solver::SolveReport), Diagnostic> {
         let core = self.correction_core(index, linear.plan(), workers)?;
-        let solution = linear.solve(&core.linear_problem()?)?;
+        let problem = core.linear_problem()?;
+        let solution = match prepared {
+            Some(prepared) => prepared.solve(
+                self.report.structure_identity().ok_or_else(|| {
+                    invalid(
+                        "prepared Newton correction requires its exact assembly structure identity",
+                    )
+                })?,
+                &problem,
+            )?,
+            None => linear.solve(&problem)?,
+        };
         core.validate_solution(&solution)?;
         Ok(solution.into_parts())
     }

@@ -371,6 +371,7 @@ fn zero_newton_residual_does_not_admit_an_empty_complete_equation() {
             &[0.; 2],
             nonlinear,
             eqiora_solver::LinearSolveRequest::new(&eqiora_solver::REFERENCE_LINEAR_SOLVER, linear),
+            None,
             std::num::NonZeroUsize::MIN,
             |_| Ok(()),
         )

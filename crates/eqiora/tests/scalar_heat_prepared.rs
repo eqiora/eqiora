@@ -160,6 +160,9 @@ struct Observed {
     prepares: usize,
     cold: usize,
     drops: usize,
+    begins: usize,
+    commits: usize,
+    discards: usize,
     calls: Vec<(usize, PreparedLinearStructureIdentity, Vec<f64>, Vec<f64>)>,
 }
 #[derive(Debug)]
@@ -240,6 +243,21 @@ impl Drop for Session {
     }
 }
 impl PreparedLinearSolver for Session {
+    fn begin_action(&mut self) -> Result<(), Diagnostic> {
+        self.inner.begin_action()?;
+        self.observed.lock().unwrap().begins += 1;
+        Ok(())
+    }
+    fn commit_action(&mut self) -> Result<(), Diagnostic> {
+        self.inner.commit_action()?;
+        self.observed.lock().unwrap().commits += 1;
+        Ok(())
+    }
+    fn discard_action(&mut self) -> Result<(), Diagnostic> {
+        self.inner.discard_action()?;
+        self.observed.lock().unwrap().discards += 1;
+        Ok(())
+    }
     fn solve(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
@@ -473,6 +491,7 @@ fn outer_acceptance_error_drops_session_before_another_boundary_or_retry() {
     assert_eq!(state.to_bytes().unwrap(), before);
     let o = backend.observed.lock().unwrap();
     assert_eq!((o.prepares, o.drops, o.calls.len()), (1, 1, 2));
+    assert_eq!((o.begins, o.commits, o.discards), (2, 1, 1));
     drop(o);
     let accepted = last.unwrap();
     assert_state(&plan, &accepted, 0.5);
@@ -584,6 +603,10 @@ fn later_state_certificate_failure_drops_the_successful_linear_session() {
         ),
         (1, 0, 1, 1)
     );
+    assert_eq!(
+        (observed.begins, observed.commits, observed.discards),
+        (1, 0, 1)
+    );
 }
 
 #[test]
@@ -694,12 +717,11 @@ public component Heat(support region:volume(ambient_dimension=2),
 }
 
 #[test]
-fn nonlinear_run_baseline_uses_cold_faer_corrections() {
+fn nonlinear_run_prepares_once_and_refreshes_each_changed_jacobian() {
     for force in [0., 3.] {
         let backend = Probe::new(true, None);
         let plan = fixture_source_options(0.125, false, &backend, &coupled_source(force), true);
-        // This exact admitted provider/policy supports preparation; a missing
-        // prepare call below therefore witnesses the nonlinear consumer gap.
+        // This exact admitted provider/policy supports preparation.
         let linear = SolverPlan::new(
             LinearSolver::SparseLu,
             1e-12,
@@ -719,6 +741,29 @@ fn nonlinear_run_baseline_uses_cold_faer_corrections() {
         let state = initial(&plan);
         let before = state.to_bytes().unwrap();
         let trajectory = run(&plan, state.clone(), 2, &backend);
+        let cold = Probe::new(false, None);
+        let cold_trajectory = run(&plan, state.clone(), 2, &cold);
+        for ((_, warm), (_, cold)) in trajectory
+            .spatial_steps()
+            .unwrap()
+            .iter()
+            .zip(cold_trajectory.spatial_steps().unwrap())
+        {
+            assert_eq!(warm.state(), cold.state());
+            if force != 0. {
+                for (_, _, _, values) in plan
+                    .as_spatial()
+                    .unwrap()
+                    .state_fields(warm.state())
+                    .unwrap()
+                {
+                    assert!(
+                        values.iter().fold(0_f64, |norm, value| norm.hypot(*value)) > 1e-6,
+                        "unforced Field responds through coupling"
+                    );
+                }
+            }
+        }
         assert_eq!(state.to_bytes().unwrap(), before);
         let result = CommonResult::accept_trajectory(0., trajectory).unwrap();
         let bytes = result.to_bytes().unwrap();
@@ -765,10 +810,77 @@ fn nonlinear_run_baseline_uses_cold_faer_corrections() {
                 observed.drops,
                 observed.calls.len()
             ),
-            (0, corrections, 0, 0)
+            (1, 0, 1, corrections)
         );
-        eprintln!(
-            "Faer nonlinear baseline force={force}: {corrections} cold corrections, 0 preparations across 2 accepted steps"
+        assert_eq!(
+            (observed.begins, observed.commits, observed.discards),
+            (2, 2, 0)
         );
+        for pair in observed.calls.windows(2) {
+            assert_eq!(pair[0].1, pair[1].1);
+        }
+        if force != 0. {
+            assert!(
+                observed.calls.windows(2).any(|pair| pair[0].2 != pair[1].2),
+                "changed Newton Jacobians refresh coefficients"
+            );
+        }
     }
+}
+
+#[test]
+fn rejected_nonlinear_correction_discards_action_after_an_accepted_step() {
+    let backend = Probe::new(true, Some(4));
+    let plan = fixture_source_options(0.125, false, &backend, &coupled_source(3.), true);
+    let state = initial(&plan);
+    let before = state.to_bytes().unwrap();
+    let request =
+        CommonTransientRunRequest::from_steps(plan.clone(), state.clone(), 3, vec![1, 2, 3])
+            .unwrap();
+    let mut boundaries = Vec::new();
+    let mut accepted = None;
+    let error = request
+        .advance_accepted_actions(&backend, |step, state| {
+            boundaries.push(step);
+            accepted = Some(state.clone());
+            false
+        })
+        .unwrap_err();
+    assert!(error.message().contains("residual"), "{error:?}");
+    assert_eq!(boundaries, vec![0, 1]);
+    assert_eq!(state.to_bytes().unwrap(), before);
+    let observed = backend.observed.lock().unwrap();
+    assert_eq!(
+        (
+            observed.prepares,
+            observed.begins,
+            observed.commits,
+            observed.discards,
+            observed.drops
+        ),
+        (1, 2, 1, 1, 1)
+    );
+    drop(observed);
+    let accepted = CommonState::from_bytes(&accepted.unwrap().to_bytes().unwrap(), &plan).unwrap();
+    let resumed = run(&plan, accepted.clone(), 2, &backend);
+    let cold = Probe::new(false, None);
+    let expected = run(&plan, accepted, 2, &cold);
+    for ((_, actual), (_, expected)) in resumed
+        .spatial_steps()
+        .unwrap()
+        .iter()
+        .zip(expected.spatial_steps().unwrap())
+    {
+        assert_eq!(actual.state(), expected.state());
+    }
+    let observed = backend.observed.lock().unwrap();
+    assert_eq!(
+        (
+            observed.prepares,
+            observed.commits,
+            observed.discards,
+            observed.drops
+        ),
+        (2, 3, 1, 2)
+    );
 }

@@ -440,7 +440,7 @@ impl CommonSpatialPlan {
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
         let (fields, residual, execution) = if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
-            let output = self.solve_region_newton(&mapping, &input, &initial, request)?;
+            let output = self.solve_region_newton(&mapping, &input, &initial, request, prepared)?;
             let residual = Some((
                 output.solve.residual_norm,
                 output.solve.evidence.residual_target()?,

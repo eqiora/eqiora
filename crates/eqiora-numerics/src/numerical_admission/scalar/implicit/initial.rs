@@ -81,6 +81,7 @@ where
             0,
             LinearSolveRequest::new(&checked, self.plan.linear()),
             self.plan.admission.linear.workers,
+            None,
         )?;
         for &i in &self.algebraic {
             rate[i] = unknown[i];

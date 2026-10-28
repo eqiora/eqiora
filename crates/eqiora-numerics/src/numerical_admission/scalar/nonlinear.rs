@@ -14,6 +14,7 @@ impl CommonSpatialPlan {
         input: &RegionSolveInput<S>,
         initial: &BTreeMap<eqiora_core::RawId, RecoveredRegionField<S>>,
         request: LinearSolveRequest<'_>,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<crate::region_assembly::mapping::RegionNonlinearOutput<S>, Diagnostic>
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
@@ -28,9 +29,15 @@ impl CommonSpatialPlan {
             .as_ref()
             .map(|action| action.current_mesh().clone());
         match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => {
-                mapping.solve_nonlinear(mesh.mesh(), input, initial, nonlinear, workers, request)
-            }
+            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve_nonlinear(
+                mesh.mesh(),
+                input,
+                initial,
+                nonlinear,
+                workers,
+                request,
+                prepared,
+            ),
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                 .solve_nonlinear(
@@ -40,6 +47,7 @@ impl CommonSpatialPlan {
                     nonlinear,
                     workers,
                     request,
+                    prepared,
                 ),
             _ => Err(invalid("Region Newton requires its exact affine Mesh")),
         }
@@ -92,6 +100,7 @@ impl CommonSpatialPlan {
             &input,
             &seed,
             LinearSolveRequest::new(&checked, self.admission.linear.solver),
+            None,
         )?;
         let execution = newton_execution(&output.solve);
         let fields = output
