@@ -23,10 +23,12 @@ is capped at 8,388,609 observed bytes, and read failure maps to the frozen
 availability result. No open count, kernel object identity, stable-path
 snapshot, allocator behavior, or worklist lifetime is claimed.
 
-A compact source check names only the three CLI production files, the private
+A compact source check names the three compile/check owner files, the private
 command-route entry, the sole accepted compile authority with its exact
 function-pointer signature, forbidden cross-layer authorities, and absence of
 an externally public item. Execution cardinality is not inferred from source.
+Other command adapters, including stationary studies, are outside this case;
+private directory membership is not part of its claim.
 The selected-input regression checks distinct rate-2 selected and rate-3 decoy
 files through the built executable and rejects substitution through the private
 operation seam. The existing injected-call tests cover operation cardinality
