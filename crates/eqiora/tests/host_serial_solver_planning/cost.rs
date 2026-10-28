@@ -620,7 +620,7 @@ fn invalid_horizons_forecasts_and_arithmetic_overflow_do_not_invent_costs() {
 /// Restrict an actual provider to one of its already-declared exact tuples.
 #[derive(Debug)]
 struct RestrictedBackend<'a> {
-    backend: &dyn LinearSolverBackend,
+    backend: &'a dyn LinearSolverBackend,
     capability: SolverCapability,
 }
 impl LinearSolverBackend for RestrictedBackend<'_> {
