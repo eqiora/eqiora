@@ -15,7 +15,8 @@ mod cost;
 mod selection;
 use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
-pub use selection::{SolverProviderAvailability, SolverSelection};
+use selection::SolverProviderAvailability;
+pub use selection::SolverSelection;
 
 const POLICY_ID: &str = "eqiora.solver-planning/v10";
 
@@ -125,7 +126,7 @@ const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     FAER_LIBRARIES,
 );
 
-/// Deterministic work/payload preferences used by bounded host solver planning.
+/// Deterministic work/payload preferences used by bounded solver planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverPlanningObjective {
     /// Prefer reproducible reductions, then the available work proxy.
@@ -137,7 +138,7 @@ pub enum SolverPlanningObjective {
     LowMemory,
 }
 
-/// Structural operator facts admitted before host numerical work.
+/// Structural operator facts admitted before numerical work.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolverPlanningProfile {
     facts: PlanningProfileFacts,
@@ -529,164 +530,6 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     /// retry, fallback, plan mutation, or problem substitution is performed.
     fn solve(&self) -> Result<LinearSolution, Diagnostic> {
         self.selected.request().solve(self.problem)
-    }
-}
-
-/// Exact executable plan selected from the host solver catalog using
-/// admitted operator facts.
-#[derive(Debug)]
-pub struct ResolvedHostSolverPlan<'backend, S = f64> {
-    profile: SolverPlanningProfile,
-    objective: SolverPlanningObjective,
-    selected: SolverCandidate<'backend, S>,
-    solver_provider: SolverProvider,
-    reasons: Vec<(&'static str, &'static str)>,
-    costs: Vec<SolverCandidateCost>,
-}
-
-impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
-    ResolvedHostSolverPlan<'backend, S>
-{
-    /// Plan one exact executable candidate from the host solver catalog
-    /// using structural operator facts and caller-owned convergence controls.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` when controls, provider identity, the exact capability
-    /// tuples, or the structural profile fail admission. Planning performs no
-    /// numerical operator action and executes no backend. An absent optional
-    /// provider rejects its catalog members before ranking. Serial execution keeps
-    /// reference candidates independently eligible. Other host execution uses only
-    /// the supplied backend, authenticated against the exact profile execution.
-    pub fn resolve(
-        profile: SolverPlanningProfile,
-        objective: SolverPlanningObjective,
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-        reference_backend: &'backend dyn crate::LinearSolverBackend<S>,
-        supplied_backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
-    ) -> Result<Self, Diagnostic> {
-        if !matches!(
-            profile.execution.topology(),
-            crate::ExecutionTopology::Host { .. }
-        ) {
-            return Err(invalid_catalog("host-binding.host-execution-required"));
-        }
-        let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
-            .iter()
-            .map(|id| {
-                let expected = expected_candidate(id);
-                let backend = if !profile.is_serial() {
-                    supplied_backend
-                } else if expected.provider == REFERENCE_PROVIDER {
-                    Some(reference_backend)
-                } else {
-                    supplied_backend
-                };
-                Ok(SolverCandidate::planned(
-                    id,
-                    expected.evidence_case,
-                    catalog_plan(
-                        expected.algorithm,
-                        expected.preconditioner,
-                        expected.reduction,
-                        relative_tolerance,
-                        absolute_tolerance,
-                        maximum_iterations,
-                    )?,
-                    backend,
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
-        Ok(Self {
-            profile,
-            objective,
-            selected: resolved.selected,
-            solver_provider: resolved.solver_provider,
-            reasons: resolved.reasons,
-            costs: resolved.costs,
-        })
-    }
-
-    /// Mathematical and structural assertions admitted before execution.
-    #[must_use]
-    pub fn profile(&self) -> SolverPlanningProfile {
-        self.profile.clone()
-    }
-
-    /// Frozen objective used to rank admitted candidates.
-    #[must_use]
-    pub const fn objective(&self) -> SolverPlanningObjective {
-        self.objective
-    }
-
-    /// Versioned deterministic planning-policy identity.
-    #[must_use]
-    pub const fn policy_id(&self) -> &'static str {
-        POLICY_ID
-    }
-
-    /// Exact selected catalog-member identity.
-    #[must_use]
-    pub const fn selected_candidate_id(&self) -> &'static str {
-        self.selected.id()
-    }
-
-    /// Registered evidence identity attached to the selected catalog member.
-    #[must_use]
-    pub const fn selected_evidence_case(&self) -> &'static str {
-        self.selected.evidence_case()
-    }
-
-    /// Exact selected solver plan.
-    #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
-        self.selected.plan()
-    }
-
-    /// Exact selected solver provider release.
-    #[must_use]
-    pub const fn solver_provider(&self) -> SolverProvider {
-        self.solver_provider
-    }
-
-    /// Exact execution provider authenticated before ranking.
-    #[must_use]
-    pub const fn execution_provider(&self) -> ExecutionProvider {
-        self.profile.execution_provider
-    }
-
-    /// Exact execution report authenticated before ranking.
-    pub const fn execution(&self) -> crate::ExecutionReport {
-        self.profile.execution
-    }
-
-    /// Stable candidate-ID/reason-code trace in ascending candidate-ID order.
-    pub fn reasons(&self) -> impl ExactSizeIterator<Item = (&'static str, &'static str)> + '_ {
-        self.reasons.iter().copied()
-    }
-
-    /// Execute exactly the selected request after reauthenticating the actual
-    /// problem against the structural profile used during planning.
-    ///
-    /// # Errors
-    /// Returns a profile diagnostic before backend work, or the selected
-    /// backend's capability/numerical diagnostic. No retry or fallback occurs.
-    pub fn solve(
-        &self,
-        problem: &LinearProblem<'_, S>,
-        structure: Option<&crate::AlgebraicStructure>,
-    ) -> Result<LinearSolution<S>, Diagnostic> {
-        self.profile.require_structure(structure)?;
-        self.profile.require_plan(self.solver_plan())?;
-        self.profile.require_problem(problem)?;
-        self.profile.require_problem_resources(
-            self.solver_plan(),
-            self.solver_provider(),
-            problem,
-        )?;
-        self.selected.request().solve(problem)
     }
 }
 

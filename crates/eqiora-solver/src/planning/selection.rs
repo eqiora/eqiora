@@ -16,7 +16,7 @@ pub(super) const CUDA_MINRES_ID: &str = "eqiora.cuda.minres-indefinite-identity-
 /// owner must authenticate its implementation and revalidate the selected plan
 /// against the actual problem and deployment before numerical mutation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SolverProviderAvailability {
+pub(super) struct SolverProviderAvailability {
     pub(super) provider: SolverProvider,
     pub(super) execution_provider: ExecutionProvider,
     pub(super) execution: crate::ExecutionReport,
@@ -25,7 +25,7 @@ pub struct SolverProviderAvailability {
 
 impl SolverProviderAvailability {
     /// Validate the descriptors' shape and their execution identity association.
-    pub fn new(
+    pub(super) fn new(
         provider: SolverProvider,
         execution_provider: ExecutionProvider,
         execution: crate::ExecutionReport,
@@ -57,6 +57,7 @@ pub struct SolverSelection {
     evidence_case: &'static str,
     plan: SolverPlan,
     provider: SolverProvider,
+    capabilities: crate::SolverCapabilities,
     reasons: Vec<(&'static str, &'static str)>,
     costs: Vec<SolverCandidateCost>,
 }
@@ -64,7 +65,7 @@ pub struct SolverSelection {
 impl SolverSelection {
     /// Resolve from exact declared availability through the shared catalog and ranker.
     /// Unavailable providers remain rejected candidates; execution never falls back.
-    pub fn resolve<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+    fn resolve_available<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         profile: SolverPlanningProfile,
         objective: SolverPlanningObjective,
         relative_tolerance: f64,
@@ -103,6 +104,14 @@ impl SolverSelection {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
+        Self::from_resolved::<S>(profile, objective, resolved)
+    }
+
+    fn from_resolved<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+        profile: SolverPlanningProfile,
+        objective: SolverPlanningObjective,
+        resolved: ResolvedCandidateSet<'_, S>,
+    ) -> Result<Self, Diagnostic> {
         Ok(Self {
             profile,
             scalar_domain: S::DOMAIN,
@@ -112,9 +121,124 @@ impl SolverSelection {
             evidence_case: resolved.selected.evidence_case(),
             plan: resolved.selected.plan(),
             provider: resolved.solver_provider,
+            capabilities: resolved
+                .selected
+                .capabilities()
+                .ok_or_else(|| invalid_catalog("catalog.provider-unavailable"))?,
             reasons: resolved.reasons,
             costs: resolved.costs,
         })
+    }
+
+    /// Resolve declared availability for one explicitly supplied provider.
+    /// The profile carries declared execution facts; this method does not
+    /// independently authenticate hardware or an execution implementation.
+    /// Concrete owners must compare those facts with their actual deployment.
+    pub fn resolve_declared<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+        profile: SolverPlanningProfile,
+        objective: SolverPlanningObjective,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        provider: SolverProvider,
+        capabilities: &crate::SolverCapabilities,
+    ) -> Result<Self, Diagnostic> {
+        let available = SolverProviderAvailability::new(
+            provider,
+            profile.execution_provider,
+            profile.execution,
+            capabilities.clone(),
+        )?;
+        Self::resolve_available::<S>(
+            profile,
+            objective,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            &[available],
+        )
+    }
+
+    /// Select from actual host backends without retaining an execution borrow.
+    /// Exact implementation identity and capabilities are checked before ranking.
+    pub fn resolve_host<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+        profile: SolverPlanningProfile,
+        objective: SolverPlanningObjective,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        reference_backend: &dyn crate::LinearSolverBackend<S>,
+        supplied_backend: Option<&dyn crate::LinearSolverBackend<S>>,
+    ) -> Result<Self, Diagnostic> {
+        if !matches!(
+            profile.execution.topology(),
+            crate::ExecutionTopology::Host { .. }
+        ) {
+            return Err(invalid_catalog("host-binding.host-execution-required"));
+        }
+        let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
+            .iter()
+            .map(|id| {
+                let expected = expected_candidate(id);
+                let backend = if !profile.is_serial() {
+                    supplied_backend
+                } else if expected.provider == REFERENCE_PROVIDER {
+                    Some(reference_backend)
+                } else {
+                    supplied_backend
+                };
+                Ok(SolverCandidate::planned(
+                    id,
+                    expected.evidence_case,
+                    catalog_plan(
+                        expected.algorithm,
+                        expected.preconditioner,
+                        expected.reduction,
+                        relative_tolerance,
+                        absolute_tolerance,
+                        maximum_iterations,
+                    )?,
+                    backend,
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
+        Self::from_resolved::<S>(profile, objective, resolved)
+    }
+
+    /// Scalar domain authenticated by resolution.
+    pub const fn scalar_domain(&self) -> ScalarDomain {
+        self.scalar_domain
+    }
+
+    /// Scalar storage authenticated by resolution.
+    pub const fn scalar_type(&self) -> ScalarType {
+        self.scalar_type
+    }
+
+    /// Reauthenticate the selected host implementation and actual problem,
+    /// then execute once through the existing request owner without fallback.
+    pub fn solve<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+        &self,
+        problem: &LinearProblem<'_, S>,
+        structure: Option<&crate::AlgebraicStructure>,
+        backend: &dyn crate::LinearSolverBackend<S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
+        if !matches!(
+            self.execution().topology(),
+            crate::ExecutionTopology::Host { .. }
+        ) {
+            return Err(invalid_catalog("host-binding.host-execution-required"));
+        }
+        if backend.provider() != self.provider
+            || backend.default_execution_provider() != self.execution_provider()
+            || backend.default_execution() != self.execution()
+            || backend.capabilities() != self.capabilities
+        {
+            return Err(invalid_catalog("host-binding.selected-provider-mismatch"));
+        }
+        self.require_problem(problem, structure)?;
+        LinearSolveRequest::new(backend, self.plan).solve(problem)
     }
 
     /// Exact operator and execution facts used during selection.

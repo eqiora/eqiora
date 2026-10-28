@@ -589,14 +589,6 @@ mod run_forecast_tests {
     }
 }
 
-impl<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync> ResolvedHostSolverPlan<'_, S> {
-    /// Cost estimates for mathematically/provider-admitted candidates, including resource rejects.
-    #[must_use]
-    pub fn costs(&self) -> &[SolverCandidateCost] {
-        &self.costs
-    }
-}
-
 pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
     candidate: SolverCandidate<'_, S>,

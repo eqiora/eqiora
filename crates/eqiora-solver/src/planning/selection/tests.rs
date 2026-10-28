@@ -64,7 +64,7 @@ fn select(
     objective: SolverPlanningObjective,
     availability: &[SolverProviderAvailability],
 ) -> Result<SolverSelection, Diagnostic> {
-    SolverSelection::resolve::<f64>(
+    SolverSelection::resolve_available::<f64>(
         profile,
         objective,
         2e-9,
@@ -196,7 +196,7 @@ pub(crate) fn declared_cuda_requirements_cannot_be_ranked_away() {
             .contains("availability.duplicate-provider")
     );
     assert!(
-        SolverSelection::resolve::<num_complex::Complex64>(
+        SolverSelection::resolve_available::<num_complex::Complex64>(
             general,
             SolverPlanningObjective::Fast,
             2e-9,
