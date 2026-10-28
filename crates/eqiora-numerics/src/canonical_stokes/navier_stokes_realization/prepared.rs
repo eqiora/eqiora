@@ -26,6 +26,12 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         solver: &dyn LinearSolverBackend,
     ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
         let numerical_initial = self.normalize_state(&initial)?;
+        let mut states = vec![reconstruct_state(
+            &numerical_initial,
+            self.physical_mesh,
+            &self.model,
+            self.scales,
+        )?];
         let checked_assembly = self.block_system.checked_backend(self.assembly);
         let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
             &self.normalized,
@@ -37,8 +43,26 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             &self.facet_quadrature,
             &checked_assembly,
             solver,
+            |state| {
+                states.push(reconstruct_state(
+                    state,
+                    self.physical_mesh,
+                    &self.model,
+                    self.scales,
+                )?);
+                Ok(())
+            },
         )?;
-        self.reconstruct(numerical, solver)
+        Ok(ResolvedTransientNavierStokesTrajectory2d {
+            model: self.model.clone(),
+            realization: self.resolved.clone(),
+            realization_graph: self.realization_graph.clone(),
+            solver_backend: solver.id(),
+            mesh_artifact: self.mesh_artifact,
+            scales: self.scales,
+            states,
+            steps: numerical.steps().to_vec(),
+        })
     }
 
     pub(crate) fn advance_with_linear(

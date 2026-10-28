@@ -391,6 +391,76 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
         .unwrap()
     };
     let cell_centered = resolve(cell_resources, CommonSpatialPolicy::CellCentered);
+    // The resolved standalone path must reconstruct physical Time before
+    // committing each numerical step. These scales keep both numerical steps
+    // finite; only the second coherent-SI reconstruction overflows.
+    let overflow_probe = BoundaryProbe::default();
+    let overflow = ResolvedCommonPlan::resolve(
+        &model,
+        affine_resources(&geometry),
+        CommonSpatialPolicy::MiniP1,
+        newton_policy(
+            CommonLinearRequest::exact(mini.linear(), overflow_probe.provider()).unwrap(),
+            nonlinear,
+        ),
+        Some(crate::CommonScalingRequest::Incompressible(
+            IncompressibleScalingRequest2d::from_si(Some(1.), Some(1e-154), Some(1e-308)).unwrap(),
+        )),
+        Some(CommonTemporalPolicy::backward_euler(1e308).unwrap()),
+        &overflow_probe,
+        None,
+        None,
+    )
+    .unwrap();
+    let overflow = overflow.as_transient_flow().unwrap();
+    let CommonTransientResolvedSpatial::MiniP1(resolved) = &overflow.resolved else {
+        panic!("MINI fixture");
+    };
+    let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = overflow.admission.resources()
+    else {
+        panic!("affine fixture");
+    };
+    let prepared = prepare_resolved_transient_navier_stokes_mini_run_2d(
+        overflow.admission.program(),
+        resolved,
+        mesh,
+    )
+    .unwrap();
+    let previous = overflow.zero_state(0.).unwrap();
+    let before = previous.to_bytes().unwrap();
+    let CommonStateKind::MiniP1(initial) = &previous.kind else {
+        panic!("MINI initial state");
+    };
+    let one_step = prepared
+        .advance(
+            initial.as_ref().clone(),
+            crate::canonical_stokes::TransientNavierStokesRun2d::new(NonZeroStepCount::new(
+                NonZeroUsize::MIN,
+            )),
+            &overflow_probe,
+        )
+        .unwrap();
+    assert!(one_step.states().last().unwrap().time().value().is_finite());
+    assert_eq!(*overflow_probe.0.lock().unwrap(), [1, 1, 0]);
+    let rejected_probe = BoundaryProbe::default();
+    let error = prepared
+        .advance(
+            initial.as_ref().clone(),
+            crate::canonical_stokes::TransientNavierStokesRun2d::new(NonZeroStepCount::new(
+                NonZeroUsize::new(3).unwrap(),
+            )),
+            &rejected_probe,
+        )
+        .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("transient physical reconstruction produced non-finite time"),
+        "{error:?}"
+    );
+    assert_eq!(*rejected_probe.0.lock().unwrap(), [2, 1, 1]);
+    assert_eq!(previous.to_bytes().unwrap(), before);
+
     for (plan, backend) in [
         (&mini, &ResolveOnlyBackend as &dyn LinearSolverBackend),
         (&cell_centered, &REFERENCE_LINEAR_SOLVER),

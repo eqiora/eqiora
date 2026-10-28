@@ -102,6 +102,7 @@ where
         facet_quadrature,
         assembly,
         solver,
+        |_| Ok(()),
     )
 }
 
@@ -116,6 +117,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
+    mut accept: impl FnMut(&SimplicialMiniNavierStokesState2d) -> Result<(), Diagnostic>,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
     solver.capabilities().require_problem(
         plan.linear_solver(),
@@ -150,6 +152,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
                 solver,
                 &mut borrowed,
             )?;
+            accept(&next)?;
             trajectory.push(next, evidence)
         })();
         if let Err(error) = result {
