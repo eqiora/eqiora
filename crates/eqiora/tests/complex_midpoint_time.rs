@@ -2,6 +2,7 @@
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::runtime::FirstOrderProgram;
+use eqiora::solver::LinearSolverBackend;
 use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_numerics::{
     CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest, CommonTimeState, CommonTrajectory,
@@ -28,14 +29,42 @@ fn run(
     end: f64,
     outputs: Vec<f64>,
 ) -> CommonTrajectory {
+    run_with_backend(
+        plan,
+        state,
+        end,
+        outputs,
+        &eqiora::solver::REFERENCE_LINEAR_SOLVER,
+    )
+}
+fn run_with_backend(
+    plan: CommonOdePlan,
+    state: CommonTimeState,
+    end: f64,
+    outputs: Vec<f64>,
+    backend: &dyn LinearSolverBackend,
+) -> CommonTrajectory {
     let request = CommonTimeRunRequest::new(plan, state, end, outputs).unwrap();
     request
-        .run(&eqiora::solver::REFERENCE_LINEAR_SOLVER, |_, _| {
+        .run(backend, |_, _| {
             panic!("implicit execution must own its stages")
         })
         .unwrap()
 }
 fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
+    resolve_with_solver(
+        document,
+        step,
+        linear_policy(),
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+}
+fn resolve_with_solver(
+    document: &ModelDocument,
+    step: f64,
+    policy: eqiora_numerics::CommonSolvePolicy,
+    backend: &dyn LinearSolverBackend,
+) -> CommonOdePlan {
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let flow = FirstOrderProgram::lower(
         document.program(),
@@ -57,28 +86,48 @@ fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
         document.program(),
         temporal,
         ImplicitMidpointTimeBackend::CAPABILITIES,
-        Some(linear_policy()),
-        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        Some(policy),
+        backend,
     )
     .unwrap()
 }
 #[test]
 fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
+    let reference = oscillator_restart(linear_policy(), &eqiora_solver::REFERENCE_LINEAR_SOLVER);
+    let faer = oscillator_restart(faer_linear_policy(), &eqiora_backend_faer::FaerLinearSolver);
+    for (a, b) in reference.iter().zip(&faer) {
+        assert!((a - b).abs() < 1e-11);
+    }
+}
+
+fn oscillator_restart(
+    policy: eqiora_numerics::CommonSolvePolicy,
+    backend: &dyn LinearSolverBackend,
+) -> Vec<f64> {
     let document = ModelDocument::compile("oscillators.eqi", SOURCE).unwrap();
-    let plan = resolve(&document, 0.05);
+    let plan = resolve_with_solver(&document, 0.05, policy, backend);
     let resolved = ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
-        &eqiora::solver::REFERENCE_LINEAR_SOLVER,
+        backend,
         &[ImplicitMidpointTimeBackend::CAPABILITIES],
     )
     .unwrap();
     assert_eq!(replay, resolved);
+    assert_eq!(replay.linear_solver_provider(), Some(backend.provider()));
+    let plan = replay.as_ode().unwrap().clone();
     let state = plan.initial_state(0.).unwrap();
     let state = plan.state_from_bytes(&state.to_bytes().unwrap()).unwrap();
-    let whole = run(plan.clone(), state.clone(), 1., vec![0.025, 0.375, 0.5, 1.]);
-    let sparse = run(plan.clone(), state.clone(), 1., vec![1.]);
+    let whole = run_with_backend(
+        plan.clone(),
+        state.clone(),
+        1.,
+        vec![0.025, 0.375, 0.5, 1.],
+        backend,
+    );
+    let whole = CommonTrajectory::from_bytes(&whole.to_bytes().unwrap(), &resolved).unwrap();
+    let sparse = run_with_backend(plan.clone(), state.clone(), 1., vec![1.], backend);
     assert_eq!(whole.ode_history(), sparse.ode_history());
     let last = whole.time_states().unwrap().last().unwrap();
     assert_eq!(last.values(), sparse.time_states().unwrap()[0].values());
@@ -120,10 +169,10 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
         };
         assert!((actual - expected).abs() < 1e-11);
     }
-    let prefix = run(plan.clone(), state, 0.5, vec![0.5]);
+    let prefix = run_with_backend(plan.clone(), state, 0.5, vec![0.5], backend);
     let checkpoint = prefix.time_states().unwrap()[0].to_bytes().unwrap();
     let restart = plan.state_from_bytes(&checkpoint).unwrap();
-    let resumed = run(plan, restart, 1., vec![1.]);
+    let resumed = run_with_backend(plan, restart, 1., vec![1.], backend);
     for (a, b) in resumed.time_states().unwrap()[0]
         .values()
         .iter()
@@ -131,6 +180,7 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
     {
         assert!((a - b).abs() < 1e-11);
     }
+    last.values().to_vec()
 }
 
 #[test]
@@ -468,4 +518,22 @@ fn midpoint_run_rejects_an_unadmitted_linear_provider_before_stage_execution() {
         "{error}"
     );
     assert_eq!(state.to_bytes().unwrap(), before);
+}
+
+fn faer_linear_policy() -> eqiora_numerics::CommonSolvePolicy {
+    use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
+    eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::SparseLu,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap()
+            .with_reduction(ReductionPolicy::Fast),
+            eqiora_backend_faer::FaerLinearSolver.provider(),
+        )
+        .unwrap(),
+    )
 }
