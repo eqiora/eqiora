@@ -437,7 +437,9 @@ mod tests {
             )
             .unwrap_err()
             .message()
-            .contains("implementation version")
+            .contains(
+                "exact solver and execution provider identities, versions, libraries and workers"
+            )
         );
         let request = exact(
             LinearSolver::ConjugateGradient,
