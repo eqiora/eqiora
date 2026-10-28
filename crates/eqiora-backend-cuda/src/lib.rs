@@ -27,6 +27,7 @@ pub use solver::{
     AcceptedCudaLinearSolveResult, CUDA_LINEAR_EXECUTION, CUDA_LINEAR_EXECUTION_PROVIDER,
     CUDA_LINEAR_SOLVER_BACKEND, CUDA_LINEAR_SOLVER_PROVIDER, CudaAdmittedExecutionAdapter,
     CudaLinearSolveEvidence, CudaLinearSolveResult, CudaLinearSolver, CudaLinearTransferEvidence,
+    CudaSolverSelection,
 };
 
 /// Stable runtime identity even when the optional adapter is not compiled.

@@ -27,6 +27,8 @@ use crate::runtime::{
 use crate::{CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDARC_VERSION};
 
 mod capabilities;
+mod selection;
+pub use selection::CudaSolverSelection;
 mod inverse_diagonal;
 
 use inverse_diagonal::inverse_diagonal;

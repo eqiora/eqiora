@@ -191,6 +191,22 @@ pub fn request(
     device: u16,
     revision: u64,
 ) -> Result<RealizationRequest, String> {
+    request_with_solver(
+        program,
+        method,
+        device,
+        revision,
+        solver_plan(ReductionPolicy::Fast),
+    )
+}
+
+pub fn request_with_solver(
+    program: &KernelProgram,
+    method: DiscretizationMethod,
+    device: u16,
+    revision: u64,
+    solver: SolverPlan,
+) -> Result<RealizationRequest, String> {
     let (space, quadrature) = method_policy(method)?;
     let plan = RealizationPlan::new(
         space,
@@ -202,7 +218,7 @@ pub fn request(
             },
             quadrature,
         ),
-        solver_plan(ReductionPolicy::Fast),
+        solver,
         Target::CudaGpu { device },
         ExecutionSchedule::Offline,
     )
