@@ -130,8 +130,8 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
         }
         for (section, supplied) in [("objectives", true), ("without_faer_objectives", false)] {
             for expected in fixture[section].as_array().unwrap() {
-                let decision = ResolvedHostSerialSolverPlan::<C>::resolve(
-                    HostSerialSolverProfile::canonical_csr(
+                let decision = ResolvedHostSolverPlan::<C>::resolve(
+                    HostSolverProfile::canonical_csr(
                         properties,
                         expected["complete_diagonal"].as_bool(),
                         None,
@@ -208,8 +208,8 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let selected = ResolvedHostSerialSolverPlan::<C>::resolve(
-                HostSerialSolverProfile::canonical_csr(properties, None, None),
+            let selected = ResolvedHostSolverPlan::<C>::resolve(
+                HostSolverProfile::canonical_csr(properties, None, None),
                 objective,
                 1e-12,
                 1e-14,
@@ -225,8 +225,8 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
                     .any(|reason| reason == (direct_id, "catalog.provider-unavailable"))
             );
         }
-        let error = ResolvedHostSerialSolverPlan::<C>::resolve(
-            HostSerialSolverProfile::canonical_csr(properties, None, Some(ReductionPolicy::Fast)),
+        let error = ResolvedHostSolverPlan::<C>::resolve(
+            HostSolverProfile::canonical_csr(properties, None, Some(ReductionPolicy::Fast)),
             SolverPlanningObjective::Fast,
             1e-12,
             1e-14,
@@ -246,12 +246,8 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let selected = ResolvedHostSerialSolverPlan::<C>::resolve(
-                HostSerialSolverProfile::canonical_csr(
-                    properties,
-                    None,
-                    Some(ReductionPolicy::Fast),
-                ),
+            let selected = ResolvedHostSolverPlan::<C>::resolve(
+                HostSolverProfile::canonical_csr(properties, None, Some(ReductionPolicy::Fast)),
                 objective,
                 1e-12,
                 1e-14,
@@ -356,11 +352,10 @@ fn complex_jacobi_distinguishes_stored_zero_from_unproved_diagonal() {
     );
     let jacobi = identity.with_preconditioner(PreconditionerPolicy::Jacobi);
     let known =
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None);
+        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None);
     known.require_problem(&problem).unwrap();
     known.require_plan(jacobi).unwrap();
-    let unknown =
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+    let unknown = HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
     assert!(
         unknown
             .require_plan(jacobi)
@@ -423,8 +418,8 @@ fn absent_provider_fast_preference_retains_real_spd_specialization() {
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let decision = ResolvedHostSerialSolverPlan::resolve(
-                HostSerialSolverProfile::canonical_csr(
+            let decision = ResolvedHostSolverPlan::resolve(
+                HostSolverProfile::canonical_csr(
                     LinearOperatorProperties::SymmetricPositiveDefinite,
                     diagonal,
                     None,

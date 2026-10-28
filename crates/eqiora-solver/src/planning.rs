@@ -15,7 +15,7 @@ mod cost;
 use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v8";
+const POLICY_ID: &str = "eqiora.host-solver-planning/v9";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -123,7 +123,7 @@ const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     FAER_LIBRARIES,
 );
 
-/// Deterministic work/payload preferences used by bounded host-serial solver planning.
+/// Deterministic work/payload preferences used by bounded host solver planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverPlanningObjective {
     /// Prefer reproducible reductions, then the available work proxy.
@@ -135,10 +135,12 @@ pub enum SolverPlanningObjective {
     LowMemory,
 }
 
-/// Structural operator facts admitted before host-serial numerical work.
+/// Structural operator facts admitted before host numerical work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HostSerialSolverProfile {
+pub struct HostSolverProfile {
     facts: PlanningProfileFacts,
+    execution_provider: ExecutionProvider,
+    execution: crate::ExecutionReport,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<crate::AlgebraicStructure>,
     size: Option<SolverPlanningSize>,
@@ -146,7 +148,35 @@ pub struct HostSerialSolverProfile {
     run_forecast: Option<cost::RunForecast>,
 }
 
-impl HostSerialSolverProfile {
+impl HostSolverProfile {
+    /// Bind the explicitly requested execution; planning never chooses placement.
+    ///
+    /// # Errors
+    /// Rejects invalid providers, mismatched adapters, and non-host topology.
+    pub fn with_execution(
+        mut self,
+        provider: ExecutionProvider,
+        execution: crate::ExecutionReport,
+    ) -> Result<Self, Diagnostic> {
+        provider.validate()?;
+        if execution.adapter() != provider.id()
+            || !matches!(execution.topology(), crate::ExecutionTopology::Host { .. })
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "planning execution report must match its host provider",
+            ));
+        }
+        self.execution_provider = provider;
+        self.execution = execution;
+        Ok(self)
+    }
+
+    fn is_serial(&self) -> bool {
+        self.execution_provider == SERIAL_EXECUTION_PROVIDER
+            && self.execution == crate::ExecutionReport::host_serial()
+    }
+
     /// Add method-derived Run work and retained numeric payload forecasts.
     /// These assumptions never authorize reuse or bound process memory.
     #[must_use]
@@ -170,6 +200,8 @@ impl HostSerialSolverProfile {
     pub const fn general_canonical_csr() -> Self {
         Self {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
+            execution_provider: SERIAL_EXECUTION_PROVIDER,
+            execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
             size: None,
@@ -205,6 +237,8 @@ impl HostSerialSolverProfile {
                 canonical_csr: true,
                 complete_diagonal,
             },
+            execution_provider: SERIAL_EXECUTION_PROVIDER,
+            execution: crate::ExecutionReport::host_serial(),
             required_reduction,
             structure: None,
             size: None,
@@ -444,11 +478,11 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     }
 }
 
-/// Exact executable plan selected from the v3 host-serial catalog using
+/// Exact executable plan selected from the host solver catalog using
 /// admitted operator facts.
 #[derive(Debug)]
-pub struct ResolvedHostSerialSolverPlan<'backend, S = f64> {
-    profile: HostSerialSolverProfile,
+pub struct ResolvedHostSolverPlan<'backend, S = f64> {
+    profile: HostSolverProfile,
     objective: SolverPlanningObjective,
     selected: HostSerialSolverCandidate<'backend, S>,
     solver_provider: SolverProvider,
@@ -457,34 +491,37 @@ pub struct ResolvedHostSerialSolverPlan<'backend, S = f64> {
 }
 
 impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
-    ResolvedHostSerialSolverPlan<'backend, S>
+    ResolvedHostSolverPlan<'backend, S>
 {
-    /// Plan one exact executable candidate from the frozen v3 host-serial catalog
+    /// Plan one exact executable candidate from the host solver catalog
     /// using structural operator facts and caller-owned convergence controls.
     ///
     /// # Errors
     /// Returns `EQ0807` when controls, provider identity, the exact capability
     /// tuples, or the structural profile fail admission. Planning performs no
     /// numerical operator action and executes no backend. An absent optional
-    /// provider rejects its catalog members before ranking; reference candidates
-    /// remain independently eligible.
+    /// provider rejects its catalog members before ranking. Serial execution keeps
+    /// reference candidates independently eligible. Other host execution uses only
+    /// the supplied backend, authenticated against the exact profile execution.
     pub fn resolve(
-        profile: HostSerialSolverProfile,
+        profile: HostSolverProfile,
         objective: SolverPlanningObjective,
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: NonZeroUsize,
         reference_backend: &'backend dyn crate::LinearSolverBackend<S>,
-        faer_backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
+        supplied_backend: Option<&'backend dyn crate::LinearSolverBackend<S>>,
     ) -> Result<Self, Diagnostic> {
         let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
             .iter()
             .map(|id| {
                 let expected = expected_candidate(id);
-                let backend = if expected.provider == REFERENCE_PROVIDER {
+                let backend = if !profile.is_serial() {
+                    supplied_backend
+                } else if expected.provider == REFERENCE_PROVIDER {
                     Some(reference_backend)
                 } else {
-                    faer_backend
+                    supplied_backend
                 };
                 Ok(HostSerialSolverCandidate::planned(
                     id,
@@ -514,7 +551,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     /// Mathematical and structural assertions admitted before execution.
     #[must_use]
-    pub fn profile(&self) -> HostSerialSolverProfile {
+    pub fn profile(&self) -> HostSolverProfile {
         self.profile.clone()
     }
 
@@ -554,10 +591,15 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         self.solver_provider
     }
 
-    /// Frozen host-serial execution provider.
+    /// Exact execution provider authenticated before ranking.
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
-        SERIAL_EXECUTION_PROVIDER
+        self.profile.execution_provider
+    }
+
+    /// Exact execution report authenticated before ranking.
+    pub const fn execution(&self) -> crate::ExecutionReport {
+        self.profile.execution
     }
 
     /// Stable candidate-ID/reason-code trace in ascending candidate-ID order.
@@ -654,21 +696,23 @@ fn catalog_plan(
     })
 }
 
-/// Resolve one exact candidate from the frozen v3 host-serial catalog.
+/// Resolve one exact candidate from the host solver catalog.
 ///
 /// # Errors
 /// Returns `EQ0807` when inventory, common controls, catalog identity, problem
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v8<'problem, 'backend>(
+fn resolve_host_serial_solver_v9<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
 ) -> Result<HostSerialSolverDecision<'problem, 'backend>, Diagnostic> {
     let resolved = resolve_candidates(
-        HostSerialSolverProfile {
+        HostSolverProfile {
             facts: PlanningProfileFacts::from_problem(problem),
+            execution_provider: SERIAL_EXECUTION_PROVIDER,
+            execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
             size: None,
@@ -688,7 +732,7 @@ fn resolve_host_serial_solver_v8<'problem, 'backend>(
 }
 
 fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
-    profile: HostSerialSolverProfile,
+    profile: HostSolverProfile,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend, S>],
 ) -> Result<ResolvedCandidateSet<'backend, S>, Diagnostic> {

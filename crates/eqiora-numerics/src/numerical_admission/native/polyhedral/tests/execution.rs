@@ -84,7 +84,7 @@ fn execute<S: Coefficient + Send + Sync>(
         .unwrap();
         let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
         linear.planning_profile = Some(
-            eqiora_solver::HostSerialSolverProfile::general_canonical_csr()
+            eqiora_solver::HostSolverProfile::general_canonical_csr()
                 .with_structure(equations.algebraic_structure(None).unwrap())
                 .unwrap(),
         );

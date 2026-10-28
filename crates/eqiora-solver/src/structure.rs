@@ -97,7 +97,7 @@ impl AlgebraicStructure {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{HostSerialSolverProfile, LinearOperatorProperties};
+    use crate::{HostSolverProfile, LinearOperatorProperties};
 
     #[test]
     fn exact_fields_and_gauges_are_complete_before_candidate_admission() {
@@ -112,7 +112,7 @@ mod tests {
         assert!(AlgebraicStructure::new([a, b], [gauge, gauge]).is_err());
         assert!(AlgebraicStructure::new([], []).is_err());
         assert!(
-            HostSerialSolverProfile::canonical_csr(
+            HostSolverProfile::canonical_csr(
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 None,
                 None,
@@ -120,7 +120,7 @@ mod tests {
             .with_structure(structure.clone())
             .is_err()
         );
-        let profile = HostSerialSolverProfile::canonical_csr(
+        let profile = HostSolverProfile::canonical_csr(
             LinearOperatorProperties::SymmetricIndefinite,
             None,
             None,

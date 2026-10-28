@@ -2,7 +2,7 @@
 use super::*;
 
 pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
-    profile: &HostSerialSolverProfile,
+    profile: &HostSolverProfile,
     candidate: HostSerialSolverCandidate<'_, S>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
@@ -17,6 +17,11 @@ pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64>
     };
     if backend.provider() != expected.provider {
         return Some("catalog.provider-mismatch");
+    }
+    if backend.default_execution_provider() != profile.execution_provider
+        || backend.default_execution() != profile.execution
+    {
+        return Some("catalog.execution-mismatch");
     }
     if !plan_tuple_matches(candidate.plan(), expected) {
         return Some("catalog.plan-mismatch");

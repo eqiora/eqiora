@@ -606,7 +606,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         assert!((values[0] - (x - x * x / 2.0)).abs() < 1e-9);
         assert!(values[1].abs() < 1e-9);
     }
-    use eqiora_solver::{AlgebraicStructure, HostSerialSolverProfile};
+    use eqiora_solver::{AlgebraicStructure, HostSolverProfile};
     let continuum = plan
         .admission
         .elasticity_proof()
@@ -629,7 +629,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         Some(AlgebraicStructure::new([foreign], []).unwrap()),
     ] {
         let mut changed = plan.clone();
-        let profile = HostSerialSolverProfile::canonical_csr(
+        let profile = HostSolverProfile::canonical_csr(
             LinearOperatorProperties::SymmetricPositiveDefinite,
             None,
             None,
