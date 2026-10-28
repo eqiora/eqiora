@@ -82,18 +82,49 @@ where
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
 {
     if let Some((plan, provider)) = request.exact_request() {
-        let backend = exact_backend(provider, reference_backend, supplied_backend)?;
+        let backend = exact_backend(
+            provider,
+            request.execution(),
+            reference_backend,
+            supplied_backend,
+        )?;
+        if request.execution() != (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN)
+            && request
+                .cost()
+                .and_then(|cost| cost.numeric_payload_limit())
+                .is_some()
+        {
+            return Err(invalid(
+                "resource.numeric-payload-bound-unproved: this execution has no proven numeric-payload bound",
+            ));
+        }
         profile.require_plan(plan)?;
         backend
             .capabilities()
             .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
         profile.require_resources(plan, backend.provider(), S::DOMAIN, S::STORAGE)?;
         let mut selected = NativeLinearPolicy::exact(plan, backend)?;
-        selected.planning_costs =
-            vec![profile.estimate_cost("manual", plan, backend.provider(), S::DOMAIN, S::STORAGE)];
+        if request.execution() == (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN) {
+            selected.planning_costs = vec![profile.estimate_cost(
+                "manual",
+                plan,
+                backend.provider(),
+                S::DOMAIN,
+                S::STORAGE,
+            )];
+        }
         selected.planning_profile = Some(profile);
         return Ok(selected);
     }
+    if request.execution() != (SERIAL_EXECUTION_PROVIDER, NonZeroUsize::MIN) {
+        return Err(invalid(
+            "automatic solver ranking is implemented only for host-serial execution",
+        ));
+    }
+    let supplied_backend = supplied_backend.filter(|backend| {
+        backend.default_execution_provider() == SERIAL_EXECUTION_PROVIDER
+            && backend.default_execution() == eqiora_solver::ExecutionReport::host_serial()
+    });
     let objective = request
         .objective()
         .expect("linear intent is exact or program-controlled");
@@ -108,6 +139,7 @@ where
     )?;
     let backend = exact_backend(
         decision.solver_provider(),
+        request.execution(),
         reference_backend,
         supplied_backend,
     )?;
@@ -161,6 +193,7 @@ pub(super) fn resolve_complex_linear(
         Some(
             typed_complex(exact_backend(
                 provider,
+                request.execution(),
                 &REFERENCE_LINEAR_SOLVER,
                 Some(supplied_backend),
             )?)?
@@ -180,7 +213,10 @@ fn typed_complex(
     let Some(complex) = backend.complex_backend() else {
         return Ok(None);
     };
-    if complex.provider() != backend.provider() {
+    if complex.provider() != backend.provider()
+        || complex.default_execution_provider() != backend.default_execution_provider()
+        || complex.default_execution() != backend.default_execution()
+    {
         return Err(invalid(
             "complex implementation belongs to a different provider",
         ));
@@ -190,17 +226,24 @@ fn typed_complex(
 
 fn exact_backend<'a, S: eqiora_core::Scalar>(
     provider: SolverProvider,
+    execution: (ExecutionProvider, NonZeroUsize),
     reference_backend: &'a dyn LinearSolverBackend<S>,
     supplied_backend: Option<&'a dyn LinearSolverBackend<S>>,
 ) -> Result<&'a dyn LinearSolverBackend<S>, Diagnostic> {
-    if provider == reference_backend.provider() {
+    execution.0.validate()?;
+    let matches = |backend: &dyn LinearSolverBackend<S>| {
+        backend.provider() == provider
+            && backend.default_execution_provider() == execution.0
+            && backend.default_execution()
+                == eqiora_solver::ExecutionReport::host(execution.0.id(), execution.1)
+    };
+    if matches(reference_backend) {
         Ok(reference_backend)
-    } else if let Some(supplied) = supplied_backend.filter(|backend| backend.provider() == provider)
-    {
+    } else if let Some(supplied) = supplied_backend.filter(|backend| matches(*backend)) {
         Ok(supplied)
     } else {
         Err(invalid(
-            "exact solver provider identity, implementation version, and library inventory must match an admitted backend",
+            "exact solver and execution provider identities, versions, libraries and workers must match an admitted backend",
         ))
     }
 }
@@ -394,7 +437,9 @@ mod tests {
             )
             .unwrap_err()
             .message()
-            .contains("implementation version")
+            .contains(
+                "exact solver and execution provider identities, versions, libraries and workers"
+            )
         );
         let request = exact(
             LinearSolver::ConjugateGradient,

@@ -370,6 +370,62 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> RowLinearAction for CanonicalC
     ) -> Result<(), Diagnostic> {
         (self as &dyn CsrStorage<S>).apply_rows(rows, input, output)
     }
+
+    fn supports_row_orientation(&self, _: crate::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented_rows(
+        &self,
+        orientation: crate::LinearOperatorOrientation,
+        rows: Range<usize>,
+        input: &[S],
+        output: &mut [S],
+    ) -> Result<(), Diagnostic> {
+        if orientation == crate::LinearOperatorOrientation::Normal {
+            return self.apply_rows(rows, input, output);
+        }
+        if rows.start > rows.end
+            || rows.end > self.columns
+            || input.len() != self.rows
+            || output.len() != rows.len()
+            || input.iter().any(|value| !value.is_finite())
+        {
+            return Err(solve_failed(
+                "transposed CSR row action has invalid dimensions, range or input",
+            ));
+        }
+        // Canonical rows are sorted and unique. Search in source-row order to
+        // preserve the serial transpose's compensated addition order without
+        // allocating an index or per-range scratch. A full action costs O(n^2
+        // log(degree)) lookups; this is not a sparse transpose speedup claim.
+        for (column, result) in rows.zip(output) {
+            let mut sum = S::zero();
+            let mut correction = S::zero();
+            for (row, value) in input.iter().enumerate() {
+                let start = self.row_offsets[row];
+                let end = self.row_offsets[row + 1];
+                if let Ok(offset) = self.column_indices[start..end].binary_search(&column) {
+                    let coefficient = self.values[start + offset];
+                    let coefficient =
+                        if orientation == crate::LinearOperatorOrientation::ConjugateTransposed {
+                            coefficient.conj()
+                        } else {
+                            coefficient
+                        };
+                    accumulation::add(&mut sum, &mut correction, coefficient * *value);
+                }
+            }
+            let value = sum + correction;
+            if !value.is_finite() {
+                return Err(solve_failed(
+                    "transposed CSR row action produced a non-finite value",
+                ));
+            }
+            *result = value;
+        }
+        Ok(())
+    }
 }
 
 impl<S: Scalar + ComplexFloat<Real = f64> + Sync> OrientedLinearOperator

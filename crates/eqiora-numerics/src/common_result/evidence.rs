@@ -169,7 +169,7 @@ impl CommonSolveEvidence {
     pub fn planned_storage_bytes(plan: &crate::ResolvedCommonPlan) -> Option<usize> {
         let solver = plan.linear_solver_provider()?;
         let (execution, _) = plan.linear_execution_provider()?;
-        let verification = eqiora_solver::SERIAL_EXECUTION_PROVIDER;
+        let verification = execution;
         let providers = [
             CommonProviderEvidence::from_parts(
                 solver.id().as_str(),

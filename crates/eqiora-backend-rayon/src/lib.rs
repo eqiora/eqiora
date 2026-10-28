@@ -12,10 +12,10 @@ use std::sync::Mutex;
 use eqiora_assembly::{
     AssemblyAccumulator, AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork,
 };
-use eqiora_core::Diagnostic;
 #[cfg(test)]
 use eqiora_core::ScalarType;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar, ScalarDomain};
 use eqiora_execution::DeploymentBinding;
 use eqiora_realization::{Target, TargetCapabilities};
 use eqiora_solver::{
@@ -24,8 +24,11 @@ use eqiora_solver::{
     ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverCapabilities,
     SolverPlan, SolverProvider,
 };
+use num_complex::{Complex64, ComplexFloat};
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
+
+mod complex;
 
 /// Stable execution identity recorded independently from the solver backend.
 pub const RAYON_EXECUTION: ExecutionId = ExecutionId::new("eqiora.rayon");
@@ -123,20 +126,12 @@ impl CpuThreadPool {
         backend: &'a dyn LinearSolverBackend,
     ) -> Result<ThreadedLinearSolver<'a>, Diagnostic> {
         self.require_target(target)?;
-        if !backend
-            .capabilities()
-            .reductions()
-            .contains(&ReductionPolicy::Reproducible)
-        {
-            return Err(invalid_realization(format!(
-                "solver backend {} cannot be placed on the first Rayon execution because it does not admit reproducible reductions",
-                backend.id().as_str()
-            )));
-        }
-        Ok(ThreadedLinearSolver {
+        let solver = ThreadedLinearSolver {
             pool: self,
             backend,
-        })
+        };
+        solver.supported_capabilities()?;
+        Ok(solver)
     }
 
     /// Bind ordered assembly to this exact run-owned pool and resolved target.
@@ -242,7 +237,66 @@ impl fmt::Debug for ThreadedLinearSolver<'_> {
     }
 }
 
+impl ThreadedLinearSolver<'_> {
+    fn require_serial_entry<S>(
+        execution: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<(), Diagnostic> {
+        if execution.provider() != SERIAL_LINEAR_EXECUTION.provider()
+            || execution.report() != SERIAL_LINEAR_EXECUTION.report()
+        {
+            return Err(invalid_realization(
+                "a Rayon solver cannot be nested inside another replicated execution",
+            ));
+        }
+        Ok(())
+    }
+
+    fn complex_implementation(&self) -> Option<&dyn LinearSolverBackend<Complex64>> {
+        let backend = self.backend.complex_backend()?;
+        (backend.provider() == self.backend.provider()
+            && backend.capabilities().combinations().iter().any(|entry| {
+                entry.scalar_domain == ScalarDomain::Complex
+                    && entry.reduction == ReductionPolicy::Reproducible
+            }))
+        .then_some(backend)
+    }
+
+    fn supported_capabilities(&self) -> Result<SolverCapabilities, Diagnostic> {
+        let mut combinations = self
+            .backend
+            .capabilities()
+            .combinations()
+            .iter()
+            .filter(|entry| {
+                entry.scalar_domain == ScalarDomain::Real
+                    && entry.reduction == ReductionPolicy::Reproducible
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        if let Some(backend) = self.complex_implementation() {
+            combinations.extend(
+                backend
+                    .capabilities()
+                    .combinations()
+                    .iter()
+                    .filter(|entry| {
+                        entry.scalar_domain == ScalarDomain::Complex
+                            && entry.reduction == ReductionPolicy::Reproducible
+                    })
+                    .copied(),
+            );
+        }
+        SolverCapabilities::exact(combinations).map_err(|_| invalid_realization(
+            "the Rayon adapter requires an implemented reproducible real or complex solver tuple",
+        ))
+    }
+}
+
 impl LinearSolverBackend for ThreadedLinearSolver<'_> {
+    fn default_execution_provider(&self) -> ExecutionProvider {
+        RAYON_EXECUTION_PROVIDER
+    }
+
     fn default_execution(&self) -> ExecutionReport {
         RayonLinearExecution { pool: self.pool }.report()
     }
@@ -252,15 +306,12 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
     }
 
     fn capabilities(&self) -> SolverCapabilities {
-        let backend = self.backend.capabilities();
-        SolverCapabilities::exact(
-            backend
-                .combinations()
-                .iter()
-                .filter(|entry| entry.reduction == ReductionPolicy::Reproducible)
-                .copied(),
-        )
-        .expect("construction admitted at least one reproducible backend tuple")
+        self.supported_capabilities()
+            .expect("construction admitted an implemented reproducible backend tuple")
+    }
+
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<Complex64>> {
+        self.complex_implementation().map(|_| self as _)
     }
 
     fn solve_with_execution(
@@ -269,12 +320,8 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        if execution.report() != SERIAL_LINEAR_EXECUTION.report() {
-            return Err(invalid_realization(
-                "a Rayon solver cannot be nested inside another replicated execution",
-            ));
-        }
-        self.capabilities().require_problem(
+        Self::require_serial_entry(execution)?;
+        self.supported_capabilities()?.require_problem(
             plan,
             problem.scalar_domain(),
             problem.scalar_type(),
@@ -290,6 +337,15 @@ struct RayonLinearExecution<'a> {
     pool: &'a CpuThreadPool,
 }
 
+impl RayonLinearExecution<'_> {
+    const fn provider(&self) -> ExecutionProvider {
+        RAYON_EXECUTION_PROVIDER
+    }
+    const fn report(&self) -> ExecutionReport {
+        ExecutionReport::host(RAYON_EXECUTION, self.pool.workers)
+    }
+}
+
 impl fmt::Debug for RayonLinearExecution<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -299,13 +355,19 @@ impl fmt::Debug for RayonLinearExecution<'_> {
     }
 }
 
-impl ReplicatedLinearExecution for RayonLinearExecution<'_> {
+impl<S: Scalar + ComplexFloat<Real = f64> + Send + Sync> ReplicatedLinearExecution<S>
+    for RayonLinearExecution<'_>
+{
     fn provider(&self) -> ExecutionProvider {
-        RAYON_EXECUTION_PROVIDER
+        self.provider()
     }
 
     fn report(&self) -> ExecutionReport {
-        ExecutionReport::host(RAYON_EXECUTION, self.pool.workers)
+        self.report()
+    }
+
+    fn real_execution(&self) -> Option<&dyn ReplicatedLinearExecution<f64>> {
+        Some(self)
     }
 
     fn require_reduction(&self, policy: ReductionPolicy) -> Result<(), Diagnostic> {
@@ -320,9 +382,9 @@ impl ReplicatedLinearExecution for RayonLinearExecution<'_> {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator<Scalar = f64>,
-        input: &[f64],
-        output: &mut [f64],
+        operator: &dyn LinearOperator<Scalar = S>,
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         if input.len() != operator.columns() || output.len() != operator.rows() {
             return Err(solve_failed(format!(
@@ -381,7 +443,7 @@ impl ReplicatedLinearExecution for RayonLinearExecution<'_> {
         Ok(())
     }
 
-    fn inner_product(&self, action: FixedOrderInnerProduct<'_>) -> Result<f64, Diagnostic> {
+    fn inner_product(&self, action: FixedOrderInnerProduct<'_, S>) -> Result<S, Diagnostic> {
         let partials = self.pool.pool.install(|| {
             (0..action.partial_count())
                 .into_par_iter()
@@ -612,7 +674,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(
-            threaded_solver.provider(),
+            LinearSolverBackend::<f64>::provider(&threaded_solver),
             REFERENCE_LINEAR_SOLVER.provider()
         );
         assert_eq!(
@@ -620,7 +682,7 @@ mod tests {
             ExecutionReport::host_serial()
         );
         assert_eq!(
-            threaded_solver.default_execution(),
+            LinearSolverBackend::<f64>::default_execution(&threaded_solver),
             ExecutionReport::host(RAYON_EXECUTION, NonZeroUsize::new(4).unwrap())
         );
         let threaded = threaded_solver.solve(&problem, plan()).unwrap();
@@ -796,8 +858,7 @@ mod tests {
         let pool = CpuThreadPool::new(NonZeroUsize::new(2).unwrap()).unwrap();
         let execution = RayonLinearExecution { pool: &pool };
         assert_eq!(
-            execution
-                .require_reduction(ReductionPolicy::Fast)
+            ReplicatedLinearExecution::<f64>::require_reduction(&execution, ReductionPolicy::Fast)
                 .unwrap_err()
                 .code(),
             codes::INVALID_REALIZATION

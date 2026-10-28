@@ -1,4 +1,5 @@
 use super::*;
+use crate::SERIAL_LINEAR_EXECUTION;
 use crate::{
     CanonicalCsrSystemView, CsrStorage, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorOrientation, LinearSolveRequest, LinearSolver, ReductionPolicy,
@@ -76,7 +77,10 @@ impl ReplicatedLinearExecution<Complex64> for UnadmittedExecution {
         crate::ExecutionProvider::new(crate::ExecutionId::new("test.unadmitted"), "1", &[])
     }
     fn report(&self) -> crate::ExecutionReport {
-        SERIAL_LINEAR_EXECUTION.report()
+        crate::ExecutionReport::distributed(
+            crate::ExecutionId::new("test.unadmitted"),
+            std::num::NonZeroUsize::MIN,
+        )
     }
     fn require_reduction(&self, _: ReductionPolicy) -> Result<(), Diagnostic> {
         panic!("must reject before numerical work")
@@ -119,7 +123,7 @@ fn complex_reference_rejects_unadmitted_execution_before_any_numerical_operation
             &UnadmittedExecution,
         )
         .unwrap_err();
-    assert!(error.message().contains("host-serial"));
+    assert!(error.message().contains("host-local"));
 
     // A matrix-free clone of the same action has no captured coefficient authority.
     let uncaptured =
@@ -179,6 +183,9 @@ struct ObservedSerial {
 }
 
 impl ReplicatedLinearExecution<Complex64> for ObservedSerial {
+    fn real_execution(&self) -> Option<&dyn ReplicatedLinearExecution<f64>> {
+        Some(&SERIAL_LINEAR_EXECUTION)
+    }
     fn provider(&self) -> crate::ExecutionProvider {
         SERIAL_LINEAR_EXECUTION.provider()
     }
@@ -354,4 +361,108 @@ fn typed_coordinate_solves_preserve_complex_forward_and_adjoint_producers() {
         )
         .unwrap_err();
     assert!(error.message().contains("different provider"));
+}
+
+#[test]
+fn real_coordinate_lowering_requires_the_same_execution_before_numerical_work() {
+    #[derive(Debug)]
+    struct HostView {
+        real: bool,
+        same_provider: bool,
+    }
+    impl ReplicatedLinearExecution<Complex64> for HostView {
+        fn provider(&self) -> crate::ExecutionProvider {
+            if self.same_provider {
+                SERIAL_LINEAR_EXECUTION.provider()
+            } else {
+                crate::ExecutionProvider::new(crate::ExecutionId::new("test.host"), "1", &[])
+            }
+        }
+        fn report(&self) -> crate::ExecutionReport {
+            crate::ExecutionReport::host(
+                crate::ExecutionId::new("test.host"),
+                std::num::NonZeroUsize::new(4).unwrap(),
+            )
+        }
+        fn real_execution(&self) -> Option<&dyn ReplicatedLinearExecution<f64>> {
+            self.real.then_some(&SERIAL_LINEAR_EXECUTION)
+        }
+        fn require_reduction(&self, _: ReductionPolicy) -> Result<(), Diagnostic> {
+            Ok(())
+        }
+        fn apply(
+            &self,
+            _: &dyn LinearOperator<Scalar = Complex64>,
+            _: &[Complex64],
+            _: &mut [Complex64],
+        ) -> Result<(), Diagnostic> {
+            panic!("unadmitted lowering must not apply")
+        }
+        fn inner_product(
+            &self,
+            _: FixedOrderInnerProduct<'_, Complex64>,
+        ) -> Result<Complex64, Diagnostic> {
+            panic!("unadmitted lowering must not reduce")
+        }
+    }
+    struct Identity;
+    impl CsrStorage<Complex64> for Identity {
+        fn rows(&self) -> usize {
+            1
+        }
+        fn columns(&self) -> usize {
+            1
+        }
+        fn row_offsets(&self) -> &[usize] {
+            &[0, 1]
+        }
+        fn column_indices(&self) -> &[usize] {
+            &[0]
+        }
+        fn values(&self) -> &[Complex64] {
+            const V: [Complex64; 1] = [Complex64::new(1., 0.)];
+            &V
+        }
+    }
+    let source = CanonicalCsrSystemView::new(
+        &Identity,
+        &[Complex64::new(1., 0.)],
+        LinearOperatorProperties::HermitianPositiveDefinite,
+    )
+    .unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        0.,
+        2f64.powi(-40),
+        1.try_into().unwrap(),
+    )
+    .unwrap();
+    for (execution, message) in [
+        (
+            HostView {
+                real: false,
+                same_provider: false,
+            },
+            "matching real execution",
+        ),
+        (
+            HostView {
+                real: true,
+                same_provider: false,
+            },
+            "preserve the complex provider and placement",
+        ),
+        (
+            HostView {
+                real: true,
+                same_provider: true,
+            },
+            "preserve the complex provider and placement",
+        ),
+    ] {
+        let error = ReferenceLinearSolver
+            .solve_with_execution(&source.linear_problem().unwrap(), plan, &execution)
+            .unwrap_err();
+        assert!(error.message().contains(message), "{error}");
+    }
 }

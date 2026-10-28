@@ -560,7 +560,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
     /// With no method-owned check, this is the allocation-free execution counterpart of
     /// [`crate::LinearSolution::accept_with_verifier`]. It is intended for transports
     /// that must prove all dynamic workspace exists before communication begins.
-    /// An optional method check is admitted only on exact host-serial execution
+    /// An optional method check is admitted only on host-local execution
     /// and may allocate its own physical-assessment workspace.
     ///
     /// # Errors

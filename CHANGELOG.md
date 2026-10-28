@@ -8,6 +8,13 @@ listed here.
 
 ### Changed
 
+- Reference real/complex solver execution can retain an explicit Rayon host
+  placement through canonical normal/transpose/adjoint actions, complex
+  coordinate lowering, ordinary Common Runs and exact Result reopening.
+  Common Plan v26 persists the requested execution release and worker count;
+  both producer and verifier must match. Automatic cost selection remains
+  host-serial, and nonserial numeric-payload caps remain explicitly unproved.
+
 - The Faer adapter's real/complex BiCGSTAB uses one private single-RHS
   recurrence with conjugate-first products, correcting the pinned library's
   complex bilinear products. Alpha and omega candidates retain independent
@@ -19,12 +26,7 @@ listed here.
   Work proxies include assembly, State/output replay and coordinate recovery, with
   retained coordinate payload reported separately from the solver payload cap.
   Only proven Faer sparse-LU retention forecasts one preparation; unknown work
-  remains unknown. Common Plan v25 replaces v24 without a compatibility decoder.
-
-- The Faer adapter's real/complex BiCGSTAB now uses one private single-RHS
-  recurrence with conjugate-first products, correcting the pinned library's
-  complex bilinear products. Alpha and omega candidates retain independent
-  original-residual and physical acceptance within the requested budget.
+  remains unknown. Common Plan v26 replaces earlier epochs without a compatibility decoder.
 
 - Faer complex CG (HPD) and BiCGSTAB (General, complex-symmetric, Hermitian, HPD)
   now execute Identity/Jacobi through the same typed Krylov owner as real solves.

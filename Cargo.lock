@@ -857,6 +857,7 @@ dependencies = [
  "eqiora-execution",
  "eqiora-realization",
  "eqiora-solver",
+ "num-complex",
  "rayon",
 ]
 

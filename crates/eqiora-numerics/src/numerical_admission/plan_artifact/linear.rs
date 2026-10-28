@@ -17,6 +17,8 @@ pub(super) struct WireLinearControls {
     maximum_iterations: usize,
     intent: WireLinearIntent,
     cost: Option<WireCostRequest>,
+    execution: WireLinearProvider,
+    workers: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +114,20 @@ impl From<SolverProvider> for WireLinearProvider {
     }
 }
 
+impl From<ExecutionProvider> for WireLinearProvider {
+    fn from(provider: ExecutionProvider) -> Self {
+        Self {
+            id: provider.id().as_str().into(),
+            implementation_version: provider.implementation_version().into(),
+            libraries: provider
+                .libraries()
+                .iter()
+                .map(|library| (library.name().into(), library.version().into()))
+                .collect(),
+        }
+    }
+}
+
 impl WireLinearControls {
     pub(super) fn to_native(
         &self,
@@ -171,6 +187,17 @@ impl WireLinearControls {
                 CommonLinearRequest::exact(plan, provider)
             }
         }?;
+        let execution = if self.execution == WireLinearProvider::from(SERIAL_EXECUTION_PROVIDER) {
+            SERIAL_EXECUTION_PROVIDER
+        } else if self.execution == WireLinearProvider::from(backend.default_execution_provider()) {
+            backend.default_execution_provider()
+        } else {
+            return Err(invalid(
+                "persisted execution provider release or library inventory is unavailable",
+            ));
+        };
+        let request =
+            request.with_execution(execution, nonzero(self.workers, "execution workers")?);
         match &self.cost {
             Some(cost) => Ok(request.with_cost(cost.to_native()?)),
             None => Ok(request),
@@ -234,6 +261,8 @@ impl From<CommonLinearRequest> for WireLinearControls {
             maximum_iterations: request.maximum_iterations().get(),
             intent,
             cost: request.cost().map(Into::into),
+            execution: request.execution().0.into(),
+            workers: request.execution().1.get(),
         }
     }
 }
