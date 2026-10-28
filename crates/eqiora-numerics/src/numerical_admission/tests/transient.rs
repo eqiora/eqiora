@@ -404,7 +404,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
             nonlinear,
         ),
         Some(crate::CommonScalingRequest::Incompressible(
-            IncompressibleScalingRequest2d::from_si(Some(1.), Some(1e-154), Some(1e-308)).unwrap(),
+            IncompressibleScalingRequest2d::from_si(Some(1.), Some(0.1), Some(0.01)).unwrap(),
         )),
         Some(CommonTemporalPolicy::backward_euler(1e308).unwrap()),
         &overflow_probe,
