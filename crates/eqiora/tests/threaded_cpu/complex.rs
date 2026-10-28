@@ -316,6 +316,15 @@ fn fixture_with_selection(
     };
     let document = ModelDocument::compile("threaded-common.eqi", source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let request = CommonSolvePolicy::Linear(linear_request(workers, objective));
+    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, backend).unwrap();
+    (document, plan)
+}
+
+fn linear_request(
+    workers: NonZeroUsize,
+    objective: Option<SolverPlanningObjective>,
+) -> CommonLinearRequest {
     // Preserve the existing typed-provider fixture's exact controls.
     let solver = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
@@ -325,17 +334,14 @@ fn fixture_with_selection(
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Reproducible);
-    let request = match objective {
+    match objective {
         None => CommonLinearRequest::exact(solver, REFERENCE_SOLVER_PROVIDER),
         Some(objective) => {
             CommonLinearRequest::program_controlled(1e-13, 1e-15, 8.try_into().unwrap(), objective)
         }
     }
     .unwrap()
-    .with_execution(RAYON_EXECUTION_PROVIDER, workers);
-    let request = CommonSolvePolicy::Linear(request);
-    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, backend).unwrap();
-    (document, plan)
+    .with_execution(RAYON_EXECUTION_PROVIDER, workers)
 }
 
 #[test]
@@ -347,12 +353,13 @@ fn ordinary_complex_common_run_keeps_typed_producer_pool_and_physical_output() {
 fn automatic_real_and_complex_common_runs_keep_requested_pool_and_physical_output() {
     for workers in [1, 4] {
         for objective in [
-            SolverPlanningObjective::Robust,
-            SolverPlanningObjective::Fast,
-            SolverPlanningObjective::LowMemory,
+            None,
+            Some(SolverPlanningObjective::Robust),
+            Some(SolverPlanningObjective::Fast),
+            Some(SolverPlanningObjective::LowMemory),
         ] {
             for complex in [false, true] {
-                check_common_run(workers, Some(objective), complex);
+                check_common_run(workers, objective, complex);
             }
         }
     }
@@ -432,6 +439,23 @@ fn check_common_run(count: usize, objective: Option<SolverPlanningObjective>, co
         )
     );
     assert_eq!(resolved.solver_planning_objective(), objective);
+    if objective.is_some() {
+        let costs = resolved.solver_planning_costs();
+        assert!(!costs.is_empty());
+        for cost in costs {
+            assert_eq!(cost.setup_work(), None);
+            assert_eq!(cost.solve_work(), None);
+            assert_eq!(cost.acceptance_work(), None);
+            assert_eq!(cost.total_work(), None);
+            assert_eq!(cost.numeric_payload_bytes(), None);
+        }
+        assert!(
+            resolved
+                .solver_planning_reasons()
+                .iter()
+                .any(|(_, reason)| *reason == "cost.execution-overhead-unmodeled")
+        );
+    }
     let plan_bytes = resolved.to_bytes().unwrap();
     let reopened_plan =
         eqiora_numerics::ResolvedCommonPlan::from_bytes(&plan_bytes, &wrapper, &[]).unwrap();
@@ -510,7 +534,8 @@ fn absent_foreign_stale_or_fast_only_typed_implementations_are_not_advertised_or
         Some(SolverPlanningObjective::Fast),
         Some(SolverPlanningObjective::LowMemory),
     ] {
-        let (_, plan) = fixture_with_selection(&reference, pool.workers(), objective, true);
+        let (document, plan) = fixture_with_selection(&reference, pool.workers(), objective, true);
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
         for mode in [
             TypedMode::Missing,
             TypedMode::Foreign,
@@ -535,6 +560,17 @@ fn absent_foreign_stale_or_fast_only_typed_implementations_are_not_advertised_or
                     .combinations()
                     .iter()
                     .all(|entry| entry.scalar_domain == ScalarDomain::Real)
+            );
+            assert!(
+                CommonAlgebraicPlan::resolve(
+                    &model,
+                    CommonSolvePolicy::Linear(linear_request(pool.workers(), objective)),
+                    None,
+                    &[],
+                    None,
+                    &wrapper,
+                )
+                .is_err()
             );
             assert!(
                 plan.run_result(&plan.initial_state(&[]).unwrap(), &wrapper)
