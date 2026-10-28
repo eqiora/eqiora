@@ -6,21 +6,17 @@ use eqiora_execution::{AdmittedExecution, CudaExecutorDescriptor, DeploymentBind
 use eqiora_realization::{PortableRealizationGraph, SolveRoot};
 use eqiora_solver::{
     AlgebraicStructure, CanonicalCsrSystemView, ExecutionReport, SolverPlanningObjective,
-    SolverPlanningProfile, SolverProviderAvailability, SolverSelection,
+    SolverPlanningProfile, SolverSelection,
 };
 
 use super::{CUDA_LINEAR_EXECUTION_PROVIDER, CUDA_LINEAR_SOLVER_PROVIDER, CudaLinearSolver};
 use crate::runtime::unsupported;
 
-/// One inspected solver decision retained with its explicitly selected device.
-///
-/// Construction validates a device descriptor without discovering a runtime,
-/// creating a context, or allocating device memory. Execution still checks the
-/// selected runtime and independently accepts the numerical result.
+/// Private deployment retained by the existing solver owner after selection.
 #[derive(Debug)]
-pub struct CudaSolverSelection {
-    executor: CudaExecutorDescriptor,
-    selection: SolverSelection,
+pub(super) struct SelectedDeployment {
+    pub(super) executor: CudaExecutorDescriptor,
+    pub(super) decision: SolverSelection,
 }
 
 impl CudaLinearSolver {
@@ -29,17 +25,23 @@ impl CudaLinearSolver {
     ///
     /// # Errors
     /// Rejects a foreign provider, invented capability, unsupported queue/device,
-    /// mismatched profile execution, or a profile without an admitted candidate.
+    /// mismatched profile execution, a repeated selection, or a profile without
+    /// an admitted candidate.
     pub fn select_plan(
-        self,
+        mut self,
         executor: CudaExecutorDescriptor,
         profile: SolverPlanningProfile,
         objective: SolverPlanningObjective,
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: NonZeroUsize,
-    ) -> Result<CudaSolverSelection, Diagnostic> {
-        let execution = checked_executor(self, &executor)?;
+    ) -> Result<Self, Diagnostic> {
+        if self.selected.is_some() {
+            return Err(unsupported(
+                "CUDA solver already retains a selected deployment",
+            ));
+        }
+        let execution = checked_executor(&self, &executor)?;
         if profile.execution_provider() != CUDA_LINEAR_EXECUTION_PROVIDER
             || profile.execution() != execution
         {
@@ -47,32 +49,28 @@ impl CudaLinearSolver {
                 "CUDA selection profile differs from the selected deployment",
             ));
         }
-        let availability = SolverProviderAvailability::new(
-            executor.solver_provider(),
-            executor.execution_provider(),
-            execution,
-            executor.solver_capabilities().clone(),
-        )?;
-        let selection = SolverSelection::resolve::<f64>(
+        let decision = SolverSelection::resolve_declared::<f64>(
             profile,
             objective,
             relative_tolerance,
             absolute_tolerance,
             maximum_iterations,
-            &[availability],
+            executor.solver_provider(),
+            executor.solver_capabilities(),
         )?;
-        Ok(CudaSolverSelection {
-            executor,
-            selection,
-        })
+        self.selected = Some(SelectedDeployment { executor, decision });
+        Ok(self)
     }
-}
 
-impl CudaSolverSelection {
     /// Inspect the exact decision, controls, reasons and unmodeled cost terms.
-    #[must_use]
-    pub const fn selection(&self) -> &SolverSelection {
-        &self.selection
+    ///
+    /// # Errors
+    /// Rejects an owner that has not selected a deployment.
+    pub fn selection(&self) -> Result<&SolverSelection, Diagnostic> {
+        self.selected
+            .as_ref()
+            .map(|selected| &selected.decision)
+            .ok_or_else(|| unsupported("CUDA solver has no selected deployment"))
     }
 
     /// Check the finalized problem and exact graph plan before binding.
@@ -87,18 +85,21 @@ impl CudaSolverSelection {
         system: &CanonicalCsrSystemView,
         structure: Option<&AlgebraicStructure>,
     ) -> Result<DeploymentBinding, Diagnostic> {
-        let execution = checked_executor(
-            CudaLinearSolver::new(self.executor.device().id().ordinal()),
-            &self.executor,
-        )?;
-        if self.selection.execution_provider() != self.executor.execution_provider()
-            || self.selection.execution() != execution
+        let selected = self
+            .selected
+            .as_ref()
+            .ok_or_else(|| unsupported("CUDA solver has no selected deployment"))?;
+        let execution = checked_executor(&self, &selected.executor)?;
+        if selected.decision.solver_provider() != selected.executor.solver_provider()
+            || selected.decision.execution_provider() != selected.executor.execution_provider()
+            || selected.decision.execution() != execution
         {
             return Err(unsupported(
                 "CUDA selection differs from its retained deployment",
             ));
         }
-        self.selection
+        selected
+            .decision
             .require_problem::<f64>(&system.linear_problem()?, structure)?;
         let SolveRoot::Linear(root) = realization.root() else {
             return Err(unsupported(
@@ -108,12 +109,15 @@ impl CudaSolverSelection {
         let linear = realization
             .linear_solve(root)
             .ok_or_else(|| unsupported("CUDA selection graph omits its linear root"))?;
-        if linear.plan() != self.selection.solver_plan() {
+        if linear.plan() != selected.decision.solver_plan() {
             return Err(unsupported(
                 "CUDA native graph solver plan differs from the selected exact plan",
             ));
         }
-        DeploymentBinding::bind_cuda(realization, self.executor)
+        DeploymentBinding::bind_cuda(
+            realization,
+            self.selected.expect("checked selected deployment").executor,
+        )
     }
 
     /// Admit the selected canonical problem through generic CUDA admission.
@@ -134,7 +138,7 @@ impl CudaSolverSelection {
 }
 
 fn checked_executor(
-    solver: CudaLinearSolver,
+    solver: &CudaLinearSolver,
     executor: &CudaExecutorDescriptor,
 ) -> Result<ExecutionReport, Diagnostic> {
     if executor.solver_provider() != CUDA_LINEAR_SOLVER_PROVIDER {

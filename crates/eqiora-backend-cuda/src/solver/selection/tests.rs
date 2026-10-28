@@ -43,7 +43,7 @@ fn select(
     executor: CudaExecutorDescriptor,
     profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
-) -> Result<CudaSolverSelection, Diagnostic> {
+) -> Result<CudaLinearSolver, Diagnostic> {
     CudaLinearSolver::new(0).select_plan(
         executor,
         profile,
@@ -87,7 +87,7 @@ fn explicit_cuda_selection_covers_only_the_three_delivered_real_fast_tuples() {
                 objective,
             )
             .unwrap();
-            let selection = selected.selection();
+            let selection = selected.selection().unwrap();
             let plan = selection.solver_plan();
             assert_eq!(plan.algorithm(), algorithm);
             assert_eq!(plan.preconditioner(), preconditioner);
@@ -201,4 +201,70 @@ fn cuda_selection_rejects_unproved_math_resources_and_deployment_substitution_wi
         .unwrap();
         assert!(select(rejected, normal(), SolverPlanningObjective::Fast).is_err());
     }
+}
+
+#[test]
+fn cuda_owner_selection_is_single_use_and_cannot_bypass_retained_binding() {
+    let normal = || {
+        profile(
+            Properties::SymmetricPositiveDefinite,
+            Some(true),
+            ReductionPolicy::Fast,
+        )
+    };
+    let manual = CudaLinearSolver::new(0);
+    assert!(
+        manual
+            .selection()
+            .unwrap_err()
+            .message()
+            .contains("no selected deployment")
+    );
+    manual.admit_device(&device(0)).unwrap();
+    manual.admit_device(&device(0)).unwrap();
+
+    let selected = select(executor(0, 0), normal(), SolverPlanningObjective::Fast).unwrap();
+    let error = selected
+        .select_plan(
+            executor(0, 0),
+            normal(),
+            SolverPlanningObjective::Fast,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(4096).unwrap(),
+        )
+        .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("already retains a selected deployment")
+    );
+
+    struct One;
+    impl eqiora_solver::CsrStorage for One {
+        fn rows(&self) -> usize {
+            1
+        }
+        fn columns(&self) -> usize {
+            1
+        }
+        fn row_offsets(&self) -> &[usize] {
+            &[0, 1]
+        }
+        fn column_indices(&self) -> &[usize] {
+            &[0]
+        }
+        fn values(&self) -> &[f64] {
+            &[1.]
+        }
+    }
+    let system =
+        CanonicalCsrSystemView::new(&One, &[1.], Properties::SymmetricPositiveDefinite).unwrap();
+    let selected = select(executor(0, 0), normal(), SolverPlanningObjective::Fast).unwrap();
+    let plan = selected.selection().unwrap().solver_plan();
+    // A wrong-size guess makes this probe safe even if the state guard regresses:
+    // the asserted diagnostic must still come from retained-selection ownership.
+    let error = selected.solve(&system, Some(&[0., 0.]), plan).unwrap_err();
+    assert!(error.message().contains("retained decision binding"));
+    assert_eq!(selected.selection().unwrap().solver_plan(), plan);
 }

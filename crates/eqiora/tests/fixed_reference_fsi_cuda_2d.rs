@@ -20,7 +20,7 @@ use eqiora::solver::{
     ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan, SolverPlanningObjective,
     SolverPlanningProfile,
 };
-use eqiora_backend_cuda::{CudaAdmittedExecutionAdapter, CudaSolverSelection};
+use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{
     CUDA_LINEAR_DEVICE_CAPABILITIES, CudaExecutorDescriptor, DeploymentBinding, ExecutionStepKind,
 };
@@ -196,7 +196,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
         &canonical,
         &host,
         device_ordinal,
-        selection.selection().solver_plan(),
+        selection.selection().unwrap().solver_plan(),
     );
     let cuda_finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         &canonical,
@@ -364,7 +364,7 @@ fn synthetic_cuda_device(ordinal: u16) -> DeviceDescriptor {
     .expect("the allocation-free device snapshot is complete")
 }
 
-fn select_fsi(device: DeviceDescriptor, controls: SolverPlan) -> CudaSolverSelection {
+fn select_fsi(device: DeviceDescriptor, controls: SolverPlan) -> CudaLinearSolver {
     let ordinal = device.id().ordinal();
     let profile = SolverPlanningProfile::canonical_csr(
         LinearOperatorProperties::SymmetricIndefinite,

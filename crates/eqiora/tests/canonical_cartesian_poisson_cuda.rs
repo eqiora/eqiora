@@ -16,7 +16,7 @@ use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, ReductionPolicy, SolverPlan,
     SolverPlanningObjective, SolverPlanningProfile,
 };
-use eqiora_backend_cuda::{CudaAdmittedExecutionAdapter, CudaSolverSelection};
+use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_core::ScalarType;
 use eqiora_execution::CudaExecutorDescriptor;
 use eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian;
@@ -60,7 +60,7 @@ fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
     let into_parts: fn(CudaLinearSolveResult) -> _ = CudaLinearSolveResult::into_parts;
     let _ = into_parts;
     let admit: fn(
-        CudaLinearSolver,
+        &CudaLinearSolver,
         &eqiora::device::DeviceDescriptor,
     ) -> Result<(), eqiora::Diagnostic> = CudaLinearSolver::admit_device;
     let _ = admit;
@@ -101,7 +101,7 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
                 method,
                 device_ordinal,
                 revision,
-                selection.selection().solver_plan(),
+                selection.selection().unwrap().solver_plan(),
             )
             .unwrap(),
             canonical::requirements(),
@@ -198,7 +198,7 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
 fn select_poisson(
     device: eqiora::device::DeviceDescriptor,
     controls: SolverPlan,
-) -> CudaSolverSelection {
+) -> CudaLinearSolver {
     let ordinal = device.id().ordinal();
     let profile = SolverPlanningProfile::canonical_csr(
         LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -248,7 +248,7 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
             canonical::solver_plan(ReductionPolicy::Fast),
         );
         assert_eq!(
-            selection.selection().solver_plan(),
+            selection.selection().unwrap().solver_plan(),
             canonical::solver_plan(ReductionPolicy::Fast)
         );
         let resolved = resolve(
@@ -257,7 +257,7 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
                 method,
                 0,
                 revision,
-                selection.selection().solver_plan(),
+                selection.selection().unwrap().solver_plan(),
             )
             .unwrap(),
             canonical::requirements(),
@@ -286,6 +286,14 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
             resolved.plan().target(),
         )
         .unwrap();
+        let error = CudaLinearSolver::new(0)
+            .bind(
+                finalized.portable_realization(),
+                finalized.canonical_csr_system_view(),
+                None,
+            )
+            .unwrap_err();
+        assert!(error.message().contains("no selected deployment"));
         let admitted = selection
             .admit(
                 finalized.portable_realization(),
@@ -294,5 +302,18 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
             )
             .unwrap();
         assert_eq!(admitted.solver_plan(), finalized.solver_plan());
+        // The selected owner must not enter the manual executor path. A different
+        // ordinal also guarantees runtime work cannot start if that guard regresses.
+        let other_device = DeviceDescriptor::new(
+            DeviceId::new(eqiora_backend_cuda::CUDA_RUNTIME_ID, 1),
+            "synthetic CUDA 1",
+            NonZeroU64::new(1 << 30).unwrap(),
+            eqiora_execution::CUDA_LINEAR_DEVICE_CAPABILITIES,
+        )
+        .unwrap();
+        let error = select_poisson(other_device, canonical::solver_plan(ReductionPolicy::Fast))
+            .execute_admitted(admitted)
+            .unwrap_err();
+        assert!(error.message().contains("retained decision binding"));
     }
 }
