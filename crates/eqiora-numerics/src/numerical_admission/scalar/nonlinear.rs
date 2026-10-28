@@ -95,38 +95,63 @@ impl CommonSpatialPlan {
                 .spatial_values()
                 .ok_or_else(|| invalid("Newton seed requires physical spatial Fields"))?,
         )?;
-        let output = self.solve_region_newton(
-            &mapping,
-            &input,
-            &seed,
-            LinearSolveRequest::new(&checked, self.admission.linear.solver),
-            None,
-        )?;
-        let execution = newton_execution(&output.solve);
-        let fields = output
-            .fields
-            .into_iter()
-            .map(|(id, field)| {
-                let values = coordinates::values::<S, Real>(
-                    &field.value_type,
-                    &field.coefficients.into_values().collect::<Vec<_>>(),
-                )?;
-                Ok((
-                    id.downcast().expect("compiled Field identity"),
-                    field.value_type,
-                    values,
-                    field.space,
-                ))
-            })
-            .collect::<Result<_, Diagnostic>>()?;
-        crate::CommonResult::accept_spatial(
-            self.clone(),
-            Some(initial.clone()),
-            0.,
-            fields,
-            execution,
-            None,
-        )
+        let mut prepared = checked.prepare_linear(self.admission.linear.solver)?;
+        if let Some(linear) = &mut prepared {
+            linear.begin_action()?;
+        }
+        let result = (|| {
+            let output = self.solve_region_newton(
+                &mapping,
+                &input,
+                &seed,
+                LinearSolveRequest::new(&checked, self.admission.linear.solver),
+                prepared
+                    .as_mut()
+                    .map(|linear| linear.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver),
+            )?;
+            let execution = newton_execution(&output.solve);
+            let fields = output
+                .fields
+                .into_iter()
+                .map(|(id, field)| {
+                    let values = coordinates::values::<S, Real>(
+                        &field.value_type,
+                        &field.coefficients.into_values().collect::<Vec<_>>(),
+                    )?;
+                    Ok((
+                        id.downcast().expect("compiled Field identity"),
+                        field.value_type,
+                        values,
+                        field.space,
+                    ))
+                })
+                .collect::<Result<_, Diagnostic>>()?;
+            crate::CommonResult::accept_spatial(
+                self.clone(),
+                Some(initial.clone()),
+                0.,
+                fields,
+                execution,
+                None,
+            )
+        })();
+        match result {
+            Ok(accepted) => {
+                if let Some(linear) = &mut prepared {
+                    if let Err(error) = linear.commit_action() {
+                        let _ = linear.discard_action();
+                        return Err(error);
+                    }
+                }
+                Ok(accepted)
+            }
+            Err(error) => {
+                if let Some(linear) = &mut prepared {
+                    let _ = linear.discard_action();
+                }
+                Err(error)
+            }
+        }
     }
 
     pub(crate) fn reaccept_static_execution(

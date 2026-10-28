@@ -192,3 +192,225 @@ fn table_material_uses_each_gauss_points_segment_slope() {
     let fr = p * d * (u - r) - kr;
     check_point(&program, p, r, (u, -fp / fu, -fr / fu));
 }
+
+#[derive(Debug, Default, Clone, PartialEq)]
+struct PreparedCounts {
+    prepares: usize,
+    cold: usize,
+    begins: usize,
+    commits: usize,
+    discards: usize,
+    drops: usize,
+    corrections: Vec<(eqiora::solver::PreparedLinearStructureIdentity, Vec<f64>)>,
+}
+
+#[derive(Debug)]
+struct PreparedProbe {
+    counts: Arc<std::sync::Mutex<PreparedCounts>>,
+    warm: bool,
+    fail_at: Option<usize>,
+}
+impl PreparedProbe {
+    fn new(warm: bool, fail_at: Option<usize>) -> Self {
+        Self {
+            counts: Arc::default(),
+            warm,
+            fail_at,
+        }
+    }
+}
+impl LinearSolverBackend for PreparedProbe {
+    fn provider(&self) -> eqiora::solver::SolverProvider {
+        FaerLinearSolver.provider()
+    }
+    fn capabilities(&self) -> eqiora::solver::SolverCapabilities {
+        FaerLinearSolver.capabilities()
+    }
+    fn prepare_linear(
+        &self,
+        plan: SolverPlan,
+    ) -> Result<Option<Box<dyn eqiora::solver::PreparedLinearSolver>>, eqiora::Diagnostic> {
+        self.counts.lock().unwrap().prepares += 1;
+        if !self.warm {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(PreparedSession {
+            inner: FaerLinearSolver.prepare_linear(plan)?.unwrap(),
+            counts: self.counts.clone(),
+            fail_at: self.fail_at,
+        })))
+    }
+    fn solve_with_execution(
+        &self,
+        problem: &eqiora::solver::LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn eqiora::solver::ReplicatedLinearExecution,
+    ) -> Result<eqiora::solver::LinearSolution, eqiora::Diagnostic> {
+        self.counts.lock().unwrap().cold += 1;
+        FaerLinearSolver.solve_with_execution(problem, plan, execution)
+    }
+}
+#[derive(Debug)]
+struct PreparedSession {
+    inner: Box<dyn eqiora::solver::PreparedLinearSolver>,
+    counts: Arc<std::sync::Mutex<PreparedCounts>>,
+    fail_at: Option<usize>,
+}
+impl Drop for PreparedSession {
+    fn drop(&mut self) {
+        self.counts.lock().unwrap().drops += 1;
+    }
+}
+impl eqiora::solver::PreparedLinearSolver for PreparedSession {
+    fn begin_action(&mut self) -> Result<(), eqiora::Diagnostic> {
+        self.inner.begin_action()?;
+        self.counts.lock().unwrap().begins += 1;
+        Ok(())
+    }
+    fn commit_action(&mut self) -> Result<(), eqiora::Diagnostic> {
+        self.inner.commit_action()?;
+        self.counts.lock().unwrap().commits += 1;
+        Ok(())
+    }
+    fn discard_action(&mut self) -> Result<(), eqiora::Diagnostic> {
+        self.inner.discard_action()?;
+        self.counts.lock().unwrap().discards += 1;
+        Ok(())
+    }
+    fn solve(
+        &mut self,
+        structure: &eqiora::solver::PreparedLinearStructureIdentity,
+        problem: &eqiora::solver::LinearProblem<'_>,
+    ) -> Result<eqiora::solver::LinearSolution, eqiora::Diagnostic> {
+        let mut counts = self.counts.lock().unwrap();
+        counts.corrections.push((
+            structure.clone(),
+            problem.canonical_csr_system().unwrap().values().to_vec(),
+        ));
+        let occurrence = counts.corrections.len();
+        drop(counts);
+        if self.fail_at == Some(occurrence) {
+            return Err(eqiora::Diagnostic::error(
+                eqiora::diagnostic::codes::NUMERICAL_SOLVE_FAILED,
+                "injected stationary Newton correction failure",
+            ));
+        }
+        self.inner.solve(structure, problem)
+    }
+}
+
+fn prepared_fixture() -> (ResolvedCommonPlan, CommonInitialState<'static>) {
+    let document = ModelDocument::compile(
+        "prepared-material.eqi",
+        r#"
+    model Material() {
+        domain body=box(0,1);
+        domain left=boundary(body,axis=0,side=lower);
+        domain right=boundary(body,axis=0,side=upper);
+        parameter p:1=2; parameter r:1=2;
+        variable u:1 on body in smooth;
+        relation balance on body {-div((1+p*u)*grad(u))=0;}
+        relation lower on left {trace(u)=1;}
+        relation upper on right {trace(u)=r;}
+    }"#,
+    )
+    .unwrap();
+    let (_, plan, seed) = fixture_from_document(document, 2.);
+    (plan, seed)
+}
+
+#[test]
+fn stationary_newton_prepares_once_for_all_corrections_and_reopens_without_solving() {
+    let (plan, seed) = prepared_fixture();
+    let before = seed.to_bytes().unwrap();
+    let CommonInitialState::Spatial(state) = &seed else {
+        panic!("spatial seed")
+    };
+    let cold = PreparedProbe::new(false, None);
+    let warm = PreparedProbe::new(true, None);
+    let spatial = plan.as_spatial().unwrap();
+    let cold_result = spatial.run_result(Some(state), &cold).unwrap();
+    let result = spatial.run_result(Some(state), &warm).unwrap();
+    // q=u+u² is affine; q(mid)=(q(1)+q(2))/2=4, so u=(sqrt(17)-1)/2.
+    close(
+        result.field_block(0, 0).unwrap().1,
+        &[1., (17_f64.sqrt() - 1.) / 2., 2.],
+    );
+    assert_eq!(result, cold_result);
+    let counts = warm.counts.lock().unwrap().clone();
+    assert_eq!(counts.prepares, 1, "{counts:?}");
+    assert_eq!(
+        (
+            counts.cold,
+            counts.begins,
+            counts.commits,
+            counts.discards,
+            counts.drops
+        ),
+        (0, 1, 1, 0, 1)
+    );
+    assert!(
+        counts.corrections.len() > 1,
+        "nonlinear fixture must require multiple corrections"
+    );
+    assert!(
+        counts
+            .corrections
+            .windows(2)
+            .all(|pair| pair[0].0 == pair[1].0)
+    );
+    assert!(
+        counts
+            .corrections
+            .windows(2)
+            .any(|pair| pair[0].1 != pair[1].1)
+    );
+    let cold_counts = cold.counts.lock().unwrap().clone();
+    assert_eq!(cold_counts.prepares, 1);
+    assert_eq!(cold_counts.cold, counts.corrections.len());
+    let reopened_plan =
+        ResolvedCommonPlan::from_bytes(&plan.to_bytes().unwrap(), &warm, &[]).unwrap();
+    assert_eq!(reopened_plan, plan);
+    assert_eq!(
+        eqiora_numerics::CommonResult::from_bytes(&result.to_bytes().unwrap(), &reopened_plan)
+            .unwrap(),
+        result
+    );
+    assert_eq!(*warm.counts.lock().unwrap(), counts);
+    assert_eq!(seed.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn stationary_newton_discards_the_whole_action_after_a_later_correction_fails() {
+    let (plan, seed) = prepared_fixture();
+    let before = seed.to_bytes().unwrap();
+    let CommonInitialState::Spatial(state) = &seed else {
+        panic!("spatial seed")
+    };
+    let backend = PreparedProbe::new(true, Some(2));
+    let error = plan
+        .as_spatial()
+        .unwrap()
+        .run_result(Some(state), &backend)
+        .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("injected stationary Newton correction failure"),
+        "{error}"
+    );
+    let counts = backend.counts.lock().unwrap();
+    assert_eq!(
+        (
+            counts.prepares,
+            counts.cold,
+            counts.begins,
+            counts.commits,
+            counts.discards,
+            counts.drops
+        ),
+        (1, 0, 1, 0, 1, 1)
+    );
+    assert_eq!(counts.corrections.len(), 2);
+    assert_eq!(seed.to_bytes().unwrap(), before);
+}
