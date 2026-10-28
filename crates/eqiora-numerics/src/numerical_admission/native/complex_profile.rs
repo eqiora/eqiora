@@ -1,5 +1,7 @@
 use super::*;
-use crate::numerical_admission::linear_policy::{PreparedLinearAction, ProfileCheckedPreparedLinear};
+use crate::numerical_admission::linear_policy::{
+    PreparedLinearAction, ProfileCheckedPreparedLinear,
+};
 use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, HostSolverProfile};
 use num_complex::Complex64 as C;
 

@@ -256,7 +256,9 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         problem: &eqiora_solver::LinearProblem<'_, S>,
     ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
         if self.action != PreparedLinearAction::Active {
-            return Err(invalid("prepared solve requires an active, nonfailed action"));
+            return Err(invalid(
+                "prepared solve requires an active, nonfailed action",
+            ));
         }
         let result = (|| {
             if let Some(profile) = &self.profile {
@@ -276,7 +278,9 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     fn commit_action(&mut self) -> Result<(), Diagnostic> {
         if self.action != PreparedLinearAction::Active {
-            return Err(invalid("prepared commit requires an active, nonfailed action"));
+            return Err(invalid(
+                "prepared commit requires an active, nonfailed action",
+            ));
         }
         match self.prepared.commit_action() {
             Ok(()) => {
@@ -292,7 +296,9 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     fn discard_action(&mut self) -> Result<(), Diagnostic> {
         if self.action == PreparedLinearAction::Idle {
-            return Err(invalid("prepared discard requires an active or failed action"));
+            return Err(invalid(
+                "prepared discard requires an active or failed action",
+            ));
         }
         self.prepared.discard_action()?;
         self.action = PreparedLinearAction::Idle;
