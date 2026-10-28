@@ -5,6 +5,7 @@ Usage:
 
 Commands:
   check    Compile/check one local Model source file.
+  study    Run, inspect or retry stationary Parameter studies.
 
 Options:
   -h, --help       Print help.
