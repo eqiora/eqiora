@@ -136,29 +136,21 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
                 .states()
                 .last()
                 .expect("trajectory owns its initial state");
-            let candidate =
-                advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
-                    mesh,
-                    prepared,
-                    previous.clone(),
-                    NonZeroStepCount::new(std::num::NonZeroUsize::MIN),
-                    plan.clone(),
-                    cell_quadrature,
-                    facet_quadrature,
-                    assembly,
-                    solver,
-                    linear.as_mut().map(|linear| {
-                        &mut **linear as &mut dyn eqiora_solver::PreparedLinearSolver
-                    }),
-                )?;
-            trajectory.push(
-                candidate
-                    .states()
-                    .last()
-                    .expect("one accepted step")
-                    .clone(),
-                candidate.steps()[0].clone(),
-            )
+            let mut borrowed = linear
+                .as_mut()
+                .map(|linear| &mut **linear as &mut dyn eqiora_solver::PreparedLinearSolver);
+            let (next, evidence) = solve_one_step(
+                mesh,
+                prepared,
+                previous,
+                plan.clone(),
+                cell_quadrature,
+                facet_quadrature,
+                assembly,
+                solver,
+                &mut borrowed,
+            )?;
+            trajectory.push(next, evidence)
         })();
         if let Err(error) = result {
             if let Some(linear) = &mut linear {
