@@ -279,6 +279,8 @@ mod tests {
     fn registered_exact_structure_reuse_falsifiers() {
         exact_structure_and_topology_control_symbolic_reuse();
         failed_numeric_candidate_does_not_replace_accepted_factors();
+        action_rollback_preserves_committed_factors_and_rejects_stale_commit();
+        malformed_actions_reject_before_mutation_and_empty_actions_commit();
     }
 
     fn exact_structure_and_topology_control_symbolic_reuse() {
@@ -374,7 +376,6 @@ mod tests {
         prepared.commit_action().unwrap();
         assert_eq!(prepared.symbolic_factorizations, 1);
     }
-    #[test]
     fn action_rollback_preserves_committed_factors_and_rejects_stale_commit() {
         let identity = PreparedLinearStructureIdentity::new(&b"action-structure"[..]).unwrap();
         let accepted = Storage {
@@ -469,7 +470,6 @@ mod tests {
         assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
     }
 
-    #[test]
     fn malformed_actions_reject_before_mutation_and_empty_actions_commit() {
         let identity = PreparedLinearStructureIdentity::new(&b"empty-action"[..]).unwrap();
         let storage = Storage {
