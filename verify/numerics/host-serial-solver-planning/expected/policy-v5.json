@@ -6014,7 +6014,7 @@
           "id": "eqiora.reference.bicgstab-general-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -6569,7 +6569,7 @@
           "id": "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -6586,7 +6586,7 @@
           "id": "eqiora.reference.bicgstab-complex-symmetric-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7141,7 +7141,7 @@
           "id": "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7158,7 +7158,7 @@
           "id": "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7175,7 +7175,7 @@
           "id": "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7874,7 +7874,7 @@
           "id": "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7891,7 +7891,7 @@
           "id": "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7925,7 +7925,7 @@
           "id": "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -7942,7 +7942,7 @@
           "id": "eqiora.reference.minres-hpd-identity-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
