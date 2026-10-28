@@ -60,6 +60,16 @@ fn fixture_source(
     backend: &dyn LinearSolverBackend,
     source: &str,
 ) -> ResolvedCommonPlan {
+    fixture_source_options(dt, timed, backend, source, false)
+}
+
+fn fixture_source_options(
+    dt: f64,
+    timed: bool,
+    backend: &dyn LinearSolverBackend,
+    source: &str,
+    nonlinear: bool,
+) -> ResolvedCommonPlan {
     let graph = GeometryGraph::new();
     let square = graph.rectangle([0., 1.], [0., 1.]).unwrap();
     let edges = square.boundaries();
@@ -93,9 +103,10 @@ fn fixture_source(
         &bindings,
     )
     .unwrap();
-    let cells = CartesianMeshCellsV2::new([2, 2]).unwrap();
+    let counts = if nonlinear { [3, 3] } else { [2, 2] };
+    let cells = CartesianMeshCellsV2::new(counts).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(&geometry, [2, 2])
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(&geometry, counts)
             .unwrap();
     let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
         &cells,
@@ -111,17 +122,30 @@ fn fixture_source(
         LinearSolver::SparseLu,
         1e-12,
         1e-14,
-        NonZeroUsize::new(64).unwrap(),
+        NonZeroUsize::new(if nonlinear { 1000 } else { 64 }).unwrap(),
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Fast);
+    let linear = CommonLinearRequest::exact(linear, FAER_SOLVER_PROVIDER).unwrap();
+    let solve = if nonlinear {
+        CommonSolvePolicy::Newton {
+            linear,
+            nonlinear: eqiora::realization::NonlinearSolvePlan::new(
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(12).unwrap(),
+                12,
+            )
+            .unwrap(),
+        }
+    } else {
+        CommonSolvePolicy::Linear(linear)
+    };
     ResolvedCommonPlan::resolve(
         &ModelEnvelope::from_program(document.program()).unwrap(),
         owner,
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(
-            CommonLinearRequest::exact(linear, FAER_SOLVER_PROVIDER).unwrap(),
-        ),
+        solve,
         None,
         Some(CommonTemporalPolicy::backward_euler(dt).unwrap()),
         backend,
@@ -638,4 +662,113 @@ fn complex_physical_fields_keep_the_existing_real_coordinate_prepared_route() {
         ),
         (1, 0, 1, 2)
     );
+}
+
+// Same two-field fixture and physical coefficients as the numerical-admission
+// coupled_newton test. The zero-force control is exactly zero: every derivative,
+// transport, diffusion and pairwise interaction term vanishes independently.
+fn coupled_source(force: f64) -> String {
+    let mut source = String::from(
+        r#"
+public operator dyad(input left: spatial[1], input right: spatial[1]): spatial[2] = component(left, 0) * component(right, 1);
+public component Heat(support region:volume(ambient_dimension=2),
+ support left:boundary(parent=region),support right:boundary(parent=region),
+ support bottom:boundary(parent=region),support top:boundary(parent=region)) {
+"#,
+    );
+    for name in ["a", "b"] {
+        source +=
+            &format!("state {name}:vector<m/s,2> on region in smooth; initial {{ {name}=0; }}\n");
+    }
+    for (name, other) in [("a", "b"), ("b", "a")] {
+        let forcing = if name == "a" { force } else { 0. };
+        source += &format!(
+            "relation balance_{name} on region {{ 4[kg/m^3]*derivative({name}) + div(4[kg/m^3]*dyad(left={name},right={name})) - div(0.1[kg/(m*s)]*grad({name})) + 2[kg/(m^3*s)]*({name}-{other}) - {forcing}[kg/(m^2*s^2)]*grad(coordinate(0)) = 0; }}\n"
+        );
+        for boundary in ["left", "right", "bottom", "top"] {
+            source += &format!("relation {boundary}_{name} on {boundary} {{ trace({name})=0; }}\n");
+        }
+    }
+    source += "}";
+    source
+}
+
+#[test]
+fn nonlinear_run_baseline_uses_cold_faer_corrections() {
+    for force in [0., 3.] {
+        let backend = Probe::new(true, None);
+        let plan = fixture_source_options(0.125, false, &backend, &coupled_source(force), true);
+        // This exact admitted provider/policy supports preparation; a missing
+        // prepare call below therefore witnesses the nonlinear consumer gap.
+        let linear = SolverPlan::new(
+            LinearSolver::SparseLu,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(1000).unwrap(),
+        )
+        .unwrap()
+        .with_reduction(ReductionPolicy::Fast);
+        assert!(
+            <FaerLinearSolver as LinearSolverBackend<f64>>::prepare_linear(
+                &FaerLinearSolver,
+                linear
+            )
+            .unwrap()
+            .is_some()
+        );
+        let state = initial(&plan);
+        let before = state.to_bytes().unwrap();
+        let trajectory = run(&plan, state.clone(), 2, &backend);
+        assert_eq!(state.to_bytes().unwrap(), before);
+        let result = CommonResult::accept_trajectory(0., trajectory).unwrap();
+        let bytes = result.to_bytes().unwrap();
+        let replayed = CommonResult::from_bytes(&bytes, &plan).unwrap();
+        assert_eq!(replayed.to_bytes().unwrap(), bytes);
+        let mut corrections = 0;
+        for output in [0, 1] {
+            let iterations = replayed.nonlinear_iterations(Some(output)).unwrap();
+            if force == 0. {
+                assert_eq!(iterations, 0);
+            } else {
+                assert!(iterations > 1);
+            }
+            corrections += iterations;
+            assert!(
+                replayed.nonlinear_true_residual_norm(Some(output)).unwrap()
+                    <= replayed.nonlinear_residual_target(Some(output)).unwrap()
+            );
+            for iteration in 0..iterations {
+                let solve = replayed
+                    .solve_evidence(Some(output), Some(iteration))
+                    .unwrap();
+                assert_eq!(solve.solver().id(), FAER_SOLVER_PROVIDER.id().as_str());
+                assert!(solve.true_residual_norm() <= solve.residual_target());
+            }
+        }
+        if force == 0. {
+            for (_, step) in result.trajectory().unwrap().spatial_steps().unwrap() {
+                for (_, _, _, values) in plan
+                    .as_spatial()
+                    .unwrap()
+                    .state_fields(step.state())
+                    .unwrap()
+                {
+                    assert!(values.iter().all(|value| value.abs() < 1e-12));
+                }
+            }
+        }
+        let observed = backend.observed.lock().unwrap();
+        assert_eq!(
+            (
+                observed.prepares,
+                observed.cold,
+                observed.drops,
+                observed.calls.len()
+            ),
+            (0, corrections, 0, 0)
+        );
+        eprintln!(
+            "Faer nonlinear baseline force={force}: {corrections} cold corrections, 0 preparations across 2 accepted steps"
+        );
+    }
 }
