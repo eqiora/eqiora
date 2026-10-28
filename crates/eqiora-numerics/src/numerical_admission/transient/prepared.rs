@@ -26,11 +26,11 @@ impl PreparedCommonTransientExecution<'_> {
             .and_then(|current| CommonAcceptedSpatialStep::new(state, current));
         match result {
             Ok(accepted) => {
-                if let Some(linear) = &mut self.prepared_linear {
-                    if let Err(error) = linear.commit_action() {
-                        let _ = linear.discard_action();
-                        return Err(error);
-                    }
+                if let Some(linear) = &mut self.prepared_linear
+                    && let Err(error) = linear.commit_action()
+                {
+                    let _ = linear.discard_action();
+                    return Err(error);
                 }
                 Ok(accepted)
             }

@@ -161,11 +161,11 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
             }
             return Err(error);
         }
-        if let Some(linear) = &mut linear {
-            if let Err(error) = linear.commit_action() {
-                let _ = linear.discard_action();
-                return Err(error);
-            }
+        if let Some(linear) = &mut linear
+            && let Err(error) = linear.commit_action()
+        {
+            let _ = linear.discard_action();
+            return Err(error);
         }
     }
     Ok(trajectory)

@@ -270,10 +270,10 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             linear.begin_action()?;
         }
         let result = self.advance_candidate(previous);
-        if result.is_err() {
-            if let Some(linear) = &mut self.prepared_linear {
-                let _ = linear.discard_action();
-            }
+        if result.is_err()
+            && let Some(linear) = &mut self.prepared_linear
+        {
+            let _ = linear.discard_action();
         }
         result
     }
@@ -368,11 +368,11 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
                 }
                 return Err(error);
             }
-            if let Some(linear) = &mut prepared.prepared_linear {
-                if let Err(error) = linear.commit_action() {
-                    let _ = linear.discard_action();
-                    return Err(error);
-                }
+            if let Some(linear) = &mut prepared.prepared_linear
+                && let Err(error) = linear.commit_action()
+            {
+                let _ = linear.discard_action();
+                return Err(error);
             }
             Ok(())
         },
@@ -438,11 +438,11 @@ pub(super) fn solve_one_step<const D: usize>(
     );
     match result {
         Ok(accepted) => {
-            if let Some(linear) = &mut prepared_linear {
-                if let Err(error) = linear.commit_action() {
-                    let _ = linear.discard_action();
-                    return Err(error);
-                }
+            if let Some(linear) = &mut prepared_linear
+                && let Err(error) = linear.commit_action()
+            {
+                let _ = linear.discard_action();
+                return Err(error);
             }
             Ok(accepted)
         }
