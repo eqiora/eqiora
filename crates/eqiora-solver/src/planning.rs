@@ -15,7 +15,7 @@ mod cost;
 use catalog::{catalog_ids, expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v7";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v8";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -93,6 +93,15 @@ const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
 const FAER_HERMITIAN_LU_ID: &str = "eqiora.faer.sparse-lu-hermitian-identity-fast-complex-f64";
 const REFERENCE_HPD_ID: &str = "eqiora.reference.cg-hpd-identity-reproducible-complex-f64";
 const FAER_HPD_LU_ID: &str = "eqiora.faer.sparse-lu-hpd-identity-fast-complex-f64";
+const REFERENCE_SPD_MINRES_JACOBI_ID: &str = "eqiora.reference.minres-spd-jacobi-reproducible-f64";
+const REFERENCE_SYMMETRIC_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-symmetric-jacobi-reproducible-f64";
+const REFERENCE_INDEFINITE_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-indefinite-jacobi-reproducible-f64";
+const REFERENCE_HERMITIAN_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-hermitian-jacobi-reproducible-complex-f64";
+const REFERENCE_HPD_MINRES_JACOBI_ID: &str =
+    "eqiora.reference.minres-hpd-jacobi-reproducible-complex-f64";
 const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
@@ -652,7 +661,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v7<'problem, 'backend>(
+fn resolve_host_serial_solver_v8<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],

@@ -356,14 +356,44 @@ fn work_proxy(
                 .checked_mul(k)?
                 .checked_mul(k.checked_add(1)?)?
                 .checked_mul(4)?;
-            (0, actions.checked_add(basis)?)
+            let base = actions.checked_add(basis)?;
+            if plan.preconditioner() == PreconditionerPolicy::Jacobi {
+                // Versioned scoring units: diagonal validation/sqrt/reciprocal
+                // each n; initial scaling+norm5n; WAW and x recovery4nk.
+                // Candidate j reconstructs a triangular solve (j²) and basis
+                // combination (2nj). These are weights, not measured FLOPs.
+                let next = k.checked_add(1)?;
+                let triangular = k
+                    .checked_mul(next)?
+                    .checked_mul(k.checked_mul(2)?.checked_add(1)?)?
+                    .checked_div(6)?;
+                let recovery = n
+                    .checked_mul(k)?
+                    .checked_mul(next)?
+                    .checked_add(triangular)?;
+                let extra = n
+                    .checked_mul(5)?
+                    .checked_add(n.checked_mul(k)?.checked_mul(4)?)?
+                    .checked_add(recovery)?;
+                (n.checked_mul(3)?, base.checked_add(extra)?)
+            } else {
+                (0, base)
+            }
         }
     };
     let setup = structure.checked_add(numeric.checked_mul(f)?)?;
     let solve = solve.checked_mul(h)?;
+    let acceptance_passes = if plan.algorithm() == LinearSolver::MinimumResidual
+        && plan.preconditioner() == PreconditionerPolicy::Jacobi
+    {
+        iterations.min(n)
+    } else {
+        1
+    };
     let acceptance = z
         .checked_mul(2)?
         .checked_add(n.checked_mul(5)?)?
+        .checked_mul(acceptance_passes)?
         .checked_mul(h)?;
     Some((setup, solve, acceptance))
 }
@@ -674,6 +704,80 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
 #[cfg(test)]
 mod realification_cost_tests {
     use super::*;
+
+    #[test]
+    fn real_jacobi_minres_counts_every_original_candidate_check_and_reconstruction() {
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(2).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Jacobi);
+        let profile = HostSerialSolverProfile::canonical_csr(
+            LinearOperatorProperties::Symmetric,
+            Some(true),
+            None,
+        )
+        .with_size(SolverPlanningSize::exact(2, 4));
+        // Independently n2,z4,k2: base96; added10+16+12+5=43;
+        // setup6+6=12; original acceptance2*(8+10)=36.
+        for (solves, structures, preparations, expected) in [
+            (1, 1, 1, (12, 139, 36, 187)),
+            (3, 1, 2, (18, 417, 108, 543)),
+        ] {
+            let requested = profile.clone().with_cost_request(
+                SolverCostRequest::new(
+                    NonZeroUsize::new(solves).unwrap(),
+                    NonZeroUsize::new(structures).unwrap(),
+                    NonZeroUsize::new(preparations).unwrap(),
+                )
+                .unwrap(),
+            );
+            let cost = requested.estimate_cost(
+                "manual",
+                plan,
+                REFERENCE_PROVIDER,
+                ScalarDomain::Real,
+                ScalarType::F64,
+            );
+            assert_eq!(
+                (
+                    cost.setup_work(),
+                    cost.solve_work(),
+                    cost.acceptance_work(),
+                    cost.total_work()
+                ),
+                (
+                    Some(expected.0),
+                    Some(expected.1),
+                    Some(expected.2),
+                    Some(expected.3)
+                )
+            );
+            assert_eq!(cost.numeric_payload_bytes(), None);
+        }
+        let one_iteration = profile.with_cost_request(
+            SolverCostRequest::default().with_iteration_forecasts(None, Some(NonZeroUsize::MIN)),
+        );
+        let cost = one_iteration.estimate_cost(
+            "manual",
+            plan,
+            REFERENCE_PROVIDER,
+            ScalarDomain::Real,
+            ScalarType::F64,
+        );
+        assert_eq!(
+            (
+                cost.setup_work(),
+                cost.solve_work(),
+                cost.acceptance_work(),
+                cost.total_work()
+            ),
+            (Some(12), Some(63), Some(18), Some(93))
+        );
+    }
 
     #[test]
     fn reference_complex_lowering_work_is_unknown_without_conversion_accounting() {

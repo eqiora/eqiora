@@ -56,6 +56,17 @@ assert len({plan.identity for plan in plans}) == 3
 assert [plan.formulation.requested for plan in plans] == [eqiora.FormulationSelectionMode.Authored,eqiora.FormulationSelectionMode.Automatic,eqiora.FormulationSelectionMode.Exact]
 assert plans[0].formulation.requested_source_identity == form.source_identity
 assert all(plan.formulation.requested_source_identity is None for plan in plans[1:])
+# The same positive-diagonal SPD equations also admit symmetric Jacobi MINRES.
+# Exercise the ordinary requested choice, canonical Plan replay and Result reopening.
+minres = eqiora.solve.Linear(
+ algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+ preconditioner=eqiora.solve.Preconditioner.Jacobi,
+ reduction=eqiora.solve.Reduction.Reproducible,
+ provider=eqiora.solve.SolverProvider.reference(),
+ relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100,
+)
+plans.append(eqiora.resolve(model,mesh=mesh,spatial=eqiora.fvm.CellCenteredTpfa(),solve=minres))
+assert plans[-1].identity != plans[0].identity
 # Independent four-cell TPFA equations, h=2, k=3, source=12:
 # (k/h)*(3*T0-T1)=24; interior (k/h)*(2*Ti-Tprev-Tnext)=24.
 # Their solution is [16,32,32,16], not continuum center samples [14,30,30,14].

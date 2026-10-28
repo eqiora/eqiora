@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v7.
+"""Independent exact General-profile oracle for host-serial solver planning v8.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v7"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v7.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v8"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v8.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -598,7 +598,7 @@ def complex_oracles():
     fixtures = [
         ("General", "general", [[(1, 1), (2, 0)], [(0, 3), (4, -1)]], [(-5, 5), (-13, 9)], [(10, -6), (5, 11)]),
         ("ComplexSymmetric", "complex-symmetric", [[(2, 1), (1, 2)], [(1, 2), (4, -1)]], [(-4, 2), (-10, 10)], [(10, -3), (1, 8)]),
-        ("Hermitian", "hermitian", [[(-2, 0), (0, 1)], [(0, -1), (3, 0)]], [(-3, -6), (-4, 2)], [(-7, 3), (2, 7)]),
+        ("Hermitian", "hermitian", [[(1, 0), (0, 2)], [(0, -2), (1, 0)]], [(-1, -2), (2, -1)], [(-4, 1), (-1, -1)]),
         ("HermitianPositiveDefinite", "hpd", [[(4, 0), (0, 1)], [(0, -1), (3, 0)]], [(3, 6), (-4, 2)], [(5, -3), (2, 7)]),
     ]
     oracles = []
@@ -644,14 +644,17 @@ def complex_oracles():
         if properties in ("Hermitian", "HermitianPositiveDefinite"):
             # Hermitian realification is symmetric and retains the same spectrum;
             # identity MINRES needs neither a positive diagonal nor definiteness.
-            reference.append({
-                "id": f"eqiora.reference.minres-{suffix}-identity-reproducible-complex-f64",
-                "evidence_case": "numerics.host-serial-solver-planning",
-                "solver_provider": REFERENCE_PROVIDER,
-                "tuple": {"algorithm": "MinimumResidual", "operator_properties": properties,
-                          "preconditioner": "Identity", "reduction": "Reproducible",
-                          "scalar_domain": "Complex", "scalar_type": "F64"},
-            })
+            for preconditioner in ("Identity", "Jacobi"):
+                # This independent Hermitian witness has positive diagonal;
+                # determinant<0 still forbids promoting it to HPD.
+                reference.append({
+                    "id": f"eqiora.reference.minres-{suffix}-{preconditioner.lower()}-reproducible-complex-f64",
+                    "evidence_case": "numerics.host-serial-solver-planning",
+                    "solver_provider": REFERENCE_PROVIDER,
+                    "tuple": {"algorithm": "MinimumResidual", "operator_properties": properties,
+                              "preconditioner": preconditioner, "reduction": "Reproducible",
+                              "scalar_domain": "Complex", "scalar_type": "F64"},
+                })
         iterative_faer = []
         for algorithm, spelling in [("BiConjugateGradientStabilized", "bicgstab")] + (
                 [("ConjugateGradient", "cg")] if properties == "HermitianPositiveDefinite" else []):
@@ -875,9 +878,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v7.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v8.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v7 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v8 oracle: exact derivation and mutants passed")
     return 0
 
 

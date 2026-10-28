@@ -1,6 +1,6 @@
 id = "numerics.host-serial-solver-planning"
 status = "implemented"
-scope = "deterministic-host-serial-real-and-complex-csr-solver-planning-v7"
+scope = "deterministic-host-serial-real-and-complex-csr-solver-planning-v8"
 reference_kind = "independent-exact-rational-and-literal-policy-table"
 
 capabilities = [
@@ -10,7 +10,7 @@ capabilities = [
   "bounded-work-proxy-with-explicit-horizon-assumptions",
   "scoped-numeric-payload-preflight-and-current-system-recheck",
   "optional-provider-availability-before-ranking",
-  "deterministic-robust-fast-low-memory-policy-v7",
+  "deterministic-robust-fast-low-memory-policy-v8",
   "inspectable-provider-plan-evidence-and-reasons",
   "hard-capability-admission-before-ranking",
   "exact-manual-decision-execution-parity",
@@ -23,7 +23,7 @@ capabilities = [
 required_companion_case = "numerics.host-serial-solver-planning-private"
 verification_requires_both_cases = true
 public_observation_owner = "crates/eqiora/tests/host_serial_solver_planning.rs"
-policy_oracle = "expected/policy-v7.json"
+policy_oracle = "expected/policy-v8.json"
 
 [problem]
 profile = "one immutable normal-orientation canonical-CSR complete-diagonal General f64 system"
@@ -34,10 +34,10 @@ exact_solution = "[1, 2]"
 [catalog]
 count = 5
 identity = "exact candidate ID, evidence case, provider release and dependencies, and solver-policy tuple"
-policy = "eqiora.host-serial-solver-planning/v7"
+policy = "eqiora.host-serial-solver-planning/v8"
 
 [real_class_catalogs]
-count = 22
+count = 25
 profiles = ["SymmetricPositiveDefinite", "SymmetricIndefinite", "Symmetric"]
 spd_proof = "leading principal minors 4 and 11"
 indefinite_proof = "eigenvalues 3 and -1"
@@ -45,7 +45,7 @@ payload_scope = "typed CSR/RHS and supported Reference real heap numeric workspa
 work_scope = "declared deterministic proxy; not measured timing or reuse authority"
 
 [complex_catalog]
-count = 26
+count = 28
 profiles = ["General", "ComplexSymmetric", "Hermitian", "HermitianPositiveDefinite"]
 scalar = "complex f64"
 normal_solution = "[1+2i, -2+i]"

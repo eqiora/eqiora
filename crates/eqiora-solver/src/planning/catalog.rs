@@ -70,6 +70,31 @@ pub(super) struct ExpectedCandidate {
 
 pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
+        REFERENCE_SPD_MINRES_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_SPD_MINRES_ID)
+        },
+        REFERENCE_SYMMETRIC_MINRES_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_SYMMETRIC_MINRES_ID)
+        },
+        REFERENCE_INDEFINITE_MINRES_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_MINRES_ID)
+        },
+        REFERENCE_HERMITIAN_MINRES_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_HERMITIAN_MINRES_ID)
+        },
+        REFERENCE_HPD_MINRES_JACOBI_ID => ExpectedCandidate {
+            preconditioner: PreconditionerPolicy::Jacobi,
+            evidence_case: PLANNING_EVIDENCE,
+            ..expected_candidate(REFERENCE_HPD_MINRES_ID)
+        },
         REFERENCE_ID => ExpectedCandidate {
             scalar_domain: ScalarDomain::Real,
             properties: LinearOperatorProperties::General,
@@ -415,6 +440,7 @@ pub(super) fn catalog_ids(
             REFERENCE_CG_ID,
             REFERENCE_CG_JACOBI_ID,
             REFERENCE_SPD_MINRES_ID,
+            REFERENCE_SPD_MINRES_JACOBI_ID,
             REFERENCE_SPD_BICGSTAB_ID,
             REFERENCE_SPD_BICGSTAB_JACOBI_ID,
             FAER_CG_IDENTITY_ID,
@@ -425,6 +451,7 @@ pub(super) fn catalog_ids(
         ],
         (ScalarDomain::Real, LinearOperatorProperties::SymmetricIndefinite) => &[
             REFERENCE_MINRES_ID,
+            REFERENCE_INDEFINITE_MINRES_JACOBI_ID,
             REFERENCE_INDEFINITE_BICGSTAB_ID,
             REFERENCE_INDEFINITE_BICGSTAB_JACOBI_ID,
             FAER_INDEFINITE_BICGSTAB_ID,
@@ -433,6 +460,7 @@ pub(super) fn catalog_ids(
         ],
         (ScalarDomain::Real, LinearOperatorProperties::Symmetric) => &[
             REFERENCE_SYMMETRIC_MINRES_ID,
+            REFERENCE_SYMMETRIC_MINRES_JACOBI_ID,
             REFERENCE_SYMMETRIC_BICGSTAB_ID,
             REFERENCE_SYMMETRIC_BICGSTAB_JACOBI_ID,
             FAER_SYMMETRIC_BICGSTAB_ID,
@@ -457,6 +485,7 @@ pub(super) fn catalog_ids(
             FAER_HERMITIAN_BICGSTAB_ID,
             FAER_HERMITIAN_BICGSTAB_JACOBI_ID,
             REFERENCE_HERMITIAN_MINRES_ID,
+            REFERENCE_HERMITIAN_MINRES_JACOBI_ID,
             REFERENCE_HERMITIAN_ID,
             REFERENCE_HERMITIAN_JACOBI_ID,
             FAER_HERMITIAN_LU_ID,
@@ -467,6 +496,7 @@ pub(super) fn catalog_ids(
             FAER_HPD_CG_ID,
             FAER_HPD_CG_JACOBI_ID,
             REFERENCE_HPD_MINRES_ID,
+            REFERENCE_HPD_MINRES_JACOBI_ID,
             REFERENCE_HPD_ID,
             REFERENCE_HPD_JACOBI_ID,
             REFERENCE_HPD_BICGSTAB_ID,
