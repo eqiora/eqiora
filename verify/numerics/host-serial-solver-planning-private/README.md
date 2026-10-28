@@ -1,4 +1,4 @@
-# Private host-serial solver-planning falsifiers
+# Private solver-planning falsifiers
 
 This required companion to
 [`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
@@ -70,3 +70,20 @@ This registered case covers the real General and typed complex adversarial catal
 projections. Its public companion also executes real SPD, symmetric-indefinite
 and symmetric tuples, including positive-diagonal MINRES Jacobi; this case does not prove
 typed constraint/gauge authenticity or common Python integration for those profiles.
+
+## Declared CUDA availability
+
+Policy v10 also uses this aggregator to verify selection from declared CUDA
+metadata for the three existing real-f64 Fast tuples: SPD CG/Jacobi, General
+BiCGSTAB/Identity, and symmetric-indefinite MINRES/Identity. Literal expectations
+are independent of the catalog. Every objective retains exact convergence
+controls and the explicit execution ordinal. Missing providers, stale identities,
+wrong execution, duplicate availability, absent Jacobi diagonal proof, required
+Reproducible reduction, unsupported complex scalars, and unproved payload caps
+reject. CUDA work and payload estimates remain unknown.
+
+These checks do not discover or authenticate hardware, execute CUDA, choose
+placement, prove runtime speed or memory use, or authenticate a portable graph's
+device ordinal. The concrete CUDA owner and native finalizers separately retain
+deployment, actual-system and exact-plan admission. The historical case identifier
+is unchanged; its added CUDA claim is limited to declared-metadata selection.

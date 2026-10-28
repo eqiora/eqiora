@@ -209,3 +209,39 @@ pub(crate) fn declared_cuda_requirements_cannot_be_ranked_away() {
         .contains("catalog.unsupported-profile")
     );
 }
+
+#[test]
+pub(crate) fn declared_host_selection_preserves_existing_reference_choice() {
+    use crate::LinearSolverBackend;
+    let backend = crate::REFERENCE_LINEAR_SOLVER;
+    let availability = SolverProviderAvailability::new(
+        REFERENCE_PROVIDER,
+        SERIAL_EXECUTION_PROVIDER,
+        crate::ExecutionReport::host_serial(),
+        <crate::reference::ReferenceLinearSolver as LinearSolverBackend<f64>>::capabilities(
+            &backend,
+        ),
+    )
+    .unwrap();
+    for objective in [
+        SolverPlanningObjective::Robust,
+        SolverPlanningObjective::Fast,
+        SolverPlanningObjective::LowMemory,
+    ] {
+        let selected = select(
+            SolverPlanningProfile::general_canonical_csr(),
+            objective,
+            std::slice::from_ref(&availability),
+        )
+        .unwrap();
+        assert_eq!(
+            selected.selected_candidate_id(),
+            "eqiora.reference.bicgstab-general-identity-reproducible-f64"
+        );
+        assert_eq!(
+            selected.solver_plan().reduction(),
+            ReductionPolicy::Reproducible
+        );
+        assert_eq!(selected.execution(), crate::ExecutionReport::host_serial());
+    }
+}

@@ -549,8 +549,9 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
 ];
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
 const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
-const ORACLE: &str =
-    include_str!("../../../../verify/numerics/host-serial-solver-planning/expected/policy-v10.json");
+const ORACLE: &str = include_str!(
+    "../../../../verify/numerics/host-serial-solver-planning/expected/policy-v10.json"
+);
 
 fn reference_identity_plan() -> SolverPlan {
     reference_plan().with_preconditioner(PreconditionerPolicy::Identity)
@@ -838,8 +839,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
         (unknown, "catalog.unknown-id"),
     ] {
         let error =
-            resolve_solver_v10(&problem, SolverPlanningObjective::Robust, &candidates)
-                .unwrap_err();
+            resolve_solver_v10(&problem, SolverPlanningObjective::Robust, &candidates).unwrap_err();
         assert!(error.message().contains(reason), "{error}");
         assert_zero_work(&storage, &ledger, &backends);
     }
@@ -877,9 +877,8 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
                 SPECS[i].evidence,
                 LinearSolveRequest::new(&backends[i], changed),
             );
-            let error =
-                resolve_solver_v10(&problem, SolverPlanningObjective::Fast, &candidates)
-                    .unwrap_err();
+            let error = resolve_solver_v10(&problem, SolverPlanningObjective::Fast, &candidates)
+                .unwrap_err();
             assert!(error.message().contains("catalog.control-mismatch"));
             assert_zero_work(&storage, &ledger, &backends);
         }
@@ -1084,8 +1083,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     .unwrap();
     for problem in [&hand_built, &matrix_free_problem, &transposed] {
         let error =
-            resolve_solver_v10(problem, SolverPlanningObjective::Robust, &catalog)
-                .unwrap_err();
+            resolve_solver_v10(problem, SolverPlanningObjective::Robust, &catalog).unwrap_err();
         assert!(
             error.message().contains("profile.canonical-csr-required")
                 || error.message().contains("profile.normal-required")
@@ -1202,6 +1200,7 @@ fn selected_success_executes_once_and_applies_exact_problem_for_both_true_residu
 
 #[test]
 fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
+    super::selection::tests::declared_host_selection_preserves_existing_reference_choice();
     super::selection::tests::declared_cuda_selection_has_literal_tuples_and_unknown_costs();
     super::selection::tests::declared_cuda_requirements_cannot_be_ranked_away();
     super::complex_tests::typed_capabilities_and_requested_inventory_precede_ranking();

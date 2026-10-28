@@ -788,6 +788,7 @@ dependencies = [
  "eqiora-core",
  "eqiora-device",
  "eqiora-execution",
+ "eqiora-realization",
  "eqiora-solver",
  "libloading 0.8.9",
  "serde",

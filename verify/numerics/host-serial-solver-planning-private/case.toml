@@ -1,9 +1,11 @@
 id = "numerics.host-serial-solver-planning-private"
 status = "implemented"
-scope = "crate-private-host-serial-solver-planning-v10-adversarial-oracle"
+scope = "crate-private-solver-planning-v10-host-and-declared-cuda-falsifiers"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
+  "declared-cuda-three-existing-real-f64-fast-tuples",
+  "declared-cuda-unknown-cost-and-exact-execution-rejection",
   "exact-catalog-control-profile-and-capability-rejection",
   "typed-domain-and-requested-class-inventory-authentication",
   "absent-provider-distinguished-from-identity-mismatch",
@@ -64,6 +66,8 @@ duplicates_policy_or_expected_value_authority = false
 fast_axis_swap_distinguished = false
 invented_provider_dependency = false
 performance_or_memory_superiority = false
+physical_cuda_execution = false
+automatic_device_placement = false
 
 [evidence]
 runner = "cargo-library-test"
