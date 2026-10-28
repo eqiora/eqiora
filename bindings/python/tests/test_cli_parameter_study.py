@@ -91,17 +91,27 @@ def test_cli_run_inspect_and_exact_cross_client_reopen(cli, kind, tmp_path):
 
 
 def test_cli_retry_preserves_success_and_failed_history_and_retries_only_unsuccessful(cli, tmp_path):
-    plan, omega, _, _ = problem("rc")
-    original = mapped(plan, omega, [500., 0., 1000.]).execute_recorded()
+    plan, omega, _, expected = problem("rc")
+    original = mapped(plan, omega, [500., 500., 0., 1000.]).execute_recorded()
+    assert [member.status for member in original[0]] == ["accepted", "accepted", "failed", "not_started"]
+    accepted_before = [(original[0][index].occurrence_id, original[0][index].result.to_bytes())
+                       for index in range(2)]
+    assert accepted_before[0][0] != accepted_before[1][0]
+    assert original[0][0].plan.identity == original[0][1].plan.identity
+    for index in range(2):
+        np.testing.assert_allclose(values(original[0][index], "rc"), expected[0], rtol=0, atol=TOLERANCE)
     path, retried = tmp_path / "partial.eqcollection", tmp_path / "retry.eqcollection"
     original.write(path)
     before = path.read_bytes()
+    reopened = q.EvaluationCollection.read(path)
+    assert [(reopened[0][index].occurrence_id, reopened[0][index].result.to_bytes())
+            for index in range(2)] == accepted_before
     command(cli, "study", "retry", path, "--group", 0, "--output", retried, success=False)
     combined = q.EvaluationCollection.read(retried)
     assert len(combined) == 2 and not combined.complete
     assert combined[0].execution_id == original[0].execution_id != combined[1].execution_id
-    assert combined[0][0].result.to_bytes() == original[0][0].result.to_bytes()
-    assert combined[0][0].occurrence_id == original[0][0].occurrence_id
+    assert [(combined[0][index].occurrence_id, combined[0][index].result.to_bytes())
+            for index in range(2)] == accepted_before
     assert [member.point for member in combined[1]] == [(0.,), (1000.,)]
     assert [member.status for member in combined[1]] == ["failed", "not_started"]
     assert path.read_bytes() == before
