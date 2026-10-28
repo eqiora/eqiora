@@ -192,20 +192,16 @@ fn sealed_action_rejects_another_reference_geometry() {
 
 #[test]
 fn singular_common_problem_fails_closed() {
-    let singular = DenseSpdOperator::new(&[1.0, -1.0, -1.0, 1.0], 2)
+    let singular = capture_interior_stiffness(&[1.0, -1.0, -1.0, 1.0], 2, &[1.0, 0.0])
         .expect("shape and symmetry are admissible before the solve");
-    let rhs = [1.0, 0.0];
-    let problem = LinearProblem::new(
-        &singular,
-        &rhs,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
-    .expect("bounded problem has a valid shape");
+    let problem = singular
+        .linear_problem()
+        .expect("bounded problem has a valid shape");
     assert!(reference_solver().solve(&problem).is_err());
 }
 
 #[test]
-fn general_bicgstab_policy_is_rejected_before_motion_assembly() {
+fn compatible_bicgstab_policy_reaches_motion_assembly() {
     let (mesh, partition) = refined_partition();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
@@ -213,15 +209,8 @@ fn general_bicgstab_policy_is_rejected_before_motion_assembly() {
         1.0e-14,
         NonZeroUsize::new(1_000).expect("positive iteration limit"),
     )
-    .expect("valid general solver plan");
-    let general = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
-    assert!(
-        P1HarmonicMeshMotionAction::<2>::new(
-            &mesh,
-            &partition,
-            motion_policy(general.plan()),
-            general
-        )
-        .is_err()
-    );
+    .unwrap();
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+    P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, motion_policy(plan), solver)
+        .expect("the exact reference BiCGSTAB/SPD/Identity/Reproducible tuple is available");
 }

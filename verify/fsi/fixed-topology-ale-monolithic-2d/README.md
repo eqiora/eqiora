@@ -68,3 +68,20 @@ This case does not claim topology changes, remeshing, AMR, ALE sensitivity,
 FSI adjoints, shape optimization, GPU or MPI ALE, an exact moving-volume
 discrete energy identity, production mesh smoothing, finite-strain structure,
 contact, performance, or scale.
+
+### Harmonic solver substitution
+
+The harmonic influence action captures its already assembled stiffness coefficients
+through the common canonical CSR owner and checks the selected provider's exact
+real `f64` SPD capability. Focused product tests exercise reference CG and BiCGSTAB
+with Identity/Jacobi, reference MINRES/Identity, and Faer CG and BiCGSTAB with
+Identity/Jacobi and SparseLU/Identity. An additional coupled Faer BiCGSTAB motion
+step reopens the moving-state artifact DAG with the selected policy and report.
+The original raw-stiffness Laplacian certificate, tolerances and iteration budgets
+are unchanged; the trajectory refinement case retains its original CG policy.
+
+The existing eight-million matrix-coefficient bound now includes the dense
+relation, temporary CSR values and canonical coefficient copy, plus driver and
+influence matrices: `3 N² + 2 N M`. This conservative admission bound excludes
+indices, RHS/Krylov vectors and total allocator bytes. It is not a performance or
+whole-process memory claim.

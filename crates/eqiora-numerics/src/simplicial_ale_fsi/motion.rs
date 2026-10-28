@@ -13,8 +13,7 @@ use eqiora_meshing::P1HarmonicCoordinateRelation;
 use eqiora_meshing::{SimplicialMesh, VertexId};
 use eqiora_realization::P1HarmonicMeshMotionPolicy;
 use eqiora_solver::{
-    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
-    LinearSolveRequest, LinearSolver, SolveReport,
+    CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest, SolveReport,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -49,7 +48,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     ///
     /// # Errors
     /// Returns `EQ0807` unless the resolved backend implements the exact
-    /// conjugate-gradient/SPD/f64 plan, `EQ0803` unless the mesh and its exact
+    /// requested SPD/f64 policy tuple, `EQ0803` unless the mesh and its exact
     /// partition/Dirichlet closure define the harmonic coordinate relation,
     /// `EQ0801` when the bounded first-slice action cannot be materialized, or
     /// `EQ0802` when the common solver cannot accept an influence column.
@@ -90,11 +89,6 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         {
             return Err(invalid(
                 "harmonic motion requires its complete exact Domain and interface inventory",
-            ));
-        }
-        if solver.plan().algorithm() != LinearSolver::ConjugateGradient {
-            return Err(invalid_realization(
-                "P1 harmonic ALE mesh motion requires the resolved conjugate-gradient policy",
             ));
         }
         solver.backend().capabilities().require_problem(
@@ -160,37 +154,19 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         }
         let interior_count = relation.fluid_interior_vertices().len();
         let driver_count = relation.driver_vertices().len();
-        let square = interior_count
-            .checked_mul(interior_count)
-            .ok_or_else(|| invalid("P1 harmonic ALE dense reference width overflows usize"))?;
-        let coupling = interior_count
-            .checked_mul(driver_count)
-            .ok_or_else(|| invalid("P1 harmonic ALE influence width overflows usize"))?;
-        let peak_coefficients = square
-            .checked_mul(2)
-            .and_then(|value| {
-                coupling
-                    .checked_mul(2)
-                    .and_then(|coupling| value.checked_add(coupling))
-            })
-            .ok_or_else(|| invalid("P1 harmonic ALE dense reference storage overflows usize"))?;
-        if peak_coefficients > MAX_DENSE_MOTION_COEFFICIENTS {
-            return Err(invalid(format!(
-                "P1 harmonic ALE bounded dense reference action requires at most {MAX_DENSE_MOTION_COEFFICIENTS} peak coefficients, got {peak_coefficients}",
-            )));
-        }
-        let operator = DenseSpdOperator::new(relation.interior_stiffness(), interior_count)?;
+        require_motion_coefficient_budget(interior_count, driver_count)?;
+        let first_rhs = (0..interior_count)
+            .map(|row| -relation.driver_stiffness()[row * driver_count])
+            .collect::<Vec<_>>();
+        let operator =
+            capture_interior_stiffness(relation.interior_stiffness(), interior_count, &first_rhs)?;
         let mut influence = vec![0.0; interior_count * driver_count];
         let mut influence_solve_reports = Vec::with_capacity(driver_count);
         for driver in 0..driver_count {
             let rhs = (0..interior_count)
                 .map(|row| -relation.driver_stiffness()[row * driver_count + driver])
                 .collect::<Vec<_>>();
-            let problem = LinearProblem::new(
-                &operator,
-                &rhs,
-                LinearOperatorProperties::SymmetricPositiveDefinite,
-            )?;
+            let problem = operator.linear_problem_with_right_hand_side(&rhs)?;
             let (column, report) = solver.solve(&problem)?.into_parts();
             for (row, value) in column.into_iter().enumerate() {
                 influence[row * driver_count + driver] = value;
@@ -458,98 +434,96 @@ fn validate_influence_residual(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
-struct DenseSpdOperator<'a> {
-    matrix: &'a [f64],
+/// Bound matrix coefficient storage before CSR capture or influence allocation.
+/// This is not a bound on indices, RHS/Krylov vectors, or total allocator bytes.
+fn require_motion_coefficient_budget(
+    interior_count: usize,
+    driver_count: usize,
+) -> Result<(), Diagnostic> {
+    let square = interior_count
+        .checked_mul(interior_count)
+        .ok_or_else(|| invalid("P1 harmonic ALE dense reference width overflows usize"))?;
+    let coupling = interior_count
+        .checked_mul(driver_count)
+        .ok_or_else(|| invalid("P1 harmonic ALE influence width overflows usize"))?;
+    // The dense relation, finalized CSR, and canonical coefficient copy coexist
+    // during capture (at most 3N²); validation has no coefficient workspace.
+    // The relation's driver matrix and influence map need at most 2NM more.
+    let coefficients = square
+        .checked_mul(3)
+        .and_then(|value| {
+            coupling
+                .checked_mul(2)
+                .and_then(|coupling| value.checked_add(coupling))
+        })
+        .ok_or_else(|| invalid("P1 harmonic ALE dense reference storage overflows usize"))?;
+    if coefficients > MAX_DENSE_MOTION_COEFFICIENTS {
+        return Err(invalid(format!(
+            "P1 harmonic ALE bounded reference action requires at most {MAX_DENSE_MOTION_COEFFICIENTS} matrix coefficients, got {coefficients}",
+        )));
+    }
+    Ok(())
+}
+
+/// Capture the already assembled Laplacian once for every influence RHS.
+/// All providers execute the same canonical coefficient action.
+fn capture_interior_stiffness(
+    matrix: &[f64],
     size: usize,
+    right_hand_side: &[f64],
+) -> Result<CanonicalCsrSystemView, Diagnostic> {
+    validate_interior_stiffness(matrix, size)?;
+    let mut offsets = Vec::with_capacity(size + 1);
+    let nonzeros = matrix.iter().filter(|&&value| value != 0.).count();
+    let mut columns = Vec::with_capacity(nonzeros);
+    let mut values = Vec::with_capacity(nonzeros);
+    offsets.push(0);
+    for row in matrix.chunks_exact(size) {
+        for (column, &value) in row.iter().enumerate() {
+            if value != 0. {
+                columns.push(column);
+                values.push(value);
+            }
+        }
+        offsets.push(values.len());
+    }
+    let storage =
+        eqiora_assembly::CsrMatrix::from_sorted_csr(size, size, offsets, columns, values)?;
+    CanonicalCsrSystemView::new(
+        &storage,
+        right_hand_side,
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )
 }
 
-impl<'a> DenseSpdOperator<'a> {
-    fn new(matrix: &'a [f64], size: usize) -> Result<Self, Diagnostic> {
-        let square = size
-            .checked_mul(size)
-            .ok_or_else(|| invalid("P1 harmonic ALE dense operator width overflows usize"))?;
-        if size == 0 || matrix.len() != square || matrix.iter().any(|value| !value.is_finite()) {
+fn validate_interior_stiffness(matrix: &[f64], size: usize) -> Result<(), Diagnostic> {
+    let square = size
+        .checked_mul(size)
+        .ok_or_else(|| invalid("P1 harmonic ALE dense operator width overflows usize"))?;
+    if size == 0 || matrix.len() != square || matrix.iter().any(|value| !value.is_finite()) {
+        return Err(invalid(
+            "P1 harmonic ALE Dirichlet Laplacian has an invalid dense reference layout",
+        ));
+    }
+    for row in 0..size {
+        if matrix[row * size + row] <= 0.0 {
             return Err(invalid(
-                "P1 harmonic ALE Dirichlet Laplacian has an invalid dense reference layout",
+                "P1 harmonic ALE Dirichlet Laplacian has a non-positive diagonal",
             ));
         }
-        for row in 0..size {
-            if matrix[row * size + row] <= 0.0 {
+        for column in 0..row {
+            if matrix[row * size + column] != matrix[column * size + row] {
                 return Err(invalid(
-                    "P1 harmonic ALE Dirichlet Laplacian has a non-positive diagonal",
-                ));
-            }
-            for column in 0..row {
-                if matrix[row * size + column] != matrix[column * size + row] {
-                    return Err(invalid(
-                        "P1 harmonic ALE Dirichlet Laplacian is not exactly symmetric",
-                    ));
-                }
-            }
-        }
-        Ok(Self { matrix, size })
-    }
-}
-
-impl LinearOperator for DenseSpdOperator<'_> {
-    type Scalar = f64;
-
-    fn rows(&self) -> usize {
-        self.size
-    }
-
-    fn columns(&self) -> usize {
-        self.size
-    }
-
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
-        if input.len() != self.size
-            || output.len() != self.size
-            || input.iter().any(|value| !value.is_finite())
-        {
-            return Err(solve_failed(
-                "P1 harmonic ALE dense operator action has an invalid finite shape",
-            ));
-        }
-        for (row, result) in output.iter_mut().enumerate() {
-            *result = self.matrix[row * self.size..(row + 1) * self.size]
-                .iter()
-                .zip(input)
-                .map(|(coefficient, value)| coefficient * value)
-                .sum();
-            if !result.is_finite() {
-                return Err(solve_failed(
-                    "P1 harmonic ALE dense operator action produced a non-finite value",
+                    "P1 harmonic ALE Dirichlet Laplacian is not exactly symmetric",
                 ));
             }
         }
-        Ok(())
     }
-
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
-        if output.len() != self.size {
-            return Err(solve_failed(
-                "P1 harmonic ALE dense operator diagonal has an invalid shape",
-            ));
-        }
-        for (row, value) in output.iter_mut().enumerate() {
-            *value = self.matrix[row * self.size + row];
-        }
-        Ok(DiagonalAvailability::Available)
-    }
+    Ok(())
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
-}
-
-fn invalid_realization(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-fn solve_failed(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }
 
 #[cfg(test)]
