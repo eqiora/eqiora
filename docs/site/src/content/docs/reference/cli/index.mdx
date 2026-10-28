@@ -47,6 +47,101 @@ Fix the unit before choosing a numerical method.
 
 For more syntax, see the [language reference](/reference/language/).
 
+## Ordered stationary studies
+
+This CLI adapter is available in the development source checkout; it has not
+shipped in a published CLI/crate release. Build the CLI and freshly install the
+Python package from the same source revision before producing Plan/collection
+inputs. A matching package version alone does not establish artifact compatibility;
+older serialized schemas reject rather than migrate. Cross-client checks use a
+matching installed candidate wheel and development CLI, not published Python 0.1.5.
+
+Run your Python study script from that checkout with an isolated, non-editable
+project install, for example:
+
+```bash
+uv run --isolated --no-editable --reinstall-package eqiora python your_study.py
+```
+
+```bash
+cargo build --locked -p eqiora --features cli,faer --bin eqiora
+./target/debug/eqiora study --help
+```
+
+Use `--features cli` instead for a reference-provider-only build. The commands
+below assume that matching development binary is on `PATH`.
+
+Build with `--features cli,faer` to open Plans using Faer. A `cli` build
+without `faer` supports the built-in reference provider only. Other optional
+providers and nonstationary studies are rejected explicitly.
+
+Write the exact Plan from Python with `plan.to_bytes()`. Select Parameters by
+exact IDs from the original Model, including `omega` for a harmonic sweep.
+Each repeated `--point` is a JSON array of complete typed values in selected
+Parameter order, using the existing Model/collection `WireValueLiteral` codec.
+The codec retains dimensions, intrinsic shape, real/complex domain and components;
+it is not a new study request format. A value with the wrong dimension rejects.
+The following is a complete angular-frequency literal, in inverse seconds, not
+hertz. Save the Plan and original Parameter ID through the public Python API
+using the [RC model](/reference/language/) from `docs/language/harmonic-rc.md`:
+
+```python
+from pathlib import Path
+
+Path("response.eqplan").write_bytes(plan.to_bytes())
+print(model.parameter("omega").id)
+```
+
+Paste that exact printed ID in place of `PARAMETER_ULID`. This shell recipe needs
+no native encoder or additional request file:
+
+```bash
+point='[{"value_type":{"domain":"real","dimension":[[0,1],[0,1],[-1,1],[0,1],[0,1],[0,1],[0,1]],"shape":[],"frame":"invariant","array_rank":0,"basis":{"kind":"ordinary"}},"components":{"kind":"dense","values":[[500.0,0.0]]}}]'
+point2='[{"value_type":{"domain":"real","dimension":[[0,1],[0,1],[-1,1],[0,1],[0,1],[0,1],[0,1]],"shape":[],"frame":"invariant","array_rank":0,"basis":{"kind":"ordinary"}},"components":{"kind":"dense","values":[[1000.0,0.0]]}}]'
+eqiora study run response.eqplan --parameter PARAMETER_ULID \
+  --point "$point" --point "$point2" --point "$point" --output response.eqcollection
+eqiora study inspect response.eqcollection
+```
+
+The dimension entries are exact numerator/denominator pairs in the shared
+`mass, length, time, current, temperature, amount, luminous-intensity` order.
+Only time has exponent -1 here. Values use coherent SI units; explicitly convert
+cyclic frequency with `omega = 2*pi*f`. The component pair is real/imaginary;
+a real scalar requires zero imaginary part. All-zero values use the codec's
+`{"kind":"zero"}` component form instead of a dense all-zero payload.
+
+Point order and duplicates are retained. Each occurrence repeats ordinary Model
+binding, reduction and Plan resolution. The collection retains exact member
+Plans and Results; no factorization is silently reused at another frequency.
+For R=1000 Ohm, C=1e-6 F, unit peak drive and the negative-exponential convention,
+the voltage amplitudes are 0.8+0.4i, 0.5+0.5i, 0.8+0.4i V.
+
+```bash
+eqiora study retry partial.eqcollection --group 0 --output retry.eqcollection
+```
+
+`inspect` validates the saved collection without executing a solver. Its JSON
+projection shows exact collection/execution/occurrence, Plan and Result identities,
+typed points, status, diagnostics, and accepted finite or spatial Field values.
+Harmonic members expose stored angular frequency, exact original/amplitude Field
+mappings and the retained Formulation rule IDs describing the phase/peak convention.
+Complex values retain their real and imaginary components. Spatial blocks retain
+association and logical shape. This projection is an inspection output, not a
+persisted scientific artifact or an additional collection codec.
+
+`retry` selects only unsuccessful occurrences from one zero-based group and
+executes their original points unchanged. It appends a new execution group while
+preserving all historical groups and accepted Results. A failed zero-frequency
+point therefore fails again; retry does not repair inputs. Completed groups have
+nothing to retry and reject. Cancellation recorded by another client remains
+inspectable and retryable; this CLI does not capture an interrupted process.
+
+Output paths must not already exist. A partial execution still writes its exact
+collection and exits 1. Retry exits according to the new execution; its combined history still marks
+the original incomplete group honestly. `inspect` exits 0
+for a valid complete or partial collection. No adaptive frequency algorithm,
+harmonic derivative or distributed scheduling is implied.
+
 ## Version
 
 ```console
@@ -65,6 +160,7 @@ Usage:
 
 Commands:
   check    Compile/check one local Model source file.
+  study    Run, inspect or retry stationary Parameter studies.
 
 Options:
   -h, --help       Print help.
