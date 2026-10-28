@@ -1,7 +1,9 @@
 """Cross-client CLI transport uses installed Python's exact Plan/collection owners.
 
-Set EQIORA_STUDY_BIN to the matching CLI built with cli,faer. CLI execution is
-optional in the installed Python gate, whose default environment has no Rust CLI.
+Set EQIORA_STUDY_BIN to the CLI built with cli,faer from the same source revision
+as the freshly installed candidate wheel. Matching version labels do not promise
+older artifact compatibility. CLI execution is optional in the installed Python
+gate, whose default environment has no Rust CLI.
 """
 import json
 import os

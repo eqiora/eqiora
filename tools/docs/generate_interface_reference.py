@@ -273,9 +273,18 @@ For more syntax, see the [language reference](/reference/language/).
 ## Ordered stationary studies
 
 This CLI adapter is available in the development source checkout; it has not
-shipped in a published CLI/crate release. Published Python 0.1.5 supplies the
-Plan/collection inputs used by the cross-client checks; those checks use a
-separately built development CLI.
+shipped in a published CLI/crate release. Build the CLI and freshly install the
+Python package from the same source revision before producing Plan/collection
+inputs. A matching package version alone does not establish artifact compatibility;
+older serialized schemas reject rather than migrate. Cross-client checks use a
+matching installed candidate wheel and development CLI, not published Python 0.1.5.
+
+Run your Python study script from that checkout with an isolated, non-editable
+project install, for example:
+
+```bash
+uv run --isolated --no-editable --reinstall-package eqiora python your_study.py
+```
 
 ```bash
 cargo build --locked -p eqiora --features cli,faer --bin eqiora
