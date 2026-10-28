@@ -44,15 +44,20 @@ fn values(value: &Value) -> Vec<C> {
 fn tuple(value: &Value) -> SolverPlan {
     assert_eq!(value["scalar_domain"], "Complex");
     assert_eq!(value["scalar_type"], "F64");
-    assert_eq!(value["preconditioner"], "Identity");
+
     plan(
         match value["algorithm"].as_str().unwrap() {
             "BiConjugateGradientStabilized" => LinearSolver::BiConjugateGradientStabilized,
             "ConjugateGradient" => LinearSolver::ConjugateGradient,
+            "MinimumResidual" => LinearSolver::MinimumResidual,
             "SparseLu" => LinearSolver::SparseLu,
             other => panic!("unsupported complex tuple {other}"),
         },
-        PreconditionerPolicy::Identity,
+        match value["preconditioner"].as_str().unwrap() {
+            "Identity" => PreconditionerPolicy::Identity,
+            "Jacobi" => PreconditionerPolicy::Jacobi,
+            other => panic!("unlisted preconditioner {other}"),
+        },
         match value["reduction"].as_str().unwrap() {
             "Reproducible" => ReductionPolicy::Reproducible,
             "Fast" => ReductionPolicy::Fast,
@@ -121,54 +126,60 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
             assert_values(adjoint.values(), &fixture["adjoint_solution"]);
             assert!(adjoint.report().true_residual_norm() <= adjoint.report().residual_target());
         }
-        for expected in fixture["objectives"].as_array().unwrap() {
-            let decision = ResolvedHostSerialSolverPlan::<C>::resolve(
-                HostSerialSolverProfile::canonical_csr(properties, None, None),
-                objective(expected["objective"].as_str().unwrap()),
-                1e-12,
-                1e-14,
-                NonZeroUsize::new(100).unwrap(),
-                &REFERENCE_LINEAR_SOLVER,
-                Some(&faer),
-            )
-            .unwrap();
-            assert_eq!(
-                decision.selected_candidate_id(),
-                expected["selected_candidate_id"].as_str().unwrap()
-            );
-            let candidate = fixture["candidates"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|candidate| {
-                    candidate["id"].as_str() == Some(decision.selected_candidate_id())
-                })
+        for (section, supplied) in [("objectives", true), ("without_faer_objectives", false)] {
+            for expected in fixture[section].as_array().unwrap() {
+                let decision = ResolvedHostSerialSolverPlan::<C>::resolve(
+                    HostSerialSolverProfile::canonical_csr(
+                        properties,
+                        expected["complete_diagonal"].as_bool(),
+                        None,
+                    ),
+                    objective(expected["objective"].as_str().unwrap()),
+                    1e-12,
+                    1e-14,
+                    NonZeroUsize::new(100).unwrap(),
+                    &REFERENCE_LINEAR_SOLVER,
+                    if supplied { Some(&faer) } else { None },
+                )
                 .unwrap();
-            assert_eq!(decision.solver_plan(), tuple(&candidate["tuple"]));
-            assert_solver_provider(decision.solver_provider(), &candidate["solver_provider"]);
-            assert_eq!(
-                decision.selected_evidence_case(),
-                candidate["evidence_case"].as_str().unwrap()
-            );
-            let trace = expected["ordered_reasons"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|row| (row[0].as_str().unwrap(), row[1].as_str().unwrap()))
-                .collect::<Vec<_>>();
-            assert_eq!(decision.reasons().collect::<Vec<_>>(), trace);
-            let solved = decision.solve(&problem, None).unwrap();
-            assert_values(solved.values(), &fixture["solution"]);
-            let backend: &dyn LinearSolverBackend<C> =
-                if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
-                    &REFERENCE_LINEAR_SOLVER
-                } else {
-                    &faer
-                };
-            let manual = LinearSolveRequest::new(backend, decision.solver_plan())
-                .solve(&problem)
-                .unwrap();
-            assert_eq!(solved, manual);
+                assert_eq!(
+                    decision.selected_candidate_id(),
+                    expected["selected_candidate_id"].as_str().unwrap()
+                );
+                let candidate = fixture["candidates"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|candidate| {
+                        candidate["id"].as_str() == Some(decision.selected_candidate_id())
+                    })
+                    .unwrap();
+                assert_eq!(decision.solver_plan(), tuple(&candidate["tuple"]));
+                assert_solver_provider(decision.solver_provider(), &candidate["solver_provider"]);
+                assert_eq!(
+                    decision.selected_evidence_case(),
+                    candidate["evidence_case"].as_str().unwrap()
+                );
+                let trace = expected["ordered_reasons"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|row| (row[0].as_str().unwrap(), row[1].as_str().unwrap()))
+                    .collect::<Vec<_>>();
+                assert_eq!(decision.reasons().collect::<Vec<_>>(), trace);
+                let solved = decision.solve(&problem, None).unwrap();
+                assert_values(solved.values(), &fixture["solution"]);
+                let backend: &dyn LinearSolverBackend<C> =
+                    if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
+                        &REFERENCE_LINEAR_SOLVER
+                    } else {
+                        &faer
+                    };
+                let manual = LinearSolveRequest::new(backend, decision.solver_plan())
+                    .solve(&problem)
+                    .unwrap();
+                assert_eq!(solved, manual);
+            }
         }
     }
 }
@@ -250,6 +261,187 @@ fn absent_optional_complex_provider_preserves_reference_and_required_reduction()
                 selected
                     .reasons()
                     .any(|reason| reason == (reference_id, "profile.required-reduction-mismatch"))
+            );
+        }
+    }
+}
+
+#[test]
+fn reference_complex_choices_preserve_exact_normal_and_adjoint_equations() {
+    let backend: &dyn LinearSolverBackend<C> = &REFERENCE_LINEAR_SOLVER;
+    let oracle: Value = serde_json::from_str(ORACLE).unwrap();
+    for fixture in oracle["complex_profiles"].as_array().unwrap() {
+        let class = properties(fixture["properties"].as_str().unwrap());
+        let matrix = &fixture["matrix"];
+        let storage = ComplexFixture([
+            complex(&matrix[0][0]),
+            complex(&matrix[0][1]),
+            complex(&matrix[1][0]),
+            complex(&matrix[1][1]),
+        ]);
+        let rhs = values(&fixture["right_hand_side"]);
+        let adjoint_rhs = values(&fixture["adjoint_right_hand_side"]);
+        let system = CanonicalCsrSystemView::new(&storage, &rhs, class).unwrap();
+        for algorithm in [
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearSolver::ConjugateGradient,
+        ] {
+            if algorithm == LinearSolver::ConjugateGradient
+                && class != LinearOperatorProperties::HermitianPositiveDefinite
+            {
+                continue;
+            }
+            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+                let selected = plan(algorithm, preconditioner, ReductionPolicy::Reproducible);
+                let request = LinearSolveRequest::new(backend, selected);
+                for (orientation, right_hand_side, expected) in [
+                    (
+                        LinearOperatorOrientation::Normal,
+                        &rhs,
+                        &fixture["solution"],
+                    ),
+                    (
+                        LinearOperatorOrientation::ConjugateTransposed,
+                        &adjoint_rhs,
+                        &fixture["adjoint_solution"],
+                    ),
+                ] {
+                    let solution = request.solve_canonical_oriented(&system, right_hand_side, orientation)
+                        .unwrap_or_else(|error| panic!("{class:?}/{algorithm:?}/{preconditioner:?}/{orientation:?}: {error}"));
+                    assert_values(solution.values(), expected);
+                    assert!(
+                        solution.report().true_residual_norm()
+                            <= solution.report().residual_target()
+                    );
+                    assert_eq!(solution.report().solver_plan(), selected);
+                    assert_eq!(solution.report().solver_provider(), backend.provider());
+                    assert_eq!(solution.report().orientation(), orientation);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn complex_jacobi_distinguishes_stored_zero_from_unproved_diagonal() {
+    // det(A)=-(1+i)(2-i)=-3-i !=0; A*[1+2i,-2+i]=[-3-i,-2+6i].
+    // Both diagonal slots are stored, but the first numerical entry is zero.
+    let storage = ComplexFixture([
+        C::new(0., 0.),
+        C::new(1., 1.),
+        C::new(2., -1.),
+        C::new(3., 0.),
+    ]);
+    let rhs = [C::new(-3., -1.), C::new(-2., 6.)];
+    let system =
+        CanonicalCsrSystemView::new(&storage, &rhs, LinearOperatorProperties::General).unwrap();
+    let problem = system.linear_problem().unwrap();
+    let identity = plan(
+        LinearSolver::BiConjugateGradientStabilized,
+        PreconditionerPolicy::Identity,
+        ReductionPolicy::Reproducible,
+    );
+    let jacobi = identity.with_preconditioner(PreconditionerPolicy::Jacobi);
+    let known =
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None);
+    known.require_problem(&problem).unwrap();
+    known.require_plan(jacobi).unwrap();
+    let unknown =
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+    assert!(
+        unknown
+            .require_plan(jacobi)
+            .unwrap_err()
+            .message()
+            .contains("profile.complete-diagonal-required")
+    );
+    let solution = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, identity)
+        .solve(&problem)
+        .unwrap();
+    for (actual, expected) in solution
+        .values()
+        .iter()
+        .zip([C::new(1., 2.), C::new(-2., 1.)])
+    {
+        assert!((*actual - expected).norm() <= 2f64.powi(-40));
+    }
+    assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
+    let error = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, jacobi)
+        .solve(&problem)
+        .unwrap_err();
+    assert!(
+        error.message().contains("finite nonzero diagonal"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn absent_provider_fast_preference_retains_real_spd_specialization() {
+    struct Spd;
+    impl CsrStorage for Spd {
+        fn rows(&self) -> usize {
+            2
+        }
+        fn columns(&self) -> usize {
+            2
+        }
+        fn row_offsets(&self) -> &[usize] {
+            &[0, 2, 4]
+        }
+        fn column_indices(&self) -> &[usize] {
+            &[0, 1, 0, 1]
+        }
+        fn values(&self) -> &[f64] {
+            &[4., 1., 1., 3.]
+        }
+    }
+    // Leading minors4,11 prove SPD; A*[1,2]=[6,7]. No shape/cost estimate
+    // is supplied, so the declared specialized-method preference applies.
+    let system = CanonicalCsrSystemView::new(
+        &Spd,
+        &[6., 7.],
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )
+    .unwrap();
+    let problem = system.linear_problem().unwrap();
+    for diagonal in [None, Some(true)] {
+        for objective in [
+            SolverPlanningObjective::Robust,
+            SolverPlanningObjective::Fast,
+            SolverPlanningObjective::LowMemory,
+        ] {
+            let decision = ResolvedHostSerialSolverPlan::resolve(
+                HostSerialSolverProfile::canonical_csr(
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                    diagonal,
+                    None,
+                ),
+                objective,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+                &REFERENCE_LINEAR_SOLVER,
+                None,
+            )
+            .unwrap();
+            assert_eq!(
+                decision.selected_candidate_id(),
+                "eqiora.reference.cg-spd-identity-reproducible-f64"
+            );
+            assert_eq!(
+                decision.solver_plan().algorithm(),
+                LinearSolver::ConjugateGradient
+            );
+            let solution = decision.solve(&problem, None).unwrap();
+            for (actual, expected) in solution.values().iter().zip([1., 2.]) {
+                assert!((actual - expected).abs() <= 2f64.powi(-40));
+            }
+            let x = solution.values();
+            let residual = (6. - (4. * x[0] + x[1])).hypot(7. - (x[0] + 3. * x[1]));
+            assert!(residual <= solution.report().residual_target());
+            assert_eq!(
+                solution.report().solver_provider(),
+                REFERENCE_LINEAR_SOLVER.provider()
             );
         }
     }

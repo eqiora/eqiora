@@ -15,7 +15,7 @@ mod cost;
 use catalog::{expected_candidate, rejection_reason};
 pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v4";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v5";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -54,6 +54,25 @@ const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-f
 
 const REFERENCE_COMPLEX_ID: &str =
     "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64";
+const REFERENCE_COMPLEX_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-general-jacobi-reproducible-complex-f64";
+const REFERENCE_COMPLEX_SYMMETRIC_ID: &str =
+    "eqiora.reference.bicgstab-complex-symmetric-identity-reproducible-complex-f64";
+const REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-complex-symmetric-jacobi-reproducible-complex-f64";
+const REFERENCE_HERMITIAN_MINRES_ID: &str =
+    "eqiora.reference.minres-hermitian-identity-reproducible-complex-f64";
+const REFERENCE_HPD_MINRES_ID: &str =
+    "eqiora.reference.minres-hpd-identity-reproducible-complex-f64";
+const REFERENCE_HERMITIAN_ID: &str =
+    "eqiora.reference.bicgstab-hermitian-identity-reproducible-complex-f64";
+const REFERENCE_HERMITIAN_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-hermitian-jacobi-reproducible-complex-f64";
+const REFERENCE_HPD_BICGSTAB_ID: &str =
+    "eqiora.reference.bicgstab-hpd-identity-reproducible-complex-f64";
+const REFERENCE_HPD_BICGSTAB_JACOBI_ID: &str =
+    "eqiora.reference.bicgstab-hpd-jacobi-reproducible-complex-f64";
+const REFERENCE_HPD_JACOBI_ID: &str = "eqiora.reference.cg-hpd-jacobi-reproducible-complex-f64";
 const FAER_COMPLEX_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-complex-f64";
 const FAER_COMPLEX_SYMMETRIC_LU_ID: &str =
     "eqiora.faer.sparse-lu-complex-symmetric-identity-fast-complex-f64";
@@ -599,7 +618,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v4<'problem, 'backend>(
+fn resolve_host_serial_solver_v5<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -762,16 +781,30 @@ fn catalog_ids(
             FAER_SYMMETRIC_BICGSTAB_JACOBI_ID,
             FAER_SYMMETRIC_LU_ID,
         ],
-        (ScalarDomain::Complex, LinearOperatorProperties::General) => {
-            &[REFERENCE_COMPLEX_ID, FAER_COMPLEX_LU_ID]
-        }
-        (ScalarDomain::Complex, LinearOperatorProperties::ComplexSymmetric) => {
-            &[FAER_COMPLEX_SYMMETRIC_LU_ID]
-        }
-        (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[FAER_HERMITIAN_LU_ID],
-        (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => {
-            &[REFERENCE_HPD_ID, FAER_HPD_LU_ID]
-        }
+        (ScalarDomain::Complex, LinearOperatorProperties::General) => &[
+            REFERENCE_COMPLEX_ID,
+            REFERENCE_COMPLEX_JACOBI_ID,
+            FAER_COMPLEX_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::ComplexSymmetric) => &[
+            REFERENCE_COMPLEX_SYMMETRIC_ID,
+            REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID,
+            FAER_COMPLEX_SYMMETRIC_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::Hermitian) => &[
+            REFERENCE_HERMITIAN_MINRES_ID,
+            REFERENCE_HERMITIAN_ID,
+            REFERENCE_HERMITIAN_JACOBI_ID,
+            FAER_HERMITIAN_LU_ID,
+        ],
+        (ScalarDomain::Complex, LinearOperatorProperties::HermitianPositiveDefinite) => &[
+            REFERENCE_HPD_MINRES_ID,
+            REFERENCE_HPD_ID,
+            REFERENCE_HPD_JACOBI_ID,
+            REFERENCE_HPD_BICGSTAB_ID,
+            REFERENCE_HPD_BICGSTAB_JACOBI_ID,
+            FAER_HPD_LU_ID,
+        ],
         _ => &[],
     }
 }
@@ -849,7 +882,11 @@ fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         ),
         SolverPlanningObjective::Fast => (
             u8::from(plan.reduction() != ReductionPolicy::Fast),
-            u8::from(plan.algorithm() != LinearSolver::SparseLu),
+            if plan.algorithm() == LinearSolver::SparseLu {
+                0
+            } else {
+                1 + fallback_algorithm_rank(plan.algorithm())
+            },
             candidate.id(),
         ),
         SolverPlanningObjective::LowMemory => (

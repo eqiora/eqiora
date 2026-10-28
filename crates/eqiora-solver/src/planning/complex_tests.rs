@@ -63,16 +63,24 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         controls(LinearSolver::SparseLu, ReductionPolicy::Fast),
         None,
     );
+    let reference_jacobi = HostSerialSolverCandidate::planned(
+        REFERENCE_COMPLEX_JACOBI_ID,
+        PLANNING_EVIDENCE,
+        reference
+            .plan()
+            .with_preconditioner(PreconditionerPolicy::Jacobi),
+        reference.backend,
+    );
     let error = resolve_candidates(
         profile.clone(),
         SolverPlanningObjective::Fast,
-        &[reference, direct],
+        &[reference, reference_jacobi, direct],
     )
     .unwrap_err();
     assert_eq!(
         error.message(),
         format!(
-            "{POLICY_ID} no admitted candidate; trace=[{FAER_COMPLEX_LU_ID}=catalog.provider-unavailable,{REFERENCE_COMPLEX_ID}=capability.exact-tuple-required]"
+            "{POLICY_ID} no admitted candidate; trace=[{FAER_COMPLEX_LU_ID}=catalog.provider-unavailable,{REFERENCE_COMPLEX_ID}=capability.exact-tuple-required,{REFERENCE_COMPLEX_JACOBI_ID}=profile.complete-diagonal-required]"
         )
     );
     // A complete real General catalog must not be accepted as the complex inventory.
@@ -101,7 +109,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
             None,
         ),
         SolverPlanningObjective::Robust,
-        &[reference, direct],
+        &[reference, reference_jacobi, direct],
     )
     .unwrap_err();
     assert!(error.message().contains("catalog.missing-id"));
@@ -116,7 +124,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
     let error = resolve_candidates(
         HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None),
         SolverPlanningObjective::Robust,
-        &[changed, direct],
+        &[changed, reference_jacobi, direct],
     )
     .unwrap_err();
     assert!(error.message().contains("catalog.plan-mismatch"));

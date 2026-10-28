@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact General-profile oracle for host-serial solver planning v4.
+"""Independent exact General-profile oracle for host-serial solver planning v5.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v4"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v4.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v5"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v5.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -29,19 +29,25 @@ FAER_SPARSE_LU_ID = "eqiora.faer.sparse-lu-general-identity-fast-f64"
 # This is an independent literal policy table, not a transcription of Rust.
 # Lower integer values rank first; candidate ID is always the final key.
 POLICY_TABLE = {
-    "Robust": (("reduction", {"Reproducible": 0, "Fast": 1}),),
+    "Robust": (
+        ("reduction", {"Reproducible": 0, "Fast": 1}),
+        ("algorithm", {"ConjugateGradient": 0, "MinimumResidual": 0,
+                       "BiConjugateGradientStabilized": 1, "SparseLu": 2}),
+    ),
     "Fast": (
         ("reduction", {"Fast": 0, "Reproducible": 1}),
         (
             "algorithm",
-            {"SparseLu": 0, "BiConjugateGradientStabilized": 1, "ConjugateGradient": 1},
+            {"SparseLu": 0, "ConjugateGradient": 1, "MinimumResidual": 1, "BiConjugateGradientStabilized": 2},
         ),
     ),
     "LowMemory": (
         (
             "algorithm",
-            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "SparseLu": 1},
+            {"BiConjugateGradientStabilized": 0, "ConjugateGradient": 0, "MinimumResidual": 0, "SparseLu": 1},
         ),
+        ("algorithm", {"ConjugateGradient": 0, "MinimumResidual": 0,
+                       "BiConjugateGradientStabilized": 1, "SparseLu": 2}),
     ),
 }
 
@@ -589,28 +595,14 @@ def csolve(matrix, rhs):
 
 
 def complex_oracles():
-    reference_general = {
-        "id": "eqiora.reference.bicgstab-general-identity-reproducible-complex-f64",
-        "evidence_case": "numerics.host-serial-solver-planning",
-        "solver_provider": REFERENCE_PROVIDER,
-        "tuple": {"algorithm": "BiConjugateGradientStabilized", "operator_properties": "General",
-                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
-    }
-    reference_hpd = {
-        "id": "eqiora.reference.cg-hpd-identity-reproducible-complex-f64",
-        "evidence_case": "numerics.host-serial-solver-planning",
-        "solver_provider": REFERENCE_PROVIDER,
-        "tuple": {"algorithm": "ConjugateGradient", "operator_properties": "HermitianPositiveDefinite",
-                  "preconditioner": "Identity", "reduction": "Reproducible", "scalar_domain": "Complex", "scalar_type": "F64"},
-    }
     fixtures = [
-        ("General", "general", [[(1, 1), (2, 0)], [(0, 3), (4, -1)]], [(-5, 5), (-13, 9)], [(10, -6), (5, 11)], reference_general),
-        ("ComplexSymmetric", "complex-symmetric", [[(2, 1), (1, 2)], [(1, 2), (4, -1)]], [(-4, 2), (-10, 10)], [(10, -3), (1, 8)], None),
-        ("Hermitian", "hermitian", [[(-2, 0), (0, 1)], [(0, -1), (3, 0)]], [(-3, -6), (-4, 2)], [(-7, 3), (2, 7)], None),
-        ("HermitianPositiveDefinite", "hpd", [[(4, 0), (0, 1)], [(0, -1), (3, 0)]], [(3, 6), (-4, 2)], [(5, -3), (2, 7)], reference_hpd),
+        ("General", "general", [[(1, 1), (2, 0)], [(0, 3), (4, -1)]], [(-5, 5), (-13, 9)], [(10, -6), (5, 11)]),
+        ("ComplexSymmetric", "complex-symmetric", [[(2, 1), (1, 2)], [(1, 2), (4, -1)]], [(-4, 2), (-10, 10)], [(10, -3), (1, 8)]),
+        ("Hermitian", "hermitian", [[(-2, 0), (0, 1)], [(0, -1), (3, 0)]], [(-3, -6), (-4, 2)], [(-7, 3), (2, 7)]),
+        ("HermitianPositiveDefinite", "hpd", [[(4, 0), (0, 1)], [(0, -1), (3, 0)]], [(3, 6), (-4, 2)], [(5, -3), (2, 7)]),
     ]
     oracles = []
-    for properties, suffix, matrix, rhs, adjoint_rhs, reference in fixtures:
+    for properties, suffix, matrix, rhs, adjoint_rhs in fixtures:
         solution = csolve(matrix, rhs)
         adjoint_solution = csolve(cadjoint(matrix), adjoint_rhs)
         assert solution == [(1, 2), (-2, 1)]
@@ -634,20 +626,64 @@ def complex_oracles():
             "tuple": {"algorithm": "SparseLu", "operator_properties": properties,
                       "preconditioner": "Identity", "reduction": "Fast", "scalar_domain": "Complex", "scalar_type": "F64"},
         }
-        candidates = tuple([reference, direct] if reference else [direct])
+        # Literal existing mathematical tuples, independent of Rust inventory:
+        # BiCGSTAB accepts every listed nonsingular complex class; CG additionally
+        # accepts HPD, whose positive leading minors were proved above.
+        reference = []
+        for algorithm, spelling in [("BiConjugateGradientStabilized", "bicgstab")] + (
+                [("ConjugateGradient", "cg")] if properties == "HermitianPositiveDefinite" else []):
+            for preconditioner in ("Identity", "Jacobi"):
+                reference.append({
+                    "id": f"eqiora.reference.{spelling}-{suffix}-{preconditioner.lower()}-reproducible-complex-f64",
+                    "evidence_case": "numerics.host-serial-solver-planning",
+                    "solver_provider": REFERENCE_PROVIDER,
+                    "tuple": {"algorithm": algorithm, "operator_properties": properties,
+                              "preconditioner": preconditioner, "reduction": "Reproducible",
+                              "scalar_domain": "Complex", "scalar_type": "F64"},
+                })
+        if properties in ("Hermitian", "HermitianPositiveDefinite"):
+            # Hermitian realification is symmetric and retains the same spectrum;
+            # identity MINRES needs neither a positive diagonal nor definiteness.
+            reference.append({
+                "id": f"eqiora.reference.minres-{suffix}-identity-reproducible-complex-f64",
+                "evidence_case": "numerics.host-serial-solver-planning",
+                "solver_provider": REFERENCE_PROVIDER,
+                "tuple": {"algorithm": "MinimumResidual", "operator_properties": properties,
+                          "preconditioner": "Identity", "reduction": "Reproducible",
+                          "scalar_domain": "Complex", "scalar_type": "F64"},
+            })
+        candidates = tuple(reference + [direct])
         objectives = []
-        for objective in POLICY_TABLE:
-            selected = min(candidates, key=lambda candidate: rank_key(candidate, objective))["id"]
-            assert selected == (direct["id"] if objective == "Fast" or reference is None else reference["id"])
-            trace = ordered_trace(candidates, objective)
-            for permutation in itertools.permutations(candidates):
-                assert ordered_trace(permutation, objective) == trace
-            objectives.append({"objective": objective, "selected_candidate_id": selected, "ordered_reasons": trace})
+        without_faer = []
+        for complete_diagonal in (None, True):
+            rejected = {candidate["id"]: "profile.complete-diagonal-required"
+                        for candidate in candidates
+                        if candidate["tuple"]["preconditioner"] == "Jacobi" and complete_diagonal is not True}
+            for objective in POLICY_TABLE:
+                selected, trace = ordered_rejection_trace(candidates, objective, rejected)
+                # The unchanged unknown-size axes rank reproducible first for
+                # Robust, iterative first for LowMemory, and the declared
+                # specialized CG preference on HPD before the final literal ID.
+                spelling = ("cg" if properties == "HermitianPositiveDefinite" else
+                            "minres" if properties == "Hermitian" else "bicgstab")
+                expected_id = (direct["id"] if objective == "Fast" else
+                    f"eqiora.reference.{spelling}-{suffix}-identity-reproducible-complex-f64")
+                assert selected == expected_id
+                for permutation in itertools.permutations(candidates):
+                    assert ordered_rejection_trace(permutation, objective, rejected) == (selected, trace)
+                objectives.append({"complete_diagonal": complete_diagonal, "objective": objective,
+                                   "selected_candidate_id": selected, "ordered_reasons": trace})
+                no_provider = {**rejected, direct["id"]: "catalog.provider-unavailable"}
+                reference_id, reference_trace = ordered_rejection_trace(candidates, objective, no_provider)
+                assert reference_id == f"eqiora.reference.{spelling}-{suffix}-identity-reproducible-complex-f64"
+                without_faer.append({"complete_diagonal": complete_diagonal, "objective": objective,
+                                     "selected_candidate_id": reference_id, "ordered_reasons": reference_trace})
         oracles.append({"properties": properties, "matrix": matrix, "right_hand_side": rhs,
                         "solution": [[ratio(v) for v in z] for z in solution],
                         "adjoint_right_hand_side": adjoint_rhs,
                         "adjoint_solution": [[ratio(v) for v in z] for z in adjoint_solution],
-                        "componentwise_error_bound": "2^-40", "candidates": candidates, "objectives": objectives})
+                        "componentwise_error_bound": "2^-40", "candidates": candidates, "objectives": objectives,
+                        "without_faer_objectives": without_faer})
     return oracles
 
 
@@ -813,9 +849,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v4.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v5.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v4 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v5 oracle: exact derivation and mutants passed")
     return 0
 
 

@@ -6,6 +6,18 @@ listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- Host solver planning advances to policy v5 for the expanded complex catalog.
+- Reference complex BiCGSTAB supports Identity/Jacobi on General, complex-symmetric,
+  Hermitian and Hermitian-positive-definite operators; HPD CG also supports Jacobi.
+  Identity MINRES admits complex Hermitian/HPD through the existing realification,
+  with the original iteration budget and final typed residual acceptance.
+  Complex Reference CG/MINRES work estimates remain unknown until realification
+  and conversion costs are modeled.
+  Unknown-shape Fast planning keeps sparse LU first, then CG/MINRES before BiCGSTAB
+  among iterative fallbacks after reduction priority.
+
 ## [0.1.5] - 2026-10-27
 
 ### Added

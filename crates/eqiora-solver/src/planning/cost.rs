@@ -206,7 +206,11 @@ pub(super) fn estimate(
     let size = profile.size;
     let request = profile.cost_request.unwrap_or_default();
     let orientation = profile.facts.orientation;
-    let work = size.and_then(|size| work_proxy(plan, size, request));
+    let work = if unmodeled_realification(plan, provider, scalar_domain) {
+        None
+    } else {
+        size.and_then(|size| work_proxy(plan, size, request))
+    };
     SolverCandidateCost {
         candidate,
         setup_work: work.map(|value| value.0),
@@ -234,6 +238,19 @@ pub(super) fn estimate(
             workspace.checked_add(indices)?.checked_add(values)
         }),
     }
+}
+
+fn unmodeled_realification(
+    plan: SolverPlan,
+    provider: SolverProvider,
+    domain: ScalarDomain,
+) -> bool {
+    domain == ScalarDomain::Complex
+        && provider == REFERENCE_PROVIDER
+        && matches!(
+            plan.algorithm(),
+            LinearSolver::ConjugateGradient | LinearSolver::MinimumResidual
+        )
 }
 
 // Versioned algorithmic work units, not measured FLOPs or seconds. Sparse LU uses a
@@ -456,6 +473,11 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
         reasons.push((id, "cost.shape-unavailable-preference-fallback"));
         return;
     };
+    if candidate.backend.is_some_and(|backend| {
+        unmodeled_realification(candidate.plan(), backend.provider(), S::DOMAIN)
+    }) {
+        reasons.push((id, "cost.reference-complex-realification-work-unmodeled"));
+    }
     reasons.push((
         id,
         if size.exact {
@@ -490,4 +512,71 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
         ));
     }
     reasons.push((id, "cost.host-transfer-zero-outputs-unmodeled"));
+}
+
+#[cfg(test)]
+mod realification_cost_tests {
+    use super::*;
+
+    #[test]
+    fn reference_complex_lowering_work_is_unknown_without_conversion_accounting() {
+        let size = SolverPlanningSize::exact(2, 4);
+        for (algorithm, real_total) in [
+            (LinearSolver::ConjugateGradient, 72),
+            (LinearSolver::MinimumResidual, 120),
+        ] {
+            let plan =
+                SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(2).unwrap()).unwrap();
+            let profile = HostSerialSolverProfile::general_canonical_csr().with_size(size);
+            // Independently: real n=2,z=4,k=2 gives structure6, acceptance18,
+            // CG recurrence48 or MINRES recurrence48+basis48. A complex input
+            // instead lowers to4real unknowns/16slots, plus packing and original
+            // typed acceptance: those included terms have no modeled bound here.
+            let real = profile.estimate_cost(
+                "manual",
+                plan,
+                REFERENCE_PROVIDER,
+                ScalarDomain::Real,
+                ScalarType::F64,
+            );
+            assert_eq!(real.total_work(), Some(real_total));
+            let complex = profile.estimate_cost(
+                "manual",
+                plan,
+                REFERENCE_PROVIDER,
+                ScalarDomain::Complex,
+                ScalarType::F64,
+            );
+            assert_eq!(
+                (
+                    complex.setup_work(),
+                    complex.solve_work(),
+                    complex.acceptance_work(),
+                    complex.total_work()
+                ),
+                (None, None, None, None)
+            );
+        }
+        let plan = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(2).unwrap(),
+        )
+        .unwrap();
+        let profile = HostSerialSolverProfile::general_canonical_csr().with_size(size);
+        // Native complex BiCG does not realify: 6+2*(16+40)+18=136 typed units.
+        assert_eq!(
+            profile
+                .estimate_cost(
+                    "manual",
+                    plan,
+                    REFERENCE_PROVIDER,
+                    ScalarDomain::Complex,
+                    ScalarType::F64
+                )
+                .total_work(),
+            Some(136)
+        );
+    }
 }

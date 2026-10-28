@@ -127,13 +127,40 @@ impl SolverCapabilities {
                 LinearOperatorProperties::General,
             ),
             (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::ComplexSymmetric,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::Hermitian,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+            (
                 LinearSolver::ConjugateGradient,
                 LinearOperatorProperties::HermitianPositiveDefinite,
             ),
         ] {
+            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+                combinations.push(SolverCapability {
+                    scalar_domain: eqiora_core::ScalarDomain::Complex,
+                    algorithm,
+                    operator_properties,
+                    preconditioner,
+                    reduction: ReductionPolicy::Reproducible,
+                    scalar_type: ScalarType::F64,
+                });
+            }
+        }
+        for operator_properties in [
+            LinearOperatorProperties::Hermitian,
+            LinearOperatorProperties::HermitianPositiveDefinite,
+        ] {
             combinations.push(SolverCapability {
                 scalar_domain: eqiora_core::ScalarDomain::Complex,
-                algorithm,
+                algorithm: LinearSolver::MinimumResidual,
                 operator_properties,
                 preconditioner: PreconditionerPolicy::Identity,
                 reduction: ReductionPolicy::Reproducible,
