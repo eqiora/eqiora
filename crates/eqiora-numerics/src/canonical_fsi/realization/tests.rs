@@ -251,25 +251,127 @@ fn host_and_cuda_plans_reject_each_others_reduction_policy() {
 }
 
 #[test]
-fn rejects_non_reference_solver_before_a_plan_exists() {
-    let program = compile_program(SOURCE);
-    let model = super::super::lower_fixed_reference_fsi_cartesian_2d(&program)
-        .expect("canonical FSI meaning");
+fn device_profiles_retain_the_existing_minres_implementation_boundary() {
+    let fixture = Fixture::new(SOURCE);
     let solver = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
-        1.0e-11,
-        1.0e-13,
-        NonZeroUsize::new(20_000).unwrap(),
+        reference_solver().relative_tolerance(),
+        reference_solver().absolute_tolerance(),
+        reference_solver().maximum_iterations(),
     )
     .unwrap();
-    let error = fixed_reference_fsi_plan_2d(
-        &model,
+    for error in [
+        fixed_reference_fsi_cuda_plan_2d(
+            &fixture.model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            solver.with_reduction(ReductionPolicy::Fast),
+            0,
+        )
+        .unwrap_err(),
+        fixed_reference_fsi_distributed_cuda_plan_2d(
+            &fixture.model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            solver,
+            0,
+        )
+        .unwrap_err(),
+    ] {
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert!(
+            error
+                .message()
+                .contains("currently implements and verifies only MINRES")
+        );
+    }
+}
+
+#[test]
+fn bicgstab_plan_preserves_the_exact_fsi_operator_and_acceptance() {
+    let fixture = Fixture::new(SOURCE);
+    let make = |solver| {
+        let plan = fixed_reference_fsi_plan_2d(
+            &fixture.model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            solver,
+        )
+        .unwrap();
+        let resolved = fixture.resolve(plan);
+        finalize_resolved_fixed_reference_fsi_step_2d(
+            &fixture.model,
+            &resolved,
+            mesh_reference(),
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.previous,
+        )
+        .unwrap()
+    };
+    let reference = make(reference_solver());
+    let solver = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        reference_solver().relative_tolerance(),
+        reference_solver().absolute_tolerance(),
+        reference_solver().maximum_iterations(),
+    )
+    .unwrap();
+    let candidate = make(solver);
+    assert_eq!(candidate.solver_plan(), solver);
+    assert_eq!(
+        candidate.linear_system().agreement_fingerprint(),
+        reference.linear_system().agreement_fingerprint()
+    );
+    let solution = candidate.solve(&REFERENCE_LINEAR_SOLVER).unwrap();
+    assert!(solution.numerical_evidence().residual_norm() < 1.0e-9);
+    assert!(
+        solution
+            .numerical_evidence()
+            .energy_balance()
+            .defect()
+            .abs()
+            < 1.0e-9
+    );
+}
+
+#[test]
+fn reference_capabilities_reject_cg_for_the_indefinite_fsi_operator() {
+    let fixture = Fixture::new(SOURCE);
+    let solver = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        reference_solver().relative_tolerance(),
+        reference_solver().absolute_tolerance(),
+        reference_solver().maximum_iterations(),
+    )
+    .unwrap();
+    let plan = fixed_reference_fsi_plan_2d(
+        &fixture.model,
         mesh_reference(),
         DynQuantity::new(0.1, TIME),
         scales(),
         solver,
     )
-    .expect_err("a non-MINRES plan must fail closed");
+    .unwrap();
+    let error = resolve_coupled_fieldwise(
+        &CoupledFieldwiseRealizationRequest::explicit(
+            fixture.program.model(),
+            SemanticRevision::new(fixture.program.revision().0),
+            RealizationRevision::new(1),
+            plan,
+        ),
+        fixed_reference_fsi_requirements_2d(&fixture.model),
+        &fsi_capabilities(
+            VectorLayoutKind::Replicated,
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            },
+        ),
+    )
+    .expect_err("CG has no indefinite operator capability before finalization");
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
 }
 
@@ -929,6 +1031,9 @@ fn fsi_capabilities(vector_layout: VectorLayoutKind, target: Target) -> Realizat
 }
 
 fn fsi_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabilities {
+    if reduction == ReductionPolicy::Reproducible {
+        return SolverCapabilities::reference();
+    }
     SolverCapabilities::exact([SolverCapability {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
