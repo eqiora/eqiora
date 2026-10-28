@@ -234,7 +234,7 @@ where
                     .recover(linearization.relation().accepted_unknowns())?;
                 Ok((next, mapping, fields))
             },
-            |context, _, (grid, mapping, fields)| {
+            |_, context, _, (grid, mapping, fields)| {
                 context.grid = grid;
                 context.history = Some((mapping, fields));
                 context.steps += 1;

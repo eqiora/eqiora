@@ -6,13 +6,15 @@ use std::ops::ControlFlow;
 /// only mutation of the authoritative context. A failed candidate therefore
 /// leaves the last accepted context unchanged. The prepared payload is built
 /// exactly once and cannot receive a replacement binding during the loop.
+/// Acceptance also receives that payload so its owner can promote tentative
+/// resources only after all fallible physical and lineage checks succeed.
 pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     mut context: C,
     maximum_actions: usize,
     prepare: impl FnOnce(&C) -> Result<P, E>,
     mut step_span: impl FnMut(usize, &C) -> tracing::Span,
     mut advance: impl FnMut(&mut P, &C) -> Result<A, E>,
-    mut accept: impl FnMut(&mut C, usize, A) -> Result<(), E>,
+    mut accept: impl FnMut(&mut P, &mut C, usize, A) -> Result<(), E>,
     mut stop_at_boundary: impl FnMut(usize, &C) -> Option<B>,
 ) -> Result<ControlFlow<B, C>, E> {
     let mut prepared = {
@@ -26,7 +28,7 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     for accepted_actions in 1..=maximum_actions {
         let _step = step_span(accepted_actions, &context).entered();
         let candidate = advance(&mut prepared, &context)?;
-        accept(&mut context, accepted_actions, candidate)?;
+        accept(&mut prepared, &mut context, accepted_actions, candidate)?;
         if let Some(stopped) = stop_at_boundary(accepted_actions, &context) {
             return Ok(ControlFlow::Break(stopped));
         }
@@ -62,7 +64,7 @@ mod tests {
                     Ok(state + 1)
                 }
             },
-            |state, _, candidate| {
+            |_, state, _, candidate| {
                 *state = candidate;
                 accepted.set(accepted.get() + 1);
                 Ok(())
@@ -85,7 +87,7 @@ mod tests {
                 |_| Ok::<_, ()>(()),
                 |step, _| eqiora_execution::telemetry_span!(time_step(step, step as f64, 1.0)),
                 |(), state| Ok(*state + 1),
-                |state, _, candidate| {
+                |_, state, _, candidate| {
                     *state = candidate;
                     Ok(())
                 },

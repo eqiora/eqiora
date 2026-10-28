@@ -736,6 +736,7 @@ impl CommonTransientFlowPlan {
     ) -> Result<CommonState, Diagnostic> {
         self.prepare_execution(state, backend)?
             .advance(state, state.require_time_s()? + self.temporal().value())
+            .map(|accepted| accepted.state)
     }
 
     pub(super) fn authenticate_execution(

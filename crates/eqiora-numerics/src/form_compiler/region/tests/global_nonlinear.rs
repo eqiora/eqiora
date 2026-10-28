@@ -163,6 +163,7 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
                         )
                         .unwrap(),
                     ),
+                    None,
                 )
                 .unwrap();
             let solved = output.solve;

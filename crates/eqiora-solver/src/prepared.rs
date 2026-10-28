@@ -70,7 +70,29 @@ impl PreparedLinearStructureIdentity {
 
 /// Provider-private state for repeated solves inside one prepared run.
 pub trait PreparedLinearSolver<S = f64>: std::fmt::Debug {
+    /// Begin one caller-owned action, retaining the last committed resources.
+    ///
+    /// # Errors
+    /// Rejects a nested action, including an action awaiting discard after failure.
+    fn begin_action(&mut self) -> Result<(), Diagnostic>;
+
+    /// Commit tentative resources after caller-owned numerical and lineage acceptance.
+    /// An action with no solves may also commit.
+    ///
+    /// # Errors
+    /// Rejects idle or failed actions without changing committed resources.
+    fn commit_action(&mut self) -> Result<(), Diagnostic>;
+
+    /// Drop tentative resources and retain the last committed resources.
+    ///
+    /// # Errors
+    /// Rejects calls without an active or failed action.
+    fn discard_action(&mut self) -> Result<(), Diagnostic>;
+
     /// Solve one matrix candidate under its exact assembly structure identity.
+    /// Successful solves update tentative resources only. During an active action,
+    /// a solve error poisons the action until discard; committed resources remain
+    /// unchanged. Calls outside an active action reject without mutation.
     ///
     /// A provider must compare both the complete identity and actual canonical
     /// CSR topology before reusing symbolic state.

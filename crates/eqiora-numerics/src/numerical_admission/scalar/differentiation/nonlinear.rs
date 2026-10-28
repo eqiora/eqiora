@@ -86,6 +86,7 @@ where
                 &input,
                 &seed,
                 LinearSolveRequest::new(&checked, linear.solver),
+                None,
             )?
             .solve;
         let initial_point = crate::nonlinear_execution::NewtonInitialPoint {

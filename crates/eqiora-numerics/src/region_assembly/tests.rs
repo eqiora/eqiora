@@ -265,6 +265,7 @@ fn region_newton_retains_prepared_multi_target_assembly() {
                 )
                 .unwrap(),
             ),
+            None,
             NonZeroUsize::MIN,
             |_| Ok(()),
         )

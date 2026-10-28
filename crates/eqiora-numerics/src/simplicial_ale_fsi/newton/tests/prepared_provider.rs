@@ -8,6 +8,9 @@ use super::*;
 struct Observations {
     preparations: usize,
     solves: usize,
+    begins: usize,
+    commits: usize,
+    discards: usize,
     structure: Option<PreparedLinearStructureIdentity>,
 }
 
@@ -31,6 +34,8 @@ impl LinearSolverBackend for PreparingSolver {
         Ok(Some(Box::new(Prepared {
             observations: self.0.clone(),
             plan,
+            active: false,
+            failed: false,
         })))
     }
 
@@ -48,14 +53,47 @@ impl LinearSolverBackend for PreparingSolver {
 struct Prepared {
     observations: Arc<Mutex<Observations>>,
     plan: SolverPlan,
+    active: bool,
+    failed: bool,
 }
 
 impl PreparedLinearSolver for Prepared {
+    fn begin_action(&mut self) -> Result<(), Diagnostic> {
+        if self.active {
+            return Err(invalid("nested test prepared action"));
+        }
+        self.active = true;
+        self.failed = false;
+        self.observations.lock().unwrap().begins += 1;
+        Ok(())
+    }
+    fn commit_action(&mut self) -> Result<(), Diagnostic> {
+        if !self.active || self.failed {
+            return Err(invalid(
+                "test prepared commit requires successful active action",
+            ));
+        }
+        self.active = false;
+        self.observations.lock().unwrap().commits += 1;
+        Ok(())
+    }
+    fn discard_action(&mut self) -> Result<(), Diagnostic> {
+        if !self.active {
+            return Err(invalid("test prepared discard requires active action"));
+        }
+        self.active = false;
+        self.failed = false;
+        self.observations.lock().unwrap().discards += 1;
+        Ok(())
+    }
     fn solve(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
         problem: &LinearProblem<'_>,
     ) -> Result<LinearSolution, Diagnostic> {
+        if !self.active || self.failed {
+            return Err(invalid("test prepared solve requires active action"));
+        }
         assert!(problem.canonical_csr_system().is_some());
         let mut observations = self.observations.lock().unwrap();
         if let Some(expected) = &observations.structure {
@@ -64,7 +102,11 @@ impl PreparedLinearSolver for Prepared {
             observations.structure = Some(structure.clone());
         }
         observations.solves += 1;
-        DenseGeneralSolver.solve(problem, self.plan)
+        let result = DenseGeneralSolver.solve(problem, self.plan);
+        if result.is_err() {
+            self.failed = true;
+        }
+        result
     }
 }
 
@@ -97,6 +139,10 @@ fn one_provider_preparation_serves_all_newton_actions_with_cold_equivalence() {
     let cold = run(&DenseGeneralSolver);
     assert_eq!(warm.states(), cold.states());
     let observed = prepared_solver.0.lock().unwrap();
+    assert_eq!(
+        (observed.begins, observed.commits, observed.discards),
+        (2, 2, 0)
+    );
     assert_eq!(observed.preparations, 1);
     assert_eq!(
         observed.solves,

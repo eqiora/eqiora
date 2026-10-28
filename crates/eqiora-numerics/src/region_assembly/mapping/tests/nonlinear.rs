@@ -40,6 +40,7 @@ pub(super) fn check_stationary(
                 nonlinear,
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver),
+                None,
             )
             .unwrap()
     };

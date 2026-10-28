@@ -73,20 +73,32 @@ fn prepared_provider_preserves_independent_solutions_and_reports() {
         .collect::<Vec<_>>();
     let cold = systems
         .iter()
-        .map(|system| {
+        .zip([0.25, 0.5, 0.2])
+        .map(|(system, expected)| {
             let mut prepared = FaerLinearSolver.prepare_linear(plan).unwrap().unwrap();
-            prepared
+            prepared.begin_action().unwrap();
+            let solution = prepared
                 .solve(&structure, &system.linear_problem().unwrap())
-                .unwrap()
+                .unwrap();
+            assert!((solution.values()[0] - expected).abs() <= SOLUTION_ERROR_CEILING);
+            assert!(solution.report().true_residual_norm() <= ABSOLUTE_TOLERANCE);
+            prepared.commit_action().unwrap();
+            solution
         })
         .collect::<Vec<_>>();
     let mut prepared = FaerLinearSolver.prepare_linear(plan).unwrap().unwrap();
     let warm = systems
         .iter()
-        .map(|system| {
-            prepared
+        .zip([0.25, 0.5, 0.2])
+        .map(|(system, expected)| {
+            prepared.begin_action().unwrap();
+            let solution = prepared
                 .solve(&structure, &system.linear_problem().unwrap())
-                .unwrap()
+                .unwrap();
+            assert!((solution.values()[0] - expected).abs() <= SOLUTION_ERROR_CEILING);
+            assert!(solution.report().true_residual_norm() <= ABSOLUTE_TOLERANCE);
+            prepared.commit_action().unwrap();
+            solution
         })
         .collect::<Vec<_>>();
     for (index, ((warm, cold), expected)) in

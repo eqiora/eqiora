@@ -135,15 +135,16 @@ fn prepared_and_ordinary_solves_share_residual_correction() {
     let source = fixture();
     let identity = PreparedLinearStructureIdentity::new(&b"scaled-tridiagonal"[..]).unwrap();
     let problem = source.linear_problem().unwrap();
-    assert!(
-        FaerPreparedSparseLu::new(plan(1))
-            .solve(&identity, &problem)
-            .is_err()
-    );
+    let mut constrained = FaerPreparedSparseLu::new(plan(1));
+    constrained.begin_action().unwrap();
+    assert!(constrained.solve(&identity, &problem).is_err());
+    constrained.discard_action().unwrap();
     let mut prepared = FaerPreparedSparseLu::new(plan(4));
     for _ in 0..2 {
+        prepared.begin_action().unwrap();
         let solution = prepared.solve(&identity, &problem).unwrap();
         check(&solution, LinearOperatorOrientation::Normal);
+        prepared.commit_action().unwrap();
     }
 }
 

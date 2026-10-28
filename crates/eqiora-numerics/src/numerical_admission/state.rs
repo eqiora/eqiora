@@ -54,7 +54,7 @@ fn advance_common_prepared_actions<P>(
             ))
         },
         |prepared, context| advance(prepared, &context.state),
-        |context, accepted_actions, candidate| {
+        |_, context, accepted_actions, candidate| {
             if output_actions.binary_search(&accepted_actions).is_ok() {
                 context.outputs.push((accepted_actions, candidate.clone()));
             }
@@ -256,9 +256,7 @@ impl CommonTransientRunRequest {
             |state| plan.prepare_execution(state, backend),
             |prepared, state| {
                 accepted += 1;
-                prepared
-                    .advance(state, start_s + accepted as f64 * step_s)
-                    .and_then(|next| CommonAcceptedSpatialStep::new(state, next))
+                prepared.advance(state, start_s + accepted as f64 * step_s)
             },
             stop_at_boundary,
         )

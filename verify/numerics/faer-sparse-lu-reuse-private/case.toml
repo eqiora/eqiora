@@ -8,6 +8,8 @@ capabilities = [
   "actual-csr-topology-equality",
   "coefficient-sensitive-numeric-refactorization",
   "failed-candidate-state-retention",
+  "explicit-action-commit-and-discard",
+  "failed-action-cannot-promote-tentative-factors",
 ]
 
 [authority]
@@ -20,6 +22,10 @@ same_dimensions_changed_structure_identity = "symbolic state is rebuilt"
 same_dimensions_changed_csr_topology = "symbolic state is rebuilt"
 same_structure_changed_coefficients = "numeric state is rebuilt without symbolic analysis"
 singular_numeric_candidate = "failure cannot replace the last accepted factors"
+rejected_outer_action = "discard retains committed factors after successful tentative solves"
+failed_action = "solve and commit reject until discard"
+malformed_sequence = "idle operations and nested begin reject before mutation"
+empty_action = "commit preserves resources without a fabricated solve"
 
 [claim_boundary]
 adds_durable_telemetry_or_artifact = false

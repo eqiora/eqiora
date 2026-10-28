@@ -20,7 +20,7 @@ impl<'a> PreparedScalarExecution<'a> {
                 "State belongs to a different exact common state space",
             ));
         }
-        let linear = if plan.admission.nonlinear.is_none() {
+        let linear = {
             let structure = match plan.admission.recognized_model() {
                 RecognizedNativeModel::Spatial(equations) => equations.algebraic_structure(None)?,
                 RecognizedNativeModel::ComplexSpatial(equations) => {
@@ -32,8 +32,6 @@ impl<'a> PreparedScalarExecution<'a> {
                 .linear
                 .checked_backend(backend, Some(&structure))?
                 .prepare_linear(plan.admission.linear.solver)?
-        } else {
-            None
         };
         Ok(Self {
             plan,
@@ -46,15 +44,32 @@ impl<'a> PreparedScalarExecution<'a> {
         &mut self,
         state: &CommonState,
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
-        // This owner never escapes advance_prepared_actions. Any later spatial
-        // acceptance error returns through `?` and drops the whole session;
-        // only a completely accepted action can reach the next callback/solve.
-        self.plan.advance_scalar_prepared(
+        if let Some(linear) = &mut self.linear {
+            linear.begin_action()?;
+        }
+        let result = self.plan.advance_scalar_prepared(
             state,
             self.backend,
             self.linear
                 .as_mut()
                 .map(|prepared| prepared.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver),
-        )
+        );
+        match result {
+            Ok(accepted) => {
+                if let Some(linear) = &mut self.linear
+                    && let Err(error) = linear.commit_action()
+                {
+                    let _ = linear.discard_action();
+                    return Err(error);
+                }
+                Ok(accepted)
+            }
+            Err(error) => {
+                if let Some(linear) = &mut self.linear {
+                    let _ = linear.discard_action();
+                }
+                Err(error)
+            }
+        }
     }
 }

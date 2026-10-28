@@ -162,7 +162,7 @@ where
             |_, point| {
                 point
                     .assembly
-                    .solve_correction(0, linear, self.plan.admission.linear.workers)
+                    .solve_correction(0, linear, self.plan.admission.linear.workers, None)
             },
             |unknown, current| {
                 let (state, rate) = self.recovery_coordinates(h, fixed, unknown)?;

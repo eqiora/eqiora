@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
@@ -32,11 +34,20 @@ pub(super) fn prepare<S: SparseLuScalar + 'static>(
 #[derive(Debug)]
 pub(super) struct FaerPreparedSparseLu<S> {
     plan: SolverPlan,
-    ready: Option<Ready<S>>,
+    ready: Option<Arc<Ready<S>>>,
+    tentative: Option<Arc<Ready<S>>>,
+    action: Action,
     #[cfg(test)]
     symbolic_factorizations: usize,
     #[cfg(test)]
     numeric_factorizations: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Action {
+    Idle,
+    Active,
+    Failed,
 }
 
 #[derive(Debug)]
@@ -47,8 +58,8 @@ struct Ready<S> {
     row_offsets: Vec<usize>,
     column_indices: Vec<usize>,
     coefficients: Vec<S>,
-    symbolic: SparseLuSymbolicFactor,
-    numeric: SparseLuNumericFactor<S>,
+    symbolic: Arc<SparseLuSymbolicFactor>,
+    numeric: Arc<SparseLuNumericFactor<S>>,
 }
 
 impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
@@ -56,6 +67,8 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
         Self {
             plan,
             ready: None,
+            tentative: None,
+            action: Action::Idle,
             #[cfg(test)]
             symbolic_factorizations: 0,
             #[cfg(test)]
@@ -84,7 +97,7 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
             return Ok(initial);
         }
 
-        let same_symbolic = self.ready.as_ref().is_some_and(|ready| {
+        let same_symbolic = self.tentative.as_ref().is_some_and(|ready| {
             ready.structure == *structure
                 && ready.rows == system.rows()
                 && ready.columns == system.columns()
@@ -96,85 +109,110 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
         let coefficients = system.values().to_vec();
         let same_numeric = same_symbolic
             && self
-                .ready
+                .tentative
                 .as_ref()
                 .is_some_and(|ready| ready.coefficients == coefficients);
 
-        let candidate_symbolic = if same_symbolic {
-            None
+        let symbolic = if same_symbolic {
+            Arc::clone(
+                &self
+                    .tentative
+                    .as_ref()
+                    .expect("matching structure")
+                    .symbolic,
+            )
         } else {
             #[cfg(test)]
             {
                 self.symbolic_factorizations += 1;
             }
-            Some(factor_symbolic(system)?)
+            Arc::new(factor_symbolic(system)?)
         };
-        let symbolic = candidate_symbolic.as_ref().unwrap_or_else(|| {
-            &self
-                .ready
-                .as_ref()
-                .expect("same symbolic identity retains a factor")
-                .symbolic
-        });
-        let candidate_numeric = if same_numeric {
-            None
+        let numeric = if same_numeric {
+            Arc::clone(
+                &self
+                    .tentative
+                    .as_ref()
+                    .expect("matching coefficients")
+                    .numeric,
+            )
         } else {
             #[cfg(test)]
             {
                 self.numeric_factorizations += 1;
             }
-            Some(factor_numeric(symbolic, system)?)
+            Arc::new(factor_numeric(&symbolic, system)?)
         };
-        let numeric = candidate_numeric.as_ref().unwrap_or_else(|| {
-            &self
-                .ready
-                .as_ref()
-                .expect("same coefficient identity retains a factor")
-                .numeric
-        });
-        let accepted = solve_factored(problem, self.plan, symbolic, numeric)?;
-
-        match (candidate_symbolic, candidate_numeric) {
-            (Some(symbolic), Some(numeric)) => {
-                self.ready = Some(Ready {
-                    structure: structure.clone(),
-                    rows: system.rows(),
-                    columns: system.columns(),
-                    row_offsets: system.row_offsets().to_vec(),
-                    column_indices: system.column_indices().to_vec(),
-                    coefficients,
-                    symbolic,
-                    numeric,
-                });
-            }
-            (None, Some(numeric)) => {
-                let ready = self
-                    .ready
-                    .as_mut()
-                    .expect("numeric rebuild retains an accepted symbolic factor");
-                ready.coefficients = coefficients;
-                ready.numeric = numeric;
-            }
-            (None, None) => {}
-            (Some(_), None) => unreachable!("new symbolic state requires numeric factorization"),
+        let accepted = solve_factored(problem, self.plan, &symbolic, &numeric)?;
+        if !same_numeric {
+            self.tentative = Some(Arc::new(Ready {
+                structure: structure.clone(),
+                rows: system.rows(),
+                columns: system.columns(),
+                row_offsets: system.row_offsets().to_vec(),
+                column_indices: system.column_indices().to_vec(),
+                coefficients,
+                symbolic,
+                numeric,
+            }));
         }
         Ok(accepted)
     }
 }
 
 impl<S: SparseLuScalar> PreparedLinearSolver<S> for FaerPreparedSparseLu<S> {
+    fn begin_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action != Action::Idle {
+            return Err(invalid("prepared sparse LU action is already open"));
+        }
+        self.tentative = self.ready.clone();
+        self.action = Action::Active;
+        Ok(())
+    }
+
+    fn commit_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action != Action::Active {
+            return Err(invalid(
+                "prepared sparse LU commit requires a successful active action",
+            ));
+        }
+        self.ready = self.tentative.take();
+        self.action = Action::Idle;
+        Ok(())
+    }
+
+    fn discard_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action == Action::Idle {
+            return Err(invalid(
+                "prepared sparse LU discard requires an open action",
+            ));
+        }
+        self.tentative = None;
+        self.action = Action::Idle;
+        Ok(())
+    }
+
     fn solve(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
         problem: &LinearProblem<'_, S>,
     ) -> Result<LinearSolution<S>, Diagnostic> {
+        if self.action != Action::Active {
+            return Err(invalid(
+                "prepared sparse LU solve requires an active action",
+            ));
+        }
         let algorithm = format!("{:?}", self.plan.algorithm());
         let _linear = eqiora_execution::telemetry_span!(linear_solve(
             &algorithm,
             FAER_SOLVER_PROVIDER.id().as_str()
         ))
         .entered();
-        self.solve_candidate(structure, problem)
+        let result = self.solve_candidate(structure, problem);
+        if result.is_err() {
+            self.action = Action::Failed;
+        }
+        result
     }
 }
 
@@ -241,6 +279,8 @@ mod tests {
     fn registered_exact_structure_reuse_falsifiers() {
         exact_structure_and_topology_control_symbolic_reuse();
         failed_numeric_candidate_does_not_replace_accepted_factors();
+        action_rollback_preserves_committed_factors_and_rejects_stale_commit();
+        malformed_actions_reject_before_mutation_and_empty_actions_commit();
     }
 
     fn exact_structure_and_topology_control_symbolic_reuse() {
@@ -270,6 +310,7 @@ mod tests {
             system(&changed_topology),
         ];
         let mut prepared = FaerPreparedSparseLu::new(plan());
+        prepared.begin_action().unwrap();
         prepared
             .solve(&a, &systems[0].linear_problem().unwrap())
             .unwrap();
@@ -286,6 +327,7 @@ mod tests {
             .solve(&b, &systems[2].linear_problem().unwrap())
             .unwrap();
         assert_eq!(prepared.symbolic_factorizations, 3);
+        prepared.commit_action().unwrap();
     }
 
     fn failed_numeric_candidate_does_not_replace_accepted_factors() {
@@ -314,20 +356,166 @@ mod tests {
             system(&same_coefficients_new_rhs),
         ];
         let mut prepared = FaerPreparedSparseLu::new(plan());
+        prepared.begin_action().unwrap();
         prepared
             .solve(&identity, &systems[0].linear_problem().unwrap())
             .unwrap();
+        prepared.commit_action().unwrap();
+        prepared.begin_action().unwrap();
         assert!(
             prepared
                 .solve(&identity, &systems[1].linear_problem().unwrap())
                 .is_err()
         );
+        prepared.discard_action().unwrap();
+        prepared.begin_action().unwrap();
         let retried = prepared
             .solve(&identity, &systems[2].linear_problem().unwrap())
             .unwrap();
         assert_eq!(retried.values(), &[0.5]);
+        prepared.commit_action().unwrap();
         assert_eq!(prepared.symbolic_factorizations, 1);
     }
+    fn action_rollback_preserves_committed_factors_and_rejects_stale_commit() {
+        let identity = PreparedLinearStructureIdentity::new(&b"action-structure"[..]).unwrap();
+        let accepted = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![4.0],
+            rhs: vec![2.0],
+        };
+        let changed = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![8.0],
+            rhs: vec![2.0],
+        };
+        let singular = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![0.0],
+            rhs: vec![2.0],
+        };
+        let a = system(&accepted);
+        let b = system(&changed);
+        let bad = system(&singular);
+        let mut prepared = FaerPreparedSparseLu::new(plan());
+        prepared.begin_action().unwrap();
+        assert_eq!(
+            prepared
+                .solve(&identity, &a.linear_problem().unwrap())
+                .unwrap()
+                .values(),
+            &[0.5]
+        );
+        prepared.commit_action().unwrap();
+        let committed = Arc::clone(prepared.ready.as_ref().unwrap());
+        prepared.begin_action().unwrap();
+        assert_eq!(
+            prepared
+                .solve(&identity, &b.linear_problem().unwrap())
+                .unwrap()
+                .values(),
+            &[0.25]
+        );
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+        assert!(
+            prepared
+                .solve(&identity, &bad.linear_problem().unwrap())
+                .is_err()
+        );
+        assert!(prepared.commit_action().is_err());
+        assert!(
+            prepared
+                .solve(&identity, &a.linear_problem().unwrap())
+                .is_err()
+        );
+        assert!(prepared.begin_action().is_err());
+        prepared.discard_action().unwrap();
+        let counts = (
+            prepared.symbolic_factorizations,
+            prepared.numeric_factorizations,
+        );
+        prepared.begin_action().unwrap();
+        assert_eq!(
+            prepared
+                .solve(&identity, &a.linear_problem().unwrap())
+                .unwrap()
+                .values(),
+            &[0.5]
+        );
+        prepared.commit_action().unwrap();
+        assert_eq!(
+            (
+                prepared.symbolic_factorizations,
+                prepared.numeric_factorizations
+            ),
+            counts
+        );
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+        // Caller rejection after a successful solve also discards its numeric update.
+        prepared.begin_action().unwrap();
+        prepared
+            .solve(&identity, &b.linear_problem().unwrap())
+            .unwrap();
+        prepared.discard_action().unwrap();
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+        // Rejection before factorization must poison the entire action too.
+        prepared.begin_action().unwrap();
+        let noncanonical =
+            LinearProblem::new(&a, accepted.rhs(), LinearOperatorProperties::General).unwrap();
+        assert!(prepared.solve(&identity, &noncanonical).is_err());
+        assert!(prepared.commit_action().is_err());
+        prepared.discard_action().unwrap();
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+    }
+
+    fn malformed_actions_reject_before_mutation_and_empty_actions_commit() {
+        let identity = PreparedLinearStructureIdentity::new(&b"empty-action"[..]).unwrap();
+        let storage = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![4.0],
+            rhs: vec![2.0],
+        };
+        let source = system(&storage);
+        let mut prepared = FaerPreparedSparseLu::new(plan());
+        assert!(
+            prepared
+                .solve(&identity, &source.linear_problem().unwrap())
+                .is_err()
+        );
+        assert!(prepared.commit_action().is_err());
+        assert!(prepared.discard_action().is_err());
+        assert_eq!(prepared.action, Action::Idle);
+        assert!(prepared.ready.is_none());
+        assert!(prepared.tentative.is_none());
+        assert_eq!(prepared.symbolic_factorizations, 0);
+        assert_eq!(prepared.numeric_factorizations, 0);
+        prepared.begin_action().unwrap();
+        assert!(prepared.begin_action().is_err());
+        assert_eq!(prepared.action, Action::Active);
+        prepared.commit_action().unwrap();
+        assert!(prepared.ready.is_none());
+        prepared.begin_action().unwrap();
+        prepared
+            .solve(&identity, &source.linear_problem().unwrap())
+            .unwrap();
+        prepared.commit_action().unwrap();
+        let committed = Arc::clone(prepared.ready.as_ref().unwrap());
+        prepared.begin_action().unwrap();
+        assert!(prepared.begin_action().is_err());
+        assert!(Arc::ptr_eq(
+            prepared.tentative.as_ref().unwrap(),
+            &committed
+        ));
+        prepared.commit_action().unwrap();
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+        assert!(prepared.commit_action().is_err());
+        assert!(prepared.discard_action().is_err());
+        assert!(Arc::ptr_eq(prepared.ready.as_ref().unwrap(), &committed));
+    }
+
     #[test]
     fn complex_reuse_retains_imaginary_coefficients_and_requested_orientation() {
         use eqiora_solver::{
@@ -379,6 +567,7 @@ mod tests {
                 crate::require_serial_execution(execution, policy)?;
                 let mut session = self.session.lock().unwrap();
                 assert_eq!(session.plan, policy);
+                session.begin_action()?;
                 session.solve(&self.identity, problem)
             }
         }
@@ -406,6 +595,7 @@ mod tests {
                 assert_eq!(solution.report().orientation(), orientation);
                 assert_eq!(solution.report().solver_provider(), FAER_SOLVER_PROVIDER);
             }
+            adapter.session.lock().unwrap().commit_action().unwrap();
         }
         let mut prepared = adapter.session.into_inner().unwrap();
         assert_eq!(prepared.symbolic_factorizations, 1);
@@ -414,27 +604,33 @@ mod tests {
         storage.values[0].im = 2.;
         storage.rhs[0] = C::new(-2., 11.);
         let changed = system(&storage);
+        prepared.begin_action().unwrap();
         near(
             &prepared
                 .solve(&identity, &changed.linear_problem().unwrap())
                 .unwrap(),
         );
         assert_eq!(prepared.symbolic_factorizations, 1);
+        prepared.commit_action().unwrap();
         assert_eq!(prepared.numeric_factorizations, 2);
         // Failed numeric candidates cannot displace those accepted factors.
         storage.values.fill(C::new(0., 0.));
         let singular = system(&storage);
+        prepared.begin_action().unwrap();
         assert!(
             prepared
                 .solve(&identity, &singular.linear_problem().unwrap())
                 .is_err()
         );
+        prepared.discard_action().unwrap();
+        prepared.begin_action().unwrap();
         near(
             &prepared
                 .solve(&identity, &changed.linear_problem().unwrap())
                 .unwrap(),
         );
         assert_eq!(prepared.symbolic_factorizations, 1);
+        prepared.commit_action().unwrap();
         assert_eq!(prepared.numeric_factorizations, 3);
         let mut public = <crate::FaerLinearSolver as LinearSolverBackend<C>>::prepare_linear(
             &crate::FaerLinearSolver,
@@ -442,11 +638,13 @@ mod tests {
         )
         .unwrap()
         .unwrap();
+        public.begin_action().unwrap();
         near(
             &public
                 .solve(&identity, &source.linear_problem().unwrap())
                 .unwrap(),
         );
+        public.commit_action().unwrap();
         let problem = source
             .linear_problem()
             .unwrap()
@@ -456,7 +654,9 @@ mod tests {
         near(&solution);
         assert_eq!(solution.report().completed_iterations(), 0);
         let mut untouched = FaerPreparedSparseLu::new(plan());
+        untouched.begin_action().unwrap();
         near(&untouched.solve(&identity, &problem).unwrap());
+        untouched.commit_action().unwrap();
         assert_eq!(untouched.symbolic_factorizations, 0);
         assert_eq!(untouched.numeric_factorizations, 0);
         for unsupported in [

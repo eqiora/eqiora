@@ -25,8 +25,44 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         run: TransientNavierStokesRun2d,
         solver: &dyn LinearSolverBackend,
     ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
-        let mut prepared_linear = solver.prepare_linear(self.numerical_plan.linear_solver())?;
-        self.advance_with_linear(initial, run, solver, prepared_linear.as_deref_mut())
+        let numerical_initial = self.normalize_state(&initial)?;
+        let mut states = vec![reconstruct_state(
+            &numerical_initial,
+            self.physical_mesh,
+            &self.model,
+            self.scales,
+        )?];
+        let checked_assembly = self.block_system.checked_backend(self.assembly);
+        let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
+            &self.normalized,
+            &self.step_structure,
+            numerical_initial,
+            run.step_count,
+            self.numerical_plan.clone(),
+            &self.cell_quadrature,
+            &self.facet_quadrature,
+            &checked_assembly,
+            solver,
+            |state| {
+                states.push(reconstruct_state(
+                    state,
+                    self.physical_mesh,
+                    &self.model,
+                    self.scales,
+                )?);
+                Ok(())
+            },
+        )?;
+        Ok(ResolvedTransientNavierStokesTrajectory2d {
+            model: self.model.clone(),
+            realization: self.resolved.clone(),
+            realization_graph: self.realization_graph.clone(),
+            solver_backend: solver.id(),
+            mesh_artifact: self.mesh_artifact,
+            scales: self.scales,
+            states,
+            steps: numerical.steps().to_vec(),
+        })
     }
 
     pub(crate) fn advance_with_linear(
@@ -51,6 +87,14 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
                 solver,
                 prepared_linear,
             )?;
+        self.reconstruct(numerical, solver)
+    }
+
+    fn reconstruct(
+        &self,
+        numerical: crate::simplicial_navier_stokes::SimplicialMiniNavierStokesTrajectory2d,
+        solver: &dyn LinearSolverBackend,
+    ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
         let states = numerical
             .states()
             .iter()

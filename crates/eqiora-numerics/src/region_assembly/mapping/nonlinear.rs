@@ -58,6 +58,10 @@ where
         self.encode_coordinates(&self.physical_predictor(initial)?)
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "physical seed, numerical policies and borrowed provider session have separate owners"
+    )]
     pub(crate) fn solve_nonlinear<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
@@ -66,6 +70,7 @@ where
         nonlinear: NonlinearSolvePlan,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_>,
+        prepared_linear: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<RegionNonlinearOutput<S>, Diagnostic> {
         let step = self.validate_solve_input(mesh, input)?;
         let seed = self.nonlinear_predictor(input, initial)?;
@@ -81,6 +86,7 @@ where
             &seed,
             nonlinear,
             request,
+            prepared_linear,
             workers,
             |matrix| self.require_numeric_multiplier_closure(matrix, &multipliers),
         )?;

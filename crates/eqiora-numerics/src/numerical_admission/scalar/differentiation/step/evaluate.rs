@@ -72,7 +72,7 @@ where
             let seed = input.previous.as_ref().expect("validated physical history");
             let solved = self
                 .plan
-                .solve_region_newton(mapping, input, seed, request)?
+                .solve_region_newton(mapping, input, seed, request, None)?
                 .solve;
             let initial = crate::nonlinear_execution::NewtonInitialPoint {
                 residual_norm: solved.evidence.initial_residual_norm,
