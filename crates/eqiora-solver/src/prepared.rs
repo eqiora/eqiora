@@ -90,8 +90,9 @@ pub trait PreparedLinearSolver<S = f64>: std::fmt::Debug {
     fn discard_action(&mut self) -> Result<(), Diagnostic>;
 
     /// Solve one matrix candidate under its exact assembly structure identity.
-    /// Successful solves update tentative resources only. Any solve error poisons
-    /// the action until discard; committed resources remain unchanged.
+    /// Successful solves update tentative resources only. During an active action,
+    /// a solve error poisons the action until discard; committed resources remain
+    /// unchanged. Calls outside an active action reject without mutation.
     ///
     /// A provider must compare both the complete identity and actual canonical
     /// CSR topology before reusing symbolic state.
