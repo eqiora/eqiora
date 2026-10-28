@@ -17,6 +17,15 @@ use std::num::NonZeroUsize;
 use support::derivative_products::FixtureCoordinates;
 
 fn fixture(p: f64, margin: f64, equality: &str) -> (ModelDocument, CommonAlgebraicPlan) {
+    fixture_with_backend(p, margin, equality, &FaerLinearSolver)
+}
+
+fn fixture_with_backend(
+    p: f64,
+    margin: f64,
+    equality: &str,
+    backend: &dyn LinearSolverBackend,
+) -> (ModelDocument, CommonAlgebraicPlan) {
     let source = format!(
         "model Root(){{parameter p:1={p};variable w:1;relation root{{{equality};inequality(p>=0);inequality(w>=0);}}observable output:1=w+p;}}"
     );
@@ -46,17 +55,18 @@ fn fixture(p: f64, margin: f64, equality: &str) -> (ModelDocument, CommonAlgebra
     .with_reduction(ReductionPolicy::Fast);
     let solve = CommonSolvePolicy::Newton {
         nonlinear: NonlinearSolvePlan::new(0.0, 1e-12, NonZeroUsize::new(32).unwrap(), 16).unwrap(),
-        linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
+        linear: CommonLinearRequest::exact(linear, backend.provider())
+            .unwrap()
+            .with_execution(
+                backend.default_execution_provider(),
+                match backend.default_execution().topology() {
+                    eqiora::solver::ExecutionTopology::Host { workers } => workers,
+                    _ => panic!("fixture requires host execution"),
+                },
+            ),
     };
-    let plan = CommonAlgebraicPlan::resolve(
-        &model,
-        solve,
-        Some(enforcement),
-        &[],
-        None,
-        &FaerLinearSolver,
-    )
-    .unwrap();
+    let plan =
+        CommonAlgebraicPlan::resolve(&model, solve, Some(enforcement), &[], None, backend).unwrap();
     (document, plan)
 }
 fn seed(document: &ModelDocument, plan: &CommonAlgebraicPlan, value: f64) -> CommonInitialField {
@@ -518,8 +528,8 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
 fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
     use eqiora::api::{DifferentiableProgram, EvaluationMapExecutionPolicy, EvaluationMapPlan};
     use eqiora::solver::{
-        ExecutionId, ExecutionReport, LinearProblem, LinearSolution, ReplicatedLinearExecution,
-        SolverCapabilities, SolverProvider,
+        ExecutionId, ExecutionProvider, ExecutionReport, LinearProblem, LinearSolution,
+        ReplicatedLinearExecution, SolverCapabilities, SolverProvider,
     };
     use std::sync::Arc;
     #[derive(Debug)]
@@ -530,6 +540,9 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
         }
         fn capabilities(&self) -> SolverCapabilities {
             FaerLinearSolver.capabilities()
+        }
+        fn default_execution_provider(&self) -> ExecutionProvider {
+            ExecutionProvider::new(ExecutionId::new("test.parallel"), "1", &[])
         }
         fn default_execution(&self) -> ExecutionReport {
             ExecutionReport::host(
@@ -546,7 +559,8 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
             panic!("map admission must reject parallel placement before any solve")
         }
     }
-    let (document, plan) = fixture(4., 1e-8, "w*w=p");
+    // Admit the same execution identity used at compile time, including zero-update solves.
+    let (document, plan) = fixture_with_backend(4., 1e-8, "w*w=p", &ParallelOnly);
     let initial = plan.initial_state(&[seed(&document, &plan, 2.)]).unwrap();
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
