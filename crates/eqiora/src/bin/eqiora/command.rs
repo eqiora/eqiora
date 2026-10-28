@@ -1,3 +1,5 @@
+mod study;
+
 use std::cell::Cell;
 use std::ffi::OsString;
 use std::fs::File;
@@ -158,6 +160,7 @@ fn cli_command() -> clap::Command {
                 .long("version")
                 .action(ArgAction::SetTrue),
         )
+        .subcommand(study::command())
         .subcommand(
             Command::new("check")
                 .disable_help_flag(true)
@@ -274,7 +277,7 @@ fn root_help() -> CommandResult {
     // ROOT_HELP is frozen at the terminal boundary rather than rendered by clap.
     Ok(OracleOutcome::stdout(
         0,
-        b"Compile and check one Eqiora Model source file.\n\nUsage:\n  eqiora check <MODEL_PATH>\n\nCommands:\n  check    Compile/check one local Model source file.\n\nOptions:\n  -h, --help       Print help.\n  -V, --version    Print version.\n",
+        b"Compile and check one Eqiora Model source file.\n\nUsage:\n  eqiora check <MODEL_PATH>\n\nCommands:\n  check    Compile/check one local Model source file.\n  study    Run, inspect or retry stationary Parameter studies.\n\nOptions:\n  -h, --help       Print help.\n  -V, --version    Print version.\n",
     ))
 }
 
@@ -475,6 +478,9 @@ where
         }
         let matches = match cli_command().try_get_matches_from(arguments) {
             Ok(matches) => matches,
+            Err(error) if error.kind() == clap::error::ErrorKind::DisplayHelp => {
+                return Ok(OracleOutcome::stdout(0, error.to_string()));
+            }
             Err(_) => return invalid_command_line(),
         };
         let root_help_requested = matches.get_flag("root-help");
@@ -490,6 +496,9 @@ where
                 return invalid_command_line();
             }
             return package_version();
+        }
+        if let Some(("study", study)) = matches.subcommand() {
+            return study::run(study);
         }
         if let Some(("package", package)) = matches.subcommand() {
             #[cfg(feature = "package-filesystem")]
