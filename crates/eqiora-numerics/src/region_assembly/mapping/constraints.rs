@@ -9,6 +9,65 @@ use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 use eqiora_solver::SolverPlan;
 use eqiora_time::ConstantDerivativeMatrixProof;
 
+/// Numerical acceptance of the original State equations, after the existing
+/// mapping, finite-action and structural checks reached this criterion.
+/// A finite residual above its target remains an inspectable candidate.
+#[derive(Debug)]
+pub(crate) struct TemporalStateAssessment {
+    residuals: Vec<StateResidualCriterion>,
+}
+
+#[derive(Debug)]
+struct StateResidualCriterion {
+    residual_norm: f64,
+    target: f64,
+    kind: StateResidualKind,
+}
+
+#[derive(Debug)]
+enum StateResidualKind {
+    Algebraic,
+    EquationLocal,
+}
+
+impl StateResidualCriterion {
+    fn diagnostic(&self) -> Diagnostic {
+        let Self {
+            residual_norm,
+            target,
+            kind,
+        } = self;
+        invalid(&match kind {
+            StateResidualKind::Algebraic => format!(
+                "spatial State algebraic residual {residual_norm:e} exceeds equation-local target {target:e}"
+            ),
+            StateResidualKind::EquationLocal => format!(
+                "spatial State equation-local residual {residual_norm:e} exceeds target {target:e}"
+            ),
+        })
+    }
+}
+
+impl TemporalStateAssessment {
+    pub(crate) fn accepted(&self) -> bool {
+        self.residuals
+            .iter()
+            .all(|criterion| criterion.residual_norm <= criterion.target)
+    }
+
+    /// Preserve the validator's existing first failing numerical diagnostic.
+    pub(crate) fn require_accepted(&self) -> Result<(), Diagnostic> {
+        match self
+            .residuals
+            .iter()
+            .find(|criterion| criterion.residual_norm > criterion.target)
+        {
+            Some(criterion) => Err(criterion.diagnostic()),
+            None => Ok(()),
+        }
+    }
+}
+
 impl<S: Coefficient + Send + Sync> RegionDofMap<S>
 where
     Self: RegionAlgebraicCoordinates<f64, S>,
@@ -49,7 +108,7 @@ where
     pub(crate) fn validate_temporal_state<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        mut input: RegionSolveInput<S>,
+        input: RegionSolveInput<S>,
         fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
         temporal: &crate::form_compiler::region::TemporalStructure,
         solver: SolverPlan,
@@ -57,6 +116,26 @@ where
             InputPartialScope,
         ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
     ) -> Result<(), Diagnostic> {
+        self.assess_temporal_state(mesh, input, fields, temporal, solver, initial_partial)?
+            .require_accepted()
+    }
+
+    /// Assess complete physical Fields with the same original-action evaluator
+    /// used by State validation. Canonical free coordinates must first undergo
+    /// the existing physical recovery, including eliminated kinematic States.
+    /// Structural/evaluation failures remain errors; finite numerical rejection
+    /// is returned without accepting or publishing the candidate.
+    pub(crate) fn assess_temporal_state<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        mut input: RegionSolveInput<S>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        temporal: &crate::form_compiler::region::TemporalStructure,
+        solver: SolverPlan,
+        initial_partial: impl FnOnce(
+            InputPartialScope,
+        ) -> Result<(Self, RegionSolveInput<S>), Diagnostic>,
+    ) -> Result<TemporalStateAssessment, Diagnostic> {
         self.validate_prescribed_fields(fields)?;
         // A physical State preserves signed-zero words. Essential traces were
         // checked numerically above; reduction must not impose the distinct
@@ -66,7 +145,9 @@ where
         let coordinates = RegionRealCoordinates::new(self)?;
         let (rows, stored_rows) = self.temporal_coordinate_partition(temporal)?;
         if values.is_empty() || (rows.is_empty() && temporal.positive_own_capacity) {
-            return Ok(());
+            return Ok(TemporalStateAssessment {
+                residuals: Vec::new(),
+            });
         }
         // This is a snapshot, not a new step. Invert exact kinematic recovery
         // so eliminated displacement terms evaluate at the supplied State.
@@ -205,15 +286,25 @@ where
                     }
                 })
                 .collect::<Vec<_>>();
+            let mut assessment = TemporalStateAssessment {
+                residuals: Vec::new(),
+            };
             for row in 0..matrix.rows() {
                 let residual = selected.residuals[0][row];
                 let scale = tangent_equation_scale(matrix, row, &unknowns, residual);
                 let target = solver.residual_target(scale)?;
-                if !residual.is_finite() || !scale.is_finite() || residual.abs() > target {
-                    return Err(invalid(&format!(
-                        "spatial State equation-local residual {:e} exceeds target {target:e}",
-                        residual.abs(),
-                    )));
+                let criterion = StateResidualCriterion {
+                    residual_norm: residual.abs(),
+                    target,
+                    kind: StateResidualKind::EquationLocal,
+                };
+                if !residual.is_finite() || !scale.is_finite() {
+                    return Err(criterion.diagnostic());
+                }
+                let accepted = criterion.residual_norm <= criterion.target;
+                assessment.residuals.push(criterion);
+                if !accepted {
+                    return Ok(assessment);
                 }
             }
             let proof =
@@ -223,7 +314,7 @@ where
                     "spatial State differential-rate/algebraic-State Jacobian is singular at its consistent rate",
                 ));
             }
-            return Ok(());
+            return Ok(assessment);
         }
         let action = if independent {
             independent_action(&rates, FieldPullback::Coordinates(&weights))?
@@ -251,10 +342,19 @@ where
         // Held differential coordinates are absorbed into the tangent RHS.
         // Stored rows and their 1/dt factors cannot hide a constraint violation.
         let target = solver.residual_target(scale_norm)?;
-        if !residual_norm.is_finite() || !scale_norm.is_finite() || residual_norm > target {
-            return Err(invalid(&format!(
-                "spatial State algebraic residual {residual_norm:e} exceeds equation-local target {target:e}"
-            )));
+        let criterion = StateResidualCriterion {
+            residual_norm,
+            target,
+            kind: StateResidualKind::Algebraic,
+        };
+        if !residual_norm.is_finite() || !scale_norm.is_finite() {
+            return Err(criterion.diagnostic());
+        }
+        let assessment = TemporalStateAssessment {
+            residuals: vec![criterion],
+        };
+        if !assessment.accepted() {
+            return Ok(assessment);
         }
         if independent {
             let algebraic = rows.iter().copied().collect::<Vec<_>>();
@@ -298,7 +398,7 @@ where
                 // equations with the retained predecessor. Continuous tangent
                 // compatibility is an initialization condition, not a BE equation.
                 if accepted_step {
-                    return Ok(());
+                    return Ok(assessment);
                 }
                 // Differentiate the actual prescribed inputs: fixed trace
                 // rates enter momentum, and R_A,t + J_A,fixed*g_dot enters
@@ -361,7 +461,7 @@ where
                 )?;
             }
         }
-        Ok(())
+        Ok(assessment)
     }
 }
 

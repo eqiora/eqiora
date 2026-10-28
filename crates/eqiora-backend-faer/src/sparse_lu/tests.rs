@@ -146,3 +146,53 @@ fn prepared_and_ordinary_solves_share_residual_correction() {
         check(&solution, LinearOperatorOrientation::Normal);
     }
 }
+
+#[test]
+fn method_check_rejects_globally_accepted_initial_and_zero_residual_candidates() {
+    use eqiora_solver::LinearSolverBackend;
+    let system = fixture();
+    let initial = vec![0.; 64];
+    let requires_nonzero = |values: &[f64]| Ok(values.iter().any(|value| *value != 0.));
+    // The large original absolute target accepts zero globally; the method
+    // criterion requires one ordinary factor solve against the same equation.
+    let policy = SolverPlan::new(LinearSolver::SparseLu, 0., 1e6, NonZeroUsize::MIN)
+        .unwrap()
+        .with_reduction(ReductionPolicy::Fast);
+    let problem = system
+        .linear_problem()
+        .unwrap()
+        .with_initial_guess(&initial)
+        .unwrap()
+        .with_candidate_check(&requires_nonzero);
+    let solved = FaerLinearSolver.solve(&problem, policy).unwrap();
+    assert_eq!(solved.report().completed_iterations(), 1);
+    assert_eq!(solved.report().solver_plan(), policy);
+    assert!(requires_nonzero(solved.values()).unwrap());
+
+    let rejects = |_: &[f64]| Ok(false);
+    let problem = system
+        .linear_problem()
+        .unwrap()
+        .with_candidate_check(&rejects);
+    assert_eq!(
+        FaerLinearSolver
+            .solve(&problem, plan(2))
+            .unwrap_err()
+            .code(),
+        eqiora_core::diagnostic::codes::NUMERICAL_SOLVE_FAILED
+    );
+    let structural = |_: &[f64]| {
+        Err(eqiora_core::Diagnostic::error(
+            eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+            "physical domain failure",
+        ))
+    };
+    let problem = system
+        .linear_problem()
+        .unwrap()
+        .with_candidate_check(&structural);
+    assert_eq!(
+        FaerLinearSolver.solve(&problem, policy).unwrap_err().code(),
+        eqiora_core::diagnostic::codes::INVALID_REALIZATION
+    );
+}

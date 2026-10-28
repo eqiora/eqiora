@@ -127,11 +127,13 @@ pub(super) fn solve_preconditioned_bicgstab<
 
         let intermediate_residual_norm =
             FixedOrderInnerProduct::norm(execution, &intermediate_residual)?;
+        let mut alpha_applied = false;
         if intermediate_residual_norm <= recurrence_target {
             for index in 0..dimension {
                 solution[index] =
                     solution[index] + recurrence.alpha * preconditioned_direction[index];
             }
+            alpha_applied = true;
             require_finite(&solution, "BiCGSTAB solution")?;
             let true_residual_norm = true_residual_norm(
                 execution,
@@ -139,7 +141,9 @@ pub(super) fn solve_preconditioned_bicgstab<
                 correction.candidate(&solution),
                 &mut applied,
             )?;
-            if true_residual_norm <= target {
+            if true_residual_norm <= target
+                && problem.candidate_is_accepted(correction.candidate(&solution))?
+            {
                 return accept(
                     correction.into_values(),
                     iteration,
@@ -147,10 +151,19 @@ pub(super) fn solve_preconditioned_bicgstab<
                     true_residual_norm,
                 );
             }
-            recurrence_target = correction.restart(&mut solution, true_residual_norm);
-            recurrence.restart(&applied, &mut residual);
-            reported_residual_norm = true_residual_norm;
-            continue;
+            if true_residual_norm == 0. {
+                return Err(solve_failed(
+                    "method-owned acceptance rejected a zero linear residual",
+                ));
+            }
+            if true_residual_norm > target {
+                recurrence_target = correction.restart(&mut solution, true_residual_norm);
+                recurrence.restart(&applied, &mut residual);
+                reported_residual_norm = true_residual_norm;
+                continue;
+            }
+            // The global criterion passed but the method criterion did not.
+            // Complete omega within this same iteration; alpha is already applied.
         }
 
         apply_preconditioner(
@@ -182,9 +195,13 @@ pub(super) fn solve_preconditioned_bicgstab<
             ));
         }
         for index in 0..dimension {
-            solution[index] = solution[index]
-                + (recurrence.alpha * preconditioned_direction[index]
-                    + recurrence.omega * preconditioned_intermediate[index]);
+            solution[index] = if alpha_applied {
+                solution[index] + recurrence.omega * preconditioned_intermediate[index]
+            } else {
+                solution[index]
+                    + (recurrence.alpha * preconditioned_direction[index]
+                        + recurrence.omega * preconditioned_intermediate[index])
+            };
             residual[index] =
                 intermediate_residual[index] - recurrence.omega * intermediate_image[index];
         }
@@ -198,13 +215,20 @@ pub(super) fn solve_preconditioned_bicgstab<
                 correction.candidate(&solution),
                 &mut applied,
             )?;
-            if true_residual_norm <= target {
+            if true_residual_norm <= target
+                && problem.candidate_is_accepted(correction.candidate(&solution))?
+            {
                 return accept(
                     correction.into_values(),
                     iteration,
                     reported_residual_norm,
                     true_residual_norm,
                 );
+            }
+            if true_residual_norm == 0. {
+                return Err(solve_failed(
+                    "method-owned acceptance rejected a zero linear residual",
+                ));
             }
             recurrence_target = correction.restart(&mut solution, true_residual_norm);
             recurrence.restart(&applied, &mut residual);
@@ -225,7 +249,9 @@ pub(super) fn solve_preconditioned_bicgstab<
         correction.candidate(&solution),
         &mut applied,
     )?;
-    if true_residual_norm <= target {
+    if true_residual_norm <= target
+        && problem.candidate_is_accepted(correction.candidate(&solution))?
+    {
         return accept(
             correction.into_values(),
             plan.maximum_iterations().get(),

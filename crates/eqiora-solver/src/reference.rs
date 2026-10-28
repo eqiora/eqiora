@@ -70,6 +70,7 @@ impl LinearSolverBackend for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
+        problem.require_candidate_check_execution(execution.report())?;
         self.capabilities().require_problem(
             plan,
             problem.scalar_domain(),
@@ -194,7 +195,10 @@ fn solve_minimum_residual(
             require_finite(&solution, "MINRES solution")?;
             let true_residual_norm =
                 true_residual_norm(execution, problem, &solution, &mut applied)?;
-            if reported_residual_norm <= target && true_residual_norm <= target {
+            if reported_residual_norm <= target
+                && true_residual_norm <= target
+                && problem.candidate_is_accepted(&solution)?
+            {
                 let report = SolveReport::accepted(
                     provider,
                     execution.provider(),
@@ -310,7 +314,7 @@ fn solve_preconditioned_conjugate_gradient(
         if reported_residual_norm <= target {
             let true_residual_norm =
                 true_residual_norm(execution, problem, &solution, &mut applied)?;
-            if true_residual_norm <= target {
+            if true_residual_norm <= target && problem.candidate_is_accepted(&solution)? {
                 let report = SolveReport::accepted(
                     provider,
                     execution.provider(),

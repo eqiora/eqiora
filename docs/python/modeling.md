@@ -1684,7 +1684,18 @@ result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
 ```
 
 This FSI model requires MINI/P1 elements for the fluid and P1 elements for
-the solid, with Backward Euler time stepping and a MINRES solve.
+the solid, with Backward Euler time stepping. The example uses reference MINRES;
+reference `BiConjugateGradientStabilized` with Identity preconditioning and
+Reproducible reduction is also compatible. Keep the same Model, mesh, time step
+and tolerances when changing only this algorithm.
+
+A transient candidate must satisfy both the true linear residual and the
+original equation-local State checks. The reference iteration continues within
+the requested iteration budget when the global norm passes before an algebraic
+State equation does. This does not relax either criterion or switch providers;
+nonconvergence remains an error. Saved States and Results repeat the original
+physical acceptance checks. These substitutions are development-only until the
+next published release includes this connection.
 `scaling=None` chooses coupled scales automatically; supply a complete
 `IncompressibleScaling` value to choose them manually.
 

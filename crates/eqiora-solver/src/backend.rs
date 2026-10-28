@@ -417,6 +417,11 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     ///
     /// Backends must consume the execution or reject it before numerical work;
     /// they must not silently run elsewhere and rewrite provenance afterward.
+    /// Before operator, reduction, or callback work, implementations must call
+    /// [`LinearProblem::require_candidate_check_execution`] with the actual
+    /// placement. Every successful return must satisfy both the original true
+    /// residual and [`LinearProblem::candidate_is_accepted`]. A method check
+    /// cannot authorize a different provider or reset the iteration budget.
     ///
     /// # Errors
     /// Returns a stable diagnostic for incompatible execution, unsupported
@@ -451,6 +456,7 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     /// # Errors
     /// Returns the backend's structured capability or numerical diagnostic.
     pub fn solve(&self, problem: &LinearProblem<'_, S>) -> Result<LinearSolution<S>, Diagnostic> {
+        problem.require_candidate_check_execution(self.backend.default_execution())?;
         self.backend.solve(problem, self.plan)
     }
 

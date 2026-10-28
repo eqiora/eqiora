@@ -14,26 +14,43 @@ impl CommonSpatialPlan {
     where
         RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
     {
+        self.solve_region_linear_checked(mapping, input, request, prepared, None)
+    }
+
+    fn solve_region_linear_checked<S: Coefficient + Send + Sync>(
+        &self,
+        mapping: &RegionDofMap<S>,
+        input: &crate::region_assembly::mapping::RegionSolveInput<S>,
+        request: LinearSolveRequest<'_>,
+        prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
+        candidate_check: Option<&crate::region_assembly::mapping::RegionCandidateCheck<'_, S>>,
+    ) -> Result<crate::region_assembly::mapping::RegionSolveOutput<S>, Diagnostic>
+    where
+        RegionDofMap<S>: RegionAlgebraicCoordinates<f64, S>,
+    {
         let current_mesh = input
             .geometry_action
             .as_ref()
             .map(|action| action.current_mesh());
         match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
+            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve_with_candidate_check(
                 mesh.mesh(),
                 input,
                 self.admission.linear.workers,
                 request,
                 prepared,
+                candidate_check,
             ),
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
-                current_mesh.unwrap_or_else(|| mesh.mesh()),
-                input,
-                self.admission.linear.workers,
-                request,
-                prepared,
-            ),
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
+                .solve_with_candidate_check(
+                    current_mesh.unwrap_or_else(|| mesh.mesh()),
+                    input,
+                    self.admission.linear.workers,
+                    request,
+                    prepared,
+                    candidate_check,
+                ),
             _ => Err(invalid(
                 "Region linear solve requires its exact affine Mesh",
             )),
@@ -431,7 +448,54 @@ impl CommonSpatialPlan {
             let execution = super::nonlinear::newton_execution(&output.solve);
             (output.fields, residual, execution)
         } else {
-            let output = self.solve_region_linear(&mapping, &input, request, prepared)?;
+            let temporal = input.temporal_structure()?;
+            let requires_candidate_check = !temporal.positive_own_capacity
+                || !mapping
+                    .temporal_coordinate_partition(&temporal)?
+                    .0
+                    .is_empty();
+            let candidate_check = |fields: &BTreeMap<
+                eqiora_core::RawId,
+                crate::region_assembly::mapping::RecoveredRegionField<S>,
+            >| {
+                // Rebuild through the same history owner: the assessor consumes
+                // its input while restoring original physical State actions.
+                let (_, assessment_input) = self.scalar_step_assembly(equations, state, grid)?;
+                let initial_partial =
+                    |scope| self.scalar_time_partial(equations, next_time_s, &[scope]);
+                let assessment = match self.admission.resources() {
+                    NativeMeshResources::Cartesian { mesh, .. } => mapping.assess_temporal_state(
+                        mesh.mesh(),
+                        assessment_input,
+                        fields,
+                        &temporal,
+                        self.linear(),
+                        initial_partial,
+                    )?,
+                    NativeMeshResources::GmshSimplicial { mesh, .. }
+                    | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
+                        .assess_temporal_state(
+                            mesh.mesh(),
+                            assessment_input,
+                            fields,
+                            &temporal,
+                            self.linear(),
+                            initial_partial,
+                        )?,
+                    _ => return Err(invalid("temporal State requires its exact nodal Mesh")),
+                };
+                Ok(assessment.accepted())
+            };
+            let output = self.solve_region_linear_checked(
+                &mapping,
+                &input,
+                request,
+                prepared,
+                requires_candidate_check.then_some(
+                    &candidate_check
+                        as &crate::region_assembly::mapping::RegionCandidateCheck<'_, S>,
+                ),
+            )?;
             let execution = CommonSpatialExecution {
                 solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
                     crate::common_result::evidence::CommonSolveEvidence::from_report(
