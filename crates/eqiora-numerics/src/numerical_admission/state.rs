@@ -54,7 +54,7 @@ fn advance_common_prepared_actions<P>(
             ))
         },
         |prepared, context| advance(prepared, &context.state),
-        |context, accepted_actions, candidate| {
+        |_, context, accepted_actions, candidate| {
             if output_actions.binary_search(&accepted_actions).is_ok() {
                 context.outputs.push((accepted_actions, candidate.clone()));
             }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::numerical_admission::linear_policy::ProfileCheckedPreparedLinear;
+use crate::numerical_admission::linear_policy::{PreparedLinearAction, ProfileCheckedPreparedLinear};
 use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, HostSolverProfile};
 use num_complex::Complex64 as C;
 
@@ -251,8 +251,23 @@ fn complex_profile_retains_exact_structure_and_rejects_incoherent_planning() {
 #[test]
 fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
     #[derive(Debug)]
-    struct UnexecutedPrepared;
+    struct UnexecutedPrepared {
+        active: bool,
+    }
     impl eqiora_solver::PreparedLinearSolver<C> for UnexecutedPrepared {
+        fn begin_action(&mut self) -> Result<(), Diagnostic> {
+            assert!(!self.active);
+            self.active = true;
+            Ok(())
+        }
+        fn commit_action(&mut self) -> Result<(), Diagnostic> {
+            panic!("profile rejection must prevent provider commit")
+        }
+        fn discard_action(&mut self) -> Result<(), Diagnostic> {
+            assert!(self.active);
+            self.active = false;
+            Ok(())
+        }
         fn solve(
             &mut self,
             _: &eqiora_solver::PreparedLinearStructureIdentity,
@@ -263,10 +278,11 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
     }
     use eqiora_solver::PreparedLinearSolver;
     let mut checked = ProfileCheckedPreparedLinear {
-        prepared: Box::new(UnexecutedPrepared),
+        prepared: Box::new(UnexecutedPrepared { active: false }),
         plan: policy().solver,
         provider: policy().provider,
         profile: Some(HostSolverProfile::general_canonical_csr()),
+        action: PreparedLinearAction::Idle,
     };
     let structure =
         eqiora_solver::PreparedLinearStructureIdentity::new(&b"test-ordering"[..]).unwrap();
@@ -274,6 +290,10 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
     let problem =
         eqiora_solver::LinearProblem::new(&Unexecuted, &rhs, LinearOperatorProperties::General)
             .unwrap();
+    assert!(checked.solve(&structure, &problem).is_err());
+    assert_eq!(checked.action, PreparedLinearAction::Idle);
+    checked.begin_action().unwrap();
+    assert!(checked.begin_action().is_err());
     assert!(
         checked
             .solve(&structure, &problem)
@@ -281,6 +301,14 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
             .message()
             .contains("profile.canonical-csr-mismatch")
     );
+    assert_eq!(checked.action, PreparedLinearAction::Failed);
+    assert!(checked.commit_action().is_err());
+    assert!(checked.solve(&structure, &problem).is_err());
+    checked.discard_action().unwrap();
+    assert_eq!(checked.action, PreparedLinearAction::Idle);
+    assert!(checked.discard_action().is_err());
+    checked.begin_action().unwrap();
+    checked.discard_action().unwrap();
 }
 
 #[test]

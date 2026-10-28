@@ -202,6 +202,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
             profile: self.profile.clone(),
             plan: self.plan,
             provider: self.backend.provider(),
+            action: PreparedLinearAction::Idle,
         })))
     }
     fn solve_with_execution(
@@ -221,26 +222,80 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PreparedLinearAction {
+    Idle,
+    Active,
+    Failed,
+}
+
 #[derive(Debug)]
 pub(super) struct ProfileCheckedPreparedLinear<S> {
     pub(super) prepared: Box<dyn eqiora_solver::PreparedLinearSolver<S>>,
     pub(super) profile: Option<eqiora_solver::HostSolverProfile>,
     pub(super) plan: SolverPlan,
     pub(super) provider: SolverProvider,
+    pub(super) action: PreparedLinearAction,
 }
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     eqiora_solver::PreparedLinearSolver<S> for ProfileCheckedPreparedLinear<S>
 {
+    fn begin_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action != PreparedLinearAction::Idle {
+            return Err(invalid("prepared action must be idle before beginning"));
+        }
+        self.prepared.begin_action()?;
+        self.action = PreparedLinearAction::Active;
+        Ok(())
+    }
+
     fn solve(
         &mut self,
         structure: &eqiora_solver::PreparedLinearStructureIdentity,
         problem: &eqiora_solver::LinearProblem<'_, S>,
     ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
-        if let Some(profile) = &self.profile {
-            profile.require_problem(problem)?;
-            profile.require_problem_resources(self.plan, self.provider, problem)?;
+        if self.action != PreparedLinearAction::Active {
+            return Err(invalid("prepared solve requires an active, nonfailed action"));
         }
-        self.prepared.solve(structure, problem)
+        let result = (|| {
+            if let Some(profile) = &self.profile {
+                profile.require_problem(problem)?;
+                profile.require_problem_resources(self.plan, self.provider, problem)?;
+            }
+            self.prepared.solve(structure, problem)
+        })();
+        // Profile rejection happens before the provider sees this solve. It must
+        // still poison the enclosing action so earlier tentative factors cannot
+        // be committed after a later rejected correction.
+        if result.is_err() {
+            self.action = PreparedLinearAction::Failed;
+        }
+        result
+    }
+
+    fn commit_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action != PreparedLinearAction::Active {
+            return Err(invalid("prepared commit requires an active, nonfailed action"));
+        }
+        match self.prepared.commit_action() {
+            Ok(()) => {
+                self.action = PreparedLinearAction::Idle;
+                Ok(())
+            }
+            Err(error) => {
+                self.action = PreparedLinearAction::Failed;
+                Err(error)
+            }
+        }
+    }
+
+    fn discard_action(&mut self) -> Result<(), Diagnostic> {
+        if self.action == PreparedLinearAction::Idle {
+            return Err(invalid("prepared discard requires an active or failed action"));
+        }
+        self.prepared.discard_action()?;
+        self.action = PreparedLinearAction::Idle;
+        Ok(())
     }
 }
