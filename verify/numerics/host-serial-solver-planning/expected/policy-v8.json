@@ -7616,7 +7616,7 @@
           "id": "eqiora.reference.minres-hermitian-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
@@ -8708,7 +8708,7 @@
           "id": "eqiora.reference.minres-hpd-jacobi-reproducible-complex-f64",
           "solver_provider": {
             "id": "eqiora.reference",
-            "implementation_version": "0.1.4",
+            "implementation_version": "0.1.5",
             "libraries": []
           },
           "tuple": {
