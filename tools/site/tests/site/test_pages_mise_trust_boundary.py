@@ -15,7 +15,7 @@ WORKFLOW = REPOSITORY / ".github/workflows/pages.yml"
 SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-trust-tests"
 
 MISE_ACTION = (
-    "jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0"
+    "jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4"
 )
 CACHE_ACTION = (
     "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
