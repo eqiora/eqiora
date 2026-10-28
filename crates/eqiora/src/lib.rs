@@ -269,8 +269,7 @@ pub mod backends {
             CUDA_LINEAR_SOLVER_PROVIDER, CUDA_RUNTIME_ID, CUDARC_VERSION, CudaComputeCapability,
             CudaCsrActionEvidence, CudaCsrActionResult, CudaCsrTransferEvidence,
             CudaLibraryVersions, CudaLinearSolveEvidence, CudaLinearSolveResult, CudaLinearSolver,
-            CudaLinearTransferEvidence, CudaRuntime, CudaSolverSelection, verify_csr_action,
-            verify_csr_action_against,
+            CudaLinearTransferEvidence, CudaRuntime, verify_csr_action, verify_csr_action_against,
         };
     }
 

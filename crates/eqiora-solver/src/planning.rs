@@ -457,6 +457,7 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     }
 
     /// Exact backend and solver plan supplied by the caller.
+    #[cfg(test)]
     #[must_use]
     const fn request(self) -> LinearSolveRequest<'backend, S> {
         LinearSolveRequest::new(
