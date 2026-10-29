@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { decodeScene } from "./contract";
+import { decodeScene as decodeSourceScene } from "./contract";
 import { encodeF64, encodeU32, viewerFixture } from "./fixture";
+
+const decodePackagedScene: typeof decodeSourceScene = (
+	await import(
+		/* @vite-ignore */ new URL(
+			"../../python/eqiora/_viewer/static/viewer.mjs",
+			import.meta.url,
+		).href
+	)
+).decodeScene;
 
 function metadata(fixture = viewerFixture()): Record<string, unknown> {
 	return JSON.parse(fixture.metadataJson) as Record<string, unknown>;
 }
 
-describe("private typed scene admission", () => {
+describe.each([
+	["source", decodeSourceScene],
+	["packaged", decodePackagedScene],
+] as const)("%s private typed scene admission", (_name, decodeScene) => {
 	it("admits composed Geometry, Mesh, Selection, and vertex/cell scalar layers", () => {
 		const fixture = viewerFixture();
 		const scene = decodeScene(fixture.metadataJson, fixture.buffers);
