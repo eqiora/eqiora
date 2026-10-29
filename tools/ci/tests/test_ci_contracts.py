@@ -1041,7 +1041,7 @@ class ChangeClassificationTests(unittest.TestCase):
 
     def test_documentation_only_selects_no_heavy_surface(self) -> None:
         selected = classify(
-            ["docs/architecture.md", "README.md", "bindings/python/README.md"]
+            ["docs/architecture.md", "bindings/python/README.md"]
         )
         self.assertEqual(selected, {surface: False for surface in CLASSIFIED_SURFACES})
 
@@ -1070,6 +1070,15 @@ class ChangeClassificationTests(unittest.TestCase):
         ):
             with self.subTest(non_executable_reference=path):
                 self.assertFalse(classify([path])["python"])
+
+        # The root README model listing runs in the installed Python gate.
+        readme = impact_plan(["README.md"])
+        self.assertEqual(
+            readme.selections(),
+            {surface: surface == "python" for surface in CLASSIFIED_SURFACES},
+        )
+        self.assertEqual(readme.lane("python").owning_changed_inputs, ("README.md",))
+        self.assertFalse(classify(["bindings/python/README.md"])["python"])
 
     def test_site_input_closure_selects_only_real_artifact_inputs(self) -> None:
         relevant = (
@@ -1446,7 +1455,7 @@ class ChangeClassificationTests(unittest.TestCase):
     ) -> None:
         valid = render_outputs(
             "a" * 40,
-            classify(["README.md"]),
+            classify(["docs/architecture.md"]),
             full=False,
             site_source_sha="b" * 40,
             site_reason="unchanged input closure",
