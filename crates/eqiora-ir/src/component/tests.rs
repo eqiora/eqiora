@@ -666,3 +666,41 @@ fn additive_terms_share_live_branch_and_guard_boundary_projection() {
         }
     }
 }
+
+#[test]
+fn scoped_normal_uses_the_complete_oriented_ambient_vector() {
+    use eqiora_schema::kernel::ExprNode;
+    let on = Id::<kinds::Domain>::new();
+    for (dimension, normal, expected) in [
+        (2, vec![0.6, 0.8], vec![1.2, 1.6]),
+        (2, vec![-0.6, -0.8], vec![-1.2, -1.6]),
+        (3, vec![0., 0.6, 0.8], vec![0., 1.2, 1.6]),
+    ] {
+        let boundary = SpatialSupport::Boundary {
+            domain: "wall",
+            parent: "body",
+            dimensions: dimension,
+        };
+        let mut builder = ExprDagBuilder::new();
+        let normal_node = builder.push(ExprNode::NormalVector { on }).unwrap();
+        let speed = builder
+            .constant(eqiora_core::DynQuantity::new(
+                2.,
+                DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap();
+        let root = builder.mul(normal_node, speed).unwrap();
+        let typed = TypedResidual::infer(
+            builder.finish([root]).unwrap(),
+            Some(boundary.clone()),
+            |id| (id == on).then(|| boundary.clone()),
+            RootContract::ComponentwiseResidual,
+            |_| -> Result<ExpressionType<&str>, ()> { unreachable!() },
+        )
+        .unwrap();
+        assert!(ComponentScalarization::lower_spatial_selected(&typed, &[root], None).is_err());
+        let lowered =
+            ComponentScalarization::lower_spatial_selected(&typed, &[root], Some(&normal)).unwrap();
+        assert_eq!(lowered.evaluate(|_| None).unwrap(), expected);
+    }
+}

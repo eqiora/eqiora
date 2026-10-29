@@ -607,6 +607,22 @@ impl<'a, I: Clone + Eq> ComponentDagLowering<'a, I> {
                 }
                 self.lower_part(value, component, part)?
             }
+            ExprNode::NormalVector { .. } => {
+                let axis = *component.first().ok_or_else(|| {
+                    invalid_component_ir("normal vector requires one Cartesian component")
+                })? as usize;
+                let value = *self.boundary_normal()?.get(axis).ok_or_else(|| {
+                    invalid_component_ir("normal vector component exceeds ambient dimension")
+                })?;
+                self.builder.constant(DynQuantity::new(
+                    if part == ScalarPart::Imaginary {
+                        0.0
+                    } else {
+                        value
+                    },
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                ))?
+            }
             ExprNode::NormalComponent { value, .. } => {
                 self.lower_normal_component(value, component, part)?
             }

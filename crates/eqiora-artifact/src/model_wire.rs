@@ -25,7 +25,7 @@ pub struct ModelEnvelope {
 
 impl ModelEnvelope {
     /// Exact schema emitted and admitted by the current artifact owner.
-    pub const SCHEMA: &'static str = "eqiora.model-envelope/v49";
+    pub const SCHEMA: &'static str = "eqiora.model-envelope/v50";
 
     /// Encode one immutable validated Semantic Kernel program.
     ///

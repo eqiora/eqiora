@@ -120,3 +120,10 @@ impl<I: Clone + PartialEq> ExpressionType<I> {
         Ok(ExpressionType::scalar(unit, Some(support.clone())))
     }
 }
+
+impl<I: Clone + Eq> ExpressionType<I> {
+    /// The dimensionless real unit normal on an exact boundary support.
+    pub fn normal_vector(support: Option<&SpatialSupport<I>>) -> Result<Self, TypeViolation<I>> {
+        super::spatial::normal_vector(support)
+    }
+}

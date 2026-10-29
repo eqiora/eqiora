@@ -15,6 +15,7 @@ impl LoweringExpression {
             return value.clone();
         }
         let node = match self.node.as_ref() {
+            LoweringExpressionNode::NormalVector => LoweringExpressionNode::NormalVector,
             LoweringExpressionNode::Jvp { value, directions } => LoweringExpressionNode::Jvp {
                 value: value.clone_shared(cache),
                 directions: directions

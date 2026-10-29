@@ -26,7 +26,7 @@ pub struct ModelTransactionEnvelope {
 
 impl ModelTransactionEnvelope {
     /// Exact schema emitted and admitted by the current artifact owner.
-    pub const SCHEMA: &'static str = "eqiora.model-transaction-envelope/v49";
+    pub const SCHEMA: &'static str = "eqiora.model-transaction-envelope/v50";
 
     /// Encode an ordered transaction without changing operation order.
     ///

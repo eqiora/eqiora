@@ -29,7 +29,7 @@ fn replay(program: &KernelProgram) -> KernelProgram {
     );
     let old = String::from_utf8(bytes)
         .unwrap()
-        .replace("eqiora.model-envelope/v49", "eqiora.model-envelope/v48");
+        .replace("eqiora.model-envelope/v50", "eqiora.model-envelope/v48");
     assert!(ModelEnvelope::from_json(old.as_bytes(), ModelDecoderLimits::default()).is_err());
     replay
 }

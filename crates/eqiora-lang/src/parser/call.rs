@@ -8,7 +8,9 @@ impl Parser<'_> {
         let mut positional = Vec::new();
         let mut named = Vec::new();
         let mut child_depth = 0;
-        if self.at(TokenKind::RightParen) && !matches!(path.as_str(), "boundaries" | "time") {
+        if self.at(TokenKind::RightParen)
+            && !matches!(path.as_str(), "boundaries" | "time" | "normal_vector")
+        {
             self.error_here("operator call requires at least one argument");
             return None;
         }

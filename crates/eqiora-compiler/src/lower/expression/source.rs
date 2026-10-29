@@ -6,6 +6,17 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
         return LoweringExpression::literal(value.clone(), expression.range());
     }
     let kind = match expression.kind() {
+        ExprKind::Call { callee, arguments } if callee.as_str() == "normal_vector" => {
+            if arguments
+                .positional()
+                .is_some_and(|values| values.is_empty())
+            {
+                LoweringExpressionNode::NormalVector
+            } else {
+                LoweringExpressionNode::InvalidValue("normal_vector() accepts no arguments")
+            }
+        }
+
         ExprKind::Call { callee, arguments }
             if crate::math::boundary::Operation::named(callee.as_str()).is_some() =>
         {
