@@ -32,7 +32,8 @@ use eqiora::realization::{
 use eqiora::solver::{
     AlgebraicBlock, ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties,
     LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SolverCapabilities, SolverCapability,
+    SolverCapabilities, SolverCapability, SolverPlanningObjective, SolverPlanningProfile,
+    SolverSelection,
 };
 use eqiora_execution::{
     AdmittedExecution, CudaPartitionPlacement, DeploymentBinding, DistributedDeviceTransport,
@@ -118,6 +119,33 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
         .sha256_bytes();
     assert_eq!(mesh_sha256, host.mesh_reference.sha256());
 
+    let host_solver = host.resolved.plan().solver();
+    let selection = group
+        .select_plan_mpi_cuda(
+            SolverPlanningProfile::canonical_csr(
+                LinearOperatorProperties::SymmetricIndefinite,
+                None,
+                Some(ReductionPolicy::Reproducible),
+            )
+            .with_execution(
+                MPI_EXECUTION_PROVIDER,
+                ExecutionReport::distributed(MPI_EXECUTION, partitions),
+            )
+            .unwrap(),
+            SolverPlanningObjective::Robust,
+            host_solver.relative_tolerance(),
+            host_solver.absolute_tolerance(),
+            host_solver.maximum_iterations(),
+        )
+        .expect("the actual MPI group selects the bounded composed MINRES subplan before assembly");
+    assert_eq!(selection.solver_plan(), host_solver);
+    assert!(
+        selection
+            .costs()
+            .iter()
+            .all(|cost| cost.total_work().is_none() && cost.numeric_payload_bytes().is_none())
+    );
+
     let reference_capture =
         CapturingAssemblyBackend::new(&eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND);
     let reference_finalized = finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
@@ -140,7 +168,7 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
         .solve(&REFERENCE_LINEAR_SOLVER)
         .expect("independent CPU MINRES and FSI acceptance succeed");
 
-    let distributed_resolved = resolve_distributed_cuda(&canonical, &host, &group);
+    let distributed_resolved = resolve_distributed_cuda(&canonical, &host, &group, &selection);
     let layout = mesh_layout(&spatial.mesh, partitions, mesh_sha256);
     let (distributed_finalized, assembly_evidence, candidate_systems) = {
         let backend = MpiSpatialAssemblyBackend::new(&mut group, layout)
@@ -200,11 +228,85 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
         );
     }
 
+    // One rank supplies each local failure; every rank must reject before any
+    // CUDA action setup, without substituting host execution.
+    let altered = eqiora::solver::ExecutionProvider::new(
+        eqiora::solver::ExecutionId::new("eqiora.test.wrong-local-action"),
+        MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER.implementation_version(),
+        MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER.libraries(),
+    );
+    for probe in 0..4 {
+        let selected_rank = group.partition().index() == 0;
+        let binding = if probe == 0 && selected_rank {
+            Err(Diagnostic::error(
+                eqiora::diagnostic::codes::INVALID_REALIZATION,
+                "injected rank-local binding construction failure",
+            ))
+        } else {
+            distributed_cuda_binding_with(
+                prepared.realization_graph(),
+                &group,
+                local_device.clone(),
+                if probe == 1 && selected_rank {
+                    altered
+                } else {
+                    MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER
+                },
+                u32::from(probe == 2 && selected_rank),
+                if probe == 3 && selected_rank {
+                    eqiora::solver::SolverProvider::new(
+                        eqiora::solver::BackendId::new("eqiora.cuda.krylov"),
+                        env!("CARGO_PKG_VERSION"),
+                        &[],
+                    )
+                } else {
+                    MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER
+                },
+            )
+        };
+        let error = group
+            .bind_selected_mpi_cuda(&selection, binding, prepared.complete_system(), None)
+            .unwrap_err();
+        assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_REALIZATION);
+        assert_rank_bytes_agree(&world, error.message().as_bytes());
+    }
+    let changed_controls = group
+        .select_plan_mpi_cuda(
+            selection.profile(),
+            SolverPlanningObjective::Robust,
+            selection.solver_plan().relative_tolerance() * 2.0,
+            selection.solver_plan().absolute_tolerance(),
+            selection.solver_plan().maximum_iterations(),
+        )
+        .expect("changed controls independently select the same numerical tuple");
+    let controls_binding =
+        distributed_cuda_binding(prepared.realization_graph(), &group, local_device.clone());
+    let error = group
+        .bind_selected_mpi_cuda(
+            &changed_controls,
+            controls_binding,
+            prepared.complete_system(),
+            None,
+        )
+        .unwrap_err();
+    assert_rank_bytes_agree(&world, error.message().as_bytes());
+
     let fallback_token = AdmittedExecution::admit_distributed_cuda_linear(
         prepared.realization_graph(),
         prepared.distributed_system(),
         prepared.complete_system(),
-        distributed_cuda_binding(prepared.realization_graph(), &group, local_device.clone()),
+        group
+            .bind_selected_mpi_cuda(
+                &selection,
+                distributed_cuda_binding(
+                    prepared.realization_graph(),
+                    &group,
+                    local_device.clone(),
+                ),
+                prepared.complete_system(),
+                None,
+            )
+            .expect("selected composition binds before fallback falsifier"),
     )
     .expect("the composite fallback falsifier admits the exact same system");
     let fallback = group
@@ -216,7 +318,14 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
     );
     assert!(fallback.message().contains("Admission"));
 
-    let binding = distributed_cuda_binding(prepared.realization_graph(), &group, local_device);
+    let binding = group
+        .bind_selected_mpi_cuda(
+            &selection,
+            distributed_cuda_binding(prepared.realization_graph(), &group, local_device),
+            prepared.complete_system(),
+            None,
+        )
+        .expect("the selected MPI subplan authenticates the unchanged CUDA deployment");
     let expected_admission = prepared
         .distributed_system()
         .admission_fingerprint(prepared.solver_plan())
@@ -273,6 +382,7 @@ fn resolve_distributed_cuda(
     canonical: &eqiora_numerics::fsi::FixedReferenceFsiCartesianModel2d,
     host: &support::fixed_reference_fsi::ExecutionContext,
     group: &MpiExecutionGroup,
+    selection: &SolverSelection,
 ) -> eqiora::realization::ResolvedCoupledFieldwiseRealization {
     let host_plan = host.resolved.plan();
     let fluid = canonical.fluids().next().expect("one fluid Domain");
@@ -295,7 +405,7 @@ fn resolve_distributed_cuda(
             plan_field_scale(host_plan, pressure),
         )
         .expect("the host Realization owns coherent FSI scales"),
-        host_plan.solver(),
+        selection.solver_plan(),
         0,
     )
     .expect("the exact distributed CUDA FSI plan is valid");
@@ -350,12 +460,30 @@ fn distributed_cuda_binding(
     graph: &eqiora::realization::PortableRealizationGraph,
     group: &MpiExecutionGroup,
     device: eqiora::device::DeviceDescriptor,
-) -> DeploymentBinding {
-    let queue = QueueSlot::new(device.id(), 0);
+) -> Result<DeploymentBinding, eqiora::Diagnostic> {
+    distributed_cuda_binding_with(
+        graph,
+        group,
+        device,
+        MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+        0,
+        MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER,
+    )
+}
+
+fn distributed_cuda_binding_with(
+    graph: &eqiora::realization::PortableRealizationGraph,
+    group: &MpiExecutionGroup,
+    device: eqiora::device::DeviceDescriptor,
+    local_provider: eqiora::solver::ExecutionProvider,
+    queue_ordinal: u32,
+    solver_provider: eqiora::solver::SolverProvider,
+) -> Result<DeploymentBinding, eqiora::Diagnostic> {
+    let queue = QueueSlot::new(device.id(), queue_ordinal);
     DeploymentBinding::bind_distributed_cuda(
         graph,
         DistributedExecutorDescriptor::new(
-            MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER,
+            solver_provider,
             MPI_EXECUTION_PROVIDER,
             ProcessGroupSlot::new(0),
             group.partitions(),
@@ -363,15 +491,13 @@ fn distributed_cuda_binding(
             group.solver_capabilities(),
         ),
         CudaPartitionPlacement::new(
-            MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+            local_provider,
             device,
             queue,
             SparseActionPolicy::Deterministic,
-        )
-        .expect("the local queue belongs to the selected device"),
+        )?,
         DistributedDeviceTransport::HostStaged,
     )
-    .expect("the process group and local CUDA action satisfy the exact graph")
 }
 
 fn assert_composite_evidence(
