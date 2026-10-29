@@ -29,7 +29,7 @@
 | GPU reproducibility modes | 🟨 | ⬜ | ⬜ | ⬜ | Host true residual checks exist; deterministic device reductions remain |
 | Multi-GPU execution | 🟨 | ⬜ | ⬜ | ⬜ | Device identity can grow; residency, partition, transport, and evidence remain |
 | ROCm execution | 🟨 | ⬜ | ⬜ | ⬜ | Experimental investigation only; no support claim |
-| Vendor-neutral GPU kernels | 🟨 | ⬜ | ⬜ | ⬜ | CubeCL experiment did not pass `f64` and MSRV gates |
+| Vendor-neutral GPU kernels | 🟨 | ⬜ | ⬜ | ⬜ | [Isolated CubeCL experiment](../../experiments/cubecl-local-action/README.md) only: device-independent checks and CUDA/HIP compilation pass on Rust 1.95. Current physical `f64` execution and product integration remain unverified. |
 | Accelerator capability negotiation | ✅ | ✅ | ✅ | ⬜ | Typed bounded CUDA admission; broad scalar/layout/operator matrix remains |
 | Out-of-core execution | ⬜ | ⬜ | ⬜ | ⬜ | Streaming operators, storage hierarchy, and recovery remain |
 | Batch/HPC scheduler integration | ⬜ | ⬜ | ⬜ | ⬜ | Slurm/PBS launch, manifests, staging, monitoring, and collection remain |

@@ -7,12 +7,13 @@ use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
+use cubecl::Device;
 use cubecl::features::TypeUsage;
 use cubecl::prelude::*;
 use eqiora_ir::LocalLinearActionIr;
 
 /// CubeCL release evaluated by this experiment.
-pub const CUBECL_VERSION: &str = "0.10.0";
+pub const CUBECL_VERSION: &str = "0.11.3";
 
 /// Eqiora-owned source contract for the two generated kernels.
 pub const KERNEL_CONTRACT: &str = "eqiora.local-linear-action/cubecl-v1";
@@ -164,9 +165,9 @@ impl std::error::Error for ExperimentError {}
 
 #[cube]
 fn apply_local_action(
-    coefficients: &Array<f64>,
-    input: &Array<f64>,
-    output: &mut Array<f64>,
+    coefficients: &[f64],
+    input: &[f64],
+    output: &mut [f64],
     rows: usize,
     columns: usize,
 ) {
@@ -186,9 +187,9 @@ fn apply_local_action(
 
 #[cube(launch)]
 fn ordered_local_action(
-    coefficients: &Array<f64>,
-    input: &Array<f64>,
-    output: &mut Array<f64>,
+    coefficients: &[f64],
+    input: &[f64],
+    output: &mut [f64],
     rows: usize,
     columns: usize,
 ) {
@@ -197,9 +198,9 @@ fn ordered_local_action(
 
 #[cube(launch, fast_math = FastMath::all())]
 fn fast_local_action(
-    coefficients: &Array<f64>,
-    input: &Array<f64>,
-    output: &mut Array<f64>,
+    coefficients: &[f64],
+    input: &[f64],
+    output: &mut [f64],
     rows: usize,
     columns: usize,
 ) {
@@ -214,8 +215,8 @@ fn fast_local_action(
 /// # Errors
 /// Returns a typed capability, shape, validation, launch, or download error.
 #[allow(unsafe_code)]
-pub fn execute<R: Runtime>(
-    device: &R::Device,
+pub fn execute(
+    device: &Device,
     action: &LocalLinearActionIr,
     input: &[f64],
     policy: LocalActionPolicy,
@@ -235,8 +236,8 @@ pub fn execute<R: Runtime>(
         .ok_or(ExperimentError::ShapeExceedsU32)?
         / CUBE_WIDTH;
 
-    let client = R::client(device);
-    let f64_uses = f64::supported_uses::<R>(&client);
+    let client = device.client();
+    let f64_uses = f64::supported_uses(&client);
     if !f64_uses.contains(TypeUsage::Buffer) || !f64_uses.contains(TypeUsage::Arithmetic) {
         return Err(ExperimentError::MissingF64Capability);
     }
@@ -254,11 +255,11 @@ pub fn execute<R: Runtime>(
         // guards its only externally selected output index.
         unsafe {
             let coefficients =
-                ArrayArg::from_raw_parts(coefficients.clone(), action.coefficients().len());
-            let input = ArrayArg::from_raw_parts(input.clone(), action.input_len());
-            let output_arg = ArrayArg::from_raw_parts(output.clone(), action.output_len());
+                BufferArg::from_raw_parts(coefficients.clone(), action.coefficients().len());
+            let input = BufferArg::from_raw_parts(input.clone(), action.input_len());
+            let output_arg = BufferArg::from_raw_parts(output.clone(), action.output_len());
             match policy {
-                LocalActionPolicy::Ordered => ordered_local_action::launch::<R>(
+                LocalActionPolicy::Ordered => ordered_local_action::launch(
                     &client,
                     CubeCount::Static(cube_count, 1, 1),
                     CubeDim::new_1d(CUBE_WIDTH),
@@ -268,7 +269,7 @@ pub fn execute<R: Runtime>(
                     rows,
                     columns,
                 ),
-                LocalActionPolicy::Fast => fast_local_action::launch::<R>(
+                LocalActionPolicy::Fast => fast_local_action::launch(
                     &client,
                     CubeCount::Static(cube_count, 1, 1),
                     CubeDim::new_1d(CUBE_WIDTH),
@@ -302,7 +303,7 @@ pub fn execute<R: Runtime>(
     Ok(LocalActionEvidence {
         cubecl_version: CUBECL_VERSION,
         kernel_contract: KERNEL_CONTRACT,
-        runtime: R::name(&client),
+        runtime: client.name(),
         device: format!("{device:?}"),
         policy,
         output,
@@ -335,7 +336,7 @@ mod tests {
     fn policy_and_kernel_identity_are_stable_evidence() {
         assert_eq!(LocalActionPolicy::Ordered.as_str(), "ordered");
         assert_eq!(LocalActionPolicy::Fast.as_str(), "fast");
-        assert_eq!(CUBECL_VERSION, "0.10.0");
+        assert_eq!(CUBECL_VERSION, "0.11.3");
         assert_eq!(KERNEL_CONTRACT, "eqiora.local-linear-action/cubecl-v1");
     }
 }
