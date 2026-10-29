@@ -2,7 +2,7 @@
 
 The exact solution and source are derived in
 [`models/problem.md`](../models/problem.md); no external numerical table is
-used. Each MPI candidate is independently compared with the repository's
+used. Each explicit Reproducible/Fast MPI candidate is independently compared with the repository's
 one-worker serial reference solver after resolving the same decoded Semantic
 Model into the corresponding replicated Q1 FEM or TPFA Realization.
 

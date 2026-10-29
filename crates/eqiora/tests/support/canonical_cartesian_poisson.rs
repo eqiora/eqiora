@@ -236,6 +236,15 @@ pub fn host_request(
     method: DiscretizationMethod,
     revision: u64,
 ) -> Result<RealizationRequest, String> {
+    host_request_with_reduction(program, method, revision, ReductionPolicy::Reproducible)
+}
+
+pub fn host_request_with_reduction(
+    program: &KernelProgram,
+    method: DiscretizationMethod,
+    revision: u64,
+    reduction: ReductionPolicy,
+) -> Result<RealizationRequest, String> {
     let (space, quadrature) = method_policy(method)?;
     let plan = RealizationPlan::new(
         space,
@@ -247,7 +256,7 @@ pub fn host_request(
             },
             quadrature,
         ),
-        solver_plan(ReductionPolicy::Reproducible),
+        solver_plan(reduction),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },

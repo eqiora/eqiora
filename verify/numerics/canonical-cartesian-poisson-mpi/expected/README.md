@@ -1,7 +1,7 @@
 # Acceptance
 
-At one, two, and four ranks, both Q1 FEM and cell-centered TPFA must satisfy all
-of the following:
+At one, two, and four ranks, both Q1 FEM and cell-centered TPFA with each
+explicit Reproducible/Fast policy must satisfy all of the following:
 
 - all ranks reproduce identical canonical Model, Realization, Run, complete
   system, partition, and derived-layout artifact digests;
@@ -9,8 +9,11 @@ of the following:
   bytes and digest;
 - rotated-cyclic ownership derives a valid content-linked layout and the same
   plan-inclusive admission fingerprint on every rank;
-- CG/Jacobi uses `Reproducible`, the exact MPI backend and distributed
-  producer topology, plus independent one-worker host verification;
+- CG/Jacobi retains the exact requested `Reproducible` or `Fast` Plan and
+  receipt policy, MPI backend and distributed producer topology, plus
+  independent one-worker host verification;
+- complete system, partition and derived layout content is identical across
+  the policies while their Realization and Run identities differ;
 - method-native continuous-L2 error is below `2e-3` and relative reaction or
   flux balance is below `2e-11`;
 - every finished algebraic and balance scalar agrees with the separately

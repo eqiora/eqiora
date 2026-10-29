@@ -15,6 +15,9 @@ capabilities = [
   "pre-numerical-workspace-process-group-admission",
   "plan-sealed-mpi-admission",
   "jacobi-cg-reproducible-solve",
+  "jacobi-cg-fast-solve",
+  "reduction-independent-system-and-ownership",
+  "requested-effective-reduction-provenance",
   "actual-preallocated-bounded-collective-trace",
   "fixed-nine-step-distributed-execution-dag",
   "explicit-index-replication",
@@ -44,7 +47,7 @@ maximum_l2_error = 2e-3
 maximum_relative_balance = 2e-11
 ranks = "one, two, and four"
 workers_per_rank = 1
-reduction = "reproducible"
+reduction = "reproducible and fast"
 
 [claim_boundary]
 physical_nodes = 1
@@ -63,7 +66,7 @@ distributed_field = false
 physical_multi_node_execution = false
 scalability = false
 hybrid_rank_thread_execution = false
-fast_reduction = false
+fast_reduction = true
 mpi_cuda_execution = false
 fsi_execution = false
 minimum_residual_execution = false

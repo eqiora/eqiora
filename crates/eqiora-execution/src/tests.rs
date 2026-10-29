@@ -432,6 +432,12 @@ fn portable_distributed_graph() -> eqiora_realization::PortableRealizationGraph 
 }
 
 fn portable_distributed_minres_graph() -> eqiora_realization::PortableRealizationGraph {
+    portable_distributed_minres_graph_with(ReductionPolicy::Reproducible)
+}
+
+fn portable_distributed_minres_graph_with(
+    reduction: ReductionPolicy,
+) -> eqiora_realization::PortableRealizationGraph {
     let model = OntologyId::new();
     let semantic_revision = SemanticRevision::new(1);
     let default = default_plan_v0().unwrap();
@@ -443,7 +449,7 @@ fn portable_distributed_minres_graph() -> eqiora_realization::PortableRealizatio
     )
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
-    .with_reduction(ReductionPolicy::Reproducible);
+    .with_reduction(reduction);
     let plan = RealizationPlan::new(
         default.space(),
         default.discretization(),
@@ -463,7 +469,15 @@ fn portable_distributed_minres_graph() -> eqiora_realization::PortableRealizatio
             SpatialDimensionSupport::exact(NonZeroUsize::MIN),
         )],
         [VectorLayoutKind::Distributed],
-        distributed_minres_solver_capabilities(),
+        SolverCapabilities::new(
+            [LinearSolver::MinimumResidual],
+            [LinearOperatorProperties::SymmetricIndefinite],
+            [PreconditionerPolicy::Identity],
+            [reduction],
+            eqiora_core::ScalarDomain::Real,
+            [ScalarType::F64],
+        )
+        .unwrap(),
         TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
     )
     .unwrap();
@@ -1136,12 +1150,21 @@ fn distributed_binding_rejects_layout_policy_and_executor_drift() {
     assert!(rejected.message().contains("explicitly distributed"));
 
     let fast_graph = portable_distributed_graph_with(NonZeroUsize::MIN, ReductionPolicy::Fast);
-    let rejected = DeploymentBinding::bind_distributed(
+    let accepted = DeploymentBinding::bind_distributed(
         &fast_graph,
         descriptor(distributed_solver_capabilities(ReductionPolicy::Fast)),
     )
+    .unwrap();
+    assert_eq!(accepted.solver_plan().reduction(), ReductionPolicy::Fast);
+    // A Fast graph still needs that exact provider capability; no policy fallback.
+    let rejected = DeploymentBinding::bind_distributed(
+        &fast_graph,
+        descriptor(distributed_solver_capabilities(
+            ReductionPolicy::Reproducible,
+        )),
+    )
     .unwrap_err();
-    assert!(rejected.message().contains("reproducible"));
+    assert_eq!(rejected.code(), codes::INVALID_REALIZATION);
 
     let multi_worker_graph = portable_distributed_graph_with(
         NonZeroUsize::new(2).unwrap(),
@@ -1216,6 +1239,33 @@ fn distributed_binding_accepts_only_the_exact_symmetric_indefinite_minres_tuple(
     )
     .unwrap_err();
     assert_eq!(rejected.code(), codes::INVALID_REALIZATION);
+    // Even an over-advertised descriptor cannot extend MINRES to Fast.
+    let fast_graph = portable_distributed_minres_graph_with(ReductionPolicy::Fast);
+    let rejected = DeploymentBinding::bind_distributed(
+        &fast_graph,
+        DistributedExecutorDescriptor::new(
+            solver_provider(TEST_DISTRIBUTED_BACKEND),
+            execution_provider(TEST_DISTRIBUTED_EXECUTION),
+            ProcessGroupSlot::new(0),
+            partitions,
+            NonZeroUsize::MIN,
+            SolverCapabilities::new(
+                [LinearSolver::MinimumResidual],
+                [LinearOperatorProperties::SymmetricIndefinite],
+                [PreconditionerPolicy::Identity],
+                [ReductionPolicy::Fast],
+                eqiora_core::ScalarDomain::Real,
+                [ScalarType::F64],
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap_err();
+    assert!(
+        rejected
+            .message()
+            .contains("reproducible identity-preconditioned MINRES")
+    );
 }
 
 #[test]

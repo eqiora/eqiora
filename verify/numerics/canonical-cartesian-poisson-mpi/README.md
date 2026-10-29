@@ -8,8 +8,12 @@ two, and four ranks. Children reconstruct `KernelProgram` from those shared
 bytes; no rank recompiles or alpha-normalizes source.
 
 For continuous Q1 FEM and orthogonal cell-centered TPFA, every child resolves
-`2D + f64 + Distributed + HostCpu { threads: 1 } + CG/Jacobi/Reproducible`,
-then finalizes replicated assembly into the sole captured complete-CSR view.
+`2D + f64 + Distributed + HostCpu { threads: 1 } + CG/Jacobi` with each explicit
+`Reproducible` and `Fast` reduction policy, then finalizes replicated assembly
+into the sole captured complete-CSR view. Solver controls, equations and
+acceptance bounds are identical. Complete system, partition and layout content
+must agree across policies; Realization and Run identities must change with
+requested/effective reduction provenance.
 The test uses rotated-cyclic ownership, so `(global + 1) % ranks` exercises
 noncontiguous owner order. Model, Realization, Run, system, partition, and
 derived-layout artifacts must round-trip to exact canonical bytes and agree by
@@ -42,7 +46,10 @@ host output, the MPI adapter all-gathers one domain-separated summary over
 the operator, output, dimension, report, partition, layout, admission,
 process group, and complete actual trace. Every rank must agree that summary.
 Only after this final receipt agreement does the case invoke the
-method-native FEM or FVM finish. The finished field must satisfy the analytic
+method-native FEM or FVM finish. Reproducible reductions retain rank-ordered
+folds; Fast reductions use the MPI implementation's native all-reduce. Neither
+solution-bit identity nor equal iteration counts are required across policies
+or rank counts; exact rank agreement within each Run remains required. The finished field must satisfy the analytic
 continuous-L2 bound, reaction-or-flux plus source balance, and an explicit
 tolerance against a separately resolved one-worker serial reference. A
 changed-RHS negative case forms an internally exact content-linked DAG but is
@@ -65,7 +72,7 @@ cargo run -p eqiora-verify -- run \
 This is physical one-host MPI evidence at one, two, and four ranks, with
 replicated mesh, assembly, and method finish. It does not claim RFC 0060's
 distributed mesh, distributed assembly, or distributed Field; physical
-multi-node canonical execution; scaling; hybrid rank/thread execution; the
-`Fast` reduction in this canonical case; MPI plus CUDA; FSI or MINRES;
+multi-node canonical execution; scaling; hybrid rank/thread execution; MPI plus
+CUDA; FSI or MINRES;
 process-failure recovery; another scalar, dimension, or mesh family; a
 durable execution receipt; or a curated public execution-graph API.
