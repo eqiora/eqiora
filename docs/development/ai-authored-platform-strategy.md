@@ -1,206 +1,142 @@
 # AI-authored platform strategy
 
 - Status: Accepted
-- Revised: 2026-10-20
-- Related: [high-risk and parallel development](vertical-slice-development.md),
-  [local verification](local-verification.md), and [roadmap](../roadmap.md)
+- Revised: 2026-10-29
+- Related: [AGENTS.md](../../AGENTS.md), [roadmap direction](../roadmap.md#direction),
+  [high-risk and parallel development](vertical-slice-development.md), and
+  [local verification](local-verification.md)
+
+This document explains why Eqiora is developed the way `AGENTS.md` describes. `AGENTS.md`
+holds the rules; this file holds the reasons and the evidence behind them.
 
 ## Decision
 
-Eqiora optimizes for **truthful product lead time**: the time from a concrete accepted outcome to
-a merged, focused-tested capability whose verification status is reported independently and
-honestly. It does not optimize agent utilization, document volume, open lanes, contract count,
-test count, or CI activity in isolation.
+Eqiora optimizes for **useful product lead time**: the time from a user outcome in the
+[roadmap direction](../roadmap.md#direction) to a merged, tested capability whose status is
+reported honestly. It does not optimize agent utilization, document volume, open lanes, test
+count, or CI activity on their own.
 
 AI makes implementation cheap. It does not make context, integration, compatibility, scientific
-evidence, or human attention free. Process and abstraction therefore need the same deletion
+evidence, or human attention free. Process, documents, and abstractions get the same deletion
 pressure as production code.
-
-**Design responsibility boundaries first, implement concrete capabilities, and abstract when
-real consumers demonstrate a shared responsibility.** Standardize invariants that must agree
-across the system from the outset. Complete necessary abstraction as part of the work that
-exposes it; neither speculative generality nor indefinite duplication is the default.
-
-The default development path is one primary agent, one local change, the narrowest useful
-check, one self-review, and stop. The same primary agent owns implementation through pull
-request integration. Durable scientific, compatibility, artifact, security, release, CI,
-governance, and architecture risk keeps its applicable existing evidence and focused review,
-without requiring a second actor. Nothing else inherits that ceremony by analogy.
 
 ## Product position
 
-Eqiora aims to make computational engineering capabilities machine-checkable end to end, with
-narrow claims and independently truthful verification status. Performance claims remain
-workload-specific and bind
-hardware, mesh, ordering, solver, preconditioner, tolerances, transfer accounting, warmup, and
-repetitions.
+The product promise is: write the textbook equation, choose the method, run it fast on CPU
+threads, MPI or GPU, and differentiate the result. Well-known equations and boundary conditions
+come from standard packages; any equation can still be written by hand.
 
-Machine-checkability does not mean every implementation receives a new schema, proof framework,
-registry, or exact-byte oracle. A focused test at an existing typed boundary is the normal
-evidence for ordinary behavior. Independent scientific derivation and exact-artifact oracles
-remain exceptional because their failure cost is durable.
+Verification serves that promise. Narrow, honest claims keep users from trusting results the
+code does not support, but they are not the product. When a check, ratchet, or document does
+not protect a user outcome or a plausible defect, delete it.
 
-Generated or hand-written physics must not create a bespoke proof system per module. Use
-the existing compiler, realization, and evidence boundaries; extend their shared responsibility
-when a concrete capability requires it. Numerical implementations and independent evidence
-must remain independently derived even when their formulas look similar.
-
-## Claim-local evidence development
-
-Evidence development is active under [RFC 0089](../../rfcs/0089-resume-claim-local-evidence-development.md).
-Add or change registered evidence when a durable scientific, semantic, artifact, security, release,
-or CI-trust claim needs a stronger falsifier than an ordinary focused product test. Derive its
-expected values, relations, tolerances, and failure probes independently of implementation output.
-
-Evidence binds the smallest semantic projection that can falsify its claim. Do not use unrelated
-whole source files, package roots, generated trees, or broad inventories as proxies for a narrow
-surface. Exact bytes remain appropriate when those bytes are the actual public or persisted
-contract. Investigate a mismatch; never copy observed output into an expectation merely to pass.
-
-## Context scales by navigation
-
-Large repositories stay usable when agents can find the right context without loading all
-context at once.
-
-- Keep root `AGENTS.md` short and repository-wide.
-- Put path-specific instructions only near code that repeatedly needs different rules.
-- Treat documentation as a map to source, tests, manifests, and decisions, not as a copy of
-  them.
-- State each instruction once in its authoritative owner and link to it.
-- Start with the goal, domain context, hard constraints, approval boundaries, and success
-  criteria. Let the agent discover implementation details from the repository.
-- Expose or invoke only tools relevant to the current task; unused tools and instructions
-  consume attention.
-- Record what was not checked. Confidence is not evidence.
-
-Add a skill only for a repeatable workflow with reusable instructions or assets. Add an MCP or
-other protocol only for a real external system boundary. A one-off repository task needs
-neither.
-
-Subagents spend additional context and tokens. Prefer them for independent, read-heavy, or
-noisy exploration whose outputs can be summarized. Keep ordinary writable work with one agent;
-parallel writes require disjoint ownership and an integration benefit greater than their merge
-cost.
+Generality is part of the product. Build the general mechanism at its existing owner rather
+than a special case, and ship the API features users expect from comparable tools. Do not add
+speculative frameworks for consumers that do not exist yet.
 
 ## Architecture discipline
 
-Establish who owns meaning, validation, and change before choosing a general implementation.
-For Eqiora, physical units, input identity, mathematical domains, diagnostic meanings, and
-persisted data contracts need consistent owners across Rust, Python, and execution backends.
-Define the boundary needed by current work; do not invent an extensibility framework for
-hypothetical consumers. Keep semantic identity, execution provenance, and presentation separate.
-Boundaries remain revisable under the pre-1.0 convergence rules below.
+Decide who owns meaning, validation, and change before choosing an implementation. Physical
+units, input identity, mathematical domains, diagnostics, and persisted data need one owner
+across Rust, Python, and execution backends.
 
-Build and verify a concrete end-to-end capability through those boundaries. Similar code is
-not sufficient evidence of a shared responsibility. Implementations that answer to different
-contracts or evolve for different reasons may remain separate, even with repeated code.
-Numerical evaluation, exact algebraic classification, independent test oracles, and distinct
-discretization methods must not be coupled merely to reduce line count. Share the invariants
-they must obey while preserving their separate algorithms and evidence responsibilities.
+Necessary abstraction is part of finishing a capability. Establish or extend one owner in the
+same change when:
 
-Necessary abstraction is part of completing a capability, not optional later cleanup. Establish
-or extend one authoritative owner in the current change when:
+- fixing one rule would otherwise need coordinated edits in several implementations;
+- two entry points disagree on the meaning of the same operation or data; or
+- a new consumer would otherwise copy an invariant or work around its owner's restriction.
 
-- correcting one rule would otherwise require coordinated edits to multiple implementations;
-- different entry points disagree on the meaning of the same operation or data contract; or
-- a concrete new consumer would otherwise copy the same invariant or work around a
-  restriction in its existing owner.
+Migrate consumers and delete the displaced paths together. Similar code alone is not evidence
+of a shared responsibility: numerical evaluation, exact algebra, independent test oracles, and
+different discretization methods stay separate when they answer to different contracts.
 
-Migrate affected consumers and delete displaced paths together. Once the shared responsibility
-is established, consolidate it before adding consumers that would make migration harder; short-term
-delivery speed is not a reason to postpone necessary abstraction. Do not add another copy with
-a promise to unify it later. A system-wide invariant may need one owner from its first use;
-an implementation abstraction needs demonstrated shared behavior and compatible reasons to
-change. Use the smallest existing type, private helper, or shared implementation that satisfies
-that need before adding a public abstraction. Do not require a quota of duplicate implementations
-before fixing an already established shared responsibility.
-
-Preserve the general mathematical surface when choosing a first executable profile. A
-convenient algorithm or fixture size must not become a permanent dimension, model-family,
-or composition restriction. Keep mathematical admissibility separate from execution
-resources, numerical conditioning, and provider availability. When a concrete consumer
-exposes such a restriction, replace the limiting algorithm at its existing owner and
-verify that consumer; do not merely increase a hard-coded size or imply untested generality.
-
-Keep one concrete capability and its necessary integration on the critical path. Complete its
-required abstraction, consumer migration, verification, and merge before treating it as done.
-Use dependency-ordered changes when needed; each integration must leave the relevant contract
-coherent. Adjacent cleanup with no bearing on that outcome must not keep expanding the work.
-Scope control is not permission to leave competing owners of an invariant touched by the change.
-Judge abstraction by whether one conceptual correction has one natural owner, not by how many
-files or functions it combines. Delete speculative abstractions with no demonstrated consumer.
-
-An architecture check must protect a plausible defect in a current supported surface.
-Private source layout is not a product artifact. Line, token, complexity, or public-surface
-ratchets may prevent unreviewable code, but each ceiling is debt: it needs a current reason,
-must not rise through ordinary work, and should disappear when a simpler invariant replaces it.
+A first executable profile must not become a permanent limit on dimension, model family, or
+composition. Keep mathematical admissibility separate from execution resources, conditioning,
+and provider availability. Every architecture ceiling is debt: it needs a current reason, must
+not rise through ordinary work, and goes away when a simpler invariant replaces it.
 
 ## Pre-1.0 API convergence
 
-Eqiora's current Rust and Python authoring APIs are design candidates, not backward-
-compatibility obligations. Until an explicit stable compatibility promise is accepted, choose
-the most coherent final surface even when that breaks a current caller. Migrate every
-repository-owned consumer, example, ordinary test, and document in the same change, and delete
-the displaced name and path. Do not retain a legacy overload, alias, wrapper, deprecation shim,
-dual lifecycle, or transition period solely for backward compatibility.
+Current Rust and Python APIs are design candidates, not compatibility obligations. Choose the
+most coherent final surface even when it breaks a current caller, migrate every repository
+consumer in the same change, and delete the old name or path. Published releases stay immutable
+history; a breaking change ships in a new release and says so plainly. Security and
+data-integrity validation moves to the new boundary and is never weakened.
 
-Published release artifacts remain immutable historical objects, but current readers and authoring
-surfaces need not preserve an obsolete pre-1.0 API, schema, or wire epoch without an explicit stable
-or external interoperability promise. A breaking correction ships in a new release and is stated
-plainly. Migrate repository-owned producers, consumers, examples, docs, tests, and evidence
-atomically, then delete displaced schemas, codecs, aliases, overloads, shims, and parallel paths.
-Security and data-integrity validation moves to the new boundary; it is not weakened.
+## Evidence
 
-## Evidence discipline
+Evidence should cost less than the mistake it prevents. Focused tests at an existing typed
+boundary cover ordinary behavior. Registered evidence under
+[RFC 0089](../../rfcs/0089-resume-claim-local-evidence-development.md) is for a durable
+scientific, artifact, security, release, or CI-trust claim that needs an independent falsifier.
 
-Evidence should be cheaper than the mistake it prevents.
+Expected values come from analytic or manufactured solutions, published references, or running
+an established open-source tool, never from Eqiora's own output. Bind the smallest check that
+can falsify the claim. Investigate a mismatch; never copy it into an expectation. A number from
+one environment says nothing about another.
 
-- Treat an accepted case as support only for its explicit claim and non-claims.
-- Use focused tests for ordinary behavior; register evidence only for a durable claim that needs
-  independent scientific, artifact, security, release, or CI-trust authority.
-- Derive evidence independently and change it only with an explicit rationale for the changed
-  claim, never to follow observed implementation output.
-- Do not generalize a result across environments, caches, hosts, or aborted runs.
-- Fix nondeterministic product or build output rather than teaching an oracle to accept it.
-- Replace broad exact witnesses with claim-local semantic checks unless exact identity is the
-  contract being tested.
+## Lessons from agent-built projects
+
+Large projects built mostly by coding agents in 2026 converged on a few practices. Eqiora
+adopts these:
+
+- **A short router, details in docs.** OpenAI's Codex team replaced one large rules file with a
+  ~100-line `AGENTS.md` that points into `docs/`. Decisions that agents cannot see in the
+  repository do not exist for them.
+- **Each rule names what enforces it.** SolidCraft's `AGENTS.md` lists every hard rule with
+  the check or skill behind it, then a "working on X, read Y" table.
+- **One core, many clients.** SolidCraft and ArtCraft route the GUI, CLI, scripts, and agent
+  tools through one command engine. Eqiora's equivalent is one compile → resolve → run path
+  for Python, Rust, CLI, Studio, and the language server.
+- **Trusted oracles.** Anthropic's parallel-Claude C compiler used GCC as a reference;
+  SolidCraft checks parts against analytic and FreeCAD-computed values. A verifier must be
+  nearly perfect or agents solve the wrong problem.
+- **Measure depth, not presence.** ArtCraft's menu-coverage numbers were criticized as presence
+  rather than working depth. Eqiora reports what is verified to work, not what is registered.
+- **Constraints beat reminders.** Cursor found "no TODOs, no partial implementations" worked
+  better than asking agents to finish. Where a rule keeps failing, add a check.
+- **Clear roles, few gates.** Cursor's planners own scope and write no code; workers finish one
+  task and return a handoff. A single overloaded agent and a central integrator both became
+  bottlenecks. Specialized maintenance roles (deduplication, docs, performance) ran well in the
+  C compiler project and in OpenAI's background clean-up tasks.
+- **Context is the scarce resource.** Test output should be terse and grep-able, with details in
+  files. Agents need their own worktree and build directory to avoid lock contention.
 
 ## Process deletion rules
 
-Before retaining a document, gate, review, receipt, template, or coordination step, name:
+Before keeping a document, gate, review, receipt, template, or coordination step, name:
 
-1. the current decision it can change or plausible defect it can expose;
+1. the decision it can change or the plausible defect it can expose;
 2. the authority that does not already carry the same fact; and
 3. the condition under which it will be deleted.
 
-Delete or consolidate it when those answers are absent. Historical RFCs may preserve decisions,
-but active instructions must not route ordinary work through superseded process. Do not create
-a replacement document merely to narrate the deletion.
+Delete or consolidate it when those answers are missing. Historical RFCs may keep old decisions,
+but active instructions must not route ordinary work through superseded process.
 
-The following are regressions unless they replace more durable complexity than they add:
+These are regressions unless they replace more complexity than they add:
 
-- a giant integration pull request used as a coordination mechanism;
+- a giant integration pull request used for coordination;
 - a risk-classifier framework for rules that fit in a short list;
 - prose copies of paths, hashes, manifests, evidence indices, or GitHub relations;
 - permanent actor identities or receipts without an adversarial trust boundary;
 - a new orchestration layer to work around build, cache, sync, or editor limits; and
-- mandatory broad verification after a focused check already answers the integration question.
+- mandatory broad verification after a focused check already answered the question.
 
 ## Evaluation and amendment
 
-Use real delivery failures to amend the strategy. Useful observations include capability lead
-time, first-pass success, correction cycles, integration conflicts, escaped defects, and
-repeated verification work. They are diagnostic, not standing reporting requirements.
+Amend this strategy from real delivery failures: lead time, first-pass success, correction
+cycles, integration conflicts, escaped defects, and repeated verification work. Change one rule
+only when an observed failure distinguishes the new rule from the old one, and remove the
+superseded rule in the same change.
 
-Change one rule only when an observed failure can distinguish the new rule from the current
-one. Remove the superseded rule in the same change. A failed experiment is deleted rather than
-kept as optional architecture.
+## Sources
 
-## Research basis
-
-The 2026-08-22 revision applies current official guidance for
-[Codex AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
-[Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), and
-[lean GPT-5.6 prompting](https://developers.openai.com/api/docs/guides/latest-model).
-These sources inform the context and orchestration rules; repository evidence remains the
-authority for Eqiora-specific decisions.
+- OpenAI, [Harness engineering](https://openai.com/index/harness-engineering/), 2026-02-11.
+- Cursor, [Towards self-driving codebases](https://cursor.com/blog/self-driving-codebases),
+  2026-02-05, and [Scaling long-running autonomous coding](https://cursor.com/blog/scaling-agents),
+  2026-01-14.
+- Anthropic, [Building a C compiler with a team of parallel Claudes](https://www.anthropic.com/engineering/building-c-compiler).
+- SolidCraft repository `AGENTS.md`, `CONTRIBUTING.md`, and `ROADMAP.md`
+  ([tangency-labs/solidcraft](https://github.com/tangency-labs/solidcraft)), October 2026.
+- ArtCraft development write-up, [syskb.com](https://syskb.com/artcraft-claude-code-rust/), 2026.

@@ -1,119 +1,104 @@
-# Repository instructions
+# Eqiora: instructions for agents
 
-Keep this file a short routing map for recurring facts that code cannot reveal.
+Eqiora lets people write a physics model as textbook equations, choose how to solve it, run it
+fast on CPU threads, MPI or GPU, and differentiate the result. Rust core, Python first. This file
+is a router: direction, hard rules and what enforces each, the work loop, then what to read for
+your task. Humans start at CONTRIBUTING.md.
 
-- [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — optimization boundaries, including pre-1.0 API convergence.
-- [Claim-local evidence](rfcs/0089-resume-claim-local-evidence-development.md) — independently derive evidence at the narrowest durable claim boundary.
-- [High-risk and parallel development](docs/development/vertical-slice-development.md) — read only for high-risk capability work or explicitly requested parallel writes.
-- [Local verification](docs/development/local-verification.md) — focused checks and gate tiers.
+## Direction
 
-## Default: one local pass
+- What to build first, and what is deferred: [roadmap direction](docs/roadmap.md#direction). Rank
+  work by the user outcome it unblocks there. Install, first run, standard library, method choice,
+  speed and external comparison come before new physics areas.
+- Build the general mechanism, not a special case, and ship the API features users expect from
+  comparable tools: defaults with explicit overrides, lookup by source name, progress and
+  cancellation, export, clear errors. Generalize at the existing owner as soon as a second real
+  consumer appears.
+- A spatial capability names its CPU-parallel, MPI and GPU path, or records the gap in the
+  [capability matrix](docs/capability-matrix.md).
+- Examples, gallery, README and Get started import standard packages; tutorials also show the
+  hand-written form: [examples/README.md](examples/README.md#writing-examples-and-tutorials).
 
-Classify the actual delta, not its filename, hypothetical future use, or theoretical reach.
-High risk is limited to changes in:
+## Hard rules (what enforces each)
 
-- governance, review, or evidence policy;
-- scientific meaning, an oracle, expected value, tolerance, or falsifier;
-- a public or versioned API, compatibility promise, or migration;
-- a persisted schema or exact artifact;
-- security, data integrity, release trust, or CI trust; or
-- an architecture ceiling or debt entry.
+- One model, one path: Python, Rust, CLI, Studio and the language server call the same
+  compile → resolve → run core. No client keeps private semantics. (review)
+- Units and dimensions are checked, never stripped or guessed. (compiler diagnostics)
+- An unsupported combination returns a typed diagnostic. Non-test code has no panic on user
+  input, no silent approximation, no TODO or partial path. (focused tests, review; add a lint
+  when it recurs)
+- Pre-1.0 has one coherent surface: migrate every repository consumer in the same PR and delete
+  the old name, alias, shim or parallel path. (review)
+- Expected values, tolerances and falsifiers come from analytic, manufactured or published
+  references, or from running an established open-source tool. Never copy Eqiora's own output
+  into an expectation. (`cargo run -p eqiora-verify -- index`, review)
+- A change that adds, removes or narrows a user-visible capability updates the
+  [capability matrix](docs/capability-matrix.md) in the same PR. (`tools/ci/check_docs.py`)
+- Dependencies and licences pass `deny.toml`. (cargo-deny)
+- CI and trust paths (`.github/`, `tools/ci/`, `crates/eqiora-verify/`, `deny.toml`, `CODEOWNERS`)
+  change only with the trust review in [CI topology](docs/development/ci-topology.md).
+  (`tools/ci/check_trust_boundary.py`)
+- Build and worktree scratch goes under home-backed `TMPDIR`, never OS `/tmp`.
+- A visible change (plot, gallery, viewer, docs page) is shown with an image you produced.
 
-Everything else uses one primary agent and one local pass: make the smallest change, run the
-narrowest repository-owned check that can expose a plausible defect, self-review once, and
-stop. A focused failure permits a focused correction and rerun, not broader ceremony.
+## Work loop
 
-Do not add an Issue, RFC, contract artifact, schema, registry, oracle, subagent, lane,
-worktree, sealed handoff, or second derivation unless the actual delta or user request needs
-it. Reuse accepted contracts and evidence. Prefer the cheap check that could disprove a
-premise before work that assumes it.
+1. Look at open PRs first. Merge any ready predecessor; claim new work with a draft PR, one
+   topic per PR.
+2. Classify the actual delta. High risk is only: governance, review or evidence policy;
+   scientific meaning, oracles, expected values or tolerances; public or versioned API and
+   migrations; persisted schemas or exact artifacts; security, data integrity, release or CI
+   trust; architecture ceilings or debt entries.
+3. Low risk: smallest change, narrowest check, one self-review, merge. High risk: one explicit
+   risk-focused review and the relevant hosted checks
+   ([high-risk work](docs/development/vertical-slice-development.md)).
+4. Check with `mise run pr` while iterating, `mise run fast` when nothing narrower covers the
+   change, and `mise run affected` for high-risk or uncertain dependency closure. Pass affected
+   cases with `--case` ([local verification](docs/development/local-verification.md)).
+5. Own the PR through merge. Its description says what changed, what was checked and what was
+   not. Delete merged branches.
+6. If two focused attempts fail, write down what failed in the issue and change approach.
+   Do not keep rerunning tests without progress.
 
-## Integration flow
+## Parallel and long-running work
 
-Opening a pull request is not completion. Keep one dependency-ordered integration queue and
-actively move its earliest unmerged item through checks, review, correction, and merge while
-independent implementation continues. Before adding another branch or worktree, inspect open
-pull requests and merge every ready predecessor; if none is ready, record the exact failing
-check or unresolved decision instead of silently accumulating work in progress. The primary
-agent owns its pull request through merge and may review, approve, and merge its own change once
-the required repository evidence is satisfied; a separate actor is never a merge prerequisite.
-Dependent work may remain stacked, but it must not displace the earliest mergeable item from
-the critical path. Delete or retarget merged stack branches promptly.
+- Parallelize only when asked or when independent work shortens the critical path. Parallel
+  writers need disjoint paths, their own worktree and their own Cargo target directory. One
+  writer owns a shared seam.
+- Planners own scope and write no code. Workers take one task to merge and return a short
+  handoff; workers do not coordinate with each other.
+- Maintenance roles may run on a schedule, each through normal small PRs: merge duplicate
+  owners, refresh stale docs and matrix rows, move examples to standard packages, measure
+  performance against the recorded baselines.
+- Tool and test output stays terse: one grep-able line per failure, details in a file.
 
-## Structure and context
+## Writing docs
 
-Use the smallest conventional local tool and existing seam. Add a public abstraction only for a
-current invariant with real consumers. If a ceiling blocks work, simplify or split it; add no bypass.
+- Write for the reader who acts next: plain words, short sentences, what works and what does
+  not. Avoid internal jargon in user-facing text (admit, exact, bounded, authority, seam,
+  claim-local).
+- State a fact once, in its owner, and link to it. Do not copy paths, hashes, manifests or issue
+  relations into prose.
+- Decisions live in the repository (`docs/`, `rfcs/`), not only in chat or issues.
+- Keep instruction files short: this file under 120 lines; a capability-matrix row under three
+  lines, with detail in the linked `verify/` case README.
 
-Pre-1.0 APIs and schemas optimize for one coherent final surface, not backward compatibility.
-Migrate repository consumers and evidence atomically; delete displaced schemas, aliases, overloads,
-shims, decoders, and parallel paths. Immutable releases remain historical records; only explicit
-stable or external interoperability promises retain compatibility.
+## Working on X: read first
 
-Parallelize only when requested or when independent work can shorten the critical path.
-Read-heavy exploration is the safest use. Parallel writes need disjoint paths and separate
-worktrees; one writer owns a shared central seam.
+| Working on | Read |
+|---|---|
+| Product priorities, deferred areas | [docs/roadmap.md](docs/roadmap.md) |
+| Why the process looks like this | [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) |
+| Language syntax and semantics | [docs/language/](docs/language/core.md) |
+| Standard packages | [packages README](crates/eqiora-api/packages/README.md) |
+| Examples, gallery, tutorials | [examples/README.md](examples/README.md) |
+| CPU, MPI, GPU backends and libraries | [library and accelerator strategy](docs/development/library-and-accelerator-strategy.md) |
+| Architecture and crate boundaries | [docs/architecture.md](docs/architecture.md) |
+| Evidence and oracles | [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md) |
+| Python releases and wheels | [Python release policy](docs/development/python-release-policy.md) |
+| CI, required checks, bypass | [CI topology](docs/development/ci-topology.md) |
+| Viewer | [shared semantic viewer](docs/development/shared-semantic-viewer.md) |
+| Terms | [glossary](docs/glossary.md) |
 
-Do not load the whole repository history into a prompt. Start from this map, inspect the
-nearest code and instructions, and fetch additional context only when the task needs it.
-
-## Claims and evidence
-
-Evidence development is active. Add or change registered evidence only for a durable claim that
-focused product tests cannot adequately cover. Derive expected values, tolerances, and falsifiers
-independently of implementation output. Bind the smallest semantic projection that can falsify the
-claim; do not pin unrelated whole files, package roots, generated trees, or broad inventories.
-Exact bytes are appropriate only when byte identity is the claim. A mismatch is investigated,
-never copied into an expectation to make a run pass.
-
-When a change adds, removes, narrows, or extends an executable or user-visible capability,
-update [the capability matrix](docs/capability-matrix.md) in the same pull request. The case
-manifests under `verify/` remain authoritative; the matrix is their index.
-
-- Assess contract, execution, verification, and maturity independently.
-- Mark verification present only after reproducible, independently derived evidence proves the
-  exact claim.
-- State the narrowest honest boundary and important non-claims.
-- A pure refactor needs no status change, but check that the matrix remains truthful.
-- Use `cargo run -p eqiora-verify -- index`; maintain no second evidence registry.
-
-## Review by durable risk
-
-High-risk deltas receive one explicit risk-focused review before integration, with enough
-context to judge the claim, evidence, compatibility, or trust boundary. The writer or
-integrator may perform that review and approve and merge its own change. External review is
-welcome when it can change a concrete decision, but actor separation is never required.
-
-Dependency-only updates with their lockfile and relevant check, non-governance documentation,
-reproducible mechanical changes, private behavior-preserving refactors, and localized low-risk
-corrections need only self-review unless an anomaly appears. A localized correction to reviewed
-high-risk work receives focused self-review of the correction; changed claims, evidence,
-compatibility, or scope reopen only that risk.
-
-## Verification
-
-Run the narrowest repository-owned focused check for the changed surface.
-
-```bash
-mise run fast      # fallback when no narrower repository-owned check covers the delta
-mise run affected  # high-risk integration or genuinely uncertain dependency closure
-```
-
-Pass every semantically affected registered case with `--case`. Do not widen a focused check,
-repeat a broad gate, or rerun whole-delta review solely because a head moved. High-risk deltas
-wait for relevant hosted checks. Optional backends need their own case or matching environment.
-Follow the verification guide for the narrow owner/admin bypass and optional implementation-
-agent identifier check.
-
-A number from one environment is not evidence about another. State the environment or omit the
-number; reproduce the hosted profile before making a hosted decision. Run the repository gate,
-not a hand-assembled substitute.
-
-Put large build, candidate, and worktree scratch under home-backed `TMPDIR`, never OS `/tmp`.
-Add no durable protocol to work around build, cache, sync, or editor-host limits.
-
-## Instruction hygiene
-
-Add a rule only after a recurring failure shows that code, a test, or a narrower document
-cannot carry it. Delete or consolidate the rule it supersedes in the same change. This file has
-a hard limit of 200 lines and should normally remain below 120.
+Add a rule only after a recurring failure shows that code, a test or a narrower document cannot
+carry it, and delete the rule it replaces in the same change.
