@@ -137,3 +137,32 @@ impl ExpressionLowerer<'_> {
         })
     }
 }
+
+impl ExpressionLowerer<'_> {
+    pub(super) fn lower_normal_vector(
+        &mut self,
+        expression: &LoweringExpression,
+    ) -> Result<TypedExpression, Diagnostic> {
+        ExpressionType::normal_vector(self.support.as_ref())
+            .map_err(|error| spatial_type_error(self.file, expression, error))?;
+        let on = self
+            .support
+            .as_ref()
+            .and_then(|support| support.domain().downcast::<kinds::Domain>())
+            .ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    "normal_vector requires a boundary Domain",
+                )
+            })?;
+        self.builder
+            .push(eqiora_schema::kernel::ExprNode::NormalVector { on })
+            .map(|id| TypedExpression {
+                id,
+                dimension: DimExponents::DIMENSIONLESS,
+            })
+            .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+    }
+}

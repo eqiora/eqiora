@@ -52,6 +52,7 @@ enum ExpressionTag {
     CoordinateMapFactor = 49,
     CoordinateMapFactorAction = 50,
     DerivativeLimit = 51,
+    NormalVector = 52,
 }
 
 pub(super) fn encode_expression(
@@ -351,6 +352,20 @@ pub(super) fn encode_expression(
                 *value,
                 &canonical_index,
             )?,
+            ExprNode::NormalVector { on } => {
+                encoder.u8(ExpressionTag::NormalVector as u8)?;
+                let mut label = Encoder::new(32);
+                label.u8(3)?;
+                label.u8(scope)?;
+                label.u32(index)?;
+                label.u8(14)?;
+                push_reference(
+                    references,
+                    label.finish()?,
+                    lookup(ids, on.erase(), "normal vector boundary support")?,
+                    budget,
+                )?;
+            }
             ExprNode::Trace { value, on } | ExprNode::NormalComponent { value, on } => {
                 let tag = if matches!(node, ExprNode::Trace { .. }) {
                     ExpressionTag::Trace

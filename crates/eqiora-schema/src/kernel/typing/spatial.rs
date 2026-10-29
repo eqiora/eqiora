@@ -313,3 +313,23 @@ fn channelwise<I: Clone>(
     }
     Ok(result)
 }
+
+/// Type the unit normal using the boundary's ambient Cartesian dimension.
+pub(super) fn normal_vector<I: Clone + Eq>(
+    support: Option<&SpatialSupport<I>>,
+) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    let Some(support @ SpatialSupport::Boundary { dimensions, .. }) = support else {
+        return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope);
+    };
+    let extent = u32::try_from(*dimensions)
+        .ok()
+        .filter(|n| *n > 0)
+        .ok_or(TypeViolation::SpatialExtentInvalid)?;
+    ExpressionType::checked(
+        eqiora_core::ScalarDomain::Real,
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([extent]).map_err(|_| TypeViolation::SpatialExtentInvalid)?,
+        ValueFrame::SpatialCartesian,
+        Some(support.clone()),
+    )
+}

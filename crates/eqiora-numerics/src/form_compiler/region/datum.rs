@@ -51,6 +51,7 @@ impl<S: Coefficient> PrescribedDatum<S> {
                                 .collect::<Result<_, Diagnostic>>()?,
                         )
                     }
+                    Some(ExprNode::NormalVector { .. }) => PrescribedDatum::NormalMultiple(scale),
                     Some(ExprNode::NormalComponent { value: tensor, .. }) => {
                         let proof = OperatorApplicationProof::classify(
                             typed,

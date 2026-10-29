@@ -686,3 +686,43 @@ fn coordinate_partial_requires_exact_selector_and_divides_by_its_unit() {
     let (root, foreign) = infer(true, true);
     assert!(foreign.unwrap_err().iter().any(|error| matches!(error,TypedResidualError::Type {node_index,error:TypeViolation::IncompatibleSupport { .. }} if *node_index==root.index())));
 }
+
+#[test]
+fn scoped_normal_vector_uses_ambient_dimension_and_exact_support() {
+    for dimensions in [2, 3] {
+        let boundary = SpatialSupport::Boundary {
+            domain: "wall",
+            parent: "body",
+            dimensions,
+        };
+        let normal = ExpressionType::normal_vector(Some(&boundary)).unwrap();
+        assert_eq!(normal.support, Some(boundary.clone()));
+        assert_eq!(
+            normal.shape(),
+            &ValueShape::new([dimensions as u32]).unwrap()
+        );
+        assert_eq!(normal.dimension(), DimExponents::DIMENSIONLESS);
+        assert_eq!(normal.frame(), ValueFrame::SpatialCartesian);
+        assert_eq!(
+            normal.value_type.scalar_domain(),
+            eqiora_core::ScalarDomain::Real
+        );
+        let foreign = ExpressionType::scalar(
+            DimExponents::DIMENSIONLESS,
+            Some(SpatialSupport::Boundary {
+                domain: "other",
+                parent: "body",
+                dimensions,
+            }),
+        );
+        assert!(multiply(&normal, &foreign).is_err());
+        assert!(
+            ExpressionType::normal_vector(Some(&SpatialSupport::Volume {
+                domain: "body",
+                dimensions
+            }))
+            .is_err()
+        );
+    }
+    assert!(ExpressionType::<&str>::normal_vector(None).is_err());
+}

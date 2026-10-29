@@ -429,6 +429,20 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         ),
         ExprKind::Number(value) => LoweringExpression::number(value.clone(), expression.range()),
         ExprKind::Quantity { .. } => LoweringExpression::from_source(expression),
+        ExprKind::Call { callee, arguments } if callee.as_str() == "normal_vector" => {
+            if arguments
+                .positional()
+                .is_none_or(|values| !values.is_empty())
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "normal_vector() accepts no arguments",
+                ));
+            }
+            LoweringExpression::normal_vector(expression.range())
+        }
         ExprKind::Call { callee, arguments } if callee.as_str() == "time" => {
             if arguments
                 .positional()

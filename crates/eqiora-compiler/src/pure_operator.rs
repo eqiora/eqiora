@@ -48,6 +48,7 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
                     | "counts"
                     | "trace"
                     | "coordinate"
+                    | "normal_vector"
                     | "grad"
                     | "div"
                     | "symmetric_part"
