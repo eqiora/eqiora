@@ -110,14 +110,14 @@ jobs:
           test -d "$RUNNER_TEMP"
           test ! -L "$RUNNER_TEMP"
           {
-            echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/eqiora-pw-1.62.1-r1234"
+            echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/eqiora-pw-1.64.1-r1248"
           } >> "$GITHUB_ENV"
       - name: Restore the exact Playwright browser cache
         if: steps.site_closure.outputs.site == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: eqiora-site-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-r1234-${{ hashFiles('docs/site/package-lock.json') }}
+          key: eqiora-site-${{ runner.os }}-${{ runner.arch }}-playwright-1.64.1-r1248-${{ hashFiles('docs/site/package-lock.json') }}
       - name: Install the locked mise toolchain
         if: steps.site_closure.outputs.site == 'true'
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
@@ -231,7 +231,7 @@ jobs:
           const browsers = require('./docs/site/node_modules/playwright-core/browsers.json');
           for (const name of ['chromium', 'chromium-headless-shell']) {
             const browser = browsers.browsers.find((entry) => entry.name === name);
-            if (!browser || browser.revision !== '1234' || browser.browserVersion !== '151.0.7922.34') {
+            if (!browser || browser.revision !== '1248' || browser.browserVersion !== '156.0.8078.4') {
               throw new Error(`unexpected ${name} identity: ${JSON.stringify(browser)}`);
             }
           }
@@ -246,11 +246,11 @@ jobs:
             "$PLAYWRIGHT_BROWSERS_PATH"/*) ;;
             *) echo "Playwright executable escaped the named cache" >&2; exit 1 ;;
           esac
-          test "$browser_path" = "$PLAYWRIGHT_BROWSERS_PATH/chromium-1234/chrome-linux64/chrome"
+          test "$browser_path" = "$PLAYWRIGHT_BROWSERS_PATH/chromium-1248/chrome-linux64/chrome"
           test -x "$browser_path"
-          expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
-          expected_browser_bytes="290614600"
-          expected_browser_version_hex="476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
+          expected_browser_sha256="377a9fc07b495c3b8d0ab8ec1fdfd153641759f9756fea34d8dfce4de82f5025"
+          expected_browser_bytes="301186376"
+          expected_browser_version_hex="476f6f676c65204368726f6d6520666f722054657374696e67203135362e302e383037382e34200a"
           browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
           browser_bytes="$(stat -c %s "$browser_path")"
           test "$browser_sha256" = "$expected_browser_sha256"
