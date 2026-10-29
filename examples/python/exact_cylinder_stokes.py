@@ -28,8 +28,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
         minimum_mean_ratio=1e-5,
         maximum_boundary_facets=50,
     )
-    mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-    mesh = eqiora.meshing.generate(mesh_plan)
+    mesh = eqiora.meshing.generate(geometry, mesh_request)
     source_path = files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi")
     channel_height = geometry.bounds[1][1] - geometry.bounds[1][0]
     model = eqiora.compile(

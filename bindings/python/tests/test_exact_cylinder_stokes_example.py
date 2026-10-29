@@ -27,7 +27,6 @@ PUBLIC_CALLS = {
     "graph.subtract": 1,
     "graph.build": 1,
     "eqiora.meshing.GmshMesher": 1,
-    "eqiora.meshing.resolve": 1,
     "eqiora.meshing.generate": 1,
     "eqiora.compile": 1,
     "eqiora.solve.Linear": 1,
@@ -85,6 +84,7 @@ class ExactCylinderStokesExampleProduct(unittest.TestCase):
 
     def test_example_has_the_complete_public_composition(self) -> None:
         self.assertIn("maximum_target_size=0.025", self.source)
+        self.assertIn("eqiora.meshing.generate(geometry, mesh_request)", self.source)
         calls = call_inventory(self.source, PLAIN.as_posix())
         for call, count in PUBLIC_CALLS.items():
             self.assertEqual(calls[call], count, call)
@@ -94,7 +94,6 @@ class ExactCylinderStokesExampleProduct(unittest.TestCase):
             ".subtract(",
             ".build(",
             "GmshMesher(",
-            "meshing.resolve(",
             "meshing.generate(",
             "eqiora.compile(",
             "eqiora.resolve(",
