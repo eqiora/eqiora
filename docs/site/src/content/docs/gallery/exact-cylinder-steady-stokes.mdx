@@ -20,11 +20,13 @@ stress around the obstacle.
 ## Before you begin
 
 Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
-`.venv`. From the folder containing both, add the mesh and plotting extras,
-then run the example with the same Python environment:
+`.venv`. The one-call mesh generation used here requires a
+[development build](/get-started/#development-build); it is newer than the published
+`0.1.5` release. From the folder containing both, install the mesh and plotting
+extras from that checkout, then run the example with the same Python environment:
 
 ```bash
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
@@ -153,8 +155,7 @@ mesh_request = eqiora.meshing.GmshMesher(
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(mesh_plan)
+mesh = eqiora.meshing.generate(geometry, mesh_request)
 ```
 
 <Aside type="note" title="Mesh size">

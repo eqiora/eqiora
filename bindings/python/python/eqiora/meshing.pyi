@@ -4,7 +4,7 @@ Authority: ``bindings/python/python/eqiora/meshing.py``.
 """
 
 from collections.abc import Iterable
-from typing import Self, final
+from typing import Self, final, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -162,8 +162,26 @@ def resolve(
 
     ...
 
+@overload
 def generate(plan: MeshPlan, /) -> Mesh:
-    """Run a resolved meshing plan and return the mesh.
+    """Resolve and generate from geometry and an explicit meshing provider.
+
+    Pass a MeshPlan alone to generate a previously inspected plan.
+
+    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
+    """
+
+    ...
+
+@overload
+def generate(
+    geometry: Geometry,
+    provider: AffineTriangleMesher | CartesianMesher | GmshMesher,
+    /,
+) -> Mesh:
+    """Resolve and generate from geometry and an explicit meshing provider.
+
+    Pass a MeshPlan alone to generate a previously inspected plan.
 
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
     """
