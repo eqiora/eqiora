@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 README = Path(__file__).resolve().parents[3] / "README.md"
-SECTION = "## What a model looks like"
+SECTION = "## ✏️ What a model looks like"
 
 
 def _listings() -> tuple[str, str]:
