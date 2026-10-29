@@ -5019,10 +5019,16 @@ class MeshPlan:
 
 ### `eqiora.meshing.generate`
 
-Run a resolved meshing plan and return the mesh.
+Resolve and generate from geometry and an explicit meshing provider.
+
+Pass a MeshPlan alone to generate a previously inspected plan.
 
 ```python
+@overload
 def generate(plan: MeshPlan, /) -> Mesh: ...
+
+@overload
+def generate(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> Mesh: ...
 ```
 
 <a id="api-eqiora-meshing-resolve"></a>
