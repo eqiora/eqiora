@@ -186,8 +186,15 @@ fn two_state_fixture(
 #[test]
 fn scalar_tolerance_normalizes_to_the_exact_coordinate_policy() {
     let (_, kernel) = fixture();
+    let field = kernel
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Field(field) => Some(field.id()),
+            _ => None,
+        })
+        .unwrap();
+    let coordinate = eqiora_core::TimeStateCoordinate::new(field, 0, 0, false);
     let scalar = CommonOdePolicy::for_scalar_state(&kernel, 0.01, 1e-9, 1e-11).unwrap();
-    let coordinate = scalar.absolute_tolerances()[0].0;
     assert_eq!(
         scalar,
         CommonOdePolicy::new(

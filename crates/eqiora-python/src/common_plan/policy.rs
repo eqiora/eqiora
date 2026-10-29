@@ -618,6 +618,13 @@ impl PyTsitouras45 {
     }
 
     fn __repr__(&self) -> String {
+        if let Some(tolerance) = self.absolute_tolerance() {
+            return format!(
+                "Tsitouras45(initial_step_s={}, relative_tolerance={}, absolute_tolerance={tolerance})",
+                self.initial_step_s(),
+                self.relative_tolerance(),
+            );
+        }
         format!(
             "Tsitouras45(initial_step_s={}, relative_tolerance={}, coordinates={})",
             self.initial_step_s(),
