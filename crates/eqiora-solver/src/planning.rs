@@ -173,6 +173,12 @@ impl SolverPlanningProfile {
         Ok(self)
     }
 
+    /// Method-owned global operator classification used before ranking.
+    /// This is an asserted planning premise, not an independent matrix proof.
+    pub const fn operator_properties(&self) -> LinearOperatorProperties {
+        self.facts.properties
+    }
+
     /// Exact explicitly requested execution provider.
     pub const fn execution_provider(&self) -> ExecutionProvider {
         self.execution_provider

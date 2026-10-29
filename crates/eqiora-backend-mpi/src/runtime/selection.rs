@@ -85,13 +85,37 @@ impl MpiExecutionGroup {
         complete: &CanonicalCsrSystemView,
         structure: Option<&AlgebraicStructure>,
     ) -> Result<DeploymentBinding, Diagnostic> {
+        let binding = binding.and_then(|binding| {
+            if binding.distributed_device_transport().is_some() {
+                Err(invalid_realization(
+                    "selected native MPI binding requires host execution, not a composed device placement",
+                ))
+            } else {
+                Ok(binding)
+            }
+        });
+        self.authenticate_selected_binding(selection, binding, complete, structure)
+    }
+
+    /// Collectively authenticate the selected MPI solver subplan and global system.
+    ///
+    /// This checks MPI provider/group identity, capabilities and exact graph plan.
+    /// It does not authenticate a rank-local device placement: a composed adapter
+    /// must pass its own placement-validation result as `binding`, then retain
+    /// the native finalizer and runtime device checks before executing.
+    ///
+    /// # Errors
+    /// Every local binding or selected-system failure rejects collectively before
+    /// planning fingerprint comparison, including errors supplied by the adapter.
+    pub fn authenticate_selected_binding(
+        &mut self,
+        selection: &SolverSelection,
+        binding: Result<DeploymentBinding, Diagnostic>,
+        complete: &CanonicalCsrSystemView,
+        structure: Option<&AlgebraicStructure>,
+    ) -> Result<DeploymentBinding, Diagnostic> {
         let local = (|| {
             let binding = binding?;
-            if binding.distributed_device_transport().is_some() {
-                return Err(invalid_realization(
-                    "selected native MPI binding requires host execution, not a composed device placement",
-                ));
-            }
             self.require_planning_execution(selection.execution_provider(), selection.execution())?;
             let capabilities = self.solver_capabilities();
             selection

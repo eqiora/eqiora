@@ -46,3 +46,20 @@ It validates this complete manifest and reports the physical target as
 and an exact `physical-mpi-cuda` run retain the failure behavior above. Generic
 Cargo suites leave the parent orchestration test ignored; the typed evidence
 runner is the repository-owned path that activates it.
+
+
+The ordinary witness now admits this bounded composition before shared solver
+selection: real-f64 symmetric-indefinite MINRES/Identity/Reproducible is the sole
+compatible delivered tuple. It is the MPI Krylov subplan, not a standalone CUDA
+solver. The selected plan enters the original coupled Realization before assembly.
+
+The existing MPI-CUDA adapter authenticates its exact local-action provider,
+ordinal-zero device, queue-zero ownership, deterministic action capabilities and
+HostStaged transport before the common MPI selected-subplan binding. Rank-local
+construction/provider/queue errors and changed exact controls reject collectively;
+fixed-size diagnostic hashes check agreement without introducing mismatched
+collective extents. Native assembly lineage, live device observation and distinct
+physical UUID agreement, complete-host acceptance and FSI finish remain mandatory.
+Physical devices are not required to have identical descriptors across ranks.
+Composition cost, transfer, synchronization and allocation bounds remain unknown;
+this is not automatic placement or a performance-optimal choice claim.

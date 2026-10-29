@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::num::{NonZeroU64, NonZeroUsize};
 
 use eqiora_assembly::CsrMatrix;
 use eqiora_backend_cuda::{
@@ -12,8 +12,15 @@ use eqiora_backend_mpi::{
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{LocalCsrShard, PartitionId};
-use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution, DistributedDeviceTransport};
-use eqiora_solver::{ExecutionId, ExecutionProvider, ProviderLibrary};
+use eqiora_execution::{
+    AcceptedLinearExecution, AdmittedExecution, CUDA_PARTITION_CSR_DEVICE_CAPABILITIES,
+    DeploymentBinding, DistributedDeviceTransport,
+};
+use eqiora_solver::{
+    AlgebraicStructure, CanonicalCsrSystemView, ExecutionId, ExecutionProvider,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ProviderLibrary, ReductionPolicy,
+    SolverPlanningObjective, SolverPlanningProfile, SolverSelection,
+};
 use sha2::{Digest, Sha256};
 
 use crate::MPI_CUDA_ADAPTER_VERSION;
@@ -119,6 +126,35 @@ impl AcceptedMpiCudaLinearExecution {
 
 /// L3 seam consuming one exact distributed-CUDA L2 admission.
 pub trait MpiCudaAdmittedExecutionAdapter {
+    /// Select the existing MPI MINRES subplan before assembly. Device placement
+    /// remains a separate composition binding, never a standalone CUDA solver.
+    ///
+    /// # Errors
+    /// Collectively rejects profiles outside the current real f64 indefinite
+    /// MINRES/Identity/Reproducible slice or inconsistent rank-local controls.
+    fn select_plan_mpi_cuda(
+        &mut self,
+        profile: SolverPlanningProfile,
+        objective: SolverPlanningObjective,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<SolverSelection, Diagnostic>;
+
+    /// Authenticate the selected MPI subplan and exact rank-local CUDA placement.
+    /// Pass binding construction failures intact so every rank agrees readiness.
+    ///
+    /// # Errors
+    /// Collectively rejects local construction, composition, planning or binding
+    /// drift before the existing admission and physical device observation.
+    fn bind_selected_mpi_cuda(
+        &mut self,
+        selection: &SolverSelection,
+        binding: Result<DeploymentBinding, Diagnostic>,
+        complete: &CanonicalCsrSystemView,
+        structure: Option<&AlgebraicStructure>,
+    ) -> Result<DeploymentBinding, Diagnostic>;
+
     /// Execute host-staged MPI Krylov with one resident CUDA CSR action on
     /// every rank.
     ///
@@ -132,6 +168,50 @@ pub trait MpiCudaAdmittedExecutionAdapter {
 }
 
 impl MpiCudaAdmittedExecutionAdapter for MpiExecutionGroup {
+    fn select_plan_mpi_cuda(
+        &mut self,
+        profile: SolverPlanningProfile,
+        objective: SolverPlanningObjective,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<SolverSelection, Diagnostic> {
+        let local = require_composed_profile(
+            &profile,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        );
+        self.agree_composed_local_readiness(&local)?;
+        local?;
+        let selection = self.select_plan(
+            profile,
+            objective,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        )?;
+        let local = require_composed_selection(&selection);
+        self.agree_composed_local_readiness(&local)?;
+        local?;
+        Ok(selection)
+    }
+
+    fn bind_selected_mpi_cuda(
+        &mut self,
+        selection: &SolverSelection,
+        binding: Result<DeploymentBinding, Diagnostic>,
+        complete: &CanonicalCsrSystemView,
+        structure: Option<&AlgebraicStructure>,
+    ) -> Result<DeploymentBinding, Diagnostic> {
+        let local = binding.and_then(|binding| {
+            require_composed_selection(selection)?;
+            require_composed_binding(&binding)?;
+            Ok(binding)
+        });
+        self.authenticate_selected_binding(selection, local, complete, structure)
+    }
+
     fn execute_admitted_mpi_cuda(
         &mut self,
         admitted: AdmittedExecution<'_>,
@@ -191,6 +271,77 @@ impl MpiCudaAdmittedExecutionAdapter for MpiExecutionGroup {
     }
 }
 
+fn require_composed_profile(
+    profile: &SolverPlanningProfile,
+    relative: f64,
+    absolute: f64,
+    maximum: NonZeroUsize,
+) -> Result<(), Diagnostic> {
+    if profile.operator_properties() != LinearOperatorProperties::SymmetricIndefinite {
+        return Err(invalid(
+            "MPI-CUDA planning requires a method-owned symmetric-indefinite operator assertion",
+        ));
+    }
+    let plan =
+        eqiora_solver::SolverPlan::new(LinearSolver::MinimumResidual, relative, absolute, maximum)?
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(ReductionPolicy::Reproducible);
+    profile.require_plan(plan)
+}
+
+fn require_composed_selection(selection: &SolverSelection) -> Result<(), Diagnostic> {
+    let plan = selection.solver_plan();
+    if selection.scalar_domain() != eqiora_core::ScalarDomain::Real
+        || selection.scalar_type() != eqiora_core::ScalarType::F64
+        || plan.algorithm() != LinearSolver::MinimumResidual
+        || plan.preconditioner() != PreconditionerPolicy::Identity
+        || plan.reduction() != ReductionPolicy::Reproducible
+        || selection.solver_provider() != eqiora_backend_mpi::MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER
+    {
+        return Err(invalid(
+            "MPI-CUDA selection requires the existing real f64 MPI MINRES Identity Reproducible subplan",
+        ));
+    }
+    // The actual complete operator and exact structure remain authenticated by
+    // the shared selected-binding owner before native execution admission.
+    require_composed_profile(
+        &selection.profile(),
+        plan.relative_tolerance(),
+        plan.absolute_tolerance(),
+        plan.maximum_iterations(),
+    )?;
+    Ok(())
+}
+
+fn require_composed_binding(binding: &DeploymentBinding) -> Result<(), Diagnostic> {
+    let placement = binding
+        .cuda_partition_placement()
+        .ok_or_else(|| invalid("MPI-CUDA selected binding requires rank-local CUDA placement"))?;
+    require_composed_placement(placement, binding.distributed_device_transport())
+}
+
+fn require_composed_placement(
+    placement: &eqiora_execution::CudaPartitionPlacement,
+    transport: Option<DistributedDeviceTransport>,
+) -> Result<(), Diagnostic> {
+    if placement.execution_provider() != MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER
+        || transport != Some(DistributedDeviceTransport::HostStaged)
+        || placement.device().id().runtime() != eqiora_backend_cuda::CUDA_RUNTIME_ID
+        || placement.device().id().ordinal() != 0
+        || placement.queue().device() != placement.device().id()
+        || placement.queue().ordinal() != 0
+        || placement.action_policy() != eqiora_device::SparseActionPolicy::Deterministic
+    {
+        return Err(invalid(
+            "MPI-CUDA selected binding requires its exact local-action provider, CUDA device/owned queue zero, deterministic action and host-staged transport",
+        ));
+    }
+    placement
+        .device()
+        .require(CUDA_PARTITION_CSR_DEVICE_CAPABILITIES.iter().copied())?;
+    Ok(())
+}
+
 fn observe_exact_local_device(
     admitted: &AdmittedExecution<'_>,
 ) -> Result<CudaDeviceObservation, Diagnostic> {
@@ -198,15 +349,7 @@ fn observe_exact_local_device(
         .binding()
         .cuda_partition_placement()
         .ok_or_else(|| invalid("MPI-CUDA execution requires a partition-local CUDA placement"))?;
-    if placement.execution_provider() != MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER
-        || admitted.binding().distributed_device_transport()
-            != Some(DistributedDeviceTransport::HostStaged)
-        || placement.device().id().ordinal() != 0
-    {
-        return Err(invalid(
-            "MPI-CUDA execution requires its exact local-action adapter, host-staged transport, and visible device ordinal zero",
-        ));
-    }
+    require_composed_binding(admitted.binding())?;
     let mut visible = CudaRuntime.observe()?;
     if visible.len() != 1 {
         return Err(invalid(
@@ -454,6 +597,101 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_profile_rejects_other_properties_fast_requirement_and_invalid_controls() {
+        let profile = SolverPlanningProfile::canonical_csr(
+            LinearOperatorProperties::SymmetricIndefinite,
+            None,
+            None,
+        );
+        require_composed_profile(&profile, 1e-12, 1e-14, NonZeroUsize::MIN).unwrap();
+        assert!(
+            require_composed_profile(
+                &SolverPlanningProfile::general_canonical_csr(),
+                1e-12,
+                1e-14,
+                NonZeroUsize::MIN
+            )
+            .is_err()
+        );
+        let fast = SolverPlanningProfile::canonical_csr(
+            LinearOperatorProperties::SymmetricIndefinite,
+            None,
+            Some(ReductionPolicy::Fast),
+        );
+        assert!(require_composed_profile(&fast, 1e-12, 1e-14, NonZeroUsize::MIN).is_err());
+        assert!(require_composed_profile(&profile, f64::NAN, 1e-14, NonZeroUsize::MIN).is_err());
+    }
+
+    #[test]
+    fn composed_placement_requires_exact_provider_owned_queue_transport_and_device_caps() {
+        use eqiora_device::{DeviceDescriptor, DeviceId, QueueSlot, SparseActionPolicy};
+        let device = DeviceDescriptor::new(
+            DeviceId::new(eqiora_backend_cuda::CUDA_RUNTIME_ID, 0),
+            "metadata-only CUDA fixture",
+            NonZeroU64::MIN,
+            CUDA_PARTITION_CSR_DEVICE_CAPABILITIES,
+        )
+        .unwrap();
+        let make = |provider, device: DeviceDescriptor, ordinal, policy| {
+            let queue = QueueSlot::new(device.id(), ordinal);
+            eqiora_execution::CudaPartitionPlacement::new(provider, device, queue, policy).unwrap()
+        };
+        let good = make(
+            MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+            device.clone(),
+            0,
+            SparseActionPolicy::Deterministic,
+        );
+        require_composed_placement(&good, Some(DistributedDeviceTransport::HostStaged)).unwrap();
+        assert!(require_composed_placement(&good, None).is_err());
+        let different = ExecutionProvider::new(
+            MPI_CUDA_LOCAL_ACTION_EXECUTION,
+            "different-release",
+            MPI_CUDA_LOCAL_ACTION_LIBRARIES,
+        );
+        for placement in [
+            make(
+                different,
+                device.clone(),
+                0,
+                SparseActionPolicy::Deterministic,
+            ),
+            make(
+                MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+                device.clone(),
+                1,
+                SparseActionPolicy::Deterministic,
+            ),
+            make(
+                MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+                device,
+                0,
+                SparseActionPolicy::BackendNative,
+            ),
+            make(
+                MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER,
+                DeviceDescriptor::new(
+                    DeviceId::new(eqiora_backend_cuda::CUDA_RUNTIME_ID, 0),
+                    "missing CSR action",
+                    NonZeroU64::MIN,
+                    [eqiora_device::DeviceCapability::Float64],
+                )
+                .unwrap(),
+                0,
+                SparseActionPolicy::Deterministic,
+            ),
+        ] {
+            assert!(
+                require_composed_placement(
+                    &placement,
+                    Some(DistributedDeviceTransport::HostStaged)
+                )
+                .is_err()
+            );
+        }
+    }
 
     fn provider_hash(provider: ExecutionProvider) -> [u8; 32] {
         let mut hash = Sha256::new();
