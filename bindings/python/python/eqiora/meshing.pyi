@@ -163,7 +163,15 @@ def resolve(
     ...
 
 @overload
-def generate(plan: MeshPlan, /) -> Mesh: ...
+def generate(plan: MeshPlan, /) -> Mesh:
+    """Resolve and generate from geometry and an explicit meshing provider.
+
+    Pass a MeshPlan alone to generate a previously inspected plan.
+
+    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
+    """
+
+    ...
 
 @overload
 def generate(
