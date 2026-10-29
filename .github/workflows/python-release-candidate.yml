@@ -57,7 +57,7 @@ jobs:
           CANDIDATE_COMMIT: ${{ inputs.commit }}
         run: python3 tools/release/python_candidate.py prepare --expected-commit "$CANDIDATE_COMMIT" --require-tag --out "$RUNNER_TEMP/candidate-family"
       - name: Retain immutable prepared family
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eqiora-python-prepared-family
           path: ${{ runner.temp }}/candidate-family/*
@@ -96,7 +96,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes libglu1-mesa
       - name: Download immutable prepared family
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-python-prepared-family
           path: ${{ runner.temp }}/candidate-family
@@ -117,7 +117,7 @@ jobs:
           manifest_sha256="$(sha256sum "$manifest" | cut -d ' ' -f 1)"
           echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
       - name: Retain finalized distribution family
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eqiora-python-finalized-family
           path: ${{ runner.temp }}/candidate-family/*
@@ -125,7 +125,7 @@ jobs:
           retention-days: 30
           compression-level: 0
       - name: Retain candidate manifest
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eqiora-python-candidate-metadata
           path: ${{ runner.temp }}/candidate-metadata/*
@@ -145,7 +145,7 @@ jobs:
       id-token: write
     steps:
       - name: Download accepted distribution bytes
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-python-finalized-family
           path: candidate-dist
@@ -175,12 +175,12 @@ jobs:
         run: |
           python -m pip install --only-binary=:all: "packaging==24.0"
       - name: Download retained finalized distribution family
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-python-finalized-family
           path: candidate-family
       - name: Download candidate metadata
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-python-candidate-metadata
           path: candidate-manifest
@@ -198,7 +198,7 @@ jobs:
             --artifacts candidate-family \
             --out "$RUNNER_TEMP/testpypi-dist"
       - name: Retain exact TestPyPI replay bytes
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eqiora-testpypi-replay-dists
           path: ${{ runner.temp }}/testpypi-dist/*
@@ -229,7 +229,7 @@ jobs:
         run: |
           python -m pip install --only-binary=:all: "packaging==24.0"
       - name: Download TestPyPI-accepted bytes
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-testpypi-replay-dists
           path: testpypi-dist
@@ -276,7 +276,7 @@ jobs:
         run: |
           python -m pip install --only-binary=:all: "packaging==24.0"
       - name: Download TestPyPI-accepted bytes
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: eqiora-testpypi-replay-dists
           path: testpypi-dist
