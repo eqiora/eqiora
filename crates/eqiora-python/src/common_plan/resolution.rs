@@ -122,7 +122,7 @@ pub(super) fn resolve_plan(
                 .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)))
             }
             _ => {
-                let policy = ode_policy(py, &temporal_handle, &digest)?;
+                let policy = ode_policy(py, &temporal_handle, &digest, Some(&program))?;
                 let backend = time_backend(&policy);
                 eqiora_numerics::ResolvedCommonPlan::resolve_ode(
                     artifact,
@@ -298,7 +298,7 @@ pub(super) fn resolve_plan(
                     .digest()
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
                     .to_string();
-                ode_policy(py, handle, &digest).map(Into::into)
+                ode_policy(py, handle, &digest, None).map(Into::into)
             }
             TemporalHandle::EulerMaruyama(_) | TemporalHandle::PoissonEvents(_) => {
                 Err(PyTypeError::new_err(
@@ -363,26 +363,27 @@ fn ode_policy(
     py: Python<'_>,
     handle: &TemporalHandle,
     model_digest: &str,
+    kernel: Option<&eqiora::sem::KernelProgram>,
 ) -> PyResult<eqiora_numerics::CommonOdePolicy> {
     let (policy, owned) = match handle {
         TemporalHandle::Tsitouras45(handle) => {
             let value = handle.borrow(py);
             (
-                value.data.native.clone(),
+                value.data.normalized(py, kernel)?,
                 value.data.belongs_to_model(py, model_digest),
             )
         }
         TemporalHandle::ImplicitMidpoint(handle) => {
             let value = handle.borrow(py);
             (
-                value.data.native.clone(),
+                value.data.normalized(py, kernel)?,
                 value.data.belongs_to_model(py, model_digest),
             )
         }
         TemporalHandle::Bdf(handle) => {
             let value = handle.borrow(py);
             (
-                value.data.native.clone(),
+                value.data.normalized(py, kernel)?,
                 value.data.belongs_to_model(py, model_digest),
             )
         }

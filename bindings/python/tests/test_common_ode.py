@@ -219,3 +219,72 @@ def test_async_run_and_array_ownership_use_the_same_common_result() -> None:
         rtol=2.0e-8,
         atol=2.0e-10,
     )
+
+
+def test_scalar_absolute_tolerance_has_the_explicit_plan_identity() -> None:
+    model = eqiora.compile(source=DECAY)
+    field = model.field("x")
+    request = eqiora.time.Tsitouras45(
+        initial_step_s=0.01, relative_tolerance=1e-9, absolute_tolerance=1e-11,
+    )
+    assert request.absolute_tolerance == 1e-11
+    assert request.absolute_tolerances is None
+    explicit, _ = resolve_decay(model)
+    assert explicit.temporal.absolute_tolerance is None
+    scalar = eqiora.resolve(model, temporal=request)
+    assert scalar.identity == explicit.identity
+    assert scalar.to_bytes() == explicit.to_bytes()
+    reopened = eqiora.Plan.from_bytes(scalar.to_bytes())
+    assert reopened.identity == explicit.identity
+    assert reopened.temporal.absolute_tolerances == {(field, 0, 0, False): 1e-11}
+    result = eqiora.run(
+        scalar, state=eqiora.State.initial(scalar), until_s=1.0, output_times_s=(1.0,),
+    )
+    assert abs(float(result.series(field).values.numpy()[0]) - math.exp(-1.0)) <= 2e-8
+
+
+def test_scalar_absolute_tolerance_rejects_ambiguous_and_untyped_requests() -> None:
+    model = eqiora.compile(source=DECAY)
+    field = model.field("x")
+    controls = dict(initial_step_s=0.01, relative_tolerance=1e-9)
+    with pytest.raises(TypeError, match="exactly one"):
+        eqiora.time.Tsitouras45(**controls)
+    with pytest.raises(TypeError, match="exactly one"):
+        eqiora.time.Tsitouras45(
+            **controls, absolute_tolerance=1e-11,
+            absolute_tolerances={(field, 0, 0, False): 1e-11},
+        )
+    for value in (True, 1, "1e-11"):
+        with pytest.raises(TypeError, match="time integration values must be floats"):
+            eqiora.time.Tsitouras45(**controls, absolute_tolerance=value)
+    with pytest.raises(TypeError, match="keys must be"):
+        eqiora.time.Tsitouras45(**controls, absolute_tolerances={field: 1e-11})
+
+
+@pytest.mark.parametrize("name", ["initial_step_s", "relative_tolerance", "absolute_tolerance"])
+@pytest.mark.parametrize("value", [0.0, -1.0, float("inf"), float("nan")])
+def test_scalar_absolute_tolerance_checks_positive_finite_controls_at_resolve(name, value) -> None:
+    controls = dict(initial_step_s=0.01, relative_tolerance=1e-9, absolute_tolerance=1e-11)
+    controls[name] = value
+    request = eqiora.time.Tsitouras45(**controls)
+    with pytest.raises(eqiora.ValidationError, match="finite and strictly positive"):
+        eqiora.resolve(eqiora.compile(source=DECAY), temporal=request)
+
+
+@pytest.mark.parametrize("source", [
+    """model Pair() { parameter rate:1/s=1; state x:1; state y:1;
+    initial { x=1; y=2; } relation flow { derivative(x)=-rate*x; derivative(y)=-rate*y; } }""",
+    """model Shaped() { parameter rate:1/s=1; state x:array<1,1>;
+    initial { x=[1]; } relation flow { derivative(x)=-rate*x; } }""",
+    """model Complex() { parameter rate:1/s=1; state x:complex<1>;
+    initial { x=math.complex(1,0); } relation flow { derivative(x)=-rate*x; } }""",
+    """model Higher() { parameter k:1/s^2=1; state x:1;
+    initial { x=1; derivative(x)=0[1/s]; } relation flow { derivative(derivative(x))=-k*x; } }""",
+])
+def test_scalar_absolute_tolerance_does_not_broadcast(source) -> None:
+    model = eqiora.compile(source=source)
+    request = eqiora.time.Tsitouras45(
+        initial_step_s=0.01, relative_tolerance=1e-9, absolute_tolerance=1e-11,
+    )
+    with pytest.raises(eqiora.ValidationError, match="one real scalar first-order ODE state coordinate"):
+        eqiora.resolve(model, temporal=request)

@@ -96,6 +96,8 @@ model decay() {
 
 From Python you compile it, choose a time integrator, and run it:
 
+The scalar tolerance shorthand below requires the [development build](https://eqiora.org/get-started/#development-build); it is newer than the published `0.1.5` package.
+
 ```python
 import eqiora
 
@@ -106,7 +108,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1e-9,
-        absolute_tolerances={(x, 0, 0, False): 1e-11},
+        absolute_tolerance=1e-11,
     ),
 )
 result = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(1.0,))
