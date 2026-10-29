@@ -92,13 +92,19 @@ impl MpiExecutionGroup {
     /// any rank returns a validation/allocation error or enters `Comm_dup`.
     ///
     /// # Errors
-    /// Returns a common `EQ0807` diagnostic if any rank has invalid rank/size,
-    /// insufficient thread support, or a fallible storage preparation failure.
+    /// Rejects intercommunicators before any preparation or readiness collective.
+    /// Returns a common `EQ0807` diagnostic if any intracommunicator rank has
+    /// invalid rank/size, insufficient thread support, or storage preparation failure.
     pub fn duplicate<C: Communicator>(
         communicator: &C,
         provided: Threading,
         required: MpiThreadSupport,
     ) -> Result<Self, Diagnostic> {
+        if communicator.as_handle().is_inter_comm() {
+            return Err(invalid_realization(
+                "MPI execution requires an intracommunicator",
+            ));
+        }
         let local = PreparedGroup::new(communicator, provided, required);
         let local_failed = i32::from(local.is_err());
         let mut any_failed = 0_i32;

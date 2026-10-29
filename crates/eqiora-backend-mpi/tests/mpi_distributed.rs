@@ -245,6 +245,79 @@ fn mpi_child_constructor_preparation_failure_is_collective() {
 }
 
 #[test]
+fn mpi_intracommunicator_boundary_preserves_cartesian_groups() {
+    if env::var_os(CHILD_ENV).is_some() {
+        return;
+    }
+    for ranks in [1, 2, 4] {
+        let output = run_mpi_child(
+            ranks,
+            "mpi_child_rejects_intercommunicator_and_accepts_cartesian",
+            &[],
+        );
+        assert_success(
+            ranks,
+            "intracommunicator boundary and Cartesian preservation",
+            output,
+        );
+    }
+}
+
+#[test]
+#[allow(unsafe_code)]
+fn mpi_child_rejects_intercommunicator_and_accepts_cartesian() {
+    if env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    use mpi::raw::traits::AsRaw;
+    use mpi::topology::{Color, Communicator, InterCommunicator};
+    let (universe, provided) = mpi::initialize_with_threading(Threading::Funneled).unwrap();
+    let world = universe.world();
+    if world.size() > 1 {
+        let color = i32::from(world.rank() != 0);
+        let local = world.split_by_color(Color::with_value(color)).unwrap();
+        let remote_leader = i32::from(color == 0);
+        // SAFETY: All initialized world ranks enter this collective with valid,
+        // disjoint local intracommunicators. Both local leaders are rank zero;
+        // world rank one/zero names the other group's leader, and tag97 is valid.
+        // The output is read only after MPI_SUCCESS and its ownership transfers
+        // exactly once into InterCommunicator, which frees the new handle.
+        let inter = unsafe {
+            let mut raw = std::mem::MaybeUninit::uninit();
+            let status = mpi::ffi::MPI_Intercomm_create(
+                local.as_raw(),
+                0,
+                world.as_raw(),
+                remote_leader,
+                97,
+                raw.as_mut_ptr(),
+            );
+            assert_eq!(status, mpi::ffi::MPI_SUCCESS as i32);
+            InterCommunicator::try_from_raw(raw.assume_init()).unwrap()
+        };
+        let error =
+            MpiExecutionGroup::duplicate(&inter, provided, MpiThreadSupport::Funneled).unwrap_err();
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert_eq!(
+            error.message(),
+            "MPI execution requires an intracommunicator"
+        );
+        assert_common_diagnostic(&world, &error);
+        drop(inter);
+        drop(local);
+    }
+    let cartesian = world
+        .create_cartesian_communicator(&[world.size()], &[false], false)
+        .unwrap();
+    let group =
+        MpiExecutionGroup::duplicate(&cartesian, provided, MpiThreadSupport::Funneled).unwrap();
+    assert_eq!(
+        group.partitions().get(),
+        usize::try_from(world.size()).unwrap()
+    );
+}
+
+#[test]
 fn mpi_unverified_solver_tuples_are_rejected_before_distributed_execution() {
     if env::var_os(CHILD_ENV).is_some() {
         return;
