@@ -53,6 +53,7 @@ use eqiora_spatial_distribution::{
 };
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
+use sha2::{Digest, Sha256};
 use support::fixed_reference_fsi::operator::physical_field_scale;
 use support::fixed_reference_fsi::{
     direct_document, execution_context, prestrained_state, spatial_context,
@@ -267,8 +268,7 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
         let error = group
             .bind_selected_mpi_cuda(&selection, binding, prepared.complete_system(), None)
             .unwrap_err();
-        assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_REALIZATION);
-        assert_rank_bytes_agree(&world, error.message().as_bytes());
+        assert_rank_binding_failure(&world, &error);
     }
     let changed_controls = group
         .select_plan_mpi_cuda(
@@ -289,7 +289,7 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
             None,
         )
         .unwrap_err();
-    assert_rank_bytes_agree(&world, error.message().as_bytes());
+    assert_rank_binding_failure(&world, &error);
 
     let fallback_token = AdmittedExecution::admit_distributed_cuda_linear(
         prepared.realization_graph(),
@@ -870,6 +870,13 @@ fn assert_system_bits(candidate: &LinearSystem<f64>, reference: &LinearSystem<f6
             .map(|value| value.to_bits())
             .collect::<Vec<_>>()
     );
+}
+
+fn assert_rank_binding_failure(world: &impl CommunicatorCollectives, error: &Diagnostic) {
+    assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_REALIZATION);
+    // A disagreement must not change collective message counts.
+    let message: [u8; 32] = Sha256::digest(error.message().as_bytes()).into();
+    assert_rank_bytes_agree(world, &message);
 }
 
 fn assert_rank_bytes_agree(world: &impl CommunicatorCollectives, local: &[u8]) {
