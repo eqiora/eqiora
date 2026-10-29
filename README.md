@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Open-source computational physics.</strong><br>
-  Write physical models as readable equations, couple them, and solve them with numerical methods you choose or write yourself.<br>
+  Write the equations as you would on paper, couple different physics, choose how to solve them, and differentiate the results.<br>
   A Python interface on a Rust core.
 </p>
 
@@ -38,7 +38,7 @@
 
 ---
 
-## 🔬 See the physics
+## See the physics
 
 **A Kármán vortex street behind a circular cylinder.** This transient
 Navier–Stokes example builds the channel geometry, runs the flow until the wake
@@ -52,33 +52,69 @@ alternating vortices moving downstream, with the lift history underneath.
 
 | Explore | Inside the walkthrough |
 | --- | --- |
-| 🎞️ [Kármán vortex street](https://eqiora.org/gallery/karman-vortex-street/) | Transient incompressible flow, vorticity, cylinder force, and pressure observations. |
-| 🌊 [Steady flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Channel geometry, Gmsh meshing, steady Stokes flow, and the pressure field. |
-| 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A square fixed on one edge, mixed boundary conditions, and its displacement. |
+| [Kármán vortex street](https://eqiora.org/gallery/karman-vortex-street/) | Transient incompressible flow, vorticity, cylinder force, and pressure observations. |
+| [Steady flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Channel geometry, Gmsh meshing, steady Stokes flow, and the pressure field. |
+| [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A square fixed on one edge, mixed boundary conditions, and its displacement. |
 
-## ✨ What Eqiora does
+## What a model looks like
 
-You describe a physical system as equations in Eqiora's modeling language
-(`.eqi`) or from Python: quantities with units, fields, boundary conditions,
-connected components, continuous dynamics, and discrete events. The compiler
-checks names, types, and physical dimensions, so adding a length to a velocity
-is caught before anything runs.
+A model is a set of equations with units. This one is exponential decay,
+`dx/dt + k x = 0`:
 
-The numerical method is chosen separately. The same model can be discretized
-and solved in different ways, and you can plug in your own solver or develop a
-new method without touching the physics. Coupled problems, from connected
-circuit components to systems whose unknowns must be solved together, are
-written in the model itself.
+```eqiora
+model decay() {
+  state x: 1;
+  initial { x = 1; }
+  parameter rate: 1 / s = 1;
+  relation flow { derivative(x) + rate * x = 0; }
+}
+```
 
-Models are built from reusable components and constitutive laws, such as those
-in the [standard library](https://eqiora.org/reference/standard-packages/), and
-parts can be swapped as your work changes. From Python you build geometry,
-generate meshes, run simulations, and get field data as NumPy arrays for your
-own analysis and plots. Each result records the equations, geometry, mesh, and
-solver settings that produced it. Python and Rust use the same compiled model
-and execution core.
+From Python you compile it, choose a time integrator, and run it:
 
-## 🚀 Get started with uv
+```python
+import eqiora
+
+model = eqiora.compile(path="decay.eqi")
+x = model.field("x")
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1e-9,
+        absolute_tolerances={(x, 0, 0, False): 1e-11},
+    ),
+)
+result = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(1.0,))
+print(result.series(x).values.numpy())  # [0.36787944], which is exp(-1)
+```
+
+## What Eqiora does
+
+You write a physical system as equations, in the `.eqi` language or from
+Python: quantities with units, fields, boundary conditions, connected
+components, continuous dynamics, and discrete events. Common equations and
+boundary conditions come from the
+[standard library](https://eqiora.org/reference/standard-packages/), and you
+can mix them with your own. The compiler checks names, types, and physical
+dimensions, so adding a length to a velocity fails before anything runs.
+
+Physics can be coupled in the same model. You connect components, and the
+compiler builds one system from them. Examples in the repository couple fluid
+flow with an elastic solid, and an electric motor with a sampled controller.
+
+The numerical method is a separate choice. The same model can be solved with
+finite elements or finite volumes and with different solvers, on CPU threads,
+and for selected problems with MPI or CUDA. Results can be differentiated with
+respect to model parameters, and the derivatives work with JAX and PyTorch.
+
+From Python you build geometry, generate meshes, run simulations, and get
+fields as NumPy arrays. Each result records the equations, geometry, mesh, and
+solver settings that produced it. Python and Rust share the same compiled model
+and execution core. The [capability matrix](docs/capability-matrix.md) lists
+exactly which combinations work today.
+
+## Get started with uv
 
 Add the published Python package to your project:
 
@@ -101,7 +137,7 @@ To start with steady flow around a cylinder, open the
 [step-by-step walkthrough](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
 and its [complete Python script](examples/python/exact_cylinder_stokes.py).
 
-## 🧩 From a model to a result
+## From a model to a result
 
 A **Model** holds the mathematics. Resolving it with a mesh, method, and solver
 gives a **Plan**, which records those numerical choices. Running the Plan gives
@@ -119,7 +155,7 @@ model, and every field in a Result can be traced back to the choices that
 produced it. The [architecture overview](docs/architecture.md) explains how the
 pieces fit together.
 
-## 🦀 Use from Rust
+## Use from Rust
 
 Add the published facade to a Cargo project:
 
@@ -130,16 +166,16 @@ cargo add eqiora@=0.1.5
 Start with the [Rust guide](docs/rust-api.md) for model compilation and optional
 backends, or browse the [API docs](https://docs.rs/eqiora/0.1.5/eqiora/).
 
-## 🛠️ More ways to work
+## More ways to work
 
 | Interface | Use it to |
 | --- | --- |
-| 🐍 **Python** | Write, compile, mesh, solve, and plot. This is the main interface. [Reference →](https://eqiora.org/reference/python/) |
-| 🦀 **Rust** | Embed Eqiora in a Rust application through the `eqiora` crate. [Guide →](docs/rust-api.md) |
-| ⌨️ **CLI** | Check a local `.eqi` file with `eqiora check`. [Command reference →](https://eqiora.org/reference/cli/) |
-| 📝 **Editor support (preview)** | Get diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
+| **Python** | Write, compile, mesh, solve, and plot. This is the main interface. [Reference →](https://eqiora.org/reference/python/) |
+| **Rust** | Embed Eqiora in a Rust application through the `eqiora` crate. [Guide →](docs/rust-api.md) |
+| **CLI** | Check a local `.eqi` file with `eqiora check`. [Command reference →](https://eqiora.org/reference/cli/) |
+| **Editor support (preview)** | Get diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
 
-## 🌱 Project status
+## Project status
 
 Eqiora is **pre-1.0 research software**. It currently supports specific paths
 through hybrid ODE/event execution, scalar FEM/FVM, fluid flow, elasticity,
@@ -152,7 +188,7 @@ APIs and saved formats can change between pre-1.0 releases without
 compatibility layers. Eqiora is not certified for safety-critical or production
 engineering decisions.
 
-## 🤝 Contributing
+## Contributing
 
 Bug reports, clearer examples, numerical methods, and developer-experience
 improvements are all welcome. Start with the [contributing guide](CONTRIBUTING.md),
