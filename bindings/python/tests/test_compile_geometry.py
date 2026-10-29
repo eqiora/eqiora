@@ -130,3 +130,48 @@ def test_component_and_parameter_inventory_are_source_owned() -> None:
         entry="OtherSteadyFlow",
     )
     assert selected.digest
+
+
+def test_source_named_boundary_parent_has_one_model_and_plan() -> None:
+    from test_mixed_boundary_elasticity import geometry_and_mesh
+
+    authored, mesh = geometry_and_mesh(cells=2)
+    source_path = files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi")
+    explicit = {
+        **support_bindings(authored, ["body"], [(name, "body") for name in
+            ["x_lower", "x_upper", "y_lower", "y_upper"]]),
+        "mu": 3.0, "lambda": 0.0, "length_scale": 1.0,
+    }
+    direct = {name: value[0] if isinstance(value, tuple) else value
+              for name, value in explicit.items()}
+    models = []
+    plans = []
+    for bindings in (explicit, direct):
+        for source in (
+            {"path": source_path},
+            {"source": source_path.read_text(encoding="utf-8"), "filename": "logical/elasticity.eqi"},
+        ):
+            model = eqiora.compile(**source, geometry=authored,
+                entry="MixedBoundaryElasticity2d", bindings=bindings)
+            models.append(model)
+            plans.append(eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(),
+                solve=eqiora.solve.Linear(
+                    algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+                    preconditioner=eqiora.solve.Preconditioner.Identity,
+                    reduction=eqiora.solve.Reduction.Reproducible,
+                    provider=eqiora.solve.SolverProvider.reference(),
+                    relative_tolerance=1e-10, absolute_tolerance=1e-12,
+                    maximum_iterations=100)))
+    assert len({model.digest for model in models}) == 1
+    assert all(plan.to_bytes() == plans[0].to_bytes() for plan in plans)
+
+    foreign = geometry()
+    for invalid in (
+        {name: value for name, value in direct.items() if name != "body"},
+        {**direct, "body": authored.selection("x_upper")},
+        {**direct, "body": foreign.selection("fluid")},
+        {**direct, "x_lower": (authored.selection("x_lower"), authored.selection("x_upper"))},
+    ):
+        with pytest.raises((eqiora.ValidationError, ValueError)):
+            eqiora.compile(path=source_path, geometry=authored,
+                entry="MixedBoundaryElasticity2d", bindings=invalid)
