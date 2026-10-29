@@ -12,7 +12,7 @@ use cubecl::prelude::*;
 use eqiora_ir::LocalLinearActionIr;
 
 /// CubeCL release evaluated by this experiment.
-pub const CUBECL_VERSION: &str = "0.10.0";
+pub const CUBECL_VERSION: &str = "0.11.3";
 
 /// Eqiora-owned source contract for the two generated kernels.
 pub const KERNEL_CONTRACT: &str = "eqiora.local-linear-action/cubecl-v1";
@@ -335,7 +335,7 @@ mod tests {
     fn policy_and_kernel_identity_are_stable_evidence() {
         assert_eq!(LocalActionPolicy::Ordered.as_str(), "ordered");
         assert_eq!(LocalActionPolicy::Fast.as_str(), "fast");
-        assert_eq!(CUBECL_VERSION, "0.10.0");
+        assert_eq!(CUBECL_VERSION, "0.11.3");
         assert_eq!(KERNEL_CONTRACT, "eqiora.local-linear-action/cubecl-v1");
     }
 }
