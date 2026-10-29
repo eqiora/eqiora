@@ -64,7 +64,7 @@ __all__ = (
 )
 
 FULL_CHROMIUM_VERSION_STDOUT_HEX = (
-    "476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
+    "476f6f676c65204368726f6d6520666f722054657374696e67203135362e302e383037382e34200a"
 )
 FULL_CHROMIUM_VERSION_STDOUT = bytes.fromhex(FULL_CHROMIUM_VERSION_STDOUT_HEX)
 DIRECT_SOURCE_ARCHIVE_COMMAND = (
@@ -81,10 +81,10 @@ EXACT_EXTRACTED_LINK_COMMAND = (
 )
 OFFLINE_WORKFLOW_TOKENS = (
     "ubuntu-24.04",
-    "eqiora-pw-1.62.1-r1234",
+    "eqiora-pw-1.64.1-r1248",
     "playwright install --with-deps chromium",
     "chromium.executablePath()",
-    "chromium-1234/chrome-linux64/chrome",
+    "chromium-1248/chrome-linux64/chrome",
     'sha256sum "$browser_path"',
     'stat -c %s "$browser_path"',
     "EQIORA_SITE_BROWSER_SHA256=",
@@ -118,7 +118,7 @@ OFFLINE_WORKFLOW_TOKENS = (
 )
 FORBIDDEN_WORKFLOW_TOKENS = (
     "playwright install --with-deps --only-shell chromium",
-    "HeadlessChrome 151.0.7922.34",
+    "HeadlessChrome 156.0.8078.4",
     "tar --exclude",
     "--dereference",
     "cp -L",
@@ -216,7 +216,7 @@ def check_browser_supply(
         errors.append("online full Chromium byte identity is malformed")
     if not site_root.is_dir() or site_root.is_symlink():
         return ["Playwright site root must be a real directory"]
-    if browser_cache.name != "eqiora-pw-1.62.1-r1234":
+    if browser_cache.name != "eqiora-pw-1.64.1-r1248":
         errors.append("browser cache must use exact Playwright/revision identity")
     if not browser_cache.is_dir() or browser_cache.is_symlink():
         errors.append("browser cache must be a real directory")
@@ -236,8 +236,8 @@ def check_browser_supply(
         return [*errors, "locked Playwright metadata has the wrong shape"]
     for package in ("@playwright/test", "playwright", "playwright-core"):
         entry = packages.get(f"node_modules/{package}")
-        if not isinstance(entry, dict) or entry.get("version") != "1.62.1":
-            errors.append(f"browser supply must retain locked {package} 1.62.1")
+        if not isinstance(entry, dict) or entry.get("version") != "1.64.1":
+            errors.append(f"browser supply must retain locked {package} 1.64.1")
         try:
             installed = json.loads(
                 (site_root / "node_modules" / package / "package.json").read_text(
@@ -247,8 +247,8 @@ def check_browser_supply(
         except (OSError, json.JSONDecodeError) as error:
             errors.append(f"installed {package} metadata is unavailable: {error}")
         else:
-            if not isinstance(installed, dict) or installed.get("version") != "1.62.1":
-                errors.append(f"browser supply must retain installed {package} 1.62.1")
+            if not isinstance(installed, dict) or installed.get("version") != "1.64.1":
+                errors.append(f"browser supply must retain installed {package} 1.64.1")
     chromium = [
         entry
         for entry in browsers
@@ -257,8 +257,8 @@ def check_browser_supply(
     if len(chromium) != 1 or (
         chromium[0].get("revision"),
         chromium[0].get("browserVersion"),
-    ) != ("1234", "151.0.7922.34"):
-        errors.append("browser supply metadata must select Chromium 1234/151.0.7922.34")
+    ) != ("1248", "156.0.8078.4"):
+        errors.append("browser supply metadata must select Chromium 1248/156.0.8078.4")
     supplied_environment = dict(os.environ if environment is None else environment)
     supplied_environment["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
     try:
@@ -277,7 +277,7 @@ def check_browser_supply(
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         return [*errors, f"locked Playwright executable resolution failed: {error}"]
-    expected = browser_cache / "chromium-1234/chrome-linux64/chrome"
+    expected = browser_cache / "chromium-1248/chrome-linux64/chrome"
     if (
         resolved.returncode != 0
         or resolved.stderr
@@ -338,6 +338,6 @@ def check_runner_browser_supply_text(text: str) -> list[str]:
     ):
         if token not in text:
             errors.append(f"offline runner omits online browser identity {token!r}")
-    if "HeadlessChrome 151.0.7922.34" in text:
+    if "HeadlessChrome 156.0.8078.4" in text:
         errors.append("offline runner retains obsolete headless-shell identity")
     return errors

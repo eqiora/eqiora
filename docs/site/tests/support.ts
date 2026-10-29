@@ -263,10 +263,10 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   return Object.freeze(canonical);
 }
 
-const CHROME_VERSION = '151.0.7922.34';
-const CHROME_BYTES = 290_614_600;
-const CHROME_SHA256 = '0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71';
-const BROWSERS_JSON_SHA256 = 'f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99';
+const CHROME_VERSION = '156.0.8078.4';
+const CHROME_BYTES = 301_186_376;
+const CHROME_SHA256 = '377a9fc07b495c3b8d0ab8ec1fdfd153641759f9756fea34d8dfce4de82f5025';
+const BROWSERS_JSON_SHA256 = '2cfd419f71ac6475d81e1301fa86c34cf2a2a6bae2a0da4b5a2b18310216b6bf';
 
 type AxeRuleDefinition = Readonly<{
   id: string;
@@ -392,10 +392,10 @@ export async function launchOfficialBrowser(headless = true): Promise<Browser> {
   const started = performance.now();
   try {
     const browserRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
-    expect(browserRoot?.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
+    expect(browserRoot?.endsWith('/eqiora-pw-1.64.1-r1248')).toBe(true);
     const root = await realpath(browserRoot!);
-    expect(root.endsWith('/eqiora-pw-1.62.1-r1234')).toBe(true);
-    const executablePath = resolve(root, 'chromium-1234/chrome-linux64/chrome');
+    expect(root.endsWith('/eqiora-pw-1.64.1-r1248')).toBe(true);
+    const executablePath = resolve(root, 'chromium-1248/chrome-linux64/chrome');
     const executableLink = await lstat(executablePath);
     expect(executableLink.isSymbolicLink()).toBe(false);
     expect(executableLink.isFile()).toBe(true);
@@ -416,7 +416,7 @@ export async function launchOfficialBrowser(headless = true): Promise<Browser> {
     };
     for (const name of ['chromium', 'chromium-headless-shell']) {
       expect(manifest.browsers.find((entry) => entry.name === name)).toMatchObject({
-        revision: '1234',
+        revision: '1248',
         browserVersion: CHROME_VERSION,
       });
     }

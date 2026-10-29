@@ -24,8 +24,8 @@ SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-oracle-tests"
 BASIS_SHA = "19968da984c16e718baeb9faa5aae04260896c29"
 BASIS_TREE = "1d19473c487b8035608cc88cbd99757f2b95865a"
 AGENTS_SHA256 = "ffc9b0381a01c16b3d72389ef777842215c48b65d6eda6881f5e75bfa5d531c0"
-BROWSER_SHA256 = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
-BROWSER_BYTES = 290_614_600
+BROWSER_SHA256 = "377a9fc07b495c3b8d0ab8ec1fdfd153641759f9756fea34d8dfce4de82f5025"
+BROWSER_BYTES = 301_186_376
 SOURCE_SUCCESS = "site source: exact optional CLAUDE.md topology admitted"
 BROWSER_SUCCESS = "site browser: exact locked full Chromium supply admitted"
 POST_SB_SENTINEL = 85
@@ -88,11 +88,11 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         if not browser_root_value or not browser_sha256 or not browser_bytes:
             raise AssertionError("the official browser identity inputs are required")
         cls.browser_root = Path(browser_root_value)
-        cls.browser = cls.browser_root / "chromium-1234/chrome-linux64/chrome"
+        cls.browser = cls.browser_root / "chromium-1248/chrome-linux64/chrome"
         if (
             not cls.browser_root.is_absolute()
             or cls.browser_root.resolve() != cls.browser_root
-            or cls.browser_root.name != "eqiora-pw-1.62.1-r1234"
+            or cls.browser_root.name != "eqiora-pw-1.64.1-r1248"
             or cls.browser.is_symlink()
             or not cls.browser.is_file()
             or not os.access(cls.browser, os.X_OK)
