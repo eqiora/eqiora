@@ -20,11 +20,13 @@ stress around the obstacle.
 ## Before you begin
 
 Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
-`.venv`. From the folder containing both, add the mesh and plotting extras,
-then run the example with the same Python environment:
+`.venv`. The boundary selection shorthand used here requires a
+[development build](/get-started/#development-build); it is newer than the published
+`0.1.5` release. From the folder containing both, install the mesh and plotting
+extras from that checkout, then run the example with the same Python environment:
 
 ```bash
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
@@ -99,7 +101,10 @@ $\phi=0\,\mathrm{Pa}$, and pressure has source unit
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Complete cylinder model</ExactSourceLink>
 · <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Reusable incompressible balance component</ExactSourceLink>
 
-Compile the component with the geometry used for meshing:
+Compile the component with the geometry used for meshing. Each boundary uses
+the `fluid` parent declared in the source and its binding below. An explicit
+`(boundary_selection, parent_selection)` pair is also supported and produces
+the same Model and Plan:
 
 ```python
 model = eqiora.compile(
@@ -109,7 +114,7 @@ model = eqiora.compile(
     bindings={
         "fluid": geometry.selection("fluid"),
         **{
-            side: (geometry.selection(side), geometry.selection("fluid"))
+            side: geometry.selection(side)
             for side in ("inlet", "outlet", "walls", "cylinder")
         },
         "dynamic_viscosity": 1.0e-3,

@@ -39,7 +39,7 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
         bindings={
             "fluid": geometry.selection("fluid"),
             **{
-                side: (geometry.selection(side), geometry.selection("fluid"))
+                side: geometry.selection(side)
                 for side in ("inlet", "outlet", "walls", "cylinder")
             },
             "dynamic_viscosity": 1.0e-3,
