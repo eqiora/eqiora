@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Open-source computational physics.</strong><br>
-  Write the equations as you would on paper, couple different physics, choose how to solve them, and differentiate the results.<br>
+  Write the equations as you would on paper, couple physics by region, choose how to solve them, and differentiate the results.<br>
   A Python interface on a Rust core.
 </p>
 
@@ -99,9 +99,18 @@ boundary conditions come from the
 can mix them with your own. The compiler checks names, types, and physical
 dimensions, so adding a length to a velocity fails before anything runs.
 
-Physics can be coupled in the same model. You connect components, and the
-compiler builds one system from them. Examples in the repository couple fluid
-flow with an elastic solid, and an electric motor with a sampled controller.
+Multiphysics is written the same way. Each equation is written on the region
+where it holds, and regions are joined where they meet:
+
+```eqiora
+relation fluid_momentum on fluid { ... }
+relation solid_momentum on solid { ... }
+connect fluid_interface, solid_interface;
+```
+
+Eqiora assembles one coupled system and solves it together. The
+[fluid–structure example](examples/fixed-reference-fsi.eqi) is written this
+way.
 
 The numerical method is a separate choice. The same model can be solved with
 finite elements or finite volumes and with different solvers, on CPU threads,
