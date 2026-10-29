@@ -7,6 +7,46 @@ type SensitivityControl = (
 );
 
 impl CommonOdePolicy {
+    /// Bind a scalar Tsitouras tolerance to one admitted real first-order state.
+    ///
+    /// This shorthand does not broadcast across Fields, derivative coordinates,
+    /// complex parts, or shaped values. The returned policy uses the same exact
+    /// coordinates and positive finite controls as [`Self::new`].
+    pub fn for_scalar_state(
+        kernel: &KernelProgram,
+        initial_step_s: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+    ) -> Result<Self, Diagnostic> {
+        let flow = events::flow(kernel, None)?;
+        let program = FirstOrderProgram::lower(kernel, flow)?;
+        let [coordinate] = program.state_coordinates() else {
+            return Err(invalid(
+                "scalar absolute_tolerance requires one real scalar first-order ODE state coordinate",
+            ));
+        };
+        let Some(KernelNode::Field(field)) = kernel.node(coordinate.field().erase()) else {
+            return Err(invalid("time coordinate has no exact Field type"));
+        };
+        if program.equation_class() != TimeEquationClass::ExplicitOde
+            || coordinate.derivative_order() != 0
+            || coordinate.component() != 0
+            || coordinate.is_imaginary()
+            || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+            || !field.value_type().shape().is_scalar()
+        {
+            return Err(invalid(
+                "scalar absolute_tolerance requires one real scalar first-order ODE state coordinate",
+            ));
+        }
+        Self::new(
+            TimeMethod::Tsitouras45,
+            initial_step_s,
+            relative_tolerance,
+            vec![(*coordinate, absolute_tolerance)],
+        )
+    }
+
     /// Check exact coordinate ownership and return tolerances in execution order.
     pub(crate) fn ordered_absolute_tolerances(
         &self,

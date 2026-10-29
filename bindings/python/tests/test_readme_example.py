@@ -26,6 +26,8 @@ def _listings() -> tuple[str, str]:
 
 def test_readme_model_runs_and_prints_the_documented_value(tmp_path: Path) -> None:
     model, program = _listings()
+    assert 'model.field("x")' in program
+    assert "absolute_tolerance=1e-11" in program
     (tmp_path / "decay.eqi").write_text(model, encoding="utf-8")
     (tmp_path / "run.py").write_text(program, encoding="utf-8")
     result = subprocess.run(

@@ -11,8 +11,9 @@ import programSource from '../../../../../../examples/python/textbook_decay.py?r
 import programDownload from '../../../../../../examples/python/textbook_decay.py?url&no-inline';
 
 Run a small model, then change it and see the difference. You need two files and
-a Python environment. The example below works with the published Eqiora `0.1.5`
-package; no source checkout, Rust compiler, mesh generator or editor extension is needed.
+a Python environment. The scalar tolerance shorthand in the run script is newer
+than the published `0.1.5` package and requires the [development build](#development-build).
+No mesh generator or editor extension is needed.
 
 ## Install with uv
 
@@ -29,8 +30,10 @@ uv add eqiora
 
 In an existing uv project, just run `uv add eqiora`. This installs the published
 package from PyPI and records the dependency in `pyproject.toml` and `uv.lock`.
-Use `uv add eqiora==0.1.5` if you want to select the release used for this walkthrough
-explicitly. Keep the lockfile with your project to reproduce its environment.
+Use `uv add eqiora==0.1.5` to select the current published release explicitly.
+These commands install the published release, which does not yet accept
+the scalar tolerance shorthand below. Follow [Development build](#development-build)
+before running this walkthrough. Keep the lockfile with your project to reproduce its environment.
 
 Save the following files in the project folder, beside `pyproject.toml`.
 No shell activation is needed: `uv run` uses the project's environment.
@@ -69,7 +72,10 @@ complete script into `run.py` in the same folder:
 
 The script compiles `decay.eqi`, chooses an adaptive time method, starts from the
 model's initial state and requests three observations. The returned `Result`
-contains a time series selected by the model's field handle. The two NumPy arrays
+contains a time series selected by the source name `x`. A single
+`absolute_tolerance` sets the one scalar state's SI error scale; Models with
+multiple, shaped, complex or higher-order state coordinates require the explicit
+`absolute_tolerances` mapping. The two NumPy arrays
 hold times in seconds and the corresponding dimensionless values.
 
 ## Run and inspect
@@ -107,8 +113,9 @@ the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 ## Example files
 
 Some lessons run scripts or model packages from the repository. Downloading
-those examples is separate from installing Eqiora: keep using the published
-package in your uv project. With Git installed, run these commands from the
+those examples is separate from installing Eqiora. Use the published package for
+examples that support it; this decay walkthrough requires the development build.
+With Git installed, run these commands from the
 project folder to get the files linked by this site:
 
 export const exampleCommands = `git init eqiora-source
@@ -119,7 +126,7 @@ git -C eqiora-source checkout --detach FETCH_HEAD`;
 <Code code={exampleCommands} lang="bash" title="Optional: download the example files" />
 
 Keep `eqiora-source` beside `.venv` for the lessons that use repository paths.
-The decay, voltage-divider, heated-body and mixed-boundary elasticity examples
+The voltage-divider, heated-body and mixed-boundary elasticity examples
 run with the published `0.1.5` package. Add optional dependencies to that package
 as needed, for example `uv add 'eqiora[matplotlib]'`. Gmsh examples also need
 `uv add 'eqiora[gmsh,matplotlib]'` and the system GLU library; on Ubuntu, install

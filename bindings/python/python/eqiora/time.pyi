@@ -40,7 +40,12 @@ class Tsitouras45:
     """Adaptive explicit Tsitouras 5(4) integration.
 
     Tolerances are in SI units and are set per Field, derivative order,
-    component, and real or imaginary part.
+    component, and real or imaginary part. Alternatively, ``absolute_tolerance``
+    specifies the SI tolerance of one real scalar first-order ODE state.
+    The scalar form is bound and checked for positive finite controls at
+    ``resolve``; it does not broadcast or accept extra contracts. Specify
+    exactly one tolerance form. Before resolution the scalar request has no
+    Field-bound mapping, so ``absolute_tolerances`` is ``None``.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
     """
@@ -51,7 +56,8 @@ class Tsitouras45:
         *,
         initial_step_s: float,
         relative_tolerance: float,
-        absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float],
+        absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float] | None = None,
+        absolute_tolerance: float | None = None,
         events: EventPolicy | None = None,
         forward_sensitivities: ForwardSensitivity | None = None,
     ) -> Self: ...
@@ -60,7 +66,9 @@ class Tsitouras45:
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float] | None: ...
+    @property
+    def absolute_tolerance(self) -> float | None: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property
