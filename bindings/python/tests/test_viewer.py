@@ -314,7 +314,7 @@ def test_installed_wheel_carries_viewer_assets_and_threejs_notice() -> None:
     assert len(package.joinpath("static/viewer.mjs").read_bytes()) > 100_000
     assert len(package.joinpath("static/viewer.css").read_bytes()) > 1_000
     notice = package.joinpath("THIRD_PARTY_NOTICES.txt").read_text(encoding="utf-8")
-    assert "Three.js 0.185.1" in notice
+    assert "Three.js 0.186.1" in notice
     assert "The MIT License" in notice
 
 

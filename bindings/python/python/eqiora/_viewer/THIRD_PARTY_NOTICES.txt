@@ -1,4 +1,4 @@
-Three.js 0.185.1
+Three.js 0.186.1
 https://threejs.org/
 
 The MIT License
