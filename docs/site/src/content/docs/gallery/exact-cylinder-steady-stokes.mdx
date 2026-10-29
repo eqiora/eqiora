@@ -153,8 +153,7 @@ mesh_request = eqiora.meshing.GmshMesher(
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(mesh_plan)
+mesh = eqiora.meshing.generate(geometry, mesh_request)
 ```
 
 <Aside type="note" title="Mesh size">
