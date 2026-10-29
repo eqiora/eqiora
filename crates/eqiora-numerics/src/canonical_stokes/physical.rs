@@ -281,7 +281,7 @@ impl SteadyStokesMiniSolution2d {
 
     /// Exact retained conservative-force-potential Field.
     #[must_use]
-    pub fn force_potential_field(&self) -> Id<kinds::Field> {
+    pub fn force_potential_field(&self) -> Option<Id<kinds::Field>> {
         force_potential_id(&self.model)
     }
 

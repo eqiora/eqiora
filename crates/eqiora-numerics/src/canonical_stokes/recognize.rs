@@ -16,8 +16,8 @@ use super::boundary::{self, NormalPressureSource2d};
 use super::domain::unique_named_geometry_domain;
 pub(super) use super::domain::{unique_bound_geometry_domain_2d, unique_box, unique_box_2d};
 use super::expression::{
-    additive_load_definition_root, is_additive_divergence_of_field, load_definition_root,
-    lower_exact_twice_viscosity, momentum_viscous_root,
+    is_additive_divergence_of_field, load_definition_root, lower_exact_twice_viscosity,
+    momentum_viscous_root,
 };
 use super::support::{
     continuum_representation, lowering_error, relation_expression, relations_on, unique_root,
@@ -134,11 +134,11 @@ fn lower_steady_incompressible_stokes_2d_on(
     let (velocity, scalar_fields, prescribed_velocity_fields, representation) =
         exact_steady_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() < 3 {
+    if volume_relations.len() < 2 {
         return Err(lowering_error(
             domain,
             format!(
-                "2D steady Stokes requires at least three volume Relations, found {}",
+                "2D steady Stokes requires at least two volume Relations, found {}",
                 volume_relations.len()
             ),
         ));
@@ -164,69 +164,37 @@ fn lower_steady_incompressible_stokes_2d_on(
         ));
     }
     let incompressibility_relation = incompressibility[0];
-    let mut candidates = Vec::new();
-    for &force_potential in &scalar_fields {
-        for &pressure in &scalar_fields {
-            if pressure == force_potential {
-                continue;
-            }
-            let mut definitions = Vec::new();
-            for relation in &volume_relations {
-                let expression = typed_relations[relation].expression();
-                let root = unique_root(expression, *relation)?;
-                if let Some(source) =
-                    additive_load_definition_root(expression, root, force_potential, *relation)?
-                {
-                    definitions.push((*relation, source));
-                }
-            }
-            let mut momenta = Vec::new();
-            for relation in &volume_relations {
-                let typed = &typed_relations[relation];
-                let root = unique_root(typed.expression(), *relation)?;
-                if let Some(viscous) = momentum_viscous_root(
-                    typed,
-                    root,
-                    velocity,
-                    pressure,
-                    force_potential,
-                    *relation,
-                )? {
-                    momenta.push((*relation, viscous));
-                }
-            }
-            if definitions.len() == 1
-                && momenta.len() == 1
-                && definitions[0].0 != momenta[0].0
-                && definitions[0].0 != incompressibility_relation
-                && momenta[0].0 != incompressibility_relation
-            {
-                candidates.push((pressure, force_potential, definitions[0], momenta[0]));
-            }
-        }
-    }
+    let mut candidates = super::inventory::volume_assignments(
+        &volume_relations,
+        &typed_relations,
+        &scalar_fields,
+        incompressibility_relation,
+        super::expression::additive_load_definition_root,
+        |typed, root, pressure, force, relation| {
+            momentum_viscous_root(typed, root, velocity, pressure, force, relation)
+        },
+    )?;
     if candidates.len() != 1 {
         return Err(lowering_error(
             domain,
             format!(
-                "pressure, force-potential definition, and exact Stokes momentum balance must have one unique identity assignment, found {}; unmatched signed leaves by owning Relation: {additive_inventory}",
-                candidates.len(),
+                "pressure, optional force-potential definition, and exact Stokes momentum balance must have one unique identity assignment, found {}; unmatched signed leaves by owning Relation: {additive_inventory}",
+                candidates.len()
             ),
         ));
     }
-    let (
-        pressure,
-        force_potential,
-        (force_potential_definition, source),
-        (momentum_relation, viscous),
-    ) = candidates.remove(0);
-    let force_potential_expression = spatial_expression::lower(
-        program,
-        &relation_expression(program, force_potential_definition)?,
-        source,
-        force_potential_definition,
-        2,
-    )?;
+    let (pressure, force_source, (momentum_relation, viscous)) = candidates.remove(0);
+    let force_potential_expression = force_source
+        .map(|(_, definition, node)| {
+            spatial_expression::lower(
+                program,
+                &relation_expression(program, definition)?,
+                node,
+                definition,
+                2,
+            )
+        })
+        .transpose()?;
     let dynamic_viscosity = lower_exact_twice_viscosity(
         program,
         &typed_relations[&momentum_relation],
@@ -271,10 +239,9 @@ fn lower_steady_incompressible_stokes_2d_on(
         domain,
         representation,
         pressure,
-        force_potential,
+        force_source: force_source.map(|(field, definition, _)| (field, definition)),
         scalar_fields: &scalar_fields,
         relations: &volume_relations,
-        force_potential_definition,
         momentum_relation,
         incompressibility_relation,
     };
@@ -298,8 +265,7 @@ fn lower_steady_incompressible_stokes_2d_on(
         domain,
         velocity,
         pressure,
-        source_definition: force_potential_definition,
-        source_node: source,
+        source: force_source.map(|(_, definition, node)| (definition, node)),
         momentum_relation,
         incompressibility_relation,
         boundaries: &boundary.boundary_relations,
@@ -310,8 +276,7 @@ fn lower_steady_incompressible_stokes_2d_on(
         domain,
         velocity,
         pressure,
-        source: force_potential,
-        source_definition: force_potential_definition,
+        source: force_source.map(|(field, definition, _)| (field, definition)),
         momentum_relation,
         incompressibility_relation,
         boundary_relations: &boundary_relation_ids,
@@ -501,11 +466,11 @@ fn exact_steady_fields(
     if inventory.count
         != velocity.len() + pressure_scalars.len() + prescribed_velocity_scalars.len()
         || velocity.len() != 1
-        || pressure_scalars.len() < 2
+        || pressure_scalars.is_empty()
     {
         return Err(lowering_error(
             domain,
-            "steady Stokes Fields must be exactly one spatial velocity vector, at least two pressure-valued invariant scalars, and zero or more invariant velocity or velocity-potential scalars",
+            "steady Stokes Fields must be exactly one spatial velocity vector, at least one pressure-valued invariant scalar, and zero or more invariant velocity or velocity-potential scalars",
         ));
     }
     let representation = inventory.representation(domain, "steady Stokes solution and boundary-coefficient Fields must share one continuum Representation")?;
@@ -537,12 +502,14 @@ pub(super) fn exact_fields_for_dimension<const D: usize>(
     let inventory = super::inventory::FlowFields::collect(program, domain, D as u32, &[]);
     let velocity = &inventory.velocities;
     let scalars = &inventory.pressures;
-    if inventory.count != velocity.len() + scalars.len() || velocity.len() != 1 || scalars.len() < 2
+    if inventory.count != velocity.len() + scalars.len()
+        || velocity.len() != 1
+        || scalars.is_empty()
     {
         return Err(lowering_error(
             domain,
             format!(
-                "Fields must be exactly one velocity-valued spatial Cartesian `[{D}]` Field and at least two pressure-valued invariant scalar Fields"
+                "Fields must be exactly one velocity-valued spatial Cartesian `[{D}]` Field and at least one pressure-valued invariant scalar Field"
             ),
         ));
     }
@@ -563,10 +530,9 @@ struct StokesVolumeRoles<'a> {
     domain: RawId,
     representation: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_source: Option<(RawId, RawId)>,
     scalar_fields: &'a [RawId],
     relations: &'a [RawId],
-    force_potential_definition: RawId,
     momentum_relation: RawId,
     incompressibility_relation: RawId,
 }
@@ -602,7 +568,11 @@ fn resolve_normal_pressures(
                 field,
                 law_relation,
             } => {
-                if field == volume.pressure || field == volume.force_potential {
+                if field == volume.pressure
+                    || volume
+                        .force_source
+                        .is_some_and(|(source, _)| field == source)
+                {
                     return Err(lowering_error(
                         law_relation,
                         "normal-pressure coefficient Field must be distinct from solution pressure and force potential",
@@ -661,7 +631,12 @@ fn resolve_normal_pressures(
     let expected_coefficient_fields = scalar_fields
         .iter()
         .copied()
-        .filter(|field| *field != volume.pressure && *field != volume.force_potential)
+        .filter(|field| {
+            *field != volume.pressure
+                && !volume
+                    .force_source
+                    .is_some_and(|(source, _)| *field == source)
+        })
         .collect::<BTreeSet<_>>();
     if coefficient_fields != expected_coefficient_fields {
         return Err(lowering_error(
@@ -670,11 +645,9 @@ fn resolve_normal_pressures(
         ));
     }
 
-    let mut expected_relations = BTreeSet::from([
-        volume.force_potential_definition,
-        volume.momentum_relation,
-        volume.incompressibility_relation,
-    ]);
+    let mut expected_relations =
+        BTreeSet::from([volume.momentum_relation, volume.incompressibility_relation]);
+    expected_relations.extend(volume.force_source.map(|(_, definition)| definition));
     expected_relations.extend(definitions.iter().copied());
     expected_relations.extend(prescribed_velocity_definitions.iter().copied());
     if volume.relations.iter().copied().collect::<BTreeSet<_>>() != expected_relations {

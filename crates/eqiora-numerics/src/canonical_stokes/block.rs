@@ -45,7 +45,12 @@ pub(super) fn steady_stokes_block_system(
     let domain = domain_id(model.domain())?;
     let velocity = field(model.velocity())?;
     let pressure = field(model.pressure())?;
-    let force = field(model.force_potential())?;
+    let force = model
+        .correspondence
+        .law
+        .source
+        .map(|(source, definition)| Ok::<_, Diagnostic>((field(source)?, relation(definition)?)))
+        .transpose()?;
     let plan = resolved.plan();
     let space_for = |field| {
         plan.spatial()
@@ -78,12 +83,15 @@ pub(super) fn steady_stokes_block_system(
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
-        FieldBlock::coefficient(
+    ];
+
+    if let Some((force, _)) = force {
+        fields.push(FieldBlock::coefficient(
             domain,
             force,
             ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
-        ),
-    ];
+        ));
+    }
 
     let mut boundary_coefficients = Vec::new();
     for pressure_law in model.normal_pressures() {
@@ -138,15 +146,9 @@ pub(super) fn steady_stokes_block_system(
         }
     }
 
-    let force_definition = relation(model.force_potential_definition())?;
     let momentum = relation(model.momentum_relation())?;
     let incompressibility = relation(model.incompressibility_relation())?;
     let mut relations = vec![
-        RelationBlock::new(
-            force_definition,
-            BlockSupport::Volume(domain),
-            RelationDisposition::CoefficientDefinition { field: force },
-        ),
         RelationBlock::new(
             momentum,
             BlockSupport::Volume(domain),
@@ -162,6 +164,16 @@ pub(super) fn steady_stokes_block_system(
             },
         ),
     ];
+    if let Some((force, definition)) = force {
+        relations.insert(
+            0,
+            RelationBlock::new(
+                definition,
+                BlockSupport::Volume(domain),
+                RelationDisposition::CoefficientDefinition { field: force },
+            ),
+        );
+    }
     relations.extend(boundary_coefficients.iter().map(|(field, definition)| {
         RelationBlock::new(
             *definition,
@@ -235,15 +247,19 @@ pub(super) fn steady_stokes_block_system(
     let mut contributions = vec![ContributionBatch::new(
         [BlockSupport::Volume(domain)],
         0..cell_count,
-        [0, 1, 2],
-        [
-            ResidualOrigin::Relation(force_definition),
-            ResidualOrigin::Relation(momentum),
-            ResidualOrigin::Relation(incompressibility),
-        ],
+        0..(2 + usize::from(force.is_some())),
+        force
+            .map(|(_, definition)| ResidualOrigin::Relation(definition))
+            .into_iter()
+            .chain([
+                ResidualOrigin::Relation(momentum),
+                ResidualOrigin::Relation(incompressibility),
+            ]),
         parameter_inventory([
             model.dynamic_viscosity_expression().parameter_fields(),
-            model.force_potential_expression().parameter_fields(),
+            model
+                .force_potential_expression()
+                .map_or(&[], |source| source.parameter_fields()),
         ]),
         [
             AlgebraicBlock::Field(velocity),
@@ -256,8 +272,9 @@ pub(super) fn steady_stokes_block_system(
         [
             ContributionTerm::Stiffness,
             ContributionTerm::MixedConstraint,
-            ContributionTerm::Load,
-        ],
+        ]
+        .into_iter()
+        .chain(force.map(|_| ContributionTerm::Load)),
     )?];
     if let Some(constraint) = constraint {
         let end = packet_cursor + cell_count;
@@ -378,11 +395,13 @@ pub(super) fn transient_navier_stokes_block_system(
     let domain = domain_id(model.domain)?;
     let velocity = field(model.velocity)?;
     let pressure = field(model.pressure)?;
-    let force = field(model.force_potential)?;
+    let force = model
+        .force_source
+        .map(|(source, definition)| Ok::<_, Diagnostic>((field(source)?, relation(definition)?)))
+        .transpose()?;
     let momentum = relation(model.momentum_relation)?;
     let incompressibility = relation(model.incompressibility_relation)?;
-    let force_definition = relation(model.force_potential_definition)?;
-    let fields = vec![
+    let mut fields = vec![
         FieldBlock::discrete(
             domain,
             velocity,
@@ -405,18 +424,15 @@ pub(super) fn transient_navier_stokes_block_system(
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
-        FieldBlock::coefficient(
+    ];
+    if let Some((force, _)) = force {
+        fields.push(FieldBlock::coefficient(
             domain,
             force,
             ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
-        ),
-    ];
+        ));
+    }
     let mut relations = vec![
-        RelationBlock::new(
-            force_definition,
-            BlockSupport::Volume(domain),
-            RelationDisposition::CoefficientDefinition { field: force },
-        ),
         RelationBlock::new(
             momentum,
             BlockSupport::Volume(domain),
@@ -432,6 +448,16 @@ pub(super) fn transient_navier_stokes_block_system(
             },
         ),
     ];
+    if let Some((force, definition)) = force {
+        relations.insert(
+            0,
+            RelationBlock::new(
+                definition,
+                BlockSupport::Volume(domain),
+                RelationDisposition::CoefficientDefinition { field: force },
+            ),
+        );
+    }
     relations.extend(boundary_relation_blocks(
         &model.boundary_relations,
         velocity,
@@ -500,15 +526,20 @@ pub(super) fn transient_navier_stokes_block_system(
         [BlockSupport::Volume(domain)],
         0..cell_count,
         [0],
-        [
-            ResidualOrigin::Relation(force_definition),
-            ResidualOrigin::Relation(momentum),
-            ResidualOrigin::Relation(incompressibility),
-        ],
+        force
+            .map(|(_, definition)| ResidualOrigin::Relation(definition))
+            .into_iter()
+            .chain([
+                ResidualOrigin::Relation(momentum),
+                ResidualOrigin::Relation(incompressibility),
+            ]),
         parameter_inventory([
             model.mass_density.parameter_fields(),
             model.dynamic_viscosity.parameter_fields(),
-            model.force_potential_expression.parameter_fields(),
+            model
+                .force_potential_expression
+                .as_ref()
+                .map_or(&[], |source| source.parameter_fields()),
         ]),
         [
             AlgebraicBlock::Field(velocity),
@@ -523,8 +554,9 @@ pub(super) fn transient_navier_stokes_block_system(
             ContributionTerm::Advection,
             ContributionTerm::Stiffness,
             ContributionTerm::MixedConstraint,
-            ContributionTerm::Load,
-        ],
+        ]
+        .into_iter()
+        .chain(force.map(|_| ContributionTerm::Load)),
     )?];
     if let Some(constraint) = constraint {
         let end = packet_cursor + cell_count;

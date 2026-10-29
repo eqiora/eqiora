@@ -344,7 +344,11 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
         .unwrap(),
     );
     let pressure = lowered.pressure().downcast().unwrap();
-    let force = lowered.force_potential().downcast().unwrap();
+    let force = lowered
+        .force_potential()
+        .expect("fixture authors a force potential")
+        .downcast()
+        .unwrap();
     let force_fields = fields
         .iter()
         .map(|binding| {
@@ -768,8 +772,8 @@ fn assert_physical_solution(
     assert_eq!(solution.velocity_field().ulid(), lowered.velocity().ulid());
     assert_eq!(solution.pressure_field().ulid(), lowered.pressure().ulid());
     assert_eq!(
-        solution.force_potential_field().ulid(),
-        lowered.force_potential().ulid()
+        solution.force_potential_field().map(|field| field.ulid()),
+        lowered.force_potential().map(|field| field.ulid())
     );
     for value in solution
         .velocity()

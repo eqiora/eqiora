@@ -79,7 +79,7 @@ pub struct SteadyIncompressibleStokesModel2d {
     pub(super) correspondence: MixedGalerkinCorrespondence,
     pub(super) bounds: [[f64; 2]; 2],
     pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
-    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
+    pub(super) force_potential_expression: Option<ScalarSpatialExpression<f64>>,
     pub(super) boundary_entries: BTreeMap<PhysicalBoundarySupport, PhysicalBoundaryEntry>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_pressures: BTreeMap<PhysicalBoundarySupport, SteadyStokesNormalPressure2d>,
@@ -107,10 +107,13 @@ impl SteadyIncompressibleStokesModel2d {
         self.correspondence.law.pressure
     }
 
-    /// Canonical invariant conservative-force potential Field.
+    /// Conservative-force potential Field, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential(&self) -> RawId {
-        self.correspondence.law.source
+    pub const fn force_potential(&self) -> Option<RawId> {
+        match self.correspondence.law.source {
+            Some((field, _)) => Some(field),
+            None => None,
+        }
     }
 
     /// Physical axis-aligned bounds in coherent SI coordinates.
@@ -133,16 +136,19 @@ impl SteadyIncompressibleStokesModel2d {
         &self.dynamic_viscosity
     }
 
-    /// Immutable scalar tape defining the conservative-force potential.
+    /// Conservative-force potential tape, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
-        &self.force_potential_expression
+    pub const fn force_potential_expression(&self) -> Option<&ScalarSpatialExpression<f64>> {
+        self.force_potential_expression.as_ref()
     }
 
-    /// Exact Relation witnessing the force-potential definition.
+    /// Exact force-potential definition Relation, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_definition(&self) -> RawId {
-        self.correspondence.law.source_definition
+    pub const fn force_potential_definition(&self) -> Option<RawId> {
+        match self.correspondence.law.source {
+            Some((_, relation)) => Some(relation),
+            None => None,
+        }
     }
 
     /// Exact Relation witnessing momentum balance.
@@ -170,8 +176,7 @@ impl SteadyIncompressibleStokesModel2d {
             domain: self.domain(),
             velocity: self.velocity(),
             pressure: self.pressure(),
-            source: self.force_potential(),
-            source_definition: self.force_potential_definition(),
+            source: self.correspondence.law.source,
             momentum_relation: self.momentum_relation(),
             incompressibility_relation: self.incompressibility_relation(),
             boundary_relations: &boundary_relations,

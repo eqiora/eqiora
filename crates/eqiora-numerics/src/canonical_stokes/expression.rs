@@ -20,12 +20,12 @@ pub(super) fn momentum_viscous_root(
     root: ExprId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_potential: Option<RawId>,
     owner: RawId,
 ) -> Result<Option<ExprId>, Diagnostic> {
     let expression = residual.expression();
     let view = AdditiveResidualView::derive(expression, root, owner)?;
-    if view.leaves().len() != 2 {
+    if view.leaves().len() != 1 + usize::from(force_potential.is_some()) {
         return Ok(None);
     }
     let divergences = view
@@ -43,11 +43,11 @@ pub(super) fn momentum_viscous_root(
             matches!(
                 expression.node(leaf.value()),
                 Some(ExprNode::Gradient(force_value))
-                    if is_field(expression, *force_value, force_potential)
+                    if force_potential.is_some_and(|field| is_field(expression, *force_value, field))
             )
         })
         .collect::<Vec<_>>();
-    let ([(divergence, stress)], [forcing]) = (divergences.as_slice(), forcings.as_slice()) else {
+    let [(divergence, stress)] = divergences.as_slice() else {
         return Ok(None);
     };
     let Some(viscous) =
@@ -55,7 +55,10 @@ pub(super) fn momentum_viscous_root(
     else {
         return Ok(None);
     };
-    if divergence.sign() != forcing.sign() {
+    if force_potential.is_some() && forcings.len() != 1 {
+        return Ok(None);
+    }
+    if force_potential.is_some() && divergence.sign() != forcings[0].sign() {
         return Err(view.mismatch(
             "Stokes momentum divergence and force-gradient roles must have the same sign, up to whole-equation reversal",
         ));
@@ -376,4 +379,22 @@ pub(super) fn additive_load_definition_root(
         ));
     }
     Ok(Some(source.value()))
+}
+
+/// Strip exactly the authored conservative source, or retain an unforced balance.
+pub(super) fn momentum_internal_balance(
+    expression: &ExprDag,
+    root: ExprId,
+    source: Option<RawId>,
+) -> Option<ExprId> {
+    let Some(field) = source else {
+        return Some(root);
+    };
+    let ExprNode::Sub(balance, load) = expression.node(root)? else {
+        return None;
+    };
+    let ExprNode::Gradient(value) = expression.node(*load)? else {
+        return None;
+    };
+    is_field(expression, *value, field).then_some(*balance)
 }
