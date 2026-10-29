@@ -848,3 +848,5 @@ fn transient_navier_stokes_normalizes_only_explicit_whole_sign_reversal() {
 mod inventory;
 
 mod optional_forcing;
+
+mod normal_datum;

@@ -62,7 +62,8 @@ pub struct TransientIncompressibleNavierStokesModel<const D: usize> {
     pub(super) incompressibility_relation: RawId,
     pub(super) boundary_entries: BTreeMap<PhysicalBoundarySupport, PhysicalBoundaryEntry>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
-    normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression<f64>>,
+    normal_velocity_data:
+        BTreeMap<RawId, super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d>,
     geometry_source_digest: Option<[u8; 32]>,
 }
 
@@ -219,19 +220,26 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         outward_normal: [f64; D],
         coordinates: &[f64],
     ) -> Result<Option<[f64; D]>, Diagnostic> {
-        Ok(self
-            .prescribed_normal_speed(boundary, coordinates)?
-            .map(|speed| outward_normal.map(|component| component * speed)))
-    }
-
-    fn prescribed_normal_speed(
-        &self,
-        boundary: RawId,
-        coordinates: &[f64],
-    ) -> Result<Option<f64>, Diagnostic> {
-        self.normal_velocity_expressions
+        self.normal_velocity_data
             .get(&boundary)
-            .map(|expression| expression.evaluate(coordinates))
+            .map(|trace| {
+                let super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d::Normal {
+                    datum,
+                    ..
+                } = trace
+                else {
+                    return Err(lowering_error(
+                        boundary,
+                        "normal velocity lost its prescribed datum",
+                    ));
+                };
+                datum
+                    .evaluate(coordinates, &outward_normal)?
+                    .try_into()
+                    .map_err(|_| {
+                        lowering_error(boundary, "normal velocity has the wrong ambient dimension")
+                    })
+            })
             .transpose()
     }
 
@@ -244,16 +252,12 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         let Some(entry) = self.cartesian_boundary(axis, side) else {
             return Ok(None);
         };
-        let Some(speed) = self.prescribed_normal_speed(entry.boundary(), coordinates)? else {
-            return Ok(None);
+        let mut normal = [0.; D];
+        normal[axis] = match side {
+            BoundarySide::Lower => -1.,
+            BoundarySide::Upper => 1.,
         };
-        let mut velocity = [0.0; D];
-        let outward_sign = match side {
-            BoundarySide::Lower => -1.0,
-            BoundarySide::Upper => 1.0,
-        };
-        velocity[axis] = outward_sign * speed;
-        Ok(Some(velocity))
+        self.prescribed_normal_velocity(entry.boundary(), normal, coordinates)
     }
 
     /// Evaluate `grad(force_potential)` from the exact canonical scalar tape.
@@ -376,8 +380,8 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
             })
             .collect(),
         boundary_relations: boundary.boundary_relations.clone(),
-        normal_velocity_expressions: boundary
-            .normal_velocity_expressions
+        normal_velocity_data: boundary
+            .normal_velocity_data
             .iter()
             .filter_map(|(&(axis, side), expression)| {
                 boundary

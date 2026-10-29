@@ -4,7 +4,7 @@ use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::{ExprId, ExprNode, typing::TypedResidual};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::form_compiler) enum PrescribedDatum<S: Coefficient> {
+pub(crate) enum PrescribedDatum<S: Coefficient> {
     Components(Vec<Data<S>>),
     NormalMultiple(Data<S>),
     Neg(Box<Self>),
@@ -25,6 +25,62 @@ pub(in crate::form_compiler) enum PrescribedDatum<S: Coefficient> {
 }
 
 impl<S: Coefficient> PrescribedDatum<S> {
+    /// Bind one exact boundary RHS using a previously authenticated optional carrier.
+    pub(crate) fn from_boundary(
+        program: &KernelProgram,
+        relation: RawId,
+        rhs: ExprId,
+        carrier: Option<(RawId, RawId, ExprId)>,
+        dimension: usize,
+    ) -> Result<
+        (
+            Self,
+            Vec<eqiora_core::Id<eqiora_core::entity::kinds::Parameter>>,
+        ),
+        Diagnostic,
+    > {
+        let mut coefficients = BTreeMap::new();
+        let mut parameters = BTreeMap::new();
+        if let Some((field, definition, source)) = carrier {
+            let typed = super::super::scalar::typed_relation(program, definition)?;
+            let Some(KernelNode::Field(field_node)) = program.node(field) else {
+                return Err(invalid("prescribed carrier is not an exact Field"));
+            };
+            let context = Context {
+                time_s: None,
+                program,
+                dag: typed.expression(),
+                owner: definition,
+                dimension,
+                coefficients: &coefficients,
+            };
+            let value = super::super::spatial::data::Components::prescribed(
+                &context,
+                field_node.value_type(),
+                Some(source),
+            )?;
+            coefficients.insert(field, value);
+            collect_parameters(typed.expression(), source, &mut parameters)?;
+        }
+        let typed = super::super::scalar::typed_relation(program, relation)?;
+        let ty = typed
+            .node_type(rhs)
+            .ok_or_else(|| invalid("boundary RHS has no exact type"))?;
+        let context = Context {
+            time_s: None,
+            program,
+            dag: typed.expression(),
+            owner: relation,
+            dimension,
+            coefficients: &coefficients,
+        };
+        let datum = Self::derive(&context, &typed, &ty.value_type, Some(rhs))?;
+        collect_parameters(typed.expression(), rhs, &mut parameters)?;
+        let mut parameters = parameters.into_values().collect::<Vec<_>>();
+        parameters.sort_by_key(eqiora_core::Id::ulid);
+        Ok((datum, parameters))
+    }
+
     pub(in crate::form_compiler) fn derive(
         context: &Context<'_, S>,
         typed: &TypedResidual<RawId>,
@@ -135,7 +191,7 @@ impl<S: Coefficient> PrescribedDatum<S> {
         })
     }
 
-    pub(in crate::form_compiler) fn requires_normal(&self) -> bool {
+    pub(crate) fn requires_normal(&self) -> bool {
         match self {
             Self::Components(_) => false,
             Self::NormalMultiple(_) => true,
@@ -149,11 +205,7 @@ impl<S: Coefficient> PrescribedDatum<S> {
         }
     }
 
-    pub(in crate::form_compiler) fn evaluate(
-        &self,
-        point: &[f64],
-        normal: &[f64],
-    ) -> Result<Vec<S>, Diagnostic> {
+    pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         self.evaluate_depth(point, normal, 0)
     }
 
@@ -410,6 +462,31 @@ impl<S: Coefficient> PrescribedDatum<S> {
         }
         Ok(())
     }
+}
+
+fn collect_parameters(
+    dag: &eqiora_schema::kernel::ExprDag,
+    root: ExprId,
+    parameters: &mut BTreeMap<RawId, eqiora_core::Id<eqiora_core::entity::kinds::Parameter>>,
+) -> Result<(), Diagnostic> {
+    let mut pending = vec![root];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.index()) {
+            continue;
+        }
+        let node = dag
+            .node(id)
+            .ok_or_else(|| invalid("prescribed input references an absent node"))?;
+        if let ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Parameter(id)) = node {
+            parameters.insert(id.erase(), *id);
+        }
+        node.try_for_each_operand(|operand| {
+            pending.push(operand);
+            Ok::<_, Diagnostic>(())
+        })?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
