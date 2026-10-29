@@ -187,6 +187,63 @@ fn mpi_child_selects_and_rejects_planning_drift() {
         .unwrap();
 }
 
+#[cfg(feature = "mpi-test-hooks")]
+#[test]
+fn mpi_constructor_preparation_failure_is_collective_and_retryable() {
+    if env::var_os(CHILD_ENV).is_some() {
+        return;
+    }
+    for ranks in [1, 2, 4] {
+        let fault = format!("group-preparation:{}", usize::from(ranks > 1));
+        let output = run_mpi_child(
+            ranks,
+            "mpi_child_constructor_preparation_failure_is_collective",
+            &[(FAULT_ENV, &fault)],
+        );
+        assert_success(ranks, "constructor preparation failure and retry", output);
+    }
+}
+
+#[cfg(feature = "mpi-test-hooks")]
+#[test]
+fn mpi_child_constructor_preparation_failure_is_collective() {
+    if env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    let (universe, provided) = mpi::initialize_with_threading(Threading::Funneled).unwrap();
+    let world = universe.world();
+    let error =
+        MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap_err();
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    assert_eq!(
+        error.message(),
+        "MPI group preparation failed before communicator duplication"
+    );
+    assert_common_diagnostic(&world, &error);
+    let mut group =
+        MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap();
+    let execution = ExecutionReport::distributed(
+        eqiora_backend_mpi::MPI_EXECUTION_PROVIDER.id(),
+        group.partitions(),
+    );
+    let profile = eqiora_solver::SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        Some(true),
+        Some(ReductionPolicy::Reproducible),
+    )
+    .with_execution(eqiora_backend_mpi::MPI_EXECUTION_PROVIDER, execution)
+    .unwrap();
+    group
+        .select_plan(
+            profile,
+            eqiora_solver::SolverPlanningObjective::Robust,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(4096).unwrap(),
+        )
+        .unwrap();
+}
+
 #[test]
 fn mpi_unverified_solver_tuples_are_rejected_before_distributed_execution() {
     if env::var_os(CHILD_ENV).is_some() {

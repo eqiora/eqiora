@@ -33,6 +33,7 @@ use crate::{
     ProducerReportSummaryV2, evaluate_admission, evaluate_phase_statuses,
 };
 
+mod group;
 mod krylov_workspace;
 mod selection;
 
@@ -184,68 +185,6 @@ pub struct MpiExecutionGroup {
 impl MpiExecutionGroup {
     pub(crate) const fn communicator(&self) -> &SimpleCommunicator {
         &self.communicator
-    }
-
-    /// Duplicate an initialized communicator and validate thread support.
-    ///
-    /// MPI initialization/finalization remains entirely with the application.
-    /// `provided` must be the level returned by `initialize_with_threading`.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` if rank/size do not fit the Eqiora partition contract
-    /// or the provided threading level is below `required`.
-    pub fn duplicate<C: Communicator>(
-        communicator: &C,
-        provided: Threading,
-        required: MpiThreadSupport,
-    ) -> Result<Self, Diagnostic> {
-        let provided = MpiThreadSupport::from_mpi(provided);
-        if provided < required {
-            return Err(invalid_realization(format!(
-                "MPI provided {provided:?} thread support, below required {required:?}"
-            )));
-        }
-        let size = usize::try_from(communicator.size())
-            .ok()
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| invalid_realization("MPI communicator size is not a positive usize"))?;
-        let rank = usize::try_from(communicator.rank())
-            .map_err(|_| invalid_realization("MPI rank is negative or exceeds usize"))?;
-        if rank >= size.get() {
-            return Err(invalid_realization(
-                "MPI rank lies outside its communicator size",
-            ));
-        }
-        let preparation_statuses = zeroed(size.get(), "MPI preparation statuses")?;
-        let receipt_summary_bytes = zeroed(
-            checked_extent(
-                EXECUTION_RECEIPT_SUMMARY_BYTES,
-                size.get(),
-                "MPI execution receipt summaries",
-            )?,
-            "MPI execution receipt summaries",
-        )?;
-        let rank_device_bytes = zeroed(
-            checked_extent(
-                RANK_DEVICE_RECORD_BYTES,
-                size.get(),
-                "MPI rank-device records",
-            )?,
-            "MPI rank-device records",
-        )?;
-        let planning_agreement_bytes = selection::agreement_buffer(size)?;
-        Ok(Self {
-            communicator: communicator.duplicate(),
-            partitions: size,
-            partition: PartitionId::new(rank),
-            thread_support: provided,
-            preparation_statuses,
-            receipt_summary_bytes,
-            rank_device_bytes,
-            planning_agreement_bytes,
-            #[cfg(feature = "mpi-test-hooks")]
-            fault: TestFault::from_environment(rank),
-        })
     }
 
     /// Number of ranks/partitions in this execution group.
