@@ -1097,7 +1097,10 @@ def trace(value: object, *, on: Support | None = None, from_: Support | None = N
     ...
 
 def normal_vector() -> Expression:
-    """Unit outward normal on the enclosing boundary's ambient Cartesian space."""
+    """Unit outward normal on the enclosing boundary's ambient Cartesian space.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::normal_vector``.
+    """
     ...
 
 def normal(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
