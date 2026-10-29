@@ -651,10 +651,6 @@ fn boundary_parameter_inventory(
         model
             .normal_pressures()
             .map(|pressure| pressure.expression().parameter_fields())
-            .chain(
-                model
-                    .normal_velocity_expressions()
-                    .map(crate::spatial_expression::ScalarSpatialExpression::parameter_fields),
-            ),
+            .chain(model.normal_velocity_parameters()),
     )
 }

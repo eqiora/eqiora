@@ -92,8 +92,8 @@ fn lower_named(
             })
             .collect(),
         boundary_relations: boundary.boundary_relations.clone(),
-        normal_velocity_expressions: boundary
-            .normal_velocity_expressions
+        normal_velocity_data: boundary
+            .normal_velocity_data
             .iter()
             .filter_map(|(name, expression)| {
                 boundary

@@ -241,25 +241,20 @@ impl SteadyIncompressibleStokesModel2d {
         self.prescribed_velocity_traces
             .values()
             .filter_map(|trace| match trace {
-                SteadyStokesPrescribedVelocityTrace2d::Normal {
-                    coefficient_field,
-                    definition_relation,
-                    ..
-                } => Some((*coefficient_field, *definition_relation)),
-                SteadyStokesPrescribedVelocityTrace2d::CompleteAffinePotential { .. } => None,
+                SteadyStokesPrescribedVelocityTrace2d::Normal { carrier, .. } => *carrier,
+                _ => None,
             })
     }
-
-    pub(super) fn normal_velocity_expressions(
+    pub(super) fn normal_velocity_parameters(
         &self,
-    ) -> impl Iterator<Item = &ScalarSpatialExpression<f64>> {
+    ) -> impl Iterator<Item = &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>]> {
         self.prescribed_velocity_traces
             .values()
             .filter_map(|trace| match trace {
-                SteadyStokesPrescribedVelocityTrace2d::Normal { expression, .. } => {
-                    Some(expression)
+                SteadyStokesPrescribedVelocityTrace2d::Normal { parameters, .. } => {
+                    Some(parameters.as_slice())
                 }
-                SteadyStokesPrescribedVelocityTrace2d::CompleteAffinePotential { .. } => None,
+                _ => None,
             })
     }
 

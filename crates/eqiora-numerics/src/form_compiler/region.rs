@@ -18,7 +18,7 @@ mod graph;
 pub(crate) use graph::RegionGraph;
 mod boundary;
 mod datum;
-pub(in crate::form_compiler) use datum::PrescribedDatum;
+pub(crate) use datum::PrescribedDatum;
 mod compatibility;
 mod temporal;
 pub(crate) use temporal::TemporalStructure;
