@@ -27,3 +27,16 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+  - package-ecosystem: npm
+    directories:
+      - "/docs/site"
+      - "/editor/jupyter"
+      - "/bindings/python/frontend"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+  - package-ecosystem: cargo
+    directory: "/experiments/cubecl-local-action"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
