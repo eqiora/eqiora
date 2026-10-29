@@ -440,7 +440,7 @@ jobs:
         if: needs.changes.outputs.python == 'true'
         with:
           python-version: ${{ matrix.python }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: needs.changes.outputs.python == 'true' && needs.changes.outputs.jupyter_assets == 'true' && matrix.python == fromJSON(needs.changes.outputs.python_versions)[0]
         with:
           node-version: 24.18.1
@@ -493,7 +493,7 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: needs.changes.outputs.studio == 'true'
         with:
           node-version: 24.18.1
