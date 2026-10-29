@@ -155,21 +155,14 @@ impl SolverPlanningProfile {
     /// Bind the explicitly requested execution; planning never chooses placement.
     ///
     /// # Errors
-    /// Rejects invalid providers, mismatched adapters, and unsupported topology.
+    /// Rejects invalid providers and mismatched adapter identities.
     pub fn with_execution(
         mut self,
         provider: ExecutionProvider,
         execution: crate::ExecutionReport,
     ) -> Result<Self, Diagnostic> {
         provider.validate()?;
-        if execution.adapter() != provider.id()
-            || !matches!(
-                execution.topology(),
-                crate::ExecutionTopology::Host { .. }
-                    | crate::ExecutionTopology::Cuda { .. }
-                    | crate::ExecutionTopology::Distributed { .. }
-            )
-        {
+        if execution.adapter() != provider.id() {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
                 "planning execution report must match its declared provider",

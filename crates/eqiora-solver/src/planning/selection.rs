@@ -1,6 +1,8 @@
 //! Owned selection facts, independent from a provider's execution interface.
 use super::*;
 
+mod agreement;
+
 pub(super) const CUDA_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.cuda.krylov"),
     env!("CARGO_PKG_VERSION"),
@@ -294,6 +296,19 @@ impl SolverSelection {
     pub fn costs(&self) -> &[SolverCandidateCost] {
         &self.costs
     }
+    /// Reauthenticate the exact implementation and capability snapshot retained at selection.
+    /// The concrete execution owner separately authenticates placement and resources.
+    pub fn require_declared_provider(
+        &self,
+        provider: SolverProvider,
+        capabilities: &crate::SolverCapabilities,
+    ) -> Result<(), Diagnostic> {
+        if provider != self.provider || capabilities != &self.capabilities {
+            return Err(invalid_catalog("binding.selected-provider-mismatch"));
+        }
+        Ok(())
+    }
+
     /// Reauthenticate actual mathematical, structure and resource facts before execution.
     pub fn require_problem<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         &self,

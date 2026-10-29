@@ -10,6 +10,7 @@ impl SolverSelection {
     /// Rejects a count that cannot be represented by the fixed-width encoding.
     pub fn planning_agreement_fingerprint(&self) -> Result<[u8; 32], Diagnostic> {
         let mut out = Agreement(Sha256::new());
+        out.string("eqiora.solver-planning.collective-agreement")?;
         out.string(POLICY_ID)?;
         out.tag(domain(self.scalar_domain));
         out.tag(storage(self.scalar_type));

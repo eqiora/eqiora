@@ -232,3 +232,40 @@ pub(crate) fn declared_mpi_requirements_cannot_be_ranked_away() {
             .contains("execution-mismatch")
     );
 }
+
+#[test]
+fn selected_mpi_provider_snapshot_rejects_replacement_even_if_tuple_survives() {
+    let availability = availability();
+    let choice = select(
+        profile(
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            Some(true),
+            None,
+        ),
+        SolverPlanningObjective::Robust,
+        std::slice::from_ref(&availability),
+    )
+    .unwrap();
+    choice
+        .require_declared_provider(availability.provider, &availability.capabilities)
+        .unwrap();
+    assert!(
+        choice
+            .require_declared_provider(CUDA_PROVIDER, &availability.capabilities)
+            .is_err()
+    );
+    let only_selected = crate::SolverCapabilities::exact([SolverCapability {
+        scalar_domain: ScalarDomain::Real,
+        scalar_type: ScalarType::F64,
+        algorithm: LinearSolver::ConjugateGradient,
+        operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+        preconditioner: PreconditionerPolicy::Jacobi,
+        reduction: ReductionPolicy::Reproducible,
+    }])
+    .unwrap();
+    assert!(
+        choice
+            .require_declared_provider(availability.provider, &only_selected)
+            .is_err()
+    );
+}

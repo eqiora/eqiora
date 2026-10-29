@@ -1596,13 +1596,25 @@ fn host_planning_authenticates_execution_before_ranking_without_serial_fallback(
         .message()
         .contains("host-binding.host-execution-required")
     );
+    let distributed = SolverPlanningProfile::general_canonical_csr()
+        .with_execution(
+            provider,
+            crate::ExecutionReport::distributed(provider.id(), NonZeroUsize::MIN),
+        )
+        .unwrap();
     assert!(
-        SolverPlanningProfile::general_canonical_csr()
-            .with_execution(
-                provider,
-                crate::ExecutionReport::distributed(provider.id(), NonZeroUsize::MIN)
-            )
-            .is_err()
+        crate::SolverSelection::resolve_host::<f64>(
+            distributed,
+            SolverPlanningObjective::Fast,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &crate::reference::ReferenceLinearSolver,
+            None,
+        )
+        .unwrap_err()
+        .message()
+        .contains("host-binding.host-execution-required")
     );
     // A one-worker adapter still has unmodeled overhead and cannot borrow serial bounds.
     let single = SolverPlanningProfile::general_canonical_csr()
