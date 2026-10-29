@@ -229,6 +229,11 @@ def test_scalar_absolute_tolerance_has_the_explicit_plan_identity() -> None:
     )
     assert request.absolute_tolerance == 1e-11
     assert request.absolute_tolerances is None
+    assert "absolute_tolerance=" in repr(request)
+    with pytest.raises(TypeError, match="does not accept extra contracts"):
+        request.with_conserved_norm(
+            [field], target=1.0, tolerance=1e-11, dimension=eqiora.Dimension(),
+        )
     explicit, _ = resolve_decay(model)
     assert explicit.temporal.absolute_tolerance is None
     scalar = eqiora.resolve(model, temporal=request)
