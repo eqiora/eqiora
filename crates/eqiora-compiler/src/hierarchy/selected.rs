@@ -673,7 +673,12 @@ fn prepare(
                         parent: parent_slot,
                     } => Some((
                         parent_slot.as_str(),
-                        parent.ok_or_else(|| {
+                        crate::external_compile::selected_geometry_parent(
+                            parent,
+                            parent_slot,
+                            bindings,
+                        )
+                        .ok_or_else(|| {
                             fail(
                                 slot.range(),
                                 "boundary support requires its exact parent selection".to_owned(),
