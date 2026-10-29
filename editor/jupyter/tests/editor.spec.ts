@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import './dependency-security';
 
 const source = '%%eqiora model\n// A source cell\nmodel Decay {\n  parameter rate: 1 / s = 2;\n  relation evolution continuous { derivative(x) + rate * x = 0; }\n}';
 
