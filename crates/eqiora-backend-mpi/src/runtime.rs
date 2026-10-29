@@ -2,8 +2,8 @@ use std::fmt;
 use std::mem;
 use std::num::NonZeroUsize;
 
+use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{
     DistributedAdmissionFingerprintV1, DistributedLinearProblem, DistributedLinearSystem,
     LocalCsrShard, LocalLinearSolution, Partition, PartitionId,
@@ -16,8 +16,7 @@ use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, DiagonalAvailability, ExecutionId,
     ExecutionProvider, ExecutionReport, LinearAcceptanceWorkspace, LinearOperatorOrientation,
     LinearOperatorProperties, LinearSolution, LinearSolver, PreconditionerPolicy, ProviderLibrary,
-    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider,
+    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan, SolverProvider,
 };
 use mpi::Threading;
 use mpi::collective::SystemOperation;
@@ -35,6 +34,7 @@ use crate::{
 };
 
 mod krylov_workspace;
+mod selection;
 
 use krylov_workspace::{CgWorkspace, KrylovWorkspace, MinresWorkspace};
 
@@ -176,6 +176,7 @@ pub struct MpiExecutionGroup {
     preparation_statuses: Vec<u8>,
     receipt_summary_bytes: Vec<u8>,
     rank_device_bytes: Vec<u8>,
+    planning_agreement_bytes: Vec<u8>,
     #[cfg(feature = "mpi-test-hooks")]
     fault: Option<TestFault>,
 }
@@ -232,6 +233,7 @@ impl MpiExecutionGroup {
             )?,
             "MPI rank-device records",
         )?;
+        let planning_agreement_bytes = selection::agreement_buffer(size)?;
         Ok(Self {
             communicator: communicator.duplicate(),
             partitions: size,
@@ -240,6 +242,7 @@ impl MpiExecutionGroup {
             preparation_statuses,
             receipt_summary_bytes,
             rank_device_bytes,
+            planning_agreement_bytes,
             #[cfg(feature = "mpi-test-hooks")]
             fault: TestFault::from_environment(rank),
         })
@@ -261,39 +264,6 @@ impl MpiExecutionGroup {
     #[must_use]
     pub const fn thread_support(&self) -> MpiThreadSupport {
         self.thread_support
-    }
-
-    /// Exact numerical policies admitted by the current distributed evidence
-    /// slice.
-    #[must_use]
-    pub fn solver_capabilities(&self) -> SolverCapabilities {
-        SolverCapabilities::exact([
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Reproducible,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::MinimumResidual,
-                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Reproducible,
-                scalar_type: ScalarType::F64,
-            },
-        ])
-        .expect("MPI distributed solver exact capability set is nonempty")
     }
 
     /// Collectively bind one distinct physical device to every MPI rank.
