@@ -73,7 +73,7 @@ typed constraint/gauge authenticity or common Python integration for those profi
 
 ## Declared CUDA availability
 
-Policy v10 also uses this aggregator to verify selection from declared CUDA
+Policy v11 also uses this aggregator to verify selection from declared CUDA
 metadata for the three existing real-f64 Fast tuples: SPD CG/Jacobi, General
 BiCGSTAB/Identity, and symmetric-indefinite MINRES/Identity. Literal expectations
 are independent of the catalog. Every objective retains exact convergence

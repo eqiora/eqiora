@@ -10,6 +10,15 @@ pub(super) const CUDA_CG_ID: &str = "eqiora.cuda.cg-spd-jacobi-fast-f64";
 pub(super) const CUDA_BICGSTAB_ID: &str = "eqiora.cuda.bicgstab-general-identity-fast-f64";
 pub(super) const CUDA_MINRES_ID: &str = "eqiora.cuda.minres-indefinite-identity-fast-f64";
 
+pub(super) const MPI_PROVIDER: SolverProvider = SolverProvider::new(
+    BackendId::new("eqiora.mpi.krylov"),
+    env!("CARGO_PKG_VERSION"),
+    &[],
+);
+pub(super) const MPI_CG_REPRO_ID: &str = "eqiora.mpi.cg-spd-jacobi-reproducible-f64";
+pub(super) const MPI_CG_FAST_ID: &str = "eqiora.mpi.cg-spd-jacobi-fast-f64";
+pub(super) const MPI_MINRES_ID: &str = "eqiora.mpi.minres-indefinite-identity-reproducible-f64";
+
 /// Declared availability supplied by an execution owner.
 ///
 /// This value is not device authentication or permission to execute. The concrete
@@ -316,9 +325,21 @@ pub(super) fn profile_catalog_ids(
                 _ => &[],
             }
         }
+        crate::ExecutionTopology::Distributed { .. } if domain == ScalarDomain::Real => {
+            match profile.facts.properties {
+                LinearOperatorProperties::SymmetricPositiveDefinite => {
+                    &[MPI_CG_REPRO_ID, MPI_CG_FAST_ID]
+                }
+                LinearOperatorProperties::SymmetricIndefinite => &[MPI_MINRES_ID],
+                _ => &[],
+            }
+        }
         _ => &[],
     }
 }
 
 #[cfg(test)]
 pub(super) mod tests;
+
+#[cfg(test)]
+pub(super) mod mpi_tests;
