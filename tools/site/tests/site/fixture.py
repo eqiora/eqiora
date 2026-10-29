@@ -513,7 +513,7 @@ def pinned_node_path(root: Path) -> str:
     for name, version in (
         ("node", "v24.18.1"),
         ("npm", "11.16.0"),
-        ("uv", "uv 0.12.1 (x86_64-unknown-linux-musl)"),
+        ("uv", "uv 0.13.6 (x86_64-unknown-linux-musl)"),
     ):
         executable = shutil.which(name)
         if executable is None:

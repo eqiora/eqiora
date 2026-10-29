@@ -198,7 +198,7 @@ jobs:
           test "$(node --version)" = "v24.18.1"
           test "$(npm --version)" = "11.16.0"
           test "$(python3 --version)" = "Python 3.13.14"
-          test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
+          test "$(uv --version)" = "uv 0.13.6 (x86_64-unknown-linux-musl)"
           test "$(rustc -Vv)" = "$(rustc +stable -Vv)"
           test "$(uname -m)" = "x86_64"
           node --version
