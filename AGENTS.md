@@ -32,8 +32,9 @@ your task. Humans start at CONTRIBUTING.md.
 - Expected values, tolerances and falsifiers come from analytic, manufactured or published
   references, or from running an established open-source tool. Never copy Eqiora's own output
   into an expectation. (`cargo run -p eqiora-verify -- index`, review)
-- A change that adds, removes or narrows a user-visible capability updates the
-  [capability matrix](docs/capability-matrix.md) in the same PR. (`tools/ci/check_docs.py`)
+- A change that adds, removes or narrows a user-visible capability updates its area file under
+  `docs/capabilities/` (indexed by the [capability matrix](docs/capability-matrix.md)) in the
+  same PR. (`tools/ci/check_docs.py`)
 - Dependencies and licences pass `deny.toml`. (cargo-deny)
 - CI and trust paths (`.github/`, `tools/ci/`, `crates/eqiora-verify/`, `deny.toml`, `CODEOWNERS`)
   change only with the trust review in [CI topology](docs/development/ci-topology.md).
