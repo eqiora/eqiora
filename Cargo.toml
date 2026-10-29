@@ -76,7 +76,7 @@ diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra
 # existing physical CUDA and MPI-CUDA gates; the CUDA 12 binding ABI stays pinned.
 cudarc = { version = "=0.19.10", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 crossbeam-channel = "=0.5.17"
-libloading = "=0.8.9"
+libloading = "=0.9.0"
 lsp-server = "=0.10.0"
 lsp-types = "=0.97.0"
 # Rust parser for the `cargo xtask check-architecture` predicates, consumed
