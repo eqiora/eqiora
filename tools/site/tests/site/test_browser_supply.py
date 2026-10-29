@@ -13,13 +13,13 @@ from unittest import mock
 from fixture import REPOSITORY, SOURCE_SHA, checker, historical_git, pinned_node_path
 
 
-PLAYWRIGHT_VERSION = "1.62.1"
-CHROMIUM_REVISION = "1234"
-CHROMIUM_VERSION = "151.0.7922.34"
+PLAYWRIGHT_VERSION = "1.64.1"
+CHROMIUM_REVISION = "1248"
+CHROMIUM_VERSION = "156.0.8078.4"
 CACHE_NAME = f"eqiora-pw-{PLAYWRIGHT_VERSION}-r{CHROMIUM_REVISION}"
 EXECUTABLE_SUFFIX = Path(f"chromium-{CHROMIUM_REVISION}/chrome-linux64/chrome")
-FULL_VERSION_STDOUT = b"Google Chrome for Testing 151.0.7922.34 \n"
-HEADLESS_VERSION_STDOUT = b"Google Chrome for Testing 151.0.7922.34\n"
+FULL_VERSION_STDOUT = b"Google Chrome for Testing 156.0.8078.4 \n"
+HEADLESS_VERSION_STDOUT = b"Google Chrome for Testing 156.0.8078.4\n"
 SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-oracle-tests"
 BASIS_SHA = "19968da984c16e718baeb9faa5aae04260896c29"
 BASIS_PACKAGE_LOCK_SHA256 = (
@@ -103,7 +103,7 @@ class BrowserSupplyTests(unittest.TestCase):
                 },
             ]
         }
-        _write(modules / "playwright-core/package.json", '{"version":"1.62.1"}')
+        _write(modules / "playwright-core/package.json", '{"version":"1.64.1"}')
         _write(modules / "playwright-core/browsers.json", json.dumps(browsers))
         loader = (
             "const path = require('path');\n"
@@ -291,7 +291,7 @@ class BrowserSupplyTests(unittest.TestCase):
             pass
 
         def wrong_label(path: Path, environment: dict[str, str]) -> None:
-            self._compile_version_executable(path, b"Chromium 151.0.7922.34\n")
+            self._compile_version_executable(path, b"Chromium 156.0.8078.4\n")
 
         def headless_copy(path: Path, environment: dict[str, str]) -> None:
             self._compile_version_executable(path, HEADLESS_VERSION_STDOUT)
@@ -299,7 +299,7 @@ class BrowserSupplyTests(unittest.TestCase):
         def shell_shim(path: Path, environment: dict[str, str]) -> None:
             path.write_bytes(
                 b'#!/bin/sh\n: > "$EQIORA_TEST_BROWSER_MARKER"\n'
-                b"printf 'Google Chrome for Testing 151.0.7922.34 \\n'\n"
+                b"printf 'Google Chrome for Testing 156.0.8078.4 \\n'\n"
             )
             path.chmod(0o755)
 
@@ -314,12 +314,12 @@ class BrowserSupplyTests(unittest.TestCase):
             (
                 "wrong Playwright lock version",
                 wrong_playwright_version,
-                "locked playwright-core 1.62.1",
+                "locked playwright-core 1.64.1",
             ),
             (
                 "wrong installed Playwright version",
                 wrong_installed_version,
-                "installed playwright 1.62.1",
+                "installed playwright 1.64.1",
             ),
             ("wrong cache suffix", wrong_cache, "cache must use exact"),
             (

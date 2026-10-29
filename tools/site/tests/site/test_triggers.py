@@ -250,11 +250,11 @@ class TriggerContractTests(unittest.TestCase):
         ordinary = _workflow()
         replacements = (
             (
-                "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71",
+                "377a9fc07b495c3b8d0ab8ec1fdfd153641759f9756fea34d8dfce4de82f5025",
                 "1" * 64,
             ),
             (
-                'expected_browser_bytes="290614600"',
+                'expected_browser_bytes="301186376"',
                 'expected_browser_bytes="290614601"',
             ),
         )

@@ -41,7 +41,7 @@ test "$EQIORA_SITE_CARGO_TARGET" = "$EQIORA_API_SCRATCH/cargo-target"
 test "$EQIORA_SITE_RUSTDOC_TARGET" = "$EQIORA_API_SCRATCH/rustdoc-target"
 test "$EQIORA_SITE_RUSTDOC_STAGE" = "$EQIORA_API_SCRATCH/rustdoc-stage"
 test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
-case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
+case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.64.1-r1248) ;; *) exit 1 ;; esac
 test -d "$EQIORA_API_SCRATCH/build"
 test ! -L "$EQIORA_API_SCRATCH/build"
 test -z "$(find "$EQIORA_API_SCRATCH/build" -mindepth 1 -print -quit)"
