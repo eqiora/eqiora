@@ -44,5 +44,13 @@
   "packageManager": "npm@11.16.0",
   "engines": {
     "node": "24.18.1"
+  },
+  "overrides": {
+    "@jupyterlab/apputils": {
+      "sanitize-html": "2.18.1"
+    },
+    "mermaid": {
+      "katex": "0.18.11"
+    }
   }
 }
