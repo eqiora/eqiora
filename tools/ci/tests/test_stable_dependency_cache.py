@@ -152,7 +152,7 @@ class StableDependencyCacheTests(unittest.TestCase):
         self.assertLess(source.index("  quality:"), source.index(cache))
         self.assertLess(source.index(cache), source.index("\n  msrv:\n"))
         self.assertIn("if: needs.changes.outputs.rust == 'true'", cache)
-        self.assertIn("Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6", cache)
+        self.assertIn("Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0", cache)
         for setting in ("cache-bin: false", "cache-workspace-crates: false", "cache-all-crates: false",
                         "cmd-format: rustup run stable {0}", "workspaces: . -> target"):
             self.assertIn(setting, cache)

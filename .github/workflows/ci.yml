@@ -218,7 +218,7 @@ jobs:
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
       - name: Restore Stable dependencies
         if: needs.changes.outputs.rust == 'true'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: stable-deps-${{ steps.native.outputs.digest }}-${{ hashFiles('.github/workflows/ci.yml', 'Cargo.toml', 'tools/ci/rust_quality.py', 'tools/ci/install_sundials.py', 'pyproject.toml') }}
           env-vars: ImageOS ImageVersion pythonLocation Python_ROOT_DIR PKG_CONFIG LD_LIBRARY_PATH SUNDIALS_INCLUDE_DIR SUNDIALS_LIBRARY_DIR
