@@ -9,7 +9,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   <section class="eq-intro" aria-label="About Eqiora">
     <div class="eq-intro__copy">
       <p class="eq-eyebrow">Open-source computational physics</p>
-      <p class="eq-lead">Eqiora turns mathematical models into simulations. Write the physics as equations, choose the numerical method separately, and inspect results that record how they were produced.</p>
+      <p class="eq-lead">Write the equations as you would on paper, each on the region where it holds, and join regions to couple different physics. Choose how to solve them, and differentiate the results. Eqiora checks units before anything runs and records how every result was produced.</p>
       <div class="eq-actions">
         <a class="eq-button eq-button--primary" href="/get-started/">Get started <span aria-hidden="true">↗</span></a>
         <a class="eq-button" href="/gallery/">Explore simulations <span aria-hidden="true">→</span></a>
@@ -33,11 +33,11 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   </section>
 
   <section class="eq-workflow" aria-labelledby="workflow-title">
-    <div class="eq-section-heading"><p class="eq-eyebrow">How it works</p><h2 id="workflow-title">Model, numerics, result</h2></div>
+    <div class="eq-section-heading"><p class="eq-eyebrow">How it works</p><h2 id="workflow-title">Equations, method, result</h2></div>
     <ol>
-      <li><span class="eq-step" aria-hidden="true">01</span><h3>Define the model</h3><p>Write the quantities, equations, geometry, and boundary conditions in an Eqiora model.</p></li>
-      <li><span class="eq-step" aria-hidden="true">02</span><h3>Choose the numerics</h3><p>Pick a discretization and solver separately, so the same model can be solved in different ways.</p></li>
-      <li><span class="eq-step" aria-hidden="true">03</span><h3>Inspect the result</h3><p>Read fields, diagnostics, and plots, and trace each result back to the model and settings that produced it.</p></li>
+      <li><span class="eq-step" aria-hidden="true">01</span><h3>Write the equations</h3><p>Write quantities, equations, geometry, and boundary conditions, or import common ones from the standard library. Write each equation on its region and connect regions where they meet.</p></li>
+      <li><span class="eq-step" aria-hidden="true">02</span><h3>Choose the method</h3><p>Pick finite elements or finite volumes, a time integrator, and a solver separately, so the same model can be solved in different ways.</p></li>
+      <li><span class="eq-step" aria-hidden="true">03</span><h3>Run and differentiate</h3><p>Read fields and diagnostics, trace each result to its settings, and compute derivatives with respect to model parameters.</p></li>
     </ol>
   </section>
 
