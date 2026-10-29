@@ -246,7 +246,7 @@ def test_complex_automatic_objectives_keep_exact_selection_through_replay(
         maximum_iterations=100, objective=objective,
     ))
     assert plan.solve.objective is objective
-    assert plan.solve.planning_policy_id == "eqiora.host-solver-planning/v9"
+    assert plan.solve.planning_policy_id == "eqiora.solver-planning/v10"
     assert plan.solve.selected_candidate_id == candidate
     assert plan.solve.backend == provider
     assert plan.solve.algorithm == algorithm

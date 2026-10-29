@@ -41,8 +41,8 @@ fn planning_profile(
     size: Option<eqiora_solver::SolverPlanningSize>,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<eqiora_solver::AlgebraicStructure>,
-) -> Result<eqiora_solver::HostSolverProfile, Diagnostic> {
-    let profile = eqiora_solver::HostSolverProfile::canonical_csr(
+) -> Result<eqiora_solver::SolverPlanningProfile, Diagnostic> {
+    let profile = eqiora_solver::SolverPlanningProfile::canonical_csr(
         properties,
         complete_diagonal,
         required_reduction,
@@ -74,7 +74,7 @@ fn planning_profile(
 pub(super) fn resolve_typed_linear<S>(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
-    profile: eqiora_solver::HostSolverProfile,
+    profile: eqiora_solver::SolverPlanningProfile,
     reference_backend: &dyn LinearSolverBackend<S>,
     supplied_backend: Option<&dyn LinearSolverBackend<S>>,
 ) -> Result<NativeLinearPolicy, Diagnostic>
@@ -114,7 +114,7 @@ where
     let objective = request
         .objective()
         .expect("linear intent is exact or program-controlled");
-    let decision = eqiora_solver::ResolvedHostSolverPlan::resolve(
+    let decision = eqiora_solver::SolverSelection::resolve_host::<S>(
         profile,
         objective,
         request.relative_tolerance(),

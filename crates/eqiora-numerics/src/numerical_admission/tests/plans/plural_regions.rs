@@ -420,7 +420,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
 
 #[test]
 fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() {
-    use eqiora_solver::{AlgebraicStructure, HostSolverProfile};
+    use eqiora_solver::{AlgebraicStructure, SolverPlanningProfile};
     let names = ["alpha", "beta", "gamma"];
     let (model, ids) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let expected =
@@ -502,7 +502,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         for stale in [None, Some(missing), Some(foreign)] {
             let mut changed = plan.clone();
             let replacement =
-                HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+                SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
             changed.admission.linear.planning_profile = Some(match stale {
                 Some(structure) => replacement.with_structure(structure).unwrap(),
                 None => replacement,

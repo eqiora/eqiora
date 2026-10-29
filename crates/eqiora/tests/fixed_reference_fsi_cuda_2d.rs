@@ -17,7 +17,8 @@ use eqiora::realization::{
 use eqiora::solver::{
     AlgebraicBlock, ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties,
     LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan, SolverPlanningObjective,
+    SolverPlanningProfile,
 };
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{
@@ -89,11 +90,49 @@ fn cpu_and_cuda_realizations_finalize_one_exact_fsi_operator() {
     assert_eq!(admitted.solver_plan(), cuda_finalized.solver_plan());
     assert!(admitted.minimum_device_payload_bytes().is_some());
 
-    let error = cuda_finalized
-        .admit_cuda(cuda_binding(
+    let selected_binding = select_fsi(synthetic_cuda_device(0), cuda_finalized.solver_plan())
+        .bind(
             cuda_finalized.realization_graph(),
-            synthetic_cuda_device(1),
-        ))
+            cuda_finalized.linear_system(),
+            None,
+        )
+        .expect("the shared selection binds the same native FSI operator");
+    let selected = cuda_finalized.admit_cuda(selected_binding).unwrap();
+    assert_eq!(selected.solver_plan(), admitted.solver_plan());
+    let original = cuda_finalized.solver_plan();
+    let altered = SolverPlan::new(
+        original.algorithm(),
+        original.relative_tolerance(),
+        original.absolute_tolerance(),
+        NonZeroUsize::new(original.maximum_iterations().get() + 1).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(original.preconditioner())
+    .with_reduction(original.reduction());
+    let error = select_fsi(synthetic_cuda_device(0), altered)
+        .bind(
+            cuda_finalized.realization_graph(),
+            cuda_finalized.linear_system(),
+            None,
+        )
+        .expect_err(
+            "selection cannot authorize a native graph with different exact solver controls",
+        );
+    assert!(
+        error
+            .message()
+            .contains("native graph solver plan differs from the selected exact plan")
+    );
+
+    let wrong_device_binding = select_fsi(synthetic_cuda_device(1), original)
+        .bind(
+            cuda_finalized.realization_graph(),
+            cuda_finalized.linear_system(),
+            None,
+        )
+        .unwrap();
+    let error = cuda_finalized
+        .admit_cuda(wrong_device_binding)
         .expect_err("a deployment-local device substitution must fail before runtime work");
     assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_REALIZATION);
     assert!(error.message().contains("device differs"));
@@ -146,7 +185,19 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
         .finish(host_values)
         .expect("the sole FSI finish accepts the CPU oracle");
 
-    let cuda_resolved = resolve_cuda(&canonical, &host, device_ordinal);
+    let selection = select_fsi(
+        device.clone(),
+        host.resolved
+            .plan()
+            .solver()
+            .with_reduction(ReductionPolicy::Fast),
+    );
+    let cuda_resolved = resolve_cuda_with_plan(
+        &canonical,
+        &host,
+        device_ordinal,
+        selection.selection().unwrap().solver_plan(),
+    );
     let cuda_finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         &canonical,
         &cuda_resolved,
@@ -163,10 +214,16 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
     );
     let cuda_plan = cuda_finalized.solver_plan();
     let dimension = cuda_finalized.linear_system().columns();
-    let binding = cuda_binding(cuda_finalized.realization_graph(), device.clone());
+    let binding = selection
+        .bind(
+            cuda_finalized.realization_graph(),
+            cuda_finalized.linear_system(),
+            None,
+        )
+        .expect("the selected exact CUDA plan binds the finalized FSI subject");
     let admitted = cuda_finalized
         .admit_cuda(binding)
-        .expect("the finalized FSI subject admits the selected device");
+        .expect("the native FSI owner admits its exact target and subject");
     let minimum_device_payload = admitted
         .minimum_device_payload_bytes()
         .expect("CUDA admission retains its known resident-payload lower bound");
@@ -197,6 +254,23 @@ fn resolve_cuda(
     host: &support::fixed_reference_fsi::ExecutionContext,
     device: u16,
 ) -> ResolvedCoupledFieldwiseRealization {
+    resolve_cuda_with_plan(
+        canonical,
+        host,
+        device,
+        host.resolved
+            .plan()
+            .solver()
+            .with_reduction(ReductionPolicy::Fast),
+    )
+}
+
+fn resolve_cuda_with_plan(
+    canonical: &FixedReferenceFsiCartesianModel2d,
+    host: &support::fixed_reference_fsi::ExecutionContext,
+    device: u16,
+    solver: SolverPlan,
+) -> ResolvedCoupledFieldwiseRealization {
     let host_plan = host.resolved.plan();
     let fluid = canonical.fluids().next().expect("one fluid Domain");
     assert_eq!(canonical.fluids().count(), 1);
@@ -218,7 +292,7 @@ fn resolve_cuda(
             plan_field_scale(host_plan, pressure),
         )
         .expect("the host Realization owns positive coherent-SI FSI scales"),
-        host_plan.solver().with_reduction(ReductionPolicy::Fast),
+        solver,
         device,
     )
     .expect("the exact one-device FSI plan is valid");
@@ -288,6 +362,37 @@ fn synthetic_cuda_device(ordinal: u16) -> DeviceDescriptor {
         CUDA_LINEAR_DEVICE_CAPABILITIES,
     )
     .expect("the allocation-free device snapshot is complete")
+}
+
+fn select_fsi(device: DeviceDescriptor, controls: SolverPlan) -> CudaLinearSolver {
+    let ordinal = device.id().ordinal();
+    let profile = SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricIndefinite,
+        None,
+        Some(ReductionPolicy::Fast),
+    )
+    .with_execution(
+        CUDA_LINEAR_EXECUTION_PROVIDER,
+        ExecutionReport::cuda(CUDA_LINEAR_EXECUTION_PROVIDER.id(), ordinal),
+    )
+    .unwrap();
+    CudaLinearSolver::new(ordinal)
+        .select_plan(
+            CudaExecutorDescriptor::new(
+                CUDA_LINEAR_SOLVER_PROVIDER,
+                CUDA_LINEAR_EXECUTION_PROVIDER,
+                device.clone(),
+                QueueSlot::new(device.id(), 0),
+                CudaLinearSolver::capabilities(),
+            )
+            .unwrap(),
+            profile,
+            SolverPlanningObjective::Robust,
+            controls.relative_tolerance(),
+            controls.absolute_tolerance(),
+            controls.maximum_iterations(),
+        )
+        .unwrap()
 }
 
 fn cuda_binding(

@@ -10,7 +10,7 @@ pub(crate) struct NativeLinearPolicy {
     pub(crate) execution: ExecutionProvider,
     pub(crate) workers: NonZeroUsize,
     pub(crate) planning_objective: Option<SolverPlanningObjective>,
-    pub(crate) planning_profile: Option<eqiora_solver::HostSolverProfile>,
+    pub(crate) planning_profile: Option<eqiora_solver::SolverPlanningProfile>,
     pub(crate) planning_policy_id: Option<&'static str>,
     pub(crate) selected_candidate_id: Option<&'static str>,
     pub(crate) selected_evidence_case: Option<&'static str>,
@@ -62,13 +62,8 @@ impl NativeLinearPolicy {
         })
     }
 
-    pub(crate) fn with_planning<
-        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
-    >(
-        mut self,
-        decision: &ResolvedHostSolverPlan<'_, S>,
-    ) -> Result<Self, Diagnostic> {
-        if self.scalar_domain != S::DOMAIN
+    pub(crate) fn with_planning(mut self, decision: &SolverSelection) -> Result<Self, Diagnostic> {
+        if self.scalar_domain != decision.scalar_domain()
             || self.solver != decision.solver_plan()
             || self.provider != decision.solver_provider()
             || self.execution != decision.execution_provider()
@@ -169,7 +164,7 @@ impl NativeLinearPolicy {
 pub(crate) struct ProfileCheckedBackend<'a, S> {
     backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
-    profile: Option<eqiora_solver::HostSolverProfile>,
+    profile: Option<eqiora_solver::SolverPlanningProfile>,
 }
 
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static>
@@ -232,7 +227,7 @@ pub(super) enum PreparedLinearAction {
 #[derive(Debug)]
 pub(super) struct ProfileCheckedPreparedLinear<S> {
     pub(super) prepared: Box<dyn eqiora_solver::PreparedLinearSolver<S>>,
-    pub(super) profile: Option<eqiora_solver::HostSolverProfile>,
+    pub(super) profile: Option<eqiora_solver::SolverPlanningProfile>,
     pub(super) plan: SolverPlan,
     pub(super) provider: SolverProvider,
     pub(super) action: PreparedLinearAction,

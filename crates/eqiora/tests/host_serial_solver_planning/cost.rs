@@ -20,18 +20,18 @@ fn profile(
     n: usize,
     z: usize,
     request: SolverCostRequest,
-) -> HostSolverProfile {
-    HostSolverProfile::canonical_csr(properties, Some(true), None)
+) -> SolverPlanningProfile {
+    SolverPlanningProfile::canonical_csr(properties, Some(true), None)
         .with_size(SolverPlanningSize::exact(n, z))
         .with_cost_request(request)
 }
-fn choose<'a>(
-    profile: HostSolverProfile,
+fn choose(
+    profile: SolverPlanningProfile,
     objective: SolverPlanningObjective,
-    reference: &'a dyn LinearSolverBackend,
-    faer: Option<&'a dyn LinearSolverBackend>,
-) -> Result<ResolvedHostSolverPlan<'a>, eqiora::Diagnostic> {
-    ResolvedHostSolverPlan::resolve(profile, objective, 1e-12, 1e-14, nz(100), reference, faer)
+    reference: &dyn LinearSolverBackend,
+    faer: Option<&dyn LinearSolverBackend>,
+) -> Result<SolverSelection, eqiora::Diagnostic> {
+    SolverSelection::resolve_host::<f64>(profile, objective, 1e-12, 1e-14, nz(100), reference, faer)
 }
 fn assert_solution(solution: &LinearSolution, expected: &[f64]) {
     for (value, expected) in solution.values().iter().zip(expected) {
@@ -303,12 +303,12 @@ fn actual_csr_payload_is_rechecked_without_overwriting_decision_provenance() {
         );
         assert_solution(
             &decision
-                .solve(&sparse.linear_problem().unwrap(), None)
+                .solve(&sparse.linear_problem().unwrap(), None, &backend)
                 .unwrap(),
             &[1., 2.],
         );
         assert_eq!(backend.0.load(Ordering::SeqCst), 1);
-        let result = decision.solve(&dense.linear_problem().unwrap(), None);
+        let result = decision.solve(&dense.linear_problem().unwrap(), None, &backend);
         if allowed {
             assert_solution(&result.unwrap(), &[1., 2.]);
         } else {
@@ -416,9 +416,10 @@ fn low_memory_prefers_known_bounds_and_preserves_missing_fact_provider_reasons()
             .filter(|cost| cost.candidate().starts_with("eqiora.faer."))
             .all(|cost| cost.numeric_payload_bytes().is_none())
     );
-    let unknown = HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None)
-        .with_size(SolverPlanningSize::exact(2, 4))
-        .with_cost_request(forecast(1, 1, 1, 3, 3));
+    let unknown =
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+            .with_size(SolverPlanningSize::exact(2, 4))
+            .with_cost_request(forecast(1, 1, 1, 3, 3));
     let cg = plan(
         LinearSolver::ConjugateGradient,
         PreconditionerPolicy::Identity,
@@ -645,6 +646,87 @@ impl LinearSolverBackend for RestrictedBackend<'_> {
     }
 }
 
+#[derive(Debug)]
+struct MismatchedReference<'a> {
+    backend: &'a CountedReference,
+    provider: SolverProvider,
+    execution: eqiora::solver::ExecutionReport,
+}
+impl LinearSolverBackend for MismatchedReference<'_> {
+    fn provider(&self) -> SolverProvider {
+        self.provider
+    }
+    fn capabilities(&self) -> SolverCapabilities {
+        self.backend.capabilities()
+    }
+    fn default_execution(&self) -> eqiora::solver::ExecutionReport {
+        self.execution
+    }
+    fn solve_with_execution(
+        &self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, eqiora::Diagnostic> {
+        self.backend.solve_with_execution(problem, plan, execution)
+    }
+}
+
+#[test]
+fn owned_selection_rejects_changed_backend_identity_before_execution() {
+    let backend = CountedReference::default();
+    let decision = choose(
+        SolverPlanningProfile::general_canonical_csr(),
+        SolverPlanningObjective::Robust,
+        &backend,
+        None,
+    )
+    .unwrap();
+    let system =
+        CanonicalCsrSystemView::new(&Fixture, Fixture.rhs(), LinearOperatorProperties::General)
+            .unwrap();
+    let problem = system.linear_problem().unwrap();
+    let different_provider = MismatchedReference {
+        backend: &backend,
+        provider: FaerLinearSolver.provider(),
+        execution: eqiora::solver::ExecutionReport::host_serial(),
+    };
+    let different_execution = MismatchedReference {
+        backend: &backend,
+        provider: backend.provider(),
+        execution: eqiora::solver::ExecutionReport::host(SERIAL_EXECUTION_PROVIDER.id(), nz(2)),
+    };
+    let restricted = RestrictedBackend {
+        backend: &backend,
+        capability: SolverCapability {
+            scalar_domain: ScalarDomain::Real,
+            scalar_type: ScalarType::F64,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            operator_properties: LinearOperatorProperties::General,
+            preconditioner: PreconditionerPolicy::Jacobi,
+            reduction: ReductionPolicy::Reproducible,
+        },
+    };
+    for changed in [
+        &different_provider as &dyn LinearSolverBackend,
+        &different_execution,
+        &restricted,
+    ] {
+        let error = decision.solve(&problem, None, changed).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("host-binding.selected-provider-mismatch")
+        );
+        assert_eq!(backend.0.load(Ordering::SeqCst), 0);
+    }
+    assert_solution(
+        &decision.solve(&problem, None, &backend).unwrap(),
+        &[1., 2.],
+    );
+    assert_eq!(backend.0.load(Ordering::SeqCst), 1);
+}
+
 #[test]
 fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems() {
     use LinearSolver::{
@@ -843,7 +925,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         let system = CanonicalCsrSystemView::new(&DenseTwo(values), &rhs, properties).unwrap();
         let problem = system.linear_problem().unwrap();
         let decision = choose(
-            HostSolverProfile::canonical_csr(properties, Some(true), None)
+            SolverPlanningProfile::canonical_csr(properties, Some(true), None)
                 .with_size(SolverPlanningSize::exact(2, 4))
                 .with_cost_request(forecast(1, 1, 1, 3, 3)),
             SolverPlanningObjective::Robust,
@@ -860,7 +942,13 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
         admitted.sort_unstable();
         inventory.sort_unstable();
         assert_eq!(admitted, inventory);
-        assert_solution(&decision.solve(&problem, None).unwrap(), &expected);
+        let backend: &dyn LinearSolverBackend =
+            if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
+                &REFERENCE_LINEAR_SOLVER
+            } else {
+                &FaerLinearSolver
+            };
+        assert_solution(&decision.solve(&problem, None, backend).unwrap(), &expected);
         for &(id, faer, algorithm, preconditioner) in tuples {
             let backend: &dyn LinearSolverBackend = if faer {
                 &FaerLinearSolver
@@ -940,10 +1028,13 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                     reduction: manual.reduction(),
                 },
             };
-            let owner =
-                HostSolverProfile::canonical_csr(properties, Some(true), Some(manual.reduction()))
-                    .with_size(SolverPlanningSize::exact(2, 4))
-                    .with_cost_request(forecast(1, 1, 1, 3, 3));
+            let owner = SolverPlanningProfile::canonical_csr(
+                properties,
+                Some(true),
+                Some(manual.reduction()),
+            )
+            .with_size(SolverPlanningSize::exact(2, 4))
+            .with_cost_request(forecast(1, 1, 1, 3, 3));
             let selected = if faer {
                 choose(
                     owner,
@@ -958,7 +1049,10 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             assert_eq!(selected.selected_candidate_id(), id);
             assert_eq!(selected.solver_plan(), manual);
             assert_eq!(selected.solver_provider(), backend.provider());
-            assert_solution(&selected.solve(&problem, None).unwrap(), &expected);
+            assert_solution(
+                &selected.solve(&problem, None, &restricted).unwrap(),
+                &expected,
+            );
         }
     }
 }

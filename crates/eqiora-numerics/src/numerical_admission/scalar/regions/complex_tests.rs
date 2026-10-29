@@ -48,7 +48,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
     )
     .unwrap();
     policy.planning_profile = Some(
-        eqiora_solver::HostSolverProfile::general_canonical_csr()
+        eqiora_solver::SolverPlanningProfile::general_canonical_csr()
             .with_structure(structure.clone())
             .unwrap(),
     );

@@ -2,7 +2,7 @@ use super::*;
 use crate::numerical_admission::linear_policy::{
     PreparedLinearAction, ProfileCheckedPreparedLinear,
 };
-use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, HostSolverProfile};
+use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, SolverPlanningProfile};
 use num_complex::Complex64 as C;
 
 struct ScalarSystem;
@@ -74,7 +74,7 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
         real.checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
             .is_err()
     );
-    policy.planning_profile = Some(HostSolverProfile::general_canonical_csr());
+    policy.planning_profile = Some(SolverPlanningProfile::general_canonical_csr());
     let checked = policy
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
         .unwrap();
@@ -134,8 +134,9 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
             "profile.diagonal-availability-mismatch",
         ),
     ] {
-        policy.planning_profile =
-            Some(HostSolverProfile::canonical_csr(properties, diagonal, None));
+        policy.planning_profile = Some(SolverPlanningProfile::canonical_csr(
+            properties, diagonal, None,
+        ));
         let checked = policy
             .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
             .unwrap();
@@ -199,7 +200,7 @@ fn parameter_policy_rebinds_only_after_actual_system_and_capability_checks() {
     .unwrap();
     assert!(unavailable.at_parameter_problem(&system, None).is_err());
     let mut wrong_profile = real;
-    wrong_profile.planning_profile = Some(HostSolverProfile::canonical_csr(
+    wrong_profile.planning_profile = Some(SolverPlanningProfile::canonical_csr(
         LinearOperatorProperties::Hermitian,
         None,
         None,
@@ -224,7 +225,7 @@ fn complex_profile_retains_exact_structure_and_rejects_incoherent_planning() {
             .is_err()
     );
     policy.planning_profile = Some(
-        HostSolverProfile::general_canonical_csr()
+        SolverPlanningProfile::general_canonical_csr()
             .with_structure(structure.clone())
             .unwrap(),
     );
@@ -283,7 +284,7 @@ fn prepared_complex_wrapper_reauthenticates_before_provider_work() {
         prepared: Box::new(UnexecutedPrepared { active: false }),
         plan: policy().solver,
         provider: policy().provider,
-        profile: Some(HostSolverProfile::general_canonical_csr()),
+        profile: Some(SolverPlanningProfile::general_canonical_csr()),
         action: PreparedLinearAction::Idle,
     };
     let structure =
@@ -355,8 +356,8 @@ fn automatic_complex_provenance_survives_parameter_domain_rebinding() {
     assert_eq!(real.solver, original.solver);
     assert_eq!(real.provider, original.provider);
     assert_eq!(real.at_parameter_problem(&system, None).unwrap(), original);
-    let decision = ResolvedHostSolverPlan::<C>::resolve(
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None),
+    let decision = SolverSelection::resolve_host::<C>(
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None),
         SolverPlanningObjective::Robust,
         1e-12,
         1e-14,

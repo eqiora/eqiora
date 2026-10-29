@@ -211,7 +211,7 @@ fn assert_solver_structure(
     backend: &dyn LinearSolverBackend,
     with_gauge: bool,
 ) {
-    use eqiora_solver::{AlgebraicConstraint, AlgebraicStructure, HostSolverProfile};
+    use eqiora_solver::{AlgebraicConstraint, AlgebraicStructure, SolverPlanningProfile};
     let (velocity, pressure) = match plan.admission.recognized_model() {
         RecognizedNativeModel::Transient(model) => (model.velocity(), model.pressure()),
         RecognizedNativeModel::TransientGeometry(binding) => {
@@ -300,7 +300,7 @@ fn assert_solver_structure(
     ] {
         let mut changed = plan.clone();
         let profile =
-            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+            SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
         changed.admission.linear.planning_profile = Some(match structure {
             Some(structure) => profile.with_structure(structure).unwrap(),
             None => profile,
@@ -816,7 +816,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.host-solver-planning/v9")
+            Some("eqiora.solver-planning/v10")
         );
         // Two admitted candidates each retain admission, unknown-size fallback,
         // and selection reasons; three rejected candidates retain one reason.

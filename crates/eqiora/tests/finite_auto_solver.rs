@@ -99,7 +99,7 @@ fn real_finite_objectives_execute_reopen_and_preserve_exact_selection() {
         assert_eq!(resolved.solver_planning_objective(), Some(objective));
         assert_eq!(
             resolved.solver_planning_policy_id(),
-            Some("eqiora.host-solver-planning/v9")
+            Some("eqiora.solver-planning/v10")
         );
         assert_eq!(resolved.selected_solver_candidate_id(), Some(candidate));
         assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));
@@ -243,7 +243,7 @@ fn complex_finite_objectives_execute_and_reopen_the_selected_typed_provider() {
         assert_eq!(resolved.selected_solver_candidate_id(), Some(id));
         assert_eq!(
             resolved.solver_planning_policy_id(),
-            Some("eqiora.host-solver-planning/v9")
+            Some("eqiora.solver-planning/v10")
         );
         assert_eq!(plan.linear(), expected_plan(algorithm, reduction));
         assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));

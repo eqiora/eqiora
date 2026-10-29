@@ -8,8 +8,8 @@ use eqiora_device::{
     TransferEvidence, WaitedCompletion,
 };
 use eqiora_execution::{
-    AcceptedLinearExecution, AdmittedExecution, CUDA_LINEAR_DEVICE_CAPABILITIES,
-    CsrDeviceTransferEvidence, CudaLinearExecutionTrace, DeviceValueGeneration,
+    AcceptedLinearExecution, AdmittedExecution, CsrDeviceTransferEvidence,
+    CudaLinearExecutionTrace, DeviceValueGeneration,
 };
 use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, ExecutionId, ExecutionProvider,
@@ -27,6 +27,9 @@ use crate::runtime::{
 use crate::{CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDARC_VERSION};
 
 mod capabilities;
+mod linear_solver;
+mod selection;
+pub use linear_solver::CudaLinearSolver;
 mod inverse_diagonal;
 
 use inverse_diagonal::inverse_diagonal;
@@ -310,70 +313,6 @@ impl CudaLinearSolveResult {
     }
 }
 
-/// One CUDA device selected for CSR Krylov execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CudaLinearSolver {
-    device_ordinal: u16,
-}
-
-impl CudaLinearSolver {
-    /// Select a runtime-visible device without loading CUDA yet.
-    #[must_use]
-    pub const fn new(device_ordinal: u16) -> Self {
-        Self { device_ordinal }
-    }
-
-    /// Admit one already discovered device for this solver slice without
-    /// creating a context, queue, allocation, or vendor-library handle.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` for a descriptor from another runtime, a descriptor
-    /// with a different deployment-visible ordinal, or the first missing
-    /// device capability, in that order.
-    pub fn admit_device(self, device: &DeviceDescriptor) -> Result<(), Diagnostic> {
-        if device.id().runtime() != crate::CUDA_RUNTIME_ID {
-            return Err(unsupported(format!(
-                "CUDA solver requires runtime `{}`, received `{}`",
-                crate::CUDA_RUNTIME_ID.as_str(),
-                device.id().runtime().as_str(),
-            )));
-        }
-        if device.id().ordinal() != self.device_ordinal {
-            return Err(unsupported(format!(
-                "CUDA solver selected device {}, received descriptor for device {}",
-                self.device_ordinal,
-                device.id().ordinal(),
-            )));
-        }
-        device.require(CUDA_LINEAR_DEVICE_CAPABILITIES)
-    }
-
-    /// Solve one finalized assembled system with a single resident CSR and
-    /// resident Krylov vectors, then accept it through the independent serial
-    /// host operator and fixed-order reduction oracle.
-    ///
-    /// # Errors
-    /// Returns a stable diagnostic for unsupported policy/property, invalid
-    /// CSR or preconditioner, unavailable CUDA capability, library failure,
-    /// numerical breakdown/non-convergence, or host true-residual rejection.
-    pub fn solve(
-        self,
-        system: &CanonicalCsrSystemView,
-        initial_guess: Option<&[f64]>,
-        plan: SolverPlan,
-    ) -> Result<CudaLinearSolveResult, Diagnostic> {
-        solve(
-            self.device_ordinal,
-            None,
-            None,
-            None,
-            system,
-            initial_guess,
-            plan,
-        )
-    }
-}
-
 /// L3 adapter seam that consumes an exact L2 CUDA execution admission.
 ///
 /// This trait is intentionally not re-exported by the `eqiora` facade: its
@@ -391,64 +330,6 @@ pub trait CudaAdmittedExecutionAdapter {
         self,
         admitted: AdmittedExecution<'_>,
     ) -> Result<AcceptedCudaLinearSolveResult, Diagnostic>;
-}
-
-impl CudaAdmittedExecutionAdapter for CudaLinearSolver {
-    fn execute_admitted(
-        self,
-        admitted: AdmittedExecution<'_>,
-    ) -> Result<AcceptedCudaLinearSolveResult, Diagnostic> {
-        let executor = admitted
-            .binding()
-            .cuda_executor()
-            .ok_or_else(|| unsupported("CUDA adapter requires a device deployment binding"))?;
-        if executor.solver_provider() != CUDA_LINEAR_SOLVER_PROVIDER {
-            return Err(unsupported(
-                "CUDA deployment selected a different linear-solver backend",
-            ));
-        }
-        if executor.execution_provider() != CUDA_LINEAR_EXECUTION_PROVIDER {
-            return Err(unsupported(
-                "CUDA deployment selected a different execution adapter",
-            ));
-        }
-        if executor.device().id().runtime() != crate::CUDA_RUNTIME_ID {
-            return Err(unsupported(
-                "CUDA deployment selected a device from another runtime",
-            ));
-        }
-        if executor.device().id().ordinal() != self.device_ordinal {
-            return Err(unsupported(
-                "CUDA solver ordinal differs from the admitted device",
-            ));
-        }
-        if executor.queue().ordinal() != 0 {
-            return Err(unsupported(
-                "single-device CUDA execution v1 admits only queue ordinal zero",
-            ));
-        }
-        let device = executor.device().clone();
-        let queue = executor.queue();
-        let minimum_device_payload_bytes =
-            admitted.minimum_device_payload_bytes().ok_or_else(|| {
-                unsupported(
-                    "CUDA adapter received an admission without a device-memory lower bound",
-                )
-            })?;
-        let result = solve(
-            self.device_ordinal,
-            Some(&device),
-            Some(queue),
-            Some(minimum_device_payload_bytes),
-            admitted.system(),
-            None,
-            admitted.solver_plan(),
-        )?;
-        let (solution, evidence) = result.into_parts();
-        let trace = evidence.execution_trace()?;
-        let accepted = admitted.accept_cuda(solution, trace)?;
-        Ok(AcceptedCudaLinearSolveResult { accepted, evidence })
-    }
 }
 
 fn solve(

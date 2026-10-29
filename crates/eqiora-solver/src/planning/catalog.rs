@@ -2,8 +2,8 @@
 use super::*;
 
 pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
-    profile: &HostSolverProfile,
-    candidate: HostSerialSolverCandidate<'_, S>,
+    profile: &SolverPlanningProfile,
+    candidate: SolverCandidate<'_, S>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
     if S::DOMAIN != expected.scalar_domain {
@@ -12,14 +12,14 @@ pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64>
     if candidate.evidence_case() != expected.evidence_case {
         return Some("catalog.evidence-mismatch");
     }
-    let Some(backend) = candidate.backend else {
+    let Some(provider) = candidate.provider() else {
         return Some("catalog.provider-unavailable");
     };
-    if backend.provider() != expected.provider {
+    if provider != expected.provider {
         return Some("catalog.provider-mismatch");
     }
-    if backend.default_execution_provider() != profile.execution_provider
-        || backend.default_execution() != profile.execution
+    if candidate.execution_provider() != Some(profile.execution_provider)
+        || candidate.execution() != Some(profile.execution)
     {
         return Some("catalog.execution-mismatch");
     }
@@ -56,7 +56,12 @@ pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64>
         reduction: expected.reduction,
         scalar_type: ScalarType::F64,
     };
-    if !backend.capabilities().combinations().contains(&required) {
+    if !candidate
+        .capabilities()
+        .expect("available provider")
+        .combinations()
+        .contains(&required)
+    {
         return Some("capability.exact-tuple-required");
     }
     None
@@ -75,6 +80,29 @@ pub(super) struct ExpectedCandidate {
 
 pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
+        selection::CUDA_CG_ID | selection::CUDA_BICGSTAB_ID | selection::CUDA_MINRES_ID => {
+            ExpectedCandidate {
+                scalar_domain: ScalarDomain::Real,
+                properties: match id {
+                    selection::CUDA_CG_ID => LinearOperatorProperties::SymmetricPositiveDefinite,
+                    selection::CUDA_MINRES_ID => LinearOperatorProperties::SymmetricIndefinite,
+                    _ => LinearOperatorProperties::General,
+                },
+                evidence_case: "numerics.host-serial-solver-planning-private",
+                provider: selection::CUDA_PROVIDER,
+                algorithm: match id {
+                    selection::CUDA_CG_ID => LinearSolver::ConjugateGradient,
+                    selection::CUDA_MINRES_ID => LinearSolver::MinimumResidual,
+                    _ => LinearSolver::BiConjugateGradientStabilized,
+                },
+                preconditioner: if id == selection::CUDA_CG_ID {
+                    PreconditionerPolicy::Jacobi
+                } else {
+                    PreconditionerPolicy::Identity
+                },
+                reduction: ReductionPolicy::Fast,
+            }
+        }
         REFERENCE_SPD_MINRES_JACOBI_ID => ExpectedCandidate {
             preconditioner: PreconditionerPolicy::Jacobi,
             evidence_case: PLANNING_EVIDENCE,

@@ -219,7 +219,7 @@ impl SolverCandidateCost {
 }
 
 pub(super) fn estimate(
-    profile: &HostSolverProfile,
+    profile: &SolverPlanningProfile,
     candidate: &'static str,
     plan: SolverPlan,
     provider: SolverProvider,
@@ -410,7 +410,7 @@ pub(super) fn resource_rejection(
     }
 }
 
-impl HostSolverProfile {
+impl SolverPlanningProfile {
     /// Bind counts derived by the existing assembly/layout owner, never by a ranker probe.
     #[must_use]
     pub const fn with_size(mut self, size: SolverPlanningSize) -> Self {
@@ -488,8 +488,8 @@ impl HostSolverProfile {
 mod run_forecast_tests {
     use super::*;
 
-    fn profile(work: Option<u128>, prepared: Option<SolverProvider>) -> HostSolverProfile {
-        HostSolverProfile::general_canonical_csr()
+    fn profile(work: Option<u128>, prepared: Option<SolverProvider>) -> SolverPlanningProfile {
+        SolverPlanningProfile::general_canonical_csr()
             .with_size(SolverPlanningSize::exact(4, 10))
             .with_cost_request(
                 SolverCostRequest::new(
@@ -504,7 +504,7 @@ mod run_forecast_tests {
     }
 
     fn estimate_for(
-        profile: &HostSolverProfile,
+        profile: &SolverPlanningProfile,
         algorithm: LinearSolver,
         provider: SolverProvider,
     ) -> SolverCandidateCost {
@@ -555,8 +555,8 @@ mod run_forecast_tests {
 
     #[test]
     fn unknown_or_overflowing_run_work_is_not_zero_and_cap_scope_is_unchanged() {
-        let ordinary =
-            HostSolverProfile::general_canonical_csr().with_size(SolverPlanningSize::exact(4, 10));
+        let ordinary = SolverPlanningProfile::general_canonical_csr()
+            .with_size(SolverPlanningSize::exact(4, 10));
         let baseline = estimate_for(
             &ordinary,
             LinearSolver::BiConjugateGradientStabilized,
@@ -589,17 +589,9 @@ mod run_forecast_tests {
     }
 }
 
-impl<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync> ResolvedHostSolverPlan<'_, S> {
-    /// Cost estimates for mathematically/provider-admitted candidates, including resource rejects.
-    #[must_use]
-    pub fn costs(&self) -> &[SolverCandidateCost] {
-        &self.costs
-    }
-}
-
 pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
-    candidate: HostSerialSolverCandidate<'_, S>,
+    candidate: SolverCandidate<'_, S>,
     size: Option<SolverPlanningSize>,
     estimate: Option<SolverCandidateCost>,
 ) -> (u8, u128, u128, &'static str) {
@@ -645,8 +637,8 @@ pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
 // Keep forecast limitations next to the candidate decision that uses them.
 pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     reasons: &mut Vec<(&'static str, &'static str)>,
-    profile: &HostSolverProfile,
-    candidate: HostSerialSolverCandidate<'_, S>,
+    profile: &SolverPlanningProfile,
+    candidate: SolverCandidate<'_, S>,
 ) {
     let id = candidate.id();
     if !profile.is_serial() {
@@ -657,9 +649,10 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
         reasons.push((id, "cost.shape-unavailable-preference-fallback"));
         return;
     };
-    if candidate.backend.is_some_and(|backend| {
-        unmodeled_realification(candidate.plan(), backend.provider(), S::DOMAIN)
-    }) {
+    if candidate
+        .provider()
+        .is_some_and(|provider| unmodeled_realification(candidate.plan(), provider, S::DOMAIN))
+    {
         reasons.push((id, "cost.reference-complex-realification-work-unmodeled"));
     }
     reasons.push((
@@ -719,9 +712,12 @@ mod realification_cost_tests {
         )
         .unwrap()
         .with_preconditioner(PreconditionerPolicy::Jacobi);
-        let profile =
-            HostSolverProfile::canonical_csr(LinearOperatorProperties::Symmetric, Some(true), None)
-                .with_size(SolverPlanningSize::exact(2, 4));
+        let profile = SolverPlanningProfile::canonical_csr(
+            LinearOperatorProperties::Symmetric,
+            Some(true),
+            None,
+        )
+        .with_size(SolverPlanningSize::exact(2, 4));
         // Independently n2,z4,k2: base96; added10+16+12+5=43;
         // setup6+6=12; original acceptance2*(8+10)=36.
         for (solves, structures, preparations, expected) in [
@@ -789,7 +785,7 @@ mod realification_cost_tests {
         ] {
             let plan =
                 SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(2).unwrap()).unwrap();
-            let profile = HostSolverProfile::general_canonical_csr().with_size(size);
+            let profile = SolverPlanningProfile::general_canonical_csr().with_size(size);
             // Independently: real n=2,z=4,k=2 gives structure6, acceptance18,
             // CG recurrence48 or MINRES recurrence48+basis48. A complex input
             // instead lowers to4real unknowns/16slots, plus packing and original
@@ -826,7 +822,7 @@ mod realification_cost_tests {
             NonZeroUsize::new(2).unwrap(),
         )
         .unwrap();
-        let profile = HostSolverProfile::general_canonical_csr().with_size(size);
+        let profile = SolverPlanningProfile::general_canonical_csr().with_size(size);
         // Native complex BiCG does not realify: 6+2*(16+40)+18=136 typed units.
         assert_eq!(
             profile

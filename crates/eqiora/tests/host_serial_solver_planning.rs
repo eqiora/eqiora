@@ -7,16 +7,16 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, HostSolverProfile,
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSolverPlan,
-    SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverPlanningObjective, SolverProvider,
+    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, LinearOperatorProperties,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan,
+    SolverPlanningObjective, SolverPlanningProfile, SolverProvider, SolverSelection,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v9.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v10.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
@@ -170,7 +170,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v9.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v10.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -187,7 +187,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.host-solver-planning/v9"
+        "eqiora.solver-planning/v10"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -280,8 +280,8 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     assert_eq!(bound.to_bits(), 0x3d70_0000_0000_0000);
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
-        let decision = ResolvedHostSolverPlan::resolve(
-            HostSolverProfile::general_canonical_csr(),
+        let decision = SolverSelection::resolve_host::<f64>(
+            SolverPlanningProfile::general_canonical_csr(),
             objective,
             1.0e-12,
             1.0e-14,
@@ -338,7 +338,13 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         }
         .solve(&problem)
         .unwrap();
-        let planned = decision.solve(&problem, None).unwrap();
+        let backend: &dyn LinearSolverBackend =
+            if decision.solver_provider() == REFERENCE_LINEAR_SOLVER.provider() {
+                &REFERENCE_LINEAR_SOLVER
+            } else {
+                &faer
+            };
+        let planned = decision.solve(&problem, None, backend).unwrap();
         assert_eq!(planned.values(), manual.values());
         assert_eq!(planned.report(), manual.report());
         assert_eq!(planned, manual);
@@ -450,8 +456,8 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let decision = ResolvedHostSolverPlan::resolve(
-                HostSolverProfile::canonical_csr(properties, Some(diagonal), None)
+            let decision = SolverSelection::resolve_host::<f64>(
+                SolverPlanningProfile::canonical_csr(properties, Some(diagonal), None)
                     .with_structure(structure.clone())
                     .unwrap(),
                 objective,
@@ -495,14 +501,18 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             assert_eq!(decision.solver_plan(), expected_plan);
             assert_eq!(decision.solver_provider(), backend.provider());
             assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
-            assert!(decision.solve(&problem, None).is_err());
+            assert!(decision.solve(&problem, None, backend).is_err());
             let foreign = eqiora_solver::AlgebraicStructure::new([eqiora::Id::new()], []).unwrap();
-            assert!(decision.solve(&problem, Some(&foreign)).is_err());
+            assert!(decision.solve(&problem, Some(&foreign), backend).is_err());
             if !diagonal {
                 let omitted_gauge = eqiora_solver::AlgebraicStructure::new([field], []).unwrap();
-                assert!(decision.solve(&problem, Some(&omitted_gauge)).is_err());
+                assert!(
+                    decision
+                        .solve(&problem, Some(&omitted_gauge), backend)
+                        .is_err()
+                );
             }
-            let ranked = decision.solve(&problem, Some(&structure)).unwrap();
+            let ranked = decision.solve(&problem, Some(&structure), backend).unwrap();
             let manual = LinearSolveRequest::new(backend, expected_plan)
                 .solve(&problem)
                 .unwrap();
@@ -527,7 +537,11 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             .unwrap();
             assert!(
                 decision
-                    .solve(&mismatched.linear_problem().unwrap(), Some(&structure))
+                    .solve(
+                        &mismatched.linear_problem().unwrap(),
+                        Some(&structure),
+                        backend
+                    )
                     .unwrap_err()
                     .message()
                     .contains("profile.operator-properties-mismatch")
@@ -549,8 +563,8 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         SolverPlanningObjective::LowMemory,
     ] {
         let profile =
-            HostSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-        let decision = ResolvedHostSolverPlan::resolve(
+            SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+        let decision = SolverSelection::resolve_host::<f64>(
             profile,
             objective,
             1e-12,
@@ -574,7 +588,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         assert_eq!(decision.selected_candidate_id(), id);
         assert_eq!(decision.solver_plan(), plan);
         assert_eq!(decision.solver_provider(), backend.provider());
-        let solution = decision.solve(&problem, None).unwrap();
+        let solution = decision.solve(&problem, None, backend).unwrap();
         let manual = LinearSolveRequest::new(backend, plan)
             .solve(&problem)
             .unwrap();
@@ -590,7 +604,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     // Unknown is not fabricated absence. A genuinely asserted absence must
     // still reject this matrix's present diagonal before any numerical work.
     assert!(
-        HostSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(false), None)
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, Some(false), None)
             .require_problem(&problem)
             .unwrap_err()
             .message()

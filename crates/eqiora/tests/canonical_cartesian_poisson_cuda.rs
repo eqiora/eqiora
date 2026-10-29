@@ -12,10 +12,13 @@ use eqiora::backends::cuda::{
 };
 use eqiora::device::QueueSlot;
 use eqiora::realization::{DiscretizationMethod, TargetCapabilities, resolve};
-use eqiora::solver::ReductionPolicy;
+use eqiora::solver::{
+    ExecutionReport, LinearOperatorProperties, ReductionPolicy, SolverPlan,
+    SolverPlanningObjective, SolverPlanningProfile,
+};
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_core::ScalarType;
-use eqiora_execution::{AdmittedExecution, CudaExecutorDescriptor, DeploymentBinding};
+use eqiora_execution::CudaExecutorDescriptor;
 use eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian;
 
 #[test]
@@ -57,7 +60,7 @@ fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
     let into_parts: fn(CudaLinearSolveResult) -> _ = CudaLinearSolveResult::into_parts;
     let _ = into_parts;
     let admit: fn(
-        CudaLinearSolver,
+        &CudaLinearSolver,
         &eqiora::device::DeviceDescriptor,
     ) -> Result<(), eqiora::Diagnostic> = CudaLinearSolver::admit_device;
     let _ = admit;
@@ -88,12 +91,29 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
     );
 
     for (revision, method, _) in canonical::METHODS {
+        let selection = select_poisson(
+            device.clone(),
+            canonical::solver_plan(ReductionPolicy::Fast),
+        );
         let resolved = resolve(
-            &canonical::request(&program, method, device_ordinal, revision).unwrap(),
+            &canonical::request_with_solver(
+                &program,
+                method,
+                device_ordinal,
+                revision,
+                selection.selection().unwrap().solver_plan(),
+            )
+            .unwrap(),
             canonical::requirements(),
             &capabilities,
         )
         .unwrap();
+        assert_eq!(
+            resolved.plan().target(),
+            eqiora::realization::Target::CudaGpu {
+                device: device_ordinal
+            }
+        );
         let cpu_solution =
             canonical::reference_cpu_solution(&program, method, revision + 100).unwrap();
         let realization = RealizationEnvelope::new(
@@ -111,24 +131,13 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
             resolved.plan().target(),
         )
         .unwrap();
-        let binding = DeploymentBinding::bind_cuda(
-            finalized.portable_realization(),
-            CudaExecutorDescriptor::new(
-                CUDA_LINEAR_SOLVER_PROVIDER,
-                CUDA_LINEAR_EXECUTION_PROVIDER,
-                device.clone(),
-                QueueSlot::new(device.id(), 0),
-                CudaLinearSolver::capabilities(),
+        let admitted = selection
+            .admit(
+                finalized.portable_realization(),
+                finalized.canonical_csr_system_view(),
+                None,
             )
-            .unwrap(),
-        )
-        .unwrap();
-        let admitted = AdmittedExecution::admit_cuda_linear(
-            finalized.portable_realization(),
-            finalized.canonical_csr_system_view(),
-            binding,
-        )
-        .unwrap();
+            .unwrap();
         let cuda = CudaLinearSolver::new(device_ordinal)
             .execute_admitted(admitted)
             .unwrap();
@@ -183,5 +192,128 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
         assert_eq!(decoded_run.canonical_json().unwrap(), run_bytes);
         assert_eq!(decoded_run.model(), model_artifact.digest().unwrap());
         assert_eq!(decoded_run.realization(), realization.digest().unwrap());
+    }
+}
+
+fn select_poisson(
+    device: eqiora::device::DeviceDescriptor,
+    controls: SolverPlan,
+) -> CudaLinearSolver {
+    let ordinal = device.id().ordinal();
+    let profile = SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        Some(true),
+        Some(ReductionPolicy::Fast),
+    )
+    .with_execution(
+        CUDA_LINEAR_EXECUTION_PROVIDER,
+        ExecutionReport::cuda(CUDA_LINEAR_EXECUTION_PROVIDER.id(), ordinal),
+    )
+    .unwrap();
+    CudaLinearSolver::new(ordinal)
+        .select_plan(
+            CudaExecutorDescriptor::new(
+                CUDA_LINEAR_SOLVER_PROVIDER,
+                CUDA_LINEAR_EXECUTION_PROVIDER,
+                device.clone(),
+                QueueSlot::new(device.id(), 0),
+                CudaLinearSolver::capabilities(),
+            )
+            .unwrap(),
+            profile,
+            SolverPlanningObjective::Fast,
+            controls.relative_tolerance(),
+            controls.absolute_tolerance(),
+            controls.maximum_iterations(),
+        )
+        .unwrap()
+}
+
+#[test]
+fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
+    use eqiora::device::{DeviceDescriptor, DeviceId};
+    use std::num::NonZeroU64;
+    let device = DeviceDescriptor::new(
+        DeviceId::new(eqiora_backend_cuda::CUDA_RUNTIME_ID, 0),
+        "synthetic CUDA",
+        NonZeroU64::new(1 << 30).unwrap(),
+        eqiora_execution::CUDA_LINEAR_DEVICE_CAPABILITIES,
+    )
+    .unwrap();
+    let program = canonical::compile_program().unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
+    for (revision, method, _) in canonical::METHODS {
+        let selection = select_poisson(
+            device.clone(),
+            canonical::solver_plan(ReductionPolicy::Fast),
+        );
+        assert_eq!(
+            selection.selection().unwrap().solver_plan(),
+            canonical::solver_plan(ReductionPolicy::Fast)
+        );
+        let resolved = resolve(
+            &canonical::request_with_solver(
+                &program,
+                method,
+                0,
+                revision,
+                selection.selection().unwrap().solver_plan(),
+            )
+            .unwrap(),
+            canonical::requirements(),
+            &canonical::exact_capabilities(
+                CudaLinearSolver::capabilities(),
+                TargetCapabilities::none().with_cuda_device(0),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            resolved.plan().target(),
+            eqiora::realization::Target::CudaGpu { device: 0 }
+        );
+        let realization = RealizationEnvelope::new(
+            &model,
+            eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+                .unwrap()
+                .portable_realization(&resolved)
+                .unwrap(),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap();
+        let (_, finalized) = finalize_scalar_elliptic_cartesian(
+            &program,
+            realization.graph(),
+            resolved.plan().target(),
+        )
+        .unwrap();
+        let error = CudaLinearSolver::new(0)
+            .bind(
+                finalized.portable_realization(),
+                finalized.canonical_csr_system_view(),
+                None,
+            )
+            .unwrap_err();
+        assert!(error.message().contains("no selected deployment"));
+        let admitted = selection
+            .admit(
+                finalized.portable_realization(),
+                finalized.canonical_csr_system_view(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(admitted.solver_plan(), finalized.solver_plan());
+        // The selected owner must not enter the manual executor path. A different
+        // ordinal also guarantees runtime work cannot start if that guard regresses.
+        let other_device = DeviceDescriptor::new(
+            DeviceId::new(eqiora_backend_cuda::CUDA_RUNTIME_ID, 1),
+            "synthetic CUDA 1",
+            NonZeroU64::new(1 << 30).unwrap(),
+            eqiora_execution::CUDA_LINEAR_DEVICE_CAPABILITIES,
+        )
+        .unwrap();
+        let error = select_poisson(other_device, canonical::solver_plan(ReductionPolicy::Fast))
+            .execute_admitted(admitted)
+            .unwrap_err();
+        assert!(error.message().contains("retained decision binding"));
     }
 }
