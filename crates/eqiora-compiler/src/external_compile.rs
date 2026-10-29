@@ -105,10 +105,6 @@ fn observe_external_name(
     Ok(())
 }
 
-#[allow(
-    clippy::type_complexity,
-    reason = "the closed tuple avoids a second public selection lifecycle"
-)]
 pub(crate) fn selected_geometry_parent<'a>(
     explicit: Option<&'a NamedEntitySet>,
     parent_slot: &str,
@@ -126,6 +122,10 @@ pub(crate) fn selected_geometry_parent<'a>(
     })
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "the closed tuple avoids a second public selection lifecycle"
+)]
 pub(crate) fn validate_geometry_bindings(
     file: &str,
     geometry: &CanonicalGeometryV1,

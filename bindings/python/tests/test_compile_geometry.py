@@ -165,11 +165,11 @@ def test_source_named_boundary_parent_has_one_model_and_plan() -> None:
     assert len({model.digest for model in models}) == 1
     assert all(plan.to_bytes() == plans[0].to_bytes() for plan in plans)
 
-    foreign, _ = geometry_and_mesh(cells=2)
+    foreign = geometry()
     for invalid in (
         {name: value for name, value in direct.items() if name != "body"},
         {**direct, "body": authored.selection("x_upper")},
-        {**direct, "body": foreign.selection("body")},
+        {**direct, "body": foreign.selection("fluid")},
         {**direct, "x_lower": (authored.selection("x_lower"), authored.selection("x_upper"))},
     ):
         with pytest.raises((eqiora.ValidationError, ValueError)):
