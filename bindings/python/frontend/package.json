@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@anywidget/types": "0.4.0",
-    "@biomejs/biome": "2.5.6",
+    "@biomejs/biome": "2.6.3",
     "@playwright/test": "1.62.1",
     "@types/three": "0.185.4",
     "typescript": "7.0.2",
