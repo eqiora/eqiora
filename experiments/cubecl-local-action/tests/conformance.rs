@@ -23,12 +23,13 @@ fn action_case(dimension: usize) -> (eqiora_ir::LocalLinearActionIr, Vec<f64>) {
 #[test]
 #[ignore = "requires a physical CUDA device"]
 fn cuda_fails_closed_when_cubecl_omits_f64_buffers() {
-    use cubecl::cuda::{CudaDevice, CudaRuntime};
+    use cubecl::Device;
+    use cubecl::device::CudaDevice;
     use eqiora_cubecl_local_action_experiment::ExperimentError;
 
     let (action, input) = action_case(3);
-    let failure = execute::<CudaRuntime>(
-        &CudaDevice::new(0),
+    let failure = execute(
+        &Device::Cuda(CudaDevice::new(0)),
         &action,
         &input,
         LocalActionPolicy::Ordered,
@@ -42,12 +43,13 @@ fn cuda_fails_closed_when_cubecl_omits_f64_buffers() {
 #[test]
 #[ignore = "requires a physical ROCm device"]
 fn rocm_fails_closed_when_cubecl_omits_f64_buffers() {
-    use cubecl::hip::{AmdDevice, HipRuntime};
+    use cubecl::Device;
+    use cubecl::device::AmdDevice;
     use eqiora_cubecl_local_action_experiment::ExperimentError;
 
     let (action, input) = action_case(3);
-    let failure = execute::<HipRuntime>(
-        &AmdDevice::new(0),
+    let failure = execute(
+        &Device::Hip(AmdDevice::new(0)),
         &action,
         &input,
         LocalActionPolicy::Ordered,
