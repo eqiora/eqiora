@@ -112,6 +112,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unicode_18_combining_marks_require_canonical_order() {
+        // UnicodeData 18.0.0 assigns U+1AEE CCC 220; U+0301 has CCC 230.
+        // UAX #15 therefore orders 1AEE before 0301, with no composition
+        // involving the digit zero. In Unicode 17, unassigned 1AEE had CCC 0.
+        // https://www.unicode.org/Public/18.0.0/ucd/UnicodeData.txt
+        let canonical = "0\u{1aee}\u{301}.eqi";
+        let accepted = NormalizedRelativePath::parse(canonical).unwrap();
+        assert_eq!(accepted.as_str(), canonical);
+
+        let noncanonical = "0\u{301}\u{1aee}.eqi";
+        let error = NormalizedRelativePath::parse(noncanonical).unwrap_err();
+        assert!(error.to_string().contains("must be control-free NFC UTF-8"));
+    }
+
+    #[test]
     fn rejects_ambiguous_or_platform_dependent_paths() {
         assert!(NormalizedRelativePath::parse("models/resistor.eqi").is_ok());
         for path in [
