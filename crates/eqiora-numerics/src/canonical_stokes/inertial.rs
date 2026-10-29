@@ -37,12 +37,11 @@ pub struct InertialIncompressibleNewtonianCartesianModel2d {
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_source: Option<(RawId, RawId)>,
     bounds: [[f64; 2]; 2],
     mass_density: ScalarSpatialExpression<f64>,
     dynamic_viscosity: ScalarSpatialExpression<f64>,
-    force_potential_expression: ScalarSpatialExpression<f64>,
-    force_potential_definition: RawId,
+    force_potential_expression: Option<ScalarSpatialExpression<f64>>,
     momentum_relation: RawId,
     momentum_orientation: f64,
     incompressibility_relation: RawId,
@@ -75,8 +74,11 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
 
     /// Canonical conservative-force potential Field.
     #[must_use]
-    pub const fn force_potential(&self) -> RawId {
-        self.force_potential
+    pub const fn force_potential(&self) -> Option<RawId> {
+        match self.force_source {
+            Some((field, _)) => Some(field),
+            None => None,
+        }
     }
 
     /// Physical Cartesian bounds in coherent SI coordinates.
@@ -113,16 +115,19 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
         &self.dynamic_viscosity
     }
 
-    /// Immutable scalar tape defining the conservative-force potential.
+    /// Conservative-force potential tape, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
-        &self.force_potential_expression
+    pub const fn force_potential_expression(&self) -> Option<&ScalarSpatialExpression<f64>> {
+        self.force_potential_expression.as_ref()
     }
 
-    /// Exact Relation witnessing the force-potential definition.
+    /// Exact force-potential definition Relation, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_definition(&self) -> RawId {
-        self.force_potential_definition
+    pub const fn force_potential_definition(&self) -> Option<RawId> {
+        match self.force_source {
+            Some((_, relation)) => Some(relation),
+            None => None,
+        }
     }
 
     /// Exact Relation witnessing inertial momentum balance.
@@ -154,8 +159,13 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
     /// # Errors
     /// Preserves the tape's shape and finite-evaluation diagnostics.
     pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; 2], Diagnostic> {
-        self.force_potential_expression
-            .evaluate_gradient(coordinates)
+        match &self.force_potential_expression {
+            Some(source) => source.evaluate_gradient(coordinates),
+            None => {
+                crate::spatial_expression::validate_coordinates(coordinates, 2)?;
+                Ok([0.; 2])
+            }
+        }
     }
 }
 
@@ -166,21 +176,21 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
     boundaries: Option<BTreeMap<(eqiora_schema::kernel::BoundarySide, usize), RawId>>,
 ) -> Result<LoweredInertialIncompressibleNewtonianSubdomain2d, Diagnostic> {
     let (velocity, scalar_fields, representation) = exact_fields(program, domain)?;
-    if scalar_fields.len() != 2 {
+    if !(1..=2).contains(&scalar_fields.len()) {
         return Err(lowering_error(
             domain,
             format!(
-                "inertial incompressible Newtonian fluid requires exactly pressure and force-potential scalar Fields, found {} pressure-valued scalars",
+                "inertial incompressible Newtonian fluid requires one pressure and optionally one force-potential scalar Field, found {} pressure-valued scalars",
                 scalar_fields.len()
             ),
         ));
     }
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() != 3 {
+    if !(2..=3).contains(&volume_relations.len()) {
         return Err(lowering_error(
             domain,
             format!(
-                "inertial incompressible Newtonian fluid requires exactly force, momentum, and incompressibility Relations, found {}",
+                "inertial incompressible Newtonian fluid requires momentum, incompressibility, and an optional force definition, found {} volume Relations",
                 volume_relations.len()
             ),
         ));
@@ -207,6 +217,11 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
         &typed_relations,
         &scalar_fields,
         incompressibility_relation,
+        |expression, root, field, _| {
+            Ok(super::expression::load_definition_root(
+                expression, root, field,
+            ))
+        },
         |typed, root, pressure, force_potential, relation| {
             inertial_momentum_parts(typed, root, velocity, pressure, force_potential, relation)
         },
@@ -220,19 +235,18 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
             ),
         ));
     }
-    let (
-        pressure,
-        force_potential,
-        (force_potential_definition, source),
-        (momentum_relation, momentum),
-    ) = candidates.remove(0);
-    let force_potential_expression = spatial_expression::lower(
-        program,
-        &relation_expression(program, force_potential_definition)?,
-        source,
-        force_potential_definition,
-        2,
-    )?;
+    let (pressure, force_source, (momentum_relation, momentum)) = candidates.remove(0);
+    let force_potential_expression = force_source
+        .map(|(_, definition, node)| {
+            spatial_expression::lower(
+                program,
+                &relation_expression(program, definition)?,
+                node,
+                definition,
+                2,
+            )
+        })
+        .transpose()?;
     let momentum_expression = &relation_expression(program, momentum_relation)?;
     let momentum_typed = &typed_relations[&momentum_relation];
     debug_assert_eq!(momentum_typed.expression(), momentum_expression);
@@ -278,12 +292,11 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
         domain,
         velocity,
         pressure,
-        force_potential,
+        force_source: force_source.map(|(field, definition, _)| (field, definition)),
         bounds,
         mass_density,
         dynamic_viscosity,
         force_potential_expression,
-        force_potential_definition,
         momentum_relation,
         incompressibility_relation,
         momentum_orientation: momentum.orientation,
@@ -293,11 +306,11 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
     Ok(LoweredInertialIncompressibleNewtonianSubdomain2d {
         model,
         representation,
-        volume_relations: [
-            force_potential_definition,
-            momentum_relation,
-            incompressibility_relation,
-        ],
+        volume_relations: force_source
+            .map(|(_, definition, _)| definition)
+            .into_iter()
+            .chain([momentum_relation, incompressibility_relation])
+            .collect(),
         boundary: lowered_boundary,
     })
 }
@@ -306,7 +319,7 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
 pub(crate) struct LoweredInertialIncompressibleNewtonianSubdomain2d {
     pub(crate) model: InertialIncompressibleNewtonianCartesianModel2d,
     pub(crate) representation: RawId,
-    pub(crate) volume_relations: [RawId; 3],
+    pub(crate) volume_relations: Vec<RawId>,
     pub(crate) boundary: LoweredStokesBoundary2d,
 }
 
@@ -322,7 +335,7 @@ fn inertial_momentum_parts(
     root: ExprId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_potential: Option<RawId>,
     owner: RawId,
 ) -> Result<Option<InertialMomentumParts>, Diagnostic> {
     let expression = residual.expression();
@@ -350,21 +363,16 @@ fn inertial_momentum_parts_oriented(
     root: ExprId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_potential: Option<RawId>,
     owner: RawId,
 ) -> Result<Option<InertialMomentumParts>, Diagnostic> {
     let expression = residual.expression();
-    let Some(ExprNode::Sub(internal_balance, load)) = expression.node(root) else {
+    let internal_balance =
+        super::expression::momentum_internal_balance(expression, root, force_potential);
+    let Some(internal_balance) = internal_balance else {
         return Ok(None);
     };
-    let Some(ExprNode::Gradient(load_argument)) = expression.node(*load) else {
-        return Ok(None);
-    };
-    if !matches!(expression.node(*load_argument), Some(ExprNode::Symbol(SymbolRef::Field(field))) if field.erase() == force_potential)
-    {
-        return Ok(None);
-    }
-    let Some(ExprNode::Sub(inertia, divergence)) = expression.node(*internal_balance) else {
+    let Some(ExprNode::Sub(inertia, divergence)) = expression.node(internal_balance) else {
         return Ok(None);
     };
     let Some(ExprNode::Divergence(stress)) = expression.node(*divergence) else {

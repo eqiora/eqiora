@@ -73,12 +73,11 @@ fn lower_named(
         domain,
         velocity: volume.velocity,
         pressure: volume.pressure,
-        force_potential: volume.force_potential,
+        force_source: volume.force_source,
         bounds,
         mass_density: volume.mass_density,
         dynamic_viscosity: volume.dynamic_viscosity,
         force_potential_expression: volume.force_potential_expression,
-        force_potential_definition: volume.force_potential_definition,
         momentum_relation: volume.momentum_relation,
         momentum_orientation: volume.momentum_orientation,
         incompressibility_relation: volume.incompressibility_relation,
@@ -118,11 +117,8 @@ fn require_closed_model(
     let mut domains = BTreeSet::from([model.domain]);
     domains.extend(boundary.entries.values().map(|entry| entry.boundary()));
     domains.extend(boundary.connector_domains.iter().copied());
-    let mut relations = BTreeSet::from([
-        model.force_potential_definition,
-        model.momentum_relation,
-        model.incompressibility_relation,
-    ]);
+    let mut relations = BTreeSet::from([model.momentum_relation, model.incompressibility_relation]);
+    relations.extend(model.force_potential_definition());
     relations.extend(
         model
             .boundary_relations
@@ -130,7 +126,8 @@ fn require_closed_model(
             .map(|binding| binding.relation()),
     );
     relations.extend(boundary.prescribed_velocity_definitions.iter().copied());
-    let mut fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
+    let mut fields = BTreeSet::from([model.velocity, model.pressure]);
+    fields.extend(model.force_potential());
     fields.extend(boundary.prescribed_velocity_fields.iter().copied());
     crate::canonical_stokes::inventory::FlowClosure {
         domains: &domains,

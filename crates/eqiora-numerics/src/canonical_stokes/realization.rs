@@ -326,13 +326,22 @@ pub(super) fn dimensionless_body_force(
     scales: IncompressibleFlowScaleProfile2d,
 ) -> impl Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync + '_ {
     let lower = [model.bounds()[0][0], model.bounds()[1][0]];
-    let parameter_tangent = vec![0.0; model.force_potential_expression().parameter_fields().len()];
+    let parameter_tangent = vec![
+        0.0;
+        model
+            .force_potential_expression()
+            .map_or(0, |source| source.parameter_fields().len())
+    ];
     let force_potential = model.force_potential_expression();
     move |coordinate_hat: [f64; DIMENSION]| {
         let coordinate = [
             lower[0] + scales.length_value() * coordinate_hat[0],
             lower[1] + scales.length_value() * coordinate_hat[1],
         ];
+        crate::spatial_expression::validate_coordinates(&coordinate, DIMENSION)?;
+        let Some(force_potential) = force_potential else {
+            return Ok([0.0; DIMENSION]);
+        };
         let mut result = [0.0; DIMENSION];
         for axis in 0..DIMENSION {
             let mut coordinate_tangent = [0.0; DIMENSION];
@@ -892,11 +901,14 @@ pub(super) fn pressure_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds
         .expect("lowered Stokes pressure retains its Field kind")
 }
 
-pub(super) fn force_potential_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
-    model
-        .force_potential()
-        .downcast()
-        .expect("lowered Stokes force potential retains its Field kind")
+pub(super) fn force_potential_id(
+    model: &SteadyIncompressibleStokesModel2d,
+) -> Option<Id<kinds::Field>> {
+    model.force_potential().map(|field| {
+        field
+            .downcast()
+            .expect("lowered Stokes force potential retains its Field kind")
+    })
 }
 
 fn realization_error(error: Diagnostic) -> Diagnostic {

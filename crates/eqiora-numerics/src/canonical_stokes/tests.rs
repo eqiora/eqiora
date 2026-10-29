@@ -179,10 +179,15 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
     assert!(
         super::mixed_certificate::check_model(&program, common, &wrong_assumption, None).is_err()
     );
-    let definition =
-        super::support::typed_relation(&program, common.force_potential_definition()).unwrap();
+    let definition = super::support::typed_relation(
+        &program,
+        common
+            .force_potential_definition()
+            .expect("fixture authors a force definition"),
+    )
+    .unwrap();
     let dag = definition.expression();
-    let field_node=dag.nodes().iter().position(|node|matches!(node,eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if id.erase()==common.force_potential())).unwrap();
+    let field_node=dag.nodes().iter().position(|node|matches!(node,eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if Some(id.erase())==common.force_potential())).unwrap();
     let mut self_authenticating = certified.clone();
     let entry = self_authenticating
         .iter_mut()
@@ -311,6 +316,7 @@ fn lowers_exact_meaning_without_numerical_choices() {
     assert!(
         (model
             .force_potential_expression()
+            .expect("fixture authors a force potential")
             .evaluate(&[0.4, 0.0])
             .unwrap()
             - 0.6)
@@ -318,14 +324,18 @@ fn lowers_exact_meaning_without_numerical_choices() {
             < 1.0e-15
     );
     assert_eq!(
-        model.force_potential_expression().parameter_fields().len(),
+        model
+            .force_potential_expression()
+            .expect("fixture authors a force potential")
+            .parameter_fields()
+            .len(),
         2
     );
     assert_ne!(model.velocity(), model.pressure());
-    assert_ne!(model.pressure(), model.force_potential());
+    assert_ne!(Some(model.pressure()), model.force_potential());
     assert_ne!(
         model.force_potential_definition(),
-        model.momentum_relation()
+        Some(model.momentum_relation())
     );
     assert_ne!(
         model.momentum_relation(),
@@ -344,10 +354,11 @@ fn lowers_exact_meaning_without_numerical_choices() {
     assert_eq!(correspondence.formulation.velocity_test, model.velocity());
     assert_eq!(correspondence.formulation.pressure_trial, model.pressure());
     assert_eq!(correspondence.formulation.pressure_test, model.pressure());
-    assert_eq!(correspondence.law.source, model.force_potential());
     assert_eq!(
-        correspondence.law.source_definition,
-        model.force_potential_definition()
+        correspondence.law.source,
+        model
+            .force_potential()
+            .zip(model.force_potential_definition())
     );
     assert_eq!(
         correspondence.formulation.rules,
@@ -425,6 +436,7 @@ fn admits_additive_stokes_orientations_without_rewriting_the_model() {
     assert!(
         (additive_model
             .force_potential_expression()
+            .expect("fixture authors a force potential")
             .evaluate(&[0.4, 0.0])
             .unwrap()
             - 0.6)
@@ -621,7 +633,10 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
         1
     );
     assert_eq!(
-        model.force_potential_expression().constant_value(),
+        model
+            .force_potential_expression()
+            .expect("fixture authors a force potential")
+            .constant_value(),
         Some(0.0)
     );
     assert_eq!(
@@ -629,10 +644,10 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
         [0.0; 2]
     );
     assert_ne!(model.velocity(), model.pressure());
-    assert_ne!(model.pressure(), model.force_potential());
+    assert_ne!(Some(model.pressure()), model.force_potential());
     assert_ne!(
         model.force_potential_definition(),
-        model.momentum_relation()
+        Some(model.momentum_relation())
     );
     assert_ne!(
         model.momentum_relation(),
@@ -831,3 +846,5 @@ fn transient_navier_stokes_normalizes_only_explicit_whole_sign_reversal() {
 }
 
 mod inventory;
+
+mod optional_forcing;

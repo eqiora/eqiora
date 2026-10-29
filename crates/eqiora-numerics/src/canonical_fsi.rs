@@ -331,7 +331,7 @@ fn require_coincident_bounds<const D: usize>(
 fn require_closed_fsi_model_parts<const D: usize>(
     program: &KernelProgram,
     fluid_domain: RawId,
-    fluid_fields: [RawId; 3],
+    fluid_fields: impl IntoIterator<Item = RawId>,
     fluid_representation: RawId,
     fluid_volume_relations: &[RawId],
     fluid_boundary: &LoweredStokesBoundary<D>,
@@ -349,14 +349,12 @@ fn require_closed_fsi_model_parts<const D: usize>(
     domains.extend(fluid_boundary.connector_domains.iter().copied());
     domains.extend(solid.boundary.connector_domains.iter().copied());
 
-    let fields = BTreeSet::from([
-        fluid_fields[0],
-        fluid_fields[1],
-        fluid_fields[2],
+    let mut fields = BTreeSet::from([
         solid.model.continuum().displacement(),
         solid.model.velocity(),
         solid.model.continuum().load_potential(),
     ]);
+    fields.extend(fluid_fields);
     let representations = BTreeSet::from([fluid_representation, solid.representation]);
     let mut relations = fluid_volume_relations
         .iter()

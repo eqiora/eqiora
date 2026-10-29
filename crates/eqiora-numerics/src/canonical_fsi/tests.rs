@@ -253,7 +253,9 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         PhysicalBoundaryDisposition::PortBinding { .. }
     ));
     assert_ne!(
-        fluid.force_potential_definition(),
+        fluid
+            .force_potential_definition()
+            .expect("fixture authors a fluid load"),
         fluid.momentum_relation()
     );
     assert_ne!(

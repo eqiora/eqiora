@@ -141,11 +141,9 @@ pub fn lower_ale_fsi_cartesian<const D: usize>(
     require_closed_fsi_model_parts(
         program,
         fluid.model.domain(),
-        [
-            fluid.model.velocity(),
-            fluid.model.pressure(),
-            fluid.model.force_potential(),
-        ],
+        [fluid.model.velocity(), fluid.model.pressure()]
+            .into_iter()
+            .chain(fluid.model.force_potential()),
         fluid.representation,
         &fluid.volume_relations,
         &fluid.boundary,

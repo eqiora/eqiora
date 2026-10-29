@@ -11,10 +11,10 @@ pub(super) fn require_closed_model(
 ) -> Result<(), Diagnostic> {
     let mut domains = BTreeSet::from([model.domain()]);
     let mut relations = BTreeSet::from([
-        model.force_potential_definition(),
         model.momentum_relation(),
         model.incompressibility_relation(),
     ]);
+    relations.extend(model.force_potential_definition());
     domains.extend(
         model
             .boundary_relations()
@@ -31,7 +31,8 @@ pub(super) fn require_closed_model(
     relations.extend(coefficient_definitions.iter().copied());
     relations.extend(boundary.prescribed_velocity_definitions.iter().copied());
     debug_assert!(boundary.uninterpreted_live_relations.is_subset(&relations));
-    let mut fields = BTreeSet::from([model.velocity(), model.pressure(), model.force_potential()]);
+    let mut fields = BTreeSet::from([model.velocity(), model.pressure()]);
+    fields.extend(model.force_potential());
     fields.extend(coefficient_fields.iter().copied());
     fields.extend(boundary.prescribed_velocity_fields.iter().copied());
     crate::canonical_stokes::inventory::FlowClosure {
