@@ -110,3 +110,27 @@ seven frontend files matched the generated assets byte for byte. The isolated
 Python package gate checks wheel delivery and the native adapter separately, and
 `bindings/python/tests/test_jupyter.py` covers notebook execution. The frontend
 tests do not cover Colab's Restart and Run All.
+
+## Locked dependency security updates
+
+The build uses scoped npm overrides for `@jupyterlab/apputils` →
+`sanitize-html` 2.18.1 and Mermaid 11 → KaTeX 0.18.11. These intentionally exceed
+apputils' `~2.12.1` sanitizer range and Mermaid's `^0.16.47` math range to include
+the upstream security fixes. The sanitizer update also removes `deepmerge`.
+The repository's Node 24 toolchain satisfies the sanitizer's Node 22.12 minimum.
+
+The [KaTeX 0.18 migration](https://github.com/KaTeX/KaTeX/releases/tag/v0.18.0)
+changes internal CSS classes; Mermaid uses the public `renderToString` API rather
+than KaTeX's changed internal function-definition API. Focused browser tests cover
+Jupyter's sanitizer, MermaidManager's native-MathML fraction rendering, HTML math
+with the matching KaTeX stylesheet, and
+[inherited-trust hardening](https://github.com/KaTeX/KaTeX/security/advisories/GHSA-238p-pmpm-9mq7).
+These checks support this locked consumer combination, not every Mermaid option
+or a pixel-equivalence claim. Revisit the overrides when the upstream consumer
+ranges include patched releases.
+
+These pins cover this extension's npm build tree. The prebuilt extension consumes
+Jupyter-provided shared modules; changing this lock does not replace a separately
+installed JupyterLab host's static assets or dependencies. Host integration tests
+check the editor extension in that host, not whether the host's own sanitizer or
+math packages have been upgraded.

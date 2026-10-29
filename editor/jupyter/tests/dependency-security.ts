@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 test('locked Jupyter sanitizer preserves allowed HTML and rejects unsafe markup', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/tests/dependency.html');
+  await page.waitForFunction(() => 'dependencyProbe' in window);
   const observed = await page.evaluate(async () => {
-    const path = '/tests/dependency-harness.ts';
-    const { Sanitizer } = await import(path);
+    const { Sanitizer } = (window as any).dependencyProbe;
     const sanitizer = new Sanitizer();
     const dirty = '<p onclick="alert(1)">safe <strong>value</strong>'
       + '<a href="https://example.org/">good</a><a href="javascript:alert(1)">bad</a>'
@@ -26,10 +26,10 @@ test('locked Jupyter sanitizer preserves allowed HTML and rejects unsafe markup'
 });
 
 test('locked sanitizer enforces scheme and discard rules with explicit optional tags', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/tests/dependency.html');
+  await page.waitForFunction(() => 'dependencyProbe' in window);
   const observed = await page.evaluate(async () => {
-    const path = '/tests/dependency-harness.ts';
-    const { Sanitizer } = await import(path);
+    const { Sanitizer } = (window as any).dependencyProbe;
     const sanitizer = new Sanitizer();
     const refresh = sanitizer.sanitize('<meta http-equiv="refresh" content="0;url=javascript:alert(1)">', {
       allowedTags: ['meta'], allowedAttributes: { meta: ['http-equiv', 'content'] },
@@ -49,10 +49,10 @@ test('locked sanitizer enforces scheme and discard rules with explicit optional 
 });
 
 test('Jupyter Mermaid renders a mathematical fraction with patched KaTeX', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/tests/dependency.html');
+  await page.waitForFunction(() => 'dependencyProbe' in window);
   const observed = await page.evaluate(async () => {
-    const path = '/tests/dependency-harness.ts';
-    const { MermaidManager, katex } = await import(path);
+    const { MermaidManager, katex } = (window as any).dependencyProbe;
     const manager = new MermaidManager();
     const result = await manager.renderSvg('flowchart LR\n A["$$x = \\frac{1}{2}$$"] --> B["value"]');
     const svg = new DOMParser().parseFromString(result.svg, 'image/svg+xml');
@@ -64,27 +64,27 @@ test('Jupyter Mermaid renders a mathematical fraction with patched KaTeX', async
     math.innerHTML = katex.renderToString('x=\\frac{1}{2}', { displayMode: true });
     document.body.appendChild(math);
     await document.fonts.ready;
-    const fraction = math.querySelector('.katex-mfrac')!;
+    const htmlMath = math.querySelector('.katex-html')!;
     return {
       mermaid: manager.getMermaidVersion(),
       fraction: svg.querySelector('mfrac')?.textContent?.replace(/\s/g, ''),
       imageWidth: image.naturalWidth,
-      htmlFractionVisible: fraction.getBoundingClientRect().height > 0,
+      htmlMathVisible: htmlMath.getBoundingClientRect().height > 0,
       htmlMathFont: getComputedStyle(math.querySelector('.katex')!).fontFamily,
     };
   });
   expect(observed.mermaid).toBe('11.17.2');
   expect(observed.fraction).toBe('12');
   expect(observed.imageWidth).toBeGreaterThan(0);
-  expect(observed.htmlFractionVisible).toBe(true);
+  expect(observed.htmlMathVisible).toBe(true);
   expect(observed.htmlMathFont).toContain('KaTeX_Main');
 });
 
 test('KaTeX ignores inherited trust rather than enabling unsafe links', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/tests/dependency.html');
+  await page.waitForFunction(() => 'dependencyProbe' in window);
   const unsafeLinks = await page.evaluate(async () => {
-    const path = '/tests/dependency-harness.ts';
-    const { katex } = await import(path);
+    const { katex } = (window as any).dependencyProbe;
     Object.defineProperty(Object.prototype, 'trust', { configurable: true, writable: true, value: true });
     try {
       const html = katex.renderToString('\\href{javascript:alert(1)}{bad}', { output: 'mathml' });
