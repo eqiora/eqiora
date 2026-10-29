@@ -349,15 +349,7 @@ fn observe_exact_local_device(
         .binding()
         .cuda_partition_placement()
         .ok_or_else(|| invalid("MPI-CUDA execution requires a partition-local CUDA placement"))?;
-    if placement.execution_provider() != MPI_CUDA_LOCAL_ACTION_EXECUTION_PROVIDER
-        || admitted.binding().distributed_device_transport()
-            != Some(DistributedDeviceTransport::HostStaged)
-        || placement.device().id().ordinal() != 0
-    {
-        return Err(invalid(
-            "MPI-CUDA execution requires its exact local-action adapter, host-staged transport, and visible device ordinal zero",
-        ));
-    }
+    require_composed_binding(admitted.binding())?;
     let mut visible = CudaRuntime.observe()?;
     if visible.len() != 1 {
         return Err(invalid(
