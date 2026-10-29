@@ -249,6 +249,14 @@ fn properties(value: LinearOperatorProperties) -> u8 {
 }
 
 #[cfg(test)]
+pub(crate) fn registered_planning_agreement_falsifiers() {
+    tests::same_tuple_controls_objective_and_profile_facts_must_agree();
+    tests::size_certainty_each_cost_forecast_and_provider_snapshot_must_agree();
+    tests::exact_float_bits_topology_and_provider_libraries_are_retained();
+    tests::normalized_field_order_agrees_but_exact_fields_and_gauges_do_not();
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -503,12 +511,4 @@ mod tests {
         }
         assert_changed(&original, &base);
     }
-}
-
-#[cfg(test)]
-pub(crate) fn registered_planning_agreement_falsifiers() {
-    tests::same_tuple_controls_objective_and_profile_facts_must_agree();
-    tests::size_certainty_each_cost_forecast_and_provider_snapshot_must_agree();
-    tests::exact_float_bits_topology_and_provider_libraries_are_retained();
-    tests::normalized_field_order_agrees_but_exact_fields_and_gauges_do_not();
 }
