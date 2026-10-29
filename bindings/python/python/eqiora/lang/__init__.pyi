@@ -1190,6 +1190,7 @@ __all__ = [
     "array",
     "case",
     "coordinate",
+    "normal_vector",
     "dot",
     "inner",
     "div",
