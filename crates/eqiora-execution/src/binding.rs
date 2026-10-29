@@ -476,8 +476,8 @@ impl DeploymentBinding {
     ///
     /// Only this configuration is supported: one host worker per partition,
     /// offline `f64` distributed algebra, and either
-    /// reproducible Jacobi-preconditioned CG for an asserted SPD operator or
-    /// reproducible identity-preconditioned MINRES for an asserted symmetric
+    /// Jacobi-preconditioned CG with either reduction policy for an asserted SPD
+    /// operator, or reproducible identity-preconditioned MINRES for an asserted symmetric
     /// indefinite operator.
     /// Process-count agreement with the concrete owner map is checked later
     /// by distributed system admission, before communication begins.
@@ -850,7 +850,7 @@ pub(crate) fn distributed_contract(
             LinearOperatorProperties::SymmetricPositiveDefinite,
             LinearSolver::ConjugateGradient,
             PreconditionerPolicy::Jacobi,
-            ReductionPolicy::Reproducible,
+            ReductionPolicy::Reproducible | ReductionPolicy::Fast,
         ) | (
             LinearOperatorProperties::SymmetricIndefinite,
             LinearSolver::MinimumResidual,
@@ -860,7 +860,7 @@ pub(crate) fn distributed_contract(
     );
     if !solver_is_admitted {
         return Err(invalid(
-            "distributed execution v1 requires either asserted SPD algebra with reproducible Jacobi-preconditioned CG or asserted symmetric-indefinite algebra with reproducible identity-preconditioned MINRES",
+            "distributed execution v1 requires either asserted SPD algebra with Jacobi-preconditioned CG using reproducible or fast reductions, or asserted symmetric-indefinite algebra with reproducible identity-preconditioned MINRES",
         ));
     }
     Ok(DistributedContract {

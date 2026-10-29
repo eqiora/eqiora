@@ -105,20 +105,40 @@ fn canonical_cartesian_poisson_mpi_child() {
     let mut group =
         MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap();
     let partitions = group.partitions();
-    let capabilities = distributed_capabilities(group.solver_capabilities());
-    let context = CanonicalMpiContext {
-        program: &program,
-        model: &model,
-        capabilities: &capabilities,
-    };
-
     for (revision, method, _) in canonical::METHODS {
-        execute_method(context, &world, &mut group, revision, method);
+        let mut previous: Option<PolicyArtifacts> = None;
+        for reduction in [ReductionPolicy::Reproducible, ReductionPolicy::Fast] {
+            let capabilities = distributed_capabilities(group.solver_capabilities(), reduction);
+            let context = CanonicalMpiContext {
+                program: &program,
+                model: &model,
+                capabilities: &capabilities,
+            };
+            let artifacts =
+                execute_method(context, &world, &mut group, revision, method, reduction);
+            if let Some(previous) = previous {
+                assert_eq!(artifacts.system, previous.system);
+                assert_eq!(artifacts.partition, previous.partition);
+                assert_eq!(artifacts.layout, previous.layout);
+                assert_ne!(artifacts.realization, previous.realization);
+                assert_ne!(artifacts.run, previous.run);
+            }
+            previous = Some(artifacts);
+        }
     }
 
     assert_eq!(partitions, group.partitions());
     world.barrier();
     drop(group);
+}
+
+// Reduction changes Plan/Run provenance, not the captured equations or ownership.
+struct PolicyArtifacts {
+    system: LinearSystemEnvelopeV1,
+    partition: PartitionEnvelopeV1,
+    layout: DistributedLayoutEnvelopeV1,
+    realization: eqiora::artifact::ArtifactDigest,
+    run: eqiora::artifact::ArtifactDigest,
 }
 
 #[derive(Clone, Copy)]
@@ -134,15 +154,18 @@ fn execute_method(
     group: &mut MpiExecutionGroup,
     revision: u64,
     method: DiscretizationMethod,
-) {
+    reduction: ReductionPolicy,
+) -> PolicyArtifacts {
     let CanonicalMpiContext {
         program,
         model,
         capabilities,
     } = context;
-    let request = canonical::host_request(program, method, revision).unwrap();
+    let request =
+        canonical::host_request_with_reduction(program, method, revision, reduction).unwrap();
     let requirements = distributed_requirements();
     let resolved = resolve(&request, requirements, capabilities).unwrap();
+    assert_eq!(resolved.plan().solver(), canonical::solver_plan(reduction));
     let graph = eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
         .unwrap()
         .portable_realization(&resolved)
@@ -153,10 +176,7 @@ fn execute_method(
         recorded_problem.vector_layout(),
         VectorLayoutKind::Distributed
     );
-    assert_eq!(
-        recorded_problem.solver_plan().reduction(),
-        ReductionPolicy::Reproducible
-    );
+    assert_eq!(recorded_problem.solver_plan().reduction(), reduction);
 
     let system =
         LinearSystemEnvelopeV1::from_complete(recorded_problem.canonical_csr_system_view())
@@ -226,7 +246,12 @@ fn execute_method(
     .unwrap();
     assert_eq!(admitted.distributed_admission(), Some(expected_fingerprint));
     let accepted = group.execute_admitted(admitted).unwrap();
+    assert_eq!(
+        accepted.receipt().solver_plan(),
+        canonical::solver_plan(reduction)
+    );
     let execution = observed_execution(group, accepted.receipt());
+    assert_eq!(execution.reduction(), reduction);
     let run = RunManifestV2::new(&decoded_realization, execution.clone()).unwrap();
     let decoded_run = round_trip_run(&run);
     let validated = validate_distributed_content_dag(
@@ -268,6 +293,13 @@ fn execute_method(
             &partition,
             &recorded_problem,
         );
+    }
+    PolicyArtifacts {
+        system,
+        partition,
+        layout,
+        realization: realization.digest().unwrap(),
+        run: decoded_run.digest().unwrap(),
     }
 }
 
@@ -349,8 +381,11 @@ fn distributed_requirements() -> RealizationRequirements {
     )
 }
 
-fn distributed_capabilities(solver: eqiora::solver::SolverCapabilities) -> RealizationCapabilities {
-    let plan = canonical::solver_plan(ReductionPolicy::Reproducible);
+fn distributed_capabilities(
+    solver: eqiora::solver::SolverCapabilities,
+    reduction: ReductionPolicy,
+) -> RealizationCapabilities {
+    let plan = canonical::solver_plan(reduction);
     solver
         .require_problem(
             plan,
@@ -488,7 +523,7 @@ fn assert_solve_report(
     assert_eq!(report.solver_plan(), plan);
     assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
     assert_eq!(report.preconditioner(), PreconditionerPolicy::Jacobi);
-    assert_eq!(report.reduction(), ReductionPolicy::Reproducible);
+    assert_eq!(report.reduction(), plan.reduction());
 }
 
 fn round_trip_model(value: &ModelEnvelope) -> ModelEnvelope {

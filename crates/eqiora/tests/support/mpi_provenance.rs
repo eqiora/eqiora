@@ -6,7 +6,6 @@ use eqiora::artifact::{
     DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1, MpiThreadSupportV1,
 };
 use eqiora::backends::mpi::{MpiExecutionGroup, MpiThreadSupport};
-use eqiora::solver::ReductionPolicy;
 use eqiora_execution::ExecutionReceipt;
 
 pub(crate) fn observed_execution(
@@ -31,7 +30,7 @@ pub(crate) fn observed_execution(
                 thread_support: artifact_thread_support(group.thread_support()),
             },
         },
-        ReductionPolicy::Reproducible,
+        receipt.report().reduction(),
         [("mpi-standard", format!("{standard_major}.{standard_minor}"))],
     )
     .unwrap()
