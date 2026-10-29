@@ -4,6 +4,8 @@ scope = "fixed-reference-fsi-host-staged-mpi-cuda-owner-shard-solve-2d"
 reference_kind = "one-host-physical-mpi-cuda-with-complete-cpu-reference"
 
 capabilities = [
+  "bounded-composition-admission-before-shared-solver-ranking",
+  "collective-selected-mpi-subplan-and-cuda-placement-binding",
   "accepted-owner-row-shards-as-sole-rank-local-csr-source",
   "one-visible-ordinal-zero-cuda-device-per-mpi-rank",
   "rank-agreed-distinct-physical-cuda-uuid-topology",
@@ -42,6 +44,8 @@ tolerance_domain = "dimensionless algebraic coefficients and each physical Field
 cross_rank_count_bit_identity = false
 
 [falsifiers]
+rank_local_selected_binding_failure = "all ranks reject foreign local-action or solver provider, queue and construction failures before numerical work"
+changed_selected_controls = "exact selected graph-plan mismatch rejects collectively"
 missing_or_ambiguous_local_rank = "the launcher wrapper fails before CUDA discovery"
 missing_duplicate_or_insufficient_device_selectors = "the parent or collective topology contract fails before numerical publication"
 device_ordinal_or_live_descriptor_drift = "composite admission/runtime preparation fails collectively"
