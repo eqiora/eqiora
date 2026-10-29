@@ -1622,9 +1622,9 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hdf5-metno"
-version = "0.14.1"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f72d6ab4f6d6d79bd350c23f6fe17c99d86d8dd05c0e86f6291a366d47e1fece"
+checksum = "da648c8200335c8a8fdf270fc91807c949ddbef595dd2572a8a572a31977c3d5"
 dependencies = [
  "bitflags 2.13.1",
  "cfg-if",
