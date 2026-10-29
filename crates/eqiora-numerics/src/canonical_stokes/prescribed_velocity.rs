@@ -11,7 +11,8 @@ mod tests;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::{Diagnostic, DimExponents, RawId};
+use crate::form_compiler::region::PrescribedDatum;
+use eqiora_core::{Diagnostic, DimExponents, Id, RawId, entity::kinds};
 use eqiora_schema::kernel::{ExprNode, KernelNode};
 use eqiora_sem::KernelProgram;
 
@@ -45,9 +46,9 @@ pub(crate) enum SteadyStokesPrescribedVelocityTrace2d {
     Normal {
         boundary: RawId,
         relation: RawId,
-        coefficient_field: RawId,
-        definition_relation: RawId,
-        expression: ScalarSpatialExpression<f64>,
+        carrier: Option<(RawId, RawId)>,
+        datum: PrescribedDatum<f64>,
+        parameters: Vec<Id<kinds::Parameter>>,
     },
     CompleteAffinePotential {
         boundary: RawId,
@@ -63,16 +64,16 @@ impl SteadyStokesPrescribedVelocityTrace2d {
     pub(super) fn normal(
         boundary: RawId,
         relation: RawId,
-        coefficient_field: RawId,
-        definition_relation: RawId,
-        expression: ScalarSpatialExpression<f64>,
+        carrier: Option<(RawId, RawId)>,
+        datum: PrescribedDatum<f64>,
+        parameters: Vec<Id<kinds::Parameter>>,
     ) -> Self {
         Self::Normal {
             boundary,
             relation,
-            coefficient_field,
-            definition_relation,
-            expression,
+            carrier,
+            datum,
+            parameters,
         }
     }
 
@@ -119,35 +120,28 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         }
     }
 
-    pub(super) const fn coefficient_field(&self) -> RawId {
+    pub(super) const fn coefficient_field(&self) -> Option<RawId> {
         match self {
-            Self::Normal {
-                coefficient_field, ..
-            } => *coefficient_field,
+            Self::Normal { carrier, .. } => match carrier {
+                Some((field, _)) => Some(*field),
+                None => None,
+            },
             Self::CompleteAffinePotential {
                 potential_field, ..
-            } => *potential_field,
+            } => Some(*potential_field),
         }
     }
 
-    pub(super) const fn definition_relation(&self) -> RawId {
+    pub(super) const fn definition_relation(&self) -> Option<RawId> {
         match self {
-            Self::Normal {
+            Self::Normal { carrier, .. } => match carrier {
+                Some((_, relation)) => Some(*relation),
+                None => None,
+            },
+            Self::CompleteAffinePotential {
                 definition_relation,
                 ..
-            }
-            | Self::CompleteAffinePotential {
-                definition_relation,
-                ..
-            } => *definition_relation,
-        }
-    }
-
-    pub(super) const fn expression(&self) -> &ScalarSpatialExpression<f64> {
-        match self {
-            Self::Normal { expression, .. } | Self::CompleteAffinePotential { expression, .. } => {
-                expression
-            }
+            } => Some(*definition_relation),
         }
     }
 
@@ -164,17 +158,41 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         matches!(self, Self::CompleteAffinePotential { .. })
     }
 
-    /// The volume law identity every outer side must share, without its
-    /// side-local Boundary and Relation identity.
-    pub(super) fn law_identity(
-        &self,
-    ) -> (RawId, RawId, Option<RawId>, &ScalarSpatialExpression<f64>) {
-        (
-            self.coefficient_field(),
-            self.definition_relation(),
-            self.speed_parameter(),
-            self.expression(),
-        )
+    /// Compare the volume law without its side-local Boundary and Relation IDs.
+    pub(super) fn same_law(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Normal {
+                    carrier: a,
+                    datum: b,
+                    parameters: c,
+                    ..
+                },
+                Self::Normal {
+                    carrier: x,
+                    datum: y,
+                    parameters: z,
+                    ..
+                },
+            ) => a == x && b == y && c == z,
+            (
+                Self::CompleteAffinePotential {
+                    potential_field: a,
+                    definition_relation: b,
+                    speed_parameter: c,
+                    expression: d,
+                    ..
+                },
+                Self::CompleteAffinePotential {
+                    potential_field: w,
+                    definition_relation: x,
+                    speed_parameter: y,
+                    expression: z,
+                    ..
+                },
+            ) => a == w && b == x && c == y && d == z,
+            _ => false,
+        }
     }
 
     /// Replay the complete Model-owned vector at one exact coordinate.
@@ -189,12 +207,14 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         coordinates: &[f64],
     ) -> Result<[f64; 2], Diagnostic> {
         match self {
-            Self::Normal { expression, .. } => {
+            Self::Normal { datum, .. } => {
                 let outward = outward_normal.ok_or_else(|| {
                     invalid("normal Stokes trace requires one parent-outward normal")
                 })?;
-                let speed = expression.evaluate(coordinates)?;
-                Ok(outward.map(|component| component * speed))
+                datum
+                    .evaluate(coordinates, &outward)?
+                    .try_into()
+                    .map_err(|_| invalid("normal Stokes datum has the wrong ambient dimension"))
             }
             Self::CompleteAffinePotential { expression, .. } => exact_complete_gradient(expression),
         }
@@ -368,7 +388,7 @@ fn require_complete_outer_laws(
             )));
         }
         match shared {
-            Some(accepted) if accepted.law_identity() != trace.law_identity() => {
+            Some(accepted) if !accepted.same_law(trace) => {
                 return Err(invalid(format!(
                     "outer role `{label}` drifted from the one exact chi/definition/U law"
                 )));

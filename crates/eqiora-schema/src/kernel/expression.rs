@@ -277,6 +277,8 @@ pub enum ExprNode {
     SymmetricPart(ExprId),
     /// Lift a supported invariant scalar to its isotropic Cartesian tensor.
     IsotropicLift(ExprId),
+    /// Unit outward normal on the exact boundary support.
+    NormalVector { on: Id<kinds::Domain> },
     /// Full trace on a boundary or physical-interface Domain.
     Trace {
         /// Parent-supported expression.
@@ -409,7 +411,7 @@ impl ExprNode {
             Self::PureOperatorApplication(application) => {
                 application.arguments.iter().copied().try_for_each(visit)
             }
-            Self::Constant(_) | Self::Symbol(_) => Ok(()),
+            Self::Constant(_) | Self::Symbol(_) | Self::NormalVector { .. } => Ok(()),
         }
     }
 }

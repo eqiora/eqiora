@@ -20,7 +20,7 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
     let envelope = ModelEnvelope::from_program(&model).unwrap();
     let bytes = envelope.canonical_json().unwrap();
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.model-envelope/v49");
+    assert_eq!(wire["schema"], "eqiora.model-envelope/v50");
     let replay = ModelEnvelope::from_json(&bytes, Default::default())
         .unwrap()
         .to_program()

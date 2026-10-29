@@ -4248,6 +4248,16 @@ Spatial coordinate along `axis`.
 def coordinate(axis: int) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-normal_vector"></a>
+
+### `eqiora.lang.normal_vector`
+
+Unit outward normal on the enclosing boundary's ambient Cartesian space.
+
+```python
+def normal_vector() -> Expression: ...
+```
+
 <a id="api-eqiora-lang-dot"></a>
 
 ### `eqiora.lang.dot`

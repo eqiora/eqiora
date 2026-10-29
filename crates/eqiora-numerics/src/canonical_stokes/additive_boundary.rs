@@ -1,13 +1,11 @@
 //! Additive admission views for steady-Stokes boundary roles.
 
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
-use eqiora_sem::KernelProgram;
 
 use crate::additive_residual::AdditiveResidualView;
 
-use super::support::{is_field, lowering_error, typed_relation};
+use super::support::is_field;
 
 pub(super) fn additive_prescribed_complete_velocity_parts(
     expression: &ExprDag,
@@ -52,8 +50,7 @@ pub(super) fn additive_prescribed_complete_velocity_parts(
     Ok(None)
 }
 
-pub(super) fn additive_prescribed_normal_velocity_parts(
-    program: &KernelProgram,
+pub(super) fn additive_prescribed_velocity_parts(
     expression: &ExprDag,
     root: ExprId,
     velocity: RawId,
@@ -63,35 +60,17 @@ pub(super) fn additive_prescribed_normal_velocity_parts(
     let [first, second] = view.leaves() else {
         return Ok(None);
     };
-    for (trace, normal) in [(first, second), (second, first)] {
-        if !is_velocity_or_port_trace(expression, trace.value(), velocity) {
-            continue;
+    for (trace, datum) in [(first, second), (second, first)] {
+        if is_velocity_or_port_trace(expression, trace.value(), velocity) {
+            return Ok(Some((
+                datum.value(),
+                if trace.sign() == datum.sign() {
+                    -1.
+                } else {
+                    1.
+                },
+            )));
         }
-        let Some(ExprNode::NormalComponent { value: tensor, .. }) = expression.node(normal.value())
-        else {
-            continue;
-        };
-        let typed = typed_relation(program, relation)?;
-        let Some(proof) =
-            OperatorApplicationProof::classify(&typed, *tensor, StandardPureOperator::IsotropicLift)
-                .map_err(|error| {
-                    lowering_error(
-                        relation,
-                        format!(
-                            "prescribed velocity isotropic-lift proof failed at expression node {}: {error}",
-                            tensor.index()
-                        ),
-                    )
-                })?
-        else {
-            continue;
-        };
-        let sign = if trace.sign() == normal.sign() {
-            -1.0
-        } else {
-            1.0
-        };
-        return Ok(Some((proof.operand(), sign)));
     }
     Ok(None)
 }

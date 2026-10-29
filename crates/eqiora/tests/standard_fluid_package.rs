@@ -62,9 +62,13 @@ fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
     assert_eq!(curated.bounds(), explicit.bounds());
     assert_eq!(curated.dynamic_viscosity(), explicit.dynamic_viscosity());
     assert_eq!(
-        curated.force_potential_expression().evaluate(&[0.25, 0.75]),
+        curated
+            .force_potential_expression()
+            .expect("fixture authors a force potential")
+            .evaluate(&[0.25, 0.75]),
         explicit
             .force_potential_expression()
+            .expect("fixture authors a force potential")
             .evaluate(&[0.25, 0.75])
     );
     for (axis, side) in cartesian_sides() {

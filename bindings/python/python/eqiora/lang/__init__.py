@@ -1154,6 +1154,11 @@ def _boundary_operator(name: str, value: object, on: Support | None,
                       _binders=expression._binders, _sources=expression._sources)
 
 
+def normal_vector() -> Expression:
+    """Unit outward normal on the enclosing boundary's ambient Cartesian space."""
+    return Expression(_CREATE, _Ast.call("normal_vector", []), None)
+
+
 def coordinate(axis: int) -> Expression:
     if isinstance(axis, bool) or not isinstance(axis, int):
         raise TypeError("coordinate axis must be an integer")
@@ -2991,7 +2996,7 @@ __all__ = [
     "Support",
     "array",
     "case",
-    "coordinate",
+    "coordinate", "normal_vector",
     "dot",
     "inner",
     "div",

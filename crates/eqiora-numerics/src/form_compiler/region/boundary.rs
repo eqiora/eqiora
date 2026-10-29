@@ -63,8 +63,7 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
         dimension: usize,
     ) -> Result<(), Diagnostic> {
-        self.datum
-            .map_data(&|value| value.derivative(&|input| f64::from(input == coordinate), dimension))
+        self.datum.input_partial(coordinate, dimension)
     }
 
     pub(crate) fn bind_inputs<'a>(
@@ -219,16 +218,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .first()
                 .is_some_and(|value| value.sign() == operator.sign());
             if datum_negative {
-                let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
                 match &mut datum {
-                    PrescribedDatum::Components(components) => {
-                        for value in components {
+                    PrescribedDatum::Components(values) => {
+                        let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.));
+                        for value in values {
                             *value = value.clone().multiply(negative.clone());
                         }
                     }
-                    PrescribedDatum::NormalMultiple(value) => {
-                        *value = value.clone().multiply(negative)
-                    }
+                    _ => datum = PrescribedDatum::Neg(Box::new(datum)),
                 }
             }
             laws.push(RegionBoundaryLaw {

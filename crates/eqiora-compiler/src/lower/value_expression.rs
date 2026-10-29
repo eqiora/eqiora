@@ -22,6 +22,7 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 pub(super) enum LoweringExpressionNode {
+    NormalVector,
     Jvp {
         value: LoweringExpression,
         directions: Vec<(LoweringExpression, LoweringExpression)>,
@@ -233,7 +234,8 @@ impl LoweringExpressionNode {
                 pending.extend([left, right]);
             }
             Self::Complex { real, imag } => pending.extend([real, imag]),
-            Self::Coordinate { .. }
+            Self::NormalVector
+            | Self::Coordinate { .. }
             | Self::Number(_)
             | Self::Literal(_)
             | Self::Name(_)
@@ -293,6 +295,14 @@ impl LoweringExpression {
     ) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Evaluate { value, at, side }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
+    pub(crate) fn normal_vector(range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::NormalVector),
             range,
             structural_parameters: None,
         }

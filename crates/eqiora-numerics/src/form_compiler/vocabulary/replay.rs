@@ -255,7 +255,6 @@ impl IntegralConservativeCorrespondence {
             || self.law.velocity != source.velocity
             || self.law.pressure != source.pressure
             || self.law.source != source.source
-            || self.law.source_definition != source.source_definition
             || self.law.momentum_relation != source.momentum_relation
             || self.law.incompressibility_relation != source.incompressibility_relation
             || self.law.boundary_relations != source.boundary_relations

@@ -260,17 +260,17 @@ pub(super) fn require_exact_plan(
 pub(super) fn require_zero_load(
     model: &FixedReferenceFsiCartesianModel2d,
 ) -> Result<(), Diagnostic> {
-    if model
-        .fluids()
-        .any(|fluid| fluid.force_potential_expression().constant_value() != Some(0.0))
-        || model.solids().any(|solid| {
-            solid
-                .continuum()
-                .load_potential_expression()
-                .constant_value()
-                != Some(0.0)
-        })
-    {
+    if model.fluids().any(|fluid| {
+        fluid
+            .force_potential_expression()
+            .is_some_and(|source| source.constant_value() != Some(0.0))
+    }) || model.solids().any(|solid| {
+        solid
+            .continuum()
+            .load_potential_expression()
+            .constant_value()
+            != Some(0.0)
+    }) {
         return Err(invalid_realization(
             "current transient energy acceptance requires exact zero load potentials in every Region",
         ));

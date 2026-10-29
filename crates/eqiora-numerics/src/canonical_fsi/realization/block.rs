@@ -41,7 +41,9 @@ pub(super) fn fixed_reference_fsi_block_system(
                 parameter_inventory([
                     fluid.mass_density_expression().parameter_fields(),
                     fluid.dynamic_viscosity_expression().parameter_fields(),
-                    fluid.force_potential_expression().parameter_fields(),
+                    fluid
+                        .force_potential_expression()
+                        .map_or(&[], |source| source.parameter_fields()),
                 ]),
             )
         })

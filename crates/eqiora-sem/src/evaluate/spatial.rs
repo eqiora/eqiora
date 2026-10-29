@@ -379,6 +379,32 @@ impl Projection<'_> {
                 }
                 self.component(*value, indices, depth + 1)?
             }
+            ExprNode::NormalVector { on } => {
+                if *on != self.point.domain() {
+                    return Err(reject(
+                        "normal vector evaluation requires its exact boundary",
+                    ));
+                }
+                let Some(KernelNode::Domain(domain)) = self.program.node(on.erase()) else {
+                    return Err(reject("missing boundary"));
+                };
+                let DomainKind::CartesianBoundary { axis, side } = domain.kind() else {
+                    return Err(reject("normal vector requires an exact Cartesian boundary"));
+                };
+                let value = if indices == [*axis as u32] {
+                    if *side == BoundarySide::Lower {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                } else {
+                    0.0
+                };
+                self.push(CalculusNode::Rational {
+                    value: ExactRational::integer(value as i64),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })?
+            }
             ExprNode::NormalComponent { value, on } => {
                 if *on != self.point.domain() {
                     return Err(reject("normal evaluation requires its exact boundary"));
