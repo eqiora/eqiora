@@ -44,3 +44,10 @@ before fingerprint exchange; different objectives or controls reject even when
 the selected tuple agrees. The group remains usable after each rejection. These
 checks supplement the exact planning-projection falsifiers in the existing
 private planning case; they do not claim recovery from a failed MPI process.
+
+Group construction stages local validation and all fallible buffer preparation,
+then agrees readiness with a stack scalar before communicator duplication. The
+registered harness injects a one-rank preparation failure and immediately retries
+successfully on one, two and four ranks. It rejects intercommunicators before
+readiness (two groups of1+1 or1+3 ranks) while accepting Cartesian intracommunicators.
+This is uniform validation-failure handling, not MPI process-failure recovery.
