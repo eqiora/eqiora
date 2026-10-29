@@ -500,3 +500,44 @@ fn abstract_exterior_analysis_keeps_static_cardinality_parent_and_duplicate_chec
         assert!(errors.iter().any(|error| error.message().contains(expected)), "{expected}: {errors:?}");
     }
 }
+
+#[test]
+fn source_named_boundary_parent_inference_preserves_transaction_identity() {
+    let geometry = rectangle(false);
+    let source = "model M(support body:volume(ambient_dimension=2),support side:boundary(parent=body)){variable x:1 on body;relation interior on body{x=0;}relation edge on side{trace(x)=0;}}";
+    let compile = |parent| {
+        CompiledModel::compile_selected(
+            "boundary.eqi",
+            source,
+            "M",
+            &[
+                ("side", selection(&geometry, "left", parent)),
+                ("body", selection(&geometry, "body", None)),
+            ],
+        )
+        .unwrap()
+    };
+    let explicit = compile(Some("body"));
+    let inferred = compile(None);
+    assert_eq!(explicit.transaction().ops(), inferred.transaction().ops());
+    assert_eq!(explicit.symbols(), inferred.symbols());
+    for invalid in [
+        vec![("side", selection(&geometry, "left", None))],
+        vec![
+            ("body", selection(&geometry, "right", None)),
+            ("side", selection(&geometry, "left", None)),
+        ],
+        vec![
+            ("body", selection(&geometry, "body", None)),
+            ("side", selection(&geometry, "left", Some("right"))),
+        ],
+    ] {
+        assert!(CompiledModel::compile_selected("boundary.eqi", source, "M", &invalid).is_err());
+    }
+    let foreign = rectangle(true);
+    let invalid = [
+        ("body", selection(&foreign, "body", None)),
+        ("side", selection(&geometry, "left", None)),
+    ];
+    assert!(CompiledModel::compile_selected("boundary.eqi", source, "M", &invalid).is_err());
+}
