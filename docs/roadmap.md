@@ -5,6 +5,42 @@ and Studio workflows. This roadmap shows priorities and the dependencies that
 make later features possible. For functionality available today, start with
 the [capability matrix](capability-matrix.md).
 
+## Direction
+
+Write the textbook equation, choose the method, solve it fast on CPU threads, MPI
+or GPU, and differentiate the result. Well-known equations and boundary
+conditions are one `import` away. You can still write any equation yourself and
+mix it with standard components. Decided in
+[#1742](https://github.com/eqiora/eqiora/issues/1742).
+
+What sets this apart from tools that already solve user-written equations:
+
+- you write the strong form as it appears in a textbook, not a hand-derived weak form;
+- the method is chosen separately from the model, so the same model runs with FEM
+  or FVM on CPU, MPI or GPU by changing the Plan;
+- results can be differentiated through the solve and composed with JAX and PyTorch; and
+- units and types are checked, and lumped and field models live in one system.
+
+Rust is why it is fast and installs with `uv add eqiora`. It supports the
+direction; it is not the headline.
+
+Work is ranked by the user outcome it unblocks:
+
+| Promise | Work |
+| --- | --- |
+| Textbook equations by import | standard library ([#1743](https://github.com/eqiora/eqiora/issues/1743)), direct boundary values ([#1736](https://github.com/eqiora/eqiora/issues/1736)) |
+| Little code | defaults and name lookup ([#1737](https://github.com/eqiora/eqiora/issues/1737)), solver selection ([#366](https://github.com/eqiora/eqiora/issues/366)) |
+| Choose the method | P2/Q2 and Taylor–Hood ([#1738](https://github.com/eqiora/eqiora/issues/1738)), substitutable solvers ([#1707](https://github.com/eqiora/eqiora/issues/1707)) |
+| Fast on CPU, MPI and GPU | external comparison ([#1739](https://github.com/eqiora/eqiora/issues/1739)), run performance ([#802](https://github.com/eqiora/eqiora/issues/802)), portable execution ([#1568](https://github.com/eqiora/eqiora/issues/1568)) |
+| Differentiable | solve and trajectory derivatives ([#1565](https://github.com/eqiora/eqiora/issues/1565), [#1566](https://github.com/eqiora/eqiora/issues/1566)) |
+| Runs anywhere | macOS and Windows wheels ([#1734](https://github.com/eqiora/eqiora/issues/1734), [#1741](https://github.com/eqiora/eqiora/issues/1741)), Colab ([#1735](https://github.com/eqiora/eqiora/issues/1735)) |
+| People find and trust it | Discussions, citation, JOSS ([#1740](https://github.com/eqiora/eqiora/issues/1740)) |
+
+Deferred until the core fluid, solid and thermal path meets this direction:
+quantum, kinetic and plasma models, electrochemistry and semiconductors, order
+parameters, PSpice import, Studio, and a native CAD provider. These issues
+carry the `status:deferred` label.
+
 ## Next release
 
 The next release checkpoint brings the language and Python APIs together around
