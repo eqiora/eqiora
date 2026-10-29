@@ -1206,6 +1206,8 @@ fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
     super::selection::mpi_tests::declared_mpi_selection_preserves_literal_tuples_and_unknown_costs(
     );
     super::selection::mpi_tests::declared_mpi_requirements_cannot_be_ranked_away();
+    super::selection::mpi_tests::selected_mpi_provider_snapshot_rejects_replacement_even_if_tuple_survives();
+    super::selection::agreement::registered_planning_agreement_falsifiers();
     super::complex_tests::typed_capabilities_and_requested_inventory_precede_ranking();
     super::complex_tests::typed_provider_identity_and_operator_class_are_independent();
     let checks: [fn(); 10] = [

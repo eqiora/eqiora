@@ -32,7 +32,7 @@ use eqiora::realization::{
 use eqiora::solver::{
     ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverCapabilities,
-    SolverCapability,
+    SolverCapability, SolverPlanningObjective, SolverPlanningProfile,
 };
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,
@@ -124,12 +124,46 @@ fn fixed_reference_fsi_distributed_solve_mpi_2d_child() {
         .solve(&REFERENCE_LINEAR_SOLVER)
         .expect("independent CPU MINRES and FSI acceptance succeed");
 
+    // Canonical fixed-reference FSI and its explicit symmetric scaling own
+    // this global indefinite classification, independently of solver choice.
+    let original_plan = reference_execution.resolved.plan();
+    let controls = original_plan.solver();
+    let profile = SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricIndefinite,
+        None,
+        Some(ReductionPolicy::Reproducible),
+    )
+    .with_execution(
+        MPI_EXECUTION_PROVIDER,
+        ExecutionReport::distributed(MPI_EXECUTION_PROVIDER.id(), group.partitions()),
+    )
+    .unwrap();
+    let selection = group
+        .select_plan(
+            profile,
+            SolverPlanningObjective::Robust,
+            controls.relative_tolerance(),
+            controls.absolute_tolerance(),
+            controls.maximum_iterations(),
+        )
+        .unwrap();
+    assert_eq!(selection.solver_plan(), controls);
+    let selected_plan = eqiora::realization::CoupledFieldwiseRealizationPlan::new(
+        original_plan.spatial().clone(),
+        original_plan.time_step().clone(),
+        original_plan.scaling().clone(),
+        original_plan.operator_properties(),
+        selection.solver_plan(),
+        original_plan.target(),
+        original_plan.schedule(),
+    )
+    .unwrap();
     let distributed_resolved = resolve_coupled_fieldwise(
         &CoupledFieldwiseRealizationRequest::explicit(
             reference_execution.resolved.model(),
             reference_execution.resolved.semantic_revision(),
             reference_execution.resolved.realization_revision(),
-            reference_execution.resolved.plan().clone(),
+            selected_plan,
         ),
         fixed_reference_fsi_requirements_2d_for_layout(&canonical, VectorLayoutKind::Distributed),
         &distributed_capabilities(group.solver_capabilities()),
@@ -201,6 +235,9 @@ fn fixed_reference_fsi_distributed_solve_mpi_2d_child() {
     }
 
     let binding = distributed_binding(prepared.realization_graph(), &group);
+    let binding = group
+        .bind_selected(&selection, Ok(binding), prepared.complete_system(), None)
+        .expect("selection binds the exact assembly-derived native FSI system");
     let expected_admission = prepared
         .distributed_system()
         .admission_fingerprint(prepared.solver_plan())

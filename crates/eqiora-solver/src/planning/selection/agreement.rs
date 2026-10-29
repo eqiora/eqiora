@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn same_tuple_controls_objective_and_profile_facts_must_agree() {
+    pub(super) fn same_tuple_controls_objective_and_profile_facts_must_agree() {
         let original = selected(SolverPlanningProfile::general_canonical_csr());
         let changes: &[fn(&mut SolverSelection)] = &[
             |s| s.objective = SolverPlanningObjective::Fast,
@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn size_certainty_each_cost_forecast_and_provider_snapshot_must_agree() {
+    pub(super) fn size_certainty_each_cost_forecast_and_provider_snapshot_must_agree() {
         let original = selected(
             SolverPlanningProfile::general_canonical_csr()
                 .with_size(SolverPlanningSize::exact(2, 4))
@@ -416,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_float_bits_topology_and_provider_libraries_are_retained() {
+    pub(super) fn exact_float_bits_topology_and_provider_libraries_are_retained() {
         let original = selected(SolverPlanningProfile::general_canonical_csr());
         let mut zero = original.clone();
         zero.plan = catalog_plan(
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn normalized_field_order_agrees_but_exact_fields_and_gauges_do_not() {
+    pub(super) fn normalized_field_order_agrees_but_exact_fields_and_gauges_do_not() {
         use eqiora_core::Id;
         let a = Id::new();
         let b = Id::new();
@@ -503,4 +503,12 @@ mod tests {
         }
         assert_changed(&original, &base);
     }
+}
+
+#[cfg(test)]
+pub(crate) fn registered_planning_agreement_falsifiers() {
+    tests::same_tuple_controls_objective_and_profile_facts_must_agree();
+    tests::size_certainty_each_cost_forecast_and_provider_snapshot_must_agree();
+    tests::exact_float_bits_topology_and_provider_libraries_are_retained();
+    tests::normalized_field_order_agrees_but_exact_fields_and_gauges_do_not();
 }

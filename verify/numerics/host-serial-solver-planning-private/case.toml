@@ -1,9 +1,11 @@
 id = "numerics.host-serial-solver-planning-private"
 status = "implemented"
-scope = "crate-private-solver-planning-v11-host-and-declared-cuda-falsifiers"
+scope = "crate-private-solver-planning-v11-host-and-declared-cuda-mpi-falsifiers"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
+  "declared-mpi-three-existing-real-f64-tuples",
+  "exact-pre-execution-planning-agreement-projection",
   "declared-cuda-three-existing-real-f64-fast-tuples",
   "declared-cuda-unknown-cost-and-exact-execution-rejection",
   "exact-catalog-control-profile-and-capability-rejection",
@@ -67,6 +69,7 @@ fast_axis_swap_distinguished = false
 invented_provider_dependency = false
 performance_or_memory_superiority = false
 physical_cuda_execution = false
+physical_mpi_execution = false
 automatic_device_placement = false
 
 [evidence]

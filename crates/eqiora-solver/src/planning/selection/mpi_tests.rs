@@ -234,7 +234,7 @@ pub(crate) fn declared_mpi_requirements_cannot_be_ranked_away() {
 }
 
 #[test]
-fn selected_mpi_provider_snapshot_rejects_replacement_even_if_tuple_survives() {
+pub(crate) fn selected_mpi_provider_snapshot_rejects_replacement_even_if_tuple_survives() {
     let availability = availability();
     let choice = select(
         profile(

@@ -37,3 +37,10 @@ Run on a machine with Open MPI and the rsmpi build dependencies:
 cargo test -p eqiora-backend-mpi --features mpi-runtime,mpi-test-hooks --test mpi_distributed -- --test-threads=1
 cargo run -p eqiora-verify -- run --case numerics.mpi-distributed
 ```
+
+The same bounded process harness checks collective pre-execution selection of
+all three native MPI tuples. A rank-local invalid control rejects collectively
+before fingerprint exchange; different objectives or controls reject even when
+the selected tuple agrees. The group remains usable after each rejection. These
+checks supplement the exact planning-projection falsifiers in the existing
+private planning case; they do not claim recovery from a failed MPI process.

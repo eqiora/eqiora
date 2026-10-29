@@ -1,7 +1,7 @@
 //! Owned selection facts, independent from a provider's execution interface.
 use super::*;
 
-mod agreement;
+pub(super) mod agreement;
 
 pub(super) const CUDA_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.cuda.krylov"),
