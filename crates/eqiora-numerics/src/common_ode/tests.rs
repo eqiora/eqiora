@@ -184,6 +184,33 @@ fn two_state_fixture(
 }
 
 #[test]
+fn scalar_tolerance_normalizes_to_the_exact_coordinate_policy() {
+    let (_, kernel) = fixture();
+    let scalar = CommonOdePolicy::for_scalar_state(&kernel, 0.01, 1e-9, 1e-11).unwrap();
+    let coordinate = scalar.absolute_tolerances()[0].0;
+    assert_eq!(
+        scalar,
+        CommonOdePolicy::new(
+            TimeMethod::Tsitouras45,
+            0.01,
+            1e-9,
+            vec![(coordinate, 1e-11)]
+        )
+        .unwrap()
+    );
+    for invalid in [0.0, -1.0, f64::INFINITY, f64::NAN] {
+        assert!(CommonOdePolicy::for_scalar_state(&kernel, 0.01, 1e-9, invalid).is_err());
+    }
+    let (_, multiple, _, _) = two_state_fixture(false);
+    assert!(
+        CommonOdePolicy::for_scalar_state(&multiple, 0.01, 1e-9, 1e-11)
+            .unwrap_err()
+            .message()
+            .contains("one real scalar first-order ODE state coordinate")
+    );
+}
+
+#[test]
 fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
     let (model, program) = fixture();
     let field = program

@@ -1,19 +1,107 @@
 //! Common Python ODE policy construction and exact Model-bound contracts.
 use super::*;
+
+#[derive(Debug, Clone)]
+pub(super) enum OdePolicyRequest {
+    Explicit(CommonOdePolicy),
+    Scalar {
+        initial_step_s: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+    },
+}
+
 impl OdePolicyData {
-    pub(super) fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+    pub(super) fn scalar(
+        initial_step_s: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+    ) -> Self {
+        Self {
+            request: OdePolicyRequest::Scalar {
+                initial_step_s,
+                relative_tolerance,
+                absolute_tolerance,
+            },
+            coordinates: Vec::new(),
+            contract_models: Vec::new(),
+            events: None,
+            forward_sensitivities: None,
+        }
+    }
+
+    pub(super) fn initial_step_s(&self) -> f64 {
+        match &self.request {
+            OdePolicyRequest::Explicit(native) => native.initial_step_s(),
+            OdePolicyRequest::Scalar { initial_step_s, .. } => *initial_step_s,
+        }
+    }
+
+    pub(super) fn relative_tolerance(&self) -> f64 {
+        match &self.request {
+            OdePolicyRequest::Explicit(native) => native.relative_tolerance(),
+            OdePolicyRequest::Scalar {
+                relative_tolerance, ..
+            } => *relative_tolerance,
+        }
+    }
+
+    pub(super) fn scalar_absolute_tolerance(&self) -> Option<f64> {
+        match &self.request {
+            OdePolicyRequest::Explicit(_) => None,
+            OdePolicyRequest::Scalar {
+                absolute_tolerance, ..
+            } => Some(*absolute_tolerance),
+        }
+    }
+
+    pub(in crate::common_plan) fn normalized(
+        &self,
+        py: Python<'_>,
+        kernel: Option<&eqiora::sem::KernelProgram>,
+    ) -> PyResult<CommonOdePolicy> {
+        match &self.request {
+            OdePolicyRequest::Explicit(native) => Ok(native.clone()),
+            OdePolicyRequest::Scalar {
+                initial_step_s,
+                relative_tolerance,
+                absolute_tolerance,
+            } => {
+                let kernel = kernel.ok_or_else(|| PyTypeError::new_err("scalar absolute_tolerance requires a no-Mesh ODE; use absolute_tolerances for spatial state"))?;
+                CommonOdePolicy::for_scalar_state(
+                    kernel,
+                    *initial_step_s,
+                    *relative_tolerance,
+                    *absolute_tolerance,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            }
+        }
+    }
+
+    fn explicit(&self) -> PyResult<&CommonOdePolicy> {
+        match &self.request {
+            OdePolicyRequest::Explicit(native) => Ok(native),
+            OdePolicyRequest::Scalar { .. } => Err(PyTypeError::new_err(
+                "scalar absolute_tolerance does not accept extra contracts; use absolute_tolerances",
+            )),
+        }
+    }
+
+    pub(super) fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let OdePolicyRequest::Explicit(native) = &self.request else {
+            return Ok(None);
+        };
         let result = PyDict::new(py);
-        for ((field, order, component, imaginary), tolerance) in self
-            .coordinates
-            .iter()
-            .zip(self.native.absolute_tolerances())
+        for ((field, order, component, imaginary), tolerance) in
+            self.coordinates.iter().zip(native.absolute_tolerances())
         {
             result.set_item(
                 (field.clone_ref(py), *order, *component, *imaginary),
                 tolerance.1,
             )?;
         }
-        Ok(result.unbind())
+        Ok(Some(result.unbind()))
     }
     pub(super) fn new(
         py: Python<'_>,
@@ -96,7 +184,7 @@ impl OdePolicyData {
                 .map_err(|error| validation_error(py, &[error]))?;
         }
         Ok(Self {
-            native,
+            request: OdePolicyRequest::Explicit(native),
             coordinates,
             contract_models: Vec::new(),
             events: events.cloned(),
@@ -164,7 +252,7 @@ impl OdePolicyData {
             })
             .transpose()?;
         Ok(Self {
-            native,
+            request: OdePolicyRequest::Explicit(native),
             coordinates,
             contract_models: vec![model_digest.to_owned()],
             events,
@@ -198,7 +286,7 @@ impl OdePolicyData {
 impl OdePolicyData {
     fn copy(&self, py: Python<'_>) -> Self {
         Self {
-            native: self.native.clone(),
+            request: self.request.clone(),
             coordinates: self
                 .coordinates
                 .iter()
@@ -228,14 +316,17 @@ impl OdePolicyData {
                 .map_err(|_| PyTypeError::new_err("invalid norm FieldRef"))?;
             ids.push(Id::<kinds::Field>::from_ulid(id));
         }
-        result.native = result
-            .native
-            .with_conserved_norm(
-                ids,
-                eqiora::DynQuantity::new(target, dimension.native()),
-                eqiora::DynQuantity::new(tolerance, dimension.native()),
-            )
-            .map_err(|e| validation_error(py, &[e]))?;
+        result.request = OdePolicyRequest::Explicit(
+            result
+                .explicit()?
+                .clone()
+                .with_conserved_norm(
+                    ids,
+                    eqiora::DynQuantity::new(target, dimension.native()),
+                    eqiora::DynQuantity::new(tolerance, dimension.native()),
+                )
+                .map_err(|e| validation_error(py, &[e]))?,
+        );
         Ok(result)
     }
     pub(super) fn with_hermitian(
@@ -247,10 +338,13 @@ impl OdePolicyData {
         result
             .contract_models
             .push(parameter.value.model().artifact().to_string());
-        result.native = result
-            .native
-            .with_hermitian_parameter(parameter.value.id())
-            .map_err(|e| validation_error(py, &[e]))?;
+        result.request = OdePolicyRequest::Explicit(
+            result
+                .explicit()?
+                .clone()
+                .with_hermitian_parameter(parameter.value.id())
+                .map_err(|e| validation_error(py, &[e]))?,
+        );
         Ok(result)
     }
 }

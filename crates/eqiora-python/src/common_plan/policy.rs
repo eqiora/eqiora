@@ -482,7 +482,7 @@ impl PyBackwardEuler {
 
 #[derive(Debug)]
 pub(super) struct OdePolicyData {
-    pub(super) native: CommonOdePolicy,
+    request: ode::OdePolicyRequest,
     coordinates: Vec<(Py<PyModelFieldRef>, u32, usize, bool)>,
     contract_models: Vec<String>,
     events: Option<super::event_policy::PyEventPolicy>,
@@ -543,15 +543,38 @@ impl PyTsitouras45 {
     }
 
     #[new]
-    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances, events=None, forward_sensitivities=None))]
+    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances=None, absolute_tolerance=None, events=None, forward_sensitivities=None))]
     fn new(
         py: Python<'_>,
         #[pyo3(from_py_with = exact_time_float)] initial_step_s: f64,
         #[pyo3(from_py_with = exact_time_float)] relative_tolerance: f64,
-        absolute_tolerances: &Bound<'_, PyDict>,
+        absolute_tolerances: Option<&Bound<'_, PyDict>>,
+        absolute_tolerance: Option<&Bound<'_, PyAny>>,
         events: Option<&super::event_policy::PyEventPolicy>,
         forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
     ) -> PyResult<Self> {
+        let absolute_tolerances = match (absolute_tolerances, absolute_tolerance) {
+            (Some(mapping), None) => mapping,
+            (None, Some(value)) => {
+                if events.is_some() || forward_sensitivities.is_some() {
+                    return Err(PyTypeError::new_err(
+                        "scalar absolute_tolerance does not accept event or forward-sensitivity contracts; use absolute_tolerances",
+                    ));
+                }
+                return Ok(Self {
+                    data: OdePolicyData::scalar(
+                        initial_step_s,
+                        relative_tolerance,
+                        exact_time_float(value)?,
+                    ),
+                });
+            }
+            _ => {
+                return Err(PyTypeError::new_err(
+                    "specify exactly one of absolute_tolerance or absolute_tolerances",
+                ));
+            }
+        };
         OdePolicyData::new(
             py,
             eqiora::time::TimeMethod::Tsitouras45,
@@ -576,17 +599,22 @@ impl PyTsitouras45 {
 
     #[getter]
     fn initial_step_s(&self) -> f64 {
-        self.data.native.initial_step_s()
+        self.data.initial_step_s()
     }
 
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.data.native.relative_tolerance()
+        self.data.relative_tolerance()
     }
 
     #[getter]
-    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
         self.data.absolute_tolerances(py)
+    }
+
+    #[getter]
+    fn absolute_tolerance(&self) -> Option<f64> {
+        self.data.scalar_absolute_tolerance()
     }
 
     fn __repr__(&self) -> String {
@@ -795,15 +823,17 @@ impl PyImplicitMidpoint {
     }
     #[getter]
     fn step_s(&self) -> f64 {
-        self.data.native.initial_step_s()
+        self.data.initial_step_s()
     }
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.data.native.relative_tolerance()
+        self.data.relative_tolerance()
     }
     #[getter]
     fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
-        self.data.absolute_tolerances(py)
+        self.data.absolute_tolerances(py)?.ok_or_else(|| {
+            PyTypeError::new_err("implicit time policy requires exact coordinate tolerances")
+        })
     }
     fn __repr__(&self) -> String {
         format!(
@@ -837,15 +867,17 @@ impl PyBdf {
     }
     #[getter]
     fn initial_step_s(&self) -> f64 {
-        self.data.native.initial_step_s()
+        self.data.initial_step_s()
     }
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.data.native.relative_tolerance()
+        self.data.relative_tolerance()
     }
     #[getter]
     fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
-        self.data.absolute_tolerances(py)
+        self.data.absolute_tolerances(py)?.ok_or_else(|| {
+            PyTypeError::new_err("implicit time policy requires exact coordinate tolerances")
+        })
     }
     fn __repr__(&self) -> String {
         format!(
