@@ -1,6 +1,8 @@
 //! Owned selection facts, independent from a provider's execution interface.
 use super::*;
 
+pub(super) mod agreement;
+
 pub(super) const CUDA_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.cuda.krylov"),
     env!("CARGO_PKG_VERSION"),
@@ -9,6 +11,15 @@ pub(super) const CUDA_PROVIDER: SolverProvider = SolverProvider::new(
 pub(super) const CUDA_CG_ID: &str = "eqiora.cuda.cg-spd-jacobi-fast-f64";
 pub(super) const CUDA_BICGSTAB_ID: &str = "eqiora.cuda.bicgstab-general-identity-fast-f64";
 pub(super) const CUDA_MINRES_ID: &str = "eqiora.cuda.minres-indefinite-identity-fast-f64";
+
+pub(super) const MPI_PROVIDER: SolverProvider = SolverProvider::new(
+    BackendId::new("eqiora.mpi.krylov"),
+    env!("CARGO_PKG_VERSION"),
+    &[],
+);
+pub(super) const MPI_CG_REPRO_ID: &str = "eqiora.mpi.cg-spd-jacobi-reproducible-f64";
+pub(super) const MPI_CG_FAST_ID: &str = "eqiora.mpi.cg-spd-jacobi-fast-f64";
+pub(super) const MPI_MINRES_ID: &str = "eqiora.mpi.minres-indefinite-identity-reproducible-f64";
 
 /// Declared availability supplied by an execution owner.
 ///
@@ -285,6 +296,19 @@ impl SolverSelection {
     pub fn costs(&self) -> &[SolverCandidateCost] {
         &self.costs
     }
+    /// Reauthenticate the exact implementation and capability snapshot retained at selection.
+    /// The concrete execution owner separately authenticates placement and resources.
+    pub fn require_declared_provider(
+        &self,
+        provider: SolverProvider,
+        capabilities: &crate::SolverCapabilities,
+    ) -> Result<(), Diagnostic> {
+        if provider != self.provider || capabilities != &self.capabilities {
+            return Err(invalid_catalog("binding.selected-provider-mismatch"));
+        }
+        Ok(())
+    }
+
     /// Reauthenticate actual mathematical, structure and resource facts before execution.
     pub fn require_problem<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         &self,
@@ -316,9 +340,21 @@ pub(super) fn profile_catalog_ids(
                 _ => &[],
             }
         }
+        crate::ExecutionTopology::Distributed { .. } if domain == ScalarDomain::Real => {
+            match profile.facts.properties {
+                LinearOperatorProperties::SymmetricPositiveDefinite => {
+                    &[MPI_CG_REPRO_ID, MPI_CG_FAST_ID]
+                }
+                LinearOperatorProperties::SymmetricIndefinite => &[MPI_MINRES_ID],
+                _ => &[],
+            }
+        }
         _ => &[],
     }
 }
 
 #[cfg(test)]
 pub(super) mod tests;
+
+#[cfg(test)]
+pub(super) mod mpi_tests;

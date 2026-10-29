@@ -73,7 +73,7 @@ typed constraint/gauge authenticity or common Python integration for those profi
 
 ## Declared CUDA availability
 
-Policy v10 also uses this aggregator to verify selection from declared CUDA
+Policy v11 also uses this aggregator to verify selection from declared CUDA
 metadata for the three existing real-f64 Fast tuples: SPD CG/Jacobi, General
 BiCGSTAB/Identity, and symmetric-indefinite MINRES/Identity. Literal expectations
 are independent of the catalog. Every objective retains exact convergence
@@ -87,3 +87,23 @@ placement, prove runtime speed or memory use, or authenticate a portable graph's
 device ordinal. The concrete CUDA owner and native finalizers separately retain
 deployment, actual-system and exact-plan admission. The historical case identifier
 is unchanged; its added CUDA claim is limited to declared-metadata selection.
+
+
+## Declared MPI availability and planning agreement
+
+Policy v11 also admits the existing native MPI real-f64 tuples: SPD CG/Jacobi
+with Reproducible or Fast reduction, and symmetric-indefinite MINRES/Identity
+with Reproducible reduction. Literal expectations verify exact controls, policy
+admission before ranking, missing providers, wrong execution, unsupported General
+operators, absent diagonal proof and unproved payload limits. Nonserial cost and
+payload estimates remain unknown. Exact provider capability snapshots cannot be
+replaced even by a subset that still supports the selected tuple.
+
+The same aggregator checks the pre-execution planning agreement projection.
+Changing exact controls, objective, Field/gauge identities, mathematical facts,
+size certainty, cost assumptions, provider identities or capabilities changes
+the fingerprint even when the selected tuple stays identical; normalized Field
+ordering agrees. These are semantic difference checks, not golden hash values.
+They do not authenticate a matrix, deployment or physical collective, and add no
+persisted artifact. Native MPI cases separately prove collective selection and
+binding against complete systems; local CSR blocks do not establish global SPD.

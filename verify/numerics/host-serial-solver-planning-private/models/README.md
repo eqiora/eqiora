@@ -2,4 +2,4 @@
 
 This private companion defines no Model or algebraic fixture. It uses the exact
 captured problem owned by the primary case's
-[`policy-v10.json`](../../host-serial-solver-planning/expected/policy-v10.json).
+[`policy-v11.json`](../../host-serial-solver-planning/expected/policy-v11.json).

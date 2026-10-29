@@ -4,6 +4,8 @@ scope = "canonical-2d-cartesian-poisson-finalized-graph-bound-mpi-execution-rece
 reference_kind = "analytic-and-independent-serial-reference"
 
 capabilities = [
+  "collective-pre-assembly-exact-solver-selection",
+  "selected-complete-system-and-deployment-binding",
   "parent-shared-canonical-model-artifact",
   "decoded-realization-semantic-derivation-replay",
   "q1-fem-finalized-mpi-handoff",

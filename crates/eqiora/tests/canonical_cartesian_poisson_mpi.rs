@@ -41,6 +41,7 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
     PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlanningObjective, SolverPlanningProfile,
 };
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,
@@ -161,8 +162,32 @@ fn execute_method(
         model,
         capabilities,
     } = context;
+    // This fixed unit-diffusion/full-Dirichlet fixture supplies global SPD and
+    // diagonal facts before assembly. Generic variable-coefficient Models do not.
+    let controls = canonical::solver_plan(reduction);
+    let profile = SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        Some(true),
+        Some(reduction),
+    )
+    .with_execution(
+        MPI_EXECUTION_PROVIDER,
+        ExecutionReport::distributed(MPI_EXECUTION_PROVIDER.id(), group.partitions()),
+    )
+    .unwrap();
+    let selection = group
+        .select_plan(
+            profile,
+            SolverPlanningObjective::Fast,
+            controls.relative_tolerance(),
+            controls.absolute_tolerance(),
+            controls.maximum_iterations(),
+        )
+        .unwrap();
+    assert_eq!(selection.solver_plan(), controls);
     let request =
-        canonical::host_request_with_reduction(program, method, revision, reduction).unwrap();
+        canonical::host_request_with_solver(program, method, revision, selection.solver_plan())
+            .unwrap();
     let requirements = distributed_requirements();
     let resolved = resolve(&request, requirements, capabilities).unwrap();
     assert_eq!(resolved.plan().solver(), canonical::solver_plan(reduction));
@@ -232,8 +257,25 @@ fn execute_method(
             NonZeroUsize::MIN,
             group.solver_capabilities(),
         ),
-    )
-    .unwrap();
+    );
+    // A single failed native binding must reject on every rank before the
+    // planning collective; the same group must then accept the valid binding.
+    let rejected = if group.partition().index() == 0 {
+        Err(eqiora::Diagnostic::error(
+            eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+            "injected native binding construction failure",
+        ))
+    } else {
+        binding.clone()
+    };
+    assert!(
+        group
+            .bind_selected(&selection, rejected, complete, None)
+            .is_err()
+    );
+    let binding = group
+        .bind_selected(&selection, binding, complete, None)
+        .unwrap();
     let expected_fingerprint = distributed
         .admission_fingerprint(binding.solver_plan())
         .unwrap();

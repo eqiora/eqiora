@@ -18,7 +18,7 @@ pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 use selection::SolverProviderAvailability;
 pub use selection::SolverSelection;
 
-const POLICY_ID: &str = "eqiora.solver-planning/v10";
+const POLICY_ID: &str = "eqiora.solver-planning/v11";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -155,22 +155,17 @@ impl SolverPlanningProfile {
     /// Bind the explicitly requested execution; planning never chooses placement.
     ///
     /// # Errors
-    /// Rejects invalid providers, mismatched adapters, and unsupported topology.
+    /// Rejects invalid providers and mismatched adapter identities.
     pub fn with_execution(
         mut self,
         provider: ExecutionProvider,
         execution: crate::ExecutionReport,
     ) -> Result<Self, Diagnostic> {
         provider.validate()?;
-        if execution.adapter() != provider.id()
-            || !matches!(
-                execution.topology(),
-                crate::ExecutionTopology::Host { .. } | crate::ExecutionTopology::Cuda { .. }
-            )
-        {
+        if execution.adapter() != provider.id() {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
-                "planning execution report must match a host or CUDA provider",
+                "planning execution report must match its declared provider",
             ));
         }
         self.execution_provider = provider;
@@ -607,7 +602,7 @@ fn catalog_plan(
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_solver_v10<'problem, 'backend>(
+fn resolve_solver_v11<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[SolverCandidate<'backend>],

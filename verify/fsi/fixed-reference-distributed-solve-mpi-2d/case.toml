@@ -4,6 +4,8 @@ scope = "fixed-reference-fsi-accepted-owner-shards-physical-mpi-minres-solve-2d"
 reference_kind = "mpi-transport-independent-complete-cpu-path-sharing-canonical-physics-and-lowering"
 
 capabilities = [
+  "collective-pre-assembly-minres-selection",
+  "selected-binding-retains-native-assembly-lineage",
   "authenticated-fixed-affine-simplex-fsi-lineage",
   "accepted-owner-row-payloads-as-sole-rank-local-csr-and-rhs-source",
   "assembly-derived-exact-solver-row-ownership",

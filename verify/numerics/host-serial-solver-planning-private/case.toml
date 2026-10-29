@@ -1,9 +1,11 @@
 id = "numerics.host-serial-solver-planning-private"
 status = "implemented"
-scope = "crate-private-solver-planning-v10-host-and-declared-cuda-falsifiers"
+scope = "crate-private-solver-planning-v11-host-and-declared-cuda-mpi-falsifiers"
 reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
 
 capabilities = [
+  "declared-mpi-three-existing-real-f64-tuples",
+  "exact-pre-execution-planning-agreement-projection",
   "declared-cuda-three-existing-real-f64-fast-tuples",
   "declared-cuda-unknown-cost-and-exact-execution-rejection",
   "exact-catalog-control-profile-and-capability-rejection",
@@ -21,7 +23,7 @@ capabilities = [
 [authority]
 required_primary_case = "numerics.host-serial-solver-planning"
 verification_requires_both_cases = true
-policy_oracle = "../host-serial-solver-planning/expected/policy-v10.json"
+policy_oracle = "../host-serial-solver-planning/expected/policy-v11.json"
 private_falsifier_owner = "crates/eqiora-solver/src/planning/tests.rs"
 aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_all_private_falsifiers"
 
@@ -67,6 +69,7 @@ fast_axis_swap_distinguished = false
 invented_provider_dependency = false
 performance_or_memory_superiority = false
 physical_cuda_execution = false
+physical_mpi_execution = false
 automatic_device_placement = false
 
 [evidence]

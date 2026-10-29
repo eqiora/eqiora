@@ -4,6 +4,10 @@ scope = "generic-complete-csr-mpi-bridge"
 reference_kind = "executable-admission-and-fault-falsification"
 
 capabilities = [
+  "collective-constructor-preparation-before-communicator-duplication",
+  "intercommunicator-rejection-and-cartesian-intracommunicator-admission",
+  "collective-exact-solver-planning-agreement",
+  "rank-local-planning-rejection-and-group-recovery",
   "application-owned-mpi-lifetime",
   "duplicated-execution-communicator",
   "thread-support-validation",

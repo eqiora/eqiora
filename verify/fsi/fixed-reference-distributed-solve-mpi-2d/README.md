@@ -82,3 +82,11 @@ performance or scale, a transient FSI trajectory, hybrid rank/thread
 execution, GPU or MPI plus CUDA, process-failure recovery, ALE, remeshing, or
 a durable distributed execution receipt or symmetric-indefinite distributed
 Run artifact.
+
+The native witness now selects its existing reproducible MINRES/Identity tuple
+collectively using the fixed-reference method's symmetric-indefinite claim.
+The selected plan enters the coupled Realization before MPI assembly; binding
+checks the complete verifier and process group while preserving the accepted
+owner-row assembly evidence and native FSI finish. This does not derive global
+operator properties from a rank-local block, change the independent CPU oracle,
+or add a symmetric-indefinite durable Run format.

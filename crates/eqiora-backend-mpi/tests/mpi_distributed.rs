@@ -45,6 +45,279 @@ fn mpi_one_two_four_rank_protocols_match_the_global_oracle() {
 }
 
 #[test]
+fn mpi_one_two_four_rank_solver_selection_is_collective() {
+    if env::var_os(CHILD_ENV).is_some() {
+        return;
+    }
+    for ranks in [1, 2, 4] {
+        let output = run_mpi_child(ranks, "mpi_child_selects_and_rejects_planning_drift", &[]);
+        assert_success(ranks, "solver selection agreement", output);
+    }
+}
+
+#[test]
+fn mpi_child_selects_and_rejects_planning_drift() {
+    if env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    use eqiora_backend_mpi::{MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER, MPI_EXECUTION_PROVIDER};
+    use eqiora_solver::{SolverPlanningObjective, SolverPlanningProfile};
+    let (universe, provided) = mpi::initialize_with_threading(Threading::Funneled).unwrap();
+    let world = universe.world();
+    let mut group =
+        MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap();
+    let ranks = group.partitions();
+    let rank = group.partition().index();
+    let execution = ExecutionReport::distributed(MPI_EXECUTION_PROVIDER.id(), ranks);
+    let profile = |properties, diagonal, reduction| {
+        SolverPlanningProfile::canonical_csr(properties, diagonal, Some(reduction))
+            .with_execution(MPI_EXECUTION_PROVIDER, execution)
+            .unwrap()
+    };
+    for (properties, diagonal, reduction, algorithm, preconditioner) in [
+        (
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            Some(true),
+            ReductionPolicy::Reproducible,
+            LinearSolver::ConjugateGradient,
+            PreconditionerPolicy::Jacobi,
+        ),
+        (
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            Some(true),
+            ReductionPolicy::Fast,
+            LinearSolver::ConjugateGradient,
+            PreconditionerPolicy::Jacobi,
+        ),
+        (
+            LinearOperatorProperties::SymmetricIndefinite,
+            None,
+            ReductionPolicy::Reproducible,
+            LinearSolver::MinimumResidual,
+            PreconditionerPolicy::Identity,
+        ),
+    ] {
+        for objective in [
+            SolverPlanningObjective::Robust,
+            SolverPlanningObjective::Fast,
+            SolverPlanningObjective::LowMemory,
+        ] {
+            let selected = group
+                .select_plan(
+                    profile(properties, diagonal, reduction),
+                    objective,
+                    1e-11,
+                    1e-13,
+                    NonZeroUsize::new(4096).unwrap(),
+                )
+                .unwrap();
+            assert_eq!(
+                selected.solver_provider(),
+                MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER
+            );
+            assert_eq!(selected.execution(), execution);
+            assert_eq!(selected.solver_plan().algorithm(), algorithm);
+            assert_eq!(selected.solver_plan().preconditioner(), preconditioner);
+            assert_eq!(selected.solver_plan().reduction(), reduction);
+        }
+    }
+    let ordinary = || {
+        profile(
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            Some(true),
+            ReductionPolicy::Reproducible,
+        )
+    };
+    // Exactly one failing rank must make readiness failure common before any
+    // ready rank can enter the fixed planning fingerprint all-gather.
+    let selected_rank = usize::from(ranks.get() > 1);
+    let relative = if rank == selected_rank { -1. } else { 1e-11 };
+    let error = group
+        .select_plan(
+            ordinary(),
+            SolverPlanningObjective::Robust,
+            relative,
+            1e-13,
+            NonZeroUsize::new(4096).unwrap(),
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    assert_common_diagnostic(&world, &error);
+    if ranks.get() > 1 {
+        // Same selected tuple/controls but different objective must still fail
+        // the complete planning projection, not merely a plan comparison.
+        let objective = if rank == 1 {
+            SolverPlanningObjective::Fast
+        } else {
+            SolverPlanningObjective::Robust
+        };
+        let error = group
+            .select_plan(
+                ordinary(),
+                objective,
+                1e-11,
+                1e-13,
+                NonZeroUsize::new(4096).unwrap(),
+            )
+            .unwrap_err();
+        assert!(error.message().contains("planning projections disagree"));
+        assert_common_diagnostic(&world, &error);
+        let relative = if rank == 1 { 2e-11 } else { 1e-11 };
+        let error = group
+            .select_plan(
+                ordinary(),
+                SolverPlanningObjective::Robust,
+                relative,
+                1e-13,
+                NonZeroUsize::new(4096).unwrap(),
+            )
+            .unwrap_err();
+        assert!(error.message().contains("planning projections disagree"));
+        assert_common_diagnostic(&world, &error);
+    }
+    // Failed attempts do not consume or poison the application-owned group.
+    group
+        .select_plan(
+            ordinary(),
+            SolverPlanningObjective::Robust,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(4096).unwrap(),
+        )
+        .unwrap();
+}
+
+#[cfg(feature = "mpi-test-hooks")]
+#[test]
+fn mpi_constructor_preparation_failure_is_collective_and_retryable() {
+    if env::var_os(CHILD_ENV).is_some() {
+        return;
+    }
+    for ranks in [1, 2, 4] {
+        let fault = format!("group-preparation:{}", usize::from(ranks > 1));
+        let output = run_mpi_child(
+            ranks,
+            "mpi_child_constructor_preparation_failure_is_collective",
+            &[(FAULT_ENV, &fault)],
+        );
+        assert_success(ranks, "constructor preparation failure and retry", output);
+    }
+}
+
+#[cfg(feature = "mpi-test-hooks")]
+#[test]
+fn mpi_child_constructor_preparation_failure_is_collective() {
+    if env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    let (universe, provided) = mpi::initialize_with_threading(Threading::Funneled).unwrap();
+    let world = universe.world();
+    let error =
+        MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap_err();
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    assert_eq!(
+        error.message(),
+        "MPI group preparation failed before communicator duplication"
+    );
+    assert_common_diagnostic(&world, &error);
+    let mut group =
+        MpiExecutionGroup::duplicate(&world, provided, MpiThreadSupport::Funneled).unwrap();
+    let execution = ExecutionReport::distributed(
+        eqiora_backend_mpi::MPI_EXECUTION_PROVIDER.id(),
+        group.partitions(),
+    );
+    let profile = eqiora_solver::SolverPlanningProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+        Some(true),
+        Some(ReductionPolicy::Reproducible),
+    )
+    .with_execution(eqiora_backend_mpi::MPI_EXECUTION_PROVIDER, execution)
+    .unwrap();
+    group
+        .select_plan(
+            profile,
+            eqiora_solver::SolverPlanningObjective::Robust,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(4096).unwrap(),
+        )
+        .unwrap();
+}
+
+#[test]
+fn mpi_intracommunicator_boundary_preserves_cartesian_groups() {
+    if env::var_os(CHILD_ENV).is_some() {
+        return;
+    }
+    for ranks in [1, 2, 4] {
+        let output = run_mpi_child(
+            ranks,
+            "mpi_child_rejects_intercommunicator_and_accepts_cartesian",
+            &[],
+        );
+        assert_success(
+            ranks,
+            "intracommunicator boundary and Cartesian preservation",
+            output,
+        );
+    }
+}
+
+#[test]
+#[allow(unsafe_code)]
+fn mpi_child_rejects_intercommunicator_and_accepts_cartesian() {
+    if env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    use mpi::raw::traits::AsRaw;
+    use mpi::topology::{Color, Communicator, InterCommunicator};
+    let (universe, provided) = mpi::initialize_with_threading(Threading::Funneled).unwrap();
+    let world = universe.world();
+    if world.size() > 1 {
+        let color = i32::from(world.rank() != 0);
+        let local = world.split_by_color(Color::with_value(color)).unwrap();
+        let remote_leader = i32::from(color == 0);
+        // SAFETY: All initialized world ranks enter this collective with valid,
+        // disjoint local intracommunicators. Both local leaders are rank zero;
+        // world rank one/zero names the other group's leader, and tag97 is valid.
+        // The output is read only after MPI_SUCCESS and its ownership transfers
+        // exactly once into InterCommunicator, which frees the new handle.
+        let inter = unsafe {
+            let mut raw = std::mem::MaybeUninit::uninit();
+            let status = mpi::ffi::MPI_Intercomm_create(
+                local.as_raw(),
+                0,
+                world.as_raw(),
+                remote_leader,
+                97,
+                raw.as_mut_ptr(),
+            );
+            assert_eq!(status, mpi::ffi::MPI_SUCCESS as i32);
+            InterCommunicator::try_from_raw(raw.assume_init()).unwrap()
+        };
+        let error =
+            MpiExecutionGroup::duplicate(&inter, provided, MpiThreadSupport::Funneled).unwrap_err();
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert_eq!(
+            error.message(),
+            "MPI execution requires an intracommunicator"
+        );
+        assert_common_diagnostic(&world, &error);
+        drop(inter);
+        drop(local);
+    }
+    let cartesian = world
+        .create_cartesian_communicator(&[world.size()], &[false], false)
+        .unwrap();
+    let group =
+        MpiExecutionGroup::duplicate(&cartesian, provided, MpiThreadSupport::Funneled).unwrap();
+    assert_eq!(
+        group.partitions().get(),
+        usize::try_from(world.size()).unwrap()
+    );
+}
+
+#[test]
 fn mpi_unverified_solver_tuples_are_rejected_before_distributed_execution() {
     if env::var_os(CHILD_ENV).is_some() {
         return;

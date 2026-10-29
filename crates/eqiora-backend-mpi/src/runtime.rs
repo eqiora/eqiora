@@ -2,8 +2,8 @@ use std::fmt;
 use std::mem;
 use std::num::NonZeroUsize;
 
+use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{
     DistributedAdmissionFingerprintV1, DistributedLinearProblem, DistributedLinearSystem,
     LocalCsrShard, LocalLinearSolution, Partition, PartitionId,
@@ -16,8 +16,7 @@ use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, DiagonalAvailability, ExecutionId,
     ExecutionProvider, ExecutionReport, LinearAcceptanceWorkspace, LinearOperatorOrientation,
     LinearOperatorProperties, LinearSolution, LinearSolver, PreconditionerPolicy, ProviderLibrary,
-    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider,
+    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan, SolverProvider,
 };
 use mpi::Threading;
 use mpi::collective::SystemOperation;
@@ -34,7 +33,9 @@ use crate::{
     ProducerReportSummaryV2, evaluate_admission, evaluate_phase_statuses,
 };
 
+mod group;
 mod krylov_workspace;
+mod selection;
 
 use krylov_workspace::{CgWorkspace, KrylovWorkspace, MinresWorkspace};
 
@@ -176,6 +177,7 @@ pub struct MpiExecutionGroup {
     preparation_statuses: Vec<u8>,
     receipt_summary_bytes: Vec<u8>,
     rank_device_bytes: Vec<u8>,
+    planning_agreement_bytes: Vec<u8>,
     #[cfg(feature = "mpi-test-hooks")]
     fault: Option<TestFault>,
 }
@@ -183,66 +185,6 @@ pub struct MpiExecutionGroup {
 impl MpiExecutionGroup {
     pub(crate) const fn communicator(&self) -> &SimpleCommunicator {
         &self.communicator
-    }
-
-    /// Duplicate an initialized communicator and validate thread support.
-    ///
-    /// MPI initialization/finalization remains entirely with the application.
-    /// `provided` must be the level returned by `initialize_with_threading`.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` if rank/size do not fit the Eqiora partition contract
-    /// or the provided threading level is below `required`.
-    pub fn duplicate<C: Communicator>(
-        communicator: &C,
-        provided: Threading,
-        required: MpiThreadSupport,
-    ) -> Result<Self, Diagnostic> {
-        let provided = MpiThreadSupport::from_mpi(provided);
-        if provided < required {
-            return Err(invalid_realization(format!(
-                "MPI provided {provided:?} thread support, below required {required:?}"
-            )));
-        }
-        let size = usize::try_from(communicator.size())
-            .ok()
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| invalid_realization("MPI communicator size is not a positive usize"))?;
-        let rank = usize::try_from(communicator.rank())
-            .map_err(|_| invalid_realization("MPI rank is negative or exceeds usize"))?;
-        if rank >= size.get() {
-            return Err(invalid_realization(
-                "MPI rank lies outside its communicator size",
-            ));
-        }
-        let preparation_statuses = zeroed(size.get(), "MPI preparation statuses")?;
-        let receipt_summary_bytes = zeroed(
-            checked_extent(
-                EXECUTION_RECEIPT_SUMMARY_BYTES,
-                size.get(),
-                "MPI execution receipt summaries",
-            )?,
-            "MPI execution receipt summaries",
-        )?;
-        let rank_device_bytes = zeroed(
-            checked_extent(
-                RANK_DEVICE_RECORD_BYTES,
-                size.get(),
-                "MPI rank-device records",
-            )?,
-            "MPI rank-device records",
-        )?;
-        Ok(Self {
-            communicator: communicator.duplicate(),
-            partitions: size,
-            partition: PartitionId::new(rank),
-            thread_support: provided,
-            preparation_statuses,
-            receipt_summary_bytes,
-            rank_device_bytes,
-            #[cfg(feature = "mpi-test-hooks")]
-            fault: TestFault::from_environment(rank),
-        })
     }
 
     /// Number of ranks/partitions in this execution group.
@@ -261,39 +203,6 @@ impl MpiExecutionGroup {
     #[must_use]
     pub const fn thread_support(&self) -> MpiThreadSupport {
         self.thread_support
-    }
-
-    /// Exact numerical policies admitted by the current distributed evidence
-    /// slice.
-    #[must_use]
-    pub fn solver_capabilities(&self) -> SolverCapabilities {
-        SolverCapabilities::exact([
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Reproducible,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::MinimumResidual,
-                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Reproducible,
-                scalar_type: ScalarType::F64,
-            },
-        ])
-        .expect("MPI distributed solver exact capability set is nonempty")
     }
 
     /// Collectively bind one distinct physical device to every MPI rank.

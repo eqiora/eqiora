@@ -80,6 +80,34 @@ pub(super) struct ExpectedCandidate {
 
 pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
+        selection::MPI_CG_REPRO_ID | selection::MPI_CG_FAST_ID | selection::MPI_MINRES_ID => {
+            let minres = id == selection::MPI_MINRES_ID;
+            ExpectedCandidate {
+                scalar_domain: ScalarDomain::Real,
+                properties: if minres {
+                    LinearOperatorProperties::SymmetricIndefinite
+                } else {
+                    LinearOperatorProperties::SymmetricPositiveDefinite
+                },
+                evidence_case: "numerics.host-serial-solver-planning-private",
+                provider: selection::MPI_PROVIDER,
+                algorithm: if minres {
+                    LinearSolver::MinimumResidual
+                } else {
+                    LinearSolver::ConjugateGradient
+                },
+                preconditioner: if minres {
+                    PreconditionerPolicy::Identity
+                } else {
+                    PreconditionerPolicy::Jacobi
+                },
+                reduction: if id == selection::MPI_CG_FAST_ID {
+                    ReductionPolicy::Fast
+                } else {
+                    ReductionPolicy::Reproducible
+                },
+            }
+        }
         selection::CUDA_CG_ID | selection::CUDA_BICGSTAB_ID | selection::CUDA_MINRES_ID => {
             ExpectedCandidate {
                 scalar_domain: ScalarDomain::Real,

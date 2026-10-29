@@ -76,3 +76,12 @@ multi-node canonical execution; scaling; hybrid rank/thread execution; MPI plus
 CUDA; FSI or MINRES;
 process-failure recovery; another scalar, dimension, or mesh family; a
 durable execution receipt; or a curated public execution-graph API.
+
+The native witness selects the exact MPI CG/Jacobi plan collectively before
+assembly through the shared deterministic planning owner. Its fixed unit
+coefficient and full Dirichlet boundary supply the global SPD/diagonal claims;
+this is not a generic variable-coefficient classification. Explicit Reproducible
+and Fast requirements remain admission constraints. The selected plan enters the
+Realization request and binds the replayed complete system and actual process
+group before the existing admission, solve, reacceptance and method finish.
+The original controls, analytic bounds and ownership comparisons are unchanged.
