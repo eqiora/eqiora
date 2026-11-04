@@ -86,6 +86,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 slot,
                 geometry,
                 parent_slot,
+                context,
                 members,
             } = support
             {
@@ -93,13 +94,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     if !member_slots.insert(exterior_member_slot(slot, &member.entity_set)) {
                         continue;
                     }
-                    singular.push(ExternalSupportBinding::boundary(
+                    let mut boundary = ExternalSupportBinding::boundary(
                         exterior_member_slot(slot, &member.entity_set),
                         *geometry,
                         member.entity_set.clone(),
                         parent_slot.clone(),
                         member.embedding.clone(),
-                    ));
+                    );
+                    if let ExternalSupportBinding::Boundary {
+                        context: target, ..
+                    } = &mut boundary
+                    {
+                        *target = context.clone();
+                    }
+                    singular.push(boundary);
                 }
             } else {
                 singular.push(support.clone());
@@ -135,6 +143,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 geometry,
                 entity_set,
                 ambient_dimension,
+                context,
             } = support
             else {
                 continue;
@@ -164,6 +173,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         .clone(),
                 ),
             );
+            if let Some(context) = context {
+                self.geometry_supports.insert(
+                    identity.full,
+                    ExteriorDomain::GeometryVolume {
+                        geometry: std::sync::Arc::clone(context),
+                        selection: entity_set.clone(),
+                        ambient_dimension: *ambient_dimension,
+                    },
+                );
+            }
             self.items.push(FlatItemBlueprint::Domain {
                 name: internal_name,
                 contract: LoweringDomainContract::ExternalGeometryRegion {
@@ -183,6 +202,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 entity_set,
                 parent_slot,
                 embedding,
+                context,
                 ..
             } = support
             else {
@@ -234,6 +254,35 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ),
             );
             self.boundary_parents.insert(identity.full, parent);
+            if let Some(context) = context {
+                let Some(ExteriorDomain::GeometryVolume {
+                    selection: parent_selection,
+                    geometry: parent_geometry,
+                    ..
+                }) = self.geometry_supports.get(&parent)
+                else {
+                    return Err(hierarchy_error(
+                        "Geometry boundary parent has no authenticated selection",
+                    ));
+                };
+                if !std::sync::Arc::ptr_eq(context, parent_geometry) {
+                    return Err(hierarchy_error(
+                        "Geometry boundary and parent have different owners",
+                    ));
+                }
+                self.geometry_supports.insert(
+                    identity.full,
+                    ExteriorDomain::GeometryBoundary {
+                        geometry: std::sync::Arc::clone(context),
+                        selection: entity_set.clone(),
+                        parent_selection: parent_selection.clone(),
+                        exact_parent: parent,
+                        ambient_dimension: dimensions,
+                        embedding: embedding.clone(),
+                    },
+                );
+            }
+
             // Exact external Geometry owns the boundary metric and orientation;
             // primitive embeddings also feed the existing complete-exterior proof.
             // Other geometry remains subject to Geometry-aware semantic lowering.
@@ -289,6 +338,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 *dimensions,
                 resolved,
                 |identity| {
+                    if let Some(support) = self.geometry_supports.get(identity) {
+                        return Some(support.clone());
+                    }
                     let SpatialSupport::Boundary {
                         parent, dimensions, ..
                     } = scope.spatial_support_by_identity(*identity)?
@@ -296,7 +348,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         return None;
                     };
                     let (axis, side) = self.boundary_sides.get(identity)?;
-                    Some(CartesianDomain::Boundary {
+                    Some(ExteriorDomain::Boundary {
                         exact_parent: *parent,
                         ambient_dimension: *dimensions,
                         axis: *axis,

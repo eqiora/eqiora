@@ -18,6 +18,7 @@ pub(crate) enum ExternalSupportBinding {
     CompleteExterior {
         slot: String,
         geometry: GeometryDigest,
+        context: Option<std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>>,
         parent_slot: String,
         members: Vec<ExternalGeometryBoundaryMember>,
     },
@@ -27,6 +28,7 @@ pub(crate) enum ExternalSupportBinding {
         slot: String,
         /// Exact Geometry artifact identity.
         geometry: GeometryDigest,
+        context: Option<std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>>,
         /// Named full-dimensional entity set in that Geometry.
         entity_set: String,
         /// Exact ambient dimension.
@@ -38,6 +40,7 @@ pub(crate) enum ExternalSupportBinding {
         slot: String,
         /// Exact Geometry artifact identity.
         geometry: GeometryDigest,
+        context: Option<std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>>,
         /// Named boundary entity set in that Geometry.
         entity_set: String,
         /// Public Component slot naming the exact parent region.
@@ -65,6 +68,7 @@ impl ExternalSupportBinding {
         Self::Region {
             slot: slot.into(),
             geometry,
+            context: None,
             entity_set: entity_set.into(),
             ambient_dimension,
         }
@@ -82,6 +86,7 @@ impl ExternalSupportBinding {
         Self::Boundary {
             slot: slot.into(),
             geometry,
+            context: None,
             entity_set: entity_set.into(),
             parent_slot: parent_slot.into(),
             embedding,

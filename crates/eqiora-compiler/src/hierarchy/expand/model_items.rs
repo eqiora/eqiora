@@ -434,7 +434,7 @@ impl RootExpansion<'_, '_> {
                 hierarchy_error("Model Relation family has no resolved complete-exterior binding")
             })?;
         let declaration = family.relation();
-        for side in set.witness().sides() {
+        for side in set.witness()?.members() {
             let boundary = *side.boundary();
             let member = set.member(&boundary).ok_or_else(|| {
                 hierarchy_error("complete-exterior witness has no identity-keyed member locator")
@@ -459,7 +459,7 @@ impl RootExpansion<'_, '_> {
                 },
             )?;
             self.register_family_relation_display(
-                boundary_family_display("", declaration.name(), side.axis(), side.side()),
+                boundary_family_display("", declaration.name(), side.cartesian(), side.selection()),
                 &identity,
             )?;
             let equations = super::super::scope::rewrite_relation_body(

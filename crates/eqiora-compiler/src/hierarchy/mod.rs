@@ -42,6 +42,7 @@ mod preflight;
 mod quantity_member;
 mod scope;
 pub(crate) mod selected;
+mod support_environment;
 mod supports;
 
 pub(crate) use definition_graph::CheckedDefinitionGraph;
@@ -199,6 +200,7 @@ fn compile_external_component_from_definition<'a>(
         checked,
         &component,
         values.clone(),
+        binding.supports(),
     )?;
     // The Component summary already reserves one declaration, identity, and
     // provenance entry for every Parameter slot. An explicit external value

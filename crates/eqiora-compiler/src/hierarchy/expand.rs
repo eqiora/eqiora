@@ -36,7 +36,7 @@ use crate::identity::{
 use crate::lower::{LoweringDomainContract, LoweringPortContract};
 
 use super::body_check::field_expression_type;
-use super::complete_exterior::CartesianDomain;
+use super::complete_exterior::ExteriorDomain;
 use super::field_slots::{FieldContract, component_field_interface, resolve_instance_fields};
 use super::occurrence_connections::{
     OccurrenceConnectionFragment, OccurrencePhysicalEndpoint, normalize_occurrence_connections,
@@ -178,6 +178,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     boundary_embeddings: BTreeMap<FullElaborationIdentity, Option<CartesianBoundaryEmbedding>>,
     boundary_parents: BTreeMap<FullElaborationIdentity, FullElaborationIdentity>,
     boundary_sides: BTreeMap<FullElaborationIdentity, (usize, BoundarySide)>,
+    geometry_supports: BTreeMap<FullElaborationIdentity, ExteriorDomain<FullElaborationIdentity>>,
     complete_exterior_memberships: CompleteExteriorMembershipBudget,
 }
 
@@ -242,6 +243,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             boundary_embeddings: BTreeMap::new(),
             boundary_parents: BTreeMap::new(),
             boundary_sides: BTreeMap::new(),
+            geometry_supports: BTreeMap::new(),
             complete_exterior_memberships: CompleteExteriorMembershipBudget::new(
                 elaborator.limits.complete_exteriors,
             ),
@@ -307,24 +309,29 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     *domain,
                 ))
             },
-            |identity| match parent_scope.spatial_support_by_identity(*identity)? {
-                SpatialSupport::Volume { dimensions, .. } => Some(CartesianDomain::Volume {
-                    ambient_dimension: *dimensions,
-                }),
-                SpatialSupport::Boundary {
-                    parent, dimensions, ..
-                } => {
-                    let (axis, side) = boundary_sides.get(identity)?;
-                    Some(CartesianDomain::Boundary {
-                        exact_parent: *parent,
-                        ambient_dimension: *dimensions,
-                        axis: *axis,
-                        side: *side,
-                    })
+            |identity| {
+                if let Some(support) = self.geometry_supports.get(identity) {
+                    return Some(support.clone());
                 }
-                SpatialSupport::Coordinates { .. }
-                | SpatialSupport::Interface { .. }
-                | SpatialSupport::PhysicalInterface { .. } => None,
+                match parent_scope.spatial_support_by_identity(*identity)? {
+                    SpatialSupport::Volume { dimensions, .. } => Some(ExteriorDomain::Volume {
+                        ambient_dimension: *dimensions,
+                    }),
+                    SpatialSupport::Boundary {
+                        parent, dimensions, ..
+                    } => {
+                        let (axis, side) = boundary_sides.get(identity)?;
+                        Some(ExteriorDomain::Boundary {
+                            exact_parent: *parent,
+                            ambient_dimension: *dimensions,
+                            axis: *axis,
+                            side: *side,
+                        })
+                    }
+                    SpatialSupport::Coordinates { .. }
+                    | SpatialSupport::Interface { .. }
+                    | SpatialSupport::PhysicalInterface { .. } => None,
+                }
             },
             |name| parent_scope.boundary_set(name).cloned(),
             membership_budget,
@@ -682,7 +689,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             vec![contextualize_diagnostic(
@@ -735,8 +742,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 display_name: boundary_family_display(
                                     &display_prefix,
                                     declaration.name(),
-                                    side.axis(),
-                                    side.side(),
+                                    side.cartesian(),
+                                    side.selection(),
                                 ),
                                 family_name: declaration.name(),
                                 selector_member: family.binder().member(),
@@ -934,7 +941,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             vec![contextualize_diagnostic(
@@ -969,8 +976,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             boundary_family_display(
                                 &display_prefix,
                                 declaration.name(),
-                                side.axis(),
-                                side.side(),
+                                side.cartesian(),
+                                side.selection(),
                             ),
                             &identity,
                         )
@@ -1060,7 +1067,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let identity = identities
                             .boundary_family_entities
@@ -1080,8 +1087,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             boundary_family_display(
                                 &display_prefix,
                                 declaration.name(),
-                                side.axis(),
-                                side.side(),
+                                side.cartesian(),
+                                side.selection(),
                             ),
                             instance_path.clone(),
                             declaration.visibility() == VisibilitySyntax::Public,

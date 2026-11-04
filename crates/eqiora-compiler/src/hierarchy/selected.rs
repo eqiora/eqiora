@@ -202,7 +202,7 @@ fn local_document_in(
                 declaration: &selected_bound,
             },
             prepared.supports(),
-        );
+        )?;
     }
     if let Some(entry) = entry
         && !bindings.is_empty()
@@ -245,6 +245,18 @@ fn local_document_in(
             prepared.parameters(),
             &parameters::RecordContext::component(&elaborator, &component),
         )?;
+        elaborator.selected_supports.insert(
+            preflight::DefinitionKey {
+                namespace: component.namespace.clone(),
+                name: component.name().to_owned(),
+            },
+            super::support_environment::SupportEnvironment::external(
+                prepared.supports(),
+                &mut super::supports::CompleteExteriorMembershipBudget::new(
+                    limits.complete_exteriors,
+                ),
+            )?,
+        );
         elaborator.selected_component = Some((
             preflight::DefinitionKey {
                 namespace: component.namespace.clone(),
@@ -332,7 +344,7 @@ pub(crate) fn resolved(
                 declaration: &selected_bound,
             },
             prepared.supports(),
-        );
+        )?;
         // Resolve every deferred topology obligation of the selected definition
         // against the same validated support context used by occurrence allocation.
         selected_checked = check::validate(&elaborator)?;
@@ -537,6 +549,7 @@ fn prepare(
     let mut prepared = ExternalComponentBinding::new(name, name, Vec::new(), Vec::new());
     let mut parameters = Vec::new();
     let mut supports = Vec::new();
+    let mut geometry_partitions = Vec::new();
     let mut geometry_groups = BTreeMap::<
         [u8; 32],
         (
@@ -623,6 +636,7 @@ fn prepare(
                             .to_owned(),
                     ));
                 };
+                geometry_partitions.push((geometry, parent, members));
                 let group = geometry_groups
                     .entry(geometry.digest_bytes())
                     .or_insert_with(|| (geometry, Vec::new()));
@@ -640,6 +654,7 @@ fn prepare(
                 }
                 supports.push(ExternalSupportBinding::CompleteExterior {
                     slot: name.to_owned(),
+                    context: None,
                     geometry: eqiora_schema::kernel::GeometryDigest::new(geometry.digest_bytes()),
                     parent_slot: parent_slot.clone(),
                     members: members
@@ -736,8 +751,44 @@ fn prepare(
             ));
         }
     }
-    for (_, (geometry, bindings)) in geometry_groups {
-        crate::external_compile::validate_geometry_bindings(file, geometry, &bindings)?;
+    for (geometry, group_bindings) in geometry_groups.values() {
+        crate::external_compile::validate_geometry_bindings(file, geometry, group_bindings)?;
+    }
+    for (geometry, parent, members) in geometry_partitions {
+        geometry
+            .validate_complete_exterior_partition(
+                parent,
+                members,
+                eqiora_geometry::CanonicalGeometryLimits::default(),
+            )
+            .map_err(|error| vec![error])?;
+    }
+    for (_, (geometry, _)) in geometry_groups {
+        // Validate original catalog references before any clone/name lookup. Rebinding
+        // a foreign same-bytes selection first would erase its ownership evidence.
+        let snapshot = std::sync::Arc::new(geometry.clone());
+        for support in &mut supports {
+            match support {
+                ExternalSupportBinding::Region {
+                    geometry: digest,
+                    context,
+                    ..
+                }
+                | ExternalSupportBinding::Boundary {
+                    geometry: digest,
+                    context,
+                    ..
+                }
+                | ExternalSupportBinding::CompleteExterior {
+                    geometry: digest,
+                    context,
+                    ..
+                } if digest.bytes() == geometry.digest_bytes() => {
+                    *context = Some(std::sync::Arc::clone(&snapshot));
+                }
+                _ => {}
+            }
+        }
     }
     parameters.extend(parameters::resolve_selected_parameters(
         file,
@@ -978,3 +1029,7 @@ fn source_budget(
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "selected_geometry_partition_tests.rs"]
+mod geometry_partition_tests;

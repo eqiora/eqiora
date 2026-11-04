@@ -7,7 +7,7 @@ pub(super) fn component_local_footprint(
     definition: &ComponentDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     values: Option<&super::super::parameters::SymbolicParameterMap>,
-) -> (LocalFootprint, BTreeSet<DefinitionKey>) {
+) -> (LocalFootprintPlan, BTreeSet<DefinitionKey>) {
     let generic_values;
     let require_exact = values.is_some();
     let values = match values {
@@ -31,7 +31,77 @@ pub(super) fn component_local_footprint(
     let mut declarations = 0_usize;
     let mut connections = 0_usize;
     let mut local_connectors = BTreeSet::new();
+    let mut per_exterior_member = BTreeMap::new();
     for item in definition.owned_items() {
+        let exterior = match item {
+            ComponentItem::PortFamily(family) => Some((family.binder().set().as_str(), 1, 0, None)),
+            ComponentItem::RelationFamily(family)
+                if families.extent(family.binder().set().as_str()).is_none() =>
+            {
+                Some((
+                    family.binder().set().as_str(),
+                    2,
+                    0,
+                    Some(family.relation()),
+                ))
+            }
+            ComponentItem::BoundaryConnection(connection) => connection
+                .binder()
+                .map(|binder| (binder.set().as_str(), 0, 1, None)),
+            _ => None,
+        };
+        if let Some((slot, declarations, connections, relation)) = exterior {
+            // Validate the contract, but never manufacture an abstract cardinality.
+            validate_complete_exterior_contract(definition, slot, definition.range(), diagnostics);
+            let contribution = per_exterior_member
+                .entry(slot.to_owned())
+                .or_insert_with(LocalFootprint::default);
+            checked_local_add(
+                &mut contribution.declarations,
+                declarations,
+                definition.file,
+                definition.range(),
+                "per-member declarations",
+                diagnostics,
+            );
+            checked_local_add(
+                &mut contribution.connections,
+                connections,
+                definition.file,
+                definition.range(),
+                "per-member connections",
+                diagnostics,
+            );
+            if let Some(relation) = relation {
+                families.expressions(
+                    relation.expressions(),
+                    1,
+                    &mut contribution.expression_nodes,
+                    diagnostics,
+                );
+            }
+            // Connector-domain reachability remains independent of multiplicity.
+            if let ComponentItem::PortFamily(family) = item
+                && let PortSyntax::ScalarPhysicalConnector { connector }
+                | PortSyntax::FieldPhysical { connector, .. } = family.port().syntax()
+            {
+                match elaborator.resolve_connector(
+                    &definition.namespace,
+                    connector,
+                    definition.file,
+                    family.range(),
+                ) {
+                    Ok(connector) => {
+                        local_connectors.insert(DefinitionKey {
+                            namespace: connector.namespace,
+                            name: connector.declaration.name().to_owned(),
+                        });
+                    }
+                    Err(error) => diagnostics.push(error),
+                }
+            }
+            continue;
+        }
         match item {
             ComponentItem::Domain(_)
             | ComponentItem::IndexSet(_)
@@ -89,34 +159,8 @@ pub(super) fn component_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            ComponentItem::PortFamily(family) => {
-                if let Some(members) = complete_exterior_cardinality(
-                    definition,
-                    family.binder().set().as_str(),
-                    family.range(),
-                    diagnostics,
-                ) {
-                    checked_local_add(
-                        &mut declarations,
-                        members,
-                        definition.file,
-                        family.range(),
-                        "complete-exterior Port-family declaration",
-                        diagnostics,
-                    );
-                }
-            }
             ComponentItem::RelationFamily(family) => {
-                if let Some(members) =
-                    families.extent(family.binder().set().as_str()).or_else(|| {
-                        complete_exterior_cardinality(
-                            definition,
-                            family.binder().set().as_str(),
-                            family.range(),
-                            diagnostics,
-                        )
-                    })
-                {
+                if let Some(members) = families.extent(family.binder().set().as_str()) {
                     match members.checked_mul(2) {
                         Some(declarations_per_family) => checked_local_add(
                             &mut declarations,
@@ -135,34 +179,14 @@ pub(super) fn component_local_footprint(
                     }
                 }
             }
-            ComponentItem::BoundaryConnection(connection) => {
-                let Some(binder) = connection.binder() else {
-                    checked_local_add(
-                        &mut connections,
-                        1,
-                        definition.file,
-                        connection.range(),
-                        "selected boundary Connection",
-                        diagnostics,
-                    );
-                    continue;
-                };
-                if let Some(members) = complete_exterior_cardinality(
-                    definition,
-                    binder.set().as_str(),
-                    connection.range(),
-                    diagnostics,
-                ) {
-                    checked_local_add(
-                        &mut connections,
-                        members,
-                        definition.file,
-                        connection.range(),
-                        "complete-exterior Connection family",
-                        diagnostics,
-                    );
-                }
-            }
+            ComponentItem::BoundaryConnection(connection) => checked_local_add(
+                &mut connections,
+                1,
+                definition.file,
+                connection.range(),
+                "selected boundary Connection",
+                diagnostics,
+            ),
             ComponentItem::Coordinate(_) | ComponentItem::Let(_) => {}
             ComponentItem::Instance(instance) => {
                 let count = input_binding_count(
@@ -215,16 +239,7 @@ pub(super) fn component_local_footprint(
                 families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
             }
             ComponentItem::RelationFamily(family) => {
-                if let Some(members) =
-                    families.extent(family.binder().set().as_str()).or_else(|| {
-                        complete_exterior_cardinality(
-                            definition,
-                            family.binder().set().as_str(),
-                            family.range(),
-                            diagnostics,
-                        )
-                    })
-                {
+                if let Some(members) = families.extent(family.binder().set().as_str()) {
                     families.expressions(
                         family.relation().expressions(),
                         members,
@@ -237,7 +252,6 @@ pub(super) fn component_local_footprint(
         }
         let port = match item {
             ComponentItem::Port(port) => port,
-            ComponentItem::PortFamily(family) => family.port(),
             _ => continue,
         };
         let connector = match port.syntax() {
@@ -261,22 +275,25 @@ pub(super) fn component_local_footprint(
         }
     }
     (
-        LocalFootprint {
-            declarations,
-            connections,
-            expression_nodes,
+        LocalFootprintPlan {
+            fixed: LocalFootprint {
+                declarations,
+                connections,
+                expression_nodes,
+            },
+            per_exterior_member,
         },
         local_connectors,
     )
 }
 
-fn complete_exterior_cardinality(
+fn validate_complete_exterior_contract(
     definition: &ComponentDefinition<'_>,
     set: &str,
     range: TextRange,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<usize> {
-    signature_complete_exterior_cardinality(
+) {
+    signature_validate_complete_exterior_contract(
         definition.file,
         definition.declaration.signature(),
         set,
@@ -285,13 +302,13 @@ fn complete_exterior_cardinality(
     )
 }
 
-fn signature_complete_exterior_cardinality(
+fn signature_validate_complete_exterior_contract(
     file: &str,
     signature: &[eqiora_lang::SignatureItem],
     set: &str,
     range: TextRange,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<usize> {
+) {
     let support = signature.iter().find_map(|item| match item {
         eqiora_lang::SignatureItem::Support(support) if support.name() == set => Some(support),
         _ => None,
@@ -303,7 +320,7 @@ fn signature_complete_exterior_cardinality(
             range,
             format!("boundary family refers to unknown complete-exterior support `{set}`"),
         ));
-        return None;
+        return;
     };
     let eqiora_lang::SupportSlotSyntax::CompleteExterior { parent } = support.syntax() else {
         diagnostics.push(source_error(
@@ -312,7 +329,7 @@ fn signature_complete_exterior_cardinality(
             range,
             format!("boundary family support `{set}` is not a complete exterior"),
         ));
-        return None;
+        return;
     };
     let parent_name = parent;
     let parent = signature.iter().find_map(|item| match item {
@@ -330,29 +347,17 @@ fn signature_complete_exterior_cardinality(
             range,
             format!("complete exterior `{set}` refers to unknown parent support `{parent_name}`"),
         ));
-        return None;
+        return;
     };
-    let eqiora_lang::SupportSlotSyntax::Volume { ambient_dimension } = parent.syntax() else {
+    let eqiora_lang::SupportSlotSyntax::Volume { .. } = parent.syntax() else {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             range,
             format!("complete exterior `{set}` requires a volume parent support"),
         ));
-        return None;
+        return;
     };
-    match ambient_dimension.checked_mul(2) {
-        Some(members) => Some(members),
-        None => {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                format!("complete exterior `{set}` member count overflows usize"),
-            ));
-            None
-        }
-    }
 }
 
 pub(super) fn model_local_footprint(
@@ -360,7 +365,7 @@ pub(super) fn model_local_footprint(
     definition: &ModelDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     values: Option<&super::super::parameters::SymbolicParameterMap>,
-) -> LocalFootprint {
+) -> LocalFootprintPlan {
     let generic_values;
     let require_exact = values.is_some();
     let values = match values {
@@ -381,7 +386,38 @@ pub(super) fn model_local_footprint(
         diagnostics,
     );
     let mut footprint = LocalFootprint::default();
+    let mut per_exterior_member = BTreeMap::new();
     for item in definition.owned_items() {
+        if let Item::RelationFamily(family) = item
+            && families.extent(family.binder().set().as_str()).is_none()
+        {
+            let slot = family.binder().set().as_str();
+            signature_validate_complete_exterior_contract(
+                definition.file,
+                definition.signature(),
+                slot,
+                family.range(),
+                diagnostics,
+            );
+            let contribution = per_exterior_member
+                .entry(slot.to_owned())
+                .or_insert_with(LocalFootprint::default);
+            checked_local_add(
+                &mut contribution.declarations,
+                2,
+                definition.file,
+                family.range(),
+                "per-member Relation and Activation",
+                diagnostics,
+            );
+            families.expressions(
+                family.relation().expressions(),
+                1,
+                &mut contribution.expression_nodes,
+                diagnostics,
+            );
+            continue;
+        }
         match item {
             Item::Parameter(parameter) => checked_local_add(
                 &mut footprint.declarations,
@@ -429,15 +465,6 @@ pub(super) fn model_local_footprint(
                 &mut footprint.declarations,
                 families
                     .extent(family.binder().set().as_str())
-                    .or_else(|| {
-                        signature_complete_exterior_cardinality(
-                            definition.file,
-                            definition.declaration.signature(),
-                            family.binder().set().as_str(),
-                            family.range(),
-                            diagnostics,
-                        )
-                    })
                     .unwrap_or(0)
                     .checked_mul(2)
                     .unwrap_or_else(|| {
@@ -510,18 +537,7 @@ pub(super) fn model_local_footprint(
             ),
             Item::RelationFamily(family) => families.expressions(
                 family.relation().expressions(),
-                families
-                    .extent(family.binder().set().as_str())
-                    .or_else(|| {
-                        signature_complete_exterior_cardinality(
-                            definition.file,
-                            definition.declaration.signature(),
-                            family.binder().set().as_str(),
-                            family.range(),
-                            diagnostics,
-                        )
-                    })
-                    .unwrap_or(0),
+                families.extent(family.binder().set().as_str()).unwrap_or(0),
                 &mut footprint.expression_nodes,
                 diagnostics,
             ),
@@ -552,7 +568,10 @@ pub(super) fn model_local_footprint(
             _ => {}
         }
     }
-    footprint
+    LocalFootprintPlan {
+        fixed: footprint,
+        per_exterior_member,
+    }
 }
 
 fn checked_local_add(

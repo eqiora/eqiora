@@ -190,7 +190,7 @@ fn exact_geometry_completes_nested_exterior_without_concrete_source_domains() {
 fn incomplete_and_overlapping_external_families_reach_the_completeness_gate() {
     let geometry = rectangle(false);
     for (members, expected) in [
-        ("left, right, bottom", "missing Cartesian side"),
+        ("left, right, bottom", "omits an entity"),
         ("left, right, bottom, bottom", "more than once"),
     ] {
         let source = EXTERIOR.replace(
@@ -216,9 +216,9 @@ fn incomplete_and_overlapping_external_families_reach_the_completeness_gate() {
     let errors =
         CompiledModel::compile_selected("overlap.eqi", EXTERIOR, "M", &bindings).unwrap_err();
     assert!(
-        errors.iter().any(|error| error
-            .message()
-            .contains("Cartesian side (0, lower) more than once")),
+        errors
+            .iter()
+            .any(|error| error.message().contains("more than once")),
         "{errors:?}"
     );
 }
@@ -333,7 +333,7 @@ fn direct_selected_exterior_rejects_incomplete_duplicate_and_foreign_members() {
         (
             vec![exact("left"), exact("right"), exact("bottom")],
             exact("body"),
-            "missing Cartesian side",
+            "omits an entity",
         ),
         (
             vec![
@@ -343,7 +343,7 @@ fn direct_selected_exterior_rejects_incomplete_duplicate_and_foreign_members() {
                 exact("bottom"),
             ],
             exact("body"),
-            "more than once",
+            "repeats an entity",
         ),
         (
             vec![exact("body"), exact("right"), exact("bottom"), exact("top")],
@@ -488,10 +488,25 @@ fn resolved_abstract_exteriors_prove_supplied_geometry_in_local_and_locked_modul
 }
 
 #[test]
-fn abstract_exterior_analysis_keeps_static_cardinality_parent_and_duplicate_checks() {
+fn abstract_exterior_analysis_defers_cardinality_but_keeps_parent_and_duplicate_checks() {
     let source = &EXTERIOR[EXTERIOR.find("model M(").unwrap()..];
+    let incomplete = source.replace(
+        "boundaries(left, right, bottom, top)",
+        "boundaries(left, right, bottom)",
+    );
+    let deferred = resolved_exterior(&incomplete, true, false)
+        .expect("abstract topology remains an occurrence obligation");
+    let geometry = rectangle(false);
+    let errors = deferred
+        .compile_selected("M", &exterior_bindings(&geometry))
+        .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("omits an entity")),
+        "{errors:?}"
+    );
     for (mutant, expected) in [
-        (source.replace("boundaries(left, right, bottom, top)", "boundaries(left, right, bottom)"), "member count"),
         (source.replace("boundaries(left, right, bottom, top)", "boundaries(left, right, bottom, bottom)"), "more than once"),
         (source.replace("support body: volume(ambient_dimension = 2),", "support other: volume(ambient_dimension = 2), support body: volume(ambient_dimension = 2),")
             .replace("support left: boundary(parent = body)", "support left: boundary(parent = other)"), "parent"),

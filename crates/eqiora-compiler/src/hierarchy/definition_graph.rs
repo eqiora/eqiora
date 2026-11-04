@@ -174,6 +174,42 @@ struct LocalFootprint {
     expression_nodes: usize,
 }
 
+/// Definition-local work whose exterior multiplicities remain explicit until binding.
+#[derive(Clone, Debug, Default)]
+struct LocalFootprintPlan {
+    fixed: LocalFootprint,
+    per_exterior_member: BTreeMap<String, LocalFootprint>,
+}
+
+impl LocalFootprintPlan {
+    fn instantiate(&mut self, counts: &BTreeMap<String, usize>) -> Result<(), Vec<Diagnostic>> {
+        for (slot, contribution) in &self.per_exterior_member {
+            let count = counts.get(slot).ok_or_else(|| {
+                vec![definition_error(format!(
+                    "complete-exterior cardinality for `{slot}` remains unresolved"
+                ))]
+            })?;
+            for (total, per_member) in [
+                (&mut self.fixed.declarations, contribution.declarations),
+                (&mut self.fixed.connections, contribution.connections),
+                (
+                    &mut self.fixed.expression_nodes,
+                    contribution.expression_nodes,
+                ),
+            ] {
+                *total = count
+                    .checked_mul(per_member)
+                    .and_then(|n| total.checked_add(n))
+                    .ok_or_else(|| {
+                        vec![definition_error("complete-exterior footprint overflows")]
+                    })?;
+            }
+        }
+        self.per_exterior_member.clear();
+        Ok(())
+    }
+}
+
 struct ReachabilityMemberships {
     used: usize,
     limit: usize,
@@ -233,7 +269,7 @@ struct ComponentNode<'a> {
     key: DefinitionKey,
     file: &'a str,
     range: TextRange,
-    local: LocalFootprint,
+    local: LocalFootprintPlan,
     local_connectors: BTreeSet<DefinitionKey>,
     edges: Vec<Edge<'a>>,
 }
@@ -242,7 +278,7 @@ struct ModelNode<'a> {
     key: DefinitionKey,
     file: &'a str,
     range: TextRange,
-    local: LocalFootprint,
+    local: LocalFootprintPlan,
     local_connectors: BTreeSet<DefinitionKey>,
     edges: Vec<Edge<'a>>,
 }
@@ -582,13 +618,14 @@ fn summarize_component(
 ) -> Result<DefinitionSummary, Vec<Diagnostic>> {
     let mut depth = LimitedCount::exact(1);
     let mut instances = LimitedCount::exact(1);
-    let mut ordinary_declarations = LimitedCount::exact(node.local.declarations);
-    let mut connections = LimitedCount::exact(node.local.connections);
-    let mut expression_nodes = LimitedCount::exact(node.local.expression_nodes);
+    let mut ordinary_declarations = LimitedCount::exact(node.local.fixed.declarations);
+    let mut connections = LimitedCount::exact(node.local.fixed.connections);
+    let mut expression_nodes = LimitedCount::exact(node.local.fixed.expression_nodes);
     let local_nonconnector = node
         .local
+        .fixed
         .declarations
-        .checked_add(node.local.connections)
+        .checked_add(node.local.fixed.connections)
         .ok_or_else(|| {
             vec![source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
@@ -679,13 +716,14 @@ fn summarize_model(
 ) -> Result<DefinitionSummary, Vec<Diagnostic>> {
     let mut depth = LimitedCount::exact(1);
     let mut instances = LimitedCount::exact(0);
-    let mut ordinary_declarations = LimitedCount::exact(node.local.declarations);
-    let mut connections = LimitedCount::exact(node.local.connections);
-    let mut expression_nodes = LimitedCount::exact(node.local.expression_nodes);
+    let mut ordinary_declarations = LimitedCount::exact(node.local.fixed.declarations);
+    let mut connections = LimitedCount::exact(node.local.fixed.connections);
+    let mut expression_nodes = LimitedCount::exact(node.local.fixed.expression_nodes);
     let local_nonconnector = node
         .local
+        .fixed
         .declarations
-        .checked_add(node.local.connections)
+        .checked_add(node.local.fixed.connections)
         .ok_or_else(|| {
             vec![source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
