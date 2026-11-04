@@ -199,7 +199,10 @@ fn units_and_foreign_parent_bindings_reject_before_numerical_lowering() {
         laplace("2[1/m]").replace("variable u:", "domain foreign = box(0, 1, 0, 1); domain other = boundary(foreign, axis=0, side=upper); variable u:")
             .replace("face=right", "face=other"),
     ] {
-        assert!(prepare_package_release_v1(root_sources(&scalar, &source), std::slice::from_ref(&scalar)).is_err(), "invalid binding accepted: {source}");
+        let error = prepare_package_release_v1(root_sources(&scalar, &source), std::slice::from_ref(&scalar))
+            .expect_err("invalid typed binding must reject");
+        assert!(matches!(error, eqiora::package::PackagePreparationError::Diagnostics(ref diagnostics)
+            if !diagnostics.is_empty()), "unexpected rejection: {error}");
     }
 }
 
