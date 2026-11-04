@@ -41,7 +41,11 @@ impl Drop for Scratch {
     }
 }
 
-fn moved_offline(name: &str, source: &str) -> (PackagedModelDocument, ResolutionRecordV1) {
+fn moved_offline(
+    name: &str,
+    version: &str,
+    source: &str,
+) -> (PackagedModelDocument, ResolutionRecordV1) {
     let scratch = Scratch::new();
     let project = scratch.0.join("project");
     let store = scratch.0.join("store");
@@ -54,7 +58,7 @@ fn moved_offline(name: &str, source: &str) -> (PackagedModelDocument, Resolution
     )
     .unwrap();
     let lock =
-        PackagedModelDocument::add_bundled_package_dependency_v1(&project, &store, name, "0.4.0")
+        PackagedModelDocument::add_bundled_package_dependency_v1(&project, &store, name, version)
             .unwrap();
     let original = PackagedModelDocument::compile_locked(
         &DirectoryPackageStore::open_ambient(&store).unwrap(),
@@ -122,7 +126,7 @@ model Main() {
 
 #[test]
 fn bundled_fluid_reopens_with_only_its_real_mechanics_dependency() {
-    let (document, lock) = moved_offline("Eqiora.Fluid", FLUID);
+    let (document, lock) = moved_offline("Eqiora.Fluid", "0.5.0", FLUID);
     let names = lock
         .nodes()
         .iter()
@@ -172,7 +176,7 @@ fn bundled_solid_reopens_and_runs_the_existing_nonzero_load_case() {
             .replace("mu = mu", "shear_modulus = mu")
             .replace("lambda = lambda", "first_lame_parameter = lambda")
     );
-    let (document, lock) = moved_offline("Eqiora.Solid", &source);
+    let (document, lock) = moved_offline("Eqiora.Solid", "0.4.0", &source);
     assert_eq!(
         lock.nodes()
             .iter()
