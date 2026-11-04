@@ -49,7 +49,7 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
 
     assert str(inspect.signature(eqiora.compile)) == (
         "(*, path=None, source=None, filename=None, geometry=None, "
-        "bindings=None, entry=None)"
+        "bindings=None, entry=None, import_context='bundled')"
     )
 
     stub = Path(eqiora.__file__).with_name("__init__.pyi")
@@ -70,11 +70,14 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
         "geometry",
         "bindings",
         "entry",
+        "import_context",
     ]
     assert declaration.args.vararg is None
     assert declaration.args.kwarg is None
-    assert len(declaration.args.kw_defaults) == 6
-    assert all(ast.literal_eval(default) is None for default in declaration.args.kw_defaults)
+    assert len(declaration.args.kw_defaults) == 7
+    assert all(ast.literal_eval(default) is None for default in declaration.args.kw_defaults[:6])
+    assert ast.literal_eval(declaration.args.kw_defaults[6]) == "bundled"
+    assert ast.unparse(declaration.args.kwonlyargs[6].annotation) == "Literal['bundled', 'closed']"
     assert ast.unparse(declaration.returns) == "Model"
 
 

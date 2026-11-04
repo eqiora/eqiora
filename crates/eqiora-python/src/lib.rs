@@ -41,8 +41,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-#[cfg(test)]
-use eqiora::api::ModelDocument;
 use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
 use pyo3::exceptions::{PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
@@ -281,9 +279,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(test)]
     use eqiora::api::ModelDocument;
-    use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
 
     use super::python_distribution_version;
 

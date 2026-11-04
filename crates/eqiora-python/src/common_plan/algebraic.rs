@@ -71,12 +71,8 @@ pub(super) fn resolve(
         &FaerLinearSolver,
     )
     .map_err(|d| validation_error(py, &[d]))?;
-    let mut plan =
-        PyPlan::from_native_artifact(py, ResolvedCommonPlan::Algebraic(Box::new(native)))?;
-    // The native resolver consumes this exact Model; retain its caller-owned
-    // compilation sidecars just as the spatial and time routes do.
-    plan.model = model;
-    Ok(plan)
+    PyPlan::from_native_artifact(py, ResolvedCommonPlan::Algebraic(Box::new(native)))?
+        .with_source_model(py, model)
 }
 
 pub(super) fn view(

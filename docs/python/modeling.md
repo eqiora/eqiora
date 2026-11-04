@@ -29,7 +29,9 @@ release can change the package compilation identity. For reproducibility across
 distributions, use [`compile_package`](api.md#api-eqiora-compile_package) with
 your explicit store and resolution; it never substitutes a bundled release.
 
-The live Model, Plan, and Run retain the package compilation identity. Bare
+The live Model, Plan, and Run retain the package compilation identity. For
+harmonic response, `plan.model` is the derived Model;
+`plan.package_compilation_digest` refers to the original source Model. Bare
 Model and Plan byte exports preserve their canonical meaning and identity but
 do not include package sidecars. Recompile the explicit locked package graph
 to restore that context after reopening.

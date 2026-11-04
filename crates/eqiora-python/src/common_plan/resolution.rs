@@ -140,15 +140,18 @@ pub(super) fn resolve_plan(
             .map(|_| resolved_solve::resolved_solve_from_native(py, &native))
             .transpose()?;
         drop(model_ref);
-        return Ok(PyPlan {
+        let source_model = model.clone_ref(py);
+        return PyPlan {
             native,
             model,
+            source_model: None,
             mesh: None,
             spatial: None,
             requested_solve: solve_policy.map(|(_, handle)| handle),
             solve: resolved_solve,
             temporal: Some(temporal_handle),
-        });
+        }
+        .with_source_model(py, source_model);
     }
 
     if mesh.is_none() && spatial.is_none() && temporal_handle.is_none() {
@@ -340,6 +343,7 @@ pub(super) fn resolve_plan(
     let solve_handle = resolved_solve::resolved_solve_from_native(py, &native)?;
     drop(mesh_ref);
     drop(model_ref);
+    let source_model = model.clone_ref(py);
     let model = if harmonic::original_model(&native).is_some() {
         Py::new(
             py,
@@ -348,15 +352,17 @@ pub(super) fn resolve_plan(
     } else {
         model
     };
-    Ok(PyPlan {
+    PyPlan {
         native,
         model,
+        source_model: None,
         mesh: Some(mesh),
         spatial: Some(spatial_handle),
         requested_solve: Some(requested_solve_handle),
         solve: Some(solve_handle),
         temporal: temporal_handle,
-    })
+    }
+    .with_source_model(py, source_model)
 }
 
 fn ode_policy(
