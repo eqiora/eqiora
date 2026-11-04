@@ -223,7 +223,7 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         self.normal_velocity_data
             .get(&boundary)
             .map(|trace| {
-                let super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d::Normal {
+                let super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d::Datum {
                     datum,
                     ..
                 } = trace
@@ -352,6 +352,7 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         volume.pressure,
         &volume.dynamic_viscosity,
     )?;
+    boundary::require_normal_velocity_subset(boundary.prescribed_velocity_traces.values())?;
     require_boundary_volume(
         &volume,
         &boundary.normal_velocity_fields,

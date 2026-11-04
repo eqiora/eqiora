@@ -265,6 +265,23 @@ pub(super) fn lower_named_with_stress(
     })
 }
 
+/// Preserve the existing inertial/transient admission while steady Stokes gains complete data.
+pub(super) fn require_normal_velocity_subset<'a>(
+    traces: impl IntoIterator<Item = &'a SteadyStokesPrescribedVelocityTrace2d>,
+) -> Result<(), Diagnostic> {
+    for trace in traces {
+        if matches!(trace, SteadyStokesPrescribedVelocityTrace2d::Datum { .. })
+            && !trace.requires_normal()
+        {
+            return Err(lowering_error(
+                trace.relation(),
+                "inertial and transient prescribed velocity requires the exact scoped boundary normal",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn normal_velocity_projection<K: Clone + Ord>(
     traces: &BTreeMap<K, SteadyStokesPrescribedVelocityTrace2d>,
 ) -> NormalVelocityProjection<K> {
@@ -272,7 +289,7 @@ fn normal_velocity_projection<K: Clone + Ord>(
     let mut fields = BTreeSet::new();
     let mut definitions = BTreeSet::new();
     for (key, trace) in traces {
-        if let SteadyStokesPrescribedVelocityTrace2d::Normal { carrier, .. } = trace {
+        if let SteadyStokesPrescribedVelocityTrace2d::Datum { carrier, .. } = trace {
             expressions.insert(key.clone(), trace.clone());
             fields.extend(carrier.map(|(field, _)| field));
             definitions.extend(carrier.map(|(_, definition)| definition));
@@ -752,7 +769,7 @@ fn prescribed_normal_velocity_trace<const D: usize>(
     }).transpose()?;
     let (mut datum, parameters) =
         PrescribedDatum::from_boundary(program, relation, rhs, carrier, D)?;
-    if !datum.requires_normal() {
+    if D != 2 && !datum.requires_normal() {
         return Err(lowering_error(
             relation,
             "prescribed normal velocity requires the exact scoped boundary normal",
@@ -761,7 +778,7 @@ fn prescribed_normal_velocity_trace<const D: usize>(
     if sign < 0. {
         datum = PrescribedDatum::Neg(Box::new(datum));
     }
-    Ok(SteadyStokesPrescribedVelocityTrace2d::normal(
+    Ok(SteadyStokesPrescribedVelocityTrace2d::datum(
         boundary,
         relation,
         carrier.map(|(field, definition, _)| (field, definition)),

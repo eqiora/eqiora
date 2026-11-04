@@ -191,3 +191,99 @@ fn pressure_force_field_cannot_be_reclassified_as_a_velocity_carrier() {
         "{error:?}"
     );
 }
+
+fn complete_vector_source(speed: f64) -> String {
+    SOURCE
+        .replace("  parameter mu:", &format!("parameter speed:m/s={speed}; parameter other_speed:m/s={speed}; parameter mu:"))
+        .replace("relation x_lower_zero on x_lower { trace(velocity) = 0; }", "relation x_lower_zero on x_lower { trace(velocity)=speed*tensor_value(frame=fluid,components=[1,0]); }")
+        .replace("relation x_upper_zero on x_upper { trace(velocity) = 0; }", "relation x_upper_zero on x_upper { trace(velocity)=other_speed*tensor_value(frame=fluid,components=[1,0]); }")
+}
+
+#[test]
+fn complete_vector_datum_needs_no_normal_and_keeps_equal_valued_parameter_identity() {
+    for speed in [0.7, 1.3] {
+        let (transaction, id, symbols) =
+            compile("complete-datum.eqi", &complete_vector_source(speed))
+                .unwrap()
+                .remove(0)
+                .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), id).unwrap();
+        let model = lower_steady_incompressible_stokes_cartesian_2d(&program).unwrap();
+        let lower = model
+            .prescribed_velocity_trace(&PhysicalBoundarySupport::CartesianSide {
+                axis: 0,
+                side: BoundarySide::Lower,
+            })
+            .unwrap();
+        let upper = model
+            .prescribed_velocity_trace(&PhysicalBoundarySupport::CartesianSide {
+                axis: 0,
+                side: BoundarySide::Upper,
+            })
+            .unwrap();
+        assert!(!lower.requires_normal());
+        assert_eq!(lower.boundary(), symbols.get("x_lower").unwrap());
+        assert_eq!(lower.relation(), symbols.get("x_lower_zero").unwrap());
+        assert_eq!(lower.coefficient_field(), None);
+        close(lower.value(None, &[0., 0.5]).unwrap(), [speed, 0.]);
+        close(upper.value(None, &[2., 0.5]).unwrap(), [speed, 0.]);
+        assert!(
+            !lower.same_law(upper),
+            "equal values must not erase distinct Parameter IDs"
+        );
+        let inputs = model
+            .normal_velocity_parameters()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>();
+        assert!(inputs.contains(&symbols.get("speed").unwrap().downcast().unwrap()));
+        assert!(inputs.contains(&symbols.get("other_speed").unwrap().downcast().unwrap()));
+    }
+}
+
+#[test]
+fn complete_vector_datum_rejects_a_foreign_parent_frame() {
+    let source = complete_vector_source(0.7)
+        .replace(
+            "domain fluid =",
+            "domain foreign = box(0, 2, -1, 1); domain fluid =",
+        )
+        .replace("frame=fluid", "frame=foreign");
+    assert!(compile("foreign-datum.eqi", &source).is_err());
+}
+
+#[test]
+fn normal_datum_still_requires_an_authenticated_normal() {
+    let fixture = fixture(false, "inlet_speed");
+    let trace = fixture
+        .model
+        .prescribed_velocity_trace(&PhysicalBoundarySupport::CartesianSide {
+            axis: 0,
+            side: BoundarySide::Lower,
+        })
+        .unwrap();
+    assert!(trace.requires_normal());
+    assert!(
+        trace
+            .value(None, &[0., 0.5])
+            .unwrap_err()
+            .message()
+            .contains("parent-outward normal")
+    );
+}
+
+#[test]
+fn complete_vector_datum_does_not_expand_transient_flow_admission() {
+    let source = TRANSIENT_NAVIER_STOKES_SOURCE
+        .replace("  parameter mu:", "parameter speed:m/s=0.7; parameter mu:")
+        .replace("relation x_lower_zero on x_lower { trace(velocity) = 0; }", "relation x_lower_zero on x_lower { trace(velocity)=speed*tensor_value(frame=fluid,components=[1,0]); }");
+    let error =
+        lower_transient_incompressible_navier_stokes_cartesian::<2>(&compile_program(&source))
+            .unwrap_err();
+    assert!(
+        error.message().contains("exact scoped boundary normal"),
+        "{error:?}"
+    );
+}

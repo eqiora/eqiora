@@ -1,9 +1,7 @@
 //! Private Model-owned prescribed velocity traces for steady Stokes.
 //!
-//! The complete-vector lowering and Model-owned essential replay are consumed
-//! only by their precommitted `cfg(test)` evidence until the accepted
-//! successor product path starts. Under `cfg(test)` the unused-item lint
-//! stays denied.
+//! Typed prescribed data are shared by Cartesian and Geometry-backed realization.
+//! The legacy affine-potential replay also retains its focused evidence path.
 #![cfg_attr(not(test), allow(dead_code))]
 
 #[cfg(test)]
@@ -36,14 +34,13 @@ const SPEED_DIMENSION: DimExponents =
 
 /// The complete prescribed-velocity meaning retained from one exact Model.
 ///
-/// `Normal` preserves the established scalar-normal subset.  The complete
-/// variant is deliberately restricted to the gradient of one retained scalar
-/// affine potential; it is not a general vector expression or callback law.
+/// `Datum` preserves the shared typed prescribed expression and its inputs.
+/// The legacy complete variant retains the gradient of one scalar affine potential.
 /// Both variants retain the exact Boundary and boundary Relation identity that
 /// carried them, so an equal-valued role permutation is rejected by identity.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SteadyStokesPrescribedVelocityTrace2d {
-    Normal {
+    Datum {
         boundary: RawId,
         relation: RawId,
         carrier: Option<(RawId, RawId)>,
@@ -61,14 +58,14 @@ pub(crate) enum SteadyStokesPrescribedVelocityTrace2d {
 }
 
 impl SteadyStokesPrescribedVelocityTrace2d {
-    pub(super) fn normal(
+    pub(super) fn datum(
         boundary: RawId,
         relation: RawId,
         carrier: Option<(RawId, RawId)>,
         datum: PrescribedDatum<f64>,
         parameters: Vec<Id<kinds::Parameter>>,
     ) -> Self {
-        Self::Normal {
+        Self::Datum {
             boundary,
             relation,
             carrier,
@@ -105,7 +102,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
     /// Exact Boundary identity this trace was lowered from.
     pub(super) const fn boundary(&self) -> RawId {
         match self {
-            Self::Normal { boundary, .. } | Self::CompleteAffinePotential { boundary, .. } => {
+            Self::Datum { boundary, .. } | Self::CompleteAffinePotential { boundary, .. } => {
                 *boundary
             }
         }
@@ -114,7 +111,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
     /// Exact boundary Relation identity carrying this trace law.
     pub(super) const fn relation(&self) -> RawId {
         match self {
-            Self::Normal { relation, .. } | Self::CompleteAffinePotential { relation, .. } => {
+            Self::Datum { relation, .. } | Self::CompleteAffinePotential { relation, .. } => {
                 *relation
             }
         }
@@ -122,7 +119,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
 
     pub(super) const fn coefficient_field(&self) -> Option<RawId> {
         match self {
-            Self::Normal { carrier, .. } => match carrier {
+            Self::Datum { carrier, .. } => match carrier {
                 Some((field, _)) => Some(*field),
                 None => None,
             },
@@ -134,7 +131,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
 
     pub(super) const fn definition_relation(&self) -> Option<RawId> {
         match self {
-            Self::Normal { carrier, .. } => match carrier {
+            Self::Datum { carrier, .. } => match carrier {
                 Some((_, relation)) => Some(*relation),
                 None => None,
             },
@@ -147,7 +144,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
 
     pub(super) const fn speed_parameter(&self) -> Option<RawId> {
         match self {
-            Self::Normal { .. } => None,
+            Self::Datum { .. } => None,
             Self::CompleteAffinePotential {
                 speed_parameter, ..
             } => Some(*speed_parameter),
@@ -162,13 +159,13 @@ impl SteadyStokesPrescribedVelocityTrace2d {
     pub(super) fn same_law(&self, other: &Self) -> bool {
         match (self, other) {
             (
-                Self::Normal {
+                Self::Datum {
                     carrier: a,
                     datum: b,
                     parameters: c,
                     ..
                 },
-                Self::Normal {
+                Self::Datum {
                     carrier: x,
                     datum: y,
                     parameters: z,
@@ -200,6 +197,10 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         self.value(None, &coordinates)
     }
 
+    pub(super) fn requires_normal(&self) -> bool {
+        matches!(self, Self::Datum { datum, .. } if datum.requires_normal())
+    }
+
     /// Replay the complete vector from retained Model meaning.
     pub(super) fn value(
         &self,
@@ -207,14 +208,21 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         coordinates: &[f64],
     ) -> Result<[f64; 2], Diagnostic> {
         match self {
-            Self::Normal { datum, .. } => {
-                let outward = outward_normal.ok_or_else(|| {
-                    invalid("normal Stokes trace requires one parent-outward normal")
-                })?;
+            Self::Datum { datum, .. } => {
+                if datum.requires_normal() && outward_normal.is_none() {
+                    return Err(invalid(
+                        "normal Stokes trace requires one parent-outward normal",
+                    ));
+                }
                 datum
-                    .evaluate(coordinates, &outward)?
+                    .evaluate(
+                        coordinates,
+                        outward_normal
+                            .as_ref()
+                            .map_or(&[], |normal| normal.as_slice()),
+                    )?
                     .try_into()
-                    .map_err(|_| invalid("normal Stokes datum has the wrong ambient dimension"))
+                    .map_err(|_| invalid("prescribed Stokes datum has the wrong ambient dimension"))
             }
             Self::CompleteAffinePotential { expression, .. } => exact_complete_gradient(expression),
         }

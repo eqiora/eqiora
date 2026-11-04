@@ -64,6 +64,7 @@ fn lower_named(
         &volume.dynamic_viscosity,
         boundaries,
     )?;
+    boundary::require_normal_velocity_subset(boundary.prescribed_velocity_traces.values())?;
     require_boundary_volume(
         &volume,
         &boundary.prescribed_velocity_fields,
