@@ -18,7 +18,7 @@ normal. This is the normal component of the constitutive gradient, with a
 positive sign. It is not the negative-gradient physical heat flux. Use the
 same coefficient in the volume and flux components; incompatible constitutive
 fluxes reject during numerical lowering. Zero normal flux is supplied as
-`flux = 0`, without a separate boundary component.
+`flux = 0[1/m]`, without a separate boundary component.
 
 The caller owns the potential, domain, boundary selections and boundary
 coverage. The `2d` suffix states a required ambient dimension; this release

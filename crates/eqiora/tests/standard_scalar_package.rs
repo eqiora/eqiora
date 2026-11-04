@@ -117,8 +117,8 @@ fn laplace(flux: &str) -> String {
  instance equation: scalar.Laplace2d(body=body, potential=u, coefficient=2);
  {}
  instance right_flux: scalar.NormalFlux2d(body=body, face=right, potential=u, coefficient=2, flux={flux});
- instance bottom_flux: scalar.NormalFlux2d(body=body, face=bottom, potential=u, coefficient=2, flux=0);
- instance top_flux: scalar.NormalFlux2d(body=body, face=top, potential=u, coefficient=2, flux=0);
+ instance bottom_flux: scalar.NormalFlux2d(body=body, face=bottom, potential=u, coefficient=2, flux=0[1/m]);
+ instance top_flux: scalar.NormalFlux2d(body=body, face=top, potential=u, coefficient=2, flux=0[1/m]);
  }}", fixed("left", "0"))
 }
 
