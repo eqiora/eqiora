@@ -1,5 +1,7 @@
 #[path = "tests/harmonic.rs"]
 mod harmonic;
+#[path = "tests/source_context.rs"]
+mod source_context;
 #[path = "tests/transient.rs"]
 mod transient;
 

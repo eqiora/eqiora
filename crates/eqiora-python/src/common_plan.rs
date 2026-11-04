@@ -109,6 +109,7 @@ enum TemporalHandle {
 pub(crate) struct PyPlan {
     native: ResolvedCommonPlan,
     model: Py<PyModel>,
+    source_model: Option<Py<PyModel>>,
     mesh: Option<Py<PyMesh>>,
     spatial: Option<SpatialHandle>,
     requested_solve: Option<RequestedSolveHandle>,
@@ -185,12 +186,36 @@ impl PyPlan {
         Ok(Self {
             native,
             model,
+            source_model: None,
             mesh,
             spatial,
             requested_solve,
             solve,
             temporal,
         })
+    }
+
+    pub(crate) fn with_source_model(
+        mut self,
+        py: Python<'_>,
+        source: Py<PyModel>,
+    ) -> PyResult<Self> {
+        let original = harmonic::original_model(&self.native);
+        let expected = original.unwrap_or_else(|| self.native.model_artifact());
+        if source.borrow(py).artifact() != expected {
+            return Err(validation_error(
+                py,
+                &[eqiora::Diagnostic::error(
+                    eqiora::diagnostic::codes::INVALID_ARTIFACT,
+                    "source Model differs from the resolved Plan's exact source artifact",
+                )],
+            ));
+        }
+        if original.is_none() {
+            self.model = source.clone_ref(py);
+        }
+        self.source_model = Some(source);
+        Ok(self)
     }
 
     pub(crate) fn model_handle(&self, py: Python<'_>) -> Py<PyModel> {
@@ -226,10 +251,12 @@ impl PyPlan {
         &self,
         py: Python<'_>,
     ) -> PyResult<Option<String>> {
-        self.model
-            .borrow(py)
-            .package_compilation_digest_value()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        self.source_model.as_ref().map_or(Ok(None), |source| {
+            source
+                .borrow(py)
+                .package_compilation_digest_value()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        })
     }
 }
 
@@ -247,15 +274,25 @@ impl PyPlan {
             .native
             .for_run(steps, output_steps, &FaerLinearSolver)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        Self::from_native_artifact(py, native)
+        let plan = Self::from_native_artifact(py, native)?;
+        match &self.source_model {
+            Some(source) => plan.with_source_model(py, source.clone_ref(py)),
+            None => Ok(plan),
+        }
     }
 
     /// Original real Model retained by a harmonic response restriction.
     #[getter]
-    fn harmonic_original_model(&self, py: Python<'_>) -> PyResult<Option<PyModel>> {
-        harmonic::original_model(&self.native)
-            .map(|model| PyModel::from_artifact(py, model.clone()))
-            .transpose()
+    fn harmonic_original_model(&self, py: Python<'_>) -> PyResult<Option<Py<PyModel>>> {
+        let Some(original) = harmonic::original_model(&self.native) else {
+            return Ok(None);
+        };
+        if let Some(source) = &self.source_model {
+            return Ok(Some(source.clone_ref(py)));
+        }
+        PyModel::from_artifact(py, original.clone())
+            .and_then(|model| Py::new(py, model))
+            .map(Some)
     }
 
     /// Named exact original/derived Field pairs in the declared amplitude order.

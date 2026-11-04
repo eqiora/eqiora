@@ -7,6 +7,16 @@ use eqiora_package::{
 
 use super::{PackagePreparationError, prepare_package_release_v1};
 
+/// Exact package names shipped by this catalog; module suffixes are resolved separately.
+pub(super) const NAMES: &[&str] = &[
+    "Eqiora.Mechanics.Interfaces",
+    "Eqiora.Electrical.Basic",
+    "Eqiora.Controls.Sampled",
+    "Eqiora.Stochastic.Processes",
+    "Eqiora.Fluid.Incompressible",
+    "Eqiora.Solid.LinearElasticity",
+];
+
 pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
     let mut releases = Vec::new();
     if matches!(
@@ -71,7 +81,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             ),
         )?),
         _ => {
-            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            return Err(PackagePreparationError::BundledCatalog(format!(
                 "distribution has no bundled package `{name}`"
             )));
         }
@@ -84,7 +94,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
         .expect("nonempty bundled closure")
         .package_identity()?;
     if identity.name.as_str() != name {
-        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+        return Err(PackagePreparationError::BundledCatalog(format!(
             "bundled package name `{name}` differs from exact shipped release `{}@{}`",
             identity.name, identity.version
         )));

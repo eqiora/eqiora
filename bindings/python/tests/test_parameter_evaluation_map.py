@@ -187,6 +187,27 @@ def test_failed_and_cancelled_frequency_occurrences_remain_inspectable_and_retry
         q.diff.compile(plan, inputs=(plan.model.parameter(omega.id),), outputs=tuple(plan.fields))
 
 
+def test_live_package_context_keeps_harmonic_source_separate_from_effective_model():
+    model = q.compile(source="import Eqiora.Electrical.Basic.basic as electrical;\n" + RC)
+    assert model.package_compilation_digest is not None
+    plan = q.resolve(model, solve=linear())
+    assert plan.model.digest == plan.model_digest != model.digest
+    assert plan.model.package_compilation_digest is None
+    assert plan.harmonic_original_model is model
+    assert plan.package_compilation_digest == model.package_compilation_digest
+    with pytest.raises(TypeError, match="original Model"):
+        q.EvaluationMapPlan.from_parameters(plan, [plan.model.parameter(model.parameter("omega").id)], [(500.,)])
+    run = q.submit(plan, state=q.State.initial(plan))
+    assert run.package_compilation_digest == model.package_compilation_digest
+    assert run.result().plan_key == plan.identity
+    portable = q.Plan.from_bytes(plan.to_bytes())
+    assert portable.identity == plan.identity
+    assert portable.model.digest == plan.model_digest
+    assert portable.harmonic_original_model.digest == model.digest
+    assert portable.harmonic_original_model.package_compilation_digest is None
+    assert portable.package_compilation_digest is None
+
+
 def test_finite_field_output_preserves_real_and_complex_intrinsic_shape_units_and_no_mesh():
     model = q.compile(source="""model Finite() {
       variable voltage:V;

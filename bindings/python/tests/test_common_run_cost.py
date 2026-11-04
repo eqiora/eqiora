@@ -12,7 +12,7 @@ import pytest
 import eqiora as q
 
 
-def _heat(*, cells=2, manual=False, cost=None, capacity="1", diffusion="1", boundary="300[K]", initial="300[K]", extra=""):
+def _heat(*, cells=2, manual=False, cost=None, capacity="1", diffusion="1", boundary="300[K]", initial="300[K]", extra="", imports=""):
     graph = q.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0., 1.), y_bounds=(0., 1.))
     sides = ("left", "right", "bottom", "top")
@@ -34,7 +34,7 @@ def _heat(*, cells=2, manual=False, cost=None, capacity="1", diffusion="1", boun
         relation top_value on top {trace(u)=BOUNDARY;}
         observable clock:s=time();
     }""".replace("EXTRA", extra).replace("CAPACITY", capacity).replace("DIFFUSION", diffusion).replace("BOUNDARY", boundary).replace("INITIAL", initial)
-    model = q.compile(source=source, entry="Heat", geometry=geometry,
+    model = q.compile(source=imports + source, entry="Heat", geometry=geometry,
         bindings={"body": body, **{side: (geometry.selection(side), body) for side in sides}})
     mesh = q.meshing.generate(q.meshing.resolve(geometry,
         q.meshing.CartesianMesher(cells=(cells, cells))))
@@ -290,3 +290,21 @@ def test_common_run_cost_fixed_coordinate_coefficients_and_changed_model_rederiv
         _, profile = _measure(candidate, 2, (2,))
         assert _factor_calls(profile, "symbolic_factorization") == 1
         assert _factor_calls(profile, "numeric_factorization") == 1
+
+
+def test_live_package_context_survives_run_planning_without_changing_bare_exports():
+    model, original = _heat(manual=True, imports="import Eqiora.Electrical.Basic.basic as electrical;\n")
+    assert model.package_compilation_digest is not None
+    assert original.package_compilation_digest == model.package_compilation_digest
+    assert original.model is model
+    planned = original.for_run(steps=1, output_steps=(1,))
+    assert planned.model is model
+    assert planned.package_compilation_digest == model.package_compilation_digest
+    run = q.submit(planned, state=q.State.initial(planned), steps=1, output_steps=(1,))
+    assert run.package_compilation_digest == model.package_compilation_digest
+    result = run.result()
+    _check_four_cell_oracle(model, result, (1,))
+    portable = q.Plan.from_bytes(planned.to_bytes())
+    assert portable.identity == planned.identity
+    assert portable.model.digest == model.digest
+    assert portable.package_compilation_digest is None

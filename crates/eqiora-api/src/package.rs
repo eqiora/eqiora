@@ -10,7 +10,7 @@ mod assets;
 #[cfg(feature = "project-filesystem")]
 mod local_directory;
 mod model_document;
-#[cfg(feature = "project-filesystem")]
+mod source;
 mod standard;
 #[cfg(test)]
 mod tests;
@@ -36,6 +36,23 @@ pub use local_directory::ProjectUpdate;
 #[cfg(feature = "project-filesystem")]
 pub(crate) use local_directory::analyze_local_package_editor_project_v1;
 pub use model_document::PackagedModelDocument;
+pub use source::{SourceCompilation, SourceCompilationError, SourceImportContext, compile_source};
+
+/// Exact package names embedded in this distribution.
+#[must_use]
+pub fn bundled_package_names() -> &'static [&'static str] {
+    standard::NAMES
+}
+
+/// Prepare the exact embedded release and its complete dependency closure.
+///
+/// # Errors
+/// Returns a typed catalog, source, or semantic verification failure.
+pub fn bundled_package_releases(
+    name: &str,
+) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
+    standard::closure(name)
+}
 
 pub(crate) fn analyze_editor_workspace(
     version: u64,
@@ -93,6 +110,8 @@ const AUTHORING_NAMESPACE_DOMAIN_V1: &str = "eqiora.package-authoring.v1";
 /// Failure while preparing exact package releases from admitted author sources.
 #[derive(Debug)]
 pub enum PackagePreparationError {
+    /// An embedded package name or release differs from the distribution catalog.
+    BundledCatalog(String),
     /// Exact dependency resolution or in-memory replay failed.
     Resolution(ResolutionError),
     /// A closed package contract could not be constructed.
@@ -161,6 +180,7 @@ pub enum PackagePreparationError {
 impl std::fmt::Display for PackagePreparationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::BundledCatalog(message) => formatter.write_str(message),
             Self::Resolution(error) => {
                 write!(
                     formatter,
@@ -238,7 +258,8 @@ impl std::error::Error for PackagePreparationError {
             Self::DirectoryPreparation { source, .. } => Some(source),
             #[cfg(feature = "project-filesystem")]
             Self::Installation { source, .. } => Some(source),
-            Self::Diagnostics(_)
+            Self::BundledCatalog(_)
+            | Self::Diagnostics(_)
             | Self::DuplicateDependency(_)
             | Self::MissingDependency { .. }
             | Self::SemanticContentMismatch { .. } => None,

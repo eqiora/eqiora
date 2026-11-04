@@ -130,15 +130,18 @@ pub(super) fn resolve(
     drop(model_ref);
     let native = ResolvedCommonPlan::Eigen(Box::new(native));
     let (requested_solve, solve) = solve_handles_from_native(py, &native)?;
-    Ok(PyPlan {
+    let source_model = model.clone_ref(py);
+    PyPlan {
         native,
         model,
+        source_model: None,
         mesh: None,
         spatial: None,
         requested_solve,
         solve,
         temporal: None,
-    })
+    }
+    .with_source_model(py, source_model)
 }
 
 /// One exact source equality `target = mapping * coordinate`.

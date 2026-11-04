@@ -4,6 +4,45 @@ Use the environment from [Get started](/get-started/). The sections below show
 how to declare a model, connect its geometry, and select numerical methods. For
 a mathematical introduction, choose a subject in [Learn](/learn/).
 
+## Import equations from bundled packages
+
+This workflow requires a [development build](/get-started/#development-build).
+The published `0.1.5` package uses the existing `compile_package` workflow.
+
+Text and file compilation resolve declared imports from the exact packages
+embedded in that development build. No manifest, package store,
+network access, or temporary project is needed:
+
+```python
+model = eqiora.compile(path="voltage-divider.eqi")
+```
+
+The file can import components, for example
+`import Eqiora.Electrical.Basic.basic as electrical;`. Use `entry=`,
+`geometry=`, and `bindings=` as usual when selecting a Component or binding
+its static inputs. An omitted entry requires exactly one Model in your source;
+Models from dependencies are never selected implicitly.
+
+Unknown packages and missing modules are errors. Compilation includes only
+declared packages and their exact dependencies. Changing the installed bundled
+release can change the package compilation identity. For reproducibility across
+distributions, use [`compile_package`](api.md#api-eqiora-compile_package) with
+your explicit store and resolution; it never substitutes a bundled release.
+
+The live Model, Plan, and Run retain the package compilation identity. For
+harmonic response, `plan.model` is the derived Model;
+`plan.package_compilation_digest` refers to the original source Model. Bare
+Model and Plan byte exports preserve their canonical meaning and identity but
+do not include package sidecars. Recompile the explicit locked package graph
+to restore that context after reopening.
+
+Set `import_context="closed"` to disable implicit bundled imports for text or
+file compilation. Python `Module` graphs always use their explicit dependency
+context. Rust callers use `eqiora::package::compile_source` and retain its
+`SourceCompilation::Packaged` result to keep package provenance. The CLI
+`eqiora check FILE` uses the same bundled import policy. The versioned
+compile/check control protocol still accepts closed source only.
+
 ## Native declarations
 
 Define fields, parameters, initial conditions, and equations in Python, then
