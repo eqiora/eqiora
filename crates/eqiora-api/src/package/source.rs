@@ -33,15 +33,15 @@ pub enum SourceImportContext {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceCompilation {
     /// A source compiled without implicit package inclusion.
-    Local(ModelDocument),
+    Local(Box<ModelDocument>),
     /// A source compiled with a verified exact embedded dependency graph.
-    Packaged(PackagedModelDocument),
+    Packaged(Box<PackagedModelDocument>),
 }
 
 impl SourceCompilation {
     /// The admitted model, without discarding the containing result's sidecars.
     #[must_use]
-    pub const fn model(&self) -> &ModelDocument {
+    pub fn model(&self) -> &ModelDocument {
         match self {
             Self::Local(model) => model,
             Self::Packaged(packaged) => packaged.model(),
@@ -132,10 +132,14 @@ pub fn compile_source(
     if context == SourceImportContext::Closed {
         return compile_local(filename, source, entry, bindings);
     }
-    let document = eqiora_lang::parse(filename, source).into_document()?;
-    if document.imports().len() == 0 {
+    let parsed = eqiora_lang::parse(filename, source);
+    if parsed
+        .document()
+        .is_none_or(|document| document.imports().len() == 0)
+    {
         return compile_local(filename, source, entry, bindings);
     }
+    let document = parsed.into_document()?;
     let selected = match entry {
         Some(entry) => entry,
         None => match document.models() {
@@ -177,14 +181,14 @@ pub fn compile_source(
                     PackageDependencyV1::new(identity.clone()),
                 );
             }
-            if let Some(previous) = dependencies.insert(identity.name.clone(), release.clone()) {
-                if previous != release {
-                    return Err(PackagePreparationError::BundledCatalog(format!(
-                        "embedded closures disagree on exact package `{}`",
-                        identity.name
-                    ))
-                    .into());
-                }
+            if let Some(previous) = dependencies.insert(identity.name.clone(), release.clone())
+                && previous != release
+            {
+                return Err(PackagePreparationError::BundledCatalog(format!(
+                    "embedded closures disagree on exact package `{}`",
+                    identity.name
+                ))
+                .into());
             }
         }
     }
@@ -232,7 +236,7 @@ pub fn compile_source(
             .map_err(|error| PackagePreparationError::Resolution(error.into()))?;
     }
     PackagedModelDocument::compile_selected(&store, &resolution, selected, bindings)
-        .map(SourceCompilation::Packaged)
+        .map(|packaged| SourceCompilation::Packaged(Box::new(packaged)))
         .map_err(|error| display_error(error.into(), &exact_label, filename))
 }
 
@@ -278,7 +282,7 @@ fn compile_local(
             "static bindings require an explicit entry",
         )]),
     }
-    .map(SourceCompilation::Local)
+    .map(|model| SourceCompilation::Local(Box::new(model)))
     .map_err(Into::into)
 }
 
@@ -362,7 +366,7 @@ mod tests {
         }
         let explicit =
             PackagedModelDocument::compile_locked(&store, &record, "VoltageDivider").unwrap();
-        assert_eq!(actual, explicit);
+        assert_eq!(*actual, explicit);
         actual.compilation().validate_against(&record).unwrap();
 
         // Locked compilation cannot replace absent or altered bytes with the embedded catalog.
@@ -385,7 +389,7 @@ mod tests {
         let local = ModelDocument::compile("display.eqi", source).unwrap();
         assert_eq!(
             compile(source).unwrap(),
-            SourceCompilation::Local(local.clone())
+            SourceCompilation::Local(Box::new(local.clone()))
         );
         assert_eq!(
             compile_source(
@@ -396,8 +400,18 @@ mod tests {
                 SourceImportContext::Closed
             )
             .unwrap(),
-            SourceCompilation::Local(local)
+            SourceCompilation::Local(Box::new(local))
         );
+        for source in [
+            "",
+            "// comments only",
+            "model Main( {",
+            "component Library() {}",
+        ] {
+            let original = ModelDocument::compile("display.eqi", source).unwrap_err();
+            let dispatched = compile(source).unwrap_err();
+            assert_eq!(dispatched.diagnostics(), Some(original.as_slice()));
+        }
         let closed = compile_source(
             "display.eqi",
             CIRCUIT,
@@ -479,6 +493,27 @@ public component Flow(support body: volume(ambient_dimension = 2), parameter vis
                 StaticBindingValue::Expression(parameter.value()),
             ),
         ];
+        let private = source.replacen("public component", "component", 1);
+        let private_error = compile_source(
+            "private-display.eqi",
+            &private,
+            Some("Flow"),
+            &bindings,
+            SourceImportContext::Bundled,
+        )
+        .unwrap_err();
+        assert!(
+            private_error
+                .diagnostics()
+                .unwrap()
+                .iter()
+                .any(
+                    |diagnostic| diagnostic.message().contains("must be declared public")
+                        && diagnostic
+                            .source_span()
+                            .is_some_and(|span| span.file == "private-display.eqi")
+                )
+        );
         let SourceCompilation::Packaged(compiled) = compile_source(
             "display.eqi",
             source,

@@ -140,13 +140,13 @@ fn compile(
             })?;
         match (compiled, geometry) {
             (SourceCompilation::Local(document), Some(geometry)) => {
-                PyModel::from_document_with_geometry(py, document, geometry)
+                PyModel::from_document_with_geometry(py, *document, geometry)
             }
-            (SourceCompilation::Local(document), None) => PyModel::from_document(py, document),
+            (SourceCompilation::Local(document), None) => PyModel::from_document(py, *document),
             (SourceCompilation::Packaged(packaged), Some(geometry)) => {
-                PyModel::from_packaged_with_geometry(py, packaged, geometry)
+                PyModel::from_packaged_with_geometry(py, *packaged, geometry)
             }
-            (SourceCompilation::Packaged(packaged), None) => PyModel::from_packaged(py, packaged),
+            (SourceCompilation::Packaged(packaged), None) => PyModel::from_packaged(py, *packaged),
         }
     })
 }

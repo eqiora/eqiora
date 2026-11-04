@@ -373,6 +373,8 @@ def compile(
     """
 
     if isinstance(source, Module):
+        if import_context not in ("bundled", "closed"):
+            raise ValueError("import_context must be `bundled` or `closed`")
         if path is not None or filename is not None:
             raise TypeError("a Module owns its logical paths; path/filename are text-only")
         return _compile_module((source._package, source._name), source._units(),
