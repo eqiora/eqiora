@@ -130,7 +130,11 @@ fn imported_poisson_defaults_and_override_converge_to_the_sine_solution() {
         let document = compile(&poisson(override_coefficient));
         let mut errors = Vec::new();
         for cells in [4, 8, 16, 32] {
-            let solution = solve(&document, cells);
+            let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) =
+                solve(&document, cells)
+            else {
+                panic!("expected Q1 FEM");
+            };
             let source = solution.integrated_source();
             let reaction = solution.boundary_reaction_sum();
             assert!((reaction + source).abs() / (reaction.abs() + source.abs()) <= 2e-11);
@@ -154,9 +158,17 @@ fn imported_poisson_defaults_and_override_converge_to_the_sine_solution() {
 fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
     for (flux, slope) in [("2[1/m]", 1.0), ("-2[1/m]", -1.0)] {
         let document = compile(&laplace(flux));
-        let solution = solve(&document, 8);
-        // Linear u=+/-x/m lies in Q1 exactly. Reuse the independent Q1 nodal
-        // residual-to-error budget documented by scalar_coefficient_division.
+        let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) = solve(&document, 8)
+        else {
+            panic!("expected Q1 FEM");
+        };
+        // Linear u=+/-x/m lies in Q1 exactly. On this unit-square grid the
+        // nonnegative barrier x*(2-x)/(2*c) has zero left value and zero
+        // right normal derivative. The Q1 stencil and minimum nodal mass
+        // h^2/4 bound ||K_ff^-1||_inf by 2*N^2/c. Here c=2, N=8, and
+        // ||b||_2 <= 2, so the requested residual gives <= 1.28e-10
+        // nodal error in exact arithmetic. 2e-9 allows assembly/solve
+        // rounding beyond that bound; it is not an observed-output budget.
         let error = solution
             .field()
             .l2_error(
@@ -203,15 +215,12 @@ fn flux_coefficient_must_match_the_volume_constitutive_law() {
 fn solve(
     document: &PackagedModelDocument,
     cells: usize,
-) -> eqiora_numerics::scalar::ScalarEllipticCartesianFemSolution {
+) -> ResolvedScalarEllipticCartesianSolution {
     let program = document.model().program();
     let resolved = resolved(program, cells);
     let (_, solution) =
         solve_resolved_scalar_elliptic_cartesian(program, &resolved, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
-    let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) = solution else {
-        panic!("expected Q1 FEM");
-    };
     solution
 }
 
