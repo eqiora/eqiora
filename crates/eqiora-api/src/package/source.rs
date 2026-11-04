@@ -129,6 +129,13 @@ pub fn compile_source(
     bindings: &[(&str, StaticBindingValue<'_>)],
     context: SourceImportContext,
 ) -> Result<SourceCompilation, SourceCompilationError> {
+    if entry.is_none() && !bindings.is_empty() {
+        return Err(vec![Diagnostic::error(
+            codes::LANGUAGE_LOWERING_ERROR,
+            "static bindings require an explicit entry",
+        )]
+        .into());
+    }
     if context == SourceImportContext::Closed {
         return compile_local(filename, source, entry, bindings);
     }
@@ -276,11 +283,7 @@ fn compile_local(
 ) -> Result<SourceCompilation, SourceCompilationError> {
     match entry {
         Some(entry) => ModelDocument::compile_selected(filename, source, entry, bindings),
-        None if bindings.is_empty() => ModelDocument::compile(filename, source),
-        None => Err(vec![Diagnostic::error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            "static bindings require an explicit entry",
-        )]),
+        None => ModelDocument::compile(filename, source),
     }
     .map(|model| SourceCompilation::Local(Box::new(model)))
     .map_err(Into::into)
@@ -421,6 +424,29 @@ mod tests {
         )
         .unwrap_err();
         assert!(closed.diagnostics().is_some());
+    }
+
+    #[test]
+    fn static_bindings_require_entry_under_every_import_policy() {
+        let expression = eqiora_lang::DraftExpression::constant(
+            eqiora_lang::DecimalLiteral::parse("1").unwrap(),
+        )
+        .source_ast(|_| None, |_| None)
+        .unwrap();
+        let bindings = [("value", StaticBindingValue::Expression(&expression))];
+        let mut expected = None;
+        for source in ["model Main() {}", CIRCUIT] {
+            for context in [SourceImportContext::Bundled, SourceImportContext::Closed] {
+                let error =
+                    compile_source("display.eqi", source, None, &bindings, context).unwrap_err();
+                let diagnostics = error.diagnostics().unwrap().to_vec();
+                if let Some(expected) = &expected {
+                    assert_eq!(&diagnostics, expected);
+                } else {
+                    expected = Some(diagnostics);
+                }
+            }
+        }
     }
 
     #[test]
