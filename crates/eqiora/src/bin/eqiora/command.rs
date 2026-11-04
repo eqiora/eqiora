@@ -461,11 +461,15 @@ pub(crate) trait CheckDocument {
 }
 
 impl CheckDocument for ModelDocument {
-    fn check_model(&self) -> &ModelDocument { self }
+    fn check_model(&self) -> &ModelDocument {
+        self
+    }
 }
 
 impl CheckDocument for eqiora::package::SourceCompilation {
-    fn check_model(&self) -> &ModelDocument { self.model() }
+    fn check_model(&self) -> &ModelDocument {
+        self.model()
+    }
 }
 
 pub(crate) fn contained_run<F, C>(

@@ -24,10 +24,16 @@ fn main() {
     let outcome = command::contained_run(
         command::process_args,
         |filename, source| {
-            compile_source(filename, source, None, &[], SourceImportContext::Bundled)
-                .map_err(|error| error.diagnostics().map(<[_]>::to_vec).unwrap_or_else(|| {
-                    vec![eqiora::Diagnostic::error(eqiora::diagnostic::codes::LANGUAGE_LOWERING_ERROR, error.to_string())]
-                }))
+            compile_source(filename, source, None, &[], SourceImportContext::Bundled).map_err(
+                |error| {
+                    error.diagnostics().map(<[_]>::to_vec).unwrap_or_else(|| {
+                        vec![eqiora::Diagnostic::error(
+                            eqiora::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
+                            error.to_string(),
+                        )]
+                    })
+                },
+            )
         },
         command::OraclePanicPoint::None,
     );

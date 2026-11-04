@@ -41,9 +41,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
 #[cfg(test)]
 use eqiora::api::ModelDocument;
+use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
 use pyo3::exceptions::{PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyModule, PyString};
@@ -99,7 +99,12 @@ fn compile(
         let context = match import_context {
             "bundled" => SourceImportContext::Bundled,
             "closed" => SourceImportContext::Closed,
-            _ => return Err(python_compile_admission_error(py, "import_context must be `bundled` or `closed`")),
+            _ => {
+                return Err(python_compile_admission_error(
+                    py,
+                    "import_context must be `bundled` or `closed`",
+                ));
+            }
         };
         let (filename, source) = admitted_compile_source(py, path, source, filename)?;
         validate_python_compile_input(py, &filename, &source)?;
@@ -125,15 +130,22 @@ fn compile(
             })
             .map_err(|error| match error.diagnostics() {
                 Some(diagnostics) => diagnostic_error(py, diagnostics),
-                None => diagnostic_error(py, &[eqiora::Diagnostic::error(
-                    eqiora::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
-                    error.to_string(),
-                )]),
+                None => diagnostic_error(
+                    py,
+                    &[eqiora::Diagnostic::error(
+                        eqiora::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
+                        error.to_string(),
+                    )],
+                ),
             })?;
         match (compiled, geometry) {
-            (SourceCompilation::Local(document), Some(geometry)) => PyModel::from_document_with_geometry(py, document, geometry),
+            (SourceCompilation::Local(document), Some(geometry)) => {
+                PyModel::from_document_with_geometry(py, document, geometry)
+            }
             (SourceCompilation::Local(document), None) => PyModel::from_document(py, document),
-            (SourceCompilation::Packaged(packaged), Some(geometry)) => PyModel::from_packaged_with_geometry(py, packaged, geometry),
+            (SourceCompilation::Packaged(packaged), Some(geometry)) => {
+                PyModel::from_packaged_with_geometry(py, packaged, geometry)
+            }
             (SourceCompilation::Packaged(packaged), None) => PyModel::from_packaged(py, packaged),
         }
     })
@@ -269,9 +281,9 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
+    use eqiora::api::ModelDocument;
     use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
-#[cfg(test)]
-use eqiora::api::ModelDocument;
 
     use super::python_distribution_version;
 

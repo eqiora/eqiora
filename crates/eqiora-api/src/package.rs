@@ -48,7 +48,9 @@ pub fn bundled_package_names() -> &'static [&'static str] {
 ///
 /// # Errors
 /// Returns a typed catalog, source, or semantic verification failure.
-pub fn bundled_package_releases(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
+pub fn bundled_package_releases(
+    name: &str,
+) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
     standard::closure(name)
 }
 

@@ -138,7 +138,7 @@ mod full {
         let joined = sources.join("\n");
         let forbidden = ["compiler::compile", "eqiora::control", "eqiora_control", "control::", "eqiora::python", "eqiora_python", "python::", "studio::", "eqiora::artifact", "eqiora_artifact", "artifact::", "serde", "json"];
         sources[0].matches("command::contained_run(").count() == 1
-            && joined.matches("ModelDocument::compile").count() == 1
+            && joined.matches("compile_source(").count() == 1
             && forbidden.iter().all(|authority| !joined.contains(authority))
             && sources.iter().all(|source| !source.lines().any(|line| line.trim_start().starts_with("pub ")))
     }
@@ -146,16 +146,42 @@ mod full {
     #[rustfmt::skip]
     #[test]
     fn compact_cli_architecture_facts_and_selftest_are_focused() {
-        let _operation: fn(&str, &str) -> Result<ModelDocument, Vec<Diagnostic>> = ModelDocument::compile;
+        let _operation = eqiora::package::compile_source;
         let root = repository_root();
         let contract = expected();
         let paths = contract["productionPaths"].as_array().unwrap().iter().map(|path| path.as_str().unwrap()).collect::<Vec<_>>();
         assert_eq!(paths, CLI_PATHS);
         let sources: [String; 3] = CLI_PATHS.map(|path| fs::read_to_string(root.join(path)).unwrap());
         assert!(compact_cli_architecture(&sources));
-        let mut second = sources.clone(); second[1].push_str("\nfn extra(){let _=ModelDocument::compile;}\n"); assert!(!compact_cli_architecture(&second));
-        let mut lower = sources.clone(); lower[0] = lower[0].replace("ModelDocument::compile", "eqiora::compiler::compile"); assert!(!compact_cli_architecture(&lower));
+        let mut second = sources.clone(); second[1].push_str("\nfn extra(){let _=compile_source();}\n"); assert!(!compact_cli_architecture(&second));
+        let mut lower = sources.clone(); lower[0] = lower[0].replace("compile_source(", "eqiora::compiler::compile("); assert!(!compact_cli_architecture(&lower));
         let mut public = sources; public[2].push_str("\npub fn widened() {}\n"); assert!(!compact_cli_architecture(&public));
+    }
+
+    #[test]
+    fn bundled_source_check_uses_the_shared_exact_compilation() {
+        let scratch = Scratch::new("bundled-source");
+        let source = include_str!("../../../examples/voltage-divider/src/main.eqi");
+        let path = scratch.path.join("divider.eqi");
+        fs::write(&path, source).unwrap();
+        let compiled = eqiora::package::compile_source(
+            "display.eqi",
+            source,
+            None,
+            &[],
+            eqiora::package::SourceImportContext::Bundled,
+        )
+        .unwrap();
+        let expected = format!(
+            "accepted {}\n",
+            compiled.model().structural_fingerprint().unwrap()
+        );
+        assert_output(
+            &run([OsStr::new("check"), path.as_os_str()], &scratch.path),
+            0,
+            expected.as_bytes(),
+            b"",
+        );
     }
 
     #[test]

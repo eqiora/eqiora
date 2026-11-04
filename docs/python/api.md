@@ -2793,10 +2793,13 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 ### `eqiora.compile`
 
-Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
+Compile source or a file with embedded package imports, or an explicit Module graph.
+
+Set import_context="closed" to disable implicit packages for text or files.
+Module graphs always use their explicitly supplied dependencies.
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None, import_context: Literal['bundled', 'closed']='bundled') -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>

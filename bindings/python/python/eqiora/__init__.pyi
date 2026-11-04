@@ -2584,7 +2584,10 @@ def compile(
     entry: str | None = None,
     import_context: Literal["bundled", "closed"] = "bundled",
 ) -> Model:
-    """Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
+    """Compile source or a file with embedded package imports, or an explicit Module graph.
+
+    Set import_context="closed" to disable implicit packages for text or files.
+    Module graphs always use their explicitly supplied dependencies.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::compile``.
     """
