@@ -612,7 +612,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         .elasticity_proof()
         .expect("constitutive proof");
     let displacement = continuum.displacement().downcast().unwrap();
-    let load_potential = continuum.load_potential().downcast().unwrap();
+    let load_potential = continuum.load_potential().unwrap().downcast().unwrap();
     let expected = AlgebraicStructure::new([displacement], []).unwrap();
     plan.admission
         .linear

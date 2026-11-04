@@ -34,6 +34,29 @@ const BASE_SOURCE: &str =
 const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 #[test]
+fn unforced_ale_fsi_finalizes_and_accepts_the_homogeneous_trajectory() {
+    let source = crate::canonical_fsi::tests::without_loads(&ale_source());
+    let fixture = Fixture::from_source(&source);
+    assert_eq!(fixture.model.fluid().force_potential(), None);
+    assert_eq!(fixture.model.solid().continuum().load_potential(), None);
+    let trajectory = fixture
+        .finalize(fixture.initial())
+        .unwrap()
+        .solve(
+            NonZeroStepCount::new(NonZeroUsize::new(2).unwrap()),
+            &NoSolveGeneralBackend,
+        )
+        .unwrap();
+    assert_eq!(trajectory.states().len(), 3);
+    assert!(
+        trajectory
+            .steps()
+            .iter()
+            .all(|step| step.nonlinear_iterations() == 0)
+    );
+}
+
+#[test]
 fn exact_resolved_plan_finalizes_and_accepts_a_trajectory() {
     let fixture = Fixture::new();
     let finalized = fixture.finalize(fixture.initial()).unwrap();

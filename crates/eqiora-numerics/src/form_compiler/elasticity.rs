@@ -751,7 +751,10 @@ fn exact_load_parameter(
     program: &KernelProgram,
     model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
 ) -> Result<(Id<kinds::Parameter>, f64), Diagnostic> {
-    let typed = typed_relation(program, model.load_definition_relation())?;
+    let definition = model.load_definition_relation().ok_or_else(|| {
+        tape_error("the frozen elasticity derivative class requires an explicit affine load")
+    })?;
+    let typed = typed_relation(program, definition)?;
     let expression = typed.expression();
     let [root] = expression.roots() else {
         return Err(tape_error("load definition must have one typed root"));
@@ -775,7 +778,7 @@ fn exact_load_parameter(
             "load definition has no exact Parameter identity",
         ));
     };
-    if load.erase() != model.load_potential()
+    if Some(load.erase()) != model.load_potential()
         || !matches!(
             expression.node(*coordinate),
             Some(ExprNode::Symbol(SymbolRef::Coordinate { axis: 0, .. }))

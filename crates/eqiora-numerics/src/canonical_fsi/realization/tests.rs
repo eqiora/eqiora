@@ -35,6 +35,54 @@ const SOURCE: &str =
     include_str!("../../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
 
 #[test]
+fn unforced_fixed_reference_solve_matches_the_legacy_zero_load() {
+    let solve = |source: &str| {
+        let fixture = Fixture::new(source);
+        let plan = fixed_reference_fsi_plan_2d(
+            &fixture.model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            reference_solver(),
+        )
+        .unwrap();
+        let finalized = finalize_resolved_fixed_reference_fsi_step_2d(
+            &fixture.model,
+            &fixture.resolve(plan),
+            mesh_reference(),
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.previous,
+        )
+        .unwrap();
+        let solution = finalized.solve(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let fluid = fixture.model.fluids().next().unwrap();
+        let solid = fixture.model.solids().next().unwrap();
+        [
+            fluid.velocity(),
+            fluid.pressure(),
+            solid.velocity(),
+            solid.continuum().displacement(),
+        ]
+        .into_iter()
+        .flat_map(|field| {
+            solution.state().fields[&field]
+                .coefficients
+                .values()
+                .copied()
+        })
+        .collect::<Vec<_>>()
+    };
+    let direct = solve(&crate::canonical_fsi::tests::without_loads(SOURCE));
+    let legacy = solve(SOURCE);
+    assert_eq!(direct.len(), legacy.len());
+    // Both encode the identical zero-load equations and the same nonzero initial state.
+    for (direct, legacy) in direct.into_iter().zip(legacy) {
+        assert!((direct - legacy).abs() < 1e-10);
+    }
+}
+
+#[test]
 fn requirements_keep_semantics_while_vector_layout_is_explicit() {
     let program = compile_program(SOURCE);
     let model = super::super::lower_fixed_reference_fsi_cartesian_2d(&program)

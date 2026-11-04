@@ -352,8 +352,8 @@ fn require_closed_fsi_model_parts<const D: usize>(
     let mut fields = BTreeSet::from([
         solid.model.continuum().displacement(),
         solid.model.velocity(),
-        solid.model.continuum().load_potential(),
     ]);
+    fields.extend(solid.model.continuum().load_potential());
     fields.extend(fluid_fields);
     let representations = BTreeSet::from([fluid_representation, solid.representation]);
     let mut relations = fluid_volume_relations
