@@ -92,7 +92,16 @@ expressions require a supported exact normal.
 
 ## Compile either package example
 
-Save the desired model as `model.eqi`, then create its local project:
+Save either model as `model.eqi` and compile it with the bundled imports:
+
+```python
+import eqiora
+
+model = eqiora.compile(path="model.eqi")
+```
+
+To keep an explicit package project for vendoring and offline reopening, create
+its manifest and install the bundled dependency:
 
 ```python
 from pathlib import Path

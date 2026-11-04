@@ -99,6 +99,10 @@ def test_current_reference_examples_and_displayed_python(tmp_path, monkeypatch):
             assert namespace["measurement"] == model.observable("measured_current")
             assert namespace["measurement"].model_digest == model.digest
         elif relative == "standard-packages/continuum.mdx":
+            assert len(models) == 2
+            for compiled in models:
+                assert compiled.package_compilation_digest is not None
+                assert compiled.field_ids == [compiled.field("displacement").id]
             assert model.field("displacement").id in model.field_ids
             assert model.field_ids == [model.field("displacement").id]
             names = {
