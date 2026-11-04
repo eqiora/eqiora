@@ -138,6 +138,12 @@ fn vector_boundary_expression_uses_the_same_typed_contract() {
         "value=speed*tensor_value(frame=body,components=[1,0])",
         "value=speed",
     ));
+    // Matching units and width do not turn an invariant channels array into
+    // a spatial Cartesian vector.
+    rejected(&source.replace(
+        "value=speed*tensor_value(frame=body,components=[1,0])",
+        "value=[speed,0[m/s]]",
+    ));
     rejected(&source.replace(
         "value=speed*tensor_value(frame=body,components=[1,0])",
         "value=speed*tensor_value(frame=body,components=[1,0,0])",
