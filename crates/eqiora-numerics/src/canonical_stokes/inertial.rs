@@ -288,6 +288,7 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
         )?,
         None => boundary::lower(program, domain, velocity, pressure, &dynamic_viscosity)?,
     };
+    boundary::require_normal_velocity_subset(lowered_boundary.prescribed_velocity_traces.values())?;
     let model = InertialIncompressibleNewtonianCartesianModel2d {
         domain,
         velocity,

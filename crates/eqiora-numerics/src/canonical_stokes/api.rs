@@ -241,7 +241,7 @@ impl SteadyIncompressibleStokesModel2d {
         self.prescribed_velocity_traces
             .values()
             .filter_map(|trace| match trace {
-                SteadyStokesPrescribedVelocityTrace2d::Normal { carrier, .. } => *carrier,
+                SteadyStokesPrescribedVelocityTrace2d::Datum { carrier, .. } => *carrier,
                 _ => None,
             })
     }
@@ -251,7 +251,7 @@ impl SteadyIncompressibleStokesModel2d {
         self.prescribed_velocity_traces
             .values()
             .filter_map(|trace| match trace {
-                SteadyStokesPrescribedVelocityTrace2d::Normal { parameters, .. } => {
+                SteadyStokesPrescribedVelocityTrace2d::Datum { parameters, .. } => {
                     Some(parameters.as_slice())
                 }
                 _ => None,
@@ -275,15 +275,6 @@ impl SteadyIncompressibleStokesModel2d {
             return Ok(None);
         };
         trace.value(outward_normal, coordinates).map(Some)
-    }
-
-    pub(super) fn prescribed_normal_velocity(
-        &self,
-        key: &PhysicalBoundarySupport,
-        outward_normal: [f64; 2],
-        coordinates: &[f64],
-    ) -> Result<Option<[f64; 2]>, eqiora_core::Diagnostic> {
-        self.prescribed_velocity(key, Some(outward_normal), coordinates)
     }
 
     pub(super) const fn geometry_source_digest(&self) -> Option<[u8; 32]> {

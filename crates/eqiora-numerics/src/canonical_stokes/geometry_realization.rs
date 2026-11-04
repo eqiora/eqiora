@@ -590,9 +590,11 @@ fn geometry_boundary(
         if !essential {
             continue;
         }
-        let outward = match entry.disposition() {
-            PhysicalBoundaryDisposition::TraceZero => None,
-            PhysicalBoundaryDisposition::Prescribed(_) => Some(
+        let outward = if model
+            .prescribed_velocity_trace(key)
+            .is_some_and(|trace| trace.requires_normal())
+        {
+            Some(
                 binding
                     .geometry
                     .source
@@ -602,8 +604,9 @@ fn geometry_boundary(
                             "prescribed normal velocity on `{name}` has no exact fixed-side normal"
                         ))
                     })?,
-            ),
-            _ => unreachable!("essential predicate is exact"),
+            )
+        } else {
+            None
         };
         for facet in facets {
             for vertex in physical
@@ -612,12 +615,15 @@ fn geometry_boundary(
             {
                 let index = vertex.index();
                 let coordinate = &physical.vertices()[index];
-                let value = if let Some(outward) = outward {
+                let value = if matches!(
+                    entry.disposition(),
+                    PhysicalBoundaryDisposition::Prescribed(_)
+                ) {
                     model
-                        .prescribed_normal_velocity(key, outward, coordinate)?
+                        .prescribed_velocity(key, outward, coordinate)?
                         .ok_or_else(|| {
                             invalid(format!(
-                                "prescribed normal velocity on `{name}` has no retained expression"
+                                "prescribed velocity on `{name}` has no retained expression"
                             ))
                         })?
                         .map(|component| component / scales.velocity_value())
