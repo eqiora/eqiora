@@ -184,7 +184,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes cmake libopenmpi-dev openmpi-bin libclang-dev libffi-dev libglu1-mesa
           mpirun --version
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: needs.changes.outputs.rust == 'true'
         with:
           python-version: "3.12"
@@ -229,15 +229,29 @@ jobs:
           cache-all-crates: false
           cache-on-failure: false
           save-if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.changes.outputs.target_sha == github.sha }}
-      - name: Preserve non-test incremental compilation
+      - name: Keep Stable builds non-incremental
         if: needs.changes.outputs.rust == 'true'
-        run: echo 'CARGO_INCREMENTAL=1' >> "$GITHUB_ENV"
+        run: echo 'CARGO_INCREMENTAL=0' >> "$GITHUB_ENV"
+      - name: Record disk use before Clippy
+        if: needs.changes.outputs.rust == 'true'
+        run: |
+          df -B1 --output=avail .
+          if [ -d target ]; then
+            du -s --block-size=1 target
+          fi
       - name: Formatting
         if: needs.changes.outputs.rust == 'true'
         run: cargo +stable fmt --all -- --check
       - name: Clippy
         if: needs.changes.outputs.rust == 'true'
         run: python tools/ci/rust_quality.py clippy
+      - name: Record disk use after Clippy
+        if: always() && needs.changes.outputs.rust == 'true'
+        run: |
+          df -B1 --output=avail .
+          if [ -d target ]; then
+            du -s --block-size=1 target
+          fi
       - name: Tests
         if: needs.changes.outputs.rust == 'true'
         env:
@@ -249,6 +263,13 @@ jobs:
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
           TMPDIR: ${{ runner.temp }}
         run: python tools/ci/rust_quality.py test
+      - name: Record disk use after Tests
+        if: always() && needs.changes.outputs.rust == 'true'
+        run: |
+          df -B1 --output=avail .
+          if [ -d target ]; then
+            du -s --block-size=1 target
+          fi
       - name: Residual-native IDA tests
         if: needs.changes.outputs.rust == 'true'
         env:
@@ -285,6 +306,14 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: python tools/ci/rust_quality.py doc
+
+      - name: Record disk use after Documentation
+        if: always() && needs.changes.outputs.rust == 'true'
+        run: |
+          df -B1 --output=avail .
+          if [ -d target ]; then
+            du -s --block-size=1 target
+          fi
 
       - name: Retain Cargo build timings
         if: needs.changes.outputs.rust == 'true'
@@ -436,7 +465,7 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: needs.changes.outputs.python == 'true'
         with:
           python-version: ${{ matrix.python }}
