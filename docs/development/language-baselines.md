@@ -127,7 +127,7 @@ References:
   Immutable Result storage is zero-copy only through the enforced read-only
   NumPy path; DLPack exports are independent snapshots until consumer
   mutability can be guaranteed.
-- The first PyTorch adapter baseline, checked 2026-07-23, is
+- The current PyTorch adapter baseline, checked 2026-11-04, is
   `torch>=2.15,<2.16`, with 2.15.0 tested exactly from an installed wheel.
   It uses `torch.library.custom_op`, `register_fake`, and `register_autograd`;
   backward calls a separate Eqiora VJP custom operator. PyTorch remains an
