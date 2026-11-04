@@ -2,10 +2,13 @@
 
 This case exercises the private PyO3 module as an in-process Python client and
 then crosses back through the public Rust facade. Python keeps the exact
-`compile(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)` call shape, performs its bounded
-filename/source admission locally, releases the GIL, and invokes the existing
-`ModelDocument::compile` operation exactly once without importing or
-constructing a control DTO. A source-compiled current `Model` must replay
+`compile(*, path=None, source=None, filename=None, geometry=None, bindings=None,
+entry=None, import_context="bundled")` call shape, performs its bounded
+filename/source admission locally, releases the GIL, and invokes the shared
+`package::compile_source` operation exactly once without importing or
+constructing a control DTO. These fixtures have no imports, so that dispatcher
+uses the existing closed `ModelDocument::compile` operation; the versioned
+control adapter also keeps its explicit closed context. A source-compiled current `Model` must replay
 exactly through the one current owner: canonical bytes, artifact digest, typed
 Model ID, and revision identity are preserved rather than recreated by Python.
 
@@ -19,7 +22,7 @@ declaration paired with the runtime signature.
 Admission evidence fixes the 4,096-byte filename and 8,388,608-byte source
 boundaries, including Unicode scalar-count limits, exact failure messages, and
 the one-diagnostic `ValidationError` projection. Exact at-bound witnesses must
-reach `ModelDocument::compile`; exact over-bound witnesses must fail before
+reach the shared source compiler; exact over-bound witnesses must fail before
 compilation. Control diagnostic-count, diagnostic-member, encoded-response,
 and overflow-substitution policies are deliberately not copied into Python.
 

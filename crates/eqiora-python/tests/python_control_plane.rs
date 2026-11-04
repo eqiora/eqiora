@@ -79,7 +79,7 @@ fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()
             .call1((module.getattr("compile")?,))?;
         assert_eq!(
             signature.str()?.to_str()?,
-            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)"
+            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None, import_context='bundled')"
         );
         Ok(())
     })
@@ -127,19 +127,36 @@ fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
             "geometry".to_owned(),
             "bindings".to_owned(),
             "entry".to_owned(),
+            "import_context".to_owned(),
         ]
     );
     assert!(arguments.getattr("vararg")?.is_none());
     assert!(arguments.getattr("kwarg")?.is_none());
 
     let defaults = arguments.getattr("kw_defaults")?;
-    assert_eq!(defaults.len()?, 6);
+    assert_eq!(defaults.len()?, 7);
     for index in 0..6 {
         assert!(
             ast.call_method1("literal_eval", (defaults.get_item(index)?,))?
                 .is_none()
         );
     }
+    assert_eq!(
+        ast.call_method1("literal_eval", (defaults.get_item(6)?,))?
+            .extract::<String>()?,
+        "bundled"
+    );
+    assert_eq!(
+        ast.call_method1(
+            "unparse",
+            (arguments
+                .getattr("kwonlyargs")?
+                .get_item(6)?
+                .getattr("annotation")?,)
+        )?
+        .extract::<String>()?,
+        "Literal['bundled', 'closed']"
+    );
     assert_eq!(
         ast.call_method1("unparse", (declaration.getattr("returns")?,))?
             .extract::<String>()?,
