@@ -553,6 +553,35 @@ jobs:
             },
         })
 
+    def test_stable_disables_incremental_and_observes_phase_disk_use(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text()
+        quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
+            "\n  msrv:", maxsplit=1
+        )[0]
+        non_incremental = quality.index("- name: Keep Stable builds non-incremental")
+        self.assertLess(quality.index("- name: Restore Stable dependencies"), non_incremental)
+        self.assertLess(non_incremental, quality.index("- name: Clippy\n"))
+        self.assertIn("echo 'CARGO_INCREMENTAL=0' >> \"$GITHUB_ENV\"", quality)
+        self.assertNotIn("CARGO_INCREMENTAL=1", quality)
+        phases = (
+            ("before Clippy", "Restore Stable dependencies", "Clippy"),
+            ("after Clippy", "Clippy", "Tests"),
+            ("after Tests", "Tests", "Residual-native IDA tests"),
+            ("after Documentation", "Documentation", "Retain Cargo build timings"),
+        )
+        for label, before, after in phases:
+            with self.subTest(label=label):
+                marker = f"- name: Record disk use {label}\n"
+                self.assertLess(quality.index(f"- name: {before}\n"), quality.index(marker))
+                self.assertLess(quality.index(marker), quality.index(f"- name: {after}\n"))
+                step = quality.split(marker, maxsplit=1)[1].split("      - ", maxsplit=1)[0]
+                condition = "needs.changes.outputs.rust == 'true'"
+                if label != "before Clippy":
+                    condition = "always() && " + condition
+                self.assertIn(f"if: {condition}\n", step)
+                self.assertIn("df -B1 --output=avail .", step)
+                self.assertIn("if [ -d target ]; then\n            du -s --block-size=1 target\n          fi", step)
+
     def test_quality_workspace_tests_use_step_scoped_runner_temp(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
@@ -569,7 +598,7 @@ jobs:
         steps = (
             (
                 "      - name: Tests\n",
-                "      - name: Residual-native IDA tests\n",
+                "      - name: Record disk use after Tests\n",
                 ("needs.changes.outputs.rust == 'true'",),
                 "python tools/ci/rust_quality.py test",
             ),
@@ -911,7 +940,7 @@ class PythonPackageGateTests(unittest.TestCase):
         command = torch_uv_gate_command("uv", "/usr/bin/python3")
 
         self.assertEqual(command[command.index("--extra") + 1], "torch")
-        self.assertIn("torch==2.14.1", command)
+        self.assertIn("torch==2.15.0", command)
         self.assertTrue(command[-1].endswith("bindings/python/tests/test_torch.py"))
 
     def test_jax_gate_installs_the_exact_verified_environment(self) -> None:
@@ -1946,10 +1975,20 @@ class AggregateGateTests(unittest.TestCase):
                 for block in step_blocks:
                     if block is quick[0]:
                         continue
-                    self.assertIn(
-                        f"if: needs.changes.outputs.{selector} == 'true'",
-                        block,
-                    )
+                    disk_observations = {
+                        "Record disk use before Clippy",
+                        "Record disk use after Clippy",
+                        "Record disk use after Tests",
+                        "Record disk use after Documentation",
+                    }
+                    name = block.splitlines()[0].removeprefix("      - name: ")
+                    condition = f"needs.changes.outputs.{selector} == 'true'"
+                    if job == "quality" and name in disk_observations:
+                        if name != "Record disk use before Clippy":
+                            condition = "always() && " + condition
+                        self.assertIn(f"if: {condition}\n", block)
+                    else:
+                        self.assertIn(f"if: {condition}", block)
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:
         complete = {surface: "false" for surface in SURFACES}

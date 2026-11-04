@@ -47,7 +47,7 @@ quick-xml = { version = "=0.42.0", default-features = false }
 # pinned exactly and linked to its bundled HDF5 source so builds do not acquire
 # an ambient host-library ABI. No compression/plugin feature is enabled: the
 # admitted file-image profile rejects every filter pipeline before data reads.
-hdf5-metno = { version = "=0.14.1", default-features = false, features = ["static"] }
+hdf5-metno = { version = "=0.15.1", default-features = false, features = ["static"] }
 hdf5-metno-sys = { version = "=0.12.4", package = "hdf5-metno-sys", default-features = false, features = ["static"] }
 # Adaptive Shewchuk predicates decide only the topology of bounded 2D
 # common-refinement intersections. Keep the reviewed release exact: changing
@@ -76,7 +76,7 @@ diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra
 # existing physical CUDA and MPI-CUDA gates; the CUDA 12 binding ABI stays pinned.
 cudarc = { version = "=0.19.10", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 crossbeam-channel = "=0.5.17"
-libloading = "=0.8.9"
+libloading = "=0.9.0"
 lsp-server = "=0.10.0"
 lsp-types = "=0.97.0"
 # Rust parser for the `cargo xtask check-architecture` predicates, consumed
