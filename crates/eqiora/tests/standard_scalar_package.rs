@@ -113,13 +113,13 @@ fn poisson(override_coefficient: bool) -> String {
     )
 }
 fn laplace(flux: &str) -> String {
-    format!("model Main() {{ {DOMAINS}
+    format!("model Main() {{ {}
  instance equation: scalar.Laplace2d(body=body, potential=u, coefficient=2);
  {}
  instance right_flux: scalar.NormalFlux2d(body=body, face=right, potential=u, coefficient=2, flux={flux});
  instance bottom_flux: scalar.NormalFlux2d(body=body, face=bottom, potential=u, coefficient=2, flux=0[1/m]);
  instance top_flux: scalar.NormalFlux2d(body=body, face=top, potential=u, coefficient=2, flux=0[1/m]);
- }}", fixed("left", "0"))
+ }}", DOMAINS.replace("in h1", "in smooth"), fixed("left", "0"))
 }
 
 // Same independent manufactured solution, convergence floor and balance budget as
@@ -284,6 +284,7 @@ fn units_and_foreign_parent_bindings_reject_before_numerical_lowering() {
         poisson(false).replace("source=2*wave^2", "source=2[K]*wave^2"),
         poisson(false).replace("value=0", "value=1[K]"),
         laplace("2[K/m]"),
+        laplace("2[1/m]").replace("in smooth", "in h1"),
         laplace("2[1/m]").replace("variable u:", "domain foreign = box(0, 1, 0, 1); domain other = boundary(foreign, axis=0, side=upper); variable u:")
             .replace("face=right", "face=other"),
     ] {

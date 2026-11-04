@@ -33,7 +33,7 @@ public component FixedValue2d(
 public component NormalFlux2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable potential: 1 on body in h1,
+  variable potential: 1 on body in smooth,
   parameter coefficient: 1 = 1,
   expression flux: 1 / m on face
 ) {

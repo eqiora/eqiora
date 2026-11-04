@@ -20,6 +20,10 @@ same coefficient in the volume and flux components; incompatible constitutive
 fluxes reject during numerical lowering. Zero normal flux is supplied as
 `flux = 0[1/m]`, without a separate boundary component.
 
+The volume components and `FixedValue2d` require at least authored `h1`
+regularity. `NormalFlux2d` requires `smooth` for the normal gradient trace;
+binding an `h1` potential rejects rather than strengthening it silently.
+
 The caller owns the potential, domain, boundary selections and boundary
 coverage. The `2d` suffix states a required ambient dimension; this release
 does not infer it. Meshes, numerical methods, solvers and execution targets
