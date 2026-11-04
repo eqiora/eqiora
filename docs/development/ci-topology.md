@@ -215,10 +215,14 @@ does not establish optional native-backend or scientific claims.
   excludes workspace outputs, binaries, incremental data and reports. Compiler,
   runner/native environment and build-profile inputs isolate fallback keys;
   Cargo manifests, lockfiles and configuration determine dependency keys.
-  The action's incremental override is reset for non-test builds; tests retain
-  their existing non-incremental profile. Seed once through exact-main manual
+  Stable dev/Clippy builds and tests keep incremental compilation disabled; tests
+  retain their existing profile. Seed once through exact-main manual
   CI, then inspect an actual hosted restore and Cargo timings before claiming
   a speedup. No recurring main build exists solely to populate the cache.
+- Stable records filesystem free space and total Cargo target size before Clippy
+  and after Clippy, workspace tests and documentation. Post-phase observations run
+  after failures too. Use hosted measurements to assess disk pressure; disabling
+  dev incremental state has not yet been shown to prevent disk exhaustion.
 - The quality job retains Cargo's HTML build-timing reports for seven days,
   including per-crate compilation and scheduling. Use reports from the same
   hosted profile to investigate build cost before changing optimization or caches.
