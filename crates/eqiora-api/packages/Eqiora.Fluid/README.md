@@ -22,6 +22,6 @@ reject boundary data outside their supported profiles.
 
 The imported reference example uses concrete Cartesian domains. A complete
 exterior cannot yet be constructed from a Component's formal boundary arguments;
-Geometry-bound complete-exterior composition also remains unsupported. The
+Curved Geometry-bound complete-exterior composition also remains unsupported. The
 ordinary cylinder example keeps its handwritten form until that general support
 composition is available. This release does not infer ambient dimension.
