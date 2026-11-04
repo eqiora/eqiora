@@ -84,13 +84,12 @@ Read it from the inside out:
    dimensions are part of their declarations.
 2. `symmetric_part(grad(velocity))` is $\boldsymbol D$;
    `isotropic_lift(pressure)` is $p\boldsymbol I$.
-3. `force_potential` has pressure units. Its gradient supplies a volume force.
-   Here it is constant, so that force is zero. It is not the pressure unknown.
+3. There is no volume forcing term in this example.
 4. `trace` restricts a field to a boundary and `normal` contracts with the
    parent region's outward normal.
 5. At the left inlet $\boldsymbol n=(-1,0)$, so
-   `trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0`
-   prescribes a positive streamwise velocity. The plus sign is intentional.
+   `trace(velocity) = -normal_vector() * g` prescribes a positive
+   streamwise velocity for the parabolic speed $g(y)$.
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Open the complete source</ExactSourceLink>.
 The source names supports but does not define a circle or a mesh. The Python

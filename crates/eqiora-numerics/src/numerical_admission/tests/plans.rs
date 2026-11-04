@@ -840,8 +840,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     );
 
     let stokes_geometry = stokes_geometry();
-    let non_stokes_source =
-        STOKES_COMPONENT.replace("div(velocity) = 0;", "pressure - zero_pressure = 0;");
+    let non_stokes_source = STOKES_COMPONENT.replace("div(velocity) = 0;", "pressure = 0;");
     let non_stokes = stokes_model_from_source(&stokes_geometry, &non_stokes_source);
     let non_stokes_program = replay_program(&non_stokes, &stokes_geometry, &[]).unwrap();
     let non_stokes_transient =

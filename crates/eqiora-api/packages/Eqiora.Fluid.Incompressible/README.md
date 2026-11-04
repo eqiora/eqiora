@@ -1,5 +1,7 @@
 # Eqiora.Fluid.Incompressible
 
+`SteadyStokes2d` supplies the steady 2D law without body forcing.
+
 `SteadyStokesWithPotential2d` and `ConservativeNavierStokesWithPotential3d`
 are incompressible Newtonian flow laws: steady in 2D, and transient in
 conservative form in 3D. The enclosing Model supplies the velocity, pressure,

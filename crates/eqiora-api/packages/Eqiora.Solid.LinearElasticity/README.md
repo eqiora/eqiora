@@ -1,5 +1,7 @@
 # Eqiora.Solid.LinearElasticity
 
+`IsotropicBalance2d` supplies the 2D small-strain balance without body forcing.
+
 `IsotropicBalanceWithPotential2d` is the 2D small-strain isotropic balance law,
 with Lamé parameters and a conservative load potential.
 `IsotropicMechanicalInterface2d` exposes the displacement trace and the

@@ -247,7 +247,8 @@ pub(super) fn steady_stokes_block_system(
     let mut contributions = vec![ContributionBatch::new(
         [BlockSupport::Volume(domain)],
         0..cell_count,
-        0..(2 + usize::from(force.is_some())),
+        // Reduced, full, and volume actions exist even without a body-force Field.
+        0..3,
         force
             .map(|(_, definition)| ResidualOrigin::Relation(definition))
             .into_iter()

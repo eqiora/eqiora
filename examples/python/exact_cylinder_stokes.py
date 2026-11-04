@@ -43,7 +43,6 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
                 for side in ("inlet", "outlet", "walls", "cylinder")
             },
             "dynamic_viscosity": 1.0e-3,
-            "zero_pressure": 0.0,
             "inlet_speed": 0.3,
             "channel_height": channel_height,
         },

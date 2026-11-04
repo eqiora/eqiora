@@ -20,9 +20,6 @@ def build_source() -> Module:
     dynamic_viscosity = stokes.parameter(
         "dynamic_viscosity", value_type=ValueType.real(Dimension(mass=1, length=-1, time=-1))
     )
-    zero_pressure = stokes.parameter(
-        "zero_pressure", value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2))
-    )
     inlet_speed = stokes.parameter(
         "inlet_speed", value_type=ValueType.real(Dimension(length=1, time=-1))
     )
@@ -38,21 +35,14 @@ def build_source() -> Module:
         on=fluid,
         value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
     )
-    force_potential = stokes.field(
-        "force_potential", role=FieldRole.Variable,
-        on=fluid,
-        value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
-    )
-    inlet_profile = stokes.field("inlet_profile", spatial_regularity=SpatialRegularity.H1, role=FieldRole.Variable, on=fluid, value_type=ValueType.real(Dimension(length=1, time=-1)))
 
-    stokes.relation('force_definition', q.equation(force_potential - zero_pressure, 0), on=fluid)
-    stokes.relation('inlet_profile_definition', q.equation(inlet_profile - 4 * inlet_speed * q.coordinate(1) * (channel_height - q.coordinate(1)) / channel_height ** 2, 0), on=fluid)
     stress = 2 * dynamic_viscosity * q.symmetric_part(
         q.grad(velocity)
     ) - q.isotropic_lift(pressure)
-    stokes.relation('momentum', q.equation(-q.div(stress) - q.grad(force_potential), 0), on=fluid)
+    stokes.relation('momentum', q.equation(-q.div(stress), 0), on=fluid)
     stokes.relation('incompressibility', q.equation(q.div(velocity), 0), on=fluid)
-    stokes.relation('inlet_velocity', q.equation(q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)), 0), on=inlet)
+    prescribed_speed = 4 * inlet_speed * q.coordinate(1) * (channel_height - q.coordinate(1)) / channel_height ** 2
+    stokes.relation('inlet_velocity', q.equation(q.trace(velocity), -q.normal_vector() * prescribed_speed), on=inlet)
     stokes.relation('outlet_traction', q.equation(q.normal(stress), 0), on=outlet)
     stokes.relation('wall_velocity', q.equation(q.trace(velocity), 0), on=walls)
     stokes.relation('cylinder_velocity', q.equation(q.trace(velocity), 0), on=cylinder)

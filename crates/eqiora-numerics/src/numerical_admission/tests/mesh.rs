@@ -630,13 +630,6 @@ pub(super) fn stokes_model_from_source(
             ),
         ),
         (
-            "zero_pressure",
-            DynQuantity::new(
-                0.0,
-                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
-        ),
-        (
             "inlet_speed",
             DynQuantity::new(
                 0.3,

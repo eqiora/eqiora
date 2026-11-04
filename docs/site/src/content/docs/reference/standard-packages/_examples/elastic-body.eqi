@@ -7,14 +7,12 @@ model ReferenceElasticBody() {
   domain bottom = boundary(body, axis = 1, side = lower);
   domain top = boundary(body, axis = 1, side = upper);
   variable displacement: vector<m, 2> on body in smooth;
-  variable load_potential: Pa on body;
-  relation unloaded on body { load_potential = 0[Pa]; }
 
   parameter mu: Pa = 3;
   parameter lambda: Pa = 2;
-  instance balance: solid.IsotropicBalanceWithPotential2d(
+  instance balance: solid.IsotropicBalance2d(
     body = body, displacement = displacement,
-    load_potential = load_potential, mu = mu, lambda = lambda
+    mu = mu, lambda = lambda
   );
   instance elasticity: solid.IsotropicMechanicalInterface2d(
     body = body, exterior = boundaries(left, right, bottom, top),

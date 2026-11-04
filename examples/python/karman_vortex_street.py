@@ -80,7 +80,6 @@ def _prepare() -> tuple[
     )
     parameters = {
         "dynamic_viscosity": DYNAMIC_VISCOSITY_PA_S,
-        "zero_pressure": 0.0,
         "inlet_speed": INLET_MAXIMUM_M_PER_S,
         "channel_height": 0.41,
     }

@@ -5,6 +5,23 @@ public operator outer_product(
 ): spatial[2]
   = component(left, 0) * component(right, 1);
 
+public component SteadyStokes2d(
+  support body: volume(ambient_dimension = 2),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s)
+) {
+  relation momentum on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) = 0;
+  }
+  relation incompressibility on body {
+    div(velocity) = 0;
+  }
+}
+
 public component SteadyStokesWithPotential2d(
   support body: volume(ambient_dimension = 2),
   variable velocity: vector<m / s, 2> on body,

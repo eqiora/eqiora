@@ -46,7 +46,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def accepted(*, profile: bool = False) -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
-    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
+    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -125,7 +125,7 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
         "fluid": geometry.selection("region"),
         **{name: (geometry.selection(selection), geometry.selection("region"))
            for name, selection in names.items() if name != "fluid"},
-        "dynamic_viscosity": 0.001, "zero_pressure": 0.0,
+        "dynamic_viscosity": 0.001,
         "inlet_speed": 0.3, "channel_height": 0.41,
     }
     def compile_equations(filename, entry, parameters):
@@ -314,7 +314,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         entry='TransientFlowPastCylinder',
         bindings={
             **support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]),
-            **{'density': 1.0, 'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
+            **{'density': 1.0, 'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
         },
     )
     linear = eqiora.solve.Linear(

@@ -30,7 +30,6 @@ geometry = graph.build(fluid, named_topology={
 })
 parameters = {
     "dynamic_viscosity": 0.001,
-    "zero_pressure": 0.0,
     "inlet_speed": 0.3,
     "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
 }

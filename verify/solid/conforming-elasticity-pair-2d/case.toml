@@ -36,7 +36,7 @@ package_dispatch = false
 
 [package]
 name = "Eqiora.Solid.LinearElasticity"
-version = "0.6.0"
+version = "0.7.0"
 authority = "crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity"
 
 [realization]

@@ -250,13 +250,6 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
             ),
         ),
         (
-            "zero_pressure",
-            DynQuantity::new(
-                0.0,
-                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
-        ),
-        (
             "inlet_speed",
             DynQuantity::new(
                 inlet_speed,
@@ -364,13 +357,6 @@ fn transient_cylinder_document_with_speed(
             DynQuantity::new(
                 0.001,
                 DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
-        ),
-        (
-            "zero_pressure",
-            DynQuantity::new(
-                0.0,
-                DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
         (

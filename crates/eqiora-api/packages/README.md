@@ -59,7 +59,7 @@ let model = PackagedModelDocument::compile_locked(
 ```
 
 Package compilation always produces the current Model format. Persisted Model
-v1–v44 bytes are not migrated and are rejected.
+v1–v49 bytes are not migrated and are rejected.
 
 `DirectoryPackageStore::open_ambient` opens the store from a path instead of a
 directory handle. Either way, the store reads only `<source-bundle-digest>.json`
@@ -91,7 +91,7 @@ not update the lock or manage shared-store permissions.
 ## Bundled packages in Python and the CLI
 
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
-`Eqiora.Fluid.Incompressible@0.6.0` or `Eqiora.Solid.LinearElasticity@0.6.0`
+`Eqiora.Fluid.Incompressible@0.7.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
 store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without

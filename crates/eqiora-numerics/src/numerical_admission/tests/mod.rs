@@ -456,7 +456,6 @@ fn fsi_model_from_source(
             ("solid_density", DynQuantity::new(3.0, density)),
             ("solid_mu", DynQuantity::new(4.0, pressure)),
             ("solid_lambda", DynQuantity::new(2.0, pressure)),
-            ("zero_pressure", DynQuantity::new(0.0, pressure)),
         ],
     )
 }

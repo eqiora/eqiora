@@ -113,7 +113,6 @@ model = eqiora.compile(
             for side in ("inlet", "outlet", "walls", "cylinder")
         },
         "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
         "inlet_speed": 0.3,
         "channel_height": 0.41,
     },
@@ -140,7 +139,7 @@ cylinder use $\boldsymbol{u}=0$.
 
 The full source above attaches these relations to `fluid`, `inlet`, `outlet`,
 `walls`, and `cylinder`. At the left inlet, the outward normal points left,
-so `trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0` directs flow
+so `trace(velocity) = -normal_vector() * g` directs flow
 into the channel. The outlet law balances pressure and viscous traction together;
 it does not separately prescribe zero pressure and zero velocity gradient.
 

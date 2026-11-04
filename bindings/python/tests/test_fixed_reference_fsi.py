@@ -21,7 +21,6 @@ PARAMETERS = {
     "solid_density": 3.0,
     "solid_mu": 4.0,
     "solid_lambda": 2.0,
-    "zero_pressure": 0.0,
 }
 EXPECTED_CELLS = np.array(
     [
@@ -686,7 +685,7 @@ model = eqiora.compile(
               **{r+"_"+side: (geometry.selection(r+"_"+side), geometry.selection(r))
                  for r in ("fluid", "solid") for side in ("x_lower", "x_upper", "y_lower", "y_upper")},"fluid_density": 2.0, "fluid_viscosity": 0.5,
                 "solid_density": 3.0, "solid_mu": 4.0,
-                "solid_lambda": 2.0, "zero_pressure": 0.0},
+                "solid_lambda": 2.0},
 )
 plan = eqiora.resolve(
     model, mesh=mesh,
