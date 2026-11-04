@@ -330,6 +330,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
             **{'density': 1.0, 'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
         },
     )
+    maximum_backsolves = 20_000
     linear = eqiora.solve.Linear(
         algorithm=eqiora.solve.LinearSolver.SparseLu,
         preconditioner=eqiora.solve.Preconditioner.Identity,
@@ -337,7 +338,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1.0e-6,
         absolute_tolerance=1.0e-12,
-        maximum_iterations=20_000,
+        maximum_iterations=maximum_backsolves,
     )
     plan = eqiora.resolve(
         model,
@@ -465,7 +466,10 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
     assert phase_calls[linear_path] > 1
     assert phase_calls[symbolic_path] == 1
     assert phase_calls[numeric_path] == phase_calls[linear_path]
-    assert phase_calls[backsolve_path] == phase_calls[linear_path]
+    # Each numeric factorization serves an original backsolve and any
+    # safeguarded residual corrections within the requested per-solve budget.
+    assert phase_calls[linear_path] <= phase_calls[backsolve_path]
+    assert phase_calls[backsolve_path] <= maximum_backsolves * phase_calls[linear_path]
 
 
 IMPORTED_TRANSLATION_SOURCE = """
