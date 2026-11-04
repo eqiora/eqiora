@@ -478,6 +478,7 @@ impl ExpressionLowerer<'_> {
                     dimension: value.value_type().dimension(),
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic)),
+            LoweringExpressionNode::NormalVector => self.lower_normal_vector(expression),
             LoweringExpressionNode::Name(name) if name == "time" => self
                 .builder
                 .symbol(SymbolRef::Time)

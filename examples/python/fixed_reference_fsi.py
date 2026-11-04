@@ -53,7 +53,6 @@ def solve() -> eqiora.Result:
             "solid_density": 3.0,
             "solid_mu": 4.0,
             "solid_lambda": 2.0,
-            "zero_pressure": 0.0,
         },
     )
     fluid = model.domain("fluid")

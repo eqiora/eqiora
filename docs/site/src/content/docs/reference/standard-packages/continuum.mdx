@@ -17,6 +17,10 @@ packages contain reusable volume laws and mechanical boundary interfaces. You
 bind your own fields to them and supply a condition on each exterior face. Both
 examples below compile as ordinary package imports.
 
+The examples on this page require a development build from the same checkout:
+the bundled fluid and solid packages are version 0.7.0. The published Eqiora
+0.1.5 distribution is unchanged and does not provide these package releases.
+
 ## Elastic balance and boundaries
 
 <Code code={elastic} lang="eqiora" title="elastic-body.eqi" />
@@ -30,13 +34,14 @@ displacement field as the volume equations.
 
 | Component in `Eqiora.Solid.LinearElasticity.linear_elasticity` | Use |
 |---|---|
-| `IsotropicBalanceWithPotential2d` | Small-strain isotropic equilibrium with Lamé parameters `mu` and `lambda` |
+| `IsotropicBalance2d` | Unforced small-strain equilibrium with Lamé parameters `mu` and `lambda` |
+| `IsotropicBalanceWithPotential2d` | The same balance with a conservative body load |
 | `IsotropicMechanicalInterface2d` | Displacement trace and outward elastic traction on the complete exterior |
 | `FixedDisplacement2d` | Zero displacement on one face |
 | `ZeroTraction2d` | Zero traction on one face |
 
 The balance uses stress $2\mu\varepsilon+\lambda\,\mathrm{tr}(\varepsilon)I$.
-`load_potential` is a scalar with units of pressure whose gradient gives the body
+For `IsotropicBalanceWithPotential2d`, `load_potential` is a scalar with units of pressure whose gradient gives the body
 force; it is neither a boundary pressure nor a general vector force. The
 interface's `QuasistaticMechanicalBoundary` connector pairs displacement with
 traction, so a connected terminal shares the body's displacement and carries the
@@ -59,9 +64,10 @@ The inlet specifies inward normal speed, the top and bottom walls impose zero
 velocity, and the outlet imposes zero total traction. The model contains no
 advective or inertial term: use it when viscous stresses dominate.
 
-`SteadyStokesWithPotential2d` supplies momentum balance and incompressibility.
+`SteadyStokes2d` supplies unforced momentum balance and incompressibility.
+Use `SteadyStokesWithPotential2d` when a conservative body load is present.
 The caller supplies the four boundary relations here. On the left, the outward
-normal points left, so the plus sign in the inlet equation gives rightward flow.
+normal points left, so its negative in the inlet equation gives rightward flow.
 At the outlet, `normal(stress) = 0` sets the total traction to zero; it does not
 set the pressure to zero.
 
@@ -93,13 +99,13 @@ project = Path("continuum")
 store = Path("package-store")
 store.mkdir(exist_ok=True)
 resolution = eqiora.add_bundled_dependency(
-    project, store, "Eqiora.Solid.LinearElasticity", version="0.6.0"
+    project, store, "Eqiora.Solid.LinearElasticity", version="0.7.0"
 )
 model = eqiora.compile_package(store, resolution, entry="ReferenceElasticBody")
 ```
 
 For the Stokes example, use `"Eqiora.Fluid.Incompressible"` and entry `"ReferenceStokes"`;
-its package version is also `"0.6.0"`. `add_bundled_dependency` installs the
+its package version is also `"0.7.0"`. `add_bundled_dependency` installs the
 package sources and writes the lock. To run the model, add a mesh and a
 numerical method as described in the [modeling guide](/guides/modeling/).
 

@@ -253,7 +253,9 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         PhysicalBoundaryDisposition::PortBinding { .. }
     ));
     assert_ne!(
-        fluid.force_potential_definition(),
+        fluid
+            .force_potential_definition()
+            .expect("fixture authors a fluid load"),
         fluid.momentum_relation()
     );
     assert_ne!(
@@ -261,7 +263,10 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         fluid.incompressibility_relation()
     );
     assert_ne!(
-        solid.continuum().load_definition_relation(),
+        solid
+            .continuum()
+            .load_definition_relation()
+            .expect("fixture authors a solid load"),
         solid.kinematic_relation()
     );
     assert_ne!(
@@ -402,4 +407,60 @@ fn rejects_meaning_outside_the_closed_two_domain_network() {
         "relation incompressibility on fluid { div(fluid_velocity) = 0; }",
         "relation incompressibility on fluid { div(fluid_velocity) = 0; }\n  relation hidden on fluid { pressure = 0; }",
     ));
+}
+
+pub(super) fn without_loads(source: &str) -> String {
+    source
+        .replace("  variable fluid_load: kg / (m * s ^ 2) on fluid;\n", "")
+        .replace("  variable solid_load: kg / (m * s ^ 2) on solid;\n", "")
+        .replace("  parameter zero_pressure: kg / (m * s ^ 2) = 0;\n", "")
+        .replace(
+            "  relation fluid_load_definition on fluid { fluid_load - zero_pressure = 0; }\n",
+            "",
+        )
+        .replace(
+            "  relation solid_load_definition on solid { solid_load - zero_pressure = 0; }\n",
+            "",
+        )
+        .replace("      - grad(fluid_load)", "")
+        .replace("      - grad(solid_load)", "")
+        .replace("  variable fluid_load_potential: kg / (m * s ^ 2) on fluid;\n", "")
+        .replace("  variable solid_load_potential: kg / (m * s ^ 2) on solid;\n", "")
+        .replace("  parameter fluid_zero_pressure: kg / (m * s ^ 2) = 0;\n", "")
+        .replace("  parameter solid_zero_pressure: kg / (m * s ^ 2) = 0;\n", "")
+        .replace("  relation fluid_load_definition on fluid {\n    fluid_load_potential - fluid_zero_pressure = 0;\n  }\n", "")
+        .replace("  relation solid_load_definition on solid {\n    solid_load_potential - solid_zero_pressure = 0;\n  }\n", "")
+        .replace(" - grad(fluid_load_potential)", "")
+        .replace(" - grad(solid_load_potential)", "")
+}
+
+#[test]
+fn recognizes_unforced_fixed_reference_and_ale_fsi_without_load_carriers() {
+    let fixed =
+        lower_fixed_reference_fsi_cartesian_2d(&compile_program(&without_loads(SOURCE))).unwrap();
+    assert_eq!(fixed.fluids().next().unwrap().force_potential(), None);
+    assert_eq!(
+        fixed.solids().next().unwrap().continuum().load_potential(),
+        None
+    );
+    assert_eq!(
+        fixed
+            .solids()
+            .next()
+            .unwrap()
+            .continuum()
+            .load_definition_relation(),
+        None
+    );
+    let ale =
+        lower_ale_fsi_cartesian::<2>(&compile_program(&without_loads(&ale_source()))).unwrap();
+    assert_eq!(ale.fluid().force_potential(), None);
+    assert_eq!(ale.solid().continuum().load_potential(), None);
+    assert_eq!(
+        ale.solid()
+            .continuum()
+            .conservative_body_force(&[1.2, 0.3])
+            .unwrap(),
+        [0.0; 2]
+    );
 }

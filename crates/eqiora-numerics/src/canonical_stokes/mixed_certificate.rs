@@ -33,8 +33,7 @@ pub(super) struct SteadyStokesCertificateSource<'a> {
     pub(super) domain: RawId,
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
-    pub(super) source_definition: RawId,
-    pub(super) source_node: ExprId,
+    pub(super) source: Option<(RawId, ExprId)>,
     pub(super) momentum_relation: RawId,
     pub(super) incompressibility_relation: RawId,
     pub(super) boundaries: &'a [BoundaryRelationBinding],
@@ -48,8 +47,6 @@ pub(super) fn derive(
     program: &KernelProgram,
     source: &SteadyStokesCertificateSource<'_>,
 ) -> Result<Vec<MixedCertificateEntry>, Diagnostic> {
-    let source_expression = typed_relation(program, source.source_definition)?;
-    let source_root = unique_root(source_expression.expression(), source.source_definition)?;
     let momentum = typed_relation(program, source.momentum_relation)?;
     let momentum_root = unique_root(momentum.expression(), source.momentum_relation)?;
     let momentum_view = AdditiveResidualView::derive(
@@ -72,21 +69,18 @@ pub(super) fn derive(
                 "certified Stokes momentum has no stress divergence",
             )
         })?;
-    let forcing = momentum_view
-        .leaves()
-        .iter()
-        .find(|leaf| {
-            matches!(
-                momentum.expression().node(leaf.value()),
-                Some(ExprNode::Gradient(_))
-            )
-        })
-        .ok_or_else(|| {
-            lowering_error(
-                source.momentum_relation,
-                "certified Stokes momentum has no body-source gradient",
-            )
-        })?;
+    let forcing = momentum_view.leaves().iter().find(|leaf| {
+        matches!(
+            momentum.expression().node(leaf.value()),
+            Some(ExprNode::Gradient(_))
+        )
+    });
+    if forcing.is_some() != source.source.is_some() {
+        return Err(lowering_error(
+            source.momentum_relation,
+            "certified Stokes body-source presence differs from its definition",
+        ));
+    }
     let (viscous_stress_node, pressure_node) = match momentum.expression().node(divergence.value())
     {
         Some(ExprNode::Divergence(stress)) => match momentum.expression().node(*stress) {
@@ -115,30 +109,6 @@ pub(super) fn derive(
     };
 
     let mut entries = vec![
-        entry(
-            source.source_definition,
-            source.source_node,
-            source.domain,
-            MixedFormulationRule::SourcePairing,
-            sign_of_definition(
-                source_expression.expression(),
-                source_root,
-                source.source_node,
-                source.source_definition,
-            ),
-            sign_of_definition(
-                source_expression.expression(),
-                source_root,
-                source.source_node,
-                source.source_definition,
-            ),
-            MixedTermRole::SourceDefinition,
-            None,
-            None,
-            MixedNormalOrientation::NotApplicable,
-            MixedBoundaryDisposition::NotBoundary,
-            TYPED_VOLUME_ASSUMPTIONS,
-        ),
         entry(
             source.momentum_relation,
             momentum_root,
@@ -196,20 +166,6 @@ pub(super) fn derive(
             STRESS_BY_PARTS_ASSUMPTIONS,
         ),
         entry(
-            source.momentum_relation,
-            forcing.value(),
-            source.domain,
-            MixedFormulationRule::SourcePairing,
-            sign(forcing.sign()),
-            sign(forcing.sign()),
-            MixedTermRole::MomentumBodySource,
-            Some(source.velocity),
-            None,
-            MixedNormalOrientation::NotApplicable,
-            MixedBoundaryDisposition::NotBoundary,
-            TYPED_VOLUME_ASSUMPTIONS,
-        ),
-        entry(
             source.incompressibility_relation,
             continuity_leaf.value(),
             source.domain,
@@ -224,6 +180,54 @@ pub(super) fn derive(
             TYPED_VOLUME_ASSUMPTIONS,
         ),
     ];
+    if let Some((definition, node)) = source.source {
+        let source_expression = typed_relation(program, definition)?;
+        let source_root = unique_root(source_expression.expression(), definition)?;
+        entries.insert(
+            0,
+            entry(
+                definition,
+                node,
+                source.domain,
+                MixedFormulationRule::SourcePairing,
+                sign_of_definition(
+                    source_expression.expression(),
+                    source_root,
+                    node,
+                    definition,
+                ),
+                sign_of_definition(
+                    source_expression.expression(),
+                    source_root,
+                    node,
+                    definition,
+                ),
+                MixedTermRole::SourceDefinition,
+                None,
+                None,
+                MixedNormalOrientation::NotApplicable,
+                MixedBoundaryDisposition::NotBoundary,
+                TYPED_VOLUME_ASSUMPTIONS,
+            ),
+        );
+    }
+    if let Some(forcing) = forcing {
+        entries.push(entry(
+            source.momentum_relation,
+            forcing.value(),
+            source.domain,
+            MixedFormulationRule::SourcePairing,
+            sign(forcing.sign()),
+            sign(forcing.sign()),
+            MixedTermRole::MomentumBodySource,
+            Some(source.velocity),
+            None,
+            MixedNormalOrientation::NotApplicable,
+            MixedBoundaryDisposition::NotBoundary,
+            TYPED_VOLUME_ASSUMPTIONS,
+        ));
+    }
+
     for binding in source.boundaries {
         let residual = typed_relation(program, binding.relation())?;
         let disposition = source
@@ -270,14 +274,11 @@ pub(super) fn check(
     entries: &[MixedCertificateEntry],
     authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
 ) -> Result<(), Diagnostic> {
-    let expected_relations = [
-        source.source_definition,
-        source.momentum_relation,
-        source.incompressibility_relation,
-    ]
-    .into_iter()
-    .chain(source.boundaries.iter().map(|binding| binding.relation()))
-    .collect::<BTreeSet<_>>();
+    let expected_relations = [source.momentum_relation, source.incompressibility_relation]
+        .into_iter()
+        .chain(source.source.map(|(definition, _)| definition))
+        .chain(source.boundaries.iter().map(|binding| binding.relation()))
+        .collect::<BTreeSet<_>>();
     let mut consumed = BTreeSet::new();
     for certificate in entries {
         if !expected_relations.contains(&certificate.relation)
@@ -304,8 +305,7 @@ pub(super) fn check(
         }
         let roles_match = match certificate.role {
             MixedTermRole::SourceDefinition => {
-                certificate.relation == source.source_definition
-                    && certificate.source_node == source.source_node
+                source.source == Some((certificate.relation, certificate.source_node))
                     && certificate.support == source.domain
                     && certificate.rule == MixedFormulationRule::SourcePairing
                     && certificate.source_sign
@@ -480,15 +480,15 @@ pub(super) fn check(
             )
         })?;
     let counts = |role| entries.iter().filter(|entry| entry.role == role).count();
-    if counts(MixedTermRole::SourceDefinition) != 1
+    if counts(MixedTermRole::SourceDefinition) != usize::from(source.source.is_some())
         || counts(MixedTermRole::MomentumStressDivergence) != 1
         || counts(MixedTermRole::MomentumResidualPairing) != 1
         || counts(MixedTermRole::MomentumViscousStress) != 1
         || counts(MixedTermRole::MomentumPressureCoupling) != 1
-        || counts(MixedTermRole::MomentumBodySource) != 1
+        || counts(MixedTermRole::MomentumBodySource) != usize::from(source.source.is_some())
         || counts(MixedTermRole::ContinuityConstraint) != 1
         || counts(MixedTermRole::BoundaryLaw) != expected_boundary_terms
-        || entries.len() != expected_boundary_terms + 7
+        || entries.len() != expected_boundary_terms + 5 + 2 * usize::from(source.source.is_some())
     {
         return Err(lowering_error(
             source.domain,
@@ -507,28 +507,35 @@ pub(super) fn check_model(
     entries: &[MixedCertificateEntry],
     authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
 ) -> Result<(), Diagnostic> {
-    let definition = typed_relation(program, model.force_potential_definition())?;
-    let root = unique_root(definition.expression(), model.force_potential_definition())?;
-    let source_node = super::expression::additive_load_definition_root(
-        definition.expression(),
-        root,
-        model.force_potential(),
-        model.force_potential_definition(),
-    )?
-    .ok_or_else(|| {
-        lowering_error(
-            model.domain(),
-            "live source definition no longer owns its forcing expression",
-        )
-    })?;
+    let source = model
+        .correspondence
+        .law
+        .source
+        .map(|(field, relation)| {
+            let definition = typed_relation(program, relation)?;
+            let root = unique_root(definition.expression(), relation)?;
+            let node = super::expression::additive_load_definition_root(
+                definition.expression(),
+                root,
+                field,
+                relation,
+            )?
+            .ok_or_else(|| {
+                lowering_error(
+                    model.domain(),
+                    "live source definition no longer owns its forcing expression",
+                )
+            })?;
+            Ok::<_, Diagnostic>((relation, node))
+        })
+        .transpose()?;
     check(
         program,
         &SteadyStokesCertificateSource {
             domain: model.domain(),
             velocity: model.velocity(),
             pressure: model.pressure(),
-            source_definition: model.force_potential_definition(),
-            source_node,
+            source,
             momentum_relation: model.momentum_relation(),
             incompressibility_relation: model.incompressibility_relation(),
             boundaries: model.boundary_relations(),

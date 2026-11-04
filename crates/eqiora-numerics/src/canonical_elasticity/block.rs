@@ -45,7 +45,7 @@ pub(super) fn conforming_elasticity_pair_block_system(
     let loads = model
         .subdomains()
         .each_ref()
-        .map(|body| field(body.load_potential()))
+        .map(|body| body.load_potential().map(field).transpose())
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
     let vector = ValueShape::new([2]).expect("two-component vector is representable");
@@ -65,17 +65,19 @@ pub(super) fn conforming_elasticity_pair_block_system(
             DynQuantity::new(1.0, LENGTH),
             FieldBlockRole::Algebraic,
         )?);
-        fields.push(FieldBlock::coefficient(
-            domains[subdomain],
-            loads[subdomain],
-            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
-        ));
+        if let Some(load) = loads[subdomain] {
+            fields.push(FieldBlock::coefficient(
+                domains[subdomain],
+                load,
+                ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
+            ));
+        }
     }
 
     let definitions = model
         .subdomains()
         .each_ref()
-        .map(|body| relation(body.load_definition_relation()))
+        .map(|body| body.load_definition_relation().map(relation).transpose())
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
     let balances = model
@@ -91,13 +93,13 @@ pub(super) fn conforming_elasticity_pair_block_system(
     let mut contributions = Vec::new();
     let mut packet_cursor = 0;
     for subdomain in 0..2 {
-        relations.push(RelationBlock::new(
-            definitions[subdomain],
-            BlockSupport::Volume(domains[subdomain]),
-            RelationDisposition::CoefficientDefinition {
-                field: loads[subdomain],
-            },
-        ));
+        if let (Some(definition), Some(load)) = (definitions[subdomain], loads[subdomain]) {
+            relations.push(RelationBlock::new(
+                definition,
+                BlockSupport::Volume(domains[subdomain]),
+                RelationDisposition::CoefficientDefinition { field: load },
+            ));
+        }
         relations.push(RelationBlock::new(
             balances[subdomain],
             BlockSupport::Volume(domains[subdomain]),
@@ -142,10 +144,10 @@ pub(super) fn conforming_elasticity_pair_block_system(
             [BlockSupport::Volume(domains[subdomain])],
             packet_cursor..packet_cursor + cell_count,
             [0, 1, 2 + subdomain],
-            [
-                ResidualOrigin::Relation(definitions[subdomain]),
-                ResidualOrigin::Relation(balances[subdomain]),
-            ],
+            definitions[subdomain]
+                .into_iter()
+                .chain(std::iter::once(balances[subdomain]))
+                .map(ResidualOrigin::Relation),
             parameter_inventory([
                 model.subdomains()[subdomain]
                     .shear_modulus_expression()

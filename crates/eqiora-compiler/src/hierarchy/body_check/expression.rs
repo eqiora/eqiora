@@ -543,6 +543,18 @@ impl ExpressionChecker<'_, '_, '_> {
                 "builtin calls require positional arguments",
             )
         })?;
+        if callee_name == "normal_vector" {
+            if !arguments.is_empty() {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    "normal_vector() accepts no arguments",
+                ));
+            }
+            return ExpressionType::normal_vector(self.relation_support.as_ref())
+                .map_err(|error| type_error(self.scope.file, expression, error));
+        }
         if callee_name == "time" {
             if !arguments.is_empty()
                 || (!self.intrinsic && !matches!(self.activation, ActivationSyntax::Continuous))

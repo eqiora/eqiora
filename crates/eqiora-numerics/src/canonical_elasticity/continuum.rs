@@ -34,8 +34,7 @@ pub enum ElasticityIntegrationMeasure {
 pub struct IsotropicElasticityContinuum<const D: usize> {
     domain: RawId,
     displacement: RawId,
-    load_potential: RawId,
-    load_definition_relation: RawId,
+    load: Option<(RawId, RawId)>,
     equilibrium_relation: RawId,
     bounds: [[f64; 2]; D],
     reduction: IsotropicElasticityReduction,
@@ -54,8 +53,7 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
     pub(crate) fn new(
         domain: RawId,
         displacement: RawId,
-        load_potential: RawId,
-        load_definition_relation: RawId,
+        load: Option<(RawId, RawId)>,
         equilibrium_relation: RawId,
         bounds: [[f64; 2]; D],
         material: IsotropicElasticityMaterial<D>,
@@ -80,8 +78,7 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
         Some(Self {
             domain,
             displacement,
-            load_potential,
-            load_definition_relation,
+            load,
             equilibrium_relation,
             bounds,
             reduction,
@@ -112,16 +109,22 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
         self.displacement
     }
 
-    /// Canonical scalar conservative-load potential Field.
+    /// Conservative-load potential Field, absent for an unforced balance.
     #[must_use]
-    pub const fn load_potential(&self) -> RawId {
-        self.load_potential
+    pub const fn load_potential(&self) -> Option<RawId> {
+        match self.load {
+            Some((field, _)) => Some(field),
+            None => None,
+        }
     }
 
-    /// Exact Relation defining the conservative-load potential.
+    /// Potential definition Relation, absent for an unforced balance.
     #[must_use]
-    pub const fn load_definition_relation(&self) -> RawId {
-        self.load_definition_relation
+    pub const fn load_definition_relation(&self) -> Option<RawId> {
+        match self.load {
+            Some((_, relation)) => Some(relation),
+            None => None,
+        }
     }
 
     /// Exact static balance or dynamic momentum Relation owning the stress law.
@@ -176,7 +179,7 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
         &self.first_lame_parameter
     }
 
-    /// Immutable scalar tape defining the conservative-load potential.
+    /// Immutable conservative-load tape; exactly zero for an unforced balance.
     #[must_use]
     pub const fn load_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.load_potential_expression

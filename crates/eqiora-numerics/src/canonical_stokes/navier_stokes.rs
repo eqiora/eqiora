@@ -52,18 +52,18 @@ pub struct TransientIncompressibleNavierStokesModel<const D: usize> {
     pub(super) domain: RawId,
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
-    pub(super) force_potential: RawId,
+    pub(super) force_source: Option<(RawId, RawId)>,
     pub(super) bounds: [[f64; 2]; D],
     pub(super) mass_density: ScalarSpatialExpression<f64>,
     pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
-    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
-    pub(super) force_potential_definition: RawId,
+    pub(super) force_potential_expression: Option<ScalarSpatialExpression<f64>>,
     pub(super) momentum_relation: RawId,
     momentum_orientation: f64,
     pub(super) incompressibility_relation: RawId,
     pub(super) boundary_entries: BTreeMap<PhysicalBoundarySupport, PhysicalBoundaryEntry>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
-    normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression<f64>>,
+    normal_velocity_data:
+        BTreeMap<RawId, super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d>,
     geometry_source_digest: Option<[u8; 32]>,
 }
 
@@ -92,8 +92,11 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
 
     /// Canonical conservative-force potential Field.
     #[must_use]
-    pub const fn force_potential(&self) -> RawId {
-        self.force_potential
+    pub const fn force_potential(&self) -> Option<RawId> {
+        match self.force_source {
+            Some((field, _)) => Some(field),
+            None => None,
+        }
     }
 
     /// Physical Cartesian bounds in coherent SI coordinates.
@@ -130,16 +133,19 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         &self.dynamic_viscosity
     }
 
-    /// Immutable scalar tape defining the conservative-force potential.
+    /// Conservative-force potential tape, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
-        &self.force_potential_expression
+    pub const fn force_potential_expression(&self) -> Option<&ScalarSpatialExpression<f64>> {
+        self.force_potential_expression.as_ref()
     }
 
-    /// Exact Relation witnessing the force-potential definition.
+    /// Exact force-potential definition Relation, absent for an unforced balance.
     #[must_use]
-    pub const fn force_potential_definition(&self) -> RawId {
-        self.force_potential_definition
+    pub const fn force_potential_definition(&self) -> Option<RawId> {
+        match self.force_source {
+            Some((_, relation)) => Some(relation),
+            None => None,
+        }
     }
 
     /// Exact Relation witnessing transient conservative momentum balance.
@@ -214,19 +220,26 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         outward_normal: [f64; D],
         coordinates: &[f64],
     ) -> Result<Option<[f64; D]>, Diagnostic> {
-        Ok(self
-            .prescribed_normal_speed(boundary, coordinates)?
-            .map(|speed| outward_normal.map(|component| component * speed)))
-    }
-
-    fn prescribed_normal_speed(
-        &self,
-        boundary: RawId,
-        coordinates: &[f64],
-    ) -> Result<Option<f64>, Diagnostic> {
-        self.normal_velocity_expressions
+        self.normal_velocity_data
             .get(&boundary)
-            .map(|expression| expression.evaluate(coordinates))
+            .map(|trace| {
+                let super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d::Normal {
+                    datum,
+                    ..
+                } = trace
+                else {
+                    return Err(lowering_error(
+                        boundary,
+                        "normal velocity lost its prescribed datum",
+                    ));
+                };
+                datum
+                    .evaluate(coordinates, &outward_normal)?
+                    .try_into()
+                    .map_err(|_| {
+                        lowering_error(boundary, "normal velocity has the wrong ambient dimension")
+                    })
+            })
             .transpose()
     }
 
@@ -239,16 +252,12 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
         let Some(entry) = self.cartesian_boundary(axis, side) else {
             return Ok(None);
         };
-        let Some(speed) = self.prescribed_normal_speed(entry.boundary(), coordinates)? else {
-            return Ok(None);
+        let mut normal = [0.; D];
+        normal[axis] = match side {
+            BoundarySide::Lower => -1.,
+            BoundarySide::Upper => 1.,
         };
-        let mut velocity = [0.0; D];
-        let outward_sign = match side {
-            BoundarySide::Lower => -1.0,
-            BoundarySide::Upper => 1.0,
-        };
-        velocity[axis] = outward_sign * speed;
-        Ok(Some(velocity))
+        self.prescribed_normal_velocity(entry.boundary(), normal, coordinates)
     }
 
     /// Evaluate `grad(force_potential)` from the exact canonical scalar tape.
@@ -256,8 +265,13 @@ impl<const D: usize> TransientIncompressibleNavierStokesModel<D> {
     /// # Errors
     /// Preserves the tape's shape and finite-evaluation diagnostics.
     pub fn conservative_body_force(&self, coordinates: &[f64]) -> Result<[f64; D], Diagnostic> {
-        self.force_potential_expression
-            .evaluate_gradient(coordinates)
+        match &self.force_potential_expression {
+            Some(source) => source.evaluate_gradient(coordinates),
+            None => {
+                crate::spatial_expression::validate_coordinates(coordinates, D)?;
+                Ok([0.; D])
+            }
+        }
     }
 }
 
@@ -303,12 +317,12 @@ fn transient_fields_for_dimension<const D: usize>(
     let pressure_fields = &inventory.pressures;
     let normal_velocity_fields = &inventory.coefficients;
     if velocities.len() != 1
-        || pressure_fields.len() != 2
+        || !(1..=2).contains(&pressure_fields.len())
         || inventory.count != 1 + pressure_fields.len() + normal_velocity_fields.len()
     {
         return Err(lowering_error(
             domain,
-            "transient flow Fields must be one spatial velocity, pressure and force-potential scalars, plus only scalar velocity boundary coefficients",
+            "transient flow Fields must be one spatial velocity, one pressure scalar and an optional force-potential scalar, plus only scalar velocity boundary coefficients",
         ));
     }
     let representation = inventory.representation(
@@ -347,12 +361,11 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         domain,
         velocity: volume.velocity,
         pressure: volume.pressure,
-        force_potential: volume.force_potential,
+        force_source: volume.force_source,
         bounds,
         mass_density: volume.mass_density,
         dynamic_viscosity: volume.dynamic_viscosity,
         force_potential_expression: volume.force_potential_expression,
-        force_potential_definition: volume.force_potential_definition,
         momentum_relation: volume.momentum_relation,
         momentum_orientation: volume.momentum_orientation,
         incompressibility_relation: volume.incompressibility_relation,
@@ -367,8 +380,8 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
             })
             .collect(),
         boundary_relations: boundary.boundary_relations.clone(),
-        normal_velocity_expressions: boundary
-            .normal_velocity_expressions
+        normal_velocity_data: boundary
+            .normal_velocity_data
             .iter()
             .filter_map(|(&(axis, side), expression)| {
                 boundary
@@ -399,11 +412,10 @@ pub(super) struct TransientVolume<const D: usize> {
     pub(super) domain: RawId,
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
-    pub(super) force_potential: RawId,
+    pub(super) force_source: Option<(RawId, RawId)>,
     pub(super) mass_density: ScalarSpatialExpression<f64>,
     pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
-    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
-    pub(super) force_potential_definition: RawId,
+    pub(super) force_potential_expression: Option<ScalarSpatialExpression<f64>>,
     pub(super) momentum_relation: RawId,
     pub(super) momentum_orientation: f64,
     pub(super) incompressibility_relation: RawId,
@@ -430,17 +442,17 @@ fn lower_transient_volume_with_stress<const D: usize>(
 ) -> Result<TransientVolume<D>, Diagnostic> {
     let (velocity, scalar_fields, normal_velocity_fields, representation) =
         transient_fields_for_dimension::<D>(program, domain)?;
-    if scalar_fields.len() != 2 {
+    if !(1..=2).contains(&scalar_fields.len()) {
         return Err(lowering_error(
             domain,
             format!(
-                "transient incompressible Navier--Stokes requires exactly pressure and force-potential scalar Fields, found {} pressure-valued scalars",
+                "transient incompressible Navier--Stokes requires one pressure and optionally one force-potential scalar Field, found {} pressure-valued scalars",
                 scalar_fields.len()
             ),
         ));
     }
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() < 3 {
+    if volume_relations.len() < 2 {
         return Err(lowering_error(
             domain,
             format!(
@@ -470,6 +482,11 @@ fn lower_transient_volume_with_stress<const D: usize>(
         &typed_relations,
         &scalar_fields,
         incompressibility_relation,
+        |expression, root, field, _| {
+            Ok(super::expression::load_definition_root(
+                expression, root, field,
+            ))
+        },
         |typed, root, pressure, force_potential, relation| {
             navier_stokes_momentum_parts(typed, root, velocity, pressure, force_potential, relation)
         },
@@ -483,19 +500,18 @@ fn lower_transient_volume_with_stress<const D: usize>(
             ),
         ));
     }
-    let (
-        pressure,
-        force_potential,
-        (force_potential_definition, source),
-        (momentum_relation, momentum),
-    ) = candidates.remove(0);
-    let force_potential_expression = spatial_expression::lower(
-        program,
-        &relation_expression(program, force_potential_definition)?,
-        source,
-        force_potential_definition,
-        D,
-    )?;
+    let (pressure, force_source, (momentum_relation, momentum)) = candidates.remove(0);
+    let force_potential_expression = force_source
+        .map(|(_, definition, node)| {
+            spatial_expression::lower(
+                program,
+                &relation_expression(program, definition)?,
+                node,
+                definition,
+                D,
+            )
+        })
+        .transpose()?;
     let momentum_expression = &relation_expression(program, momentum_relation)?;
     let momentum_typed = &typed_relations[&momentum_relation];
     let mass_density = spatial_expression::lower(
@@ -541,11 +557,10 @@ fn lower_transient_volume_with_stress<const D: usize>(
         domain,
         velocity,
         pressure,
-        force_potential,
+        force_source: force_source.map(|(field, definition, _)| (field, definition)),
         mass_density,
         dynamic_viscosity,
         force_potential_expression,
-        force_potential_definition,
         momentum_relation,
         momentum_orientation: momentum.orientation,
         incompressibility_relation,
@@ -566,11 +581,9 @@ pub(super) fn require_boundary_volume<const D: usize>(
             "every scalar velocity-valued Field must define one prescribed normal-velocity boundary law",
         ));
     }
-    let mut expected = BTreeSet::from([
-        volume.force_potential_definition,
-        volume.momentum_relation,
-        volume.incompressibility_relation,
-    ]);
+    let mut expected =
+        BTreeSet::from([volume.momentum_relation, volume.incompressibility_relation]);
+    expected.extend(volume.force_source.map(|(_, definition)| definition));
     expected.extend(boundary_definitions.iter().copied());
     if volume
         .volume_relations
@@ -600,7 +613,7 @@ fn navier_stokes_momentum_parts(
     root: ExprId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_potential: Option<RawId>,
     owner: RawId,
 ) -> Result<Option<NavierStokesMomentumParts>, Diagnostic> {
     if let Some(ExprNode::Neg(inner)) = residual.expression().node(root) {
@@ -634,21 +647,17 @@ fn navier_stokes_momentum_parts_oriented(
     root: ExprId,
     velocity: RawId,
     pressure: RawId,
-    force_potential: RawId,
+    force_potential: Option<RawId>,
     owner: RawId,
 ) -> Result<Option<NavierStokesMomentumParts>, Diagnostic> {
     let expression = residual.expression();
-    let Some(ExprNode::Sub(internal_balance, load)) = expression.node(root) else {
+    let internal_balance =
+        super::expression::momentum_internal_balance(expression, root, force_potential);
+    let Some(internal_balance) = internal_balance else {
         return Ok(None);
     };
-    let Some(ExprNode::Gradient(load_argument)) = expression.node(*load) else {
-        return Ok(None);
-    };
-    if !is_exact_field(expression, *load_argument, force_potential) {
-        return Ok(None);
-    }
     let Some(ExprNode::Sub(inertial_and_convective, divergence)) =
-        expression.node(*internal_balance)
+        expression.node(internal_balance)
     else {
         return Ok(None);
     };
@@ -773,10 +782,10 @@ fn require_closed_model<const D: usize>(
     domains.extend(model.boundaries().map(|entry| entry.boundary()));
     domains.extend(boundary.connector_domains.iter().copied());
     let mut relations = BTreeSet::from([
-        model.force_potential_definition(),
         model.momentum_relation(),
         model.incompressibility_relation(),
     ]);
+    relations.extend(model.force_potential_definition());
     relations.extend(
         model
             .boundary_relations()
@@ -784,7 +793,8 @@ fn require_closed_model<const D: usize>(
             .map(|binding| binding.relation()),
     );
     relations.extend(boundary.normal_velocity_definitions.iter().copied());
-    let mut fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
+    let mut fields = BTreeSet::from([model.velocity, model.pressure]);
+    fields.extend(model.force_potential());
     fields.extend(boundary.normal_velocity_fields.iter().copied());
     crate::canonical_stokes::inventory::FlowClosure {
         domains: &domains,

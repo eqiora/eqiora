@@ -8,21 +8,16 @@ model ReferenceStokes() {
   domain top = boundary(body, axis = 1, side = upper);
   variable velocity: vector<m / s, 2> on body in smooth;
   variable pressure: Pa on body in h1;
-  variable force_potential: Pa on body;
-  variable inlet_speed: m / s on body in h1;
-  relation inputs on body {
-    force_potential = 0[Pa];
-    inlet_speed = 1[m / s];
-  }
+  parameter inlet_speed: m / s = 1;
 
   parameter viscosity: Pa * s = 1;
-  instance flow: fluid.SteadyStokesWithPotential2d(
+  instance flow: fluid.SteadyStokes2d(
     body = body,
     velocity = velocity, pressure = pressure,
-    force_potential = force_potential, dynamic_viscosity = viscosity
+    dynamic_viscosity = viscosity
   );
   relation inlet on left {
-    trace(velocity) + normal(isotropic_lift(inlet_speed)) = 0;
+    trace(velocity) = -normal_vector() * inlet_speed;
   }
   relation outlet on right {
     normal(2 * viscosity * symmetric_part(grad(velocity))

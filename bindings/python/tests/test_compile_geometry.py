@@ -27,7 +27,6 @@ def parameters(source: eqiora.geometry.Geometry) -> dict[str, float]:
     return {
         **support_bindings(source, ['fluid'], [(n, 'fluid') for n in ['inlet', 'outlet', 'walls', 'cylinder']]),
         "dynamic_viscosity": 0.001,
-        "zero_pressure": 0.0,
         "inlet_speed": 0.3,
         "channel_height": source.bounds[1][1] - source.bounds[1][0],
     }

@@ -28,8 +28,8 @@ fn prepare_release(
 fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
     let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
     for (package, version) in [
-        ("Eqiora.Fluid.Incompressible", "0.6.0"),
-        ("Eqiora.Solid.LinearElasticity", "0.6.0"),
+        ("Eqiora.Fluid.Incompressible", "0.7.0"),
+        ("Eqiora.Solid.LinearElasticity", "0.7.0"),
     ] {
         let release = prepare_release(package, version, std::slice::from_ref(&mechanics));
         let identity = release.package_identity().expect("package identity");
@@ -43,12 +43,12 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
     let fluid = prepare_release(
         "Eqiora.Fluid.Incompressible",
-        "0.6.0",
+        "0.7.0",
         std::slice::from_ref(&mechanics),
     );
     let solid = prepare_release(
         "Eqiora.Solid.LinearElasticity",
-        "0.6.0",
+        "0.7.0",
         std::slice::from_ref(&mechanics),
     );
     let root = prepare_root(&mechanics, &fluid, &solid);

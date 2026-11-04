@@ -11,7 +11,7 @@ def prepare_plans():
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
     mesh = eqiora.meshing.generate(mesh_plan)
     source_root = files(eqiora).joinpath('examples')
-    parameters = {'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}
+    parameters = {'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}
     support_bindings = {'fluid': geometry.selection('fluid'), **{side: (geometry.selection(side), geometry.selection('fluid')) for side in ('inlet', 'outlet', 'walls', 'cylinder')}}
     steady_model = eqiora.compile(path=source_root.joinpath('steady-flow-past-cylinder.eqi'), geometry=geometry, bindings={**support_bindings, **parameters}, entry='SteadyFlowPastCylinder')
     linear = eqiora.solve.Linear(relative_tolerance=1e-06, absolute_tolerance=1e-09, maximum_iterations=20000, algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer())

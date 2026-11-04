@@ -280,6 +280,7 @@ impl Context<'_> {
                     arguments,
                 )
             }
+            ExprNode::NormalVector { .. } => call("normal_vector", vec![]),
             ExprNode::Gradient(value) => Math::Gradient(Box::new(self.lower(dag, *value, next)?)),
             ExprNode::Not(value)
             | ExprNode::Hold(value)

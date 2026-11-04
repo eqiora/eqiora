@@ -107,8 +107,9 @@ the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 ## Example files
 
 Some lessons run scripts or model packages from the repository. Downloading
-those examples is separate from installing Eqiora: keep using the published
-package in your uv project. With Git installed, run these commands from the
+those examples is separate from installing Eqiora. Use the published package
+for release-compatible examples; follow the development-build instructions below
+when an example requires newer authoring. With Git installed, run these commands from the
 project folder to get the files linked by this site:
 
 export const exampleCommands = `git init eqiora-source
@@ -119,8 +120,9 @@ git -C eqiora-source checkout --detach FETCH_HEAD`;
 <Code code={exampleCommands} lang="bash" title="Optional: download the example files" />
 
 Keep `eqiora-source` beside `.venv` for the lessons that use repository paths.
-The decay, voltage-divider, heated-body and mixed-boundary elasticity examples
-run with the published `0.1.5` package. Add optional dependencies to that package
+The decay, voltage-divider and heated-body examples run with the published
+`0.1.5` package. The current continuum examples use development-only direct
+boundary data and optional body loads; install their checkout as described below. Add optional dependencies to that package
 as needed, for example `uv add 'eqiora[matplotlib]'`. Gmsh examples also need
 `uv add 'eqiora[gmsh,matplotlib]'` and the system GLU library; on Ubuntu, install
 it with `sudo apt-get install libglu1-mesa`.
@@ -128,12 +130,14 @@ it with `sudo apt-get install libglu1-mesa`.
 ## Development build
 
 You only need a development build for features or results marked as newer than
-the published release. The equation-derived transport and outlet flux used by the
-[Kármán wake](/gallery/karman-vortex-street/) are included in `0.1.5`.
+the published release. The current [Kármán wake](/gallery/karman-vortex-street/),
+exact-cylinder Stokes and mixed-boundary elasticity examples require this build.
+Their new boundary-data authoring is not in the unchanged `0.1.5` wheel.
 
 After downloading the [example files](#example-files), install
-[Rust stable with Cargo](https://rustup.rs/) and a C compiler/linker. On Ubuntu,
-`build-essential` supplies the compiler and linker. Then replace the project's
+[Rust stable with Cargo](https://rustup.rs/), a C/C++ compiler/linker, CMake and
+libclang. On Ubuntu, `build-essential`, `cmake` and `libclang-dev` supply the
+native build prerequisites. Then replace the project's
 published dependency with the checkout:
 
 ```bash

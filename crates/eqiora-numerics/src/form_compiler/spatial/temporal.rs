@@ -77,7 +77,7 @@ pub(super) fn initial_values<S: Coefficient>(
                 coefficients,
             };
             let data = PrescribedDatum::derive(&context, &typed, definition.value_type(), rhs)?;
-            if matches!(data, PrescribedDatum::NormalMultiple(_)) {
+            if data.requires_normal() {
                 return Err(invalid(
                     "volume initial data cannot depend on a boundary normal",
                 ));

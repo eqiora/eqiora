@@ -165,36 +165,27 @@ public component ScalarDiffusion(
 public component SteadyFlowPastCylinder(
   support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid),
   parameter dynamic_viscosity: kg / (m * s),
-  parameter zero_pressure: kg / (m * s ^ 2),
   parameter inlet_speed: m / s,
   parameter channel_height: m
 ) {
 
   variable velocity: vector<m / s, 2> on fluid in smooth;
   variable pressure: kg / (m * s ^ 2) on fluid in h1;
-  variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable inlet_profile: m / s on fluid in h1;
 
-  relation force_definition on fluid {
-    force_potential - zero_pressure = 0;
-  }
-  relation inlet_profile_definition on fluid {
-    inlet_profile
-      - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
-        / channel_height ^ 2 = 0;
-  }
   relation momentum on fluid {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - grad(force_potential) = 0;
+    ) = 0;
   }
   relation incompressibility on fluid {
     div(velocity) = 0;
   }
 
   relation inlet_velocity on inlet {
-    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
+    trace(velocity) = -normal_vector()
+      * (4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+        / channel_height ^ 2);
   }
   relation outlet_traction on outlet {
     normal(
@@ -487,21 +478,13 @@ public component SteadyFlowPastCylinder(
         );
     }
 
-    fn cylinder_parameters() -> [(&'static str, ValueLiteral); 4] {
+    fn cylinder_parameters() -> [(&'static str, ValueLiteral); 3] {
         [
             (
                 "dynamic_viscosity",
                 DynQuantity::new(
                     1.0e-3,
                     DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0])
-                        .expect("bounded dimension"),
-                ),
-            ),
-            (
-                "zero_pressure",
-                DynQuantity::new(
-                    0.0,
-                    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
                         .expect("bounded dimension"),
                 ),
             ),
@@ -601,7 +584,7 @@ public component SteadyFlowPastCylinder(
             assert_eq!(definition.value(), &expected);
             parameter_ids.insert(parameter);
         }
-        assert_eq!(parameter_ids.len(), 4);
+        assert_eq!(parameter_ids.len(), 3);
         let parameter_references = document
             .program()
             .nodes()
@@ -615,7 +598,22 @@ public component SteadyFlowPastCylinder(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(parameter_references.len(), 6);
+        // Authored uses: viscosity in momentum/outlet, speed once, height twice.
+        for (name, count) in [
+            ("dynamic_viscosity", 2),
+            ("inlet_speed", 1),
+            ("channel_height", 2),
+        ] {
+            let id = document.aliases()[name];
+            assert_eq!(
+                parameter_references
+                    .iter()
+                    .filter(|&&value| value == id)
+                    .count(),
+                count,
+                "authored uses of {name}",
+            );
+        }
         assert!(
             parameter_references
                 .iter()

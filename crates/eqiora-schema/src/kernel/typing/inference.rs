@@ -269,6 +269,9 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             isotropic_lift(&value)
         }
+        ExprNode::NormalVector { on } => {
+            ExpressionType::normal_vector(boundary_support(*on).as_ref())
+        }
         ExprNode::Trace { value, on } => {
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;

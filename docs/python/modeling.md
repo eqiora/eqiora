@@ -998,14 +998,14 @@ dependency to an existing project through the same manifest/lock transaction:
 import eqiora
 
 resolution = eqiora.add_bundled_dependency(
-    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.6.0"
+    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.7.0"
 )
 ```
 
 Create the store directory first. The request must match the release
 shipped in the distribution. The solid package is
-`Eqiora.Solid.LinearElasticity`, version `0.6.0`.
-The manifest records `version = "0.6.0"` and `sources = [{ bundled = true }]`
+`Eqiora.Solid.LinearElasticity`, version `0.7.0`.
+The manifest records `version = "0.7.0"` and `sources = [{ bundled = true }]`
 for the fluid dependency. Each dependency lists its explicit candidate sources.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the
@@ -1472,7 +1472,6 @@ model = eqiora.compile(
             for name in ("inlet", "outlet", "walls", "cylinder")
         },
         "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
         "inlet_speed": 0.3,
         "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
     },
@@ -1524,13 +1523,16 @@ Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the pressure field:
 
 ```console
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```
 
 The example files come from the [repository download](https://eqiora.org/get-started/#example-files);
-the Eqiora dependency comes from PyPI. The equivalent composition API is:
+install the Eqiora dependency from that same development checkout. The published
+0.1.5 wheel does not include the new direct boundary-data authoring used by the
+current example. Source builds require Rust, a C/C++ compiler, CMake and
+libclang; [CONTRIBUTING.md](../../CONTRIBUTING.md) describes repository tool setup. The equivalent composition API is:
 
 ```python
 import eqiora.matplotlib as eqplot
@@ -1881,7 +1883,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v49` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v50` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

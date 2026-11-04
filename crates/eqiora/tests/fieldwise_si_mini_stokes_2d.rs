@@ -65,6 +65,71 @@ struct Observation {
 }
 
 #[test]
+fn unforced_all_essential_stokes_finalizes_and_solves_with_zero_integral_gauge() {
+    let source = DIRECT
+        .replace("  variable force_potential: kg / (m * s ^ 2) on body;\n", "")
+        .replace("  parameter force_gradient: kg / (m ^ 2 * s ^ 2) = 0.75;\n", "")
+        .replace("  parameter pressure_zero_coordinate: m = 2;\n", "")
+        .replace("  relation force_definition on body {\n    force_potential\n      - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;\n  }\n", "")
+        .replace(" - grad(force_potential)", "");
+    assert!(!source.contains("force_potential"));
+    let document = eqiora::api::ModelDocument::compile("unforced.eqi", &source).unwrap();
+    let program = document.program();
+    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).unwrap();
+    let mesh_reference = mesh.artifact_reference().unwrap();
+    let (lowered, resolved) = resolve_exact(program, mesh_reference, profile_a(), 1);
+    assert_eq!(lowered.force_potential(), None);
+    assert_eq!(lowered.force_potential_definition(), None);
+    assert_eq!(lowered.force_potential_expression(), None);
+    assert_eq!(
+        resolved.plan().spatial().constraints(),
+        &[AlgebraicConstraint::ZeroIntegral {
+            field: lowered.pressure().downcast().unwrap(),
+        }]
+    );
+
+    // Canonical finalization wraps the numerical assembly backend with the
+    // declared block inventory, including the volume and gauge packets.
+    let (_, finalized) =
+        finalize_resolved_steady_stokes_mini_2d(program, &resolved, mesh_reference, mesh.mesh())
+            .unwrap();
+    assert_eq!(finalized.assembly_report().target_count(), 3);
+    let linear_solution = REFERENCE_LINEAR_SOLVER
+        .solve(&finalized.linear_problem().unwrap(), reference_solver())
+        .unwrap();
+    let solution = finalized.finish(linear_solution).unwrap();
+    assert_eq!(solution.force_potential_field(), None);
+    // Positive viscosity, homogeneous velocity on the complete boundary, and
+    // no force imply u=0. The zero-integral gauge then fixes the constant p=0.
+    for value in solution
+        .velocity()
+        .vertex_values()
+        .iter()
+        .chain(solution.velocity().cell_bubble_values())
+        .flatten()
+    {
+        assert_close(*value, 0.0, 2.0e-10);
+    }
+    for value in solution.pressure().vertex_values() {
+        assert_close(*value, 0.0, 2.0e-10);
+    }
+    assert_close(
+        solution
+            .gauge_multiplier()
+            .expect("all-essential pressure gauge"),
+        0.0,
+        2.0e-10,
+    );
+    assert_close(solution.pressure_integral().unwrap(), 0.0, 2.0e-10);
+    for value in solution.integrated_body_force().unwrap() {
+        assert_close(value, 0.0, 2.0e-10);
+    }
+    let report = solution.dimensionless_solution().solve_report();
+    assert_eq!(report.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
+    assert!(report.true_residual_norm() <= report.residual_target());
+}
+
+#[test]
 fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
     use eqiora::realization::{
         DiscretizationMethod, MeshKind, SpatialDimensionSupport, TargetCapabilities,
@@ -344,7 +409,11 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
         .unwrap(),
     );
     let pressure = lowered.pressure().downcast().unwrap();
-    let force = lowered.force_potential().downcast().unwrap();
+    let force = lowered
+        .force_potential()
+        .expect("fixture authors a force potential")
+        .downcast()
+        .unwrap();
     let force_fields = fields
         .iter()
         .map(|binding| {
@@ -768,8 +837,8 @@ fn assert_physical_solution(
     assert_eq!(solution.velocity_field().ulid(), lowered.velocity().ulid());
     assert_eq!(solution.pressure_field().ulid(), lowered.pressure().ulid());
     assert_eq!(
-        solution.force_potential_field().ulid(),
-        lowered.force_potential().ulid()
+        solution.force_potential_field().map(|field| field.ulid()),
+        lowered.force_potential().map(|field| field.ulid())
     );
     for value in solution
         .velocity()

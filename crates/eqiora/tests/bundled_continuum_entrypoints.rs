@@ -154,6 +154,7 @@ fn bundled_fluid_reopens_with_only_its_real_mechanics_dependency() {
     assert_eq!(
         model
             .force_potential_expression()
+            .expect("authored force potential")
             .evaluate(&[0.25, 0.75])
             .unwrap(),
         0.25

@@ -205,7 +205,6 @@ pub(crate) fn authored_model<const D: usize>(
                 [1, -1, -2, 0, 0, 0, 0],
             ),
         ),
-        ("zero_pressure", quantity(0.0, [1, -1, -2, 0, 0, 0, 0])),
     ]
     .map(|(name, value)| {
         (

@@ -5,36 +5,27 @@ public component SteadyFlowPastCylinder(
   support walls: boundary(parent = fluid),
   support cylinder: boundary(parent = fluid),
   parameter dynamic_viscosity: kg / (m * s),
-  parameter zero_pressure: kg / (m * s ^ 2),
   parameter inlet_speed: m / s,
   parameter channel_height: m
 ) {
 
   variable velocity: vector<m / s, 2> on fluid in smooth;
   variable pressure: kg / (m * s ^ 2) on fluid in h1;
-  variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable inlet_profile: m / s on fluid in h1;
 
-  relation force_definition on fluid {
-    force_potential - zero_pressure = 0;
-  }
-  relation inlet_profile_definition on fluid {
-    inlet_profile
-      - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
-        / channel_height ^ 2 = 0;
-  }
   relation momentum on fluid {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - grad(force_potential) = 0;
+    ) = 0;
   }
   relation incompressibility on fluid {
     div(velocity) = 0;
   }
 
   relation inlet_velocity on inlet {
-    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
+    trace(velocity) = -normal_vector()
+      * (4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+        / channel_height ^ 2);
   }
   relation outlet_traction on outlet {
     normal(

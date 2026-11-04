@@ -128,7 +128,7 @@ pub(super) fn require_complete_boundary_model(
         if common
             .as_ref()
             .is_some_and(|accepted: &SteadyStokesPrescribedVelocityTrace2d| {
-                accepted.law_identity() != trace.law_identity()
+                !accepted.same_law(trace)
             })
         {
             return Err(invalid(

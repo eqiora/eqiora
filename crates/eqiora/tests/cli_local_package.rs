@@ -180,7 +180,7 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
         &[
             "Eqiora.Fluid.Incompressible",
             "--version",
-            "0.6.0",
+            "0.7.0",
             "--bundled",
         ],
     );
