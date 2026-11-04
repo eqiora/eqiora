@@ -89,51 +89,52 @@ fn circular_hole_frontier_includes_the_hole_and_grouped_walls() {
 #[test]
 fn exact_object_catalog_ownership_rejects_replayed_and_stale_handles() {
     let geometry = cylinder();
-    let same_identity = CanonicalGeometryV1::replay_canonical(
-        geometry.canonical_bytes(),
-        CanonicalGeometryLimits::default(),
-    )
-    .unwrap();
+    let limits = CanonicalGeometryLimits::default();
+    let same_identity =
+        CanonicalGeometryV1::replay_canonical(geometry.canonical_bytes(), limits).unwrap();
     assert_eq!(geometry.digest_bytes(), same_identity.digest_bytes());
     let parent = geometry.entity_set("fluid").unwrap();
+    let complete =
+        ["inlet", "outlet", "walls", "hole"].map(|name| geometry.entity_set(name).unwrap());
     assert!(
         geometry
-            .validate_complete_exterior_partition(
-                parent,
-                &[same_identity.entity_set("walls").unwrap()],
-                CanonicalGeometryLimits::default()
-            )
-            .is_err()
+            .validate_complete_exterior_partition(parent, &complete, limits)
+            .is_ok()
     );
-    assert!(
-        geometry
-            .validate_complete_exterior_partition(
-                same_identity.entity_set("fluid").unwrap(),
-                &[geometry.entity_set("walls").unwrap()],
-                CanonicalGeometryLimits::default()
-            )
-            .is_err()
-    );
+
+    // Every counterexample retains complete, disjoint membership and dimensions.
+    // Removing only object ownership would make each of these partitions pass.
+    let stale = CanonicalGeometryV1::from_circular_hole(
+        [[0.0, 3.0], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        geometry.entity_sets().to_vec(),
+    )
+    .unwrap();
+    assert_ne!(stale.digest_bytes(), geometry.digest_bytes());
     let cloned_set = geometry.entity_set("hole").unwrap().clone();
-    assert!(
-        geometry
-            .validate_complete_exterior_partition(
-                parent,
-                &[&cloned_set],
-                CanonicalGeometryLimits::default()
-            )
-            .is_err()
-    );
-    let stale = triangles();
-    assert!(
-        geometry
-            .validate_complete_exterior_partition(
-                parent,
-                &[stale.entity_set("a").unwrap()],
-                CanonicalGeometryLimits::default()
-            )
-            .is_err()
-    );
+    for foreign in [
+        same_identity.entity_set("hole").unwrap(),
+        stale.entity_set("hole").unwrap(),
+        &cloned_set,
+    ] {
+        assert_eq!(foreign, complete[3]);
+        let parts = [complete[0], complete[1], complete[2], foreign];
+        let error = geometry
+            .validate_complete_exterior_partition(parent, &parts, limits)
+            .unwrap_err();
+        assert!(error.message().contains("owned"));
+    }
+    for foreign_parent in [
+        same_identity.entity_set("fluid").unwrap(),
+        stale.entity_set("fluid").unwrap(),
+    ] {
+        assert_eq!(foreign_parent, parent);
+        let error = geometry
+            .validate_complete_exterior_partition(foreign_parent, &complete, limits)
+            .unwrap_err();
+        assert!(error.message().contains("owned"));
+    }
     assert!(check(&geometry, "walls", &["inlet"]).is_err());
     assert!(check(&geometry, "fluid", &["fluid"]).is_err());
 }
