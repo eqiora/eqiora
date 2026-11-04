@@ -11,7 +11,7 @@ use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
 use numpy::ndarray::Ix2;
-use pyo3::exceptions::{PyOverflowError, PyRuntimeError};
+use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyTuple};
 
@@ -804,10 +804,31 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
     diagnostic_error(py, &[Diagnostic::error(codes::NOT_IMPLEMENTED, message)])
 }
 
-/// Execute one resolved provider plan over its owned Geometry and publish only its accepted Mesh.
+/// Generate from Geometry and an explicit provider, or publish an inspected MeshPlan.
 #[pyfunction]
-#[pyo3(signature = (plan, /))]
-pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
+#[pyo3(signature = (plan, provider=None, /))]
+pub(super) fn generate(
+    py: Python<'_>,
+    plan: &Bound<'_, PyAny>,
+    provider: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyMesh> {
+    if let Ok(plan) = plan.extract::<PyRef<'_, PyMeshPlan>>() {
+        if provider.is_some() {
+            return Err(PyTypeError::new_err(
+                "generate(MeshPlan) does not accept a provider",
+            ));
+        }
+        return generate_plan(py, &plan);
+    }
+    let geometry = plan.extract::<PyRef<'_, crate::geometry::PyGeometry>>()?;
+    let provider = provider.ok_or_else(|| {
+        PyTypeError::new_err("generate(Geometry, provider) requires an explicit provider")
+    })?;
+    let resolved = super::plan::resolve(py, &geometry, provider)?;
+    generate_plan(py, &resolved)
+}
+
+fn generate_plan(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
     panic_boundary(py, || match (&plan.planned, &plan.provider) {
         (PlannedMesh::Gmsh(sizing), MeshProviderPolicy::Gmsh(provider)) => {
             let quality_gate = eqiora::meshing::MeshQualityGate::new(provider.minimum_mean_ratio)

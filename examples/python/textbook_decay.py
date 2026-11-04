@@ -15,13 +15,13 @@ def solve(source_path: Path) -> tuple[tuple[float, float], ...]:
     """Return the requested (time in seconds, dimensionless value) samples."""
 
     model = eqiora.compile(path=source_path)
-    field = model.field(model.field_ids[0])
+    field = model.field("x")
     plan = eqiora.resolve(
         model,
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
+            absolute_tolerance=1.0e-11,
         ),
     )
     result = eqiora.run(
