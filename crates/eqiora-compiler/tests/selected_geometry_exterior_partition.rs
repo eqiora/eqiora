@@ -146,3 +146,28 @@ fn singular_geometry_selections_compose_and_forward_a_proved_partition() {
     };
     assert!(CompiledModel::compile_selected("composed.eqi", source, "Selected", &invalid).is_err());
 }
+#[test]
+fn component_owned_cartesian_domains_remain_unsupported_in_source_and_native() {
+    let source = "component Law(support body:volume(ambient_dimension=2),support exterior:complete_exterior(parent=body)){variable value:m on body;relation law[b in exterior] on b{trace(value)-trace(value)=0;}} component Wrapper(){domain body=box(0,1,0,1);domain left=boundary(body,axis=0,side=lower);domain right=boundary(body,axis=0,side=upper);domain bottom=boundary(body,axis=1,side=lower);domain top=boundary(body,axis=1,side=upper);instance child:Law(body=body,exterior=boundaries(left,right,bottom,top));} model Main(){instance first:Wrapper();instance second:Wrapper();}";
+    let errors = eqiora_compiler::compile("local-domains.eqi", source).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("expected parameter, port"))
+    );
+    let model = eqiora_lang::parse("local.eqi", "model Local(){domain body=box(0,1,0,1);}")
+        .into_document()
+        .unwrap();
+    let eqiora_lang::Item::Domain(domain) = &model.models()[0].items()[0] else {
+        unreachable!()
+    };
+    let error = eqiora_lang::SourceAstFactory::component(
+        eqiora_lang::VisibilitySyntax::Private,
+        "Wrapper",
+        vec![],
+        vec![eqiora_lang::ComponentItem::Domain(domain.clone())],
+        eqiora_lang::TextRange::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("exact coordinate product"));
+}

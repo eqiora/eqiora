@@ -509,3 +509,34 @@ fn time_expression(
 fn exterior_member_slot(slot: &str, entity_set: &str) -> String {
     format!("@exterior/{slot}/{entity_set}")
 }
+
+/// Geometry evidence takes precedence over optional Cartesian projection metadata.
+pub(super) fn resolve_exterior_domain(
+    identity: &FullElaborationIdentity,
+    scope: &Scope,
+    geometry: &BTreeMap<FullElaborationIdentity, ExteriorDomain<FullElaborationIdentity>>,
+    sides: &BTreeMap<FullElaborationIdentity, (usize, BoundarySide)>,
+) -> Option<ExteriorDomain<FullElaborationIdentity>> {
+    if let Some(support) = geometry.get(identity) {
+        return Some(support.clone());
+    }
+    match scope.spatial_support_by_identity(*identity)? {
+        SpatialSupport::Volume { dimensions, .. } => Some(ExteriorDomain::Volume {
+            ambient_dimension: *dimensions,
+        }),
+        SpatialSupport::Boundary {
+            parent, dimensions, ..
+        } => {
+            let (axis, side) = sides.get(identity)?;
+            Some(ExteriorDomain::Boundary {
+                exact_parent: *parent,
+                ambient_dimension: *dimensions,
+                axis: *axis,
+                side: *side,
+            })
+        }
+        SpatialSupport::Coordinates { .. }
+        | SpatialSupport::Interface { .. }
+        | SpatialSupport::PhysicalInterface { .. } => None,
+    }
+}

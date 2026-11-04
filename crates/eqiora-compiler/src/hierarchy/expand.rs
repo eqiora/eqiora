@@ -310,28 +310,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ))
             },
             |identity| {
-                if let Some(support) = self.geometry_supports.get(identity) {
-                    return Some(support.clone());
-                }
-                match parent_scope.spatial_support_by_identity(*identity)? {
-                    SpatialSupport::Volume { dimensions, .. } => Some(ExteriorDomain::Volume {
-                        ambient_dimension: *dimensions,
-                    }),
-                    SpatialSupport::Boundary {
-                        parent, dimensions, ..
-                    } => {
-                        let (axis, side) = boundary_sides.get(identity)?;
-                        Some(ExteriorDomain::Boundary {
-                            exact_parent: *parent,
-                            ambient_dimension: *dimensions,
-                            axis: *axis,
-                            side: *side,
-                        })
-                    }
-                    SpatialSupport::Coordinates { .. }
-                    | SpatialSupport::Interface { .. }
-                    | SpatialSupport::PhysicalInterface { .. } => None,
-                }
+                external::resolve_exterior_domain(
+                    identity,
+                    parent_scope,
+                    &self.geometry_supports,
+                    boundary_sides,
+                )
             },
             |name| parent_scope.boundary_set(name).cloned(),
             membership_budget,
