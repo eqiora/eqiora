@@ -164,38 +164,114 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
         };
         // The authored right normal flux +/-2/m, c=2, left value zero,
         // and zero top/bottom flux give the unique solution u=+/-x/m.
-        // This linear function lies in Q1 exactly. For the uniform unit
-        // square, write x for the numeric coordinate x_physical/(1 m)
-        // and h=1/N in those normalized coordinates. The Q1 free-node
-        // stiffness is an M-matrix. Applying it to nodal
-        // phi=x*(2-x)/(2*c) gives the constant-load lumped masses:
-        // h^2 inside, h^2/2 on a free edge, h^2/4 at a free corner.
-        // phi has zero left value and zero right normal derivative.
-        // Comparison with the minimum mass h^2/4 and max(phi)=1/(2*c)
-        // gives ||K_ff^-1||_inf <= 2/(c*h^2) = 64 (c=2, h=1/8).
-        // Right-flux loads are 2*h (h at its two corners), so ||b||_2<=2.
-        // CG requests max(1e-14,1e-12*||b||_2), giving <=1.28e-10 nodal
-        // error in exact arithmetic, also bounding L2 on a unit-area box.
-        // As in scalar_coefficient_division, allow twice the analytic bound
-        // for assembly/solve rounding, not as a floating-point proof.
-        let error = solution
-            .field()
-            .l2_error(
-                &|x: &[f64]| slope * x[0],
-                &QuadratureRule::tensor_product_gauss_legendre(2, 4).unwrap(),
-            )
-            .unwrap();
-        assert!(error < 2.56e-10, "linear Laplace error {error}");
-        let wrong_sign = solution
-            .field()
-            .l2_error(
-                &|x: &[f64]| -slope * x[0],
-                &QuadratureRule::tensor_product_gauss_legendre(2, 4).unwrap(),
-            )
-            .unwrap();
-        // ||x/m - (-x/m)||_L2 = 2/sqrt(3) > 1, independently of Eqiora.
-        assert!(wrong_sign > 1.0, "opposite sign must be distinguishable");
+        // Certify against an independently assembled exact integer stencil,
+        // including any error in the production assembly and solve.
+        let mut values = [0.0; 81];
+        for (vertex, value) in solution.field().vertex_values().iter().enumerate() {
+            let index = solution
+                .field()
+                .mesh()
+                .vertex_multi_index(eqiora::meshing::MeshEntity::new(0, vertex))
+                .unwrap();
+            values[index[0] + 9 * index[1]] = *value;
+        }
+        certify_linear_laplace(&values, slope);
     }
+}
+
+// Independent Q1 unit-square stencil: exact integration of bilinear basis
+// gradients gives (c/6)*[[4,-1,-2,-1], ...] in cyclic corner order.
+// Coordinates below mean x_physical/(1 m), h=1/8. Thus A=6K/c=3K is
+// integer, and the prescribed scaled right-flux load is dyadic exact.
+fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
+    let mut matrix = [[0_i32; 81]; 81];
+    let local = [
+        [4, -1, -2, -1],
+        [-1, 4, -1, -2],
+        [-2, -1, 4, -1],
+        [-1, -2, -1, 4],
+    ];
+    for y in 0..8 {
+        for x in 0..8 {
+            let vertices = [
+                x + 9 * y,
+                x + 1 + 9 * y,
+                x + 1 + 9 * (y + 1),
+                x + 9 * (y + 1),
+            ];
+            for i in 0..4 {
+                for j in 0..4 {
+                    matrix[vertices[i]][vertices[j]] += local[i][j];
+                }
+            }
+        }
+    }
+    let mut matrix_norm = 0.0_f64;
+    let mut load_norm = 0.0_f64;
+    let mut maximum_residual = 0.0_f64;
+    let mut maximum_error = 0.0_f64;
+    for y in 0..9 {
+        assert_eq!(values[9 * y], 0.0, "essential left trace");
+        for x in 1..9 {
+            let row = x + 9 * y;
+            let load = if x == 8 {
+                slope * if y == 0 || y == 8 { 0.375 } else { 0.75 }
+            } else {
+                0.0
+            };
+            let mut residual = -load;
+            let mut row_sum = 0_i32;
+            let mut terms = 0;
+            for column in 0..81 {
+                if column % 9 == 0 {
+                    continue;
+                } // exactly eliminated zero trace
+                let entry = matrix[row][column];
+                if entry != 0 {
+                    residual += f64::from(entry) * values[column];
+                    row_sum += entry.abs();
+                    terms += 1;
+                }
+            }
+            assert!(terms <= 9);
+            matrix_norm = matrix_norm.max(f64::from(row_sum));
+            load_norm = load_norm.max(load.abs());
+            maximum_residual = maximum_residual.max(residual.abs());
+            maximum_error = maximum_error.max((values[row] - slope * (x as f64) / 8.0).abs());
+        }
+    }
+    // For K, nodal phi=x(2-x)/(2c) has K*phi equal to constant-load
+    // masses (h² interior, h²/2 edge, h²/4 corner), max(phi)=1/(2c).
+    // The M-matrix comparison bound is ||K^-1||inf <=2/(c*h²)=64.
+    // Since A=3K, ||A^-1||inf <= B=64/3. The independent residual
+    // check includes production assembly error rather than assuming it away.
+    let inverse_bound = 64.0 / 3.0;
+    let residual_limit = 6e-12; // Three times the requested physical CG bound.
+    assert!(
+        maximum_residual <= residual_limit,
+        "independent residual {maximum_residual}"
+    );
+    // At most 9 products and 9 additions, with exact integer coefficients
+    // and dyadic load, are bounded by gamma20. With ||u_exact||inf=1,
+    // e <= B[R + gamma20*(||A||inf*(1+e)+||b||inf)]. Rearranging gives
+    // this output-independent error budget. All norm inputs come from the
+    // independent stencil/load above, never the computed solution.
+    let roundoff = f64::EPSILON / 2.0;
+    let gamma = (20.0 * roundoff) / (1.0 - 20.0 * roundoff);
+    let denominator = 1.0 - inverse_bound * gamma * matrix_norm;
+    assert!(denominator > 0.0);
+    let bound = (inverse_bound * (residual_limit + gamma * (matrix_norm + load_norm))
+        / denominator)
+        .next_up();
+    assert!(
+        maximum_error <= bound,
+        "nodal error {maximum_error} exceeds {bound}"
+    );
+    // Q1 shape functions are nonnegative and sum to one: this nodal bound
+    // also bounds field error everywhere, without numerical L2 quadrature.
+    // Opposite-sign solutions differ by 2 at x=1; no sign is rejected as
+    // invalid merely because it describes a different well-posed problem.
+    assert!((values[8] + slope).abs() > 1.0);
 }
 
 #[test]
