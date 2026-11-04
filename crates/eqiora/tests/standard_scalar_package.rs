@@ -193,6 +193,8 @@ fn units_and_foreign_parent_bindings_reject_before_numerical_lowering() {
     let scalar = scalar_release();
     for source in [
         poisson(false).replace("variable u: 1", "variable u: K"),
+        poisson(true).replace("coefficient=2", "coefficient=2[K]"),
+        poisson(false).replace("box(0, 1, 0, 1)", "box(0, 1, 0, 1, 0, 1)"),
         poisson(false).replace("source=2*wave^2", "source=2[K]*wave^2"),
         poisson(false).replace("value=0", "value=1[K]"),
         laplace("2[K/m]"),
