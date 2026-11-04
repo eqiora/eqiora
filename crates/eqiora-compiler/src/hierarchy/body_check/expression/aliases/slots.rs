@@ -108,6 +108,23 @@ pub(in crate::hierarchy::body_check) fn validate_expression_bindings(
     let Some(child) = scope.children.get(instance.name()) else {
         return Ok(());
     };
+    if !child
+        .declaration
+        .signature()
+        .iter()
+        .any(|item| matches!(item, eqiora_lang::SignatureItem::Expression(_)))
+    {
+        return Ok(());
+    }
+    if let Some(binder) = instance.family() {
+        let extent = crate::hierarchy::body_check::indexed::extent(scope, binder)?;
+        for ordinal in 0..extent {
+            let member =
+                crate::hierarchy::reductions::instantiate_instance(scope.file, instance, ordinal)?;
+            validate_expression_bindings(scope, &member)?;
+        }
+        return Ok(());
+    }
     for item in child.declaration.signature() {
         let eqiora_lang::SignatureItem::Expression(declaration) = item else {
             continue;

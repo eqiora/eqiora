@@ -169,3 +169,52 @@ fn child_clocked_alias_is_deferred_without_changing_legacy_semantics() {
     );
     compile("wrapper.eqi", &wrapped).unwrap();
 }
+
+#[test]
+fn indexed_expression_arguments_keep_the_callers_ordinal_context() {
+    let source = model("source=to_real(ordinal(i))*1[K/m^2]").replace(
+        "instance law:Law",
+        "indexset I=range(2);instance law[i in I]:Law",
+    );
+    let compiled = compile("ordinal.eqi", &source).unwrap();
+    let mut ordinals = Vec::new();
+    let mut parameters = 0;
+    for op in compiled[0].transaction().ops() {
+        match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Parameter(_),
+            } => parameters += 1,
+            Op::DefineKernelNode {
+                node: KernelNode::Relation(relation),
+            } => {
+                let values = relation
+                    .expression()
+                    .nodes()
+                    .iter()
+                    .filter_map(|node| match node {
+                        ExprNode::Constant(value) => value.integer_component(0),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(values.len(), 1);
+                ordinals.push(values[0]);
+            }
+            _ => {}
+        }
+    }
+    ordinals.sort();
+    assert_eq!(ordinals, [0, 1]);
+    assert_eq!(parameters, 2);
+    let indexed_array = model("source=[1[K/m^2]][ordinal(i)]").replace(
+        "instance law:Law",
+        "indexset I=range(2);instance law[i in I]:Law",
+    );
+    compile("one.eqi", &indexed_array.replace("range(2)", "range(1)")).unwrap();
+    rejected(&indexed_array); // The final member's out-of-range selection must be checked.
+    let group = "component Group(support body:volume(ambient_dimension=2),variable u:K on body){indexset I=range(2);instance law[i in I]:Law(body=body,u=u,source=to_real(ordinal(i))*1[K/m^2]);}";
+    let wrapped = model("source=1[K/m^2]")
+        .replace("model M()", &format!("{group} model M()"))
+        .replace("instance law:Law", "instance group:Group")
+        .replace(",source=1[K/m^2]", "");
+    compile("component-ordinal.eqi", &wrapped).unwrap();
+}
