@@ -1986,7 +1986,9 @@ class AggregateGateTests(unittest.TestCase):
                     if job == "quality" and name in disk_observations:
                         if name != "Record disk use before Clippy":
                             condition = "always() && " + condition
-                    self.assertIn(f"if: {condition}\n", block)
+                        self.assertIn(f"if: {condition}\n", block)
+                    else:
+                        self.assertIn(f"if: {condition}", block)
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:
         complete = {surface: "false" for surface in SURFACES}
