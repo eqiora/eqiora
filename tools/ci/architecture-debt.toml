@@ -371,7 +371,10 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 102
+ceiling = 103
+# #1743 adds SpatialExtentSyntax for explicit or support-sized spatial axes.
+# Parser, formatter, factory and type checking share this distinction.
+# Remove it only if an existing typed axis owner preserves both source forms.
 # #915: FiniteBasisSyntax retains a qualified basis name and its dual role for
 # the parser, native factory, formatter and lexical binder. One shared syntax
 # owner replaces client-specific parsing of coordinates and map endpoints.

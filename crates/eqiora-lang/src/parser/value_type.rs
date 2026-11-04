@@ -216,19 +216,50 @@ impl Parser<'_> {
         Some(crate::FiniteBasisSyntax { name, dual })
     }
 
-    fn parse_type_extent(&mut self) -> Option<u32> {
+    fn parse_type_extent(&mut self) -> Option<crate::SpatialExtentSyntax> {
+        if self.at_keyword("spatial") {
+            self.bump();
+            return Some(crate::SpatialExtentSyntax::Support);
+        }
         let extent = self.parse_u64("positive integer type extent")?;
         let Some(extent) = u32::try_from(extent).ok().filter(|extent| *extent > 0) else {
             self.error_previous("type extent must be a positive u32 integer");
             return None;
         };
-        Some(extent)
+        Some(crate::SpatialExtentSyntax::Exact(extent))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{Item, ValueTypeSyntaxKind, format, parse};
+
+    #[test]
+    fn support_sized_axes_roundtrip_without_changing_rank_or_assertions() {
+        for ty in [
+            "vector<m / s, spatial>",
+            "tensor<Pa, spatial, spatial>",
+            "tensor<Pa, spatial, 3>",
+            "array<vector<V, spatial>, 2>",
+        ] {
+            let source = format!(
+                "component C(support body: volume(ambient_dimension = 3), variable value: {ty} on body) {{}}"
+            );
+            let document = parse("types.eqi", &source).into_document().unwrap();
+            let formatted = crate::format(&document);
+            assert!(formatted.contains(ty), "{formatted}");
+            let reparsed = parse("types.eqi", &formatted).into_document().unwrap();
+            assert_eq!(formatted, crate::format(&reparsed));
+        }
+        for ty in [
+            "vector<V, spatial, spatial>",
+            "tensor<V, spatial>",
+            "tensor<V, spatial, spatial, spatial, spatial, spatial>",
+        ] {
+            let source = format!("model M() {{ variable value: {ty}; }}");
+            assert!(parse("bad.eqi", &source).into_document().is_err(), "{ty}");
+        }
+    }
 
     #[test]
     fn mathematical_type_constructors_have_one_round_trip_spelling() {
@@ -273,7 +304,7 @@ mod tests {
         let ValueTypeSyntaxKind::Vector { scalar, extent } = element.kind() else {
             panic!("vector");
         };
-        assert_eq!(*extent, 2);
+        assert_eq!(*extent, crate::SpatialExtentSyntax::Exact(2));
         assert_eq!(
             scalar.scalar_domain(),
             Some(eqiora_core::ScalarDomain::Complex)
