@@ -391,10 +391,23 @@ fn both_axes_of_a_non_square_face_snap_independently_before_acceptance() {
         .count();
     assert_eq!(boundary_edges, 84);
     assert_eq!(edge_count - boundary_edges, 1206);
-    assert_eq!(
-        maximum_mesh_edge(&realization).to_bits(),
-        0x3fee_14e6_a484_57e0
-    );
+    // Check the realized geometry without requiring a particular libm hypot rounding.
+    let mesh = realization.mesh();
+    let mut widest_diagonal_exists = false;
+    for edge in mesh
+        .cells()
+        .iter()
+        .flat_map(|cell| [[cell[0], cell[1]], [cell[1], cell[2]], [cell[2], cell[0]]])
+    {
+        let left = &mesh.vertices()[edge[0]];
+        let right = &mesh.vertices()[edge[1]];
+        let du = (right[0] - left[0]).abs();
+        let dv = (right[1] - left[1]).abs();
+        assert!(du <= u_accepted_gap);
+        assert!(dv <= v_accepted_gap);
+        widest_diagonal_exists |= du == u_accepted_gap && dv == v_accepted_gap;
+    }
+    assert!(widest_diagonal_exists);
     assert!(maximum_mesh_edge(&realization) <= target);
 }
 

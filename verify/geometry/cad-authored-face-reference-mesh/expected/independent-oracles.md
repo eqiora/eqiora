@@ -121,8 +121,23 @@ with unequal maximum realized gaps: `0x1.589d89d89d8a0p-1` on u (two ulps
 above its nominal spacing) versus the exact dyadic spacing
 `0x1.5000000000000p-1` (0.65625 m) on v, where no snapping widening survives.
 The accepted grid has 459 vertices, 832 triangles, and 1290 edges (84
-boundary, 1206 interior); the maximum mesh edge is the widest cell diagonal
-`0x1.e14e6a48457e0p-1 <= h`. On u the two closed-form ceiling estimates
+boundary, 1206 interior). The correctly rounded binary64 value of the exact
+widest cell diagonal is `0x1.e14e6a48457e0p-1 <= h`. This remains the
+mathematical reference: the accepted gaps are exactly
+`u = 189454311247557 / 2^48` and `v = 21/32`, so their squared diagonal is
+`S = 70013658383089496624645579673 / 2^96`. The midpoint between the
+adjacent binary64 candidates ending in `57df` and `57e0` is
+`m = 16934460272979903 / 2^54`, and
+`S - m² = 7341760852451199 / 2^108 > 0`. Together with the candidates'
+squared bounds on `S`, this selects `57e0` by nearest rounding.
+It is not a mandated last bit for Rust's
+[`hypot`](https://doc.rust-lang.org/std/primitive.f64.html#method.hypot), whose
+precision is unspecified. The executable witness checks every actual triangle
+edge's absolute u and v projections against the frozen accepted gaps and
+requires an actual edge attaining both maxima simultaneously. Thus it proves
+the widest diagonal is present, with no tolerance or libm rounding assumption;
+the computed maximum edge must also remain at or below the target.
+On u the two closed-form ceiling estimates
 straddle the answer (26 versus 25), so neither estimate is the selection rule.
 
 ### Environment scope
@@ -130,5 +145,7 @@ straddle the answer (26 versus 25), so neither estimate is the selection rule.
 The bit-exact hypot witnesses in this case are x86-64 Linux/glibc evidence:
 Rust `f64::hypot` resolves to glibc's libm there. Every frozen diagonal in
 this document equals the correctly rounded binary64 result, so any correctly
-rounded libm reproduces them, but cross-platform mesh-byte identity is not
-claimed.
+rounded libm reproduces them. Rust does not guarantee that every libm version
+is correctly rounded. The mixed-axis maximum is consequently checked by its
+actual edge projections rather than its `hypot` output bits. Cross-platform
+mesh-byte identity is not claimed.
