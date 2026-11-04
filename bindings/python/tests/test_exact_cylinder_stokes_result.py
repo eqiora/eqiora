@@ -475,11 +475,11 @@ public component Translation(
   support inlet: boundary(parent=body),
   support outlet: boundary(parent=body),
   support walls: boundary(parent=body),
-  support cylinder: boundary(parent=body)
+  support cylinder: boundary(parent=body),
+  parameter speed: m/s
 ) {
   variable velocity: vector<m/s,2> on body in smooth;
   variable pressure: Pa on body in h1;
-  parameter speed: m/s = SPEED;
   instance flow: fluid.SteadyStokes2d(
     body=body, exterior=boundaries(inlet,outlet,walls,cylinder),
     velocity=velocity, pressure=pressure, dynamic_viscosity=1[Pa*s]
@@ -510,9 +510,9 @@ def test_imported_translation_on_curved_and_grouped_boundaries(speed):
     # verify/fluid/port-closed-si-mini-stokes-2d, not observed Eqiora output.
     geometry, mesh = geometry_and_mesh()
     model = eqiora.compile(
-        source=IMPORTED_TRANSLATION_SOURCE.replace("SPEED", str(speed)), entry="Translation",
+        source=IMPORTED_TRANSLATION_SOURCE, entry="Translation",
         geometry=geometry,
-        bindings={"body": geometry.selection("fluid"), **{
+        bindings={"speed": speed, "body": geometry.selection("fluid"), **{
             name: geometry.selection(name)
             for name in ("inlet", "outlet", "walls", "cylinder")
         }},

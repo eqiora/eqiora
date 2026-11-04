@@ -119,7 +119,6 @@ def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.Monk
                 (name, "fluid") for name in ("inlet", "outlet", "walls", "cylinder")
             ]),
             "dynamic_viscosity": 0.001,
-            "zero_pressure": 0.0,
             "inlet_speed": 0.3,
             "channel_height": source.bounds[1][1] - source.bounds[1][0],
         },
