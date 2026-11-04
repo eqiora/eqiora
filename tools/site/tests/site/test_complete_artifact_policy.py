@@ -38,7 +38,7 @@ SOURCE_PATHS = (
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
     "examples/steady-flow-past-cylinder.eqi",
-    "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
+    "crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi",
 )
 
 STAGES = (

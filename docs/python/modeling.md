@@ -998,14 +998,14 @@ dependency to an existing project through the same manifest/lock transaction:
 import eqiora
 
 resolution = eqiora.add_bundled_dependency(
-    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.7.0"
+    ".", "package-store", "Eqiora.Fluid", version="0.5.0"
 )
 ```
 
 Create the store directory first. The request must match the release
 shipped in the distribution. The solid package is
 `Eqiora.Solid.LinearElasticity`, version `0.7.0`.
-The manifest records `version = "0.7.0"` and `sources = [{ bundled = true }]`
+The manifest records `version = "0.5.0"` and `sources = [{ bundled = true }]`
 for the fluid dependency. Each dependency lists its explicit candidate sources.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the

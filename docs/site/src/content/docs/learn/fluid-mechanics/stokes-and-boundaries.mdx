@@ -98,8 +98,8 @@ workflow supplies the geometry and binds each support to its named selection.
 ## Recognize the reusable law
 
 Now that you have assembled the equations, open
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">the incompressible standard source</ExactSourceLink>.
-Its `SteadyStokesWithPotential2d` component packages the same momentum and
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">the incompressible standard source</ExactSourceLink>.
+Its `ForcedSteadyStokesBalance2d` component packages the same momentum and
 incompressibility relations. A containing model binds its support, fields and
 viscosity to those arguments; geometry and boundary conditions still belong to
 the containing problem.
@@ -109,7 +109,7 @@ The general
 also separates the balance from velocity/traction interfaces and wall laws.
 Once you know the equations, a named law reads as shorthand for them. Use the
 [standard-package reference](/reference/standard-packages/continuum/) for the
-runnable bundled `Eqiora.Fluid.Incompressible` composition. The cylinder example keeps
+runnable bundled `Eqiora.Fluid` composition. The cylinder example keeps
 the direct equations visible, so it remains a convenient place to study each term.
 
 ## Pressure gauge: a boundary-dependent question

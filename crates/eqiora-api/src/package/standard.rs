@@ -11,9 +11,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
     let mut releases = Vec::new();
     if matches!(
         name,
-        "Eqiora.Mechanics.Interfaces"
-            | "Eqiora.Fluid.Incompressible"
-            | "Eqiora.Solid.LinearElasticity"
+        "Eqiora.Mechanics.Interfaces" | "Eqiora.Fluid" | "Eqiora.Solid.LinearElasticity"
     ) {
         let mechanics = sources(
             include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/package.json"),
@@ -43,11 +41,11 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             "src/processes.eqi",
             include_bytes!("../../packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
         )?),
-        "Eqiora.Fluid.Incompressible" => Some(sources(
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/package.json"),
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/README.md"),
-            "src/incompressible.eqi",
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"),
+        "Eqiora.Fluid" => Some(sources(
+            include_bytes!("../../packages/Eqiora.Fluid/package.json"),
+            include_bytes!("../../packages/Eqiora.Fluid/README.md"),
+            "src/fluid.eqi",
+            include_bytes!("../../packages/Eqiora.Fluid/src/fluid.eqi"),
         )?),
         "Eqiora.Solid.LinearElasticity" => Some(sources(
             include_bytes!("../../packages/Eqiora.Solid.LinearElasticity/package.json"),

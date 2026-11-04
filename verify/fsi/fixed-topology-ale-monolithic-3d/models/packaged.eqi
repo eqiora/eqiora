@@ -22,7 +22,7 @@ model Main() {
   relation fluid_load_definition on fluid {
     fluid_load - zero_fluid_load = 0;
   }
-  instance fluid_law: fluid_laws.ConservativeNavierStokesWithPotential3d(
+  instance fluid_law: fluid_laws.ForcedConservativeNavierStokes3d(
     body = fluid,
     velocity = fluid_velocity,
     pressure = pressure,
@@ -30,7 +30,7 @@ model Main() {
     density = 1[kg / m ^ 3],
     dynamic_viscosity = 0.2[kg / (m * s)]
   );
-  instance fluid_boundary: fluid_laws.NewtonianMechanicalInterface3d(
+  instance fluid_boundary: fluid_laws.VelocityTractionInterface3d(
     body = fluid,
     exterior = boundaries(
       fluid_x_lower, fluid_x_upper, fluid_y_lower, fluid_y_upper,

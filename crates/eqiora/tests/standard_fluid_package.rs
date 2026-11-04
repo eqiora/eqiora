@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use eqiora::kernel::BoundarySide;
+use eqiora::kernel::{BoundarySide, KernelNode};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, DirectoryPackageStore, ExactVersion, InMemoryPackageStore,
     NormalizedRelativePath, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
@@ -21,7 +21,7 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.4.0";
+const VERSION: &str = "0.5.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
@@ -201,7 +201,7 @@ source = "root/src"
 entry = "main"
 
 [dependencies."Eqiora.Fluid"]
-version = "0.4.0"
+version = "0.5.0"
 sources = [{ path = "fluid" }]
 "#,
     )
@@ -210,7 +210,7 @@ sources = [{ path = "fluid" }]
         scratch.0.join("fluid/eqiora.toml"),
         r#"[package]
 name = "Eqiora.Fluid"
-version = "0.4.0"
+version = "0.5.0"
 entry = "fluid"
 
 [dependencies."Eqiora.Mechanics.Interfaces"]
@@ -349,9 +349,85 @@ impl Drop for Scratch {
     }
 }
 
+#[test]
+fn unforced_standard_system_has_no_potential_carrier_or_hidden_parameter() {
+    let (mechanics, fluid) = standard_releases();
+    let source = unforced_root_source();
+    let document = compile_root(&mechanics, &fluid, &source);
+    let model = lower(document.model().program());
+    assert_eq!(model.force_potential(), None);
+    assert!(model.force_potential_expression().is_none());
+    let program = document.model().program();
+    assert_eq!(
+        program
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Field(_)))
+            .count(),
+        2
+    );
+    assert_eq!(
+        program
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Parameter(_)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn normal_speed_formula_keeps_its_parameter_and_exact_face_contract() {
+    let (mechanics, fluid) = standard_releases();
+    let source = unforced_root_source()
+        .replace("fluid.NoSlip2d(\n    body = body, face = x_lower\n  )", "fluid.NormalVelocityInlet2d(\n    body = body, face = x_lower, speed = inlet_speed * coordinate(1) / height\n  )")
+        .replace("  parameter dynamic_viscosity:", "  parameter inlet_speed: m / s = 3;\n  parameter height: m = 2;\n  parameter dynamic_viscosity:");
+    let document = compile_root(&mechanics, &fluid, &source);
+    let model = lower(document.model().program());
+    assert_eq!(model.force_potential(), None);
+    assert_eq!(
+        document
+            .model()
+            .program()
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Parameter(_)))
+            .count(),
+        3
+    );
+    for malformed in [
+        source.replace(
+            "speed = inlet_speed * coordinate(1) / height",
+            "speed = 1[Pa]",
+        ),
+        source.replace(
+            "domain x_lower = boundary(body,",
+            "domain other = box(0,4,0,2);\n  domain x_lower = boundary(other,",
+        ),
+    ] {
+        assert_ne!(malformed, source);
+        let error = prepare_package_release_v1(
+            root_sources(&fluid, &malformed),
+            &[mechanics.clone(), fluid.clone()],
+        )
+        .expect_err("wrong units or foreign boundary parent must reject");
+        assert!(matches!(
+            error,
+            eqiora::package::PackagePreparationError::Diagnostics(_)
+        ));
+    }
+}
+
+fn unforced_root_source() -> String {
+    root_source(true, Inlet::NoSlip, Outlet::TractionFree)
+        .replace("fluid.ForcedSteadyStokes2d(", "fluid.SteadyStokes2d(")
+        .replace("  variable force_potential: kg / (m * s ^ 2) on body;\n", "")
+        .replace("    force_potential = force_potential,\n", "")
+        .replace("  parameter zero_pressure: kg / (m * s ^2) = 0;\n", "")
+        .replace("  parameter zero_pressure: kg / (m * s ^ 2) = 0;\n", "")
+        .replace("  relation force_definition on body {\n    force_potential - zero_pressure = 0;\n  }\n", "")
+}
+
 fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     let governing = if curated {
-        r#"  instance governing: fluid.SteadyStokes2d(
+        r#"  instance governing: fluid.ForcedSteadyStokes2d(
     body = body,
     exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     velocity = velocity,
@@ -360,7 +436,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     dynamic_viscosity = dynamic_viscosity
   );"#
     } else {
-        r#"  instance balance: fluid.SteadyNewtonianBalance2d(
+        r#"  instance balance: fluid.ForcedSteadyStokesBalance2d(
     body = body,
     velocity = velocity,
     pressure = pressure,
@@ -391,7 +467,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             r#"  instance x_lower_condition: fluid.NormalVelocityInlet2d(
     body = body,
     face = x_lower,
-    speed = inlet_speed
+    speed = trace(inlet_speed)
   );"#,
         ),
         Inlet::PrescribedVelocity => (
@@ -408,7 +484,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             r#"  instance x_lower_condition: fluid.PrescribedVelocity2d(
     body = body,
     face = x_lower,
-    velocity = inlet_velocity
+    velocity = trace(inlet_velocity)
   );"#,
         ),
     };
@@ -448,7 +524,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             r#"  instance x_upper_condition: fluid.PrescribedTraction2d(
     body = body,
     face = x_upper,
-    traction = outlet_traction
+    traction = trace(outlet_traction)
   );"#,
         ),
     };

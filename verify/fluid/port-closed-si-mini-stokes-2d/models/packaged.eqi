@@ -16,14 +16,14 @@ model Main() {
     force_potential
       - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;
   }
-  instance law: fluid.SteadyStokesWithPotential2d(
+  instance law: fluid.ForcedSteadyStokesBalance2d(
     body = body,
     velocity = velocity,
     pressure = pressure,
     force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
-  instance boundary: fluid.NewtonianMechanicalInterface2d(
+  instance boundary: fluid.VelocityTractionInterface2d(
     body = body,
     exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     velocity = velocity,

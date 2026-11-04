@@ -1,1 +1,0 @@
-{"schema":"eqiora.package-manifest.v1","entry":"inertial_stokes","name":"Eqiora.Fluid.InertialStokes","version":"0.1.0","dependencies":[],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/inertial_stokes.eqi","role":"model_source"}]}

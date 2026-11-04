@@ -126,14 +126,14 @@ plot alone.
 
 The direct flow model in the fields chapter wrote its stress and balances
 explicitly. The repository’s fluid source gives those same equations names:
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">`SteadyNewtonianBalance2d` and `SteadyStokes2d`</ExactSourceLink>.
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">`SteadyStokesBalance2d` and `SteadyStokes2d`</ExactSourceLink>.
 Inspect how `SteadyStokes2d` composes the balance with its boundary interface.
 The solid package similarly separates `IsotropicBalance2d` from material
 parameters and boundary components.
 
 These source components show how named laws collect equations you now
 understand. For a runnable packaged model, use the bundled
-`Eqiora.Fluid.Incompressible` or `Eqiora.Solid.LinearElasticity` examples in the
+`Eqiora.Fluid` or `Eqiora.Solid.LinearElasticity` examples in the
 [continuum reference](/reference/standard-packages/continuum/). Choosing a
 component still leaves the material assumptions to you. The [fluid path](/learn/fluid-mechanics/)
 and [structural path](/learn/structural-mechanics/) develop the complete

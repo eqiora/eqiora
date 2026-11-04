@@ -563,17 +563,12 @@ fn physical_mesh() -> SimplicialMesh {
 
 pub(crate) fn packaged_document() -> PackagedModelDocument {
     let mechanics = public_release("Eqiora.Mechanics.Interfaces", &[]);
-    let fluid = public_release(
-        "Eqiora.Fluid.Incompressible",
-        std::slice::from_ref(&mechanics),
-    );
-    let inertial = public_release("Eqiora.Fluid.InertialStokes", &[]);
+    let fluid = public_release("Eqiora.Fluid", std::slice::from_ref(&mechanics));
     let solid = public_release(
         "Eqiora.Solid.LinearElasticity",
         std::slice::from_ref(&mechanics),
     );
     let dependencies = [
-        ("inertial", &inertial),
         ("fluid", &fluid),
         ("solid", &solid),
         ("mechanics", &mechanics),
@@ -584,33 +579,22 @@ pub(crate) fn packaged_document() -> PackagedModelDocument {
     })
     .collect();
     let source = format!(
-        "import Eqiora.Fluid.InertialStokes.inertial_stokes as inertial;\n\
-         import Eqiora.Fluid.Incompressible.incompressible as fluid;\n\
+        "import Eqiora.Fluid.fluid as fluid;\n\
          import Eqiora.Solid.LinearElasticity.linear_elasticity as solid;\n\
          import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{PACKAGED}"
     );
     let root = prepare_package_release_v1(
         inline_sources(ROOT_PACKAGE, "0.1.0", dependencies, &source),
-        &[
-            inertial.clone(),
-            fluid.clone(),
-            solid.clone(),
-            mechanics.clone(),
-        ],
+        &[fluid.clone(), solid.clone(), mechanics.clone()],
     )
     .expect("prepare exact FSI verification root");
     let resolution = ResolutionRecordV1::from_exact_releases(
         &root,
-        &[
-            inertial.clone(),
-            fluid.clone(),
-            solid.clone(),
-            mechanics.clone(),
-        ],
+        &[fluid.clone(), solid.clone(), mechanics.clone()],
     )
     .expect("resolve exact FSI package closure");
     let mut store = InMemoryPackageStore::default();
-    for release in [&mechanics, &fluid, &inertial, &solid, &root] {
+    for release in [&mechanics, &fluid, &solid, &root] {
         store.insert(release).expect("install exact package");
     }
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
