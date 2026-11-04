@@ -75,7 +75,10 @@ diagonal is exactly the target `0x1.fadaa8f7eed51p-1`; snapping widens the u
 gap by 26 ulps and the v gap by 10 ulps, so the nominal 25-by-15 grid rejects
 on both axes with unequal maximum realized gaps and the least accepted grid is
 26 by 16, with 459 vertices, 832 triangles, 1290 edges, and its widest cell
-diagonal at or below the target.
+diagonal at or below the target. Every actual triangle edge is checked against
+the frozen accepted gap on each axis, and at least one edge must attain both
+maxima together. This geometric check does not require a particular last bit
+from the mixed-axis `hypot` diagnostic.
 
 A 23-triangle budget rejects the primary witness before allocation, while 24
 accepts it. A quality threshold of `0.98` rejects because the generated value
@@ -98,10 +101,12 @@ exact-frame admission defects that reject them are exercised as
 `eqiora-geometry` `cfg(test)` unit falsifiers, outside this case's registered
 facade evidence target.
 
-The bit-exact `hypot` witnesses are x86-64 Linux/glibc evidence: Rust
+The remaining bit-exact `hypot` witnesses are x86-64 Linux/glibc evidence: Rust
 `f64::hypot` resolves to glibc's libm there. Every frozen diagonal equals the
 correctly rounded binary64 result, so any correctly rounded libm reproduces
-them, but cross-platform mesh-byte identity is not claimed.
+them. Rust does not guarantee correctly rounded `hypot` across libm versions;
+the mixed-axis diagnostic therefore uses the geometric check above.
+Cross-platform mesh-byte identity is not claimed.
 
 ## Run
 
