@@ -139,7 +139,7 @@ fn shared_application_owners_serve_closed_control_and_ordinary_python() {
 
     let python = rust_function(PYTHON_ADAPTER_SOURCE, "fn compile(");
     assert_eq!(
-        python.matches("compile_source(").count(),
+        rust_call_count(python, "compile_source"),
         1,
         "Python compile must invoke the shared source operation exactly once"
     );
@@ -153,7 +153,7 @@ fn shared_application_owners_serve_closed_control_and_ordinary_python() {
         .collect::<String>();
     let detached_call = rust_call_expression(&compact_python, "py.detach");
     assert_eq!(
-        detached_call.matches("compile_source(").count(),
+        rust_call_count(detached_call, "compile_source"),
         1,
         "the py.detach call expression itself must own the operation invocation"
     );
@@ -162,15 +162,27 @@ fn shared_application_owners_serve_closed_control_and_ordinary_python() {
 
 #[test]
 fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
+    assert_eq!(
+        rust_call_count("admitted_compile_source();", "compile_source"),
+        0
+    );
+    assert_eq!(
+        rust_call_count(
+            "admitted_compile_source(); compile_source();",
+            "compile_source"
+        ),
+        1
+    );
     let accepted = r#"
         fn compile(py: Python<'_>, filename: &str, source: &str) {
             py.detach(move || compile_source(filename, source));
         }
     "#;
     assert_eq!(
-        rust_call_expression(accepted, "py.detach")
-            .matches("compile_source")
-            .count(),
+        rust_call_count(
+            rust_call_expression(accepted, "py.detach"),
+            "compile_source"
+        ),
         1
     );
 
@@ -181,9 +193,10 @@ fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
         }
     "#;
     assert_eq!(
-        rust_call_expression(post_detach_mutant, "py.detach")
-            .matches("compile_source")
-            .count(),
+        rust_call_count(
+            rust_call_expression(post_detach_mutant, "py.detach"),
+            "compile_source"
+        ),
         0,
         "a compile call after a completed detach expression must not satisfy ownership"
     );
@@ -446,6 +459,19 @@ fn rust_call_expression<'a>(source: &'a str, callee: &str) -> &'a str {
         }
     }
     panic!("call to {callee:?} has an unterminated argument list")
+}
+
+fn rust_call_count(source: &str, callee: &str) -> usize {
+    let needle = format!("{callee}(");
+    source
+        .match_indices(&needle)
+        .filter(|(offset, _)| {
+            source[..*offset]
+                .chars()
+                .next_back()
+                .is_none_or(|character| !(character.is_alphanumeric() || character == '_'))
+        })
+        .count()
 }
 
 fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
