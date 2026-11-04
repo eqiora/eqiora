@@ -306,7 +306,12 @@ assert moved.digest == model.digest
 assert moved.package_compilation_digest == model.package_compilation_digest
 plan = eqiora.resolve(model, solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
 assert plan.package_compilation_digest == model.package_compilation_digest
-assert eqiora.Plan.from_bytes(plan.to_bytes()).package_compilation_digest == model.package_compilation_digest
+assert plan.model is model
+portable = eqiora.Plan.from_bytes(plan.to_bytes())
+assert portable.identity == plan.identity
+assert portable.model.digest == model.digest
+assert portable.package_compilation_digest is None
+assert eqiora.Model.from_bytes(model.to_bytes()).package_compilation_digest is None
 assert plan.mesh is None
 assert plan.temporal is None
 state = eqiora.State.initial(plan)

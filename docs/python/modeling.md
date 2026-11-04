@@ -29,6 +29,11 @@ release can change the package compilation identity. For reproducibility across
 distributions, use [`compile_package`](api.md#api-eqiora-compile_package) with
 your explicit store and resolution; it never substitutes a bundled release.
 
+The live Model, Plan, and Run retain the package compilation identity. Bare
+Model and Plan byte exports preserve their canonical meaning and identity but
+do not include package sidecars. Recompile the explicit locked package graph
+to restore that context after reopening.
+
 Set `import_context="closed"` to disable implicit bundled imports for text or
 file compilation. Python `Module` graphs always use their explicit dependency
 context. Rust callers use `eqiora::package::compile_source` and retain its
