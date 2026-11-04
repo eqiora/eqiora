@@ -19,12 +19,18 @@ stress around the obstacle.
 
 ## Before you begin
 
+This example requires a development build from the same checkout as its source;
+the published 0.1.5 wheel does not include the new boundary-data authoring.
+Source builds require Rust, a C/C++ compiler, CMake and libclang. See the
+[contributing guide](https://github.com/eqiora/eqiora/blob/main/CONTRIBUTING.md)
+for the repository tool setup.
+
 Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
 `.venv`. From the folder containing both, add the mesh and plotting extras,
 then run the example with the same Python environment:
 
 ```bash
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 

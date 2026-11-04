@@ -17,6 +17,10 @@ packages contain reusable volume laws and mechanical boundary interfaces. You
 bind your own fields to them and supply a condition on each exterior face. Both
 examples below compile as ordinary package imports.
 
+The examples on this page require a development build from the same checkout:
+the bundled fluid and solid packages are version 0.7.0. The published Eqiora
+0.1.5 distribution is unchanged and does not provide these package releases.
+
 ## Elastic balance and boundaries
 
 <Code code={elastic} lang="eqiora" title="elastic-body.eqi" />
@@ -37,7 +41,7 @@ displacement field as the volume equations.
 | `ZeroTraction2d` | Zero traction on one face |
 
 The balance uses stress $2\mu\varepsilon+\lambda\,\mathrm{tr}(\varepsilon)I$.
-`load_potential` is a scalar with units of pressure whose gradient gives the body
+For `IsotropicBalanceWithPotential2d`, `load_potential` is a scalar with units of pressure whose gradient gives the body
 force; it is neither a boundary pressure nor a general vector force. The
 interface's `QuasistaticMechanicalBoundary` connector pairs displacement with
 traction, so a connected terminal shares the body's displacement and carries the

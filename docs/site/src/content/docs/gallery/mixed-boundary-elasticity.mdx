@@ -15,12 +15,18 @@ traction-free remaining edges, then compare its original and deformed mesh.
 
 ## Before you begin
 
+This example requires a development build from the same checkout as its source;
+the published 0.1.5 wheel does not include the new boundary-data authoring.
+Source builds require Rust, a C/C++ compiler, CMake and libclang. See the
+[contributing guide](https://github.com/eqiora/eqiora/blob/main/CONTRIBUTING.md)
+for the repository tool setup.
+
 Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
 `.venv`. From the folder containing both, add plotting support and save the
 computed displacement:
 
 ```bash
-uv add 'eqiora[matplotlib]'
+uv add './eqiora-source[matplotlib]'
 uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
 ```
 

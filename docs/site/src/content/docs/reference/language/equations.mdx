@@ -74,6 +74,7 @@ for the derivation.
 | `div(velocity)` | Divergence of a velocity field |
 | `symmetric_part(grad(displacement))` | Infinitesimal strain tensor |
 | `trace(temperature)` | Temperature restricted to the relation's boundary |
+| `normal_vector()` | Dimensionless unit outward normal in the boundary’s ambient Cartesian space |
 | `normal(stress)` | Stress contracted with the parent-outward normal, giving traction |
 | `isotropic_lift(pressure)` | Pressure times the identity tensor |
 | `dot(a, b)` | Inner product of compatible vectors |
@@ -81,6 +82,14 @@ for the derivation.
 The support and tensor shapes must match the operation. See
 [continuum components](/reference/standard-packages/continuum/) for stress and
 boundary examples.
+
+Inside a boundary relation, `normal_vector()` refers to that boundary's
+parent-outward orientation. It takes no arguments and rejects use outside a
+boundary scope. Unlike `normal(stress)`, it returns the normal itself rather
+than contracting a field. A prescribed value can use parameters and coordinates
+directly, for example `trace(velocity) = -normal_vector() * inlet_speed`, without
+an auxiliary volume field. This authoring requires a development build; it is
+not in the published 0.1.5 wheel.
 
 ## Periodic state
 

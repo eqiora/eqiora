@@ -90,6 +90,11 @@ not update the lock or manage shared-store permissions.
 
 ## Bundled packages in Python and the CLI
 
+The 0.7.0 fluid and solid releases below are available from development builds.
+The published Eqiora 0.1.5 distribution is unchanged. Current development builds
+write Model and Model Transaction v50 artifacts; use the build that produced an
+older artifact to open it, or regenerate it from source.
+
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
 `Eqiora.Fluid.Incompressible@0.7.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
