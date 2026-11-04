@@ -220,7 +220,7 @@ does not establish optional native-backend or scientific claims.
   CI, then inspect an actual hosted restore and Cargo timings before claiming
   a speedup. No recurring main build exists solely to populate the cache.
 - Stable records filesystem free space and total Cargo target size before Clippy
-  and after Clippy, workspace tests and documentation. Post-phase observations run
+  and after Clippy, Rust tests and documentation. Post-phase observations run
   after failures too. Use hosted measurements to assess disk pressure; disabling
   dev incremental state has not yet been shown to prevent disk exhaustion.
 - The quality job retains Cargo's HTML build-timing reports for seven days,

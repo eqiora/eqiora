@@ -1975,10 +1975,18 @@ class AggregateGateTests(unittest.TestCase):
                 for block in step_blocks:
                     if block is quick[0]:
                         continue
-                    self.assertIn(
-                        f"if: needs.changes.outputs.{selector} == 'true'",
-                        block,
-                    )
+                    disk_observations = {
+                        "Record disk use before Clippy",
+                        "Record disk use after Clippy",
+                        "Record disk use after Tests",
+                        "Record disk use after Documentation",
+                    }
+                    name = block.splitlines()[0].removeprefix("      - name: ")
+                    condition = f"needs.changes.outputs.{selector} == 'true'"
+                    if job == "quality" and name in disk_observations:
+                        if name != "Record disk use before Clippy":
+                            condition = "always() && " + condition
+                    self.assertIn(f"if: {condition}\n", block)
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:
         complete = {surface: "false" for surface in SURFACES}
