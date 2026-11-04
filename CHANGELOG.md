@@ -8,6 +8,13 @@ listed here.
 
 ### Changed
 
+- Development builds consolidate fixed-unit fluid components in
+  `Eqiora.Fluid@0.5.0`. The former current `Eqiora.Fluid.Incompressible` and
+  `Eqiora.Fluid.InertialStokes` names are removed from the bundled catalog.
+  Volume balances and composed steady systems have distinct names, and forced
+  contracts remain explicit. Immutable older releases still resolve from their
+  exact offline stores. Generic dimension and boundary-set inference remain open.
+
 - Reference real/complex solver execution can retain an explicit Rayon host
   placement through canonical normal/transpose/adjoint actions, complex
   coordinate lowering, ordinary Common Runs and exact Result reopening.

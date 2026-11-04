@@ -105,7 +105,7 @@ model Main() {
   variable force_potential: Pa on body;
   parameter force_gradient: Pa/m = 1;
   relation force on body { force_potential = force_gradient * coordinate(0); }
-  instance governing: fluid.SteadyStokes2d(
+  instance governing: fluid.ForcedSteadyStokes2d(
     body=body, exterior=boundaries(left,right,bottom,top), velocity=velocity,
     pressure=pressure, force_potential=force_potential, dynamic_viscosity=2[Pa*s]
   );

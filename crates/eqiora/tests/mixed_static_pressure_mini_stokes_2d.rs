@@ -399,10 +399,7 @@ fn public_mechanics_release() -> PackageReleaseV1 {
 }
 
 fn public_fluid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    public_release(
-        "Eqiora.Fluid.Incompressible",
-        std::slice::from_ref(mechanics),
-    )
+    public_release("Eqiora.Fluid", std::slice::from_ref(mechanics))
 }
 
 fn public_loads_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
@@ -440,7 +437,7 @@ fn compile_root(
         vec![fluid.clone(), mechanics.clone(), loads.clone()]
     };
     let source = format!(
-        "import Eqiora.Fluid.Incompressible.incompressible as {};\n\
+        "import Eqiora.Fluid.fluid as {};\n\
          import Eqiora.Mechanics.Interfaces.interfaces as {};\n\
          import Eqiora.Mechanics.BoundaryLoads.boundary_loads as {};\n{source}",
         aliases[0], aliases[1], aliases[2]

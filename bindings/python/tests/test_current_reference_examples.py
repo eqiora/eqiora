@@ -135,7 +135,7 @@ def test_current_reference_language_sources_compile():
 @pytest.mark.parametrize("filename,package,version,entry,fields", [
     ("elastic-body.eqi", "Eqiora.Solid.LinearElasticity", "0.7.0",
      "ReferenceElasticBody", ("displacement",)),
-    ("stokes.eqi", "Eqiora.Fluid.Incompressible", "0.7.0",
+    ("stokes.eqi", "Eqiora.Fluid", "0.5.0",
      "ReferenceStokes", ("velocity", "pressure")),
     ("sampled.eqi", "Eqiora.Controls.Sampled", "0.1.0",
      "SampledSignals", ("delay.memory", "integral.memory")),

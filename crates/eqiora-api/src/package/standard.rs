@@ -13,7 +13,8 @@ pub(super) const NAMES: &[&str] = &[
     "Eqiora.Electrical.Basic",
     "Eqiora.Controls.Sampled",
     "Eqiora.Stochastic.Processes",
-    "Eqiora.Fluid.Incompressible",
+    "Eqiora.Fluid",
+    "Eqiora.Solid",
     "Eqiora.Solid.LinearElasticity",
 ];
 
@@ -21,10 +22,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
     let mut releases = Vec::new();
     if matches!(
         name,
-        "Eqiora.Mechanics.Interfaces"
-            | "Eqiora.Fluid"
-            | "Eqiora.Fluid.Incompressible"
-            | "Eqiora.Solid.LinearElasticity"
+        "Eqiora.Mechanics.Interfaces" | "Eqiora.Fluid" | "Eqiora.Solid.LinearElasticity"
     ) {
         let mechanics = sources(
             include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/package.json"),
@@ -65,12 +63,6 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             include_bytes!("../../packages/Eqiora.Solid/README.md"),
             "src/solid.eqi",
             include_bytes!("../../packages/Eqiora.Solid/src/solid.eqi"),
-        )?),
-        "Eqiora.Fluid.Incompressible" => Some(sources(
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/package.json"),
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/README.md"),
-            "src/incompressible.eqi",
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"),
         )?),
         "Eqiora.Solid.LinearElasticity" => Some(sources(
             include_bytes!("../../packages/Eqiora.Solid.LinearElasticity/package.json"),

@@ -1,6 +1,28 @@
 import Eqiora.Mechanics.Interfaces.interfaces as mechanics;
 
-public component SteadyNewtonianBalance2d(
+public operator outer_product(
+  input left: spatial[1], input right: spatial[1]
+): spatial[2]
+  = component(left, 0) * component(right, 1);
+
+public component SteadyStokesBalance2d(
+  support body: volume(ambient_dimension = 2),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s)
+) {
+  relation momentum on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) = 0;
+  }
+  relation incompressibility on body {
+    div(velocity) = 0;
+  }
+}
+
+public component ForcedSteadyStokesBalance2d(
   support body: volume(ambient_dimension = 2),
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
@@ -36,7 +58,52 @@ public component VelocityTractionInterface2d(
   }
 }
 
+public component VelocityTractionInterface3d(
+  support body: volume(ambient_dimension = 3),
+  support exterior: complete_exterior(parent = body),
+  variable velocity: vector<m / s, 3> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
+) {
+  relation boundary_interface[boundary in exterior] on boundary {
+    trace(velocity)
+      - mechanical[boundary = boundary].velocity = 0;
+    normal(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - mechanical[boundary = boundary].traction = 0;
+  }
+}
+
 public component SteadyStokes2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable velocity: vector<m / s, 2> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
+) {
+  instance balance: SteadyStokesBalance2d(
+    body = body,
+    velocity = velocity,
+    pressure = pressure,
+    dynamic_viscosity = dynamic_viscosity
+  );
+  instance interface: VelocityTractionInterface2d(
+    body = body,
+    exterior = exterior,
+    velocity = velocity,
+    pressure = pressure,
+    dynamic_viscosity = dynamic_viscosity
+  );
+
+  connect [boundary in exterior]
+    mechanical[boundary = boundary],
+    interface.mechanical[boundary = boundary];
+}
+
+public component ForcedSteadyStokes2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
   variable velocity: vector<m / s, 2> on body in smooth,
@@ -45,7 +112,7 @@ public component SteadyStokes2d(
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
-  instance balance: SteadyNewtonianBalance2d(
+  instance balance: ForcedSteadyStokesBalance2d(
     body = body,
     velocity = velocity,
     pressure = pressure,
@@ -63,6 +130,48 @@ public component SteadyStokes2d(
   connect [boundary in exterior]
     mechanical[boundary = boundary],
     interface.mechanical[boundary = boundary];
+}
+
+public component ForcedInertialStokes2d(
+  support body: volume(ambient_dimension = 2),
+  state velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  variable force_potential: kg / (m * s ^ 2) on body,
+  parameter density: kg / m ^ 3,
+  parameter dynamic_viscosity: kg / (m * s)
+) {
+  relation momentum on body {
+    density * derivative(velocity)
+      - div(
+        2 * dynamic_viscosity * symmetric_part(grad(velocity))
+        - isotropic_lift(pressure)
+      ) - grad(force_potential) = 0;
+  }
+  relation incompressibility on body {
+    div(velocity) = 0;
+  }
+}
+
+public component ForcedConservativeNavierStokes3d(
+  support body: volume(ambient_dimension = 3),
+  state velocity: vector<m / s, 3> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  variable force_potential: kg / (m * s ^ 2) on body,
+  parameter density: kg / m ^ 3,
+  parameter dynamic_viscosity: kg / (m * s)
+) {
+  relation momentum on body {
+    density * derivative(velocity)
+      + div(density * outer_product(left = velocity, right = velocity))
+      - div(
+        2 * dynamic_viscosity * symmetric_part(grad(velocity))
+        - isotropic_lift(pressure)
+      )
+      - grad(force_potential) = 0;
+  }
+  relation incompressibility on body {
+    div(velocity) = 0;
+  }
 }
 
 public component NoSlip2d(
@@ -100,32 +209,32 @@ public component NormalPressureOutlet2d(
 public component NormalVelocityInlet2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable speed: m / s on body in h1,
+  expression speed: m / s on face,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    mechanical.velocity + normal(isotropic_lift(speed)) = 0;
+    mechanical.velocity + normal_vector() * speed = 0;
   }
 }
 
 public component PrescribedVelocity2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable velocity: vector<m / s, 2> on body in h1,
+  expression velocity: vector<m / s, 2> on face,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    mechanical.velocity - trace(velocity) = 0;
+    mechanical.velocity - velocity = 0;
   }
 }
 
 public component PrescribedTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable traction: vector<kg / (m * s ^ 2), 2> on body in h1,
+  expression traction: vector<kg / (m * s ^ 2), 2> on face,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    mechanical.traction - trace(traction) = 0;
+    mechanical.traction - traction = 0;
   }
 }

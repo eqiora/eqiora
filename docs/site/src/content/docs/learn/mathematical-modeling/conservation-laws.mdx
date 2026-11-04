@@ -133,7 +133,7 @@ small fixed volume; it does not determine velocity by itself. Momentum balance
 adds the force accounting. In the fluid component, find
 `incompressibility` and `momentum`:
 
-<Code code={fluidSource.slice(fluidSource.indexOf('public component SteadyNewtonianBalance2d'), fluidSource.indexOf('public component VelocityTractionInterface2d')).trim()} lang="eqiora" title="steady balance component" />
+<Code code={fluidSource.slice(fluidSource.indexOf('public component SteadyStokesBalance2d'), fluidSource.indexOf('public component VelocityTractionInterface2d')).trim()} lang="eqiora" title="steady balance component" />
 
 The divergence in momentum acts on stress. Its viscous term supplies a material
 relation, while pressure enforces the incompressibility constraint. A force

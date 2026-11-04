@@ -177,12 +177,7 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
     let added = run(
         "add",
         &store,
-        &[
-            "Eqiora.Fluid.Incompressible",
-            "--version",
-            "0.7.0",
-            "--bundled",
-        ],
+        &["Eqiora.Fluid", "--version", "0.5.0", "--bundled"],
     );
     assert!(
         added.status.success(),
@@ -232,11 +227,7 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
             .status
             .success()
     );
-    assert!(
-        run("remove", &vendor, &["Eqiora.Fluid.Incompressible"])
-            .status
-            .success()
-    );
+    assert!(run("remove", &vendor, &["Eqiora.Fluid"]).status.success());
 }
 
 #[test]

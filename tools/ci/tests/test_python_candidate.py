@@ -1123,7 +1123,7 @@ invalid candidate
             reference / "language/_examples/clocked.eqi",
             Path("examples/research-conductivity/conductivity.eqi"),
             Path("examples/research-conductivity/research_workflow.py"),
-            Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
+            Path("crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi"),
         ):
             self.assertIn(relative, PYTHON_TEST_RESOURCES)
         with tempfile.TemporaryDirectory() as temporary:

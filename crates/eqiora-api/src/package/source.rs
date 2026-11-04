@@ -478,11 +478,11 @@ mod tests {
 
     #[test]
     fn selected_component_retains_geometry_and_package_provenance() {
-        let source = r"import Eqiora.Fluid.Incompressible.incompressible as fluid;
+        let source = r"import Eqiora.Fluid.fluid as fluid;
 public component Flow(support body: volume(ambient_dimension = 2), parameter viscosity: kg / (m * s)) {
   variable velocity: vector<m / s, 2> on body;
   variable pressure: kg / (m * s ^ 2) on body;
-  instance balance: fluid.SteadyStokes2d(body = body, velocity = velocity, pressure = pressure, dynamic_viscosity = viscosity);
+  instance balance: fluid.SteadyStokesBalance2d(body = body, velocity = velocity, pressure = pressure, dynamic_viscosity = viscosity);
 }";
         let geometry = eqiora_geometry::CanonicalGeometryV1::from_circular_hole_named_roles(
             [[0.0, 2.2], [0.0, 0.41]],
