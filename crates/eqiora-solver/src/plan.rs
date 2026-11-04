@@ -139,7 +139,9 @@ impl SolverPlan {
     ///
     /// Faer sparse LU factors once and bounds the total backsolves by this
     /// value: one original solve, then residual corrections with the same factors
-    /// when needed. Reports count those backsolves; an accepted initial guess
+    /// when needed. A nonzero-residual factor solve already meeting acceptance
+    /// receives one safeguarded correction when the bound permits it. Reports
+    /// count all attempted backsolves, including a discarded trial; an accepted initial guess
     /// reports zero. The bound does not control factorization work.
     #[must_use]
     pub const fn maximum_iterations(self) -> NonZeroUsize {

@@ -90,22 +90,42 @@ pub(super) fn solve_factored<S: SparseLuScalar>(
     let mut residual = vec![S::zero(); problem.operator().rows()];
     let mut norm = residual_norm(problem, &values, &mut residual)?;
     let mut iterations = 1;
-    while (norm > target || !problem.candidate_is_accepted(&values)?)
+    let mut accepted = norm <= target && problem.candidate_is_accepted(&values)?;
+    // A small global residual need not imply accurate coordinates in an
+    // ill-conditioned system. Spend at most one remaining backsolve on an
+    // already accepted factor solve, retaining it unless the trial is at
+    // least as good under the original acceptance contract.
+    let mut optional_correction = accepted;
+    while (!accepted || optional_correction)
         && norm != 0.
         && iterations < plan.maximum_iterations().get()
     {
+        optional_correction = false;
         let correction = solve_factored_oriented(symbolic, numeric, &residual, orientation)?;
         iterations += 1;
+        let mut trial = values.clone();
         let mut changed = false;
-        for (value, correction) in values.iter_mut().zip(correction) {
+        let mut finite = true;
+        for (value, correction) in trial.iter_mut().zip(correction) {
             let candidate = *value + correction;
             changed |= candidate != *value;
+            finite &= candidate.re().is_finite() && candidate.im().is_finite();
             *value = candidate;
         }
-        if !changed {
+        if !changed || !finite {
             break;
         }
-        norm = residual_norm(problem, &values, &mut residual)?;
+        let trial_norm = residual_norm(problem, &trial, &mut residual)?;
+        let trial_accepted = trial_norm <= target && problem.candidate_is_accepted(&trial)?;
+        if accepted && (!trial_accepted || trial_norm > norm) {
+            break;
+        }
+        // Required corrections retain their established progression even if
+        // the intermediate residual increases. An accepted trial takes
+        // precedence over a smaller-residual candidate that fails its method check.
+        values = trial;
+        norm = trial_norm;
+        accepted = trial_accepted;
     }
     eqiora_solver::LinearSolution::accept(
         problem,
