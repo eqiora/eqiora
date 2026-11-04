@@ -51,6 +51,7 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("README.md"),
     Path("examples/research-conductivity/conductivity.eqi"),
     Path("examples/research-conductivity/research_workflow.py"),
     Path("verify/language/factor-integrals/models/nonlocal-interaction.eqi"),

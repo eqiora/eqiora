@@ -1136,6 +1136,8 @@ invalid candidate
             # to `PYTHON_TEST_FIXTURES`, which is the drift this test exists
             # to catch.
             files = (
+                # The README test reads this authored root file in isolation.
+                "README.md",
                 "bindings/python/tests/test_vertical_slice.py",
                 "bindings/python/typecheck/base.py",
                 *(str(fixture / "payload.json") for fixture in PYTHON_TEST_FIXTURES),
@@ -1154,6 +1156,7 @@ invalid candidate
 
             self.assertEqual(tests, run_root / "bindings/python/tests")
             self.assertEqual(typecheck, run_root / "bindings/python/typecheck")
+            self.assertEqual((run_root / "README.md").read_text(), "README.md")
             test_path = tests / "test_vertical_slice.py"
             self.assertEqual(test_path.parents[3], run_root)
             for relative in files:
