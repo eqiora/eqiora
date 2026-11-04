@@ -179,7 +179,11 @@ removal = "Fold regeneration only into an accepted edit result preserving exact 
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 114
+ceiling = 120
+# #1743 adds six shared source-compilation and exact catalog owners.
+# Context, result and error types preserve strict policy and package sidecars;
+# the operation and catalog functions serve Rust, Python and CLI without private resolver semantics.
+# Remove these only if existing owners retain those contracts and exact discovery.
 # #900 ProjectUpdate gives native, CLI and Python consumers one frozen, validated
 # selection to inspect and commit through the existing stale-checked transaction.
 # Fold it only when an existing result retains the same authored requests, exact
