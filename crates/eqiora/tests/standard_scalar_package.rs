@@ -184,6 +184,15 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
 // Coordinates below mean x_physical/(1 m), h=1/8. Thus A=6K/c=3K is
 // integer, and the prescribed scaled right-flux load is dyadic exact.
 fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
+    assert!(
+        values.iter().all(|value| value.is_finite()),
+        "certificate requires finite nodal values"
+    );
+    assert_eq!(
+        slope.abs(),
+        1.0,
+        "certificate covers the two authored flux signs"
+    );
     let mut matrix = [[0_i32; 81]; 81];
     let local = [
         [4, -1, -2, -1],
@@ -236,6 +245,10 @@ fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
             assert!(terms <= 9);
             matrix_norm = matrix_norm.max(f64::from(row_sum));
             load_norm = load_norm.max(load.abs());
+            assert!(
+                residual.is_finite(),
+                "independent residual must remain finite"
+            );
             maximum_residual = maximum_residual.max(residual.abs());
             maximum_error = maximum_error.max((values[row] - slope * (x as f64) / 8.0).abs());
         }
@@ -245,7 +258,7 @@ fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
     // The M-matrix comparison bound is ||K^-1||inf <=2/(c*h²)=64.
     // Since A=3K, ||A^-1||inf <= B=64/3. The independent residual
     // check includes production assembly error rather than assuming it away.
-    let inverse_bound = 64.0 / 3.0;
+    let inverse_bound = (64.0_f64 / 3.0).next_up();
     let residual_limit = 6e-12; // Three times the requested physical CG bound.
     assert!(
         maximum_residual <= residual_limit,
@@ -256,13 +269,23 @@ fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
     // e <= B[R + gamma20*(||A||inf*(1+e)+||b||inf)]. Rearranging gives
     // this output-independent error budget. All norm inputs come from the
     // independent stencil/load above, never the computed solution.
-    let roundoff = f64::EPSILON / 2.0;
-    let gamma = (20.0 * roundoff) / (1.0 - 20.0 * roundoff);
-    let denominator = 1.0 - inverse_bound * gamma * matrix_norm;
+    // Each positive intermediate is explicitly rounded outward: numerator
+    // factors up, subtractive denominators down. A final next_up alone
+    // would not cover accumulated rounding in the bound evaluation.
+    let roundoff = f64::EPSILON / 2.0; // Exact binary operation.
+    let twenty_roundoff = 20.0 * roundoff; // Exact representable product.
+    let gamma_denominator = (1.0 - twenty_roundoff).next_down();
+    assert!(gamma_denominator > 0.0);
+    let gamma = (twenty_roundoff / gamma_denominator).next_up();
+    let norm_sum = (matrix_norm + load_norm).next_up();
+    let residual_rounding = (gamma * norm_sum).next_up();
+    let residual_bound = (residual_limit + residual_rounding).next_up();
+    let numerator = (inverse_bound * residual_bound).next_up();
+    let scaled_matrix_rounding = (gamma * matrix_norm).next_up();
+    let feedback = (inverse_bound * scaled_matrix_rounding).next_up();
+    let denominator = (1.0 - feedback).next_down();
     assert!(denominator > 0.0);
-    let bound = (inverse_bound * (residual_limit + gamma * (matrix_norm + load_norm))
-        / denominator)
-        .next_up();
+    let bound = (numerator / denominator).next_up();
     assert!(
         maximum_error <= bound,
         "nodal error {maximum_error} exceeds {bound}"
@@ -272,6 +295,15 @@ fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
     // Opposite-sign solutions differ by 2 at x=1; no sign is rejected as
     // invalid merely because it describes a different well-posed problem.
     assert!((values[8] + slope).abs() > 1.0);
+}
+
+#[test]
+fn independent_laplace_certificate_rejects_nonfinite_nodal_values() {
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let mut values = [0.0; 81];
+        values[40] = invalid;
+        assert!(std::panic::catch_unwind(|| certify_linear_laplace(&values, 1.0)).is_err());
+    }
 }
 
 #[test]
