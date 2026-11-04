@@ -6,9 +6,9 @@ conserving mechanical-interface Relations. ALE motion is absent from the Model
 and enters only through the Realization selected by RFC 0070.
 
 The exact package fixture uses immutable releases
-`Eqiora.Mechanics.Interfaces@0.2.0`,
-`Eqiora.Fluid@0.3.0`, and
-`Eqiora.Solid.LinearElasticity@0.5.0`. Those releases own physical laws and
+`Eqiora.Mechanics.Interfaces@0.3.0`,
+`Eqiora.Fluid@0.5.0`, and
+`Eqiora.Solid.LinearElasticity@0.7.0`. Those releases own physical laws and
 interfaces only; mesh, quadrature, spaces, time method, coupling, nonlinear
 iteration, solver, target, and schedule remain Realization concerns.
 
