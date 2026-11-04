@@ -94,6 +94,17 @@ fn amplitude(program: &KernelProgram) -> Id<kinds::Parameter> {
         })
         .unwrap()
 }
+// Pointwise error budget, derived from the uniform-square Q1 stencil rather
+// than measured Eqiora output: K has diagonal 8c/3 and eight neighbours -c/3.
+// These are SI-coordinate bounds: K for the primal, K/m for the L tangent.
+// The full stencil on phi=x(1-x) gives 2c/N^2, with max(phi)=1/4.
+// Since phi is nonnegative on the boundary, K_ff*phi_free >= 2c/N^2;
+// the discrete maximum principle gives ||K_ff^-1||_infinity <= N^2/(8c).
+// CG uses the Euclidean residual target
+// max(1e-14, 1e-12*||b||_2); ||r||_infinity <= ||r||_2 transfers that target
+// to a nodal error bound. The 2e-9 checks below exceed twice their respective
+// exact-arithmetic bounds. This factor is an engineering allowance for assembly
+// and solve rounding, not a rigorous floating-point error bound.
 #[test]
 fn divided_cubic_temperature_source_rebinds_and_differentiates() {
     let program = program(&handwritten());
@@ -206,6 +217,13 @@ fn divided_cubic_temperature_source_rebinds_and_differentiates() {
             let point = mesh.vertex_coordinates(MeshEntity::new(0, vertex)).unwrap();
             if point[0] != 0. && point[0] != 1. && point[1] != 0. && point[1] != 1. {
                 // d(A*x^3/L^3)/dL = -3*A*x^3/L^4 at A=2,L=1.
+                // forward_sensitivity solves K_ff*g = -R_L. Here neither geometry
+                // nor K depends on L: R_L=K_fb*g_boundary - f_L, so its RHS is
+                // exactly K_ff*g_free for g=-6*x^3 in exact arithmetic; no accepted
+                // primal approximation enters this RHS. Independent rational stencil
+                // sums give ||b||_2 < 9,17,27 at N=4,8,16 (squares 20171/256,
+                // 2343691/8192,179085227/262144). Thus the worst nodal solve-error
+                // bound is (16^2/8)*(27e-12)=8.64e-10, below half this threshold.
                 assert!((length_tangent.values()[free] + 6. * point[0].powi(3)).abs() < 2e-9);
                 free += 1;
             }
@@ -309,6 +327,9 @@ fn divided_diffusion_coefficient_uses_the_same_checked_q1_path() {
             .mesh()
             .vertex_coordinates(MeshEntity::new(0, vertex))
             .unwrap()[0];
+        // At N=8,c=1/2,g=2*x^3, rational stencil summation gives
+        // ||b||_2^2=2343691/294912 < 3^2. The barrier/CG bound above is
+        // (8^2/(8*c))*(3e-12)=4.8e-11, below half this threshold.
         assert!((solution.field().vertex_values()[vertex] - 2. * x.powi(3)).abs() < 2e-9);
     }
 }
