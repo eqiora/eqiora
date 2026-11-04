@@ -227,3 +227,46 @@ fn model_boundary_connection_families_keep_the_existing_unsupported_diagnostic()
         "{errors:?}"
     );
 }
+
+#[test]
+fn port_families_charge_each_concrete_partition_member() {
+    let geometry = polygon();
+    for reverse in [false, true] {
+        let (first, second) = if reverse {
+            ("many", "few")
+        } else {
+            ("few", "many")
+        };
+        let source = format!(
+            "connector B{{trace value:1;flux flux:1;shape [];frame invariant;pairing euclidean_boundary_duality;orientation parent_outward;}} component Ports(support body:volume(ambient_dimension=2),support exterior:complete_exterior(parent=body),port p[b in exterior]:B over b){{relation law[b in exterior] on b{{p[b=b].flux=0;}}}} component Pair(support body:volume(ambient_dimension=2),support exterior:complete_exterior(parent=body)){{instance first:Ports(body=body,exterior=exterior);instance second:Ports(body=body,exterior=exterior);connect[b in exterior] first.p[b=b],second.p[b=b];}} model Selected(support body:volume(ambient_dimension=2),support few:complete_exterior(parent=body),support many:complete_exterior(parent=body)){{instance first:Pair(body=body,exterior={first});instance second:Pair(body=body,exterior={second});}}"
+        );
+        // Each of 2*(1+100) retained Ports has one physical Relation: cost is
+        // 202 Ports + 404 Relation/Activation entries + 102 external Domains
+        // + one shared Connector Domain = 709 declarations. Connections add
+        // no declarations. The 202 Port entries are separate from equation cost.
+        compile(
+            &geometry,
+            &source,
+            HierarchyLimits {
+                max_declarations: 709,
+                ..Default::default()
+            },
+        )
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+        let errors = compile(
+            &geometry,
+            &source,
+            HierarchyLimits {
+                max_declarations: 708,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("declarations")),
+            "{errors:?}"
+        );
+    }
+}

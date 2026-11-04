@@ -93,7 +93,7 @@ def test_complete_exterior_keeps_geometry_separate_across_source_and_artifacts(t
 
 
 @pytest.mark.parametrize("route", ("module", "source"))
-@pytest.mark.parametrize("mutant, expected", (("incomplete", "missing Cartesian side"), ("distinct", "connector")))
+@pytest.mark.parametrize("mutant, expected", (("incomplete", "omits an entity"), ("distinct", "connector")))
 def test_boundary_family_mutants_reach_the_exact_gate(route, mutant, expected):
     module = authored_exterior(**{mutant: True})
     geometry = rectangle()
@@ -215,8 +215,8 @@ def test_selected_root_complete_exterior_retains_exact_members_on_artifact_repla
     assert eqiora.Model.from_bytes(direct.to_bytes()).digest == direct.digest
 
 
-@pytest.mark.parametrize("names, message", ((NAMES[:-1], "missing Cartesian side"),
-                                           (("left", "left", "bottom", "top"), "more than once"),
+@pytest.mark.parametrize("names, message", ((NAMES[:-1], "omits an entity"),
+                                           (("left", "left", "bottom", "top"), "repeats an entity"),
                                            (("body", "right", "bottom", "top"), "boundary")))
 def test_selected_root_exterior_rejects_incomplete_duplicate_and_volume_members(names, message):
     geometry = rectangle()

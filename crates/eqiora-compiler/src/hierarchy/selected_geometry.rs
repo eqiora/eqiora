@@ -19,6 +19,7 @@ pub(super) type GeometryPartition<'a> = (
     &'a CanonicalGeometryV1,
     &'a NamedEntitySet,
     &'a [&'a NamedEntitySet],
+    eqiora_lang::TextRange,
 );
 
 pub(super) fn authenticate(
@@ -30,14 +31,23 @@ pub(super) fn authenticate(
     for (geometry, group_bindings) in geometry_groups.values() {
         crate::external_compile::validate_geometry_bindings(file, geometry, group_bindings)?;
     }
-    for (geometry, parent, members) in geometry_partitions {
+    for (geometry, parent, members, range) in geometry_partitions {
         geometry
             .validate_complete_exterior_partition(
                 parent,
                 members,
                 eqiora_geometry::CanonicalGeometryLimits::default(),
             )
-            .map_err(|error| vec![error])?;
+            // Geometry owns the precise cause; this is a selected language
+            // support binding, so retain its established diagnostic family.
+            .map_err(|error| {
+                vec![crate::diagnostics::source_error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    error.message(),
+                )]
+            })?;
     }
     for (_, (geometry, _)) in geometry_groups {
         // Validate original catalog references before any clone/name lookup. Rebinding
