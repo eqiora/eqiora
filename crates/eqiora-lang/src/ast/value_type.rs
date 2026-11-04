@@ -113,14 +113,14 @@ pub enum ValueTypeSyntaxKind {
     Vector {
         /// Scalar component type.
         scalar: Box<ValueTypeSyntax>,
-        /// Exact positive spatial extent.
+        /// Explicit positive extent or size from the exact support.
         extent: SpatialExtentSyntax,
     },
     /// Spatial tensor with ordered axes and scalar components.
     Tensor {
         /// Scalar component type.
         scalar: Box<ValueTypeSyntax>,
-        /// Exact ordered spatial extents.
+        /// Ordered spatial axes, each explicit or sized by the exact support.
         extents: Vec<SpatialExtentSyntax>,
     },
     /// Indexed channels, not a spatial frame or finite component basis.

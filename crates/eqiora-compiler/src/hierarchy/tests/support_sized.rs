@@ -53,6 +53,13 @@ model M(){
         )
         .is_err()
     );
+    let unequal = valid
+        .replace("other=box(0,1,0,1)", "other=box(0,1,0,1,0,1)")
+        .replace(
+            "velocity:vector<m/s,spatial> on body;",
+            "velocity:vector<m/s,spatial> on other;",
+        );
+    assert!(crate::compile("unequal-supports.eqi", &unequal).is_err());
     assert!(
         crate::compile(
             "channels.eqi",
