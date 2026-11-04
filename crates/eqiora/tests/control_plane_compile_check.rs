@@ -121,7 +121,7 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
 }
 
 #[test]
-fn one_transport_neutral_operation_owns_both_adapters() {
+fn shared_application_owners_serve_closed_control_and_ordinary_python() {
     let _operation: fn(&str, &str) -> Result<ModelDocument, Vec<eqiora::Diagnostic>> =
         ModelDocument::compile;
 
@@ -139,9 +139,13 @@ fn one_transport_neutral_operation_owns_both_adapters() {
 
     let python = rust_function(PYTHON_ADAPTER_SOURCE, "fn compile(");
     assert_eq!(
-        python.matches("ModelDocument::compile(").count(),
+        python.matches("compile_source(").count(),
         1,
-        "Python compile must invoke the transport-neutral operation exactly once"
+        "Python compile must invoke the shared source operation exactly once"
+    );
+    assert!(
+        !python.contains("ModelDocument::compile"),
+        "Python must not keep a parallel closed compiler path"
     );
     let compact_python = python
         .chars()
@@ -149,7 +153,7 @@ fn one_transport_neutral_operation_owns_both_adapters() {
         .collect::<String>();
     let detached_call = rust_call_expression(&compact_python, "py.detach");
     assert_eq!(
-        detached_call.matches("ModelDocument::compile(").count(),
+        detached_call.matches("compile_source(").count(),
         1,
         "the py.detach call expression itself must own the operation invocation"
     );
@@ -160,12 +164,12 @@ fn one_transport_neutral_operation_owns_both_adapters() {
 fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
     let accepted = r#"
         fn compile(py: Python<'_>, filename: &str, source: &str) {
-            py.detach(move || ModelDocument::compile(filename, source));
+            py.detach(move || compile_source(filename, source));
         }
     "#;
     assert_eq!(
         rust_call_expression(accepted, "py.detach")
-            .matches("ModelDocument::compile")
+            .matches("compile_source")
             .count(),
         1
     );
@@ -173,12 +177,12 @@ fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
     let post_detach_mutant = r#"
         fn compile(py: Python<'_>, filename: &str, source: &str) {
             py.detach(|| ());
-            ModelDocument::compile(filename, source);
+            compile_source(filename, source);
         }
     "#;
     assert_eq!(
         rust_call_expression(post_detach_mutant, "py.detach")
-            .matches("ModelDocument::compile")
+            .matches("compile_source")
             .count(),
         0,
         "a compile call after a completed detach expression must not satisfy ownership"
@@ -454,7 +458,7 @@ fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
     ] {
         assert!(
             !function.contains(forbidden),
-            "{adapter} bypasses ModelDocument::compile through {forbidden:?}"
+            "{adapter} bypasses its shared application compilation owner through {forbidden:?}"
         );
     }
 }
