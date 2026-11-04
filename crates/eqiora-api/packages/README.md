@@ -1,9 +1,12 @@
 # Model Packages
 
-This directory contains Eqiora Model Packages in source form. They get no
-special treatment: no built-in names, search paths, or compiler branches.
-Packages maintained by the project and third-party packages resolve through
-the same content-addressed store.
+This directory contains Eqiora Model Packages in source form. Their equations
+and types follow the same semantics as third-party packages; the compiler has
+no physics branches selected by a package name. The distribution supplies an
+exact embedded catalog for transport. Whether selected explicitly or supplied
+by a source-compilation context in a development build, its releases use the
+ordinary checked package closure. This adds no filesystem search, network
+lookup, or fallback. Published Eqiora 0.1.5 is unchanged.
 
 ## Package layout
 
