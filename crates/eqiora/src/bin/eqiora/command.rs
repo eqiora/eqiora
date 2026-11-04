@@ -456,13 +456,26 @@ pub(crate) fn read_bounded(
     Ok(output)
 }
 
-pub(crate) fn contained_run<F>(
+pub(crate) trait CheckDocument {
+    fn check_model(&self) -> &ModelDocument;
+}
+
+impl CheckDocument for ModelDocument {
+    fn check_model(&self) -> &ModelDocument { self }
+}
+
+impl CheckDocument for eqiora::package::SourceCompilation {
+    fn check_model(&self) -> &ModelDocument { self.model() }
+}
+
+pub(crate) fn contained_run<F, C>(
     args: fn() -> Vec<OsString>,
     operation: F,
     panic_point: OraclePanicPoint,
 ) -> OracleOutcome
 where
-    F: FnOnce(&str, &str) -> Result<ModelDocument, Vec<Diagnostic>>,
+    F: FnOnce(&str, &str) -> Result<C, Vec<Diagnostic>>,
+    C: CheckDocument,
 {
     set_hook(silent_hook);
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> CommandResult {
@@ -551,7 +564,7 @@ where
             OraclePanicPoint::DuringProjection(payload) => PROJECTION_PANIC.set(Some(payload)),
         };
         match operation(name, source) {
-            Ok(document) => accepted_projection(&document),
+            Ok(document) => accepted_projection(document.check_model()),
             Err(diagnostics) => {
                 let rendered = terminal::render_diagnostics(&diagnostics);
                 rejected_projection(rendered)

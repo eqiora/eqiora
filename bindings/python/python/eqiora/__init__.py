@@ -364,8 +364,13 @@ def compile(
     geometry=None,
     bindings=None,
     entry=None,
+    import_context="bundled",
 ):
-    """Compile text, a path, or one compiler-owned Module graph."""
+    """Compile text or a path with embedded package imports, or a closed Module graph.
+
+    Set import_context="closed" to disable implicit embedded packages for text.
+    Module graphs always use their explicitly supplied dependencies.
+    """
 
     if isinstance(source, Module):
         if path is not None or filename is not None:
@@ -380,6 +385,7 @@ def compile(
         geometry=geometry,
         bindings=bindings,
         entry=entry,
+        import_context=import_context,
     )
 
 

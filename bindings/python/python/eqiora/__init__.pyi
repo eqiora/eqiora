@@ -2582,6 +2582,7 @@ def compile(
     geometry: geometry.Geometry | None = None,
     bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
     entry: str | None = None,
+    import_context: Literal["bundled", "closed"] = "bundled",
 ) -> Model:
     """Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
 

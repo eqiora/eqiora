@@ -41,6 +41,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
+use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
+#[cfg(test)]
 use eqiora::api::ModelDocument;
 use pyo3::exceptions::{PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
@@ -81,7 +83,7 @@ fn _unit_catalog() -> (Vec<(&'static str, bool)>, Vec<&'static str>) {
 
 /// Compile one closed Model or explicitly selected signature through the canonical pipeline.
 #[pyfunction]
-#[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None))]
+#[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None, import_context="bundled"))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
@@ -91,8 +93,14 @@ fn compile(
     geometry: Option<Py<PyGeometry>>,
     bindings: Option<&Bound<'_, PyDict>>,
     entry: Option<&str>,
+    import_context: &str,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
+        let context = match import_context {
+            "bundled" => SourceImportContext::Bundled,
+            "closed" => SourceImportContext::Closed,
+            _ => return Err(python_compile_admission_error(py, "import_context must be `bundled` or `closed`")),
+        };
         let (filename, source) = admitted_compile_source(py, path, source, filename)?;
         validate_python_compile_input(py, &filename, &source)?;
         let authority = geometry
@@ -108,20 +116,25 @@ fn compile(
         }
         let entry = entry.map(str::to_owned);
         let compiled = py
-            .detach(move || match entry {
-                None => ModelDocument::compile(&filename, &source),
-                Some(entry) => {
-                    let bindings = values
-                        .iter()
-                        .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
-                        .collect::<Vec<_>>();
-                    ModelDocument::compile_selected(&filename, &source, &entry, &bindings)
-                }
+            .detach(move || {
+                let bindings = values
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
+                    .collect::<Vec<_>>();
+                compile_source(&filename, &source, entry.as_deref(), &bindings, context)
             })
-            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
-        match geometry {
-            Some(geometry) => PyModel::from_document_with_geometry(py, compiled, geometry),
-            None => PyModel::from_document(py, compiled),
+            .map_err(|error| match error.diagnostics() {
+                Some(diagnostics) => diagnostic_error(py, diagnostics),
+                None => diagnostic_error(py, &[eqiora::Diagnostic::error(
+                    eqiora::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
+                    error.to_string(),
+                )]),
+            })?;
+        match (compiled, geometry) {
+            (SourceCompilation::Local(document), Some(geometry)) => PyModel::from_document_with_geometry(py, document, geometry),
+            (SourceCompilation::Local(document), None) => PyModel::from_document(py, document),
+            (SourceCompilation::Packaged(packaged), Some(geometry)) => PyModel::from_packaged_with_geometry(py, packaged, geometry),
+            (SourceCompilation::Packaged(packaged), None) => PyModel::from_packaged(py, packaged),
         }
     })
 }
@@ -256,7 +269,9 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use eqiora::api::ModelDocument;
+    use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
+#[cfg(test)]
+use eqiora::api::ModelDocument;
 
     use super::python_distribution_version;
 
