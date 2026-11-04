@@ -366,14 +366,15 @@ impl<S: Coefficient> PrescribedDatum<S> {
             },
             Self::Divide { value, scalar } => Self::Divide {
                 value: Box::new(Self::Add(
-                    Box::new(multiply(partial(value)?, scalar.clone(), false)),
+                    Box::new(partial(value)?),
                     Box::new(Self::Neg(Box::new(multiply(
-                        (**value).clone(),
+                        self.clone(),
                         data_partial(scalar)?,
                         false,
                     )))),
                 )),
-                scalar: scalar.clone().multiply(scalar.clone()),
+                // (v' - (v/s)*s')/s avoids overflow or underflow from s*s.
+                scalar: scalar.clone(),
             },
             Self::Add(left, right) => {
                 Self::Add(Box::new(partial(left)?), Box::new(partial(right)?))

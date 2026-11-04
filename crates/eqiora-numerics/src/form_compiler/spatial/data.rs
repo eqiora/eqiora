@@ -194,14 +194,14 @@ impl<S: Coefficient> Data<S> {
             Node::Mul(a, b) => derivative(a)?
                 .multiply(b.clone())
                 .add(a.clone().multiply(derivative(b)?)),
+            // (a' - (a/b)*b')/b retains the primal division without squaring b.
             Node::Div(a, b) => derivative(a)?
-                .multiply(b.clone())
                 .add(
-                    a.clone()
+                    self.clone()
                         .multiply(derivative(b)?)
                         .multiply(Self::constant(dimension, <S as From<f64>>::from(-1.0))),
                 )
-                .divide(b.clone().multiply(b.clone())),
+                .divide(b.clone()),
             Node::Part { imaginary, data } => Self(Arc::new(Node::Part {
                 imaginary: *imaginary,
                 data: derivative(data)?,

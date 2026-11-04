@@ -250,3 +250,42 @@ fn independent_quotient_branches_do_not_create_invalid_zero_tangents() {
         );
     }
 }
+
+#[test]
+fn active_quotient_derivative_preserves_exact_power_of_two_cancellation() {
+    for exponent in [-600, 600] {
+        let scale = 2.0_f64.powi(exponent);
+        assert!(scale.is_finite() && scale != 0.0);
+        for rhs in ["(normal_vector()*p)/p", "normal_vector()*(p/p)"] {
+            let (program, relation, p, _) = model(rhs, scale, 7.);
+            let mut value = datum(&program, relation).unwrap();
+            assert_eq!(value.evaluate(&[2., 2.], &[0., 1.]).unwrap(), vec![0., 1.]);
+            let coordinate = crate::parameter_point::coordinates(&program, &[p])
+                .unwrap()
+                .remove(0);
+            value.input_partial(&coordinate, 2).unwrap();
+            // n*p/p=n for every nonzero p with the supplied normal held fixed.
+            assert_eq!(value.evaluate(&[2., 2.], &[0., 1.]).unwrap(), vec![0., 0.]);
+        }
+    }
+}
+
+#[test]
+fn normalized_quotient_derivative_retains_zero_and_sqrt_primal_domains() {
+    for (rhs, p) in [
+        ("(normal_vector()*p)/p", 0.),
+        ("(normal_vector()*math.sqrt(p))/p", -1.),
+    ] {
+        let (program, relation, p, r) = model(rhs, p, 7.);
+        let value = datum(&program, relation).unwrap();
+        assert!(value.evaluate(&[2., 2.], &[0., 1.]).is_err());
+        for parameter in [p, r] {
+            let coordinate = crate::parameter_point::coordinates(&program, &[parameter])
+                .unwrap()
+                .remove(0);
+            let mut derivative = value.clone();
+            derivative.input_partial(&coordinate, 2).unwrap();
+            assert!(derivative.evaluate(&[2., 2.], &[0., 1.]).is_err());
+        }
+    }
+}
