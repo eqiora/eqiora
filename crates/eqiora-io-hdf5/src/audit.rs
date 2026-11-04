@@ -54,19 +54,19 @@ struct AuditState {
 impl AuditState {
     fn audit_group(&mut self, group: &Group) -> Result<(), Diagnostic> {
         let limits = self.limits;
-        let batch = group
-            .iter_visit_default(
-                LinkBatch {
-                    entries: Vec::new(),
-                    links: self.links,
-                    total_name_bytes: self.total_name_bytes,
-                    work: self.work,
-                    failure: None,
-                },
-                |_, name, info, batch| batch.admit(name, info, limits),
-            )
+        let mut batch = LinkBatch {
+            entries: Vec::new(),
+            links: self.links,
+            total_name_bytes: self.total_name_bytes,
+            work: self.work,
+        };
+        // Stop on the first admission failure while retaining its typed diagnostic.
+        let failure = group
+            .find_link(Default::default(), Default::default(), |name, info| {
+                Ok(batch.try_admit(name, info, limits).err())
+            })
             .map_err(|error| native_error("cannot enumerate HDF5 links", error))?;
-        if let Some(error) = batch.failure {
+        if let Some(error) = failure {
             return Err(error);
         }
         self.links = batch.links;
@@ -179,20 +179,9 @@ struct LinkBatch {
     links: usize,
     total_name_bytes: usize,
     work: usize,
-    failure: Option<Diagnostic>,
 }
 
 impl LinkBatch {
-    fn admit(&mut self, name: &str, link: LinkInfo, limits: Hdf5ResolveLimits) -> bool {
-        match self.try_admit(name, link, limits) {
-            Ok(()) => true,
-            Err(error) => {
-                self.failure = Some(error);
-                false
-            }
-        }
-    }
-
     fn try_admit(
         &mut self,
         name: &str,
@@ -284,4 +273,55 @@ fn checked_add(left: usize, right: usize, what: &str) -> Result<usize, Diagnosti
 
 fn native_error(context: &str, error: hdf5_metno::Error) -> Diagnostic {
     invalid_hdf5(format!("{context}: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_iteration_preserves_admission_diagnostics_and_stops() {
+        let file = File::with_options()
+            .with_fapl(|options| options.core_filebacked(false))
+            .create("bounded-link-audit.h5")
+            .unwrap();
+        for name in ["aa", "bb", "cc"] {
+            file.create_group(name).unwrap();
+        }
+        let defaults = Hdf5ResolveLimits::default();
+        for (limits, expected) in [
+            (
+                Hdf5ResolveLimits {
+                    max_links: 1,
+                    ..defaults
+                },
+                "HDF5 link count 2",
+            ),
+            (
+                Hdf5ResolveLimits {
+                    max_name_bytes: 1,
+                    ..defaults
+                },
+                "HDF5 link-name bytes 2",
+            ),
+            (
+                Hdf5ResolveLimits {
+                    max_total_name_bytes: 1,
+                    ..defaults
+                },
+                "aggregate HDF5 link-name bytes 2",
+            ),
+            (
+                Hdf5ResolveLimits {
+                    max_audit_work: 1,
+                    ..defaults
+                },
+                "HDF5 audit work 4",
+            ),
+        ] {
+            let error = complete_file(&file, limits).unwrap_err();
+            assert!(error.message().starts_with(expected), "{error:?}");
+        }
+        complete_file(&file, defaults).unwrap();
+    }
 }
