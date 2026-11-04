@@ -163,6 +163,15 @@ pub(in crate::form_compiler) fn value_degree(
                 if a == b { a } else { 2 }
             }
             ExprNode::Mul(a, b) => (degree(*a) + degree(*b)).min(2),
+            // Coefficient division preserves the numerator's trial degree;
+            // a trial-dependent denominator is not a linear pairing.
+            ExprNode::Div(a, b) => {
+                if degree(*b) == 0 {
+                    degree(*a)
+                } else {
+                    2
+                }
+            }
             ExprNode::PowI(value, power) => match (degree(*value), *power) {
                 (0, _) | (_, 0) => 0,
                 (value, 1) => value,
@@ -299,6 +308,7 @@ pub(super) fn validate_source_expression(
                 | ExprNode::Add(_, _)
                 | ExprNode::Sub(_, _)
                 | ExprNode::Mul(_, _)
+                | ExprNode::Div(_, _)
                 | ExprNode::PowI(_, _)
                 | ExprNode::Symbol(SymbolRef::Coordinate { .. })
                 | ExprNode::UnaryMath(
@@ -504,3 +514,7 @@ fn parent_coordinates(
         _ => {}
     }
 }
+
+#[cfg(test)]
+#[path = "recognition_division_tests.rs"]
+mod division_tests;
