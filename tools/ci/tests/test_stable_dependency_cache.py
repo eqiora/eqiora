@@ -165,8 +165,8 @@ class StableDependencyCacheTests(unittest.TestCase):
 
     def test_cache_does_not_override_existing_check_profiles_or_commands(self) -> None:
         source = workflow("ci.yml")
-        restore = step(source, "Preserve non-test incremental compilation")
-        self.assertIn("CARGO_INCREMENTAL=1", restore)
+        restore = step(source, "Keep Stable builds non-incremental")
+        self.assertIn("CARGO_INCREMENTAL=0", restore)
         self.assertLess(source.index("Restore Stable dependencies"), source.index(restore))
         self.assertLess(source.index(restore), source.index("      - name: Formatting"))
         for name in ("Tests", "Full feature tests"):
