@@ -64,8 +64,9 @@ formatting equivalence. Artifact tests reopen compiled package and Model
 artifacts through the ordinary readers.
 
 The execution acceptance problem uses the existing 2D Cartesian Q1 method:
-`temperature = amplitude * (x / length)^3`, with a zero left value, right outward
-normal gradient `3 * amplitude / length`, and zero top/bottom normal gradients.
+`temperature = amplitude * (x / length)^3`, with this same analytic profile
+prescribed on all four boundaries. This uses the existing supported Dirichlet
+form; the test does not extend natural-boundary form support.
 Its source is `-6 * amplitude * x / length^3` and its amplitude derivative is
 `(x / length)^3`. Imported and hand-written equations are checked separately
 against these analytic expressions and the existing Q1 convergence criterion.

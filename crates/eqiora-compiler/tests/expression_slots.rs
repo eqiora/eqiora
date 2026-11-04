@@ -102,12 +102,39 @@ fn expression_binding_failures_are_typed_and_nonvacuous() {
         "expression source:K/m^2 on body",
         "expression source:K/m^2 on body at tick",
     ));
+    rejected(&model("source=1[K/m^2]").replace(
+        "relation balance on body",
+        "let source=1[K/m^2];relation balance on body",
+    ));
+    rejected("model M(expression source:K/m^2 on body){}");
+    assert!(
+        eqiora_lang::parse(
+            "default.eqi",
+            &model("source=1[K/m^2]").replace(
+                "expression source:K/m^2 on body",
+                "expression source:K/m^2 on body=1[K/m^2]"
+            )
+        )
+        .into_document()
+        .is_err()
+    );
 }
 
 #[test]
 fn vector_boundary_expression_uses_the_same_typed_contract() {
-    let source = "component Prescribed(support body:volume(ambient_dimension=2),support face:boundary(parent=body),variable u:vector<m/s,2> on body,expression value:vector<m/s,2> on face){relation datum on face{trace(u)=value;}} model M(){domain body=box(0,1,0,1);domain left=boundary(body,axis=0,side=lower);variable u:vector<m/s,2> on body in h1;parameter speed:m/s=2;instance boundary:Prescribed(body=body,face=left,u=u,value=tensor_value(frame=body,components=[speed,0[m/s]]));}";
+    let source = "component Prescribed(support body:volume(ambient_dimension=2),support face:boundary(parent=body),variable u:vector<m/s,2> on body,expression value:vector<m/s,2> on face){relation datum on face{trace(u)=value;}} model M(){domain body=box(0,1,0,1);domain left=boundary(body,axis=0,side=lower);variable u:vector<m/s,2> on body in h1;parameter speed:m/s=2;instance boundary:Prescribed(body=body,face=left,u=u,value=speed*tensor_value(frame=body,components=[1,0]));}";
     compile("vector.eqi", source).unwrap();
-    rejected(&source.replace("value=tensor_value(frame=body,components=[speed,0[m/s]])", "value=speed"));
-    rejected(&source.replace("value=tensor_value(frame=body,components=[speed,0[m/s]])", "value=tensor_value(frame=body,components=[speed,0[m/s],0[m/s]])"));
+    rejected(&source.replace(
+        "value=speed*tensor_value(frame=body,components=[1,0])",
+        "value=speed",
+    ));
+    rejected(&source.replace(
+        "value=speed*tensor_value(frame=body,components=[1,0])",
+        "value=speed*tensor_value(frame=body,components=[1,0,0])",
+    ));
+}
+
+#[test]
+fn child_clocked_alias_is_deferred_without_changing_legacy_semantics() {
+    compile("child.eqi", "component Cell(clock tick:periodic,output y:1 at tick){relation r at tick{y=1;}} model M(){clock a=periodic(1[s]);instance child:Cell(tick=a);let observed at a=child.y;relation r at a{observed=1;}}").unwrap();
 }

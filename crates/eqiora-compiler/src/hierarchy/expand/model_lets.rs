@@ -80,69 +80,73 @@ impl RootExpansion<'_, '_> {
             if scope.value_expression(declaration.name()).is_some() {
                 continue;
             }
-            // The early pass captures local lexical values for expression arguments.
-            // Child-dependent aliases remain mandatory in the final pass.
-            let mut activation = match scope.alias_activation(file, declaration.value()) {
+            // Prepare atomically: clock assertions and extents may also depend on
+            // a child interface. The mandatory final pass reports deferred errors.
+            let prepared = (|| {
+                let mut activation = scope
+                    .alias_activation(file, declaration.value())
+                    .map_err(|error| vec![error])?;
+                if let Some(clock) = declaration.activation() {
+                    use crate::hierarchy::body_check::DependencyActivation;
+                    let symbol = scope.symbol(clock);
+                    let is_event =
+                        symbol.is_some_and(|value| matches!(value.kind, super::SymbolKind::Event));
+                    let exact = symbol.map(|value| &value.internal_name);
+                    let valid = match (&activation, exact) {
+                        (
+                            DependencyActivation::Continuous | DependencyActivation::Static,
+                            Some(_),
+                        ) if is_event => true,
+                        (DependencyActivation::Event(actual), Some(expected)) if is_event => {
+                            actual == expected
+                        }
+                        (DependencyActivation::Clock(actual), Some(expected)) if !is_event => {
+                            actual == expected
+                        }
+                        _ => false,
+                    };
+                    if !valid {
+                        return Err(vec![crate::diagnostics::source_error(
+                            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            declaration.range(),
+                            "let alias activation assertion does not match its exact occurrence context",
+                        )]);
+                    }
+                    if is_event {
+                        activation = DependencyActivation::Event(exact.unwrap().clone());
+                    }
+                }
+
+                let mut expression =
+                    match crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                        file,
+                        declaration.value(),
+                        scope,
+                        None,
+                    ) {
+                        Ok(value) => value,
+                        Err(error) => return Err(vec![error]),
+                    };
+                if let Some(syntax) = declaration.value_type() {
+                    let values = scope.symbolic_parameters();
+                    for extent in crate::hierarchy::parameters::extent_expressions(syntax) {
+                        let (_, dependencies) =
+                            crate::hierarchy::parameters::structural_extent(file, extent, &values)
+                                .map_err(|error| vec![error])?
+                                .ok_or_else(|| {
+                                    vec![hierarchy_error("let array extent remained unresolved")]
+                                })?;
+                        expression = expression.with_structural_parameters(dependencies);
+                    }
+                }
+                Ok((expression, activation))
+            })();
+            let (expression, activation) = match prepared {
                 Ok(value) => value,
                 Err(_) if before_children => continue,
-                Err(error) => return Err(vec![error]),
+                Err(errors) => return Err(errors),
             };
-            if let Some(clock) = declaration.activation() {
-                use crate::hierarchy::body_check::DependencyActivation;
-                let symbol = scope.symbol(clock);
-                let is_event =
-                    symbol.is_some_and(|value| matches!(value.kind, super::SymbolKind::Event));
-                let exact = symbol.map(|value| &value.internal_name);
-                let valid = match (&activation, exact) {
-                    (DependencyActivation::Continuous | DependencyActivation::Static, Some(_))
-                        if is_event =>
-                    {
-                        true
-                    }
-                    (DependencyActivation::Event(actual), Some(expected)) if is_event => {
-                        actual == expected
-                    }
-                    (DependencyActivation::Clock(actual), Some(expected)) if !is_event => {
-                        actual == expected
-                    }
-                    _ => false,
-                };
-                if !valid {
-                    return Err(vec![crate::diagnostics::source_error(
-                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        declaration.range(),
-                        "let alias activation assertion does not match its exact occurrence context",
-                    )]);
-                }
-                if is_event {
-                    activation = DependencyActivation::Event(exact.unwrap().clone());
-                }
-            }
-
-            let mut expression =
-                match crate::hierarchy::scope::rewrite_expression_with_boundary_member(
-                    file,
-                    declaration.value(),
-                    scope,
-                    None,
-                ) {
-                    Ok(value) => value,
-                    Err(_) if before_children => continue,
-                    Err(error) => return Err(vec![error]),
-                };
-            if let Some(syntax) = declaration.value_type() {
-                let values = scope.symbolic_parameters();
-                for extent in crate::hierarchy::parameters::extent_expressions(syntax) {
-                    let (_, dependencies) =
-                        crate::hierarchy::parameters::structural_extent(file, extent, &values)
-                            .map_err(|error| vec![error])?
-                            .ok_or_else(|| {
-                                vec![hierarchy_error("let array extent remained unresolved")]
-                            })?;
-                    expression = expression.with_structural_parameters(dependencies);
-                }
-            }
             scope
                 .insert_runtime_value(declaration.name().to_owned(), expression, activation)
                 .map_err(|message| vec![hierarchy_error(message)])?;

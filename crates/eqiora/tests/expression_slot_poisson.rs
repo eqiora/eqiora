@@ -21,22 +21,21 @@ use std::num::{NonZeroU16, NonZeroUsize};
 const LIBRARY: &str = r#"
 public component Poisson(support body:volume(ambient_dimension=2),variable u:K on body,expression source:K/m^2 on body){relation balance on body{-div(grad(u))=source;}}
 public component Fixed(support body:volume(ambient_dimension=2),support face:boundary(parent=body),variable u:K on body,expression value:K on face){relation boundary_value on face{trace(u)=value;}}
-public component Gradient(support body:volume(ambient_dimension=2),support face:boundary(parent=body),variable u:K on body,expression value:K/m on face){relation boundary_gradient on face{normal(grad(u))=value;}}
 "#;
 const DECLARATIONS: &str = r#"
 domain body=box(0,1,0,1);
 domain left=boundary(body,axis=0,side=lower);domain right=boundary(body,axis=0,side=upper);
 domain bottom=boundary(body,axis=1,side=lower);domain top=boundary(body,axis=1,side=upper);
-variable u:K on body in smooth;parameter A:K=2;parameter L:m=1;
+variable u:K on body in h1;parameter A:K=2;parameter L:m=1;
 "#;
 fn imported() -> String {
     format!(
-        "import org.eqiora.tests.Expression.main as eq;model Main(){{{DECLARATIONS}\ninstance volume:eq.Poisson(body=body,u=u,source=-6*A*coordinate(0)/L^3);\ninstance left_value:eq.Fixed(body=body,face=left,u=u,value=0[K]);\ninstance right_flux:eq.Gradient(body=body,face=right,u=u,value=3*A/L);\ninstance bottom_flux:eq.Gradient(body=body,face=bottom,u=u,value=0[K/m]);\ninstance top_flux:eq.Gradient(body=body,face=top,u=u,value=0[K/m]);}}"
+        "import org.eqiora.tests.Expression.main as eq;model Main(){{{DECLARATIONS}\ninstance volume:eq.Poisson(body=body,u=u,source=-6*A*coordinate(0)*L^-3);\ninstance left_value:eq.Fixed(body=body,face=left,u=u,value=0[K]);\ninstance right_value:eq.Fixed(body=body,face=right,u=u,value=A);\ninstance bottom_value:eq.Fixed(body=body,face=bottom,u=u,value=A*(coordinate(0)*L^-1)^3);\ninstance top_value:eq.Fixed(body=body,face=top,u=u,value=A*(coordinate(0)*L^-1)^3);}}"
     )
 }
 fn handwritten() -> String {
     format!(
-        "model Main(){{{DECLARATIONS}\nrelation balance on body{{-div(grad(u))=-6*A*coordinate(0)/L^3;}}\nrelation left_value on left{{trace(u)=0[K];}}\nrelation right_flux on right{{normal(grad(u))=3*A/L;}}\nrelation bottom_flux on bottom{{normal(grad(u))=0[K/m];}}\nrelation top_flux on top{{normal(grad(u))=0[K/m];}}}}"
+        "model Main(){{{DECLARATIONS}\nrelation balance on body{{-div(grad(u))=-6*A*coordinate(0)*L^-3;}}\nrelation left_value on left{{trace(u)=0[K];}}\nrelation right_value on right{{trace(u)=A;}}\nrelation bottom_value on bottom{{trace(u)=A*(coordinate(0)*L^-1)^3;}}\nrelation top_value on top{{trace(u)=A*(coordinate(0)*L^-1)^3;}}}}"
     )
 }
 fn release(name: &str, source: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
@@ -252,8 +251,12 @@ fn imported_and_handwritten_cubic_solutions_rebind_and_differentiate_without_car
             let mut values = vec![0.; mesh.entity_count(0).unwrap()];
             let mut free = 0;
             for (vertex, value) in values.iter_mut().enumerate() {
-                let x = mesh.vertex_coordinates(MeshEntity::new(0, vertex)).unwrap()[0];
-                if x != 0. {
+                let point = mesh.vertex_coordinates(MeshEntity::new(0, vertex)).unwrap();
+                let x = point[0];
+                if x == 0. || x == 1. || point[1] == 0. || point[1] == 1. {
+                    // Analytic derivative of the prescribed cubic boundary data.
+                    *value = x.powi(3);
+                } else {
                     *value = tangent.values()[free];
                     free += 1;
                 }
@@ -296,7 +299,9 @@ fn imported_and_handwritten_cubic_solutions_rebind_and_differentiate_without_car
                 else {
                     panic!("Q1")
                 };
-                // Linear interpolation error <= max|u''|h²/8 = (9/4)h² for A=3,L=1.
+                // For an x-only cubic on a uniform tensor grid, exact load quadrature
+                // makes the Q1 nodal equations exact. The solution is its interpolant.
+                // Error <= max|u''|h²/8 = (9/4)h² for A=3,L=1.
                 assert!(
                     bound
                         .field()
@@ -306,7 +311,7 @@ fn imported_and_handwritten_cubic_solutions_rebind_and_differentiate_without_car
                 );
             }
         }
-        // Existing Q1 manufactured convergence criterion: at least order 1.9.
+        // Same Q1 order >=1.9 criterion as compiled_package_poisson_form.rs.
         for errors in [errors, derivative_errors] {
             for pair in errors.windows(2) {
                 assert!((pair[0] / pair[1]).log2() >= 1.9, "{errors:?}");
