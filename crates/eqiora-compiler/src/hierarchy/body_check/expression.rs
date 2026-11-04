@@ -15,7 +15,9 @@ mod reductions;
 mod time_derivative;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
-pub(super) use aliases::{AliasContract, validate_aliases};
+pub(super) use aliases::{
+    AliasContract, bind_expression_slots, validate_aliases, validate_expression_bindings,
+};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents};

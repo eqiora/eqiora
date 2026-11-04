@@ -30,6 +30,11 @@ pub(super) fn entries() -> Vec<EditorSymbol> {
             "Declare a static typed parameter. A body parameter requires a value; a signature parameter may have a default or require a named binding. Parameters do not evolve as State fields.\n\nExample: `parameter resistance: Ohm = 10;`",
         ),
         (
+            "expression",
+            "expression name: ScalarType on support",
+            "Require a typed continuous scalar expression in a Component signature. The caller binds an expression with explicit units on the exact support, preserving lexical captures and original Parameter identities without allocating a Field.",
+        ),
+        (
             "variable",
             "variable name: Type [on support] [at activation];",
             "Declare an algebraic unknown determined by Relations. A variable has no declaration initializer; it is distinct from an evolving State.\n\nExample: `variable voltage: V;`",

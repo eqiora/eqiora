@@ -131,6 +131,12 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
         self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
+        if let Err(errors) = super::expression::bind_expression_slots(
+            &mut self.scope,
+            self.definition.declaration.signature(),
+        ) {
+            self.diagnostics.extend(errors);
+        }
         match crate::hierarchy::supports::component_spatial_supports(
             self.definition.file,
             self.definition.declaration,
@@ -631,6 +637,11 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::Instance(instance) => {
+                    if let Err(error) =
+                        super::expression::validate_expression_bindings(&self.scope, instance)
+                    {
+                        self.diagnostics.push(error);
+                    }
                     if let Err(error) = super::scope::validate_input_bindings(
                         &self.scope,
                         instance,

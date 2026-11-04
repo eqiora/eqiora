@@ -621,6 +621,31 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         ExprKind::Call {
             callee,
             arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if callee.as_str() == "coordinate" && scope.expression_support.is_some() => {
+            let [argument] = arguments.as_slice() else {
+                return Err(super::super::hierarchy_error(
+                    "coordinate requires one axis",
+                ));
+            };
+            let axis = crate::dimensions::integer_literal(argument)
+                .and_then(|v| usize::try_from(v).ok())
+                .ok_or_else(|| {
+                    super::super::hierarchy_error("coordinate requires a non-negative literal axis")
+                })?;
+            let (support, factor) = scope
+                .expression_support
+                .as_ref()
+                .expect("capture support guard");
+            LoweringExpression::coordinate(
+                support.clone(),
+                factor.clone(),
+                axis,
+                expression.range(),
+            )
+        }
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
         } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {
                 return Err(source_error(

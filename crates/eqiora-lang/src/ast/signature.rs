@@ -8,6 +8,8 @@ use super::*;
 pub enum SignatureItem {
     /// Required or defaulted static value.
     Parameter(ComponentParameterDecl),
+    /// Borrowed typed expression; the shared value head allocates no Field.
+    Expression(FieldDecl),
     /// Borrowed exact nominal spatial support.
     Support(SupportSlotDecl),
     /// Borrowed algebraic unknown or state; the declaration role is retained.
@@ -33,7 +35,10 @@ impl SignatureItem {
         match self {
             Self::Parameter(value) => value.name(),
             Self::Support(value) => value.name(),
-            Self::Field(value) | Self::Input(value) | Self::Output(value) => value.name(),
+            Self::Expression(value)
+            | Self::Field(value)
+            | Self::Input(value)
+            | Self::Output(value) => value.name(),
             Self::Clock(value) => value.name(),
             Self::Property(value) => value.name(),
             Self::Port(value) => value.name(),
@@ -47,7 +52,10 @@ impl SignatureItem {
         match self {
             Self::Parameter(value) => value.range(),
             Self::Support(value) => value.range(),
-            Self::Field(value) | Self::Input(value) | Self::Output(value) => value.range(),
+            Self::Expression(value)
+            | Self::Field(value)
+            | Self::Input(value)
+            | Self::Output(value) => value.range(),
             Self::Clock(value) => value.range(),
             Self::Property(value) => value.range(),
             Self::Port(value) => value.range(),
@@ -61,7 +69,10 @@ impl SignatureItem {
         match self {
             Self::Parameter(value) => &value.comments,
             Self::Support(value) => &value.comments,
-            Self::Field(value) | Self::Input(value) | Self::Output(value) => &value.comments,
+            Self::Expression(value)
+            | Self::Field(value)
+            | Self::Input(value)
+            | Self::Output(value) => &value.comments,
             Self::Clock(value) => &value.comments,
             Self::Property(value) => &value.comments,
             Self::Port(value) => &value.comments,

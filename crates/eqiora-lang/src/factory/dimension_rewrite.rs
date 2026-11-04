@@ -196,7 +196,8 @@ fn rewrite_signature(item: &mut crate::SignatureItem, rewrite: &mut impl FnMut(&
         crate::SignatureItem::Parameter(value) => {
             value.value_type.rewrite_dimension(rewrite);
         }
-        crate::SignatureItem::Input(value)
+        crate::SignatureItem::Expression(value)
+        | crate::SignatureItem::Input(value)
         | crate::SignatureItem::Output(value)
         | crate::SignatureItem::Field(value) => {
             value.value_type.rewrite_dimension(rewrite);

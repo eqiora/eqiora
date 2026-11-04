@@ -52,6 +52,7 @@ mod binding_locations;
 mod cartesian;
 mod component_items;
 mod connector_domain;
+mod expression_bindings;
 mod external;
 mod indexed;
 mod input_bindings;
@@ -298,9 +299,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             Err(error) => return Err(vec![error]),
         };
 
+        self.allocate_model_expression_bindings(&mut root_scope, &model, true)?;
         self.expand_model_children(&model, &mut root_scope)?;
 
-        self.allocate_model_expression_bindings(&mut root_scope, &model)?;
+        self.allocate_model_expression_bindings(&mut root_scope, &model, false)?;
 
         if let Err(error) = self.materialize_model_items(&root_scope, &identities) {
             return Err(vec![error]);
@@ -590,6 +592,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .insert(slot.clone(), parent_scope.field_metadata[&target].clone());
             scope.insert_field_type(slot, field_type);
         }
+        self.bind_expression_arguments(
+            &component,
+            instance,
+            instance_file,
+            parent_scope,
+            &mut scope,
+        )
+        .map_err(one_diagnostic)?;
         self.record_properties(
             ComponentOccurrence {
                 definition: &component,
@@ -1155,6 +1165,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         )
         .map_err(one_diagnostic)?;
 
+        self.allocate_component_expression_bindings(&mut scope, &component, true)
+            .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         self.expand_children(
             &component.namespace,
             component.owned_items().filter_map(|item| match item {
@@ -1167,7 +1179,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &mut scope,
         )?;
 
-        self.allocate_component_expression_bindings(&mut scope, &component)
+        self.allocate_component_expression_bindings(&mut scope, &component, false)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         self.materialize_component_items(

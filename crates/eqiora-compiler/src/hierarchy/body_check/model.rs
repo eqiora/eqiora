@@ -178,6 +178,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         }
         for item in signature {
             match item {
+                eqiora_lang::SignatureItem::Expression(value) => {
+                    self.diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        value.range(),
+                        "expression slots are supported in Component signatures",
+                    ));
+                }
                 eqiora_lang::SignatureItem::Input(value)
                 | eqiora_lang::SignatureItem::Output(value) => {
                     self.scope.exposed_signals.insert(value.name().to_owned());
@@ -478,6 +486,11 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 | Item::Let(_)
                 | Item::Port(_) => {}
                 Item::Instance(instance) => {
+                    if let Err(error) =
+                        super::expression::validate_expression_bindings(&self.scope, instance)
+                    {
+                        self.diagnostics.push(error);
+                    }
                     if let Err(error) = super::scope::validate_input_bindings(
                         &self.scope,
                         instance,

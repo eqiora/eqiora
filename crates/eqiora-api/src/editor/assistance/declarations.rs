@@ -75,7 +75,8 @@ pub(super) fn candidate(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Opt
                     .and_then(|items| items.iter().find(|item| item.name() == p.name()))
                     .and_then(|item| match item {
                         SignatureItem::Parameter(value) => Some(value.default().is_none()),
-                        SignatureItem::Support(_)
+                        SignatureItem::Expression(_)
+                        | SignatureItem::Support(_)
                         | SignatureItem::Field(_)
                         | SignatureItem::Clock(_)
                         | SignatureItem::Property(_)

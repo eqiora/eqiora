@@ -753,4 +753,23 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn expression_forwarding_keeps_instance_expansion_limits() {
+        let source = "component Leaf(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){} component Outer(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){instance leaf:Leaf(body=body,source=source);} model M(){domain body=box(0,1,0,1);instance outer:Outer(body=body,source=1[K/m^2]);}";
+        assert!(size(source, HierarchyLimits::default()).is_ok());
+        let errors = size(
+            source,
+            HierarchyLimits {
+                max_instances: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("Component instances")),
+            "{errors:?}"
+        );
+    }
 }

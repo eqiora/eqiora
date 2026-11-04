@@ -233,6 +233,7 @@ constructs, not arbitrary attributes.
 
 | Kind | Type | `on` | `at` | Definition |
 |---|---|---|---|---|
+| `expression` requirement | Required explicit scalar type | Required | No | Component argument; see [expression slots](expression-slots.md) |
 | `parameter` | Required | No | No | `= expression` in a body; optional default in a signature |
 | `variable` | Required | Optional | Optional | No declaration initializer |
 | `state` | Required | Optional | Optional | No declaration initializer |

@@ -167,6 +167,7 @@ pub(super) struct Scope {
     >,
     field_types: BTreeMap<String, ExpressionType<FullElaborationIdentity>>,
     values: BTreeMap<String, lets::ScopedValue>,
+    pub(in crate::hierarchy) expression_support: Option<(String, String)>,
     pure_operators: BTreeMap<String, (PureOperatorDefinition, Vec<String>)>,
     occurrence_bindings: Vec<SourceLocation>,
     forwarded_parameter_resolution_bindings: Vec<SourceLocation>,

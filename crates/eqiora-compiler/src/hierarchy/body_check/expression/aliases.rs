@@ -1,7 +1,11 @@
 //! Intrinsic alias types and shared, use-context evolution obligations.
 
 mod activation;
+mod slots;
 pub(in crate::hierarchy) use activation::DependencyActivation;
+pub(in crate::hierarchy::body_check) use slots::{
+    bind_expression_slots, validate_expression_bindings,
+};
 
 use super::*;
 use std::collections::BTreeSet;
