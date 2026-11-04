@@ -382,8 +382,12 @@ compiled_objective = torch.compile(
 )
 ```
 
-The adapter requires PyTorch `>=2.14,<2.15`. Backpropagation uses the VJP of
-the solved equations.
+The source/development build requires PyTorch `>=2.15,<2.16`, with 2.15.0
+tested. Follow [Development build](/get-started/#development-build) and add the
+extra to that checkout with `uv add './eqiora-source[torch]'`. The published
+Eqiora `0.1.5` package remains on PyTorch `>=2.14,<2.15`; installing its extra
+does not select this development adapter. Backpropagation uses the VJP of the
+solved equations.
 
 Inputs are an ordered tuple or list of strided CPU:0 tensors, one per
 `torch_program.inputs` signature. Each tensor has that leaf's exact native shape
