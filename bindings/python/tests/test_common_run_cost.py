@@ -302,7 +302,8 @@ def test_live_package_context_survives_run_planning_without_changing_bare_export
     assert planned.package_compilation_digest == model.package_compilation_digest
     run = q.submit(planned, state=q.State.initial(planned), steps=1, output_steps=(1,))
     assert run.package_compilation_digest == model.package_compilation_digest
-    assert run.result().plan_key == planned.identity
+    result = run.result()
+    _check_four_cell_oracle(model, result, (1,))
     portable = q.Plan.from_bytes(planned.to_bytes())
     assert portable.identity == planned.identity
     assert portable.model.digest == model.digest
