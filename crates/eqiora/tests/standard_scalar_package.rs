@@ -165,8 +165,10 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
         // The authored right normal flux +/-2/m, c=2, left value zero,
         // and zero top/bottom flux give the unique solution u=+/-x/m.
         // This linear function lies in Q1 exactly. For the uniform unit
-        // square, the Q1 free-node stiffness is an M-matrix. Applying it to
-        // nodal phi=x*(2-x)/(2*c) gives the constant-load lumped masses:
+        // square, write x for the numeric coordinate x_physical/(1 m)
+        // and h=1/N in those normalized coordinates. The Q1 free-node
+        // stiffness is an M-matrix. Applying it to nodal
+        // phi=x*(2-x)/(2*c) gives the constant-load lumped masses:
         // h^2 inside, h^2/2 on a free edge, h^2/4 at a free corner.
         // phi has zero left value and zero right normal derivative.
         // Comparison with the minimum mass h^2/4 and max(phi)=1/(2*c)
