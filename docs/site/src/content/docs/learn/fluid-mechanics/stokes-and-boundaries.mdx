@@ -74,7 +74,7 @@ prediction for an actual fluid.
 
 ## Write the mathematics in Eqiora
 
-The complete source states these fields and laws:
+The complete source imports the equations and boundary laws from `Eqiora.Fluid`:
 
 <Code code={source} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
 
@@ -82,38 +82,78 @@ Read it from the inside out:
 
 1. `velocity` and `pressure` are unknown fields on the fluid region. Their
    dimensions are part of their declarations.
-2. `symmetric_part(grad(velocity))` is $\boldsymbol D$;
-   `isotropic_lift(pressure)` is $p\boldsymbol I$.
-3. There is no volume forcing term in this example.
-4. `trace` restricts a field to a boundary and `normal` contracts with the
-   parent region's outward normal.
-5. At the left inlet $\boldsymbol n=(-1,0)$, so
-   `trace(velocity) = -normal_vector() * g` prescribes a positive
-   streamwise velocity for the parabolic speed $g(y)$.
+2. `SteadyStokes2d` combines the unforced momentum and incompressibility laws
+   with a velocity/traction interface on the complete exterior.
+3. `NormalVelocityInlet2d` receives the parabolic speed as a formula. At the
+   left inlet, $\boldsymbol n=(-1,0)$, so its inward velocity points right.
+4. `NoSlip2d` sets the wall and cylinder velocities to zero; `TractionFree2d`
+   sets the outlet traction to zero.
+5. The `connect` statements attach each boundary condition to the corresponding
+   member of `flow.mechanical`.
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Open the complete source</ExactSourceLink>.
 The source names supports but does not define a circle or a mesh. The Python
 workflow supplies the geometry and binds each support to its named selection.
 
+### Write the laws directly
+
+To see the mathematics behind the imports, the following handwritten relations
+express the unforced interior balance and all four boundary conditions. They use the same
+`fluid`, `walls`, fields and viscosity declared above. Keep those declarations and replace the imported instances and `connect`
+statements with this block; do not add it beside the imported laws:
+
+```eqiora
+relation momentum on fluid {
+  -div(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) = 0;
+}
+relation incompressibility on fluid {
+  div(velocity) = 0;
+}
+relation inlet_velocity on inlet {
+  trace(velocity) = -normal_vector()
+    * (4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+      / channel_height ^ 2);
+}
+relation wall_velocity on walls {
+  trace(velocity) = 0;
+}
+relation cylinder_velocity on cylinder {
+  trace(velocity) = 0;
+}
+relation outlet_traction on outlet {
+  normal(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) = 0;
+}
+```
+
+Here `symmetric_part(grad(velocity))` is $\boldsymbol D$ and
+`isotropic_lift(pressure)` is $p\boldsymbol I$. `trace` restricts velocity to
+its boundary; `normal` would contract the stress with the outward normal to
+write the outlet traction law. The inlet uses the inward normal and the same
+parabolic speed as the imported boundary component.
+
 ## Recognize the reusable law
 
-Now that you have assembled the equations, open
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">the incompressible standard source</ExactSourceLink>.
-Its `ForcedSteadyStokesBalance2d` component packages the same momentum and
-incompressibility relations. A containing model binds its support, fields and
-viscosity to those arguments; geometry and boundary conditions still belong to
-the containing problem.
+Open the
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">standard fluid source</ExactSourceLink>
+and compare `SteadyStokesBalance2d` with the two interior relations.
+`SteadyStokes2d` combines that balance with `VelocityTractionInterface2d`.
+In the same source, `NoSlip2d` sets the boundary port's velocity to zero;
+the connected interface equates it to the interior trace. This gives the
+handwritten stationary-wall condition above. The separately named
+`ForcedSteadyStokesBalance2d` adds a conservative body load and is not the
+unforced balance used here.
 
-The general
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">fluid source</ExactSourceLink>
-also separates the balance from velocity/traction interfaces and wall laws.
-Once you know the equations, a named law reads as shorthand for them. Use the
-[standard-package reference](/reference/standard-packages/continuum/) for the
-runnable bundled `Eqiora.Fluid` composition. The cylinder example keeps
-the direct equations visible, so it remains a convenient place to study each term.
-Its migration to imported port boundaries still needs general composition of
-formal boundary supports into a complete exterior; that gap remains in
-[#1743](https://github.com/eqiora/eqiora/issues/1743).
+The cylinder source supplies its complete exterior with
+`boundaries(inlet, outlet, walls, cylinder)` and connects each named part.
+Use the [standard-package reference](/reference/standard-packages/continuum/)
+for another runnable composition. The handwritten form explains each term;
+the imported form reuses those laws while keeping the problem's data visible.
 
 ## Pressure gauge: a boundary-dependent question
 

@@ -100,9 +100,29 @@ its divergence has dimension $1/T$. If pressure has dimension force per area,
 its gradient has dimension force per volume. Shape and dimension are separate
 checks, and both must make sense.
 
-Locate `incompressibility` and `wall_velocity` in the source. The first is an
-interior statement; the second compares the boundary trace of interior velocity
-with a prescribed zero velocity. A boundary name alone imposes neither relation.
+The source imports `SteadyStokes2d` for the interior equations and boundary
+interface, then connects `NoSlip2d` on the walls. Open the
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">standard fluid source</ExactSourceLink>
+to find `SteadyStokesBalance2d` and `NoSlip2d`. The former contains the
+incompressibility relation; the latter prescribes zero boundary-port velocity.
+The connected interface equates that velocity to the interior trace.
+
+For comparison, these handwritten relations express incompressibility and a
+stationary wall using the declarations above. They replace those parts of the
+imported composition; do not add them alongside it:
+
+```eqiora
+relation incompressibility on fluid {
+  div(velocity) = 0;
+}
+relation wall_velocity on walls {
+  trace(velocity) = 0;
+}
+```
+
+The first statement acts in the interior; the second compares the boundary
+trace of interior velocity with zero. A boundary name alone imposes neither
+relation.
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Read the complete steady-flow model</ExactSourceLink>.
 
@@ -138,7 +158,8 @@ velocity and pressure fields above, follow
 
 ## Deliberate failure: divergence of a scalar
 
-Replace the incompressibility relation with `div(pressure) = 0`. Pressure is a
+In the handwritten alternative above, replace the incompressibility relation
+with `div(pressure) = 0`. Pressure is a
 scalar, while divergence here expects a spatial vector or tensor. The field is
 still on the right support and its unit is still valid, but the operator has no
 matching shape. Repair the mathematical statement; changing the mesh or solver
