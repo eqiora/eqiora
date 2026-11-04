@@ -9,7 +9,7 @@ The same wheel is installed outside the checkout on every supported
 CPython 3.11–3.14 interpreter and runs the base, NumPy
 ownership, synchronous/awaitable execution, cancellation, public-smoke, base
 Viewer rich-MIME, and strict-typing checks. CPython 3.13 additionally runs the
-PyTorch 2.14.0, JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1 profiles. A separate
+PyTorch 2.15.0, JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1 profiles. A separate
 CPython 3.12 environment proves the declared NumPy 2.1.0 floor.
 
 The v6 manifest binds the source commit, optional tags, tool versions, artifact
