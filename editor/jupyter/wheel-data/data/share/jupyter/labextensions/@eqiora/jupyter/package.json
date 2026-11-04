@@ -36,7 +36,7 @@
   "devDependencies": {
     "@codemirror/lang-python": "6.2.1",
     "@jupyterlab/builder": "4.5.11",
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.64.1",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   },

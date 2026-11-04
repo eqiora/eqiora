@@ -150,7 +150,7 @@ DIRECT_PINS = {
     "@astrojs/markdown-satteri": "0.3.6",
     "satteri": "0.9.5",
     "katex": "0.18.4",
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.64.1",
     "@axe-core/playwright": "4.13.0",
     "axe-core": "4.13.0",
 }
@@ -408,8 +408,8 @@ def check_workflow_text(text: str) -> list[str]:
     if not archive_bound:
         errors.append("Pages archive must bind the tracked link after extraction")
     browser_admission = (
-        'expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"',
-        'expected_browser_bytes="290614600"',
+        'expected_browser_sha256="377a9fc07b495c3b8d0ab8ec1fdfd153641759f9756fea34d8dfce4de82f5025"',
+        'expected_browser_bytes="301186376"',
         'browser_sha256="$(sha256sum "$browser_path" | cut -d \' \' -f 1)"',
         'browser_bytes="$(stat -c %s "$browser_path")"',
         'test "$browser_sha256" = "$expected_browser_sha256"',
