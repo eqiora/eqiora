@@ -1,4 +1,5 @@
 mod boundary;
+pub(super) mod budget;
 mod property;
 mod pure_operator;
 mod record;

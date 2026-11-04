@@ -184,6 +184,12 @@ pub(super) fn component_local_footprint(
             _ => {}
         }
         match item {
+            ComponentItem::Instance(instance) => families.expressions(
+                instance.bindings().iter().map(|binding| binding.value()),
+                families.members(instance.family(), diagnostics),
+                &mut expression_nodes,
+                diagnostics,
+            ),
             ComponentItem::Relation(relation) => families.expressions(
                 relation.expressions(),
                 1,
@@ -484,6 +490,12 @@ pub(super) fn model_local_footprint(
             ),
         }
         match item {
+            Item::Instance(instance) => families.expressions(
+                instance.bindings().iter().map(|binding| binding.value()),
+                families.members(instance.family(), diagnostics),
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
             Item::Relation(relation) => families.expressions(
                 relation.expressions(),
                 1,

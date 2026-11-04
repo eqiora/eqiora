@@ -54,6 +54,18 @@ activation. Expansion binds supports first, freezes the caller expression with
 resolved lexical names and coordinates, and stores it through the existing
 runtime scoped-value owner. Local aliases use that same runtime storage.
 
+Compilation bounds source argument work before expanding indexed instances and
+checks substituted formulas before emitting Model expression DAGs. One configured
+`max_expanded_expression_nodes` limit applies to both definition summaries and
+the aggregate of normalized LoweringExpression nodes consumed by relations,
+observables, event guards and record values. Shared nodes count once within a
+consumer and normalization/sampling context, and again in another consumer.
+The counter uses checked arithmetic and retains node owners while memoizing.
+This counts normalized compiler expressions, not the final Kernel arena's
+additional residual or operator nodes. Existing generated-operation limits
+remain in their owners. Static clock periods and closed Parameter values do not
+create these expression DAGs. The existing default ceiling is unchanged.
+
 Canonical source identity assigns expression requirements their own category;
 the existing Parameter and Field signature records are unchanged. Source package
 releases retain source text and canonical declaration bytes. Expanded Models and

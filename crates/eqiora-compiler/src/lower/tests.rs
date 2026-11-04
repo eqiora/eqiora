@@ -128,8 +128,13 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                 .into(),
             }],
         };
-        let compiled =
-            lower_typed_model("literal.eqi", &model, &mut FreshLoweringIdentities).unwrap();
+        let compiled = lower_typed_model(
+            "literal.eqi",
+            &model,
+            &mut FreshLoweringIdentities,
+            eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
+        )
+        .unwrap();
         let constant = compiled
             .transaction()
             .ops()
@@ -625,8 +630,13 @@ model assigned() {
         range: declaration.range(),
         items,
     };
-    let compiled = lower_typed_model("assigned.eqi", &model, &mut identities)
-        .expect("assigned identities lower");
+    let compiled = lower_typed_model(
+        "assigned.eqi",
+        &model,
+        &mut identities,
+        eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
+    )
+    .expect("assigned identities lower");
 
     assert_eq!(compiled.model(), identities.model);
     assert_eq!(

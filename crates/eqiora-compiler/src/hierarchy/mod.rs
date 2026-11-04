@@ -105,6 +105,9 @@ pub struct HierarchyLimits {
     pub max_instances: usize,
     /// Maximum named Kernel declarations after flattening.
     pub max_declarations: usize,
+    /// Maximum normalized LoweringExpression DAG nodes summed across expanded
+    /// consuming declarations, not the final generated Kernel arena node count.
+    pub max_expanded_expression_nodes: usize,
     /// Maximum anonymous Connections after flattening.
     pub max_connections: usize,
     /// Independent topology-normalization budgets for physical connection
@@ -147,6 +150,7 @@ impl Default for HierarchyLimits {
             max_instances: 1_000_000,
             max_declarations: 4_000_000,
             max_connections: 1_000_000,
+            max_expanded_expression_nodes: eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
             connection_sets,
             physical_exposures: PhysicalExposureProjectionLimits::default(),
             complete_exteriors: CompleteExteriorLimits::default(),
@@ -530,3 +534,7 @@ mod native_ast_tests;
 #[cfg(test)]
 #[path = "tests/observable.rs"]
 mod observable_tests;
+
+#[cfg(test)]
+#[path = "tests/expression_budget.rs"]
+mod expression_budget_tests;

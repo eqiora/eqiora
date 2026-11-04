@@ -162,8 +162,7 @@ impl From<HierarchyLimits> for CountLimits {
             staged_identities: limits.identity.max_staged_identities,
             provenance_entries: limits.provenance.max_entries,
             reachability_pairs: limits.max_definition_reachability_pairs,
-            expression_nodes: crate::source_identity::LocalSourceIdentityLimits::default()
-                .max_expression_nodes,
+            expression_nodes: limits.max_expanded_expression_nodes,
         }
     }
 }
