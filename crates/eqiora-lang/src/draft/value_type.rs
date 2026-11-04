@@ -137,7 +137,10 @@ pub(super) fn project(
         } else {
             ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(syntax),
-                extents: spatial.iter().map(|n| crate::SpatialExtentSyntax::Exact(n.get())).collect(),
+                extents: spatial
+                    .iter()
+                    .map(|n| crate::SpatialExtentSyntax::Exact(n.get()))
+                    .collect(),
             }
         };
         syntax = ValueTypeSyntax {

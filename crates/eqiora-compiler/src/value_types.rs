@@ -74,6 +74,27 @@ fn lower_type(
     syntax: &ValueTypeSyntax,
     frame: FrameContext,
 ) -> Result<ValueType, Diagnostic> {
+    let value = lower_type_inner(file, syntax, frame)?;
+    if value
+        .shape()
+        .component_count()
+        .is_none_or(|count| count > 65_536)
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            syntax.range(),
+            "source resource limit exceeded: mathematical type has more than 65536 elements",
+        ));
+    }
+    Ok(value)
+}
+
+fn lower_type_inner(
+    file: &str,
+    syntax: &ValueTypeSyntax,
+    frame: FrameContext,
+) -> Result<ValueType, Diagnostic> {
     let invalid =
         |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, syntax.range(), message);
     match syntax.kind() {
@@ -154,7 +175,12 @@ fn spatial_type(
         }
         FrameContext::Result => match extents.first() {
             Some(eqiora_lang::SpatialExtentSyntax::Exact(extent))
-                if extents.iter().all(|extent| matches!(extent, eqiora_lang::SpatialExtentSyntax::Exact(_))) => Some(*extent),
+                if extents
+                    .iter()
+                    .all(|extent| matches!(extent, eqiora_lang::SpatialExtentSyntax::Exact(_))) =>
+            {
+                Some(*extent)
+            }
             _ => None,
         },
     }
@@ -166,8 +192,8 @@ fn spatial_type(
         )));
     }
     let scalar = lower_type(file, scalar, frame)?;
-    let shape =
-        ValueShape::new(std::iter::repeat_n(dimension, extents.len())).map_err(|error| invalid(error.to_string()))?;
+    let shape = ValueShape::new(std::iter::repeat_n(dimension, extents.len()))
+        .map_err(|error| invalid(error.to_string()))?;
     ValueType::shaped(
         scalar.scalar_domain(),
         scalar.dimension(),
@@ -190,6 +216,87 @@ mod tests {
             panic!("parameter");
         };
         parameter.value_type().clone()
+    }
+
+    #[test]
+    fn support_sized_axes_use_the_exact_support_and_preserve_channels() {
+        for dimension in [2, 3] {
+            let volume = SpatialSupport::Volume {
+                domain: "body",
+                dimensions: dimension,
+            };
+            let boundary = SpatialSupport::Boundary {
+                domain: "face",
+                parent: "body",
+                dimensions: dimension,
+            };
+            for support in [volume, boundary] {
+                for (source, axes, arrays) in [
+                    ("vector<V, spatial>", 1, 0),
+                    ("tensor<complex<Pa>, spatial, spatial>", 2, 0),
+                    ("array<vector<V, spatial>, 2>", 1, 1),
+                ] {
+                    let value =
+                        lower_value_type("types.eqi", &syntax(source), Some(&support)).unwrap();
+                    assert_eq!(value.array_rank(), arrays);
+                    assert_eq!(value.shape().rank(), axes + arrays);
+                    assert!(
+                        value.shape().extents()[arrays..]
+                            .iter()
+                            .all(|extent| extent.get() == dimension as u32)
+                    );
+                    assert_eq!(value.frame(), ValueFrame::SpatialCartesian);
+                }
+            }
+        }
+        let volume = SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 3,
+        };
+        assert!(
+            lower_value_type(
+                "types.eqi",
+                &syntax("tensor<Pa, spatial, 2>"),
+                Some(&volume)
+            )
+            .is_err()
+        );
+        assert!(lower_value_type::<()>("types.eqi", &syntax("vector<V, spatial>"), None).is_err());
+        assert!(
+            lower_signature_type::<()>("types.eqi", &syntax("vector<V, spatial>"), None).is_err()
+        );
+        let huge = SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 257,
+        };
+        assert!(
+            lower_value_type(
+                "types.eqi",
+                &syntax("tensor<Pa, spatial, spatial>"),
+                Some(&huge)
+            )
+            .is_err()
+        );
+        let limit = SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 256,
+        };
+        assert!(
+            lower_value_type(
+                "types.eqi",
+                &syntax("tensor<Pa, spatial, spatial>"),
+                Some(&limit)
+            )
+            .is_ok()
+        );
+        assert!(
+            lower_value_type(
+                "types.eqi",
+                &syntax("array<tensor<Pa, spatial, spatial>, 2>"),
+                Some(&limit)
+            )
+            .is_err()
+        );
     }
 
     #[test]

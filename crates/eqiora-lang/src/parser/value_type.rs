@@ -235,6 +235,33 @@ mod tests {
     use crate::{Item, ValueTypeSyntaxKind, format, parse};
 
     #[test]
+    fn support_sized_axes_roundtrip_without_changing_rank_or_assertions() {
+        for ty in [
+            "vector<m / s, spatial>",
+            "tensor<Pa, spatial, spatial>",
+            "tensor<Pa, spatial, 3>",
+            "array<vector<V, spatial>, 2>",
+        ] {
+            let source = format!(
+                "component C(support body: volume(ambient_dimension = 3), variable value: {ty} on body) {{}}"
+            );
+            let document = parse("types.eqi", &source).into_document().unwrap();
+            let formatted = crate::format(&document);
+            assert!(formatted.contains(ty), "{formatted}");
+            let reparsed = parse("types.eqi", &formatted).into_document().unwrap();
+            assert_eq!(formatted, crate::format(&reparsed));
+        }
+        for ty in [
+            "vector<V, spatial, spatial>",
+            "tensor<V, spatial>",
+            "tensor<V, spatial, spatial, spatial, spatial, spatial>",
+        ] {
+            let source = format!("model M() {{ variable value: {ty}; }}");
+            assert!(parse("bad.eqi", &source).into_document().is_err(), "{ty}");
+        }
+    }
+
+    #[test]
     fn mathematical_type_constructors_have_one_round_trip_spelling() {
         for value_type in [
             "V",

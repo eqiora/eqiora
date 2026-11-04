@@ -43,7 +43,7 @@ public component SteadyStokesWithPotential2d(
 public component NewtonianMechanicalInterface2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable velocity: vector<m / s, 2> on body in smooth,
+  variable velocity: vector<m / s, spatial> on body in smooth,
   variable pressure: kg / (m * s ^ 2) on body in h1,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
@@ -83,7 +83,7 @@ public component ConservativeNavierStokesWithPotential3d(
 public component NewtonianMechanicalInterface3d(
   support body: volume(ambient_dimension = 3),
   support exterior: complete_exterior(parent = body),
-  variable velocity: vector<m / s, 3> on body in smooth,
+  variable velocity: vector<m / s, spatial> on body in smooth,
   variable pressure: kg / (m * s ^ 2) on body in h1,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary

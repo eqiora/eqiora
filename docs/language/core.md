@@ -423,6 +423,16 @@ an array contains a checked element type and exact static extent. Spatial frame 
 may be inferred only from a unique exact support contract. Without that context a frame
 requirement must be supplied explicitly; an extent alone cannot select a frame.
 
+A spatial axis may use `spatial` in place of a literal extent: `vector<m / s, spatial>`
+or `tensor<Pa, spatial, spatial>`. Each marked axis takes the ambient dimension of
+the declaration's exact support. Volume support contracts still require an explicit
+`ambient_dimension`; this spelling does not infer a volume contract or merge 2D and 3D
+components. It also works on boundary supports, whose frame comes from the exact parent.
+Mixed axes such as `tensor<Pa, spatial, 3>` retain the literal as a checked assertion.
+A missing support context, a wrong literal width, or a type exceeding the existing
+component-count limit rejects before lowering. Array extents keep their ordinary static
+integer rules and never acquire spatial meaning.
+
 Finite component spaces and maps use the [finite-space grammar](finite-spaces.md).
 They are distinct from both arrays and
 spatial vectors. Equal size does not permit substitution between two bases, between bases

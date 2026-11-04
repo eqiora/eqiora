@@ -538,3 +538,7 @@ mod observable_tests;
 #[cfg(test)]
 #[path = "tests/expression_budget.rs"]
 mod expression_budget_tests;
+
+#[cfg(test)]
+#[path = "tests/support_sized.rs"]
+mod support_sized_tests;

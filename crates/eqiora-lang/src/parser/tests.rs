@@ -398,7 +398,10 @@ model Main() {
     assert_eq!(displacement.domain(), Some("body"));
     assert!(matches!(
         displacement.value_type().kind(),
-        crate::ValueTypeSyntaxKind::Vector { extent: crate::SpatialExtentSyntax::Exact(2), .. }
+        crate::ValueTypeSyntaxKind::Vector {
+            extent: crate::SpatialExtentSyntax::Exact(2),
+            ..
+        }
     ));
     assert_eq!(
         &source[displacement.range().start() as usize..displacement.range().end() as usize],

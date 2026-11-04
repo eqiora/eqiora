@@ -57,6 +57,7 @@ pub(super) fn encode_value_type(
             encode_expression(encoder, dimension, budget, next_depth(depth)?)
         }
         ValueTypeSyntaxKind::Vector { scalar, extent } => {
+            // Preserve literal records; support-sized source contracts get new tags.
             match extent {
                 eqiora_lang::SpatialExtentSyntax::Exact(extent) => {
                     encoder.u8(1)?;
@@ -73,7 +74,9 @@ pub(super) fn encode_value_type(
             for extent in extents {
                 match extent {
                     eqiora_lang::SpatialExtentSyntax::Exact(extent) => {
-                        if inferred { encoder.u8(0)?; }
+                        if inferred {
+                            encoder.u8(0)?;
+                        }
                         encoder.u32(*extent)?;
                     }
                     eqiora_lang::SpatialExtentSyntax::Support => encoder.u8(1)?,
@@ -101,9 +104,13 @@ mod tests {
             "complex<V>",
             "array<V, 2>",
             "vector<V, 2>",
+            "vector<V, spatial>",
             "array<array<V, 2>, 2>",
             "array<vector<V, 2>, 2>",
             "tensor<V, 2, 2>",
+            "tensor<V, spatial, spatial>",
+            "tensor<V, spatial, 2>",
+            "tensor<V, 2, spatial>",
         ] {
             for source in [
                 format!("model M() {{ parameter value: {value_type} = 0; }}"),
