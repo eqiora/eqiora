@@ -244,19 +244,44 @@ fn complete_vector_datum_needs_no_normal_and_keeps_equal_valued_parameter_identi
 }
 
 #[test]
-fn complete_vector_datum_rejects_a_foreign_parent_frame() {
-    let source = complete_vector_source(0.7)
-        .replace(
-            "domain fluid =",
-            "domain foreign = box(0, 2, -1, 1); domain fluid =",
-        )
-        .replace("frame=fluid", "frame=foreign");
-    assert!(compile("foreign-datum.eqi", &source).is_err());
+fn prescribed_carrier_cannot_move_off_the_exact_parent_domain() {
+    let source = source(true, "inlet_speed*height/height").replace(
+        "variable inlet_profile:m/s on fluid",
+        "variable inlet_profile:m/s on x_lower",
+    );
+    let diagnostics = compile("foreign-carrier.eqi", &source).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|error| error.message().contains("differs from Relation scope")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn complete_vector_datum_rejects_a_singular_coordinate_profile() {
+    let source = complete_vector_source(0.7).replace(
+        "=speed*tensor_value",
+        "=(speed/(coordinate(1)/1[m]))*tensor_value",
+    );
+    let model = lower_steady_incompressible_stokes_cartesian_2d(&compile_program(&source)).unwrap();
+    let key = PhysicalBoundarySupport::CartesianSide {
+        axis: 0,
+        side: BoundarySide::Lower,
+    };
+    assert!(model.prescribed_velocity(&key, None, &[0., 0.]).is_err());
+    close(
+        model
+            .prescribed_velocity(&key, None, &[0., 0.5])
+            .unwrap()
+            .unwrap(),
+        [1.4, 0.],
+    );
 }
 
 #[test]
 fn normal_datum_still_requires_an_authenticated_normal() {
-    let fixture = fixture(false, "inlet_speed");
+    let fixture = fixture(false, "inlet_speed*height/height");
     let trace = fixture
         .model
         .prescribed_velocity_trace(&PhysicalBoundarySupport::CartesianSide {
