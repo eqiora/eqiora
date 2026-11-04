@@ -227,9 +227,11 @@ model Main() {{
 }
 
 #[test]
-fn family_expansion_arithmetic_fails_before_symbolic_members_are_allocated() {
-    let overflowing_dimension = usize::MAX / 2 + 1;
-    let source = format!(
+fn unused_abstract_exterior_defers_cardinality_until_an_exact_occurrence() {
+    // Ambient dimension does not determine a Geometry partition's part count.
+    // No occurrence exists here, so no 2*dimension member list may be invented.
+    let dimension = usize::MAX / 2 + 1;
+    let declarations = format!(
         r#"
 public connector BoundaryScalar {{
   trace value: 1;
@@ -239,25 +241,30 @@ public connector BoundaryScalar {{
   pairing euclidean_boundary_duality;
   orientation parent_outward;
 }}
-public component OverflowingFamily(
-  support body: volume(ambient_dimension = {overflowing_dimension}),
+public component AbstractFamily(
+  support body: volume(ambient_dimension = {dimension}),
   support exterior: complete_exterior(parent = body),
   port boundary[member in exterior]: BoundaryScalar over member
-) {{
-}}
-model Main() {{}}
+) {{}}
 "#
     );
+    let unused = format!(
+        "{declarations} model Main() {{ variable retained:1; relation keep {{ retained=0; }} }}"
+    );
+    compile("abstract-family.eqi", &unused).expect("unused abstract topology allocates no members");
 
-    let diagnostics = compile("invalid/overflowing-family.eqi", &source)
-        .expect_err("overflowing family cardinality must expose no model");
+    // A real two-dimensional occurrence must still discharge the exact
+    // dimension contract before any Port family output can be allocated.
+    let bound = format!(
+        "{declarations} model Main() {{ domain body=box(0,1,0,1);domain left=boundary(body,axis=0,side=lower);domain right=boundary(body,axis=0,side=upper);domain bottom=boundary(body,axis=1,side=lower);domain top=boundary(body,axis=1,side=upper);instance family:AbstractFamily(body=body,exterior=boundaries(left,right,bottom,top)); }}"
+    );
+    let diagnostics = compile("wrong-dimension-family.eqi", &bound)
+        .expect_err("2D support cannot satisfy the huge exact dimension contract");
     assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.code() == codes::LANGUAGE_LOWERING_ERROR
-                && diagnostic
-                    .message()
-                    .contains("complete exterior `exterior` member count overflows usize")
-        }),
-        "checked expansion overflow diagnostic: {diagnostics:#?}"
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code() == codes::LANGUAGE_TYPE_ERROR
+                && diagnostic.message().contains("requires ambient dimension")),
+        "{diagnostics:#?}"
     );
 }

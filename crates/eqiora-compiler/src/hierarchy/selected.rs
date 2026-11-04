@@ -626,7 +626,7 @@ fn prepare(
                             .to_owned(),
                     ));
                 };
-                geometry_partitions.push((geometry, parent, members));
+                geometry_partitions.push((geometry, parent, members, slot.range()));
                 let group = geometry_groups
                     .entry(geometry.digest_bytes())
                     .or_insert_with(|| (geometry, Vec::new()));

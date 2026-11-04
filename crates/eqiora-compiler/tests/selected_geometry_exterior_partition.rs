@@ -171,3 +171,50 @@ fn component_owned_cartesian_domains_remain_unsupported_in_source_and_native() {
     .unwrap_err();
     assert!(error.to_string().contains("exact coordinate product"));
 }
+
+#[test]
+fn selected_partition_failures_keep_language_type_code_and_support_source_location() {
+    let geometry = cylinder();
+    for (names, message) in [
+        (vec!["inlet", "outlet", "walls"], "omits an entity"),
+        (
+            vec!["inlet", "outlet", "walls", "hole", "hole"],
+            "repeats an entity",
+        ),
+    ] {
+        let members = names
+            .into_iter()
+            .map(|name| geometry.entity_set(name).unwrap())
+            .collect::<Vec<_>>();
+        let bindings = [
+            ("body", region(&geometry)),
+            (
+                "exterior",
+                StaticBindingValue::CompleteExterior {
+                    geometry: &geometry,
+                    parent: geometry.entity_set("body").unwrap(),
+                    members: &members,
+                },
+            ),
+        ];
+        let errors = CompiledModel::compile_selected("located.eqi", SOURCE, "Selected", &bindings)
+            .unwrap_err();
+        let error = errors
+            .iter()
+            .find(|error| error.message().contains(message))
+            .expect("precise owner cause retained");
+        assert_eq!(
+            error.code(),
+            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR
+        );
+        let span = error
+            .source_span()
+            .expect("selected support declaration location");
+        assert_eq!(span.file, "located.eqi");
+        assert_eq!(
+            span.start as usize,
+            SOURCE.find("support exterior").unwrap()
+        );
+        assert!(span.end > span.start);
+    }
+}
