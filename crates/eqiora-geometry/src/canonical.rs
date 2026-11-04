@@ -6,6 +6,7 @@
 //! both are derived. The accepted straight and circular wires remain separate,
 //! closed replay contracts behind one opaque public owner.
 
+mod exterior;
 mod planar_boundary;
 mod point;
 mod polyhedra;
