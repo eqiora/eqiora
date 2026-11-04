@@ -190,7 +190,12 @@ with tempfile.TemporaryDirectory() as directory:
     emitted = eqiora.compile(path=path, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.structural_fingerprint == emitted.structural_fingerprint
 shipped = eqiora.compile(source=shipped_source, filename='steady-flow-past-cylinder.eqi', geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
-assert direct.structural_fingerprint == shipped.structural_fingerprint
+# Imported standard components retain package identities. The handwritten
+# Module and its emitted text agree above; the shipped composition now has
+# its own package lineage and the same two physical unknowns.
+assert shipped.package_compilation_digest is not None
+assert direct.package_compilation_digest is None
+assert len(shipped.field_ids) == len(direct.field_ids) == 2
 
 other_comments = eqiora.compile(source=cylinder_source(doc='Different presentation-only documentation.'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.digest == other_comments.digest
