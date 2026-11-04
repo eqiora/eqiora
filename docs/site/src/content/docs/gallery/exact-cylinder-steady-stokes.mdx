@@ -84,7 +84,7 @@ geometry = geometry_graph.build(
 <NotebookStage id="model-definition" step={2} title="Eqiora model definition" emoji="🧩">
 
 Start with the Cauchy stress. With velocity $\boldsymbol{u}$, pressure $p$, dynamic viscosity
-$\mu$, identity tensor $\boldsymbol{I}$, and force potential $\phi$:
+$\mu$, and identity tensor $\boldsymbol{I}$:
 
 $$
 \boldsymbol{\sigma}(\boldsymbol{u},p)
@@ -92,14 +92,15 @@ $$
 $$
 
 $$
--\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u},p)-\nabla\phi=0,
+-\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u},p)=0,
 \qquad
 \nabla\!\cdot\boldsymbol{u}=0
 $$
 
 Here $\mu=0.001\,\mathrm{kg}/(\mathrm{m}\,\mathrm{s})$,
-$\phi=0\,\mathrm{Pa}$, and pressure has source unit
-`kg/(m*s^2)`, displayed as pascals. The Eqiora source below states the same model.
+there is no body force, and pressure has source unit
+`kg/(m*s^2)`, displayed as pascals. The source imports the Stokes equations and boundary components from `Eqiora.Fluid`.
+It supplies the parameters, inlet profile and boundary connections.
 
 **Eqiora source form**
 
@@ -149,7 +150,7 @@ $$
 At the outlet, $\operatorname{normal}(\boldsymbol{\sigma})=0$. The walls and
 cylinder use $\boldsymbol{u}=0$.
 
-The full source above attaches these relations to `fluid`, `inlet`, `outlet`,
+The imported components attach these boundary laws to `fluid`, `inlet`, `outlet`,
 `walls`, and `cylinder`. At the left inlet, the outward normal points left,
 so `trace(velocity) = -normal_vector() * g` directs flow
 into the channel. The outlet law balances pressure and viscous traction together;

@@ -309,11 +309,11 @@ def _check_case(
         report("Cylinder route exposes raw target math delimiters")
     source_tokens = (
         (
-            "relation momentum on fluid",
-            "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
-            "- isotropic_lift(pressure)",
-            "relation incompressibility on fluid",
-            "div(velocity) = 0;",
+            "import Eqiora.Fluid.fluid as stokes;",
+            "stokes.SteadyStokes2d(",
+            "stokes.NormalVelocityInlet2d(",
+            "stokes.TractionFree2d(",
+            "stokes.NoSlip2d(",
         )
         if enhanced
         else (

@@ -139,6 +139,19 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
             "relation upper_velocity on upper { trace(velocity) = 0; }\n"
             "  relation lower_velocity on lower { trace(velocity) = 0; }",
         )
+        if filename == "steady-flow-past-cylinder.eqi":
+            source = source.replace(
+                "boundaries(inlet, outlet, walls, cylinder)",
+                "boundaries(inlet, outlet, upper, lower, cylinder)",
+            ).replace(
+                "instance wall: stokes.NoSlip2d(body = fluid, face = walls);",
+                "instance upper_wall: stokes.NoSlip2d(body = fluid, face = upper);\n"
+                "  instance lower_wall: stokes.NoSlip2d(body = fluid, face = lower);",
+            ).replace(
+                "connect flow.mechanical[boundary = walls], wall.mechanical;",
+                "connect flow.mechanical[boundary = upper], upper_wall.mechanical;\n"
+                "  connect flow.mechanical[boundary = lower], lower_wall.mechanical;",
+            )
         return eqiora.compile(source=source, geometry=geometry, entry=entry,
                               bindings={**bindings, **parameters})
 

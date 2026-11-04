@@ -39,7 +39,7 @@ python examples/voltage-divider/run.py
 | `karman-vortex-street` | [`python/karman_vortex_street.py`](python/karman_vortex_street.py) | Run the DFG 2D-2 geometry and physical parameters at Reynolds number 100 with MINI/P1 elements and backward Euler, discard the spin-up history, keep a later observation window, and inspect vorticity, drag, lift, pressure difference, and the sampled Strouhal number. |
 | `mixed-boundary-elasticity` | [`python/mixed_boundary_elasticity.py`](python/mixed_boundary_elasticity.py) | Define the rectangle in Python, compile the shipped `.eqi` equations, resolve Q1 and linear-solve settings, run the model, and optionally save a plot of the deformed body. |
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Build the adjacent fluid and solid geometry in Python, compile the FSI equations, assign MINI/P1 and P1 to the model's domains, initialize four fields, and run the standard Plan/State/Run lifecycle. |
-| `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the geometry to the `.eqi` equations and then follows the standard Plan lifecycle. |
+| `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the geometry; the `.eqi` component imports Stokes and boundary conditions from `Eqiora.Fluid`, then follows the standard Plan lifecycle. |
 
 Every example keeps the Model, the numerical Plan, and execution separate, and
 states its mesh, discretization, solver, and placement choices explicitly.

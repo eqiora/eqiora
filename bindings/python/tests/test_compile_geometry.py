@@ -117,7 +117,8 @@ def test_component_and_parameter_inventory_are_source_owned() -> None:
                 bindings={**values, "inlet_speed": invalid},
             )
 
-    ambiguous = source_text + source_text.replace(
+    component_text = source_text[source_text.index("public component "):]
+    ambiguous = source_text + component_text.replace(
         "SteadyFlowPastCylinder", "OtherSteadyFlow", 1
     )
     with pytest.raises(eqiora.ValidationError, match="entry="):

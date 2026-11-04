@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import importlib.util
 import sys
 import tempfile
@@ -283,15 +284,9 @@ def _case_body() -> str:
         "#L51-L67",
     )
 
-    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on fluid {
-  -div(
-    2 * dynamic_viscosity * symmetric_part(grad(velocity))
-    - isotropic_lift(pressure)
-  ) - grad(force_potential) = 0;
-}
-relation incompressibility on fluid {
-  div(velocity) = 0;
-}</pre>"""
+    source_form = "<p><strong>Eqiora source form</strong></p><pre>" + html.escape(
+        (REPOSITORY / "examples/steady-flow-past-cylinder.eqi").read_text(encoding="utf-8")
+    ) + "</pre>"
     stage_bodies = (
         "<p>The fluid region is a 2.2m by 0.41m channel with an exact authored circle.</p>"
         + _math("H"),
@@ -736,7 +731,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "accepted source form absent",
             lambda artifact: _replace(
-                artifact / case, "div(velocity) = 0;", "divergence omitted;"
+                artifact / case, "stokes.SteadyStokes2d(", "stokes.MissingBalance("
             ),
             "accepted Eqiora source form",
         )
