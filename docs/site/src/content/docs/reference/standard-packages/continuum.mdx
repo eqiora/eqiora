@@ -81,11 +81,14 @@ the selected numerical method's existing diagnostics.
 derives these conditions. [Computing incompressible flow](/learn/fluid-mechanics/computing-incompressible-flow/)
 continues to mesh and solver choices.
 
-The imported example uses concrete Cartesian domains. Building a complete exterior
-from a Component's formal boundary arguments is not yet supported, and an
-curved, externally bound Geometry exterior is not supported by this composition.
-The ordinary cylinder example keeps its working handwritten form while this
-general support-composition gap is tracked in [#1743](https://github.com/eqiora/eqiora/issues/1743).
+The imported example uses concrete Cartesian domains. A Component can also build
+its complete exterior from formal boundary arguments bound to caller Geometry.
+The [cylinder example](/gallery/exact-cylinder-steady-stokes/) uses this form for
+grouped walls and a circular obstacle, with the same imported Stokes and boundary
+components. Geometry checks complete, disjoint coverage; each boundary connection
+keeps the same selection and parent. Numerical support remains method-specific:
+steady 2D Stokes accepts prescribed vectors without a normal, while normal-dependent
+expressions require a supported exact normal.
 
 ## Compile either package example
 

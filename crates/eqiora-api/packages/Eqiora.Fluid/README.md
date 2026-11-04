@@ -20,8 +20,10 @@ The normal-pressure outlet retains its physical pressure Field contract. Normal 
 inward; traction and pressure use the outward normal. Numerical owners may
 reject boundary data outside their supported profiles.
 
-The imported reference example uses concrete Cartesian domains. A complete
-exterior cannot yet be constructed from a Component's formal boundary arguments;
-Curved Geometry-bound complete-exterior composition also remains unsupported. The
-ordinary cylinder example keeps its handwritten form until that general support
-composition is available. This release does not infer ambient dimension.
+The imported reference example uses concrete Cartesian domains. Components can
+also form a complete exterior from their formal boundary arguments. The shared
+Geometry owner checks the bound selections for complete, disjoint coverage,
+including grouped walls and circular boundaries in the cylinder example.
+Same-support boundary connections preserve the exact Geometry and parent;
+normal-dependent data still require a normal supported by the numerical method.
+This release does not infer ambient dimension.
