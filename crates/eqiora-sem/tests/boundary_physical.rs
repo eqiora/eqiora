@@ -39,6 +39,26 @@ fn interface_program_with_geometry(
     channels: Option<u32>,
     geometry: Option<(&eqiora_geometry::CanonicalGeometryV1, [&str; 2], [&str; 2])>,
 ) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
+    interface_program_with_geometry_contract(
+        right_start,
+        semantics,
+        share_parent,
+        channels,
+        geometry,
+        2,
+        true,
+    )
+}
+
+fn interface_program_with_geometry_contract(
+    right_start: f64,
+    semantics: ConnectionSemantics,
+    share_parent: bool,
+    channels: Option<u32>,
+    geometry: Option<(&eqiora_geometry::CanonicalGeometryV1, [&str; 2], [&str; 2])>,
+    spatial_extent: u32,
+    same_connector: bool,
+) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
     let connector = Id::<kinds::Domain>::new();
     let left_volume = Id::<kinds::Domain>::new();
     let right_volume = Id::<kinds::Domain>::new();
@@ -58,7 +78,7 @@ fn interface_program_with_geometry(
     let trace_type = eqiora_core::ValueType::shaped(
         eqiora_core::ScalarDomain::Real,
         velocity,
-        ValueShape::new([2]).unwrap(),
+        ValueShape::new([spatial_extent]).unwrap(),
         ValueFrame::SpatialCartesian,
     )
     .unwrap();
@@ -102,7 +122,10 @@ fn interface_program_with_geometry(
     };
 
     let mut nodes = vec![
-        KernelNode::from(DomainDef::boundary_physical(connector, connector_contract)),
+        KernelNode::from(DomainDef::boundary_physical(
+            connector,
+            connector_contract.clone(),
+        )),
         KernelNode::from(
             DomainDef::cartesian_box(
                 left_volume,
@@ -173,6 +196,16 @@ fn interface_program_with_geometry(
                 .into();
             }
         }
+    }
+    if !same_connector {
+        let other_connector = Id::<kinds::Domain>::new();
+        for node in &mut nodes {
+            if node.id() == right_port.erase() {
+                *node =
+                    PortDef::boundary_physical(right_port, other_connector, right_boundary).into();
+            }
+        }
+        nodes.push(DomainDef::boundary_physical(other_connector, connector_contract).into());
     }
     let mut transaction = Transaction::new("two field-valued physical boundaries");
     for node in nodes {
@@ -463,7 +496,7 @@ fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
         assert!(
             errors.iter().any(|error| error
                 .message()
-                .contains("exact same-support primitive pair")),
+                .contains("exact same-support selection pair")),
             "{errors:?}"
         );
     }
@@ -517,4 +550,131 @@ fn authored_diagonal_interface_admits_exact_opposite_parent_boundary_ports() {
         )),
     );
     assert!(rejected.is_err());
+}
+
+#[test]
+fn curved_and_grouped_same_support_pairs_need_no_cartesian_chart() {
+    use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
+    let artifact = CanonicalGeometryV1::from_circular_hole(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![
+            NamedEntitySet::new("fluid", 2, vec![0]),
+            NamedEntitySet::new("inlet", 1, vec![0]),
+            NamedEntitySet::new("outlet", 1, vec![1]),
+            NamedEntitySet::new("circle", 1, vec![4]),
+            NamedEntitySet::new("walls", 1, vec![2, 3]),
+        ],
+    )
+    .unwrap();
+    for boundary in ["circle", "walls"] {
+        let fixture = interface_program_with_geometry(
+            0.0,
+            ConnectionSemantics::Conserving,
+            true,
+            None,
+            Some((&artifact, ["fluid", "fluid"], [boundary, boundary])),
+        )
+        .unwrap();
+        assert!(matches!(
+            fixture
+                .program
+                .compose_boundary_physical_junction(fixture.connection)
+                .unwrap()
+                .geometry(),
+            BoundaryJunctionGeometry::Coincident
+        ));
+        for (semantics, share_parent, boundaries, extent, same_connector) in [
+            (
+                ConnectionSemantics::SpatialPeriodic,
+                true,
+                [boundary, boundary],
+                2,
+                true,
+            ),
+            (
+                ConnectionSemantics::Conserving,
+                false,
+                [boundary, boundary],
+                2,
+                true,
+            ),
+            (
+                ConnectionSemantics::Conserving,
+                true,
+                ["circle", "walls"],
+                2,
+                true,
+            ),
+            (
+                ConnectionSemantics::Conserving,
+                true,
+                [boundary, boundary],
+                3,
+                true,
+            ),
+            (
+                ConnectionSemantics::Conserving,
+                true,
+                [boundary, boundary],
+                2,
+                false,
+            ),
+        ] {
+            assert!(
+                interface_program_with_geometry_contract(
+                    0.0,
+                    semantics,
+                    share_parent,
+                    None,
+                    Some((&artifact, ["fluid", "fluid"], boundaries)),
+                    extent,
+                    same_connector
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn same_nonaffine_metadata_does_not_prove_membership_in_the_parent() {
+    use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
+    let region = PlanarRegion::new(
+        vec![[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
+        vec![
+            PlanarFace::new(vec![0, 2, 1], vec![]),
+            PlanarFace::new(vec![1, 2, 3], vec![]),
+        ],
+        vec![
+            NamedEntitySet::new("second", 2, vec![1]),
+            NamedEntitySet::new("first_edge", 1, vec![0]),
+        ],
+        1e-12,
+    )
+    .unwrap();
+    let artifact = CanonicalGeometryV1::from_region(&region).unwrap();
+    assert!(!artifact.selection_is_boundary_of(
+        artifact.entity_set("first_edge").unwrap(),
+        artifact.entity_set("second").unwrap()
+    ));
+    let errors = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::Conserving,
+        true,
+        None,
+        Some((
+            &artifact,
+            ["second", "second"],
+            ["first_edge", "first_edge"],
+        )),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("same-support selection pair")),
+        "{errors:?}"
+    );
 }
