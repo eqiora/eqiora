@@ -6,8 +6,11 @@ a mathematical introduction, choose a subject in [Learn](/learn/).
 
 ## Import equations from bundled packages
 
+This workflow requires a [development build](/get-started/#development-build).
+The published `0.1.5` package uses the existing `compile_package` workflow.
+
 Text and file compilation resolve declared imports from the exact packages
-embedded in your installed Eqiora distribution. No manifest, package store,
+embedded in that development build. No manifest, package store,
 network access, or temporary project is needed:
 
 ```python
