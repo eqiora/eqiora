@@ -138,7 +138,7 @@ fn spatial_type(
     file: &str,
     syntax: &ValueTypeSyntax,
     scalar: &ValueTypeSyntax,
-    extents: &[u32],
+    extents: &[eqiora_lang::SpatialExtentSyntax],
     frame: FrameContext,
 ) -> Result<ValueType, Diagnostic> {
     let invalid =
@@ -152,18 +152,22 @@ fn spatial_type(
         FrameContext::Support(dimension) => {
             dimension.and_then(|dimension| u32::try_from(dimension).ok())
         }
-        FrameContext::Result => extents.first().copied(),
+        FrameContext::Result => match extents.first() {
+            Some(eqiora_lang::SpatialExtentSyntax::Exact(extent))
+                if extents.iter().all(|extent| matches!(extent, eqiora_lang::SpatialExtentSyntax::Exact(_))) => Some(*extent),
+            _ => None,
+        },
     }
     .filter(|n| *n > 0)
     .ok_or_else(|| invalid("spatial frame has no valid ambient spatial dimension".into()))?;
-    if extents.iter().any(|extent| *extent != dimension) {
+    if extents.iter().any(|extent| matches!(extent, eqiora_lang::SpatialExtentSyntax::Exact(extent) if *extent != dimension)) {
         return Err(invalid(format!(
             "spatial type extents must match ambient dimension {dimension}",
         )));
     }
     let scalar = lower_type(file, scalar, frame)?;
     let shape =
-        ValueShape::new(extents.iter().copied()).map_err(|error| invalid(error.to_string()))?;
+        ValueShape::new(std::iter::repeat_n(dimension, extents.len())).map_err(|error| invalid(error.to_string()))?;
     ValueType::shaped(
         scalar.scalar_domain(),
         scalar.dimension(),

@@ -132,12 +132,12 @@ pub(super) fn project(
         let kind = if spatial.len() == 1 {
             ValueTypeSyntaxKind::Vector {
                 scalar: Box::new(syntax),
-                extent: spatial[0].get(),
+                extent: crate::SpatialExtentSyntax::Exact(spatial[0].get()),
             }
         } else {
             ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(syntax),
-                extents: spatial.iter().map(|n| n.get()).collect(),
+                extents: spatial.iter().map(|n| crate::SpatialExtentSyntax::Exact(n.get())).collect(),
             }
         };
         syntax = ValueTypeSyntax {

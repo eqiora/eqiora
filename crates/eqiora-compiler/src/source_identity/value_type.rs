@@ -57,15 +57,27 @@ pub(super) fn encode_value_type(
             encode_expression(encoder, dimension, budget, next_depth(depth)?)
         }
         ValueTypeSyntaxKind::Vector { scalar, extent } => {
-            encoder.u8(1)?;
-            encoder.u32(*extent)?;
+            match extent {
+                eqiora_lang::SpatialExtentSyntax::Exact(extent) => {
+                    encoder.u8(1)?;
+                    encoder.u32(*extent)?;
+                }
+                eqiora_lang::SpatialExtentSyntax::Support => encoder.u8(9)?,
+            }
             encode_value_type(encoder, scalar, budget, next_depth(depth)?)
         }
         ValueTypeSyntaxKind::Tensor { scalar, extents } => {
-            encoder.u8(2)?;
+            let inferred = extents.contains(&eqiora_lang::SpatialExtentSyntax::Support);
+            encoder.u8(if inferred { 10 } else { 2 })?;
             encoder.u32(as_u32(extents.len(), "tensor rank")?)?;
             for extent in extents {
-                encoder.u32(*extent)?;
+                match extent {
+                    eqiora_lang::SpatialExtentSyntax::Exact(extent) => {
+                        if inferred { encoder.u8(0)?; }
+                        encoder.u32(*extent)?;
+                    }
+                    eqiora_lang::SpatialExtentSyntax::Support => encoder.u8(1)?,
+                }
             }
             encode_value_type(encoder, scalar, budget, next_depth(depth)?)
         }

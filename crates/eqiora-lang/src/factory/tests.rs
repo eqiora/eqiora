@@ -372,7 +372,7 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Vector {
                 scalar: Box::new(crate::ValueTypeSyntax::real(dimension())),
-                extent: 2,
+                extent: crate::SpatialExtentSyntax::Exact(2),
             },
             range(0, 0),
         )

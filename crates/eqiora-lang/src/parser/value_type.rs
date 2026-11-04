@@ -216,13 +216,17 @@ impl Parser<'_> {
         Some(crate::FiniteBasisSyntax { name, dual })
     }
 
-    fn parse_type_extent(&mut self) -> Option<u32> {
+    fn parse_type_extent(&mut self) -> Option<crate::SpatialExtentSyntax> {
+        if self.at_keyword("spatial") {
+            self.bump();
+            return Some(crate::SpatialExtentSyntax::Support);
+        }
         let extent = self.parse_u64("positive integer type extent")?;
         let Some(extent) = u32::try_from(extent).ok().filter(|extent| *extent > 0) else {
             self.error_previous("type extent must be a positive u32 integer");
             return None;
         };
-        Some(extent)
+        Some(crate::SpatialExtentSyntax::Exact(extent))
     }
 }
 
@@ -273,7 +277,7 @@ mod tests {
         let ValueTypeSyntaxKind::Vector { scalar, extent } = element.kind() else {
             panic!("vector");
         };
-        assert_eq!(*extent, 2);
+        assert_eq!(*extent, crate::SpatialExtentSyntax::Exact(2));
         assert_eq!(
             scalar.scalar_domain(),
             Some(eqiora_core::ScalarDomain::Complex)

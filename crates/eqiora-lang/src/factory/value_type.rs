@@ -113,6 +113,10 @@ impl SourceAstFactory {
                 }
             };
             for extent in extents {
+                let crate::SpatialExtentSyntax::Exact(extent) = extent else {
+                    // The concrete type owner checks element count after binding support.
+                    continue;
+                };
                 if *extent == 0 {
                     return Err(AstConstructionError::new(
                         "type extent must be a positive u32 integer",
@@ -237,7 +241,7 @@ mod tests {
         let vector = SourceAstFactory::value_type(
             ValueTypeSyntaxKind::Vector {
                 scalar: Box::new(scalar.clone()),
-                extent: 2,
+                extent: crate::SpatialExtentSyntax::Exact(2),
             },
             range,
         )
@@ -289,7 +293,7 @@ mod tests {
         for kind in [
             ValueTypeSyntaxKind::Vector {
                 scalar: Box::new(vector.clone()),
-                extent: 2,
+                extent: crate::SpatialExtentSyntax::Exact(2),
             },
             ValueTypeSyntaxKind::Array {
                 element: Box::new(scalar.clone()),
@@ -301,11 +305,11 @@ mod tests {
             },
             ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(scalar.clone()),
-                extents: vec![2],
+                extents: vec![crate::SpatialExtentSyntax::Exact(2)],
             },
             ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(scalar),
-                extents: vec![2; 5],
+                extents: vec![crate::SpatialExtentSyntax::Exact(2); 5],
             },
         ] {
             assert!(SourceAstFactory::value_type(kind, range).is_err());
