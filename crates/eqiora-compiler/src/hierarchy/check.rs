@@ -29,7 +29,7 @@ use super::parameters::{
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, SupportInterface,
-    component_support_interface, model_spatial_supports, resolve_instance_support_bindings,
+    component_support_interface, model_spatial_supports, resolve_definition_support_bindings,
     symbolic_complete_exterior_set,
 };
 
@@ -297,15 +297,31 @@ fn validate_definition_bodies_and_parameters(
                         occurrences_valid = false;
                         continue;
                     };
-                    let support_bindings = match resolve_instance_support_bindings(
+                    // Formal Boundary slots may form a deferred set; only a
+                    // concrete occurrence can establish its Geometry witness.
+                    let support_bindings = match resolve_definition_support_bindings(
                         definition.file,
                         child.declaration,
                         child_supports,
                         instance,
                         |name| parent_supports.visible_support(name).cloned(),
-                        |_| None,
+                        |name| match parent_supports.visible_support(name)? {
+                            eqiora_schema::kernel::typing::SpatialSupport::Boundary {
+                                domain,
+                                ..
+                            } => Some(ResolvedBoundaryTarget::new(name.to_owned(), domain.clone())),
+                            _ => None,
+                        },
                         |_| None,
                         |name| parent_boundary_sets.get(name).cloned(),
+                        |name| {
+                            matches!(
+                                parent_supports.visible_support(name),
+                                Some(
+                                    eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. }
+                                )
+                            )
+                        },
                         &mut complete_exterior_budget,
                     ) {
                         Ok(bindings) => Some(bindings),
