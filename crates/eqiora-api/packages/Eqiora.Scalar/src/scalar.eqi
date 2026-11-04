@@ -1,0 +1,43 @@
+public component Poisson2d(
+  support body: volume(ambient_dimension = 2),
+  variable potential: 1 on body in h1,
+  parameter coefficient: 1 = 1,
+  expression source: 1 / m ^ 2 on body
+) {
+  relation balance on body {
+    -div(coefficient * grad(potential)) - source = 0;
+  }
+}
+
+public component Laplace2d(
+  support body: volume(ambient_dimension = 2),
+  variable potential: 1 on body in h1,
+  parameter coefficient: 1 = 1
+) {
+  relation balance on body {
+    -div(coefficient * grad(potential)) = 0;
+  }
+}
+
+public component FixedValue2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable potential: 1 on body in h1,
+  expression value: 1 on face
+) {
+  relation prescribed_value on face {
+    trace(potential) - value = 0;
+  }
+}
+
+public component NormalFlux2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable potential: 1 on body in h1,
+  parameter coefficient: 1 = 1,
+  expression flux: 1 / m on face
+) {
+  relation prescribed_flux on face {
+    normal(coefficient * grad(potential)) - flux = 0;
+  }
+}
