@@ -10,7 +10,7 @@ impl CanonicalGeometryV1 {
     /// Check that named selections partition the complete exterior of a region.
     ///
     /// All arguments must borrow selections from this exact object's catalog,
-    /// as with [`Self::selection_is_boundary_of`]. Independently replayed or
+    /// including the parent and every boundary part. Independently replayed or
     /// cloned objects have separate catalog references even when their canonical
     /// geometry identity is equal. The parent must be full-dimensional. Parts
     /// must be nonempty codimension-one sets with disjoint entity memberships;
