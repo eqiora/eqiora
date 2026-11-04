@@ -162,13 +162,20 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
         else {
             panic!("expected Q1 FEM");
         };
-        // Linear u=+/-x/m lies in Q1 exactly. On this unit-square grid the
-        // nonnegative barrier x*(2-x)/(2*c) has zero left value and zero
-        // right normal derivative. The Q1 stencil and minimum nodal mass
-        // h^2/4 bound ||K_ff^-1||_inf by 2*N^2/c. Here c=2, N=8, and
-        // ||b||_2 <= 2, so the requested residual gives <= 1.28e-10
-        // nodal error in exact arithmetic. 2e-9 allows assembly/solve
-        // rounding beyond that bound; it is not an observed-output budget.
+        // The authored right normal flux +/-2/m, c=2, left value zero,
+        // and zero top/bottom flux give the unique solution u=+/-x/m.
+        // This linear function lies in Q1 exactly. For the uniform unit
+        // square, the Q1 free-node stiffness is an M-matrix. Applying it to
+        // nodal phi=x*(2-x)/(2*c) gives the constant-load lumped masses:
+        // h^2 inside, h^2/2 on a free edge, h^2/4 at a free corner.
+        // phi has zero left value and zero right normal derivative.
+        // Comparison with the minimum mass h^2/4 and max(phi)=1/(2*c)
+        // gives ||K_ff^-1||_inf <= 2/(c*h^2) = 64 (c=2, h=1/8).
+        // Right-flux loads are 2*h (h at its two corners), so ||b||_2<=2.
+        // CG requests max(1e-14,1e-12*||b||_2), giving <=1.28e-10 nodal
+        // error in exact arithmetic, also bounding L2 on a unit-area box.
+        // As in scalar_coefficient_division, allow twice the analytic bound
+        // for assembly/solve rounding, not as a floating-point proof.
         let error = solution
             .field()
             .l2_error(
@@ -176,7 +183,7 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
                 &QuadratureRule::tensor_product_gauss_legendre(2, 4).unwrap(),
             )
             .unwrap();
-        assert!(error < 2e-9, "linear Laplace error {error}");
+        assert!(error < 2.56e-10, "linear Laplace error {error}");
         let wrong_sign = solution
             .field()
             .l2_error(
@@ -184,6 +191,7 @@ fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
                 &QuadratureRule::tensor_product_gauss_legendre(2, 4).unwrap(),
             )
             .unwrap();
+        // ||x/m - (-x/m)||_L2 = 2/sqrt(3) > 1, independently of Eqiora.
         assert!(wrong_sign > 1.0, "opposite sign must be distinguishable");
     }
 }
