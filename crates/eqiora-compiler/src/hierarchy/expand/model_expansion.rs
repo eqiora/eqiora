@@ -16,7 +16,7 @@ impl RootExpansion<'_, '_> {
         let mut root_scope = Scope::default();
         root_scope.extend_properties(properties);
         root_scope.record_context =
-            super::parameters::RecordContext::model(self.elaborator, &model);
+            super::super::parameters::RecordContext::model(self.elaborator, &model);
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
         root_scope.lexical_namespace = Some(model.namespace.clone());
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));

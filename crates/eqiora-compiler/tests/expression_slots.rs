@@ -80,6 +80,16 @@ fn nested_forwarding_retains_caller_lexical_capture() {
                 .collect::<Vec<_>>();
             assert!(refs.contains(&caller));
             assert!(refs.iter().all(|id| *id == caller || *id == length));
+            let axes = r
+                .expression()
+                .nodes()
+                .iter()
+                .filter_map(|node| match node {
+                    ExprNode::Symbol(SymbolRef::Coordinate { axis, .. }) => Some(*axis),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(axes, [0]);
         }
     }
 }
@@ -136,5 +146,20 @@ fn vector_boundary_expression_uses_the_same_typed_contract() {
 
 #[test]
 fn child_clocked_alias_is_deferred_without_changing_legacy_semantics() {
-    compile("child.eqi", "component Cell(clock tick:periodic,output y:1 at tick){relation r at tick{y=1;}} model M(){clock a=periodic(1[s]);instance child:Cell(tick=a);let observed at a=child.y;relation r at a{observed=1;}}").unwrap();
+    let cell = "component Cell(clock tick:periodic,output y:1 at tick){relation r at tick{y=1;}}";
+    let raw = format!(
+        "{cell} model M(){{clock a=periodic(1[s]);instance child:Cell(tick=a);let observed at a=child.y;relation r at a{{observed=1;}}}}"
+    );
+    compile("child.eqi", &raw).unwrap();
+    rejected(
+        &raw.replace(
+            "clock a=periodic(1[s]);",
+            "clock a=periodic(1[s]);clock b=periodic(1[s]);",
+        )
+        .replace("let observed at a", "let observed at b"),
+    );
+    let wrapped = format!(
+        "{cell} component Parent(clock tick:periodic){{instance child:Cell(tick=tick);let observed at tick=child.y;relation r at tick{{observed=1;}}}} model M(){{clock a=periodic(1[s]);instance parent:Parent(tick=a);}}"
+    );
+    compile("wrapper.eqi", &wrapped).unwrap();
 }
