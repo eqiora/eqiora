@@ -96,7 +96,10 @@ fn canonical_poisson_agrees_between_reference_and_faer_backends() {
     let faer_plan = RealizationPlan::new(
         default.space(),
         default.discretization(),
-        default.solver().with_reduction(ReductionPolicy::Fast),
+        default
+            .solver()
+            .clone()
+            .with_reduction(ReductionPolicy::Fast),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },
@@ -153,7 +156,7 @@ fn canonical_poisson_agrees_between_reference_and_faer_backends() {
     let produced = FaerLinearSolver
         .solve(
             &finalized.linear_problem().unwrap(),
-            finalized.solver_plan(),
+            finalized.solver_plan().clone(),
         )
         .unwrap();
     let accepted = admitted.accept(produced).unwrap();
@@ -247,7 +250,10 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
         LinearOperatorProperties::Symmetric,
         LinearOperatorProperties::SymmetricIndefinite,
     ] {
-        for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+        for preconditioner in [
+            eqiora::solver::PreconditionerKind::Identity,
+            eqiora::solver::PreconditionerKind::Jacobi,
+        ] {
             expected.insert(SolverCapability {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
@@ -324,7 +330,10 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             LinearOperatorProperties::HermitianPositiveDefinite,
         ),
     ] {
-        for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+        for preconditioner in [
+            eqiora::solver::PreconditionerKind::Identity,
+            eqiora::solver::PreconditionerKind::Jacobi,
+        ] {
             expected.insert(SolverCapability {
                 scalar_domain: eqiora_core::ScalarDomain::Complex,
                 algorithm,
@@ -339,11 +348,15 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     for unsupported in &oracle.contract_expectations.capabilities.negative {
         let tuple = capability_from_fixture(unsupported);
         let plan = sparse_lu_plan(&oracle)
-            .with_preconditioner(tuple.preconditioner)
+            .with_preconditioner(match unsupported.preconditioner.as_str() {
+                "Identity" => PreconditionerPolicy::Identity,
+                "Jacobi" => PreconditionerPolicy::Jacobi,
+                other => panic!("unexpected frozen preconditioner {other}"),
+            })
             .with_reduction(tuple.reduction);
         capabilities
             .require_problem(
-                plan,
+                &plan,
                 eqiora_core::ScalarDomain::Real,
                 tuple.scalar_type,
                 tuple.operator_properties,
@@ -365,14 +378,14 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Jacobi)
     .with_reduction(ReductionPolicy::Fast);
-    let solution = FaerLinearSolver.solve(&problem, plan).unwrap();
+    let solution = FaerLinearSolver.solve(&problem, plan.clone()).unwrap();
     assert!((solution.values()[0] - 1.0).abs() < 1.0e-12);
     assert!((solution.values()[1] - 2.0).abs() < 1.0e-12);
     assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
 
     let error = capabilities
         .require_problem(
-            plan.with_reduction(ReductionPolicy::Reproducible),
+            &plan.with_reduction(ReductionPolicy::Reproducible),
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::General,
@@ -406,7 +419,7 @@ fn faer_bicgstab_spd_identity_and_jacobi_retain_normal_and_transpose_actions() {
             NonZeroUsize::new(100).unwrap(),
         )
         .unwrap()
-        .with_preconditioner(preconditioner)
+        .with_preconditioner(preconditioner.clone())
         .with_reduction(ReductionPolicy::Fast);
         for (orientation, rhs, expected) in [
             (
@@ -432,7 +445,7 @@ fn faer_bicgstab_spd_identity_and_jacobi_retain_normal_and_transpose_actions() {
                 report.algorithm(),
                 LinearSolver::BiConjugateGradientStabilized
             );
-            assert_eq!(report.preconditioner(), preconditioner);
+            assert_eq!(report.preconditioner(), &preconditioner);
             assert_eq!(report.reduction(), ReductionPolicy::Fast);
             assert_eq!(report.orientation(), orientation);
             assert!(report.completed_iterations() <= 100);
@@ -461,7 +474,7 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
     .unwrap();
 
     let solution = FaerLinearSolver
-        .solve(&system.linear_problem().unwrap(), plan)
+        .solve(&system.linear_problem().unwrap(), plan.clone())
         .unwrap();
     let positive_case = oracle
         .contract_expectations
@@ -508,7 +521,9 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         .find(|case| case.id == "early-initial-guess-accepted")
         .unwrap();
     assert!(early_case.expected_early_exit);
-    let early = FaerLinearSolver.solve(&early_problem, plan).unwrap();
+    let early = FaerLinearSolver
+        .solve(&early_problem, plan.clone())
+        .unwrap();
     assert_eq!(
         early.report().reason(),
         ConvergenceReason::InitialResidualSatisfied
@@ -530,7 +545,7 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         .with_initial_guess(&not_satisfied)
         .unwrap();
     let not_satisfied_solution = FaerLinearSolver
-        .solve(&not_satisfied_problem, plan)
+        .solve(&not_satisfied_problem, plan.clone())
         .unwrap();
     let not_satisfied_case = oracle
         .contract_expectations
@@ -565,7 +580,9 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         LinearOperatorProperties::General,
     )
     .unwrap();
-    let missing_capture = FaerLinearSolver.solve(&hand_built, plan).unwrap_err();
+    let missing_capture = FaerLinearSolver
+        .solve(&hand_built, plan.clone())
+        .unwrap_err();
     assert_eq!(
         missing_capture.code(),
         eqiora::diagnostic::codes::INVALID_REALIZATION
@@ -580,7 +597,9 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         LinearOperatorProperties::General,
     )
     .unwrap();
-    let matrix_free_error = FaerLinearSolver.solve(&matrix_free, plan).unwrap_err();
+    let matrix_free_error = FaerLinearSolver
+        .solve(&matrix_free, plan.clone())
+        .unwrap_err();
     assert_eq!(
         matrix_free_error.code(),
         eqiora::diagnostic::codes::INVALID_REALIZATION
@@ -597,7 +616,9 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         LinearOperatorProperties::General,
     )
     .unwrap();
-    let transposed_error = FaerLinearSolver.solve(&transposed, plan).unwrap_err();
+    let transposed_error = FaerLinearSolver
+        .solve(&transposed, plan.clone())
+        .unwrap_err();
     assert_eq!(
         transposed_error.code(),
         eqiora::diagnostic::codes::INVALID_REALIZATION

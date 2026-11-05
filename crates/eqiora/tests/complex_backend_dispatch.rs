@@ -249,7 +249,7 @@ fn complex_plan_admits_only_the_selected_providers_matching_typed_capabilities()
         ),
     ] {
         let request = CommonSolvePolicy::Linear(
-            CommonLinearRequest::exact(solver, backend.family_provider()).unwrap(),
+            CommonLinearRequest::exact(solver.clone(), backend.family_provider()).unwrap(),
         );
         let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, &backend);
         assert_eq!(plan.is_ok(), accepted);
@@ -278,7 +278,8 @@ fn automatic_complex_bridge_distinguishes_absent_and_foreign_typed_providers() {
         missing: true,
         ..Default::default()
     };
-    let plan = CommonAlgebraicPlan::resolve(&model, request, None, &[], None, &missing).unwrap();
+    let plan =
+        CommonAlgebraicPlan::resolve(&model, request.clone(), None, &[], None, &missing).unwrap();
     let resolved = eqiora_numerics::ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
     assert_eq!(
         resolved.selected_solver_candidate_id(),

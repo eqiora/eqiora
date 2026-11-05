@@ -261,7 +261,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             .unwrap();
         assert_eq!(evidence_case, expected["evidence_case"].as_str().unwrap());
         assert_solver_provider(provider, &expected["solver_provider"]);
-        assert_plan(candidate_id, plan, expected);
+        assert_plan(candidate_id, plan.clone(), expected);
         let backend: &dyn LinearSolverBackend = if provider == REFERENCE_LINEAR_SOLVER.provider() {
             &REFERENCE_LINEAR_SOLVER
         } else {
@@ -322,7 +322,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
         assert_plan(
             decision.selected_candidate_id(),
-            decision.solver_plan(),
+            decision.solver_plan().clone(),
             selected_expected,
         );
 
@@ -498,7 +498,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                     ReductionPolicy::Reproducible
                 },
             );
-            assert_eq!(decision.solver_plan(), expected_plan);
+            assert_eq!(decision.solver_plan(), &expected_plan);
             assert_eq!(decision.solver_provider(), backend.provider());
             assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
             assert!(decision.solve(&problem, None, backend).is_err());
@@ -586,7 +586,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
             SolverPlanningObjective::LowMemory => (FAER_IDENTITY_ID, faer_identity_plan(), &faer),
         };
         assert_eq!(decision.selected_candidate_id(), id);
-        assert_eq!(decision.solver_plan(), plan);
+        assert_eq!(decision.solver_plan(), &plan);
         assert_eq!(decision.solver_provider(), backend.provider());
         let solution = decision.solve(&problem, None, backend).unwrap();
         let manual = LinearSolveRequest::new(backend, plan)

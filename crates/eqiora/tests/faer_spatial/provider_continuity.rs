@@ -243,14 +243,17 @@ impl LinearSolverBackend for AuditedBackend<'_> {
                     system.right_hand_side(),
                     problem.properties(),
                 )?;
-                self.delegate
-                    .solve_with_execution(&wrong.linear_problem()?, plan, execution)?
+                self.delegate.solve_with_execution(
+                    &wrong.linear_problem()?,
+                    plan.clone(),
+                    execution,
+                )?
             }
             Behavior::ReferenceFallback => {
                 *self.fallback_calls.lock().unwrap() += 1;
                 REFERENCE_LINEAR_SOLVER.solve_with_execution(
                     problem,
-                    plan.with_reduction(ReductionPolicy::Reproducible),
+                    plan.clone().with_reduction(ReductionPolicy::Reproducible),
                     execution,
                 )?
             }
@@ -335,7 +338,7 @@ fn assert_oracle(result: &CommonResult, backend: &AuditedBackend<'_>, expected: 
     let call = &calls[0];
     assert_frozen_system(&call.system);
     assert_eq!(call.plan, expected);
-    assert_eq!(call.report.solver_plan(), expected);
+    assert_eq!(call.report.solver_plan(), &expected);
     assert_eq!(call.report.solver_provider(), backend.delegate.provider());
     assert_eq!(call.report.execution_provider(), SERIAL_EXECUTION_PROVIDER);
     assert_eq!(call.report.residual_target(), RESIDUAL_TARGET);
@@ -343,7 +346,7 @@ fn assert_oracle(result: &CommonResult, backend: &AuditedBackend<'_>, expected: 
     assert_eq!(call.values, values);
     let evidence = result.solve_evidence(None, None).unwrap();
     assert_eq!(evidence.algorithm(), LinearSolver::ConjugateGradient);
-    assert_eq!(evidence.preconditioner(), PreconditionerPolicy::Identity);
+    assert_eq!(evidence.preconditioner(), &PreconditionerPolicy::Identity);
     assert_eq!(evidence.reduction(), expected.reduction());
     assert_eq!(evidence.solver().id(), backend.provider.id().as_str());
     assert_eq!(
@@ -376,10 +379,14 @@ fn ordinary_reference_and_pinned_faer_preserve_the_same_owned_problem() {
     let reference_solver = plan(ReductionPolicy::Reproducible);
     let faer_solver = plan(ReductionPolicy::Fast);
     let reference_plan = fixture
-        .resolve(reference_solver, REFERENCE_SOLVER_PROVIDER, &reference)
+        .resolve(
+            reference_solver.clone(),
+            REFERENCE_SOLVER_PROVIDER,
+            &reference,
+        )
         .unwrap();
     let faer_plan = fixture
-        .resolve(faer_solver, FAER_SOLVER_PROVIDER, &faer)
+        .resolve(faer_solver.clone(), FAER_SOLVER_PROVIDER, &faer)
         .unwrap();
     let r = reference_plan.as_spatial().unwrap();
     let f = faer_plan.as_spatial().unwrap();

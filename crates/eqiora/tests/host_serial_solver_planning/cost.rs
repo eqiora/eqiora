@@ -87,7 +87,7 @@ fn exact_two_coordinate_work_units_and_requested_payload_are_independent_of_exec
         let manual = plan(algorithm, preconditioner, ReductionPolicy::Reproducible);
         let cost = owner.estimate_cost(
             "manual",
-            manual,
+            &manual,
             REFERENCE_LINEAR_SOLVER.provider(),
             ScalarDomain::Real,
             ScalarType::F64,
@@ -119,7 +119,7 @@ fn exact_two_coordinate_work_units_and_requested_payload_are_independent_of_exec
         jacobi
             .estimate_cost(
                 "manual",
-                cg,
+                &cg,
                 REFERENCE_LINEAR_SOLVER.provider(),
                 ScalarDomain::Real,
                 ScalarType::F64
@@ -129,7 +129,7 @@ fn exact_two_coordinate_work_units_and_requested_payload_are_independent_of_exec
     );
     let lu = general.estimate_cost(
         "manual",
-        faer_sparse_lu_plan(),
+        &faer_sparse_lu_plan(),
         FaerLinearSolver.provider(),
         ScalarDomain::Real,
         ScalarType::F64,
@@ -200,10 +200,10 @@ fn cost_forecasts_do_not_change_exact_manual_controls_or_analytical_solutions() 
         ),
     ] {
         let owner = profile(system.properties(), 2, 4, forecast(2, 2, 2, 1, 1));
-        owner.require_plan(manual).unwrap();
+        owner.require_plan(&manual).unwrap();
         owner
             .require_resources(
-                manual,
+                &manual,
                 backend.provider(),
                 ScalarDomain::Real,
                 ScalarType::F64,
@@ -211,12 +211,12 @@ fn cost_forecasts_do_not_change_exact_manual_controls_or_analytical_solutions() 
             .unwrap();
         let _forecast = owner.estimate_cost(
             "manual",
-            manual,
+            &manual,
             backend.provider(),
             ScalarDomain::Real,
             ScalarType::F64,
         );
-        let solution = LinearSolveRequest::new(backend, manual)
+        let solution = LinearSolveRequest::new(backend, manual.clone())
             .solve(&system.linear_problem().unwrap())
             .unwrap();
         // A*[1,2]=b independently in both matrices; a forecast of one iteration
@@ -231,7 +231,7 @@ fn cost_forecasts_do_not_change_exact_manual_controls_or_analytical_solutions() 
             (6. - (4. * x + y)).hypot(7. - (x + 3. * y))
         };
         assert!(residual <= solution.report().residual_target());
-        assert_eq!(solution.report().solver_plan(), manual);
+        assert_eq!(solution.report().solver_plan(), &manual);
         assert_eq!(solution.report().solver_provider(), backend.provider());
         assert_eq!(manual.maximum_iterations().get(), 100);
     }
@@ -299,7 +299,7 @@ fn actual_csr_payload_is_rechecked_without_overwriting_decision_provenance() {
         assert_eq!(backend.0.load(Ordering::SeqCst), 0);
         assert_eq!(
             decision.solver_plan().preconditioner(),
-            PreconditionerPolicy::Identity
+            &PreconditionerPolicy::Identity
         );
         assert_solution(
             &decision
@@ -366,13 +366,13 @@ fn payload_unknown_and_insufficient_limits_reject_before_any_reference_work() {
         4,
         forecast(1, 1, 1, 3, 3),
     );
-    plain.require_plan(faer_sparse_lu_plan()).unwrap();
+    plain.require_plan(&faer_sparse_lu_plan()).unwrap();
     assert!(
         plain
             .clone()
             .with_cost_request(forecast(1, 1, 1, 3, 3).with_numeric_payload_limit(nz(1_000_000)))
             .require_resources(
-                faer_sparse_lu_plan(),
+                &faer_sparse_lu_plan(),
                 FaerLinearSolver.provider(),
                 ScalarDomain::Real,
                 ScalarType::F64
@@ -407,7 +407,7 @@ fn low_memory_prefers_known_bounds_and_preserves_missing_fact_provider_reasons()
     );
     assert_eq!(
         decision.solver_plan().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert!(
         decision
@@ -448,7 +448,7 @@ fn low_memory_prefers_known_bounds_and_preserves_missing_fact_provider_reasons()
     );
     assert_eq!(
         fallback.solver_plan().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert!(
         fallback
@@ -539,7 +539,7 @@ fn declared_horizon_changes_the_work_proxy_ranking_without_executing_reuse() {
     );
     assert_eq!(
         cold.solver_plan().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert_eq!(warm.solver_plan().algorithm(), LinearSolver::SparseLu);
     for (decision, expected) in [
@@ -600,7 +600,7 @@ fn invalid_horizons_forecasts_and_arithmetic_overflow_do_not_invent_costs() {
     );
     let cost = huge.estimate_cost(
         "manual",
-        faer_sparse_lu_plan(),
+        &faer_sparse_lu_plan(),
         FaerLinearSolver.provider(),
         ScalarDomain::Real,
         ScalarType::F64,
@@ -949,7 +949,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 &FaerLinearSolver
             };
         assert_solution(&decision.solve(&problem, None, backend).unwrap(), &expected);
-        for &(id, faer, algorithm, preconditioner) in tuples {
+        for &(id, faer, algorithm, ref preconditioner) in tuples {
             let backend: &dyn LinearSolverBackend = if faer {
                 &FaerLinearSolver
             } else {
@@ -957,7 +957,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             };
             let manual = plan(
                 algorithm,
-                preconditioner,
+                preconditioner.clone(),
                 if faer {
                     ReductionPolicy::Fast
                 } else {
@@ -969,7 +969,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 // capability admission succeeds; numeric Jacobi admission fails.
                 backend
                     .capabilities()
-                    .require_problem(manual, ScalarDomain::Real, ScalarType::F64, properties)
+                    .require_problem(&manual, ScalarDomain::Real, ScalarType::F64, properties)
                     .unwrap();
                 let error = LinearSolveRequest::new(backend, manual)
                     .solve(&problem)
@@ -977,7 +977,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 assert!(error.message().contains("diagonal"), "{id}: {error}");
                 continue;
             }
-            let solution = LinearSolveRequest::new(backend, manual)
+            let solution = LinearSolveRequest::new(backend, manual.clone())
                 .solve(&problem)
                 .unwrap_or_else(|error| panic!("{id}: {error}"));
             assert_solution(&solution, &expected);
@@ -988,7 +988,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 residual <= solution.report().residual_target(),
                 "{id}: {residual}"
             );
-            assert_eq!(solution.report().solver_plan(), manual, "{id}");
+            assert_eq!(solution.report().solver_plan(), &manual, "{id}");
             assert_eq!(
                 solution.report().solver_provider(),
                 backend.provider(),
@@ -1000,7 +1000,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 -2. * values[0] + 3. * values[2],
                 -2. * values[1] + 3. * values[3],
             ];
-            let transpose = LinearSolveRequest::new(backend, manual)
+            let transpose = LinearSolveRequest::new(backend, manual.clone())
                 .solve_canonical_oriented(
                     &system,
                     &transpose_rhs,
@@ -1008,7 +1008,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                 )
                 .unwrap_or_else(|error| panic!("{id} transpose: {error}"));
             assert_solution(&transpose, &[-2., 3.]);
-            assert_eq!(transpose.report().solver_plan(), manual);
+            assert_eq!(transpose.report().solver_plan(), &manual);
             assert_eq!(transpose.report().solver_provider(), backend.provider());
             assert_eq!(
                 transpose.report().orientation(),
@@ -1024,7 +1024,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                     scalar_type: ScalarType::F64,
                     algorithm,
                     operator_properties: properties,
-                    preconditioner,
+                    preconditioner: preconditioner.kind(),
                     reduction: manual.reduction(),
                 },
             };
@@ -1047,7 +1047,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
             }
             .unwrap_or_else(|error| panic!("{id}: {error}"));
             assert_eq!(selected.selected_candidate_id(), id);
-            assert_eq!(selected.solver_plan(), manual);
+            assert_eq!(selected.solver_plan(), &manual);
             assert_eq!(selected.solver_provider(), backend.provider());
             assert_solution(
                 &selected.solve(&problem, None, &restricted).unwrap(),
