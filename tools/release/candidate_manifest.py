@@ -28,7 +28,10 @@ MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v6"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
-FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
+# Raw transport envelopes; expanded archive limits remain independent.
+# Policy owner: docs/development/python-release-policy.md#artifact-resource-bounds
+SDIST_RAW_BYTES_LIMIT = 16_777_216
+WHEEL_RAW_BYTES_LIMIT = 20_971_520
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 MANIFEST_BYTES_LIMIT = 1_048_576
 # Bound archive traversal metadata separately from payload sizes.
@@ -242,12 +245,18 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
             raise ManifestError("candidate manifest has duplicate artifact filenames")
         filenames.add(filename)
         path = artifacts / filename
+        kind = record.get("kind")
+        raw_limit = (
+            WHEEL_RAW_BYTES_LIMIT
+            if kind == "wheel" and filename.endswith(".whl")
+            else SDIST_RAW_BYTES_LIMIT
+        )
         if (
             path.is_symlink()
             or not path.is_file()
             or path.stat().st_nlink != 1
             or path.stat().st_size <= 0
-            or path.stat().st_size > FAMILY_MEMBER_BYTES_LIMIT
+            or path.stat().st_size > raw_limit
         ):
             raise ManifestError(
                 f"candidate family member is not one bounded regular file: {filename}"
@@ -255,7 +264,6 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
         total_bytes += path.stat().st_size
         if total_bytes > FAMILY_TOTAL_BYTES_LIMIT:
             raise ManifestError("candidate family exceeds the raw byte ceiling")
-        kind = record.get("kind")
         if kind == "sdist":
             archive_member_count = 0
             archive_total_bytes = 0

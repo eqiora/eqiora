@@ -17,6 +17,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
 import candidate_manifest as candidate_manifest_module  # noqa: E402
+import python_candidate_family as producer_family_module  # noqa: E402
+from python_candidate_common import CandidateError  # noqa: E402
 import testpypi_replay as testpypi_replay_module  # noqa: E402
 from candidate_manifest import (  # noqa: E402
     MANIFEST_FORMAT,
@@ -327,6 +329,45 @@ class CandidateManifestTests(unittest.TestCase):
             ]
             with mock.patch.object(sys, "argv", argv):
                 self.assertEqual(candidate_manifest_module.main(), 2)
+
+    def test_independent_readers_enforce_exact_raw_transport_envelopes(self) -> None:
+        # Declare reviewed policy independently of either implementation.
+        for kind, ceiling in (
+            ("sdist", 16 * 1024 * 1024),
+            ("wheel", 20 * 1024 * 1024),
+        ):
+            for size, accepted in ((ceiling, True), (ceiling + 1, False)):
+                with self.subTest(kind=kind, size=size):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        manifest, artifacts, document = candidate_fixture(Path(temporary))
+                        record = next(
+                            item for item in document["artifacts"] if item["kind"] == kind
+                        )
+                        path = artifacts / record["filename"]
+                        if kind == "sdist":
+                            # Gzip zero padding changes only the raw transport size.
+                            with path.open("ab") as output:
+                                output.write(bytes(size - path.stat().st_size))
+                        else:
+                            # A stored regular member reaches the raw ZIP boundary
+                            # while remaining below every expanded-archive ceiling.
+                            name = "eqiora/raw-boundary-padding.bin"
+                            overhead = 30 + 46 + 2 * len(name.encode("ascii"))
+                            payload_size = size - path.stat().st_size - overhead
+                            with zipfile.ZipFile(path, mode="a") as archive:
+                                archive.writestr(name, bytes(payload_size))
+                        self.assertEqual(path.stat().st_size, size)
+                        record["size"] = size
+                        record["sha256"] = file_sha256(path)
+                        manifest.write_text(json.dumps(document), encoding="utf-8")
+                        if accepted:
+                            producer_family_module.family_inventory(artifacts)
+                            load_candidate_family(manifest, artifacts)
+                        else:
+                            with self.assertRaisesRegex(CandidateError, "raw byte ceiling"):
+                                producer_family_module.family_inventory(artifacts)
+                            with self.assertRaisesRegex(ManifestError, "bounded regular file"):
+                                load_candidate_family(manifest, artifacts)
 
     def test_exact_regular_archive_member_count_boundary(self) -> None:
         # Policy is declared independently of the implementation's limit.
