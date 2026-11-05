@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora_meshing::EntityIncidence;
 
 use super::*;
@@ -16,7 +16,7 @@ fn rectangle() -> CanonicalGeometryV1 {
             &BTreeMap::from([
                 (
                     "region".to_owned(),
-                    vec![PlanarTopologyHandle::from(rectangle.region())],
+                    vec![GeometryTopologyHandle::from(rectangle.region())],
                 ),
                 ("left".to_owned(), vec![edges[0].into()]),
                 ("right".to_owned(), vec![edges[1].into()]),
