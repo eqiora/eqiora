@@ -224,7 +224,9 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         let ownership = mapping.algebraic_structure().unwrap();
         let blocks: Vec<_> = ownership.blocks().collect();
         assert_eq!(
-            ownership.partition_coordinates(&[blocks.clone()]).unwrap(),
+            ownership
+                .partition_coordinates(std::slice::from_ref(&blocks))
+                .unwrap(),
             vec![(0..2 * count - 1).collect::<Vec<_>>()]
         );
         // Adjacent regional P1 Fields share one interior quotient coordinate.
