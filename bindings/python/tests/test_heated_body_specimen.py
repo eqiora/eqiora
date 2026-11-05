@@ -1,5 +1,6 @@
 """Independent Q1 heat balance and exact offline package/Plan replay."""
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 
@@ -219,7 +220,18 @@ def test_reference_profile_times_solve_without_changing_q1_result():
     check_heat(model, profiled)
     assert ordinary.profile is None
     assert profiled.plan_key == ordinary.plan_key
-    assert profiled.to_bytes() == ordinary.to_bytes()
+    # The existing Result wire includes elapsed_seconds in its identity.
+    # Compare all semantic content, and separately retain exact saved replay.
+    ordinary_content = json.loads(ordinary.to_bytes())["content"]
+    profiled_content = json.loads(profiled.to_bytes())["content"]
+    for content in (ordinary_content, profiled_content):
+        elapsed = content.pop("elapsed_seconds")
+        assert np.isfinite(elapsed) and elapsed >= 0
+    assert profiled_content == ordinary_content
+    for result in (ordinary, profiled):
+        replay = eqiora.Result.from_bytes(plan, result.to_bytes())
+        assert replay.to_bytes() == result.to_bytes()
+        assert replay.profile is None
     assert plan.to_bytes() == before
     linear, = [phase for phase in profiled.profile.phases
                if tuple(phase.path) == ("run", "solve", "linear_solve")]
