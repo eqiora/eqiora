@@ -9,7 +9,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPlan, CommonSpatialPolicy,
 };
@@ -604,19 +604,19 @@ fn document_from_source(source: &str, entry: &str) -> ModelDocument {
                 ("square".to_owned(), vec![rectangle.region().into()]),
                 (
                     "x_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "x_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "y_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
                 (
                     "y_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[3])],
+                    vec![GeometryTopologyHandle::from(edges[3])],
                 ),
             ]),
         )

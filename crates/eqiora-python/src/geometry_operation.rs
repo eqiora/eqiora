@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use eqiora::geometry::{
-    GeometryGraph, PlanarBoundaryHandle, PlanarOperation, PlanarRegionHandle, PlanarTopologyHandle,
+    GeometryGraph, GeometryBoundaryHandle, GeometryOperation, GeometryRegionHandle, GeometryTopologyHandle,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -30,7 +30,7 @@ pub(crate) struct PyGeometryGraph {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyGeometryOperation {
-    operation: PlanarOperation,
+    operation: GeometryOperation,
 }
 
 #[pyclass(
@@ -42,7 +42,7 @@ pub(crate) struct PyGeometryOperation {
 )]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PyGeometryRegionHandle {
-    handle: PlanarRegionHandle,
+    handle: GeometryRegionHandle,
 }
 
 #[pyclass(
@@ -54,7 +54,7 @@ pub(crate) struct PyGeometryRegionHandle {
 )]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PyGeometryBoundaryHandle {
-    handle: PlanarBoundaryHandle,
+    handle: GeometryBoundaryHandle,
 }
 
 #[pymethods]
@@ -274,7 +274,7 @@ impl PyGeometryBoundaryHandle {
 
 fn extract_named_topology(
     value: &Bound<'_, PyAny>,
-) -> PyResult<BTreeMap<String, Vec<PlanarTopologyHandle>>> {
+) -> PyResult<BTreeMap<String, Vec<GeometryTopologyHandle>>> {
     let mapping = value.cast::<PyMapping>().map_err(|_| {
         PyTypeError::new_err("named_topology must be one mapping from strings to topology handles")
     })?;
@@ -315,7 +315,7 @@ fn extract_named_topology(
     Ok(result)
 }
 
-fn extract_handle(value: &Bound<'_, PyAny>) -> Option<PlanarTopologyHandle> {
+fn extract_handle(value: &Bound<'_, PyAny>) -> Option<GeometryTopologyHandle> {
     if let Ok(handle) = value.extract::<PyRef<'_, PyGeometryRegionHandle>>() {
         Some(handle.handle.into())
     } else if let Ok(handle) = value.extract::<PyRef<'_, PyGeometryBoundaryHandle>>() {

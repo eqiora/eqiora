@@ -40,7 +40,7 @@ mod correspondence;
 mod identity;
 mod planar_adjacent_rectangle_partition_v1;
 mod planar_interface;
-mod planar_operation;
+mod operation;
 mod planar_rectangle_v2;
 mod region;
 
@@ -65,8 +65,8 @@ pub use identity::{
     GeometryEntity, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
 };
 pub(crate) use planar_adjacent_rectangle_partition_v1::CanonicalPlanarAdjacentRectanglePartitionV1;
-pub use planar_operation::{
-    GeometryGraph, PlanarBoundaryHandle, PlanarOperation, PlanarRegionHandle, PlanarTopologyHandle,
+pub use operation::{
+    GeometryGraph, GeometryBoundaryHandle, GeometryOperation, GeometryRegionHandle, GeometryTopologyHandle,
 };
 pub(crate) use planar_rectangle_v2::CanonicalPlanarRectangleGeometryV2;
 pub use region::{

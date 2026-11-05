@@ -27,7 +27,7 @@ mod modeling;
 mod moment_estimator;
 mod notation;
 mod package;
-mod planar_operation;
+mod geometry_operation;
 mod profile;
 mod realization;
 mod result;
@@ -261,7 +261,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     meshing::register(module)?;
     modeling::register(module)?;
     authoring::register(module)?;
-    planar_operation::register(module)?;
+    geometry_operation::register(module)?;
     realization::register(module)?;
     steady_stokes::register(module)?;
     trajectory::register(module)?;
