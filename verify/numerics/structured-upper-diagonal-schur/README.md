@@ -42,6 +42,7 @@ Run the complete pilot and its controls with:
 
 ```sh
 cargo test --locked -p eqiora --test structured_upper_diagonal_schur
+cargo run --locked -p eqiora-verify -- run --case numerics.structured-upper-diagonal-schur
 ```
 
 Canonical Plan replay checks complete composition and provider intent. Result
