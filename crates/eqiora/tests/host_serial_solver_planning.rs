@@ -16,7 +16,7 @@ use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v11.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v12.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
