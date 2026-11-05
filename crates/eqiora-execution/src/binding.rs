@@ -718,7 +718,9 @@ struct LinearContract<'a> {
     placement: PlacementRequirementNode,
 }
 
-fn linear_contract(realization: &PortableRealizationGraph) -> Result<LinearContract<'_>, Diagnostic> {
+fn linear_contract(
+    realization: &PortableRealizationGraph,
+) -> Result<LinearContract<'_>, Diagnostic> {
     let SolveRoot::Linear(root) = realization.root() else {
         return Err(invalid(
             "the first execution contract admits only a portable linear solve root",

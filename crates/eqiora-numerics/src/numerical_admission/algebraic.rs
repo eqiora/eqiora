@@ -336,7 +336,10 @@ impl CommonAlgebraicPlan {
         }
         if let Some(gauge) = &self.gauge {
             let checked = self.linear.checked_backend(backend, None)?;
-            let solution = gauge.solve(LinearSolveRequest::new(&checked, self.linear.solver.clone()))?;
+            let solution = gauge.solve(LinearSolveRequest::new(
+                &checked,
+                self.linear.solver.clone(),
+            ))?;
             return crate::CommonResult::from_algebraic(
                 self,
                 state,
@@ -356,7 +359,8 @@ impl CommonAlgebraicPlan {
                 .collect::<Vec<_>>();
             let problem = system.linear_problem()?.with_initial_guess(&initial)?;
             let complex = self.linear.checked_complex_backend(backend, None)?;
-            let solution = LinearSolveRequest::new(&complex, self.linear.solver.clone()).solve(&problem)?;
+            let solution =
+                LinearSolveRequest::new(&complex, self.linear.solver.clone()).solve(&problem)?;
             let values = solution
                 .values()
                 .iter()
@@ -420,14 +424,18 @@ impl CommonAlgebraicPlan {
         match (&self.gauge, evidence) {
             (Some(gauge), Some(evidence)) => {
                 if mask.is_some()
-                    || gauge.residual_target(self.linear.solver.clone())?.to_bits() != target.to_bits()
-                    || &gauge.assess(values, evidence.multiplier, self.linear.solver.clone())? != evidence
+                    || gauge.residual_target(self.linear.solver.clone())?.to_bits()
+                        != target.to_bits()
+                    || &gauge.assess(values, evidence.multiplier, self.linear.solver.clone())?
+                        != evidence
                 {
                     return Err(invalid(
                         "finite gauge Result evidence differs from its original equations or explicit reference",
                     ));
                 }
-                let assessment = self.problem.gauge_assessment(values, self.linear.solver.clone())?;
+                let assessment = self
+                    .problem
+                    .gauge_assessment(values, self.linear.solver.clone())?;
                 return Ok((assessment.equality_residual_norm(), Some(assessment)));
             }
             (None, None) => {}

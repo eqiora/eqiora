@@ -1,15 +1,11 @@
 //! Exact wire conversions for common Result artifacts.
 
 use eqiora_core::Diagnostic;
-use eqiora_solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver,
-    ReductionPolicy,
-};
+use eqiora_solver::{ConvergenceReason, LinearOperatorOrientation, LinearSolver, ReductionPolicy};
 
 use super::{
     CommonFieldAssociation, CommonResultFamily, WireAlgorithm, WireAssociation,
-    WireConvergenceReason, WireOrientation, WireReduction, WireResultFamily,
-    invalid,
+    WireConvergenceReason, WireOrientation, WireReduction, WireResultFamily, invalid,
 };
 
 pub(super) fn encode_shape(shape: &[usize]) -> Result<Vec<u64>, Diagnostic> {

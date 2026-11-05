@@ -315,7 +315,11 @@ impl CudaLinearExecutionTrace {
             "zero initial solution",
         )?;
         let diagonal = match (plan.preconditioner(), self.transfers.inverse_diagonal) {
-            (PreconditionerPolicy::UpperDiagonalSchur(_), _) => return Err(invalid("CUDA upper diagonal-Schur preconditioning is not implemented")),
+            (PreconditionerPolicy::UpperDiagonalSchur(_), _) => {
+                return Err(invalid(
+                    "CUDA upper diagonal-Schur preconditioning is not implemented",
+                ));
+            }
             (PreconditionerPolicy::Identity, None) => None,
             (PreconditionerPolicy::Jacobi, Some(transfer)) => Some(require_upload(
                 transfer,

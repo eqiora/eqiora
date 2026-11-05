@@ -103,9 +103,12 @@ where
                 )
             },
             |_, point| {
-                point
-                    .assembly
-                    .solve_correction(0, linear.clone(), self.plan.admission.linear.workers, None)
+                point.assembly.solve_correction(
+                    0,
+                    linear.clone(),
+                    self.plan.admission.linear.workers,
+                    None,
+                )
             },
             |endpoint, current| {
                 let (state, rate) = self.stage_coordinates(initial, endpoint, step_s);

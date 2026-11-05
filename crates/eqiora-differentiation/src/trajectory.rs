@@ -157,7 +157,13 @@ pub fn discrete_trajectory_adjoint<
         {
             *total += future;
         }
-        let adjoint = adjoint_gradient(step.relation(), &unknown, &parameter, properties, solver.clone())?;
+        let adjoint = adjoint_gradient(
+            step.relation(),
+            &unknown,
+            &parameter,
+            properties,
+            solver.clone(),
+        )?;
         let (solve, gradient) = adjoint.into_parts();
         state_cotangent.copy_from_slice(&gradient[..state_dimension]);
         for (total, contribution) in parameter_gradient

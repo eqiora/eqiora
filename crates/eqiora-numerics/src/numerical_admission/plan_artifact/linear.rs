@@ -136,17 +136,19 @@ impl WireLinearControls {
     ) -> Result<CommonLinearRequest, Diagnostic> {
         let maximum = nonzero(self.maximum_iterations, "linear maximum_iterations")?;
         let request = match &self.intent {
-            WireLinearIntent::ProgramControlled { objective, preconditioner } => {
-                CommonLinearRequest::program_controlled(
-                    self.relative_tolerance,
-                    self.absolute_tolerance,
-                    maximum,
-                    (*objective).into(),
-                ).map(|request| match preconditioner {
-                    Some(policy) => request.with_preconditioner(policy.clone()),
-                    None => request,
-                })
-            }
+            WireLinearIntent::ProgramControlled {
+                objective,
+                preconditioner,
+            } => CommonLinearRequest::program_controlled(
+                self.relative_tolerance,
+                self.absolute_tolerance,
+                maximum,
+                (*objective).into(),
+            )
+            .map(|request| match preconditioner {
+                Some(policy) => request.with_preconditioner(policy.clone()),
+                None => request,
+            }),
             WireLinearIntent::Exact {
                 algorithm,
                 preconditioner,

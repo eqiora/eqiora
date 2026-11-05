@@ -138,9 +138,9 @@ where
 /// Only exact Jacobi requests need a new structural fact in this admission slice.
 /// Automatic selection retains its existing independently admitted profile.
 pub(super) fn requests_diagonal(request: &CommonLinearRequest) -> bool {
-    request.requested_preconditioner().is_some_and(|policy| {
-        matches!(policy, PreconditionerPolicy::Jacobi)
-    })
+    request
+        .requested_preconditioner()
+        .is_some_and(|policy| matches!(policy, PreconditionerPolicy::Jacobi))
 }
 
 /// Ask the canonical operator's existing diagonal owner about structural availability.
@@ -320,7 +320,8 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let request = CommonLinearRequest::exact(
-            plan.clone().with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone()
+                .with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();
@@ -449,7 +450,8 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let jacobi = CommonLinearRequest::exact(
-            plan.clone().with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone()
+                .with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();

@@ -32,14 +32,20 @@ pub use operator::{
     DiagonalAvailability, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
     LinearProblem, Oriented, OrientedLinearOperator, RowLinearAction,
 };
-pub use plan::{LinearSolver, PreconditionerPolicy, PreconditionerKind, FixedFactorizationChoice, UpperDiagonalSchurConfig, ReductionPolicy, SolverPlan};
+pub use plan::{
+    FixedFactorizationChoice, LinearSolver, PreconditionerKind, PreconditionerPolicy,
+    ReductionPolicy, SolverPlan, UpperDiagonalSchurConfig,
+};
 pub use planning::{
     SolverCandidateCost, SolverCostRequest, SolverPlanningObjective, SolverPlanningProfile,
     SolverPlanningSize, SolverSelection,
 };
 pub use prepared::{PreparedLinearSolver, PreparedLinearStructureIdentity};
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
-pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, FixedLinearPreconditioner, solve_bicgstab_with_preconditioner};
+pub use reference::{
+    FixedLinearPreconditioner, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER,
+    solve_bicgstab_with_preconditioner,
+};
 pub use report::{
     ConvergenceReason, ExecutionId, ExecutionReport, ExecutionTopology, LinearAcceptanceWorkspace,
     LinearSolution, SolveReport,

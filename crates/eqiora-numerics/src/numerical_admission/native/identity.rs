@@ -122,10 +122,7 @@ pub(in crate::numerical_admission) fn push_linear_policy_identity(
     linear: &NativeLinearPolicy,
 ) -> Result<(), Diagnostic> {
     push_framed(bytes, linear_solver_identity(linear.solver.algorithm()));
-    push_framed(
-        bytes,
-        &linear.solver.preconditioner().identity_bytes()?,
-    );
+    push_framed(bytes, &linear.solver.preconditioner().identity_bytes()?);
     push_framed(bytes, reduction_identity(linear.solver.reduction()));
     bytes.extend_from_slice(&linear.solver.relative_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.absolute_tolerance().to_bits().to_be_bytes());

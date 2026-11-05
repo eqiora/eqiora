@@ -3,8 +3,8 @@ const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use serde::{Deserialize, Serialize};
 use eqiora_solver::PreconditionerPolicy;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::evidence::{CommonExecutionEvidence, CommonExecutionTopology, CommonProviderEvidence};

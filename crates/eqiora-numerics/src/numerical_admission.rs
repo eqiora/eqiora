@@ -253,10 +253,15 @@ impl CommonLinearRequest {
     pub fn with_preconditioner(mut self, policy: eqiora_solver::PreconditionerPolicy) -> Self {
         self.selection = match self.selection {
             CommonLinearSelection::Exact { plan, provider } => CommonLinearSelection::Exact {
-                plan: plan.with_preconditioner(policy), provider,
+                plan: plan.with_preconditioner(policy),
+                provider,
             },
-            CommonLinearSelection::ProgramControlled { objective, .. } =>
-                CommonLinearSelection::ProgramControlled { objective, preconditioner: Some(policy) },
+            CommonLinearSelection::ProgramControlled { objective, .. } => {
+                CommonLinearSelection::ProgramControlled {
+                    objective,
+                    preconditioner: Some(policy),
+                }
+            }
         };
         self
     }
@@ -266,7 +271,9 @@ impl CommonLinearRequest {
     pub fn requested_preconditioner(&self) -> Option<&eqiora_solver::PreconditionerPolicy> {
         match &self.selection {
             CommonLinearSelection::Exact { plan, .. } => Some(plan.preconditioner()),
-            CommonLinearSelection::ProgramControlled { preconditioner, .. } => preconditioner.as_ref(),
+            CommonLinearSelection::ProgramControlled { preconditioner, .. } => {
+                preconditioner.as_ref()
+            }
         }
     }
 
@@ -281,7 +288,10 @@ impl CommonLinearRequest {
             relative_tolerance,
             absolute_tolerance,
             maximum_iterations,
-            CommonLinearSelection::ProgramControlled { objective, preconditioner: None },
+            CommonLinearSelection::ProgramControlled {
+                objective,
+                preconditioner: None,
+            },
         )
     }
 

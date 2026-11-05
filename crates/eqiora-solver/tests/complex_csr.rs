@@ -150,8 +150,7 @@ fn imaginary_nonfinite_values_cannot_enter_a_captured_problem_or_guess() {
 fn scalar_domain_admission_is_independent_of_binary64_precision() {
     use eqiora_core::{ScalarDomain as Domain, ScalarType, diagnostic::codes};
     use eqiora_solver::{
-        LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
-        SolverPlan,
+        LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
     };
     let capability = SolverCapability {
         scalar_domain: Domain::Real,
@@ -286,9 +285,7 @@ fn complex_symmetric_and_hermitian_assertions_are_not_interchangeable() {
 #[test]
 fn complex_property_admission_requires_the_exact_assertion_and_implemented_tuple() {
     use eqiora_core::{ScalarDomain, ScalarType};
-    use eqiora_solver::{
-        LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
-    };
+    use eqiora_solver::{LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability};
 
     assert!(LinearSolver::ConjugateGradient.accepts(Properties::HermitianPositiveDefinite));
     for property in [
