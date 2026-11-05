@@ -1,16 +1,20 @@
 # Steady heated body at a prescribed surface temperature
 
-Run `python examples/heated-body/run.py` from an environment with Eqiora installed.
-The script resolves the local `org.example.HeatedBody` package, binds the
-geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
+Run `python examples/heated-body/run.py` with a development build from this checkout.
+The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.2.0`.
+The script resolves the local `org.example.HeatedBody` package and its bundled
+Scalar dependency, binds the geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
 solver explicitly, and runs the standard Plan lifecycle. No registry, download,
-or provider installation is needed. The model source is [src/main.eqi](src/main.eqi).
+or provider installation is needed. The [model source](src/main.eqi) imports
+`SteadyHeat2d` and `FixedTemperature2d`.
+The same equations with an authored weak form remain in
+[handwritten.eqi](handwritten.eqi); compile it directly to compare both paths.
 
 The unit square is a two-dimensional cross-section per unit depth. Conductivity
 is 1 W/(m K), volumetric heating is 1 W/m³, and all four exterior boundaries are
 held at 300 K. Fourier flux is −k grad(T); the steady balance is div(flux) = heating.
-The test function vanishes on the complete exterior, while the trial temperature
-retains its nonzero prescribed data.
+The common Plan derives the weak form and preserves the nonzero prescribed
+temperature. The hand-written alternative supplies its weak form explicitly.
 
 Four h = 1/2 Q1 cells leave one free central hat. Each cell contributes 2/3 to its
 stiffness, and its source integral is 1/4 W/m. Thus
@@ -25,12 +29,13 @@ coefficients are 300 K. This is a hand-derived discrete Q1 heat balance, not the
 exact continuum solution, and summing raw boundary-gradient fluxes does not
 reproduce the source exactly. The product test checks runs from direct source and
 from the locked package, Plan and Result replay, and reopening a moved, vendored
-project offline. Package provenance stays distinct from direct-source provenance.
+project offline. Both imported compilation paths retain package provenance.
+The hand-written alternative has no package dependency.
 
 `HeatedBody` itself is steady: it has no time variable, initial condition, or
-heat storage. A full three-dimensional heated cube, bundled standard thermal
-Components, and combining curated thermal packages with lower-level ones are not
-part of this example.
+heat storage. A full three-dimensional heated cube, convective conditions and
+coupled thermal interfaces are not part of this example. The steady package executes Cartesian
+2D Q1 on CPU; this example claims no threaded, MPI or GPU package validation.
 
 ## Heat storage and initial conditions
 
@@ -55,5 +60,5 @@ The transient model has one scalar Q1 field with constant capacity on one
 Cartesian Region. It does not give the exact continuum temperature profile,
 recover the physical boundary flux, or support nonlinear or state-dependent
 capacity, interfaces, transient sensitivities, or a certificate linking the
-authored transient law to its weak form. The steady `HeatedBody` keeps its own
-authored-form evidence.
+authored transient law to its weak form. The hand-written steady alternative
+keeps its own authored-form coverage; the imported steady model uses automatic formulation.

@@ -1,3 +1,5 @@
+import Eqiora.Scalar.scalar as scalar;
+
 /// Steady heat conduction on a unit square cross-section, per unit depth.
 /// All four exterior faces are held at 300 K; this Component has no time evolution.
 public component HeatedBody(
@@ -10,19 +12,22 @@ public component HeatedBody(
   parameter heating: W / m^3
 ) {
   variable temperature: K on body in h1;
-  relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }
-  relation prescribed_x_upper on x_upper { trace(temperature) = 300[K]; }
-  relation prescribed_y_lower on y_lower { trace(temperature) = 300[K]; }
-  relation prescribed_y_upper on y_upper { trace(temperature) = 300[K]; }
-  law heat_balance on body {
-    flux -conductivity * grad(temperature);
-    source heating;
-  }
-  form weak_heat for heat_balance {
-    test w: 1 for temperature zero_on x_lower, x_upper, y_lower, y_upper;
-    integrate(body, dot(grad(w), conductivity * grad(temperature)))
-      = integrate(body, w * heating);
-  }
+  instance conduction: scalar.SteadyHeat2d(
+    body = body, temperature = temperature,
+    conductivity = conductivity, heating = heating
+  );
+  instance prescribed_x_lower: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_x_upper: scalar.FixedTemperature2d(
+    body = body, face = x_upper, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_lower: scalar.FixedTemperature2d(
+    body = body, face = y_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_upper: scalar.FixedTemperature2d(
+    body = body, face = y_upper, temperature = temperature, value = 300[K]
+  );
 }
 
 /// Heat storage and conduction with complete constant initial and boundary data.
