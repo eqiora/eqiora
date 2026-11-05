@@ -322,7 +322,7 @@ mod tests {
             plan.nonlinear_absolute_tolerance(),
             plan.maximum_newton_iterations(),
             plan.maximum_line_search_steps(),
-            linear,
+            linear.clone(),
             plan.target(),
         )
         .unwrap();

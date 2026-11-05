@@ -174,7 +174,7 @@ fn general_only_and_unavailable_exact_profiles_reject_before_motion_assembly() {
     )
     .unwrap();
     for request in [
-        LinearSolveRequest::new(&GeneralOnly, bicg),
+        LinearSolveRequest::new(&GeneralOnly, bicg.clone()),
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, minres_jacobi),
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, sparse),
         LinearSolveRequest::new(

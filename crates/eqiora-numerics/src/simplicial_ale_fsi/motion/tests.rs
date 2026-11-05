@@ -104,7 +104,7 @@ fn seal_motion<const D: usize>(
         mesh,
         partition,
         motion_policy(solver.plan().clone()),
-        solver,
+        solver.clone(),
     )
     .expect("motion seals")
 }
@@ -298,7 +298,7 @@ fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
         &mesh,
         &partition,
         motion_policy(solver.plan().clone()),
-        solver,
+        solver.clone(),
     )
     .expect("motion seals");
     assert_eq!(motion.reference_mesh(), &mesh);

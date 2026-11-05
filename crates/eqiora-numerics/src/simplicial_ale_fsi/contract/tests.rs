@@ -170,7 +170,7 @@ fn step_plan_rejects_incompatible_solver_or_target() {
                 FixedReferenceFsiScale::new(2.0, 1.0, 1.0).unwrap(),
                 FixedReferenceFsiLoad::Zero,
                 nonlinear(),
-                solver,
+                solver.clone(),
                 target,
             )
             .is_err()
@@ -260,7 +260,7 @@ fn step_plan_admits_direct_general_solvers_without_changing_the_operator_class()
         FixedReferenceFsiScale::new(2.0, 1.0, 1.0).unwrap(),
         FixedReferenceFsiLoad::Zero,
         nonlinear(),
-        solver,
+        solver.clone(),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },

@@ -438,7 +438,7 @@ fn finalized_step_rejects_solver_orientation_and_execution_substitution() {
         let transposed_problem =
             LinearProblem::new(&transposed, normal.right_hand_side(), normal.properties()).unwrap();
         REFERENCE_LINEAR_SOLVER
-            .solve(&transposed_problem, finalized.solver_plan())
+            .solve(&transposed_problem, finalized.solver_plan().clone())
             .unwrap()
     };
     let error = finalized.clone().finish(transposed_solution).unwrap_err();
@@ -447,7 +447,7 @@ fn finalized_step_rejects_solver_orientation_and_execution_substitution() {
     let foreign_execution_solution = REFERENCE_LINEAR_SOLVER
         .solve_with_execution(
             &finalized.linear_problem().unwrap(),
-            finalized.solver_plan(),
+            finalized.solver_plan().clone(),
             &TWO_WORKER_EXECUTION,
         )
         .unwrap();
