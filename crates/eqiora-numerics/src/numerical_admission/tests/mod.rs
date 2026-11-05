@@ -5,7 +5,7 @@ use eqiora_artifact::{
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
 };
 use eqiora_core::{DimExponents, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, GeometryTopologyHandle};
+use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, GeometryTopologyHandle, NamedEntitySet};
 use eqiora_meshing::CartesianMesh;
 use eqiora_solver::{
     BackendId, LinearProblem, LinearSolution, ProviderLibrary, REFERENCE_LINEAR_SOLVER,
@@ -351,7 +351,10 @@ fn rectangle() -> CanonicalGeometryV1 {
                     "bottom".to_owned(),
                     vec![GeometryTopologyHandle::from(edges[2])],
                 ),
-                ("top".to_owned(), vec![GeometryTopologyHandle::from(edges[3])]),
+                (
+                    "top".to_owned(),
+                    vec![GeometryTopologyHandle::from(edges[3])],
+                ),
             ]),
         )
         .unwrap()

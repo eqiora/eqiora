@@ -105,3 +105,25 @@ def test_cuboid_compiles_and_runs_positive_analytic_q1_through_the_ordinary_api(
     values = np.asarray(result.output(model.field("definition.u")).values("vertex"))
     np.testing.assert_allclose(values, expected, rtol=0.0, atol=1e-11)
     assert np.all(values > 0.0)
+
+
+def test_generalized_handles_preserve_existing_rectangle_canonical_bytes():
+    graph = q.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    geometry = graph.build(rectangle, named_topology={
+        "body": rectangle.region,
+        **dict(zip(("left", "right", "bottom", "top"), rectangle.boundaries, strict=True)),
+    })
+    # Independent literal from the existing rectangle-v2 wire contract: field
+    # order is fixed; selections sort by dimension then name, not by handles.
+    expected = (
+        b'{"schema":"eqiora.planar-rectangle-envelope/v2",'
+        b'"encoding":"eqiora.canonical-json/v1","length_unit":"metre",'
+        b'"bounds":[[0.0,1.0],[0.0,1.0]],"entity_sets":['
+        b'{"name":"bottom","dimension":1,"members":[2]},'
+        b'{"name":"left","dimension":1,"members":[0]},'
+        b'{"name":"right","dimension":1,"members":[1]},'
+        b'{"name":"top","dimension":1,"members":[3]},'
+        b'{"name":"body","dimension":2,"members":[0]}]}'
+    )
+    assert geometry.canonical_bytes == expected

@@ -280,7 +280,10 @@ fn interval_geometry(lower: f64, upper: f64) -> CanonicalGeometryV1 {
                     vec![GeometryTopologyHandle::from(operation.region())],
                 ),
                 ("left".to_owned(), vec![GeometryTopologyHandle::from(left)]),
-                ("right".to_owned(), vec![GeometryTopologyHandle::from(right)]),
+                (
+                    "right".to_owned(),
+                    vec![GeometryTopologyHandle::from(right)],
+                ),
             ]),
         )
         .unwrap()

@@ -8,7 +8,9 @@ mod transient;
 use std::collections::BTreeMap;
 
 use eqiora::api::ModelDocument;
-use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, GeometryTopologyHandle};
+use eqiora::geometry::{
+    CanonicalGeometryV1, GeometryGraph, GeometryTopologyHandle, NamedEntitySet,
+};
 use eqiora::{DimExponents, DynQuantity};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
@@ -111,7 +113,10 @@ fn rectangle_geometry(xmax: f64) -> CanonicalGeometryV1 {
                     "bottom".to_owned(),
                     vec![GeometryTopologyHandle::from(edges[2])],
                 ),
-                ("top".to_owned(), vec![GeometryTopologyHandle::from(edges[3])]),
+                (
+                    "top".to_owned(),
+                    vec![GeometryTopologyHandle::from(edges[3])],
+                ),
             ]),
         )
         .unwrap()

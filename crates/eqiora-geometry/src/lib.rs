@@ -38,9 +38,9 @@ mod circular_hole;
 mod convex_polyhedra;
 mod correspondence;
 mod identity;
+mod operation;
 mod planar_adjacent_rectangle_partition_v1;
 mod planar_interface;
-mod operation;
 mod planar_rectangle_v2;
 mod region;
 
@@ -64,10 +64,11 @@ pub use correspondence::{
 pub use identity::{
     GeometryEntity, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
 };
-pub(crate) use planar_adjacent_rectangle_partition_v1::CanonicalPlanarAdjacentRectanglePartitionV1;
 pub use operation::{
-    GeometryGraph, GeometryBoundaryHandle, GeometryOperation, GeometryRegionHandle, GeometryTopologyHandle,
+    GeometryBoundaryHandle, GeometryGraph, GeometryOperation, GeometryRegionHandle,
+    GeometryTopologyHandle,
 };
+pub(crate) use planar_adjacent_rectangle_partition_v1::CanonicalPlanarAdjacentRectanglePartitionV1;
 pub(crate) use planar_rectangle_v2::CanonicalPlanarRectangleGeometryV2;
 pub use region::{
     EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion, VERTEX_DIMENSION,
