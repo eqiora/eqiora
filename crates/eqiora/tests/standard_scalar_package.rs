@@ -299,8 +299,10 @@ fn certify_linear_laplace(values: &[f64; 81], slope: f64) {
 
 #[test]
 fn independent_laplace_certificate_rejects_nonfinite_nodal_values() {
+    let exact = std::array::from_fn(|index| (index % 9) as f64 / 8.0);
+    certify_linear_laplace(&exact, 1.0);
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let mut values = [0.0; 81];
+        let mut values = exact;
         values[40] = invalid;
         assert!(std::panic::catch_unwind(|| certify_linear_laplace(&values, 1.0)).is_err());
     }
