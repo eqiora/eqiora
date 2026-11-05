@@ -352,7 +352,7 @@ impl PyLinear {
                     .and_then(|plan| CommonLinearRequest::exact(plan.with_preconditioner(preconditioner.into())
                         .with_reduction(reduction.into()), provider.native))
             }
-            _ => return Err(PyTypeError::new_err("Linear requires either objective or the complete exact algorithm, preconditioner, reduction, provider tuple; mixed and incomplete intent is invalid")),
+            _ => return Err(PyTypeError::new_err("Linear requires an objective with an optional preconditioner, or the complete exact algorithm, preconditioner, reduction, provider tuple; an objective cannot accompany algorithm, reduction, or provider")),
         }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         let native = match cost {
             Some(cost) => native.with_cost(cost.native),
