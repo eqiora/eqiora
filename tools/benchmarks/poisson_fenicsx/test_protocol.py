@@ -75,7 +75,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_3d_scope_rejects_undeclared_level_and_benchmark_mode(self):
         base = ["worker", "--dimension", "3", "--cells", "4", "--mode",
-                "correctness-only", "--output", "/home/scratch/result.json"]
+                "correctness-only", "--output", "result.json"]
         with patch("sys.argv", base):
             self.assertEqual(worker_arguments().dimension, 3)
         invalid_level = base.copy(); invalid_level[4] = "32"

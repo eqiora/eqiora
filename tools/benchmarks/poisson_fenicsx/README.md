@@ -194,7 +194,7 @@ field hex files are retained before the accuracy gate, including rejected
 candidates. `summary.json` is written only after both tools pass every requested
 level and convergence. Correctness-only mode publishes no execution timing table.
 
-The six standalone analytic/admission checks need NumPy but neither native tool:
+The standalone analytic/admission checks need NumPy but neither native tool:
 
 ```bash
 TMPDIR="$scratch/tmp" "$scratch/eqiora/bin/python" -m unittest discover \
