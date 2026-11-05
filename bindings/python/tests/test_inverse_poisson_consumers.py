@@ -81,15 +81,18 @@ def test_saved_inverse_poisson_run_and_parameter_actions_match_analytic_q1(path:
     response = _unit_source_response(np.asarray(plan.mesh.coordinates), cells)
     field = plan.capability.fields[0]
     nominal = np.array([2.0 * np.pi**2, 1.0, 0.0])
-    run = eqiora.run(plan)
+    result = eqiora.run(plan)
     # Reuse the established independent analytic field/product tolerance from
     # test_spatial_observable_differentiation (2e-10, zero relative tolerance).
     np.testing.assert_allclose(
-        run.output(field).values("vertex"), nominal[0] * response, rtol=0, atol=2e-10
+        result.output(field).values("vertex"), nominal[0] * response, rtol=0, atol=2e-10
     )
     assert (model.package_compilation_digest is not None) == (path == IMPORTED)
     assert plan.package_compilation_digest == model.package_compilation_digest
-    assert run.package_compilation_digest == model.package_compilation_digest
+    execution = eqiora.submit(plan)
+    assert execution.package_compilation_digest == model.package_compilation_digest
+    np.testing.assert_allclose(execution.result().output(field).values("vertex"),
+                               nominal[0] * response, rtol=0, atol=2e-10)
     program = eqiora.diff.compile(
         plan, inputs=[model.parameter(name) for name in
                       ("source_scale", "diffusion", "boundary_offset")], outputs=(field,),
