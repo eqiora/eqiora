@@ -809,14 +809,20 @@ fn cartesian_essential_velocity(
         })
 }
 
-fn require_mini_solver(solver: &SolverPlan) -> Result<(), Diagnostic> {
+fn require_mini_solver(
+    solver: &SolverPlan,
+    structure: &eqiora_solver::AlgebraicStructure,
+) -> Result<(), Diagnostic> {
     let properties = LinearOperatorProperties::SymmetricIndefinite;
     if !solver.algorithm().accepts(properties) {
         return Err(invalid_realization(
             "coherent-SI MINI Stokes requires an algorithm admitting its symmetric-indefinite operator",
         ));
     }
-    SolverPlanningProfile::canonical_csr(properties, None, None).require_plan(solver)
+    SolverPlanningProfile::canonical_csr(properties, None, None)
+        .with_structure(structure.clone())?
+        .with_preconditioner(solver.preconditioner().clone())
+        .require_plan(solver)
 }
 
 fn requires_zero_integral_constraint(

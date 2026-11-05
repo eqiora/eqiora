@@ -30,7 +30,7 @@ pub fn steady_stokes_mini_plan_2d(
 ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
     let structure = steady_stokes_algebraic_structure(model)?;
     let with_zero_integral_constraint = !structure.constraints().is_empty();
-    require_mini_solver(&solver)?;
+    require_mini_solver(&solver, &structure)?;
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
     let constraints = structure.constraints().to_vec();
