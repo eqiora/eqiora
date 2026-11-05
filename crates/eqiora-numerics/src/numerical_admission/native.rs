@@ -623,7 +623,9 @@ impl NativeNumericalAdmission {
                 "steady-Stokes admission has a non-Stokes spatial policy",
             ));
         };
-        let NativeMeshResources::GmshSimplicial { mesh, .. } = self.resources() else {
+        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.resources()
+        else {
             return Err(invalid(
                 "steady Stokes requires exact supplied simplicial resources",
             ));

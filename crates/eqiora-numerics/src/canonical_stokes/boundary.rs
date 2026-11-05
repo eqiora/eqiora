@@ -716,14 +716,15 @@ fn prescribed_normal_velocity_trace<const D: usize>(
 ) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
     let expression = relation_expression(program, relation)?;
     let root = unique_root(&expression, relation)?;
-    let Some(terms) = additive_prescribed_velocity_parts(&expression, root, velocity, relation)?
+    let Some((rhs, sign)) =
+        additive_prescribed_velocity_parts(&expression, root, velocity, relation)?
     else {
         return Err(lowering_error(
             relation,
             "prescribed velocity must have one exact velocity trace and prescribed datum",
         ));
     };
-    let mut pending = terms.iter().map(|(rhs, _)| *rhs).collect::<Vec<_>>();
+    let mut pending = vec![rhs];
     let mut seen = BTreeSet::new();
     let mut fields = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -766,29 +767,16 @@ fn prescribed_normal_velocity_trace<const D: usize>(
         let (definition,source)=candidates[0];require_continuous_relation(program,definition)?;
         Ok::<_,Diagnostic>((field,definition,source))
     }).transpose()?;
-    let mut datum = None;
-    let mut parameters = Vec::new();
-    for (rhs, sign) in terms {
-        let (mut term, term_parameters) =
-            PrescribedDatum::from_boundary(program, relation, rhs, carrier, D)?;
-        if sign < 0. {
-            term = PrescribedDatum::Neg(Box::new(term));
-        }
-        parameters.extend(term_parameters);
-        datum = Some(match datum {
-            None => term,
-            Some(previous) => PrescribedDatum::Add(Box::new(previous), Box::new(term)),
-        });
-    }
-    let datum =
-        datum.ok_or_else(|| lowering_error(relation, "prescribed velocity datum is empty"))?;
-    parameters.sort_by_key(eqiora_core::Id::ulid);
-    parameters.dedup();
+    let (mut datum, parameters) =
+        PrescribedDatum::from_boundary(program, relation, rhs, carrier, D)?;
     if D != 2 && !datum.requires_normal() {
         return Err(lowering_error(
             relation,
             "prescribed normal velocity requires the exact scoped boundary normal",
         ));
+    }
+    if sign < 0. {
+        datum = PrescribedDatum::Neg(Box::new(datum));
     }
     Ok(SteadyStokesPrescribedVelocityTrace2d::datum(
         boundary,

@@ -174,12 +174,10 @@ pub(crate) fn select_exact_model(
         && stokes
             .as_ref()
             .ok()
-            .map(|model| {
-                crate::canonical_stokes::steady_stokes_algebraic_structure(model)
-                    .map(|structure| !structure.constraints().is_empty())
+            .and_then(|model| {
+                crate::canonical_stokes::steady_stokes_algebraic_structure(model).ok()
             })
-            .transpose()?
-            .unwrap_or(false);
+            .is_some_and(|structure| !structure.constraints().is_empty());
     if scalar.is_ok() && !cell_centered && !constrained_mixed {
         return scalar;
     }
