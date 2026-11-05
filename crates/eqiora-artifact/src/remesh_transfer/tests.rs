@@ -46,7 +46,7 @@ fn alternative_plan() -> AleFsiRemeshTransferPlan2d {
     plan_with_scales(scales(4.0, 1.0, 6.0))
 }
 
-fn solve(component: u8, transfer_plan: AleFsiRemeshTransferPlan2d) -> WireProjectionSolveV1 {
+fn solve(component: u8, transfer_plan: &AleFsiRemeshTransferPlan2d) -> WireProjectionSolveV1 {
     let solver_plan = transfer_plan.solver();
     let report = SolveReport::accepted(
         TEST_MINRES_PROVIDER,
@@ -103,12 +103,12 @@ fn projection_for(
     let execution = match action {
         RemeshProjectionActionV1::CoupledVelocity | RemeshProjectionActionV1::AbsolutePressure => {
             WireProjectionExecutionV1::SolvedScalar {
-                solve: Box::new(solve(0, transfer_plan)),
+                solve: Box::new(solve(0, &transfer_plan)),
             }
         }
         RemeshProjectionActionV1::AbsoluteDisplacement => {
             WireProjectionExecutionV1::SolvedVector2 {
-                solves: Box::new([solve(0, transfer_plan), solve(1, transfer_plan)]),
+                solves: Box::new([solve(0, &transfer_plan), solve(1, &transfer_plan)]),
             }
         }
     };
@@ -124,7 +124,7 @@ fn projections(
         RemeshProjectionActionV1::AbsoluteDisplacement,
     ]
     .into_iter()
-    .map(|action| projection_for(action, transfer_plan))
+    .map(|action| projection_for(action, transfer_plan.clone()))
     .collect()
 }
 
@@ -246,7 +246,7 @@ fn receipt_with(
 #[test]
 fn projection_wire_roundtrip_is_golden_and_self_contained() {
     let value = projection(WireProjectionExecutionV1::SolvedVector2 {
-        solves: Box::new([solve(0, plan()), solve(1, plan())]),
+        solves: Box::new([solve(0, &plan()), solve(1, &plan())]),
     });
     value
         .validate_local(RemeshDecoderLimits::default())
@@ -262,7 +262,7 @@ fn projection_wire_roundtrip_is_golden_and_self_contained() {
 #[test]
 fn projection_wire_rejects_action_substitution_and_resource_excess() {
     let value = projection(WireProjectionExecutionV1::SolvedVector2 {
-        solves: Box::new([solve(0, plan()), solve(1, plan())]),
+        solves: Box::new([solve(0, &plan()), solve(1, &plan())]),
     });
     let bytes = value.canonical_json().unwrap();
     let substituted = String::from_utf8(bytes.clone())
@@ -291,7 +291,7 @@ fn displacement_execution_is_closed_to_zero_or_two_solves() {
         .unwrap();
 
     let one = projection(WireProjectionExecutionV1::SolvedScalar {
-        solve: Box::new(solve(0, plan())),
+        solve: Box::new(solve(0, &plan())),
     });
     assert!(one.validate_local(RemeshDecoderLimits::default()).is_err());
 

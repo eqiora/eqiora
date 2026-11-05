@@ -577,15 +577,19 @@ fn structured_preconditioner_wire_retains_complete_policy_identity() {
         .portable_graph()
         .unwrap();
     let field = graph.fields()[0].field();
-    let make = |provider: &str, entries, products| {
+    let make = |provider: &str, schur_provider: &str, reversed: bool, entries, products| {
+        let mut groups = [
+            vec![AlgebraicBlock::Field(field)],
+            vec![AlgebraicBlock::ConstraintMultiplier { field }],
+        ];
+        if reversed {
+            groups.swap(0, 1);
+        }
         PreconditionerPolicy::UpperDiagonalSchur(
             UpperDiagonalSchurConfig::new(
-                [
-                    vec![AlgebraicBlock::Field(field)],
-                    vec![AlgebraicBlock::ConstraintMultiplier { field }],
-                ],
+                groups,
                 FixedFactorizationChoice::new(LinearSolver::SparseLu, provider).unwrap(),
-                FixedFactorizationChoice::new(LinearSolver::SparseLu, "reference").unwrap(),
+                FixedFactorizationChoice::new(LinearSolver::SparseLu, schur_provider).unwrap(),
                 entries,
                 products,
             )
@@ -593,7 +597,9 @@ fn structured_preconditioner_wire_retains_complete_policy_identity() {
         )
     };
     let base = graph.linear_solves[0].plan.clone();
-    graph.linear_solves[0].plan = base.clone().with_preconditioner(make("reference", 16, 64));
+    graph.linear_solves[0].plan =
+        base.clone()
+            .with_preconditioner(make("reference", "reference", false, 16, 64));
     let bytes = graph.to_bytes().unwrap();
     let decoded = PortableRealizationGraph::from_bytes(&bytes).unwrap();
     assert_eq!(
@@ -603,9 +609,11 @@ fn structured_preconditioner_wire_retains_complete_policy_identity() {
     assert_eq!(decoded.to_bytes().unwrap(), bytes);
     let digest = graph.digest().unwrap();
     for policy in [
-        make("another-provider", 16, 64),
-        make("reference", 17, 64),
-        make("reference", 16, 65),
+        make("another-provider", "reference", false, 16, 64),
+        make("reference", "another-provider", false, 16, 64),
+        make("reference", "reference", true, 16, 64),
+        make("reference", "reference", false, 17, 64),
+        make("reference", "reference", false, 16, 65),
     ] {
         graph.linear_solves[0].plan = base.clone().with_preconditioner(policy);
         assert_ne!(graph.digest().unwrap(), digest);
