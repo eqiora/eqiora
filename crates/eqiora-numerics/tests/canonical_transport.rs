@@ -650,7 +650,7 @@ fn cartesian_transport_meets_space_time_reversal_and_falsifier_contracts() {
             wrong_quadrature,
             plan.fieldwise().scaling().clone(),
             plan.fieldwise().operator_properties(),
-            plan.fieldwise().solver(),
+            plan.fieldwise().solver().clone(),
             plan.fieldwise().target(),
             plan.fieldwise().schedule(),
         )
