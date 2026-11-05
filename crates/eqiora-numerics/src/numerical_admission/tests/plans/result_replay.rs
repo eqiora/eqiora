@@ -315,6 +315,81 @@ fn live_static_acceptance_retains_original_equations_and_independent_replay() {
 }
 
 #[test]
+fn live_static_execution_reuses_the_entry_admission_replay() {
+    let geometry = cartesian_interval();
+    let model = scalar_box_model(
+        &geometry,
+        POISSON_INTERVAL,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let plan = resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[4]), spatial);
+        crate::numerical_admission::scalar::live_tests::check_replay_count(&plan);
+    }
+}
+
+#[test]
+fn forged_live_static_plan_rejects_before_backend_or_assembly_work() {
+    #[derive(Debug)]
+    struct UninspectedBackend;
+    impl LinearSolverBackend for UninspectedBackend {
+        fn provider(&self) -> SolverProvider {
+            unreachable!("invalid Plan must reject before inspecting the backend")
+        }
+
+        fn capabilities(&self) -> SolverCapabilities {
+            unreachable!("invalid Plan must reject before inspecting backend capabilities")
+        }
+
+        fn solve_with_execution(
+            &self,
+            _: &LinearProblem<'_>,
+            _: SolverPlan,
+            _: &dyn ReplicatedLinearExecution,
+        ) -> Result<LinearSolution, Diagnostic> {
+            unreachable!("invalid Plan must reject before solving")
+        }
+    }
+    let geometry = cartesian_interval();
+    let source = POISSON_INTERVAL.replace(
+        "relation balance on body {\n    -div(grad(potential)) - source_scale = 0;\n  }",
+        "law balance on body { flux -grad(potential); source source_scale; }",
+    );
+    let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
+    let q1 = resolve_scalar_box(
+        &model,
+        cartesian_box_resources(&geometry, &[4]),
+        CommonSpatialPolicy::Q1,
+    );
+    let tpfa = resolve_scalar_box(
+        &model,
+        cartesian_box_resources(&geometry, &[4]),
+        CommonSpatialPolicy::CellCenteredTpfa,
+    );
+    let mut crossed = q1.clone();
+    crossed.portable = tpfa.portable_realization().clone();
+    let mut admission = q1;
+    admission.admission.policy_identity.push('x');
+    let mut formulation = tpfa;
+    formulation.formulation.as_mut().unwrap().rule_ids = Box::new(["forged-rule"]);
+    for (plan, diagnostic) in [
+        (crossed, "portable realization"),
+        (admission, "native numerical admission changed"),
+        (formulation, "TPFA interval formulation changed"),
+    ] {
+        let count = crate::numerical_admission::scalar::live_tests::finalization_count;
+        let before = count();
+        let error = plan.run_result(None, &UninspectedBackend).unwrap_err();
+        assert!(error.message().contains(diagnostic), "{error:?}");
+        assert_eq!(count(), before, "invalid entry must not assemble");
+    }
+}
+
+#[test]
 fn live_static_acceptance_checks_exact_initial_state_and_plan_ownership() {
     let geometry = cartesian_interval();
     let model = scalar_box_model(

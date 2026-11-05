@@ -1,5 +1,10 @@
 use super::*;
 
+#[cfg(test)]
+thread_local! {
+    pub(super) static ADMISSION_REPLAYS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
@@ -550,6 +555,8 @@ impl NativeNumericalAdmission {
     }
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
+        #[cfg(test)]
+        ADMISSION_REPLAYS.with(|count| count.set(count.get() + 1));
         let replayed = RecognizedNativeAdmission::recognize(
             self.model(),
             self.authenticated_mesh(),
@@ -688,11 +695,15 @@ impl NativeNumericalAdmission {
         backend: &dyn LinearSolverBackend,
         initial: Option<&BTreeMap<eqiora_core::RawId, Vec<f64>>>,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
-        self.execute_linear_retained(backend, initial)
+        self.revalidate()?;
+        self.execute_reauthenticated_linear(backend, initial)
             .map(|(output, _)| output)
     }
 
-    pub(super) fn execute_linear_retained(
+    /// The owning live Plan must already have reauthenticated this exact admission.
+    /// Its immutable borrow lasts through execution; backend and numerical checks
+    /// below still run for every call. Direct test callers use `execute_linear`.
+    pub(super) fn execute_reauthenticated_linear(
         &self,
         backend: &dyn LinearSolverBackend,
         initial: Option<&BTreeMap<eqiora_core::RawId, Vec<f64>>>,
@@ -716,7 +727,6 @@ impl NativeNumericalAdmission {
                 .execute_complex_linear(equations, backend)
                 .map(|output| (output, None));
         }
-        self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
         {

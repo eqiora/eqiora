@@ -2,6 +2,36 @@ use super::*;
 use crate::common_result::evidence::{CommonSolveEvidence, CommonSolveHistory};
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
+pub(in crate::numerical_admission) fn finalization_count() -> usize {
+    STATIC_FINALIZATIONS.with(std::cell::Cell::get)
+}
+
+pub(in crate::numerical_admission) fn check_replay_count(plan: &CommonSpatialPlan) {
+    let count = || crate::numerical_admission::native::ADMISSION_REPLAYS.with(std::cell::Cell::get);
+    let before = count();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+    assert_eq!(
+        count() - before,
+        2,
+        "one live entry replay and the unchanged publication replay; no second helper replay"
+    );
+    let before = count();
+    assert_eq!(
+        crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap(),
+        result
+    );
+    assert_eq!(count() - before, 1, "artifact replay remains independent");
+    let before = count();
+    plan.admission
+        .execute_linear(&REFERENCE_LINEAR_SOLVER, None)
+        .unwrap();
+    assert_eq!(
+        count() - before,
+        1,
+        "direct test admission callers still replay"
+    );
+}
+
 // Called with independently specified Poisson fixtures; no production mutation hooks.
 pub(in crate::numerical_admission) fn check(plan: &CommonSpatialPlan) {
     let count = || STATIC_FINALIZATIONS.with(std::cell::Cell::get);
