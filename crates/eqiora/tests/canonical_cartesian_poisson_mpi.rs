@@ -184,13 +184,17 @@ fn execute_method(
             controls.maximum_iterations(),
         )
         .unwrap();
-    assert_eq!(selection.solver_plan(), controls);
-    let request =
-        canonical::host_request_with_solver(program, method, revision, selection.solver_plan())
-            .unwrap();
+    assert_eq!(selection.solver_plan(), &controls);
+    let request = canonical::host_request_with_solver(
+        program,
+        method,
+        revision,
+        selection.solver_plan().clone(),
+    )
+    .unwrap();
     let requirements = distributed_requirements();
     let resolved = resolve(&request, requirements, capabilities).unwrap();
-    assert_eq!(resolved.plan().solver(), canonical::solver_plan(reduction));
+    assert_eq!(resolved.plan().solver(), &canonical::solver_plan(reduction));
     let graph = eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
         .unwrap()
         .portable_realization(&resolved)
@@ -290,7 +294,7 @@ fn execute_method(
     let accepted = group.execute_admitted(admitted).unwrap();
     assert_eq!(
         accepted.receipt().solver_plan(),
-        canonical::solver_plan(reduction)
+        &canonical::solver_plan(reduction)
     );
     let execution = observed_execution(group, accepted.receipt());
     assert_eq!(execution.reduction(), reduction);
@@ -311,7 +315,7 @@ fn execute_method(
     assert_distributed_receipt(world, &receipt, expected_fingerprint);
     assert_solve_report(
         linear_solution.report(),
-        replayed_problem.solver_plan(),
+        replayed_problem.solver_plan().clone(),
         group.partitions(),
     );
     let solution = replayed_problem.finish(linear_solution).unwrap();
@@ -430,7 +434,7 @@ fn distributed_capabilities(
     let plan = canonical::solver_plan(reduction);
     solver
         .require_problem(
-            plan,
+            &plan,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -440,7 +444,7 @@ fn distributed_capabilities(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: plan.preconditioner(),
+        preconditioner: plan.preconditioner().kind(),
         reduction: plan.reduction(),
         scalar_type: ScalarType::F64,
     }])
@@ -562,9 +566,9 @@ fn assert_solve_report(
     );
     assert_eq!(report.verification(), ExecutionReport::host_serial());
     assert_eq!(report.orientation(), LinearOperatorOrientation::Normal);
-    assert_eq!(report.solver_plan(), plan);
+    assert_eq!(report.solver_plan(), &plan);
     assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
-    assert_eq!(report.preconditioner(), PreconditionerPolicy::Jacobi);
+    assert_eq!(report.preconditioner(), &PreconditionerPolicy::Jacobi);
     assert_eq!(report.reduction(), plan.reduction());
 }
 

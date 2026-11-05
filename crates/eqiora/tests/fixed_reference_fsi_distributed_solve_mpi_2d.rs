@@ -153,7 +153,7 @@ fn fixed_reference_fsi_distributed_solve_mpi_2d_child() {
         original_plan.time_step().clone(),
         original_plan.scaling().clone(),
         original_plan.operator_properties(),
-        selection.solver_plan(),
+        selection.solver_plan().clone(),
         original_plan.target(),
         original_plan.schedule(),
     )
@@ -267,7 +267,7 @@ fn fixed_reference_fsi_distributed_solve_mpi_2d_child() {
     );
     assert_solve_report(
         accepted.solution().report(),
-        prepared.solver_plan(),
+        prepared.solver_plan().clone(),
         partitions,
     );
 
@@ -301,8 +301,13 @@ fn distributed_capabilities(solver: eqiora::solver::SolverCapabilities) -> Reali
     };
     solver
         .require_problem(
-            eqiora::solver::SolverPlan::new(selected.algorithm, 1.0e-8, 1.0e-12, NonZeroUsize::MIN)
-                .expect("the admission probe is valid"),
+            &eqiora::solver::SolverPlan::new(
+                selected.algorithm,
+                1.0e-8,
+                1.0e-12,
+                NonZeroUsize::MIN,
+            )
+            .expect("the admission probe is valid"),
             eqiora_core::ScalarDomain::Real,
             selected.scalar_type,
             selected.operator_properties,
@@ -466,9 +471,9 @@ fn assert_solve_report(
     );
     assert_eq!(report.verification(), ExecutionReport::host_serial());
     assert_eq!(report.orientation(), LinearOperatorOrientation::Normal);
-    assert_eq!(report.solver_plan(), plan);
+    assert_eq!(report.solver_plan(), &plan);
     assert_eq!(report.algorithm(), LinearSolver::MinimumResidual);
-    assert_eq!(report.preconditioner(), PreconditionerPolicy::Identity);
+    assert_eq!(report.preconditioner(), &PreconditionerPolicy::Identity);
     assert_eq!(report.reduction(), ReductionPolicy::Reproducible);
 }
 

@@ -90,13 +90,16 @@ fn cpu_and_cuda_realizations_finalize_one_exact_fsi_operator() {
     assert_eq!(admitted.solver_plan(), cuda_finalized.solver_plan());
     assert!(admitted.minimum_device_payload_bytes().is_some());
 
-    let selected_binding = select_fsi(synthetic_cuda_device(0), cuda_finalized.solver_plan())
-        .bind(
-            cuda_finalized.realization_graph(),
-            cuda_finalized.linear_system(),
-            None,
-        )
-        .expect("the shared selection binds the same native FSI operator");
+    let selected_binding = select_fsi(
+        synthetic_cuda_device(0),
+        cuda_finalized.solver_plan().clone(),
+    )
+    .bind(
+        cuda_finalized.realization_graph(),
+        cuda_finalized.linear_system(),
+        None,
+    )
+    .expect("the shared selection binds the same native FSI operator");
     let selected = cuda_finalized.admit_cuda(selected_binding).unwrap();
     assert_eq!(selected.solver_plan(), admitted.solver_plan());
     let original = cuda_finalized.solver_plan();
@@ -107,7 +110,7 @@ fn cpu_and_cuda_realizations_finalize_one_exact_fsi_operator() {
         NonZeroUsize::new(original.maximum_iterations().get() + 1).unwrap(),
     )
     .unwrap()
-    .with_preconditioner(original.preconditioner())
+    .with_preconditioner(original.preconditioner().clone())
     .with_reduction(original.reduction());
     let error = select_fsi(synthetic_cuda_device(0), altered)
         .bind(
@@ -124,7 +127,7 @@ fn cpu_and_cuda_realizations_finalize_one_exact_fsi_operator() {
             .contains("native graph solver plan differs from the selected exact plan")
     );
 
-    let wrong_device_binding = select_fsi(synthetic_cuda_device(1), original)
+    let wrong_device_binding = select_fsi(synthetic_cuda_device(1), original.clone())
         .bind(
             cuda_finalized.realization_graph(),
             cuda_finalized.linear_system(),
@@ -178,7 +181,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
                 .linear_system()
                 .linear_problem()
                 .expect("the finalized host CSR is a valid linear problem"),
-            host_finalized.solver_plan(),
+            host_finalized.solver_plan().clone(),
         )
         .expect("the independent CPU MINRES oracle converges");
     let host_solution = host_finalized
@@ -196,7 +199,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
         &canonical,
         &host,
         device_ordinal,
-        selection.selection().unwrap().solver_plan(),
+        selection.selection().unwrap().solver_plan().clone(),
     );
     let cuda_finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         &canonical,
@@ -234,7 +237,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
     assert_cuda_receipt(
         accepted.receipt(),
         operator,
-        cuda_plan,
+        cuda_plan.clone(),
         dimension,
         minimum_device_payload,
         &cuda_evidence,
@@ -261,6 +264,7 @@ fn resolve_cuda(
         host.resolved
             .plan()
             .solver()
+            .clone()
             .with_reduction(ReductionPolicy::Fast),
     )
 }
@@ -305,7 +309,7 @@ fn resolve_cuda_with_plan(
             plan,
         ),
         fixed_reference_fsi_requirements_2d(canonical),
-        &cuda_capabilities(device, solver_plan),
+        &cuda_capabilities(device, solver_plan.clone()),
     )
     .expect("the exact one-device MINRES capability resolves the FSI plan")
 }
@@ -313,7 +317,7 @@ fn resolve_cuda_with_plan(
 fn cuda_capabilities(device: u16, plan: SolverPlan) -> RealizationCapabilities {
     CudaLinearSolver::capabilities()
         .require_problem(
-            plan,
+            &plan,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricIndefinite,
@@ -323,7 +327,7 @@ fn cuda_capabilities(device: u16, plan: SolverPlan) -> RealizationCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: plan.preconditioner(),
+        preconditioner: plan.preconditioner().kind(),
         reduction: plan.reduction(),
         scalar_type: ScalarType::F64,
     }])
@@ -422,7 +426,7 @@ fn assert_cuda_receipt(
     evidence: &eqiora::backends::cuda::CudaLinearSolveEvidence,
 ) {
     assert_eq!(receipt.operator(), operator);
-    assert_eq!(receipt.solver_plan(), plan);
+    assert_eq!(receipt.solver_plan(), &plan);
     assert_eq!(receipt.dimension(), dimension);
     assert_eq!(
         receipt.minimum_device_payload_bytes(),
@@ -448,7 +452,7 @@ fn assert_cuda_receipt(
     assert_eq!(receipt.report().algorithm(), LinearSolver::MinimumResidual);
     assert_eq!(
         receipt.report().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert_eq!(receipt.report().reduction(), ReductionPolicy::Fast);
     assert_eq!(

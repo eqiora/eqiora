@@ -133,14 +133,24 @@ fn complex_reference_policies_preserve_original_values_and_pool_placement() {
             ));
             assert!(matches!(
                 capability.preconditioner,
-                PreconditionerPolicy::Identity | PreconditionerPolicy::Jacobi
+                eqiora::solver::PreconditionerKind::Identity
+                    | eqiora::solver::PreconditionerKind::Jacobi
             ));
             let (matrix, rhs, adjoint_rhs, expected) =
                 property_fixture(capability.operator_properties);
             let source =
                 CanonicalCsrSystemView::new(&Storage(matrix), &rhs, capability.operator_properties)
                     .unwrap();
-            let request = plan(capability.algorithm, capability.preconditioner);
+            let request = plan(
+                capability.algorithm,
+                match capability.preconditioner {
+                    eqiora::solver::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
+                    eqiora::solver::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
+                    eqiora::solver::PreconditionerKind::UpperDiagonalSchur => panic!(
+                        "complex threaded solver advertised an unconfigured structured policy"
+                    ),
+                },
+            );
             for (orientation, b) in [
                 (LinearOperatorOrientation::Normal, rhs),
                 (LinearOperatorOrientation::ConjugateTransposed, adjoint_rhs),
@@ -177,7 +187,7 @@ fn complex_reference_policies_preserve_original_values_and_pool_placement() {
                     ExecutionReport::host(RAYON_EXECUTION, workers)
                 );
                 assert_eq!(report.verification(), report.execution());
-                assert_eq!(report.solver_plan(), request);
+                assert_eq!(report.solver_plan(), &request);
                 assert_eq!(report.orientation(), orientation);
                 assert!(report.completed_iterations() > 0);
                 assert!(report.completed_iterations() <= request.maximum_iterations().get());
@@ -220,7 +230,7 @@ fn real_capabilities() -> SolverCapabilities {
             .filter(|entry| {
                 entry.scalar_domain == ScalarDomain::Real
                     && entry.algorithm == LinearSolver::BiConjugateGradientStabilized
-                    && entry.preconditioner == PreconditionerPolicy::Identity
+                    && entry.preconditioner == eqiora::solver::PreconditionerKind::Identity
                     && entry.reduction == ReductionPolicy::Reproducible
             })
             .copied(),
@@ -280,7 +290,7 @@ impl LinearSolverBackend<C> for TypedFacade {
         } else if self.mode == TypedMode::Valid {
             SolverCapabilities::exact(source.combinations().iter().copied().filter(|entry| {
                 entry.algorithm == LinearSolver::BiConjugateGradientStabilized
-                    && entry.preconditioner == PreconditionerPolicy::Identity
+                    && entry.preconditioner == eqiora::solver::PreconditionerKind::Identity
                     && entry.reduction == ReductionPolicy::Reproducible
             }))
             .unwrap()
@@ -437,6 +447,7 @@ fn check_common_run(count: usize, objective: Option<SolverPlanningObjective>, co
             )
             .unwrap()
         )
+        .as_ref()
     );
     assert_eq!(resolved.solver_planning_objective(), objective);
     if objective.is_some() {
@@ -623,7 +634,7 @@ fn nonserial_payload_bounds_reject_before_backend_work() {
     );
     CommonAlgebraicPlan::resolve(
         &model,
-        CommonSolvePolicy::Linear(serial),
+        CommonSolvePolicy::Linear(serial.clone()),
         None,
         &[],
         None,
