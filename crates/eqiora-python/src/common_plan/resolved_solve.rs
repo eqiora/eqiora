@@ -333,6 +333,7 @@ pub(super) fn resolved_solve_from_native(
         PyResolvedLinear::new(
             native
                 .effective_solver()
+                .cloned()
                 .expect("spatial common Plan owns an effective linear solver"),
             native
                 .operator_properties()

@@ -129,7 +129,7 @@ pub(super) fn resolve_plan(
                     &program,
                     policy,
                     backend,
-                    solve_policy.as_ref().map(|(native, _)| *native),
+                    solve_policy.as_ref().map(|(native, _)| native.clone()),
                     &FaerLinearSolver,
                 )
             }
