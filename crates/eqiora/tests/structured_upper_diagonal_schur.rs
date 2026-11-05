@@ -218,7 +218,7 @@ fn rewritten_velocity_laws(law: &str) -> String {
 fn equivalent_grouped_and_signed_vector_boundary_residuals_admit() {
     for law in [
         format!("{SECOND_COMPONENT} - {FIRST_COMPONENT} + trace(velocity) = 0"),
-        format!("-((trace(velocity) - {FIRST_COMPONENT}) + {SECOND_COMPONENT}) = 0"),
+        format!("-(trace(velocity) - ({FIRST_COMPONENT} - {SECOND_COMPONENT})) = 0"),
     ] {
         let (plan, _) = admit_small(&rewritten_velocity_laws(&law), false)
             .expect("equivalent vector boundary Plan");
