@@ -16,29 +16,10 @@ use eqiora_numerics::scalar::{
 use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
 
-#[path = "support/embedded_package.rs"]
-mod embedded_package;
-
 fn scalar_release() -> PackageReleaseV1 {
-    prepare_package_release_v1(
-        embedded_package::sources(
-            include_bytes!("../../eqiora-api/packages/Eqiora.Scalar/package.json"),
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../eqiora-api/packages/Eqiora.Scalar/README.md"),
-                ),
-                (
-                    "src/scalar.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!("../../eqiora-api/packages/Eqiora.Scalar/src/scalar.eqi"),
-                ),
-            ],
-        ),
-        &[],
-    )
-    .unwrap()
+    let mut releases = eqiora::package::bundled_package_releases("Eqiora.Scalar").unwrap();
+    assert_eq!(releases.len(), 1, "Scalar has no package dependencies");
+    releases.pop().unwrap()
 }
 
 fn root_sources(release: &PackageReleaseV1, source: &str) -> PackageSourcesV1 {
@@ -158,25 +139,59 @@ fn imported_poisson_defaults_and_override_converge_to_the_sine_solution() {
 fn imported_laplace_uses_outward_constitutive_flux_with_the_authored_sign() {
     for (flux, slope) in [("2[1/m]", 1.0), ("-2[1/m]", -1.0)] {
         let document = compile(&laplace(flux));
-        let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) = solve(&document, 8)
-        else {
-            panic!("expected Q1 FEM");
-        };
-        // The authored right normal flux +/-2/m, c=2, left value zero,
-        // and zero top/bottom flux give the unique solution u=+/-x/m.
-        // Certify against an independently assembled exact integer stencil,
-        // including any error in the production assembly and solve.
-        let mut values = [0.0; 81];
-        for (vertex, value) in solution.field().vertex_values().iter().enumerate() {
-            let index = solution
-                .field()
-                .mesh()
-                .vertex_multi_index(eqiora::meshing::MeshEntity::new(0, vertex))
-                .unwrap();
-            values[index[0] + 9 * index[1]] = *value;
-        }
-        certify_linear_laplace(&values, slope);
+        certify_laplace_document(&document, slope);
     }
+}
+
+#[test]
+fn ordinary_source_import_uses_the_bundled_scalar_catalog() {
+    use eqiora::package::{SourceCompilation, SourceImportContext, compile_source};
+    let source = format!(
+        "import Eqiora.Scalar.scalar as scalar;\n{}",
+        laplace("2[1/m]")
+    );
+    let SourceCompilation::Packaged(document) = compile_source(
+        "ordinary.eqi",
+        &source,
+        None,
+        &[],
+        SourceImportContext::Bundled,
+    )
+    .unwrap() else {
+        panic!("the standard import must retain its package provenance");
+    };
+    certify_laplace_document(&document, 1.0);
+    assert!(
+        compile_source(
+            "ordinary.eqi",
+            &source,
+            None,
+            &[],
+            SourceImportContext::Closed,
+        )
+        .is_err()
+    );
+}
+
+fn certify_laplace_document(document: &PackagedModelDocument, slope: f64) {
+    let ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) = solve(document, 8)
+    else {
+        panic!("expected Q1 FEM");
+    };
+    // The authored right normal flux +/-2/m, c=2, left value zero,
+    // and zero top/bottom flux give the unique solution u=+/-x/m.
+    // Certify against an independently assembled exact integer stencil,
+    // including any error in the production assembly and solve.
+    let mut values = [0.0; 81];
+    for (vertex, value) in solution.field().vertex_values().iter().enumerate() {
+        let index = solution
+            .field()
+            .mesh()
+            .vertex_multi_index(eqiora::meshing::MeshEntity::new(0, vertex))
+            .unwrap();
+        values[index[0] + 9 * index[1]] = *value;
+    }
+    certify_linear_laplace(&values, slope);
 }
 
 // Independent Q1 unit-square stencil: exact integration of bilinear basis
