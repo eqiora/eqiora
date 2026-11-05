@@ -64,7 +64,7 @@ impl CommonTransientFlowPlan {
         };
         let velocity_field_id = velocity.ulid().to_string();
         let pressure_field_id = pressure.ulid().to_string();
-        let solver = admission.linear.solver;
+        let solver = admission.linear.solver.clone();
         let (resolved, formulation, velocity_space, pressure_space, gauge) =
             match (&admission.spatial, admission.resources()) {
                 (
@@ -83,12 +83,12 @@ impl CommonTransientFlowPlan {
                         *scales,
                         temporal,
                         nonlinear,
-                        solver,
+                        solver.clone(),
                     )?;
                     let capabilities = transient_realization_capabilities(
                         DiscretizationMethod::ContinuousGalerkin,
                         MeshKind::ImportedAffineSimplicial,
-                        solver,
+                        solver.clone(),
                         &admission.linear.capabilities,
                     )?;
                     let resolved = resolve_transient_fieldwise(
@@ -140,12 +140,12 @@ impl CommonTransientFlowPlan {
                         *scales,
                         temporal,
                         nonlinear,
-                        solver,
+                        solver.clone(),
                     )?;
                     let capabilities = transient_realization_capabilities(
                         DiscretizationMethod::ContinuousGalerkin,
                         MeshKind::ImportedAffineSimplicial,
-                        solver,
+                        solver.clone(),
                         &admission.linear.capabilities,
                     )?;
                     let resolved = resolve_transient_fieldwise(
@@ -210,12 +210,12 @@ impl CommonTransientFlowPlan {
                         *scales,
                         temporal,
                         nonlinear,
-                        solver,
+                        solver.clone(),
                     )?;
                     let capabilities = transient_realization_capabilities(
                         DiscretizationMethod::CellCenteredFiniteVolume,
                         MeshKind::SuppliedCartesian,
-                        solver,
+                        solver.clone(),
                         &admission.linear.capabilities,
                     )?;
                     let resolved = resolve_transient_cell_centered_incompressible_flow(
@@ -786,7 +786,7 @@ impl CommonTransientFlowPlan {
         let method = self.prepare_method()?;
         let prepared_linear = match &method {
             PreparedCommonTransientMethod::MiniP1(_) => {
-                checked_backend.prepare_linear(self.admission.linear.solver)?
+                checked_backend.prepare_linear(self.admission.linear.solver.clone())?
             }
             PreparedCommonTransientMethod::CellCentered(_) => None,
         };
@@ -904,7 +904,7 @@ pub(super) fn transient_realization_capabilities(
     backend: &SolverCapabilities,
 ) -> Result<RealizationCapabilities, Diagnostic> {
     backend.require_problem(
-        solver,
+        &solver,
         eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         LinearOperatorProperties::General,
@@ -920,7 +920,7 @@ pub(super) fn transient_realization_capabilities(
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: solver.algorithm(),
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: solver.preconditioner(),
+            preconditioner: solver.preconditioner().kind(),
             reduction: solver.reduction(),
             scalar_type: ScalarType::F64,
         }])?,

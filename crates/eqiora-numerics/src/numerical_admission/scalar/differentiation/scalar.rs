@@ -89,7 +89,7 @@ impl DifferentiationScalar for f64 {
         equations
             .finalize_static(
                 admission.linear.workers,
-                admission.linear.solver,
+                admission.linear.solver.clone(),
                 admission.resources(),
                 &admission.discretizations,
                 &admission.system_scaling,
@@ -119,7 +119,7 @@ impl DifferentiationScalar for f64 {
             binding,
         )?;
         let produced =
-            LinearSolveRequest::new(&checked, core.solver_plan()).solve(&core.linear_problem()?)?;
+            LinearSolveRequest::new(&checked, core.solver_plan().clone()).solve(&core.linear_problem()?)?;
         let (solution, receipt) = admitted.accept(produced)?.into_parts();
         core.validate_solution(&solution)?;
         Ok((solution.into_parts().0, Primal::Linear(Box::new(receipt))))
@@ -173,7 +173,7 @@ impl DifferentiationScalar for Complex64 {
         let admission = &plan.admission;
         equations.finalize_complex_static(
             admission.linear.workers,
-            admission.linear.solver,
+            admission.linear.solver.clone(),
             admission.resources(),
             &admission.discretizations,
             &admission.system_scaling,
@@ -189,7 +189,7 @@ impl DifferentiationScalar for Complex64 {
         let structure = equations.algebraic_structure(None)?;
         let checked = linear.checked_complex_backend(backend, Some(&structure))?;
         let solution =
-            LinearSolveRequest::new(&checked, core.solver_plan()).solve(&core.linear_problem()?)?;
+            LinearSolveRequest::new(&checked, core.solver_plan().clone()).solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, report) = solution.into_parts();
         // Retain the genuine complex solve report. No real-system execution receipt

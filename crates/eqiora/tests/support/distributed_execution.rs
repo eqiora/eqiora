@@ -1,11 +1,11 @@
 use std::num::NonZeroUsize;
 
-use eqiora::distributed::DistributedAdmissionFingerprintV1;
+use eqiora::distributed::DistributedAdmissionFingerprintV2;
 use eqiora_execution::{DistributedLinearExecutionTrace, ExecutionReceipt};
 
 pub(crate) fn assert_trace(
     receipt: &ExecutionReceipt,
-    admission: DistributedAdmissionFingerprintV1,
+    admission: DistributedAdmissionFingerprintV2,
     partitions: usize,
     workers_per_partition: NonZeroUsize,
 ) -> &DistributedLinearExecutionTrace {

@@ -109,7 +109,7 @@ impl NativeNumericalAdmission {
         let structure = equations.algebraic_structure(None)?;
         let system = equations.finalize_complex_static(
             self.linear.workers,
-            self.linear.solver,
+            self.linear.solver.clone(),
             self.resources(),
             &self.discretizations,
             &self.system_scaling,
@@ -117,13 +117,13 @@ impl NativeNumericalAdmission {
         let output = match system {
             regions::StaticSpatialSystem::Real(system) => {
                 let checked = self.linear.checked_backend(backend, Some(&structure))?;
-                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)?
+                system.solve(LinearSolveRequest::new(&checked, self.linear.solver.clone()), None)?
             }
             regions::StaticSpatialSystem::Complex(system) => {
                 let checked = self
                     .linear
                     .checked_complex_backend(backend, Some(&structure))?;
-                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)?
+                system.solve(LinearSolveRequest::new(&checked, self.linear.solver.clone()), None)?
             }
         };
         Ok(CommonLinearRunOutput {

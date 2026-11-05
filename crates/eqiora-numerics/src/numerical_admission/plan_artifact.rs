@@ -212,12 +212,12 @@ impl ResolvedCommonPlan {
         if let Self::Spatial(plan) = self
             && let Some(context) = &plan.run_planning
         {
-            return Some(CommonSolvePolicy::Linear(context.request));
+            return Some(CommonSolvePolicy::Linear(context.request.clone()));
         }
         let solver = self.effective_solver()?;
         let linear = match self.solver_planning_objective() {
             None => CommonLinearRequest::exact(
-                solver,
+                solver.clone(),
                 self.linear_solver_provider()
                     .expect("a spatial solver retains its exact provider"),
             ),

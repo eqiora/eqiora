@@ -73,7 +73,7 @@ impl CommonAlgebraicPlan {
             plan.harmonic = Some(reduction);
             return Ok(plan);
         }
-        let (request, nonlinear) = match solve {
+        let (request, nonlinear) = match solve.clone() {
             CommonSolvePolicy::Linear(request) => (request, None),
             CommonSolvePolicy::Newton { linear, nonlinear } => (linear, Some(nonlinear)),
         };
@@ -170,7 +170,7 @@ impl CommonAlgebraicPlan {
         let mut bytes = model_digest.as_bytes().to_vec();
         push_framed(&mut bytes, &plan_artifact::solve_intent_bytes(solve)?);
         if linear.planning_objective.is_some() {
-            super::native::push_linear_policy_identity(&mut bytes, &linear);
+            super::native::push_linear_policy_identity(&mut bytes, &linear)?;
         }
         push_framed(
             &mut bytes,
@@ -336,7 +336,7 @@ impl CommonAlgebraicPlan {
         }
         if let Some(gauge) = &self.gauge {
             let checked = self.linear.checked_backend(backend, None)?;
-            let solution = gauge.solve(LinearSolveRequest::new(&checked, self.linear.solver))?;
+            let solution = gauge.solve(LinearSolveRequest::new(&checked, self.linear.solver.clone()))?;
             return crate::CommonResult::from_algebraic(
                 self,
                 state,
@@ -356,7 +356,7 @@ impl CommonAlgebraicPlan {
                 .collect::<Vec<_>>();
             let problem = system.linear_problem()?.with_initial_guess(&initial)?;
             let complex = self.linear.checked_complex_backend(backend, None)?;
-            let solution = LinearSolveRequest::new(&complex, self.linear.solver).solve(&problem)?;
+            let solution = LinearSolveRequest::new(&complex, self.linear.solver.clone()).solve(&problem)?;
             let values = solution
                 .values()
                 .iter()
@@ -378,13 +378,13 @@ impl CommonAlgebraicPlan {
                 &[],
                 &[],
                 nonlinear,
-                LinearSolveRequest::new(&checked, self.linear.solver),
+                LinearSolveRequest::new(&checked, self.linear.solver.clone()),
             )?;
             return crate::CommonResult::from_nonlinear_algebraic(self, state, solution);
         }
         let solution = self.problem.solve(
             &state.values,
-            LinearSolveRequest::new(&checked, self.linear.solver),
+            LinearSolveRequest::new(&checked, self.linear.solver.clone()),
         )?;
         crate::CommonResult::from_algebraic(
             self,
@@ -420,14 +420,14 @@ impl CommonAlgebraicPlan {
         match (&self.gauge, evidence) {
             (Some(gauge), Some(evidence)) => {
                 if mask.is_some()
-                    || gauge.residual_target(self.linear.solver)?.to_bits() != target.to_bits()
-                    || &gauge.assess(values, evidence.multiplier, self.linear.solver)? != evidence
+                    || gauge.residual_target(self.linear.solver.clone())?.to_bits() != target.to_bits()
+                    || &gauge.assess(values, evidence.multiplier, self.linear.solver.clone())? != evidence
                 {
                     return Err(invalid(
                         "finite gauge Result evidence differs from its original equations or explicit reference",
                     ));
                 }
-                let assessment = self.problem.gauge_assessment(values, self.linear.solver)?;
+                let assessment = self.problem.gauge_assessment(values, self.linear.solver.clone())?;
                 return Ok((assessment.equality_residual_norm(), Some(assessment)));
             }
             (None, None) => {}
@@ -438,7 +438,7 @@ impl CommonAlgebraicPlan {
             }
         }
         self.problem
-            .validate_values(values, self.linear.solver, target, mask)
+            .validate_values(values, self.linear.solver.clone(), target, mask)
     }
 }
 

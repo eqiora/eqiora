@@ -348,7 +348,7 @@ fn execute_method(
 fn assert_distributed_receipt(
     world: &impl CommunicatorCollectives,
     receipt: &ExecutionReceipt,
-    admission: eqiora::distributed::DistributedAdmissionFingerprintV1,
+    admission: eqiora::distributed::DistributedAdmissionFingerprintV2,
 ) {
     let trace = assert_trace(
         receipt,

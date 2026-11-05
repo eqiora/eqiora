@@ -85,7 +85,7 @@ where
                 &mapping,
                 &input,
                 &seed,
-                LinearSolveRequest::new(&checked, linear.solver),
+                LinearSolveRequest::new(&checked, linear.solver.clone()),
                 None,
             )?
             .solve;

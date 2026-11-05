@@ -354,5 +354,5 @@ pub(crate) fn require_policy_compatibility(
     }
     linear
         .capabilities
-        .require_problem(linear.solver, scalar_domain, ScalarType::F64, properties)
+        .require_problem(&linear.solver, scalar_domain, ScalarType::F64, properties)
 }

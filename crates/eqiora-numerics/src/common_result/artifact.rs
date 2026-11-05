@@ -4,6 +4,7 @@ const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use serde::{Deserialize, Serialize};
+use eqiora_solver::PreconditionerPolicy;
 use sha2::{Digest, Sha256};
 
 use super::evidence::{CommonExecutionEvidence, CommonExecutionTopology, CommonProviderEvidence};
@@ -25,7 +26,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v27";
+const SCHEMA: &str = "eqiora.common-result/v28";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -160,7 +161,7 @@ pub(crate) struct WireSolve {
     verification: WireExecution,
     orientation: WireOrientation,
     algorithm: WireAlgorithm,
-    preconditioner: WirePreconditioner,
+    preconditioner: PreconditionerPolicy,
     reduction: WireReduction,
     relative_tolerance: f64,
     absolute_tolerance: f64,
@@ -187,12 +188,6 @@ enum WireAlgorithm {
     MinimumResidual,
     Bicgstab,
     SparseLu,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WirePreconditioner {
-    Identity,
-    Jacobi,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -550,7 +545,7 @@ impl WireSolve {
             verification: WireExecution::from_execution(value.verification())?,
             orientation: value.orientation().into(),
             algorithm: value.algorithm().into(),
-            preconditioner: value.preconditioner().into(),
+            preconditioner: value.preconditioner().clone(),
             reduction: value.reduction().into(),
             relative_tolerance: value.relative_tolerance(),
             absolute_tolerance: value.absolute_tolerance(),
@@ -590,7 +585,7 @@ impl WireSolve {
             verification: self.verification.replay()?,
             orientation: self.orientation.into(),
             algorithm: self.algorithm.into(),
-            preconditioner: self.preconditioner.into(),
+            preconditioner: self.preconditioner.clone(),
             reduction: self.reduction.into(),
             relative_tolerance: self.relative_tolerance,
             absolute_tolerance: self.absolute_tolerance,

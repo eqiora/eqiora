@@ -113,7 +113,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
                 "finalized spatial problem requires a normal-orientation solution",
             ));
         }
-        if report.solver_plan() != self.solver {
+        if report.solver_plan() != &self.solver {
             return Err(invalid_realization(
                 "accepted linear solution used a different SolverPlan than the finalized spatial problem",
             ));

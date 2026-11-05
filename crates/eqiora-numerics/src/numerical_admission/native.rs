@@ -628,13 +628,13 @@ impl NativeNumericalAdmission {
                 "steady Stokes requires exact supplied simplicial resources",
             ));
         };
-        let solver = self.linear.solver;
-        let fieldwise = binding.mini_plan(mesh.artifact_reference()?, scales, solver)?;
+        let solver = &self.linear.solver;
+        let fieldwise = binding.mini_plan(mesh.artifact_reference()?, scales, solver.clone())?;
         let selected_solver = SolverCapabilities::exact([SolverCapability {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: solver.algorithm(),
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: solver.preconditioner(),
+            preconditioner: solver.preconditioner().kind(),
             reduction: solver.reduction(),
             scalar_type: ScalarType::F64,
         }])?;
@@ -734,11 +734,11 @@ impl NativeNumericalAdmission {
         let structure = lowered.algebraic_structure(self.spatial.scalar_constraint())?;
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
-        let solve = LinearSolveRequest::new(backend, self.linear.solver);
+        let solve = LinearSolveRequest::new(backend, self.linear.solver.clone());
         if self.spatial.scalar_constraint().is_none() {
             let system = lowered.finalize_static(
                 self.linear.workers,
-                (solve).plan(),
+                (solve).plan().clone(),
                 self.resources(),
                 &self.discretizations,
                 &self.system_scaling,
@@ -749,7 +749,7 @@ impl NativeNumericalAdmission {
         }
         let system = lowered.finalize_static(
             self.linear.workers,
-            self.linear.solver,
+            self.linear.solver.clone(),
             self.resources(),
             &self.discretizations,
             &self.system_scaling,

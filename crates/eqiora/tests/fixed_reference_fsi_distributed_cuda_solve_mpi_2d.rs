@@ -603,7 +603,7 @@ fn assert_composite_evidence(
 fn assert_execution_receipt(
     world: &impl CommunicatorCollectives,
     receipt: &ExecutionReceipt,
-    admission: eqiora::distributed::DistributedAdmissionFingerprintV1,
+    admission: eqiora::distributed::DistributedAdmissionFingerprintV2,
     assembly: [u8; 32],
     reduced: [u8; 32],
     full: [u8; 32],
