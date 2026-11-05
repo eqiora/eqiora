@@ -31,7 +31,7 @@ pub enum PreconditionerPolicy {
     /// Inverse of the operator diagonal.
     Jacobi,
     /// Fixed upper triangular diagonal-Schur composition over exact semantic groups.
-    UpperDiagonalSchur(UpperDiagonalSchurConfig),
+    UpperDiagonalSchur(Box<UpperDiagonalSchurConfig>),
 }
 
 /// Floating-point reduction policy.

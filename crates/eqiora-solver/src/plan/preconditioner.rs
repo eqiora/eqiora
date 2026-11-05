@@ -178,6 +178,12 @@ impl TryFrom<WireUpperDiagonalSchur> for UpperDiagonalSchurConfig {
     }
 }
 impl PreconditionerPolicy {
+    /// Retain the complete structured configuration behind compact owned policy storage.
+    #[must_use]
+    pub fn upper_diagonal_schur(config: UpperDiagonalSchurConfig) -> Self {
+        Self::UpperDiagonalSchur(Box::new(config))
+    }
+
     /// Canonical complete policy bytes for identity and collective agreement.
     /// Uses the same closed wire representation as persisted solver controls.
     ///
@@ -257,7 +263,7 @@ mod tests {
     #[test]
     fn closed_configuration_roundtrip_and_rejection() {
         let config = config();
-        let policy = PreconditionerPolicy::UpperDiagonalSchur(config.clone());
+        let policy = PreconditionerPolicy::upper_diagonal_schur(config.clone());
         let encoded = serde_json::to_value(&policy).unwrap();
         assert_eq!(
             serde_json::from_value::<PreconditionerPolicy>(encoded).unwrap(),

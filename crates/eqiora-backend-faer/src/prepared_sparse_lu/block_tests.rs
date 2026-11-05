@@ -85,7 +85,7 @@ fn binding() -> (SolverPlan, AlgebraicStructure) {
         )
         .unwrap();
     let factor = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
-    let policy = PreconditionerPolicy::UpperDiagonalSchur(
+    let policy = PreconditionerPolicy::upper_diagonal_schur(
         UpperDiagonalSchurConfig::new(groups, factor.clone(), factor, 4, 3).unwrap(),
     );
     let plan = SolverPlan::new(
@@ -208,7 +208,7 @@ fn cold_and_prepared_admission_reject_missing_provider_orientation_and_singular_
     let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner() else {
         unreachable!()
     };
-    let bad = PreconditionerPolicy::UpperDiagonalSchur(
+    let bad = PreconditionerPolicy::upper_diagonal_schur(
         UpperDiagonalSchurConfig::new(
             config.groups().clone(),
             FixedFactorizationChoice::new(LinearSolver::SparseLu, "missing.provider").unwrap(),

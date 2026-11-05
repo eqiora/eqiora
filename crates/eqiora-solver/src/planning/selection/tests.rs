@@ -259,7 +259,7 @@ fn explicit_structured_policy_is_retained_and_requires_realized_cover_at_executi
         vec![AlgebraicBlock::Field(b)],
     ];
     let choice = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
-    let policy = PreconditionerPolicy::UpperDiagonalSchur(
+    let policy = PreconditionerPolicy::upper_diagonal_schur(
         UpperDiagonalSchurConfig::new(groups, choice.clone(), choice, 32, 64).unwrap(),
     );
     let structure = AlgebraicStructure::new([a, b], []).unwrap();
