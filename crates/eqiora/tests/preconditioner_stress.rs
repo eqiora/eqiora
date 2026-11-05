@@ -162,7 +162,8 @@ fn solve_pair(
 
     let identity = backend.solve(
         &problem,
-        plan.with_preconditioner(PreconditionerPolicy::Identity),
+        plan.clone()
+            .with_preconditioner(PreconditionerPolicy::Identity),
     );
     let jacobi = backend.solve(
         &problem,
@@ -189,7 +190,7 @@ fn assert_accepted(
 ) {
     let report = solution.report();
     assert_eq!(report.backend(), backend.id());
-    assert_eq!(report.preconditioner(), preconditioner);
+    assert_eq!(report.preconditioner(), &preconditioner);
     assert!(report.true_residual_norm() <= report.residual_target());
     assert!(solution.values().iter().all(|value| value.is_finite()));
 }
