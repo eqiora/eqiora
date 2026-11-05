@@ -299,3 +299,23 @@ TMPDIR="$scratch/tmp" python3 -m unittest discover \
 - [PETSc residual norm selection](https://petsc.org/release/manualpages/KSP/KSPSetNormType/)
 
 - [PETSc BiCGStab (`bcgs`)](https://petsc.org/release/manualpages/KSP/KSPBCGS/)
+
+## Three-dimensional correctness extension
+
+The next comparison uses the unit cube, continuous hexahedral Q1 elements,
+`u = sin(pi*x)*sin(pi*y)*sin(pi*z)`, forcing `3*pi^2*u`, and zero values on
+all six faces. The declared levels are 4, 8 and 16 cells per axis. It reuses
+this harness, solver controls and operation boundaries. The independent
+[3D reference](../../../verify/numerics/cartesian-poisson-3d-fem-fvm/README.md)
+owns the analytic continuous errors and comparison allowance.
+
+This extension is being prepared for correctness-only runs. Ordinary public
+3D geometry admission, actual eight-point tensor quadrature, vertex/DOF export,
+accuracy and convergence must pass before reporting a complete comparison.
+Qualified runtime measurements remain pending; no 3D speed claim is made.
+
+The current harness requires matching installed Python APIs for every supplied
+revision. In particular, solver observations now return complete preconditioner
+values and this harness reads their `kind`. Reproduce historical measurements
+with their recorded harness revision and matching wheels. The current harness
+does not adapt older APIs, and recorded measurements are not rewritten.
