@@ -429,7 +429,7 @@ fn distributed_cuda_capabilities(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };

@@ -193,7 +193,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
@@ -201,7 +201,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Jacobi,
+        preconditioner: eqiora::solver::PreconditionerKind::Jacobi,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
@@ -313,7 +313,7 @@ fn reference_spd_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])

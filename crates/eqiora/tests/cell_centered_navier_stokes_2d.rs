@@ -438,7 +438,7 @@ fn capabilities() -> TransientCellCenteredIncompressibleFlowCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])

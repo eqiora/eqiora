@@ -703,7 +703,7 @@ fn owned_selection_rejects_changed_backend_identity_before_execution() {
             scalar_type: ScalarType::F64,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: eqiora::solver::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Reproducible,
         },
     };
