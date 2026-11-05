@@ -68,7 +68,10 @@ class LinearSolver:
 
 @final
 class AlgebraicBlock:
-    """Exact semantic Field or explicit constraint multiplier block."""
+    """Exact semantic Field or explicit constraint multiplier block.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyAlgebraicBlock``.
+    """
     @staticmethod
     def field(field: FieldRef) -> AlgebraicBlock: ...
     @staticmethod
@@ -82,7 +85,10 @@ class AlgebraicBlock:
 
 @final
 class FixedFactorization:
-    """Fixed sparse LU with an explicit compiled provider."""
+    """Fixed sparse LU with an explicit compiled provider.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyFixedFactorization``.
+    """
     def __new__(cls, *, provider: SolverProvider, algorithm: LinearSolver = LinearSolver.SparseLu) -> FixedFactorization: ...
     @property
     def algorithm(self) -> LinearSolver: ...
@@ -95,6 +101,8 @@ class FixedFactorization:
 class UpperDiagonalSchurConfig:
     """Complete construction settings. Limits cover Schur entries and scalar
     product contributions, excluding factor memory and process RSS.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyUpperDiagonalSchurConfig``.
     """
     @property
     def groups(self) -> tuple[list[AlgebraicBlock], list[AlgebraicBlock]]: ...
@@ -111,7 +119,10 @@ class UpperDiagonalSchurConfig:
 
 @final
 class Preconditioner:
-    """Complete immutable preconditioner policy shared with the solver core."""
+    """Complete immutable preconditioner policy shared with the solver core.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyPreconditioner``.
+    """
     Identity: ClassVar[Preconditioner]
     Jacobi: ClassVar[Preconditioner]
     @staticmethod
