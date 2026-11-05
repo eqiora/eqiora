@@ -256,7 +256,7 @@ mod tests {
             module.add_class::<PyReduction>()?;
             let field = crate::model::PyModelFieldRef::from_exact(
                 "test-model".into(),
-                ulid::Ulid::new().to_string(),
+                ulid::Ulid::from(1_u128).to_string(),
             );
             module.add("field", Py::new(py, field)?)?;
             py.run(
