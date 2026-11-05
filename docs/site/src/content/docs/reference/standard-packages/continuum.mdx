@@ -23,7 +23,7 @@ the bundled Fluid release is 0.5.0 and Solid.LinearElasticity is 0.7.0. The publ
 
 ## Scalar Poisson and Laplace
 
-Development builds bundle `Eqiora.Scalar@0.1.0`. Import
+Development builds bundle `Eqiora.Scalar@0.2.0`. Import
 `Eqiora.Scalar.scalar as scalar` for a **dimensionless potential** on a
 2D body whose coordinates are measured in metres. The dimensionless
 `coefficient` defaults to one; override it explicitly for another constant.
@@ -46,15 +46,39 @@ for complete imported and handwritten versions of one problem. Save its imported
 source as `inverse-poisson.eqi` and use the lesson runner's complete
 `eqiora.compile` call with its entry, geometry and parameter bindings. The
 ordinary compile path resolves the bundled import. Explicit package
-projects can add `"Eqiora.Scalar"` with `version="0.1.0"` through
+projects can add `"Eqiora.Scalar"` with `version="0.2.0"` through
 `eqiora.add_bundled_dependency` and vendor it for offline reopening.
 
-This fixed-unit package is not a generic temperature, voltage or pressure law.
+These Poisson and Laplace components have a dimensionless potential; use the
+separate thermal components below for Kelvin temperature.
 The lesson derives its heat nondimensionalization separately. The
 <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/README.md">package contract</ExactSourceLink>
 and <ExactSourceLink kind="blob" path="verify/numerics/packaged-scalar-elliptic-2d/README.md">verification case</ExactSourceLink>
 describe the existing host reference Q1 checks. The package adds no FVM, MPI,
 GPU, unstructured-mesh, Robin or periodic execution support.
+
+## Steady heat conduction
+
+The same `Eqiora.Scalar@0.2.0` module also provides fixed-SI thermal components:
+
+| Component | Physical meaning |
+|---|---|
+| `SteadyHeat2d` | Fourier flux `-conductivity * grad(temperature)`, volumetric `heating` |
+| `FixedTemperature2d` | Prescribed Kelvin temperature expression on a boundary |
+| `OutwardHeatFlux2d` | Prescribed physical outward heat flux expression in W/m² |
+
+Temperature is a Kelvin Field, conductivity is an explicit parameter in W/(m K),
+and heating has units W/m³. Positive heat flux leaves the body; use
+`flux = 0[W/m^2]` for insulation. Flux boundaries require authored `smooth`
+regularity and the same conductivity as the volume; volume and fixed-temperature
+components require `h1`. The caller supplies the body, Field and complete
+boundary coverage.
+
+The [heated-body lesson](/learn/heat-transfer/heated-body-in-eqiora/) shows the
+imports first and the same equations written by hand. Focused product tests
+check Cartesian 2D Q1 on CPU, both physical flux signs, unit/support diagnostics
+and Plan/Result replay. This package adds no validated threaded, MPI, GPU,
+transient, convective or coupled-interface thermal workflow.
 
 ## Elastic balance and boundaries
 

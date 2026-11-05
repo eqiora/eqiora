@@ -126,8 +126,8 @@ git -C eqiora-source checkout --detach FETCH_HEAD`;
 <Code code={exampleCommands} lang="bash" title="Optional: download the example files" />
 
 Keep `eqiora-source` beside `.venv` for the lessons that use repository paths.
-The voltage-divider and heated-body examples run with the published `0.1.5`
-package. The current decay and continuum examples require the development build
+The voltage-divider example runs with the published `0.1.5` package. The
+heated-body, current decay and continuum examples require the development build
 described below. Add optional dependencies to the package you installed
 as needed, for example `uv add 'eqiora[matplotlib]'`. Gmsh examples also need
 `uv add 'eqiora[gmsh,matplotlib]'` and the system GLU library; on Ubuntu, install
@@ -137,9 +137,9 @@ it with `sudo apt-get install libglu1-mesa`.
 
 You only need a development build for features or results marked as newer than
 the published release. The current decay walkthrough,
-[Kármán wake](/gallery/karman-vortex-street/), exact-cylinder Stokes and
-mixed-boundary elasticity examples require this build. Their API and authoring
-features are not in the unchanged `0.1.5` wheel.
+[Kármán wake](/gallery/karman-vortex-street/), exact-cylinder Stokes,
+mixed-boundary elasticity and heated-body examples require this build. Their
+API and authoring features are not in the unchanged `0.1.5` wheel.
 
 After downloading the [example files](#example-files), install
 [Rust stable with Cargo](https://rustup.rs/), a C/C++ compiler/linker, CMake and

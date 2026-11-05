@@ -42,8 +42,7 @@ def main():
                                       geometry=geometry, bindings=bindings)
         plan = resolve(model, geometry)
         result = eqiora.run(plan)
-        trial_id, = model.authored_formulations[0].trial_field_ids
-        field = model.field(trial_id)
+        field = model.field("definition.temperature")
         print("Steady temperature coefficients [K]:")
         print(result.output(field).values("vertex").numpy())
         transient = eqiora.compile_package(
