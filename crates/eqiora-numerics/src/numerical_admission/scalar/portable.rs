@@ -102,7 +102,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
     validate_resources(&admission.spatial, admission.resources())?;
     let solver = &admission.linear.solver;
     admission.linear.capabilities.require_problem(
-        &solver,
+        solver,
         admission.linear.scalar_domain,
         ScalarType::F64,
         admission.operator_properties,

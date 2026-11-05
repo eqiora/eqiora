@@ -186,7 +186,7 @@ impl SolverSelection {
         ) {
             return Err(invalid_catalog("host-binding.host-execution-required"));
         }
-        let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
+        let candidates = profile_catalog_ids(S::DOMAIN, &profile)
             .iter()
             .map(|id| {
                 let expected = expected_candidate(id);

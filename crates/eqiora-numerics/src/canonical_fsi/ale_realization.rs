@@ -741,7 +741,7 @@ fn require_remesh_compatible(
             &source.realization_graph,
             &target.realization_graph,
         )
-        || numeric_remesh_scale(&transfer)? != source.step_plan.scale()
+        || numeric_remesh_scale(transfer)? != source.step_plan.scale()
         || target
             .realization_graph
             .domains()
