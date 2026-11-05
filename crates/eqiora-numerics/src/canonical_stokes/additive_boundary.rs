@@ -55,24 +55,35 @@ pub(super) fn additive_prescribed_velocity_parts(
     root: ExprId,
     velocity: RawId,
     relation: RawId,
-) -> Result<Option<(ExprId, f64)>, Diagnostic> {
+) -> Result<Option<Vec<(ExprId, f64)>>, Diagnostic> {
     let view = AdditiveResidualView::derive(expression, root, relation)?;
-    let [first, second] = view.leaves() else {
+    let traces = view
+        .leaves()
+        .iter()
+        .filter(|leaf| is_velocity_or_port_trace(expression, leaf.value(), velocity))
+        .collect::<Vec<_>>();
+    let [trace] = traces.as_slice() else {
         return Ok(None);
     };
-    for (trace, datum) in [(first, second), (second, first)] {
-        if is_velocity_or_port_trace(expression, trace.value(), velocity) {
-            return Ok(Some((
-                datum.value(),
-                if trace.sign() == datum.sign() {
-                    -1.
-                } else {
-                    1.
-                },
-            )));
-        }
+    if view.leaves().len() < 2 {
+        return Ok(None);
     }
-    Ok(None)
+    Ok(Some(
+        view.leaves()
+            .iter()
+            .filter(|leaf| !is_velocity_or_port_trace(expression, leaf.value(), velocity))
+            .map(|datum| {
+                (
+                    datum.value(),
+                    if trace.sign() == datum.sign() {
+                        -1.
+                    } else {
+                        1.
+                    },
+                )
+            })
+            .collect(),
+    ))
 }
 
 fn is_velocity_or_port_trace(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {
