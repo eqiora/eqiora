@@ -218,7 +218,7 @@ impl PyGeometryGraph {
     ) -> PyResult<Py<PyAny>> {
         if let Ok(operation) = operation.extract::<PyRef<'_, PyGeometryOperation>>() {
             let named_topology = named_topology.ok_or_else(|| {
-                PyTypeError::new_err("planar GeometryOperation build requires named_topology=")
+                PyTypeError::new_err("GeometryOperation build requires named_topology=")
             })?;
             let named_topology = extract_named_topology(named_topology)?;
             return self
