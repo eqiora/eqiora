@@ -200,14 +200,14 @@ def test_transient_heat_rejects_incomplete_or_incompatible_data(mutation):
         eqiora.State.initial(transient_plan(model, geometry))
 
 
-def test_reference_cg_profile_times_solve_without_changing_q1_result():
+def test_reference_profile_times_solve_without_changing_q1_result():
     geometry, bindings = example.geometry_and_bindings()
     model = eqiora.compile(path=SPECIMEN / "src/main.eqi", entry="HeatedBody",
                            geometry=geometry, bindings=bindings)
     mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
         geometry, eqiora.meshing.CartesianMesher(cells=(2, 2))))
     plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
-        algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
         provider=eqiora.solve.SolverProvider.reference(),
         preconditioner=eqiora.solve.Preconditioner.Identity,
         reduction=eqiora.solve.Reduction.Reproducible,
@@ -224,7 +224,7 @@ def test_reference_cg_profile_times_solve_without_changing_q1_result():
     linear, = [phase for phase in profiled.profile.phases
                if tuple(phase.path) == ("run", "solve", "linear_solve")]
     assert linear.calls == 1
-    assert linear.fields == {"linear_solver": "ConjugateGradient",
+    assert linear.fields == {"linear_solver": "BiConjugateGradientStabilized",
                              "solver_provider": "eqiora.reference"}
     assert np.isfinite(linear.inclusive_seconds)
     assert 0 <= linear.self_seconds <= linear.inclusive_seconds
