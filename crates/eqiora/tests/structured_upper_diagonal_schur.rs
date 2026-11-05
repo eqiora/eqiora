@@ -101,8 +101,12 @@ fn ordinary_manual_manufactured_stokes_small() {
     let document =
         PackagedModelDocument::compile_selected(&store, &resolution, "Manufactured", &bindings)
             .unwrap();
-    let velocity = document.model().aliases()["velocity"].downcast().unwrap();
-    let pressure = document.model().aliases()["pressure"].downcast().unwrap();
+    let velocity = document.model().aliases()["definition.velocity"]
+        .downcast()
+        .unwrap();
+    let pressure = document.model().aliases()["definition.pressure"]
+        .downcast()
+        .unwrap();
     let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
