@@ -5,7 +5,7 @@ description: Accuracy, runtime and memory observations for one single-threaded 2
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Eqiora and FEniCSx matched the independent accuracy reference on all four tested
+In the original campaign below, Eqiora and FEniCSx matched the independent accuracy reference on all four tested
 meshes. **Eqiora was slower in ordinary repeated execution at every level.**
 At 32 cells per axis, median execution took **78.495 ms in Eqiora and
 0.832562 ms in FEniCSx**, about 94.3 times longer for Eqiora in this measurement.
@@ -14,6 +14,52 @@ This is one observational campaign on one machine, not a hardware-normalized
 stable baseline or a general ranking of the tools. It uses an optimized
 **development build** of Eqiora whose distribution version is `0.1.5`;
 the published `0.1.5` release does not contain this workflow.
+
+## Follow-up: retaining the original assembled equations
+
+A later development build keeps the original assembled system for live Result
+acceptance. It preserves independent validation when reopening an artifact.
+In eight matched pairs, its ordinary execution medians were lower at every
+mesh level. At 32 cells per axis, the median candidate/baseline ratio was
+**0.584**, with a range of **0.579–0.597** across the eight pairs.
+
+Each table entry is an Eqiora candidate/baseline wall-time ratio, comparing
+the two revisions within a pair. Values under one mean less time for the candidate; these ranges are observed ranges, not
+confidence intervals.
+
+| Cells per axis | Ratio: median [range] |
+|---:|---:|
+| 4 | 0.711 [0.705–0.719] |
+| 8 | 0.651 [0.634–0.654] |
+| 16 | 0.608 [0.598–0.647] |
+| 32 | 0.584 [0.579–0.597] |
+
+The schedule was fixed before observations: one exploratory campaign per
+revision, then eight pairs with alternating launch order. Each campaign used
+the same four meshes, independent accuracy gates, solver controls, two warmups
+and seven timed calls. All eighteen campaigns passed. Exploratory timings
+are excluded from the paired summary; the eight pairs, not individual calls,
+are the comparison units. No failed campaign was replaced or selected away.
+
+Both revisions used authenticated optimized wheels built with Rust 1.89 and
+the same release settings. They ran on the same CPU and software environments
+as the original comparison. CPU load was recorded without an idle threshold;
+governor, boost and affinity settings were checked without changing the host.
+This remains a descriptive shared-host comparison. It establishes neither a
+stable performance guarantee nor the separate cylinder speed or short-Run
+non-regression targets.
+
+The separate exploratory diagnostic recorded one scalar finalization in the
+candidate and two in the baseline. At the finest level, candidate finalization
+took 19.509 ms and reference linear solve took 0.081 ms. Another 25.989 ms was
+reported as solve self time; its internal costs remain unattributed. Diagnostic
+spans are separate executions, not a partition of the ordinary sample medians.
+
+The
+<ExactSourceLink path="docs/performance/2026-11-05-poisson-matched-revisions.json" kind="blob">matched-revision record</ExactSourceLink>
+retains source and wheel identities, every timing sample, CPU observations,
+launch-order summaries, drift, accuracy summaries and diagnostic spans. The
+original campaign below remains unchanged as a historical measurement.
 
 ## What was compared
 
@@ -206,8 +252,8 @@ solve time. The full scope descriptions follow the table.
 - **FEniCSx linear:** KSP allocation/configuration, zero guess, solve,
   true-residual acceptance and effective-policy/summary queries.
 
-Eqiora's ordinary Run finalizes the system for the solve and again while
-accepting the Result. That live acceptance check shares the reacceptance helper
+The original measured Eqiora revision finalized the system for the solve and again while
+accepting the Result. That revision shared its live acceptance check with the reacceptance helper
 and explains the two assembly calls; Result acceptance remains inside the
 ordinary execution timing. It does not explain the remaining exclusive solve
 time or the whole runtime gap.
