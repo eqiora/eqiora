@@ -51,7 +51,8 @@ def environment(tool, import_seconds):
             "load_at_start": os.getloadavg(), "imports_wall_seconds": import_seconds,
             "numpy_and_tool_imports_included": True,
             "protocol_sha256": digest(Path(__file__).with_name("README.md")),
-            "accuracy_driver_sha256": digest(Path(__file__).with_name("accuracy.py"))}
+            "accuracy_driver_sha256": digest(Path(__file__).with_name("accuracy.py")),
+            "harness_sha256": {path.name: digest(path) for path in sorted(Path(__file__).parent.glob("*.py"))}}
 
 
 def finish(args, tool, prepared, execute, extract, profile):
@@ -61,6 +62,13 @@ def finish(args, tool, prepared, execute, extract, profile):
                   stable_timing_claim=False, measurement_status="shared-host correctness smoke; not a reference performance environment")
     result, cold = clock(execute)
     coordinates, values, solve = extract(result)
+    report["memory_after_execution_before_accuracy"] = memory()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    # Preserve the actual candidate even if an accuracy/export gate rejects.
+    # Hex strings remain valid JSON for NaN/Inf and preserve all binary64 bits.
+    candidate = {"coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
+                 "values_float64_hex": [float(x).hex() for x in values], "solve": solve}
+    args.output.with_name("candidate-field.json").write_text(json.dumps(candidate, indent=2, allow_nan=False)+"\n")
     report["accuracy"] = check_accuracy(coordinates, values, args.cells)
     report["solve"] = solve
     report["profile"] = profile()

@@ -26,6 +26,9 @@ def main(args):
     env = environment("fenicsx", IMPORT_SECONDS)
     env.update(mpi_library=MPI.Get_library_version(), petsc_version=PETSc.Sys.getVersionInfo(),
                petsc_scalar_type=str(PETSc.ScalarType), petsc_integer_type=str(PETSc.IntType),
+               compiler_environment={key: __import__("os").environ.get(key) for key in
+                                     ("CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS")},
+               python_compiler_config={key: __import__("sysconfig").get_config_var(key) for key in ("CC", "CFLAGS", "LDSHARED")},
                blas=np.show_config(mode="dicts"))
     baseline = memory()
     domain, mesh_time = clock(lambda: mesh.create_unit_square(
@@ -71,7 +74,24 @@ def main(args):
         return space, bc, boundary, a, load
 
     (space, bc, boundary, a, load), preparation = clock(prepare)
-    coordinates = space.tabulate_dof_coordinates()[:, :2].copy()
+    # Q1 dofs belong to vertices topologically. tabulate_dof_coordinates
+    # evaluates a floating geometry map and can round even a dyadic vertex.
+    # Export the exact mesh Geometry vertex by its actual dof/entity binding;
+    # never snap or match approximate coordinates by proximity.
+    domain.topology.create_connectivity(0, 2)
+    coordinates = np.empty(((args.cells+1)**2, 2))
+    seen = set()
+    for vertex in range(domain.topology.index_map(0).size_local):
+        entity = np.array([vertex], dtype=np.int32)
+        dof = fem.locate_dofs_topological(space, 0, entity)
+        geometry_index = mesh.entities_to_geometry(domain, 0, entity, permute=False)
+        if len(dof) != 1 or geometry_index.shape != (1, 1) or int(dof[0]) in seen:
+            raise ComparisonError("Q1 vertex/entity/dof correspondence is not one-to-one")
+        seen.add(int(dof[0]))
+        coordinates[dof[0]] = domain.geometry.x[geometry_index[0, 0], :2]
+    if seen != set(range((args.cells+1)**2)):
+        raise ComparisonError("Q1 vertex/entity/dof correspondence is incomplete")
+    env["coordinate_export"] = "exact mesh Geometry vertices through topological Q1 vertex/dof correspondence"
     free = np.setdiff1d(np.arange((args.cells+1)**2, dtype=PETSc.IntType), boundary)
 
     def verify_boundary(matrix):

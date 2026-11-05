@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -97,7 +98,8 @@ def check_accuracy(coordinates, values, cells: int) -> dict:
     if not np.isfinite(error) or abs(error-expected) > allowance:
         raise ComparisonError(f"N={cells} continuous L2 {error} differs from analytic {expected} by more than {allowance}")
     return {"continuous_l2": error, "analytic_discrete_l2": expected,
-            "comparison_allowance": allowance, "reference": str(REFERENCE.relative_to(ROOT))}
+            "comparison_allowance": allowance, "reference": str(REFERENCE.relative_to(ROOT)),
+            "reference_sha256": hashlib.sha256(REFERENCE.read_bytes()).hexdigest()}
 
 
 def check_identity_row(row, columns, data):

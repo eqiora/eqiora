@@ -24,7 +24,11 @@ rounding. This is not a rigorous Basix roundoff proof or a PDE error tolerance.
 Correctness levels are 4, 8, 16 and 32 cells per axis. Larger levels 64, 128
 and 256 extend the same mathematical problem only after passing its analytic
 checks. Export coordinates and nodal coefficients and compare by coordinates,
-never by library-specific numbering.
+never by library-specific numbering. In FEniCSx, use the explicit topological
+Q1 vertex-to-dof and vertex-to-Geometry maps to export authoritative mesh
+vertices. `tabulate_dof_coordinates()` evaluates a floating Geometry map and
+need not preserve even a dyadic vertex bit for bit. Do not snap its values or
+introduce a proximity-matching tolerance.
 
 Eqiora uses the ordinary installed Python compile, mesh, resolve and run APIs,
 with imported `Eqiora.Scalar` components. FEniCSx uses its ordinary Python mesh,
