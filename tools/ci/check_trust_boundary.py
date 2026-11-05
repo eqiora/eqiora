@@ -42,6 +42,15 @@ PAGE_SIZE = 100
 MAX_PAGES = MAX_VISIBLE_FILES // PAGE_SIZE + 1
 MAX_BLOB_BYTES = 1_048_576
 MAX_COMPARE_FILES = 299
+MAX_TREE_BYTES = 7_000_000
+MAX_TREE_ENTRIES = 100_000
+TREE_MODES = {
+    "100644": "blob",
+    "100755": "blob",
+    "120000": "blob",
+    "040000": "tree",
+    "160000": "commit",
+}
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 REPOSITORY_COMPONENT = re.compile(r"[A-Za-z0-9_.-]+\Z")
 RUST_SOURCE_PATH = re.compile(
@@ -137,6 +146,7 @@ def _read_bounded_response(
     *,
     request_url: str,
     allowed_content_types: frozenset[str],
+    maximum_bytes: int = MAX_BLOB_BYTES,
 ) -> bytes:
     status = response.getcode()
     if status != 200:
@@ -156,12 +166,12 @@ def _read_bounded_response(
     if declared_text is not None:
         if not declared_text.isascii() or not declared_text.isdecimal():
             raise ValueError("GitHub API returned an invalid Content-Length")
-        if int(declared_text) > MAX_BLOB_BYTES:
-            raise ValueError(f"GitHub API body exceeds {MAX_BLOB_BYTES} bytes")
+        if int(declared_text) > maximum_bytes:
+            raise ValueError(f"GitHub API body exceeds {maximum_bytes} bytes")
 
-    payload = response.read(MAX_BLOB_BYTES + 1)
-    if len(payload) > MAX_BLOB_BYTES:
-        raise ValueError(f"GitHub API body exceeds {MAX_BLOB_BYTES} bytes")
+    payload = response.read(maximum_bytes + 1)
+    if len(payload) > maximum_bytes:
+        raise ValueError(f"GitHub API body exceeds {maximum_bytes} bytes")
     return payload
 
 
@@ -170,12 +180,17 @@ def _fetch_json(
     *,
     token: str,
     opener: Callable[..., Any],
+    maximum_bytes: int = MAX_BLOB_BYTES,
+    reject_pagination: bool = False,
 ) -> Any:
     request = _request(url, token=token, accept="application/vnd.github+json")
     with opener(request, timeout=30) as response:
+        if reject_pagination and response.headers.get("Link") is not None:
+            raise ValueError("Git object response is paginated")
         payload = _read_bounded_response(
             response,
             request_url=url,
+            maximum_bytes=maximum_bytes,
             allowed_content_types=frozenset(
                 {"application/json", "application/vnd.github+json"}
             ),
@@ -381,6 +396,142 @@ def _fetch_exact_compare_inventory(
         raise ValueError("GitHub compare does not terminate at the bound head")
     return _validate_exact_file_entries(files, expected_file_count)
 
+
+def _object_sha(value: Any, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or FULL_SHA.fullmatch(value) is None
+        or value == "0" * 40
+    ):
+        raise ValueError(f"{label} is not a Git object SHA")
+    return value
+
+
+def _fetch_commit_tree(
+    root: str, repository: str, revision: str, token: str, opener: Callable[..., Any]
+) -> str:
+    url = f"{root}/repos/{_validated_repository(repository)}/git/commits/{revision}"
+    payload = _fetch_json(url, token=token, opener=opener, reject_pagination=True)
+    if not isinstance(payload, dict) or payload.get("sha") != revision:
+        raise ValueError("Git commit response differs from the bound commit SHA")
+    tree = payload.get("tree")
+    if not isinstance(tree, dict):
+        raise ValueError("Git commit response has no tree identity")
+    return _object_sha(tree.get("sha"), "commit tree")
+
+
+def _fetch_complete_tree(
+    root: str, repository: str, tree_sha: str, token: str, opener: Callable[..., Any]
+) -> dict[str, tuple[str, str, str]]:
+    url = f"{root}/repos/{_validated_repository(repository)}/git/trees/{tree_sha}?recursive=1"
+    payload = _fetch_json(
+        url,
+        token=token,
+        opener=opener,
+        maximum_bytes=MAX_TREE_BYTES,
+        reject_pagination=True,
+    )
+    if not isinstance(payload, dict) or payload.get("sha") != tree_sha:
+        raise ValueError("Git tree response differs from the bound tree SHA")
+    if payload.get("truncated") is not False:
+        raise ValueError("Git recursive tree is truncated or completeness is unknown")
+    entries = payload.get("tree")
+    if not isinstance(entries, list) or len(entries) > MAX_TREE_ENTRIES:
+        raise ValueError("Git recursive tree has an invalid entry inventory")
+    paths: dict[str, tuple[str, str, str]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("Git tree entry must be an object")
+        path, kind, mode = entry.get("path"), entry.get("type"), entry.get("mode")
+        if (
+            not isinstance(path, str)
+            or not path
+            or path.startswith("/")
+            or "\\" in path
+            or any(ord(c) < 32 or ord(c) == 127 for c in path)
+            or any(part in {"", ".", ".."} for part in path.split("/"))
+            or len(path.encode("utf-8")) > 4096
+            or len(path.split("/")) > 128
+        ):
+            raise ValueError("Git tree entry has an invalid relative path")
+        if path in paths:
+            raise ValueError("Git recursive tree has duplicate paths")
+        if (
+            not isinstance(mode, str)
+            or not isinstance(kind, str)
+            or mode not in TREE_MODES
+            or TREE_MODES[mode] != kind
+        ):
+            raise ValueError("Git tree entry has an unknown type or mode")
+        sha = _object_sha(entry.get("sha"), "tree entry")
+        paths[path] = (kind, mode, sha)
+    for path in paths:
+        components = path.split("/")
+        for end in range(1, len(components)):
+            parent = paths.get("/".join(components[:end]))
+            if parent is None or parent[0] != "tree":
+                raise ValueError("Git recursive tree has incomplete directory coverage")
+    return {
+        path: signature for path, signature in paths.items() if signature[0] != "tree"
+    }
+
+
+def _fetch_large_changed_paths(
+    *,
+    api_url: str,
+    repository: str,
+    head_repository: str,
+    base_sha: str,
+    head_sha: str,
+    token: str,
+    opener: Callable[..., Any],
+) -> list[str]:
+    root = _validated_api_root(api_url)
+    _object_sha(base_sha, "compare base")
+    _object_sha(head_sha, "compare head")
+    # Files occur only on the first compare page. Read ancestry metadata from
+    # another immutable page; neither its commit list nor file list is authority.
+    url = (
+        f"{root}/repos/{_validated_repository(repository)}/compare/{base_sha}...{head_sha}"
+        "?per_page=1&page=2"
+    )
+    compare = _fetch_json(url, token=token, opener=opener)
+    if not isinstance(compare, dict):
+        raise ValueError("GitHub compare response must be an object")
+    try:
+        identity = (
+            compare["status"],
+            compare["base_commit"]["sha"],
+            compare["merge_base_commit"]["sha"],
+        )
+    except (KeyError, TypeError) as error:
+        raise ValueError("GitHub compare has incomplete ancestry identity") from error
+    if identity != ("ahead", base_sha, base_sha) or base_sha == head_sha:
+        raise ValueError("GitHub compare does not prove bound base-to-head ancestry")
+    base_tree = _fetch_commit_tree(root, repository, base_sha, token, opener)
+    head_tree = _fetch_commit_tree(root, head_repository, head_sha, token, opener)
+    base = _fetch_complete_tree(root, repository, base_tree, token, opener)
+    head = _fetch_complete_tree(root, head_repository, head_tree, token, opener)
+    changed = sorted(
+        path for path in base.keys() | head.keys() if base.get(path) != head.get(path)
+    )
+    if not changed or len(changed) > MAX_VISIBLE_FILES:
+        raise ValueError(
+            "complete-tree changed-path inventory must contain 1 through 3000 paths"
+        )
+    return changed
+
+
+def _large_protected_changes(paths: Iterable[str]) -> list[str]:
+    # A directory replaced by a symlink or gitlink is itself a changed leaf.
+    # Protect prefix roots and their ancestors even when a tree has no leaves.
+    roots = (*PROTECTED_PATHS, *(prefix.rstrip("/") for prefix in PROTECTED_PREFIXES))
+    return sorted(
+        path
+        for path in paths
+        if protected_path(path)
+        or any(root == path or root.startswith(path + "/") for root in roots)
+    )
 
 def _fetch_blob(
     *,
@@ -677,8 +828,8 @@ def main() -> int:
         _require_full_sha(arguments.head_sha, "head SHA")
         if arguments.pull_number <= 0:
             raise ValueError("pull number must be positive")
-        if arguments.expected_file_count <= 0:
-            raise ValueError("expected changed-file count must be positive")
+        if not 0 < arguments.expected_file_count <= MAX_VISIBLE_FILES:
+            raise ValueError("expected changed-file count must be between 1 and 3000")
 
         pull_url = f"{root}/repos/{encoded_repository}/pulls/{arguments.pull_number}"
         pull = _fetch_json(
@@ -695,18 +846,40 @@ def main() -> int:
             base_sha=arguments.base_sha,
             head_sha=arguments.head_sha,
         )
-        entries = _fetch_exact_compare_inventory(
-            api_url=arguments.api_url,
-            repository=arguments.repository,
-            base_sha=arguments.base_sha,
-            head_sha=arguments.head_sha,
-            expected_file_count=arguments.expected_file_count,
-            token=token,
-            opener=urllib.request.urlopen,
-        )
-        paths = changed_file_names(entries)
-        rejected = protected_changes(paths)
-        if rejected == [ARCHITECTURE_DEBT]:
+        large = arguments.expected_file_count > MAX_COMPARE_FILES
+        if large:
+            paths = _fetch_large_changed_paths(
+                api_url=arguments.api_url,
+                repository=arguments.repository,
+                head_repository=arguments.head_repository,
+                base_sha=arguments.base_sha,
+                head_sha=arguments.head_sha,
+                token=token,
+                opener=urllib.request.urlopen,
+            )
+            _require_exact_pull_identity(
+                _fetch_json(pull_url, token=token, opener=urllib.request.urlopen),
+                repository=arguments.repository,
+                head_repository=arguments.head_repository,
+                pull_number=arguments.pull_number,
+                expected_file_count=arguments.expected_file_count,
+                base_sha=arguments.base_sha,
+                head_sha=arguments.head_sha,
+            )
+            rejected = _large_protected_changes(paths)
+        else:
+            entries = _fetch_exact_compare_inventory(
+                api_url=arguments.api_url,
+                repository=arguments.repository,
+                base_sha=arguments.base_sha,
+                head_sha=arguments.head_sha,
+                expected_file_count=arguments.expected_file_count,
+                token=token,
+                opener=urllib.request.urlopen,
+            )
+            paths = changed_file_names(entries)
+            rejected = protected_changes(paths)
+        if not large and rejected == [ARCHITECTURE_DEBT]:
             _certify_coupled_exact_ratchet(
                 api_url=arguments.api_url,
                 repository=arguments.repository,
@@ -743,7 +916,6 @@ def main() -> int:
 
     print("Pull request does not change protected merge or release definitions")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
