@@ -14,7 +14,7 @@ const MAX_WIRE_BYTES: usize = 8 * 1024;
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum BoundRealizationSchemaV1 {
     /// The current portable-graph Realization artifact schema.
-    #[serde(rename = "eqiora.realization-envelope/v11")]
+    #[serde(rename = "eqiora.realization-envelope/v12")]
     RealizationEnvelope,
 }
 
@@ -278,7 +278,7 @@ mod tests {
             PackageExecutionBindingV1::from_json(
                 bytes
                     .replace(
-                        "eqiora.realization-envelope/v11",
+                        "eqiora.realization-envelope/v12",
                         "eqiora.realization-envelope/v2"
                     )
                     .as_bytes()

@@ -175,8 +175,8 @@ impl MiniNavierStokesStepPlan2d {
 
     /// Common linear solver policy used at every accepted Newton point.
     #[must_use]
-    pub const fn linear_solver(&self) -> SolverPlan {
-        self.linear_solver
+    pub const fn linear_solver(&self) -> &SolverPlan {
+        &self.linear_solver
     }
 
     /// Exact one-worker host placement of this reference slice.

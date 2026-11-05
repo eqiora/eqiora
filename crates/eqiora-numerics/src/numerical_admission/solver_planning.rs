@@ -18,7 +18,7 @@ pub(crate) fn resolve_linear(
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     let profile = planning_profile(
-        request,
+        &request,
         properties,
         complete_diagonal,
         size,
@@ -35,7 +35,7 @@ pub(crate) fn resolve_linear(
 }
 
 fn planning_profile(
-    request: CommonLinearRequest,
+    request: &CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
     size: Option<eqiora_solver::SolverPlanningSize>,
@@ -68,7 +68,10 @@ fn planning_profile(
         Some(structure) => profile.with_structure(structure)?,
         None => profile,
     };
-    Ok(profile)
+    Ok(match request.requested_preconditioner() {
+        Some(policy) => profile.with_preconditioner(policy.clone()),
+        None => profile,
+    })
 }
 
 pub(super) fn resolve_typed_linear<S>(
@@ -97,7 +100,7 @@ where
             .capabilities()
             .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
         profile.require_resources(plan, backend.provider(), S::DOMAIN, S::STORAGE)?;
-        let mut selected = NativeLinearPolicy::exact(plan, backend)?;
+        let mut selected = NativeLinearPolicy::exact(plan.clone(), backend)?;
         selected.planning_costs =
             vec![profile.estimate_cost("manual", plan, backend.provider(), S::DOMAIN, S::STORAGE)];
         selected.planning_profile = Some(profile);
@@ -129,15 +132,15 @@ where
         reference_backend,
         supplied_backend,
     )?;
-    NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
+    NativeLinearPolicy::exact(decision.solver_plan().clone(), backend)?.with_planning(&decision)
 }
 
 /// Only exact Jacobi requests need a new structural fact in this admission slice.
 /// Automatic selection retains its existing independently admitted profile.
-pub(super) fn requests_diagonal(request: CommonLinearRequest) -> bool {
-    request
-        .exact_request()
-        .is_some_and(|(plan, _)| plan.preconditioner() == PreconditionerPolicy::Jacobi)
+pub(super) fn requests_diagonal(request: &CommonLinearRequest) -> bool {
+    request.requested_preconditioner().is_some_and(|policy| {
+        matches!(policy, PreconditionerPolicy::Jacobi)
+    })
 }
 
 /// Ask the canonical operator's existing diagonal owner about structural availability.
@@ -165,7 +168,7 @@ pub(super) fn resolve_complex_linear(
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     let profile = planning_profile(
-        request,
+        &request,
         properties,
         complete_diagonal,
         size,

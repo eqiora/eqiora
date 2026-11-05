@@ -544,8 +544,8 @@ impl CommonSpatialPlan {
     }
 
     #[must_use]
-    pub const fn linear(&self) -> SolverPlan {
-        self.admission.linear.solver
+    pub const fn linear(&self) -> &SolverPlan {
+        &self.admission.linear.solver
     }
 }
 

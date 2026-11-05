@@ -35,7 +35,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v26";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v27";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 

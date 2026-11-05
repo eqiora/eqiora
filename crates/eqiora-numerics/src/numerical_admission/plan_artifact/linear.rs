@@ -83,10 +83,11 @@ impl WireCostRequest {
 enum WireLinearIntent {
     ProgramControlled {
         objective: WireSolverObjective,
+        preconditioner: Option<PreconditionerPolicy>,
     },
     Exact {
         algorithm: String,
-        preconditioner: String,
+        preconditioner: PreconditionerPolicy,
         reduction: String,
         provider: WireLinearProvider,
     },
@@ -135,13 +136,16 @@ impl WireLinearControls {
     ) -> Result<CommonLinearRequest, Diagnostic> {
         let maximum = nonzero(self.maximum_iterations, "linear maximum_iterations")?;
         let request = match &self.intent {
-            WireLinearIntent::ProgramControlled { objective } => {
+            WireLinearIntent::ProgramControlled { objective, preconditioner } => {
                 CommonLinearRequest::program_controlled(
                     self.relative_tolerance,
                     self.absolute_tolerance,
                     maximum,
                     (*objective).into(),
-                )
+                ).map(|request| match preconditioner {
+                    Some(policy) => request.with_preconditioner(policy.clone()),
+                    None => request,
+                })
             }
             WireLinearIntent::Exact {
                 algorithm,
@@ -155,11 +159,6 @@ impl WireLinearControls {
                     "bicgstab" => LinearSolver::BiConjugateGradientStabilized,
                     "sparse-lu" => LinearSolver::SparseLu,
                     _ => return Err(invalid("unknown exact linear algorithm")),
-                };
-                let preconditioner = match preconditioner.as_str() {
-                    "identity" => PreconditionerPolicy::Identity,
-                    "jacobi" => PreconditionerPolicy::Jacobi,
-                    _ => return Err(invalid("unknown exact linear preconditioner")),
                 };
                 let reduction = match reduction.as_str() {
                     "reproducible" => ReductionPolicy::Reproducible,
@@ -182,7 +181,7 @@ impl WireLinearControls {
                     self.absolute_tolerance,
                     maximum,
                 )?
-                .with_preconditioner(preconditioner)
+                .with_preconditioner(preconditioner.clone())
                 .with_reduction(reduction);
                 CommonLinearRequest::exact(plan, provider)
             }
@@ -236,11 +235,7 @@ impl From<CommonLinearRequest> for WireLinearControls {
                     LinearSolver::SparseLu => "sparse-lu",
                 }
                 .into(),
-                preconditioner: match solver.preconditioner() {
-                    PreconditionerPolicy::Identity => "identity",
-                    PreconditionerPolicy::Jacobi => "jacobi",
-                }
-                .into(),
+                preconditioner: solver.preconditioner().clone(),
                 reduction: match solver.reduction() {
                     ReductionPolicy::Reproducible => "reproducible",
                     ReductionPolicy::Fast => "fast",
@@ -249,6 +244,7 @@ impl From<CommonLinearRequest> for WireLinearControls {
                 provider: provider.into(),
             },
             None => WireLinearIntent::ProgramControlled {
+                preconditioner: request.requested_preconditioner().cloned(),
                 objective: request
                     .objective()
                     .expect("non-exact intent owns an objective")

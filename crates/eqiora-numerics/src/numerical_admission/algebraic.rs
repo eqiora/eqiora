@@ -136,7 +136,7 @@ impl CommonAlgebraicPlan {
         } else {
             problem.linear_facts(
                 nonlinear.is_none()
-                    && (solver_planning::requests_diagonal(request)
+                    && (solver_planning::requests_diagonal(&request)
                         || request.objective().is_some()),
             )?
         };
@@ -308,8 +308,8 @@ impl CommonAlgebraicPlan {
         self.linear.provider
     }
     #[must_use]
-    pub const fn linear(&self) -> SolverPlan {
-        self.linear.solver
+    pub const fn linear(&self) -> &SolverPlan {
+        &self.linear.solver
     }
     /// Nonlinear residual/globalization controls, absent for affine execution.
     #[must_use]

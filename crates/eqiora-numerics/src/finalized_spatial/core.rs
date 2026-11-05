@@ -73,8 +73,8 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
         self.target
     }
 
-    pub(crate) const fn solver_plan(&self) -> SolverPlan {
-        self.solver
+    pub(crate) const fn solver_plan(&self) -> &SolverPlan {
+        &self.solver
     }
 
     pub(crate) const fn vector_layout(&self) -> VectorLayoutKind {
