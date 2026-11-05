@@ -22,8 +22,8 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver, ReductionPolicy,
+    SolverCapabilities, SolverCapability,
 };
 use serde_json::Value;
 

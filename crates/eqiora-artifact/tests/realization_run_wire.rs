@@ -21,8 +21,8 @@ use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     BackendId, ExecutionId, ExecutionProvider, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider,
+    ProviderLibrary, ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    SolverProvider,
 };
 
 const POISSON: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");

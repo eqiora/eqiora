@@ -53,7 +53,7 @@ fn solve(component: u8, transfer_plan: AleFsiRemeshTransferPlan2d) -> WireProjec
         SERIAL_EXECUTION_PROVIDER,
         ExecutionReport::host_serial(),
         LinearOperatorOrientation::Normal,
-        solver_plan,
+        solver_plan.clone(),
         ConvergenceReason::InitialResidualSatisfied,
         0,
         0.0,
