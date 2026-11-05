@@ -216,6 +216,19 @@ fn ordinary_manual_manufactured_stokes_small() {
     let residual = result.solve_true_residual_norm(None, None).unwrap();
     let target = result.solve_evidence(None, None).unwrap().residual_target();
     assert!(residual <= target);
+    assert!(
+        result
+            .gauge_multiplier()
+            .expect("retained pressure-gauge multiplier")
+            .abs()
+            <= 2e-10
+    );
+    let (_, balance) = result.steady_stokes_observation().unwrap().unwrap();
+    assert!(balance[5].iter().all(|value| value.abs() <= 2e-9));
+    assert_eq!(
+        result.solve_evidence(None, None).unwrap().preconditioner(),
+        plan.effective_solver().unwrap().preconditioner()
+    );
 }
 
 const FIRST_COMPONENT: &str =
