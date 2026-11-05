@@ -74,6 +74,10 @@ def controls(cpu):
             "supervisor_affinity": sorted(os.sched_getaffinity(0)), "settings_changed_by_runner": False}
 
 
+def validate_controls(observation, initial):
+    require(observation["settings"] == initial["settings"], "governor, boost or CPU topology changed during attempt")
+
+
 def cpu_sample(cpus):
     rows = {}
     for line in Path("/proc/stat").read_text().splitlines():
@@ -308,6 +312,8 @@ def main(argv=None):
     previous_term = signal.signal(signal.SIGTERM, interrupt_campaign)
     stages = []
     try:
+        initial_controls = controls(args.cpu)
+        save(args.output / "controls-initial.json", initial_controls)
         inputs = {str(path): digest(path) for path in [*HERE.glob("*.py"), HERE / "README.md", HERE / "pixi.lock",
                    ROOT / "examples/inverse-poisson.eqi", ROOT / "verify/numerics/cartesian-poisson-fem-fvm/expected/convergence.csv",
                    *(spec[key] for spec in specs.values() for key in ("wheel", "build_record"))]}
@@ -330,6 +336,7 @@ def main(argv=None):
             directory.mkdir()
             before = controls(args.cpu)
             save(directory / "controls-before.json", before)
+            validate_controls(before, initial_controls)
             require(before["supervisor_affinity"] == [args.supervisor_cpu], "supervisor affinity changed")
             spec = specs[label]
             command = ["taskset", "-c", str(args.cpu), str(spec["python"]), "-I", str(HERE / "run.py"), str(directory / "results"),
@@ -339,7 +346,9 @@ def main(argv=None):
             try:
                 run_campaign(command, directory, cpu_list(before["settings"]["siblings"]), child_environment("eqiora", spec["python"], directory))
             finally:
-                save(directory / "controls-after.json", controls(args.cpu))
+                after = controls(args.cpu)
+                save(directory / "controls-after.json", after)
+                validate_controls(after, initial_controls)
             rows = read_campaign(directory / "results", spec, args.cpu)
             if stages:
                 for row, first in zip(rows, stages[0]["rows"], strict=True):

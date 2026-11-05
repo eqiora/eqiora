@@ -230,8 +230,10 @@ with retries. A failed campaign ends the attempt as incomplete.
 
 Use one fixed CPU for all workers, a separate CPU for the supervisor and one
 thread per library. Record the selected CPU and its SMT siblings, their load
-throughout each campaign, governors, boost controls and host load. Read controls
-without changing global settings or acting on other users' processes. Readiness
+throughout each campaign, governors, boost controls and host load. Retain initial
+control settings and every before/after observation; stop the attempt if governor,
+boost or topology differs from the initial settings. Read controls without
+changing global settings or acting on other users' processes. Readiness
 requires valid declared inputs, matching software, effective affinity/thread
 controls and an operating monitor; CPU utilization is descriptive and has no
 pass cutoff. The earlier requirement for three exactly 100%-idle observations

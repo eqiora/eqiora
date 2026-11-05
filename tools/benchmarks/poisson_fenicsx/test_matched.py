@@ -11,7 +11,7 @@ from unittest.mock import patch
 import venv
 import zipfile
 
-from run_matched import CampaignError, check_installation, paired_summary, run_campaign, schedule, spread, validate_monitor
+from run_matched import CampaignError, check_installation, paired_summary, run_campaign, schedule, spread, validate_controls, validate_monitor
 
 
 class MatchedDriverTests(unittest.TestCase):
@@ -65,6 +65,19 @@ class MatchedDriverTests(unittest.TestCase):
                 invalid[1]["counters"] = {}
             with self.assertRaises(CampaignError):
                 validate_monitor(invalid)
+
+    def test_control_mutations_fail_while_load_remains_descriptive(self):
+        initial = {"settings": {"siblings": "23,47", "boost": "1", "intel_no_turbo": None,
+                                "cpu23_governor": "ondemand", "cpu47_governor": "ondemand"},
+                   "load": [0, 0, 0], "supervisor_affinity": [22]}
+        observed = copy.deepcopy(initial)
+        observed.update(load=[100, 100, 100], supervisor_affinity=[21])
+        validate_controls(observed, initial)  # Affinity has its separate explicit check.
+        for setting in initial["settings"]:
+            changed = copy.deepcopy(observed)
+            changed["settings"][setting] = "changed"
+            with self.subTest(setting=setting), self.assertRaisesRegex(CampaignError, "changed during attempt"):
+                validate_controls(changed, initial)
 
     def test_failed_command_retains_log_exit_and_monitor(self):
         with tempfile.TemporaryDirectory() as scratch:
