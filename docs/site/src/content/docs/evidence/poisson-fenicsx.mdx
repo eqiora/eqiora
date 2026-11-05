@@ -52,12 +52,15 @@ The allowance is a regression/conformance check, not a certified bound on
 FEniCSx floating-point arithmetic. Agreement between the two tools is not the
 accuracy oracle.
 
-| Cells per axis | Eqiora L2 error (m) | FEniCSx L2 error (m) |
+The tables round values for display; the measurement record retains full
+precision. Here `N` is the number of cells per axis and errors are in metres.
+
+| N | Eqiora | FEniCSx |
 |---:|---:|---:|
-| 4 | 0.0301801696 | 0.0301801696 |
-| 8 | 0.00758721380 | 0.00758721380 |
-| 16 | 0.00189970457 | 0.00189970457 |
-| 32 | 0.000475111668 | 0.000475111668 |
+| 4 | 3.0180e-2 | 3.0180e-2 |
+| 8 | 7.5872e-3 | 7.5872e-3 |
+| 16 | 1.8997e-3 | 1.8997e-3 |
+| 32 | 4.7511e-4 | 4.7511e-4 |
 
 The potential is dimensionless; its L2 norm over a two-dimensional region in
 metres has unit metres. The
@@ -81,12 +84,31 @@ MAD is the median absolute deviation. The cold call is the first ordinary
 execution in that child process, before the separate diagnostic execution
 and the warmups.
 
-| Cells per axis | Eqiora median ± MAD (ms) | FEniCSx median ± MAD (ms) | Cold call, Eqiora / FEniCSx (ms) |
-|---:|---:|---:|---:|
-| 4 | 4.12605 ± 0.01304 | 0.234376 ± 0.006411 | 5.28628 / 245.583 |
-| 8 | 7.70578 ± 0.00706 | 0.277037 ± 0.005200 | 8.98615 / 2.49877 |
-| 16 | 21.5623 ± 0.04183 | 0.393761 ± 0.003431 | 23.3628 / 3.10370 |
-| 32 | 78.4955 ± 0.04534 | 0.832562 ± 0.007751 | 83.0117 / 2.44501 |
+Median and MAD below are both in milliseconds.
+
+| N / tool | Median ± MAD |
+|---|---:|
+| 4 / Eqiora | 4.13 ± 0.0130 |
+| 4 / FEniCSx | 0.234 ± 0.0064 |
+| 8 / Eqiora | 7.71 ± 0.0071 |
+| 8 / FEniCSx | 0.277 ± 0.0052 |
+| 16 / Eqiora | 21.6 ± 0.0418 |
+| 16 / FEniCSx | 0.394 ± 0.0034 |
+| 32 / Eqiora | 78.5 ± 0.0453 |
+| 32 / FEniCSx | 0.833 ± 0.0078 |
+
+The first ordinary execution, in milliseconds:
+
+| N | Tool | Cold call |
+|---:|---|---:|
+| 4 | Eqiora | 5.286 |
+| 4 | FEniCSx | 245.583 |
+| 8 | Eqiora | 8.986 |
+| 8 | FEniCSx | 2.499 |
+| 16 | Eqiora | 23.363 |
+| 16 | FEniCSx | 3.104 |
+| 32 | Eqiora | 83.012 |
+| 32 | FEniCSx | 2.445 |
 
 ## Mesh and preparation
 
@@ -99,12 +121,18 @@ child. Preparation wall time includes compiler-child work; process CPU readings
 in the measurement record exclude that child CPU. Imports are recorded separately and
 excluded from these clocks.
 
-| Cells per axis | Eqiora mesh (ms) | FEniCSx mesh (ms) | Eqiora preparation (ms) | FEniCSx preparation (ms) |
-|---:|---:|---:|---:|---:|
-| 4 | 0.759 | 421.163 | 14.571 | 8473.699 |
-| 8 | 1.141 | 2.732 | 10.466 | 1891.156 |
-| 16 | 2.462 | 2.789 | 11.881 | 1888.796 |
-| 32 | 7.977 | 3.597 | 16.760 | 1634.293 |
+Mesh and preparation times below are in milliseconds.
+
+| N | Tool | Mesh | Prep |
+|---:|---|---:|---:|
+| 4 | Eqiora | 0.759 | 14.57 |
+| 4 | FEniCSx | 421.2 | 8474 |
+| 8 | Eqiora | 1.141 | 10.47 |
+| 8 | FEniCSx | 2.732 | 1891 |
+| 16 | Eqiora | 2.462 | 11.88 |
+| 16 | FEniCSx | 2.789 | 1889 |
+| 32 | Eqiora | 7.977 | 16.76 |
+| 32 | FEniCSx | 3.597 | 1634 |
 
 The first FEniCSx process has much larger mesh, preparation and cold-execution
 observations than later processes. Fresh process and JIT cache do not imply
@@ -120,12 +148,27 @@ child high-water mark can include JIT compiler work; it is not simultaneous
 aggregate process-tree memory and must not be added to or subtracted from the
 parent's high-water mark.
 
-| Cells per axis | Eqiora peak RSS (KiB) | FEniCSx peak RSS (KiB) | FEniCSx largest completed child peak (KiB) |
-|---:|---:|---:|---:|
-| 4 | 65028 | 135168 | 130176 |
-| 8 | 64176 | 129408 | 123648 |
-| 16 | 66472 | 129408 | 124032 |
-| 32 | 74536 | 130560 | 124416 |
+The main process peak RSS, in KiB:
+
+| N | Tool | Peak RSS |
+|---:|---|---:|
+| 4 | Eqiora | 65028 |
+| 4 | FEniCSx | 135168 |
+| 8 | Eqiora | 64176 |
+| 8 | FEniCSx | 129408 |
+| 16 | Eqiora | 66472 |
+| 16 | FEniCSx | 129408 |
+| 32 | Eqiora | 74536 |
+| 32 | FEniCSx | 130560 |
+
+FEniCSx's separate largest completed-child peak RSS, in KiB:
+
+| N | Child peak |
+|---:|---:|
+| 4 | 130176 |
+| 8 | 123648 |
+| 16 | 124032 |
+| 32 | 124416 |
 
 At 32 cells per axis, Eqiora's separate completed-child high-water mark is
 42,240 KiB. Whole-child final peaks, stage snapshots and imports are retained
@@ -142,13 +185,26 @@ cross-tool phase speed ratios.
 
 At 32 cells per axis, the diagnostic observations were:
 
-| Tool-native scope | Wall time (ms) | Included work |
-|---|---:|---|
-| Eqiora assembly span | 38.0362 | Two scalar-region finalization calls; numeric preparation, representability checks and canonical system construction |
-| Eqiora solve self time | 39.5229 | Exclusive time outside its assembly and linear-solve child spans |
-| Eqiora reference linear solve | 0.080622 | One provider call |
-| FEniCSx assembly bracket | 0.927874 | Matrix/vector allocation and assembly, lifting, ghost accumulation and boundary application |
-| FEniCSx linear-solve bracket | 0.089263 | KSP allocation/configuration, zero guess, solve, true-residual acceptance and policy/summary queries |
+Times below are milliseconds. `Asm` means assembly and `Self` is exclusive
+solve time. The full scope descriptions follow the table.
+
+| Tool | Phase | ms |
+|---|---|---:|
+| Eqiora | Asm | 38.04 |
+| Eqiora | Self | 39.52 |
+| Eqiora | Linear | 0.0806 |
+| FEniCSx | Asm | 0.9279 |
+| FEniCSx | Linear | 0.0893 |
+
+- **Eqiora assembly:** two scalar-region finalization calls, including numeric
+  preparation, representability checks and canonical system construction.
+- **Eqiora solve self:** exclusive time outside its assembly and linear-solve
+  child spans.
+- **Eqiora linear:** one reference-provider call.
+- **FEniCSx assembly:** matrix/vector allocation and assembly, lifting, ghost
+  accumulation and boundary application.
+- **FEniCSx linear:** KSP allocation/configuration, zero guess, solve,
+  true-residual acceptance and effective-policy/summary queries.
 
 Eqiora's ordinary Run finalizes the system for the solve and again while
 accepting the Result. That live acceptance check shares the reacceptance helper
@@ -199,19 +255,3 @@ This comparison covers only 2D uniform quadrilateral Q1 Poisson at 4–32 cells
 per axis. Three-dimensional Poisson, elasticity, cylinder flow, MPI and GPU
 comparisons remain unmeasured here. It establishes neither general PDE speed,
 general Krylov iteration complexity nor a release-wide performance guarantee.
-
-<style>{`
-  @media (max-width: 50rem) {
-    .sl-markdown-content table {
-      display: block;
-      max-width: 100%;
-      overflow-x: auto;
-    }
-    .sl-markdown-content table th,
-    .sl-markdown-content table td {
-      white-space: nowrap;
-      overflow-wrap: normal;
-      word-break: normal;
-    }
-  }
-`}</style>
