@@ -5,6 +5,7 @@
 | Capability | C | X | V | M | Current implementation and planned extensions |
 |---|:---:|:---:|:---:|:---:|---|
 | Scalar Poisson/diffusion | ✅ | ✅ | ✅ | ⬜ | Manufactured 1D–3D Cartesian FEM/FVM and one fixed-simplex path |
+| Steady thermal standard components | ✅ | ✅ | ⬜ | ⬜ | Fixed-SI 2D steady conduction and temperature/physical heat-flux boundaries are bundled in `Eqiora.Scalar`; Cartesian Q1 CPU product tests and offline replay cover the [heated-body example](../../examples/heated-body/README.md). Threaded, MPI, GPU, transient and convective thermal-package paths remain unverified. |
 | Transient heat conduction | 🟨 | 🟨 | 🟨 | ⬜ | 1D diffusion and time foundations exist; canonical multidimensional path remains |
 | Convection and radiation heat transfer | ⬜ | ⬜ | ⬜ | ⬜ | Boundary laws, view factors, participating media, and coupling remain |
 | Thermal contact | ⬜ | ⬜ | ⬜ | ⬜ | Contact resistance, gap conductance, and nonlinear coupling remain |

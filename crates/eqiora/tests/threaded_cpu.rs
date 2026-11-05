@@ -241,9 +241,10 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         resolve_fieldwise(&fem, requirements.clone(), &capabilities).is_ok(),
         "the explicitly admitted FEM path must resolve"
     );
+    let fvm_resolution = resolve_fieldwise(&fvm, requirements.clone(), &capabilities);
     assert!(
-        resolve_fieldwise(&fvm, requirements.clone(), &capabilities).is_ok(),
-        "the explicitly admitted FVM path must resolve"
+        fvm_resolution.is_ok(),
+        "the explicitly admitted FVM path must resolve: {fvm_resolution:?}"
     );
 
     let recombined = fieldwise_request(domain, field, FieldwisePath::Fem, fvm_solver);
@@ -390,7 +391,13 @@ fn fieldwise_request(
             NonZeroUsize::new(500).unwrap(),
         )
         .unwrap()
-        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_preconditioner(match solver.preconditioner {
+            eqiora::solver::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
+            eqiora::solver::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
+            eqiora::solver::PreconditionerKind::UpperDiagonalSchur => {
+                panic!("fieldwise test fixture requires an explicitly configured structured policy")
+            }
+        })
         .with_reduction(solver.reduction),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
