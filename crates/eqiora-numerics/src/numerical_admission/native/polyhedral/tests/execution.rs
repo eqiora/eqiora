@@ -66,13 +66,15 @@ fn execute<S: Coefficient + Send + Sync>(
         let output = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan().clone(),
+                (LinearSolveRequest::new(backend, policy.clone()))
+                    .plan()
+                    .clone(),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
-            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap();
         let recognized = RecognizedNativeAdmission::recognize(
             &model,
@@ -82,7 +84,7 @@ fn execute<S: Coefficient + Send + Sync>(
             &BTreeMap::new(),
         )
         .unwrap();
-        let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
+        let mut linear = NativeLinearPolicy::exact::<S>(policy.clone(), backend).unwrap();
         linear.planning_profile = Some(
             eqiora_solver::SolverPlanningProfile::general_canonical_csr()
                 .with_structure(equations.algebraic_structure(None).unwrap())
@@ -166,7 +168,8 @@ fn execute<S: Coefficient + Send + Sync>(
                 CommonSpatialPolicy::TetrahedralEdge
             },
             CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+                CommonLinearRequest::exact(policy.clone(), REFERENCE_LINEAR_SOLVER.provider())
+                    .unwrap(),
             ),
             None,
             None,
@@ -266,7 +269,8 @@ fn execute<S: Coefficient + Send + Sync>(
             owner.clone(),
             CommonSpatialPolicy::P1,
             CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+                CommonLinearRequest::exact(policy.clone(), REFERENCE_LINEAR_SOLVER.provider())
+                    .unwrap(),
             ),
             None,
             None,
@@ -403,13 +407,15 @@ fn execute<S: Coefficient + Send + Sync>(
         let error = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan().clone(),
+                (LinearSolveRequest::new(backend, policy.clone()))
+                    .plan()
+                    .clone(),
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
-            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap_err();
         assert!(
             error
@@ -425,13 +431,17 @@ fn execute<S: Coefficient + Send + Sync>(
             equations
                 .finalize_static(
                     NonZeroUsize::MIN,
-                    (LinearSolveRequest::new(backend, policy)).plan().clone(),
+                    (LinearSolveRequest::new(backend, policy.clone()))
+                        .plan()
+                        .clone(),
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
                     LinearOperatorProperties::General
                 )
-                .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+                .and_then(
+                    |system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None)
+                )
                 .is_err()
         );
     }

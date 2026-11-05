@@ -384,7 +384,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             plan.admission.linear.workers,
             (LinearSolveRequest::<f64>::new(
                 &REFERENCE_LINEAR_SOLVER,
-                plan.admission.linear.solver,
+                plan.admission.linear.solver.clone(),
             ))
             .plan()
             .clone(),
@@ -397,7 +397,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             system.solve(
                 LinearSolveRequest::<f64>::new(
                     &REFERENCE_LINEAR_SOLVER,
-                    plan.admission.linear.solver,
+                    plan.admission.linear.solver.clone(),
                 ),
                 None,
             )
