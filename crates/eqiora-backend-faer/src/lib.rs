@@ -7,6 +7,8 @@
 //! verification.
 
 mod bicgstab;
+#[cfg(test)]
+mod block_schur;
 mod candidate;
 mod cg;
 mod complex;

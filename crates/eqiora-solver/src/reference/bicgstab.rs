@@ -11,6 +11,63 @@ pub(super) fn solve_preconditioned_bicgstab<
     plan: SolverPlan,
     execution: &dyn ReplicatedLinearExecution<S>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
+    let action = DiagonalAction {
+        dimension: problem.operator().columns(),
+        policy: plan.preconditioner(),
+        inverse_diagonal: build_inverse_diagonal(
+            problem,
+            plan.preconditioner(),
+            DiagonalRequirement::FiniteNonzero,
+        )?,
+    };
+    solve_with_action(provider, problem, plan, execution, &action)
+}
+
+/// A fixed linear realization of exactly one admitted preconditioner policy.
+/// Provider admission remains the caller's responsibility.
+trait FixedAction<S> {
+    fn dimension(&self) -> usize;
+    fn policy(&self) -> PreconditionerPolicy;
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic>;
+}
+
+struct DiagonalAction<S> {
+    dimension: usize,
+    policy: PreconditionerPolicy,
+    inverse_diagonal: Option<Vec<S>>,
+}
+
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedAction<S> for DiagonalAction<S> {
+    fn dimension(&self) -> usize {
+        self.dimension
+    }
+    fn policy(&self) -> PreconditionerPolicy {
+        self.policy
+    }
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
+        apply_preconditioner(&self.inverse_diagonal, input, output);
+        Ok(())
+    }
+}
+
+fn solve_with_action<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(
+    provider: SolverProvider,
+    problem: &LinearProblem<'_, S>,
+    plan: SolverPlan,
+    execution: &dyn ReplicatedLinearExecution<S>,
+    action: &dyn FixedAction<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
+    if plan.algorithm() != LinearSolver::BiConjugateGradientStabilized
+        || action.policy() != plan.preconditioner()
+        || action.dimension() != problem.operator().columns()
+        || action.dimension() != problem.operator().rows()
+    {
+        return Err(invalid_realization(
+            "BiCGSTAB requires a dimension- and policy-matched fixed preconditioner action",
+        ));
+    }
+    problem.require_candidate_check_execution(execution.report())?;
+    execution.require_reduction(plan.reduction())?;
     let InitialResidual {
         mut solution,
         mut applied,
@@ -42,11 +99,6 @@ pub(super) fn solve_preconditioned_bicgstab<
     let mut correction = SolutionCorrection::new(&mut solution, target, initial_residual_norm);
     let mut recurrence_target = target;
 
-    let inverse_diagonal = build_inverse_diagonal(
-        problem,
-        plan.preconditioner(),
-        DiagonalRequirement::FiniteNonzero,
-    )?;
     let mut recurrence = Recurrence::new(&residual);
     let mut preconditioned_direction = vec![S::zero(); dimension];
     let mut intermediate_residual = vec![S::zero(); dimension];
@@ -81,11 +133,7 @@ pub(super) fn solve_preconditioned_bicgstab<
         }
         let fresh = recurrence.fresh_start;
         recurrence.prepare_direction(shadow_product, &residual)?;
-        apply_preconditioner(
-            &inverse_diagonal,
-            &recurrence.direction,
-            &mut preconditioned_direction,
-        );
+        action.apply(&recurrence.direction, &mut preconditioned_direction)?;
         require_finite(
             &preconditioned_direction,
             "BiCGSTAB preconditioned direction",
@@ -166,11 +214,7 @@ pub(super) fn solve_preconditioned_bicgstab<
             // Complete omega within this same iteration; alpha is already applied.
         }
 
-        apply_preconditioner(
-            &inverse_diagonal,
-            &intermediate_residual,
-            &mut preconditioned_intermediate,
-        );
+        action.apply(&intermediate_residual, &mut preconditioned_intermediate)?;
         require_finite(
             &preconditioned_intermediate,
             "BiCGSTAB preconditioned intermediate residual",
@@ -372,3 +416,80 @@ impl<S: Scalar + ComplexFloat<Real = f64>> Recurrence<S> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod action_tests {
+    use super::*;
+    use crate::{LinearOperator, LinearOperatorProperties, SERIAL_LINEAR_EXECUTION};
+    use std::num::NonZeroUsize;
+
+    #[derive(Debug)]
+    struct Identity;
+    impl LinearOperator for Identity {
+        type Scalar = f64;
+        fn rows(&self) -> usize {
+            1
+        }
+        fn columns(&self) -> usize {
+            1
+        }
+        fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+            output.copy_from_slice(input);
+            Ok(())
+        }
+    }
+    #[test]
+    fn action_binding_rejects_before_zero_residual_acceptance() {
+        let problem =
+            LinearProblem::new(&Identity, &[0.], LinearOperatorProperties::General).unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(4).unwrap(),
+        )
+        .unwrap();
+        for (dimension, policy) in [
+            (2, PreconditionerPolicy::Identity),
+            (1, PreconditionerPolicy::Jacobi),
+        ] {
+            let action = DiagonalAction {
+                dimension,
+                policy,
+                inverse_diagonal: None,
+            };
+            assert!(
+                solve_with_action(
+                    REFERENCE_SOLVER_PROVIDER,
+                    &problem,
+                    plan,
+                    &SERIAL_LINEAR_EXECUTION,
+                    &action
+                )
+                .is_err()
+            );
+        }
+        let action = DiagonalAction {
+            dimension: 1,
+            policy: PreconditionerPolicy::Identity,
+            inverse_diagonal: None,
+        };
+        let wrong = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(4).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            solve_with_action(
+                REFERENCE_SOLVER_PROVIDER,
+                &problem,
+                wrong,
+                &SERIAL_LINEAR_EXECUTION,
+                &action
+            )
+            .is_err()
+        );
+    }
+}
