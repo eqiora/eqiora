@@ -66,7 +66,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let output = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan(),
+                (LinearSolveRequest::new(backend, policy)).plan().clone(),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
@@ -403,7 +403,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let error = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan(),
+                (LinearSolveRequest::new(backend, policy)).plan().clone(),
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
@@ -425,7 +425,7 @@ fn execute<S: Coefficient + Send + Sync>(
             equations
                 .finalize_static(
                     NonZeroUsize::MIN,
-                    (LinearSolveRequest::new(backend, policy)).plan(),
+                    (LinearSolveRequest::new(backend, policy)).plan().clone(),
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,

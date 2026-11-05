@@ -59,7 +59,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             &model,
             resources.clone(),
             scoped.clone(),
-            CommonSolvePolicy::Linear(requested),
+            CommonSolvePolicy::Linear(requested.clone()),
             scaling,
             Some(temporal.clone()),
             &ResolveOnlyBackend,

@@ -139,7 +139,7 @@ public component Affine(
                 &model,
                 owner.clone(),
                 policy,
-                CommonSolvePolicy::Linear(linear),
+                CommonSolvePolicy::Linear(linear.clone()),
                 None,
                 None,
                 &REFERENCE_LINEAR_SOLVER,

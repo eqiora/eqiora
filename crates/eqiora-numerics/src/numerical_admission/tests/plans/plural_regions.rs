@@ -386,7 +386,8 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
                 &REFERENCE_LINEAR_SOLVER,
                 plan.admission.linear.solver,
             ))
-            .plan(),
+            .plan()
+            .clone(),
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,

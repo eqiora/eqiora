@@ -396,18 +396,18 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     };
     let q1 = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
-        linear,
+        linear.clone(),
     );
     let repeat = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
-        linear,
+        linear.clone(),
     );
     let exact = resolve_scalar(
         CommonMethodRequest::Exact {
             spatial: CommonSpatialPolicy::Q1,
             formulation: FormulationKind::PrimalGalerkin,
         },
-        linear,
+        linear.clone(),
     );
     let tpfa = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
@@ -480,7 +480,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::Linear(linear),
+            CommonSolvePolicy::Linear(linear.clone()),
             None,
             None,
             &ResolveOnlyBackend,
@@ -524,7 +524,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             model,
             resources(&geometry),
             CommonSpatialPolicy::Q1,
-            CommonSolvePolicy::Linear(solve),
+            CommonSolvePolicy::Linear(solve.clone()),
             None,
             None,
             &ResolveOnlyBackend,
