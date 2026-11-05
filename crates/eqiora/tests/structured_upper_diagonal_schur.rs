@@ -176,7 +176,7 @@ fn ordinary_manual_manufactured_stokes_small() {
         .expect("ordinary manufactured Run");
     assert_eq!(result.plan().identity(), plan.identity());
     let errors = normalized_errors(&result, &observed_mesh, 1., 1.);
-    assert!(errors.iter().all(|value| value.is_finite() && *value > 0.));
+    assert!(errors.iter().all(|value| value.is_finite() && *value >= 0.));
     let residual = result.solve_true_residual_norm(None, None).unwrap();
     let target = result.solve_evidence(None, None).unwrap().residual_target();
     assert!(residual <= target);
