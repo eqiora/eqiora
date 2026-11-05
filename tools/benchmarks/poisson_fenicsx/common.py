@@ -62,17 +62,23 @@ def finish(args, tool, prepared, execute, extract, profile):
                   stable_timing_claim=False, measurement_status=("correctness-only smoke; not performance evidence" if args.mode == "correctness-only"
                                       else "unqualified timing collection; no stable reference-environment claim"))
     result, cold = clock(execute)
-    coordinates, values, solve = extract(result)
     report["memory_after_execution_before_accuracy"] = memory()
+    coordinates, values, solve = extract(result)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Preserve the actual candidate even if an accuracy/export gate rejects.
-    # Hex strings remain valid JSON for NaN/Inf and preserve all binary64 bits.
+    # Hex strings retain non-finite status as valid JSON and finite values exactly.
     candidate = {"coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
                  "values_float64_hex": [float(x).hex() for x in values], "solve": solve}
     args.output.with_name("candidate-field.json").write_text(json.dumps(candidate, indent=2, allow_nan=False)+"\n")
     report["accuracy"] = check_accuracy(coordinates, values, args.cells)
     report["solve"] = solve
     report["profile"] = profile()
+    report["diagnostic_execution"] = {
+        "additional_calls_per_tool": 1,
+        "position": "after cold ordinary execution and validation, before any warmups/samples",
+        "ordinary_execution_has_phase_instrumentation": False,
+        "cold_memory_scope": "process HWM immediately after ordinary field return, before output/protocol inspection, accuracy or profiling",
+        "final_memory_scope": "whole child, including untimed inspection/accuracy/reporting/diagnostic profiling"}
     if args.mode == "benchmark":
         if not report["profile"]["required_phases_available"]:
             raise ComparisonError("required_reference_linear_solve_phase_unavailable: use explicit --mode correctness-only; no subtraction or fallback")

@@ -99,7 +99,16 @@ existing [repeated-execution measurement owner](../repeated_execution/run.py):
 retain a cold call, two warmups, seven raw samples, median, range and median
 absolute deviation. Keep the process CPU readings alongside wall samples.
 
-Collect Eqiora `profile=True` in a separate diagnostic execution. Its inclusive
+After the first ordinary execution and validation, each tool performs exactly
+one additional diagnostic execution, followed by two uninstrumented warmups
+and seven uninstrumented timed samples in benchmark mode. FEniCSx enables its
+phase clocks only in that extra diagnostic call; it never reuses the cold
+call's clocks. Eqiora enables `profile=True` only in its extra diagnostic call.
+These diagnostic calls are separate from the timed campaign, within the same
+child process. They occur before the ordinary warmups and can warm caches;
+this ordering is recorded rather than described as an untouched process.
+
+Collect Eqiora `profile=True` in that separate diagnostic execution. Its inclusive
 wall spans and exclusive self times are different quantities; neither is a
 partition of the unprofiled median. The current scalar assembly-finalization
 span includes numeric preparation, representability checks and canonical
@@ -134,6 +143,69 @@ smoke tests. Their reports must identify themselves as non-reference runs.
 A quiet, explicitly identified environment is required before publishing a
 stable timing or speed comparison. Slower results are retained and explained.
 
+## Reproduce a correctness smoke
+
+Use a [development wheel](../../../docs/site/src/content/docs/get-started/index.mdx#development-build)
+containing Scalar and, for phase inspection, the reference-solve telemetry.
+Published Eqiora 0.1.5 does not contain this Scalar workflow. Record the wheel's
+actual producer revision and build profile; these are not the harness revision.
+The declared revision argument is not by itself a build-provenance proof.
+
+Pixi 0.84.0 was used to install the checked-in Linux environment lock. Keep all
+environments, JIT caches and output under home-backed scratch:
+
+Set `EQIORA_WHEEL`, `EQIORA_WHEEL_REVISION`, `EQIORA_BUILD_PROFILE` from the
+retained build record and `COMPARE_CPU` to an allocated CPU. The output directory
+must be new. The driver pins both children to that CPU and sets one-thread
+controls before importing either library. It clears foreign loader, MPI,
+PETSc and compiler overrides for the isolated FEniCSx child.
+
+
+```bash
+scratch="$HOME/.cache/eqiora/poisson-fenicsx"
+mkdir -p "$scratch/environment" "$scratch/tmp"
+cp tools/benchmarks/poisson_fenicsx/pixi.toml tools/benchmarks/poisson_fenicsx/pixi.lock "$scratch/environment/"
+TMPDIR="$scratch/tmp" PIXI_CACHE_DIR="$scratch/pixi-cache" \
+  pixi install --locked --manifest-path "$scratch/environment/pixi.toml"
+uv venv --python 3.13.14 "$scratch/eqiora"
+uv pip install --python "$scratch/eqiora/bin/python" "$EQIORA_WHEEL" 'numpy==2.5.4'
+```
+
+
+```bash
+TMPDIR="$scratch/tmp" "$scratch/eqiora/bin/python" \
+  tools/benchmarks/poisson_fenicsx/run.py "$scratch/correctness-run" \
+  --eqiora-python "$scratch/eqiora/bin/python" \
+  --fenicsx-python "$scratch/environment/.pixi/envs/default/bin/python" \
+  --eqiora-wheel "$EQIORA_WHEEL" --eqiora-revision "$EQIORA_WHEEL_REVISION" \
+  --eqiora-build-profile "$EQIORA_BUILD_PROFILE" \
+  --mode correctness-only --levels 4 8 16 32 --cpu "$COMPARE_CPU"
+```
+
+Each child writes its actual environment, effective solver controls, coordinate
+and field data, analytic check, phase inventory and memory snapshots. Candidate
+field hex files are retained before the accuracy gate, including rejected
+candidates. `summary.json` is written only after both tools pass every requested
+level and convergence. Correctness-only mode publishes no execution timing table.
+
+The six standalone analytic/admission checks need NumPy but neither native tool:
+
+```bash
+TMPDIR="$scratch/tmp" "$scratch/eqiora/bin/python" -m unittest discover \
+  -s tools/benchmarks/poisson_fenicsx -p test_protocol.py -v
+```
+
+`--mode benchmark` additionally requires actual assembly and linear-solve
+profile spans. Older Eqiora wheels fail explicitly before the warm timing loop;
+there is no inferred or substituted solve duration. Its raw timing collection is
+unqualified: a quiet reference environment and optimized, authenticated builds
+remain necessary for publishing a performance comparison. Process CPU readings
+exclude compiler child CPU, even when preparation wall time includes JIT.
+Use the pre-profile `memory_after_execution_before_accuracy` high-water mark
+immediately after cold field return, before output/protocol inspection or
+accuracy/profiling. Final whole-child memory also includes untimed
+accuracy checks, reporting and diagnostic profiling.
+
 ## External sources
 
 - [FEniCSx download and supported binary installation](https://fenicsproject.org/download/)
@@ -142,3 +214,5 @@ stable timing or speed comparison. Slower results are retained and explained.
 - [Basix 0.11 quadrature API](https://docs.fenicsproject.org/basix/v0.11.0/python/_autosummary/basix.quadrature.html)
 - [PETSc residual tolerances](https://petsc.org/release/manualpages/KSP/KSPSetTolerances/)
 - [PETSc residual norm selection](https://petsc.org/release/manualpages/KSP/KSPSetNormType/)
+
+- [PETSc BiCGStab (`bcgs`)](https://petsc.org/release/manualpages/KSP/KSPBCGS/)

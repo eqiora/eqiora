@@ -107,51 +107,59 @@ def main(args):
         cross.destroy(); free_is.destroy(); boundary_is.destroy()
 
 
-    def execute():
-        def assemble():
-            matrix = petsc.assemble_matrix(a, bcs=[bc])
-            matrix.assemble()
-            rhs = petsc.assemble_vector(load)
-            petsc.apply_lifting(rhs, [a], bcs=[[bc]])
-            rhs.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES, mode=PETSc.ScatterMode.REVERSE)
-            petsc.set_bc(rhs, [bc])
-            return matrix, rhs
+    def assemble():
+        matrix = petsc.assemble_matrix(a, bcs=[bc])
+        matrix.assemble()
+        rhs = petsc.assemble_vector(load)
+        petsc.apply_lifting(rhs, [a], bcs=[[bc]])
+        rhs.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES, mode=PETSc.ScatterMode.REVERSE)
+        petsc.set_bc(rhs, [bc])
+        return matrix, rhs
 
-        (matrix, rhs), assembly_time = clock(assemble)
 
-        def solve():
-            solution = matrix.createVecRight()
-            solution.set(0.0)
-            ksp = PETSc.KSP().create(MPI.COMM_SELF)
-            ksp.setOperators(matrix)
-            ksp.setType("bcgs"); ksp.getPC().setType("none")
-            ksp.setNormType(PETSc.KSP.NormType.UNPRECONDITIONED)
-            ksp.setInitialGuessNonzero(False)
-            ksp.setTolerances(rtol=1e-12, atol=1e-14, max_it=10000)
-            ksp.solve(rhs, solution)
-            rtol, atol, divergence, maxits = ksp.getTolerances()
-            actual_policy = {"ksp_type": ksp.getType(), "pc_type": ksp.getPC().getType(),
-                             "norm_type": int(ksp.getNormType())}
-            residual = rhs.duplicate()
-            matrix.mult(solution, residual)
-            residual.aypx(-1.0, rhs)
-            true_norm = residual.norm()
-            rhs_norm = rhs.norm()
-            target = max(1e-14, 1e-12*rhs_norm)
-            reason = int(ksp.getConvergedReason())
-            if reason <= 0 or not np.isfinite(true_norm) or true_norm > target:
-                raise ComparisonError(f"PETSc solve did not meet the matched true residual: reason={reason}, true={true_norm}, target={target}")
-            summary = {"algorithm": "bicgstab", "preconditioner": "identity",
-                       "completed_iterations": ksp.getIterationNumber(), "initial_residual_norm": rhs_norm,
-                       "reported_residual_norm": ksp.getResidualNorm(), "true_residual_norm": true_norm,
-                       "residual_target": target, "convergence_reason": reason,
-                       "initial_guess_nonzero": ksp.getInitialGuessNonzero(), "norm_type": "unpreconditioned",
-                       "relative_tolerance": rtol, "absolute_tolerance": atol, "maximum_iterations": maxits,
-                       "divergence_tolerance": divergence, "actual_policy": actual_policy}
-            residual.destroy(); ksp.destroy()
-            return solution, summary
+    def solve(matrix, rhs):
+        solution = matrix.createVecRight()
+        solution.set(0.0)
+        ksp = PETSc.KSP().create(MPI.COMM_SELF)
+        ksp.setOperators(matrix)
+        ksp.setType("bcgs"); ksp.getPC().setType("none")
+        ksp.setNormType(PETSc.KSP.NormType.UNPRECONDITIONED)
+        ksp.setInitialGuessNonzero(False)
+        ksp.setTolerances(rtol=1e-12, atol=1e-14, max_it=10000)
+        ksp.solve(rhs, solution)
+        rtol, atol, divergence, maxits = ksp.getTolerances()
+        actual_policy = {"ksp_type": ksp.getType(), "pc_type": ksp.getPC().getType(),
+                         "norm_type": int(ksp.getNormType())}
+        residual = rhs.duplicate()
+        matrix.mult(solution, residual)
+        residual.aypx(-1.0, rhs)
+        true_norm = residual.norm()
+        rhs_norm = rhs.norm()
+        target = max(1e-14, 1e-12*rhs_norm)
+        reason = int(ksp.getConvergedReason())
+        if reason <= 0 or not np.isfinite(true_norm) or true_norm > target:
+            raise ComparisonError(f"PETSc solve did not meet the matched true residual: reason={reason}, true={true_norm}, target={target}")
+        summary = {"algorithm": "bicgstab", "preconditioner": "identity",
+                   "completed_iterations": ksp.getIterationNumber(), "initial_residual_norm": rhs_norm,
+                   "reported_residual_norm": ksp.getResidualNorm(), "true_residual_norm": true_norm,
+                   "residual_target": target, "convergence_reason": reason,
+                   "initial_guess_nonzero": ksp.getInitialGuessNonzero(), "norm_type": "unpreconditioned",
+                   "relative_tolerance": rtol, "absolute_tolerance": atol, "maximum_iterations": maxits,
+                   "divergence_tolerance": divergence, "actual_policy": actual_policy}
+        residual.destroy(); ksp.destroy()
+        return solution, summary
 
-        (solution, summary), solve_time = clock(solve)
+
+    def execute(*, collect_phases=False):
+        # Ordinary execution has no nested phase timers. Only the separate
+        # diagnostic call enables these Python operation brackets.
+        if collect_phases:
+            (matrix, rhs), assembly_time = clock(assemble)
+            (solution, summary), solve_time = clock(lambda: solve(matrix, rhs))
+        else:
+            matrix, rhs = assemble()
+            solution, summary = solve(matrix, rhs)
+            assembly_time = solve_time = None
         function = fem.Function(space)
         function.x.array[:] = solution.getArray(readonly=True)
         function.x.scatter_forward()
@@ -177,7 +185,7 @@ def main(args):
     # A separate diagnostic execution retains native phase brackets, matching
     # the separate Eqiora profile execution rather than partitioning medians.
     def diagnostic():
-        result = execute()
+        result = execute(collect_phases=True)
         _, _, assembly_time, solve_time, _, _ = result
         extract(result)
         if args.mode == "correctness-only":
