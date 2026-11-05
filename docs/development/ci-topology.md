@@ -14,7 +14,7 @@ Every pull request reports three independent required contexts:
    the affected Rust, MSRV, dependency, Python, Studio, and isolated-experiment
    jobs. Unknown paths fail closed to the complete surface.
 2. **CI definition trust** runs under `pull_request_target` from the exact
-   protected base revision. It reads complete changed-file metadata and only
+   protected base revision. It reads immutable changed-file or complete-tree metadata and only
    the bounded inert blobs needed for the exact ratchet class below through the
    authenticated GitHub API; it never checks out, imports, or executes head
    code. Except for that narrow class, a change to workflow files, local
@@ -50,11 +50,29 @@ those activities for Draft pull requests and retaining commit-bound check runs
 across a readiness-only transition. Repository tests pin the workflow side of
 that boundary; live Actions observation owns the provider side.
 
-Changed-file pagination must match the provider-owned pull-request count.
-Pull requests beyond the API's complete 3,000-file visibility boundary fail
-closed instead of trusting a truncated list. The current immutable compare guard
-also rejects changes above 299 files before classifying their paths; a large
-ordinary API migration therefore cannot receive an ordinary trust decision.
+Trust decisions authenticate the event's pull-request identity, base and head
+commits, repositories, and changed-file count through the provider API. Changes
+of at most 299 files retain the complete immutable compare inventory and the
+exact architecture ratchet below.
+
+For larger ordinary changes, the protected-base classifier proves base ancestry
+from immutable compare metadata, binds both commit objects to their tree IDs,
+and compares complete recursive trees. Each tree must explicitly report
+`truncated: false`, match its requested ID, contain unique valid paths with their
+parent directories, and stay within 7,000,000 response bytes and 100,000 entries.
+Paths are limited to 4,096 UTF-8 bytes and 128 components. Blob, symlink and
+gitlink leaves are compared by path, type, mode and object ID. Renames therefore
+include both old and new paths. A directory replaced by a symlink or gitlink
+cannot conceal a protected directory root.
+
+The large-change fallback rejects every protected change, including architecture
+debt; it cannot certify a ratchet. It rechecks pull-request identity and count
+after reading the immutable trees, and never checks out or executes head code.
+Both the authenticated provider file count and the resulting changed-path
+inventory are capped at 3,000. The latter is deliberately conservative: a rename
+can occupy two paths even though the provider counts one file. The two counts
+are not required to be equal. Missing, malformed, incomplete or oversized
+responses fail closed.
 
 The protected-base trust classifier may approve a coupled architecture ratchet
 when the only changed protected path is `tools/ci/architecture-debt.toml`.

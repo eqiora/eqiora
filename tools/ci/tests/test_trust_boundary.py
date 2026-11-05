@@ -329,6 +329,124 @@ class FakeGitHub:
         raise urllib.error.HTTPError(full_url, 404, "unexpected route", {}, None)
 
 
+BASE_TREE = "6" * 40
+HEAD_TREE = "7" * 40
+
+
+def recursive_tree(sha: str, leaves: list[dict[str, str]]) -> dict[str, object]:
+    entries = {entry["path"]: copy.deepcopy(entry) for entry in leaves}
+    for path in list(entries):
+        parts = path.split("/")
+        for end in range(1, len(parts)):
+            parent = "/".join(parts[:end])
+            entries.setdefault(
+                parent,
+                {"path": parent, "type": "tree", "mode": "040000", "sha": "8" * 40},
+            )
+    return {"sha": sha, "truncated": False, "tree": list(entries.values())}
+
+
+class LargeFakeGitHub(FakeGitHub):
+    def __init__(
+        self, count: int = 369, *, head_repository: str = HEAD_REPOSITORY
+    ) -> None:
+        super().__init__(include_parser=False, head_repository=head_repository)
+        self.event_file_count = count
+        self.pull["changed_files"] = count
+        self.base_leaves = [
+            {
+                "path": f"docs/ordinary-{i}.md",
+                "type": "blob",
+                "mode": "100644",
+                "sha": f"{i + 1000:040x}",
+            }
+            for i in range(count)
+        ]
+        self.head_leaves = [
+            {**entry, "sha": f"{i + 5000:040x}"}
+            for i, entry in enumerate(self.base_leaves)
+        ]
+        self.commits = {
+            (BASE_REPOSITORY, BASE_SHA): {"sha": BASE_SHA, "tree": {"sha": BASE_TREE}},
+            (head_repository, HEAD_SHA): {"sha": HEAD_SHA, "tree": {"sha": HEAD_TREE}},
+        }
+        self.trees: dict[tuple[str, str], dict[str, object]] = {}
+        self.head_repository = head_repository
+        self.refresh_trees()
+        self.tree_link = None
+        self.tree_content_type = "application/json"
+        self.tree_declared_length = None
+        self.tree_omit_length = False
+        self.move_on: str | None = None
+        self.identity_mutation: str = "head"
+        self.tree_reads = 0
+
+    def refresh_trees(self) -> None:
+        self.trees[(BASE_REPOSITORY, BASE_TREE)] = recursive_tree(
+            BASE_TREE, self.base_leaves
+        )
+        self.trees[(self.head_repository, HEAD_TREE)] = recursive_tree(
+            HEAD_TREE, self.head_leaves
+        )
+
+    def open(self, request: object, timeout: int = 0) -> Response:
+        parsed = urllib.parse.urlparse(request.full_url)
+        path = urllib.parse.unquote(parsed.path)
+        if parsed.netloc != "api.github.test" or parsed.scheme != "https":
+            raise AssertionError("foreign API request")
+        if "/compare/" in path and parsed.query:
+            self.requests.append(request)
+            self.compare_reads += 1
+            if (
+                path != f"/repos/{BASE_REPOSITORY}/compare/{BASE_SHA}...{HEAD_SHA}"
+                or parsed.query != "per_page=1&page=2"
+            ):
+                raise AssertionError(
+                    "comparison is not bound to the requested immutable refs"
+                )
+            payload = {
+                "status": "ahead",
+                "base_commit": {"sha": BASE_SHA},
+                "merge_base_commit": {"sha": BASE_SHA},
+                "commits": [],
+                "files": [],
+            }
+            payload.update(self.compare_overrides)
+            response = Response(json.dumps(payload).encode())
+            response.headers["Link"] = '<https://api.github.test/ignored>; rel="next"'
+            return response
+        if "/git/commits/" in path or "/git/trees/" in path:
+            self.requests.append(request)
+            category = "commit" if "/git/commits/" in path else "tree"
+            marker = "/git/commits/" if category == "commit" else "/git/trees/"
+            repository, sha = path.removeprefix("/repos/").split(marker)
+            if self.move_on == category:
+                if self.identity_mutation == "head":
+                    self._move_head()
+                elif self.identity_mutation == "base":
+                    self.pull["base"]["sha"] = "c" * 40
+                elif self.identity_mutation == "count":
+                    self.pull["changed_files"] += 1
+                elif self.identity_mutation == "repository":
+                    self.pull["head"]["repo"]["full_name"] = "attacker/other"
+            if category == "commit":
+                if parsed.query:
+                    raise AssertionError("commit request has unexpected query")
+                return Response(json.dumps(self.commits[(repository, sha)]).encode())
+            if parsed.query != "recursive=1":
+                raise AssertionError("tree request must be recursive")
+            self.tree_reads += 1
+            response = Response(
+                json.dumps(self.trees[(repository, sha)]).encode(),
+                content_type=self.tree_content_type,
+                content_length=self.tree_declared_length,
+                include_content_length=not self.tree_omit_length,
+            )
+            if self.tree_link is not None:
+                response.headers["Link"] = self.tree_link
+            return response
+        return super().open(request, timeout)
+
 class CoupledRatchetEvidenceTests(unittest.TestCase):
     def run_classifier(
         self,
@@ -694,7 +812,7 @@ removal = "name a smaller facade"\n\
         immutable_safe.pull["changed_files"] = immutable_safe.event_file_count
         self.assert_ordinary_certified(immutable_safe)
 
-    def test_09_ordinary_inventory_has_the_same_299_file_boundary(self) -> None:
+    def test_09_small_ordinary_inventory_retains_the_exact_299_file_boundary(self) -> None:
         at_limit = FakeGitHub(include_parser=False)
         at_limit.files = ordinary_files(299)
         at_limit.compare_files = copy.deepcopy(at_limit.files)
@@ -702,14 +820,7 @@ removal = "name a smaller facade"\n\
         at_limit.pull["changed_files"] = at_limit.event_file_count
         self.assert_ordinary_certified(at_limit)
 
-        capped = FakeGitHub(include_parser=False)
-        capped.files = ordinary_files(300)
-        capped.compare_files = copy.deepcopy(capped.files)
-        capped.event_file_count = 300
-        capped.pull["changed_files"] = capped.event_file_count
-        self.assert_rejected(capped, expected_file_count=300)
-        self.assertEqual(capped.compare_reads, 0)
-        self.assertEqual(capped.pull_files_reads, 0)
+        self.assert_ordinary_certified(LargeFakeGitHub(300))
 
     def public_surface_api(self, *, combined: bool = False) -> FakeGitHub:
         api = FakeGitHub(include_parser=False)
@@ -1187,6 +1298,320 @@ removal = "duplicate"\n"""
         self.assertNotIn(": write", workflow)
         self.assertNotIn("secrets.", workflow)
 
+
+class LargeOrdinaryTreeTests(unittest.TestCase):
+    run_classifier = CoupledRatchetEvidenceTests.run_classifier
+
+    def assert_safe(self, api: LargeFakeGitHub) -> None:
+        result, stdout, stderr = self.run_classifier(
+            api, head_repository=api.head_repository
+        )
+        self.assertEqual(result, 0, stderr)
+        self.assertIn("does not change protected", stdout)
+        self.assertEqual(api.identity_reads, 2)
+        self.assertEqual(api.tree_reads, 2)
+        self.assertFalse(
+            any("/contents/" in request.full_url for request in api.requests)
+        )
+        self.assertTrue(
+            all(
+                request.headers.get("Authorization") == "Bearer not-a-real-token"
+                for request in api.requests
+            )
+        )
+
+    def assert_closed(self, api: LargeFakeGitHub) -> str:
+        result, stdout, stderr = self.run_classifier(
+            api, head_repository=api.head_repository
+        )
+        self.assertNotEqual(result, 0, stdout)
+        self.assertTrue(stderr)
+        self.assertNotIn("ratchet certified", stdout)
+        return stderr
+
+    def test_large_ordinary_300_and_369_use_complete_trees_not_compare_files(
+        self,
+    ) -> None:
+        for count in (300, 369):
+            with self.subTest(count=count):
+                api = LargeFakeGitHub(count)
+                api.compare_overrides.update(
+                    commits=[{"sha": "c" * 40}], files=[{"filename": ARCHITECTURE_DEBT}]
+                )
+                self.assert_safe(api)
+
+    def test_fork_commit_and_tree_reads_use_the_authenticated_repositories(
+        self,
+    ) -> None:
+        api = LargeFakeGitHub(head_repository="fork-owner/eqiora")
+        self.assert_safe(api)
+        urls = [request.full_url for request in api.requests]
+        self.assertIn(
+            f"https://api.github.test/repos/fork-owner/eqiora/git/commits/{HEAD_SHA}",
+            urls,
+        )
+        self.assertIn(
+            f"https://api.github.test/repos/fork-owner/eqiora/git/trees/{HEAD_TREE}?recursive=1",
+            urls,
+        )
+
+    def test_renames_count_both_tree_paths_without_equating_provider_file_count(
+        self,
+    ) -> None:
+        api = LargeFakeGitHub(300)
+        api.head_leaves[0]["path"] = "docs/renamed.md"
+        api.head_leaves[0]["sha"] = api.base_leaves[0]["sha"]
+        api.refresh_trees()
+        self.assert_safe(api)  # 300 provider files, 301 changed tree paths.
+
+    def test_all_protected_paths_reject_including_ratchets_and_both_rename_sides(
+        self,
+    ) -> None:
+        for protected in (
+            ARCHITECTURE_DEBT,
+            ".github/workflows/ci.yml",
+            "CODEOWNERS",
+            "deny.toml",
+            "crates/eqiora-verify/src/main.rs",
+        ):
+            for operation in ("modify", "delete", "rename-in", "rename-out", "mode"):
+                with self.subTest(path=protected, operation=operation):
+                    api = LargeFakeGitHub(300)
+                    if operation != "rename-in":
+                        api.base_leaves[0]["path"] = protected
+                    if operation not in ("delete", "rename-out"):
+                        api.head_leaves[0]["path"] = protected
+                    if operation == "delete":
+                        api.head_leaves.pop(0)
+                    if operation == "mode":
+                        api.head_leaves[0].update(
+                            sha=api.base_leaves[0]["sha"], mode="100755"
+                        )
+                    api.refresh_trees()
+                    message = self.assert_closed(api)
+                    self.assertIn(protected, message)
+                    self.assertNotIn(
+                        "failed closed", message
+                    )  # Classification, not acquisition failure.
+
+    def test_protected_directory_roots_and_ancestors_replaced_by_leaves_reject(
+        self,
+    ) -> None:
+        for path in (
+            "tools/ci",
+            ".github/workflows",
+            "crates/eqiora-verify",
+            "tools",
+            ".github",
+        ):
+            for mode, kind in (
+                ("120000", "blob"),
+                ("160000", "commit"),
+                ("100644", "blob"),
+            ):
+                with self.subTest(path=path, mode=mode):
+                    api = LargeFakeGitHub(300)
+                    api.head_leaves.append(
+                        {"path": path, "mode": mode, "type": kind, "sha": "a" * 40}
+                    )
+                    api.refresh_trees()
+                    base = api.trees[(BASE_REPOSITORY, BASE_TREE)]["tree"]
+                    protected_root = (
+                        path
+                        if path not in ("tools", ".github")
+                        else path + ("/ci" if path == "tools" else "/workflows")
+                    )
+                    for end in range(1, len(protected_root.split("/")) + 1):
+                        parent = "/".join(protected_root.split("/")[:end])
+                        base.append(
+                            {
+                                "path": parent,
+                                "type": "tree",
+                                "mode": "040000",
+                                "sha": "8" * 40,
+                            }
+                        )
+                    self.assertIn(path, self.assert_closed(api))
+
+    def test_ordinary_symlinks_gitlinks_executables_and_type_changes_are_inert_leaves(
+        self,
+    ) -> None:
+        api = LargeFakeGitHub()
+        api.head_leaves[0].update(mode="120000")
+        api.head_leaves[1].update(mode="160000", type="commit")
+        api.head_leaves[2].update(mode="100755")
+        api.refresh_trees()
+        with (
+            mock.patch("builtins.exec", side_effect=AssertionError("head exec")),
+            mock.patch.object(
+                subprocess, "Popen", side_effect=AssertionError("head subprocess")
+            ),
+        ):
+            self.assert_safe(api)
+
+    def test_immutable_ancestry_is_required_even_if_the_tree_paths_look_ordinary(
+        self,
+    ) -> None:
+        for field, value in (
+            ("status", "diverged"),
+            ("status", "behind"),
+            ("base_commit", {"sha": HEAD_SHA}),
+            ("merge_base_commit", {"sha": HEAD_SHA}),
+            ("merge_base_commit", None),
+        ):
+            api = LargeFakeGitHub()
+            api.compare_overrides[field] = value
+            self.assert_closed(api)
+            self.assertEqual(api.tree_reads, 0)
+
+    def test_commit_and_tree_objects_are_bound_to_the_requested_ids(self) -> None:
+        for side in ("base", "head"):
+            for mutation in (
+                "commit-sha",
+                "missing-tree",
+                "tree-sha-format",
+                "tree-response-sha",
+            ):
+                with self.subTest(side=side, mutation=mutation):
+                    api = LargeFakeGitHub()
+                    revision, tree = (
+                        (BASE_SHA, BASE_TREE)
+                        if side == "base"
+                        else (HEAD_SHA, HEAD_TREE)
+                    )
+                    commit = api.commits[(BASE_REPOSITORY, revision)]
+                    if mutation == "commit-sha":
+                        commit["sha"] = "c" * 40
+                    if mutation == "missing-tree":
+                        del commit["tree"]
+                    if mutation == "tree-sha-format":
+                        commit["tree"]["sha"] = "main"
+                    if mutation == "tree-response-sha":
+                        api.trees[(BASE_REPOSITORY, tree)]["sha"] = "c" * 40
+                    self.assert_closed(api)
+
+    def test_truncation_missing_flags_and_malformed_tree_inventories_fail_closed(
+        self,
+    ) -> None:
+        for value in (True, None, 0, "false"):
+            api = LargeFakeGitHub()
+            api.trees[(BASE_REPOSITORY, HEAD_TREE)]["truncated"] = value
+            self.assert_closed(api)
+        for mutation in (
+            "missing-flag",
+            "not-array",
+            "duplicate",
+            "missing-parent",
+            "non-directory-parent",
+            "not-object",
+        ):
+            api = LargeFakeGitHub()
+            tree = api.trees[(BASE_REPOSITORY, HEAD_TREE)]
+            if mutation == "missing-flag":
+                del tree["truncated"]
+            if mutation == "not-array":
+                tree["tree"] = {}
+            if mutation == "duplicate":
+                tree["tree"].append(copy.deepcopy(tree["tree"][0]))
+            if mutation == "missing-parent":
+                tree["tree"] = [e for e in tree["tree"] if e["path"] != "docs"]
+            if mutation == "non-directory-parent":
+                next(e for e in tree["tree"] if e["path"] == "docs").update(
+                    type="blob", mode="100644"
+                )
+            if mutation == "not-object":
+                tree["tree"][0] = None
+            self.assert_closed(api)
+
+    def test_malformed_paths_types_modes_and_leaf_shas_fail_closed(self) -> None:
+        values = [
+            ("path", p)
+            for p in (
+                "",
+                "/root",
+                "../out",
+                "docs/../out",
+                "docs//out",
+                "docs/./out",
+                "docs\\out",
+                "docs/line\n",
+                "a" * 4097,
+                "/".join(["a"] * 129),
+            )
+        ]
+        values += [("mode", v) for v in ("100600", "40000", [], None)]
+        values += [("type", v) for v in ("unknown", "commit", [], None)]
+        values += [("sha", v) for v in (None, "main", "A" * 40, "0" * 40, "1" * 39, [])]
+        for field, value in values:
+            with self.subTest(field=field, value=value):
+                api = LargeFakeGitHub()
+                api.trees[(BASE_REPOSITORY, HEAD_TREE)]["tree"][0][field] = value
+                self.assert_closed(api)
+        api = LargeFakeGitHub()
+        api.trees[(BASE_REPOSITORY, HEAD_TREE)]["tree"][0].update(
+            mode="unknown", type=None
+        )
+        self.assert_closed(api)
+
+    def test_pr_identity_and_count_are_rechecked_after_immutable_reads(self) -> None:
+        for boundary in ("commit", "tree"):
+            for field in ("head", "base", "count", "repository"):
+                api = LargeFakeGitHub()
+                api.move_on, api.identity_mutation = boundary, field
+                self.assert_closed(api)
+        api = LargeFakeGitHub()
+        api.pull["changed_files"] += 1
+        self.assert_closed(api)
+        self.assertEqual(api.compare_reads, 0)
+
+    def test_changed_path_and_provider_count_caps_remain_3000(self) -> None:
+        self.assert_safe(LargeFakeGitHub(3000))
+        api = LargeFakeGitHub(3000)
+        api.head_leaves[0]["path"] = "docs/renamed.md"
+        api.refresh_trees()
+        self.assertIn("3000 paths", self.assert_closed(api))
+        api = LargeFakeGitHub(3001)
+        self.assert_closed(api)
+        self.assertEqual(api.compare_reads, 0)
+
+    def test_large_snapshot_with_no_changed_leaves_fails_closed(self) -> None:
+        api = LargeFakeGitHub()
+        api.head_leaves = copy.deepcopy(api.base_leaves)
+        api.refresh_trees()
+        self.assert_closed(api)
+
+    def test_tree_byte_entry_pagination_and_content_type_limits_fail_closed(
+        self,
+    ) -> None:
+        api = LargeFakeGitHub(300)
+        head = api.trees[(BASE_REPOSITORY, HEAD_TREE)]
+        length = len(json.dumps(head).encode())
+        with mock.patch.object(trust_boundary, "MAX_TREE_BYTES", length):
+            self.assert_safe(api)
+        api = LargeFakeGitHub(300)
+        with mock.patch.object(trust_boundary, "MAX_TREE_BYTES", length - 1):
+            self.assert_closed(api)
+        for declared in (None, 1, trust_boundary.MAX_TREE_BYTES + 1):
+            api = LargeFakeGitHub()
+            api.tree_declared_length = declared
+            api.tree_omit_length = declared is None
+            with mock.patch.object(trust_boundary, "MAX_TREE_BYTES", 100):
+                self.assert_closed(api)
+        api = LargeFakeGitHub(300)
+        with mock.patch.object(trust_boundary, "MAX_TREE_ENTRIES", 301):
+            self.assert_safe(api)
+        with mock.patch.object(trust_boundary, "MAX_TREE_ENTRIES", 300):
+            self.assert_closed(LargeFakeGitHub(300))
+        for mutation in ("link", "html"):
+            api = LargeFakeGitHub()
+            if mutation == "link":
+                api.tree_link = '<https://candidate.invalid/tree>; rel="next"'
+            if mutation == "html":
+                api.tree_content_type = "text/html"
+            self.assert_closed(api)
+        self.assertEqual(trust_boundary.MAX_TREE_BYTES, 7_000_000)
+        self.assertEqual(trust_boundary.MAX_TREE_ENTRIES, 100_000)
+        self.assertEqual(trust_boundary.MAX_BLOB_BYTES, FROZEN_MAX_RAW_BLOB_BYTES)
 
 class ProtectedPathTests(unittest.TestCase):
     def test_merge_and_release_definitions_are_protected(self) -> None:
