@@ -93,7 +93,7 @@ impl AlgebraicStructure {
         if membership.len() != blocks.len() {
             return Err(invalid_coordinates());
         }
-        let mut covered = vec![false; count];
+        let mut covered = std::collections::BTreeSet::new();
         let mut ordered = Vec::new();
         for block in blocks {
             let matches: Vec<_> = membership
@@ -112,11 +112,11 @@ impl AlgebraicStructure {
                 if coordinate >= count || !seen.insert(coordinate) {
                     return Err(invalid_coordinates());
                 }
-                covered[coordinate] = true;
+                covered.insert(coordinate);
             }
             ordered.push((block, values.clone()));
         }
-        if covered.iter().any(|covered| !covered) {
+        if covered.len() != count {
             return Err(invalid_coordinates());
         }
         for (block, values) in &ordered {
@@ -262,6 +262,26 @@ fn invalid_coordinates() -> eqiora_core::Diagnostic {
 mod tests {
     use super::*;
     use crate::{LinearOperatorProperties, SolverPlanningProfile};
+
+    #[test]
+    fn foreign_huge_coordinate_count_returns_a_diagnostic_before_allocation() {
+        let field = Id::new();
+        assert!(
+            AlgebraicStructure::new([field], [])
+                .unwrap()
+                .with_coordinates(usize::MAX, vec![(AlgebraicBlock::Field(field), vec![])])
+                .is_err()
+        );
+        assert!(
+            AlgebraicStructure::new([field], [])
+                .unwrap()
+                .with_coordinates(
+                    usize::MAX,
+                    vec![(AlgebraicBlock::Field(field), vec![usize::MAX - 1])]
+                )
+                .is_err()
+        );
+    }
 
     #[test]
     fn a_fully_essential_field_retains_empty_membership() {
