@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../../examples/heated-body/src/main.eqi?raw';
+import handwrittenSource from '../../../../../../../examples/heated-body/handwritten.eqi?raw';
 import runnerSource from '../../../../../../../examples/heated-body/run.py?raw';
 
 ## The square experiment
@@ -83,8 +84,10 @@ to the continuous square problem, so it need not preserve this center value.
 
 ## Express those equations in `.eqi`
 
-Here is the mathematical source. Read `HeatedBody` first; the
-`TransientHeatedBody` component below it will be used in the next chapter.
+Use a development build from the same checkout: the published 0.1.5 wheel does
+not contain `Eqiora.Scalar@0.2.0`. The steady `HeatedBody` imports the standard
+thermal equation and fixed-temperature boundaries. The hand-written
+`TransientHeatedBody` below it will be used in the next chapter.
 
 <Code code={modelSource} lang="eqiora" title="examples/heated-body/src/main.eqi" />
 
@@ -94,10 +97,9 @@ The correspondence is direct:
 | --- | --- |
 | Square region and its four oriented exterior supports | `body`, `x_lower`, `x_upper`, `y_lower`, `y_upper` |
 | Unknown absolute temperature | `variable temperature: K on body` |
-| Prescribed temperature | Four `trace(temperature) = 300[K]` relations |
-| Fourier flux and generation | `flux -conductivity * grad(temperature)` and `source heating` |
-| Test functions vanish on the prescribed boundary | `zero_on` in `weak_heat` |
-| Integrated steady balance | The two `integrate` expressions |
+| Prescribed temperature | Four `scalar.FixedTemperature2d` instances |
+| Fourier flux and generation | `scalar.SteadyHeat2d`, with conductivity and heating |
+| Weak form for the chosen method | Derived by the common Plan |
 
 The temperature remains an absolute Kelvin field. Our hand calculation used
 $\theta=T-300$ only to simplify algebra; the model retains its nonzero boundary
@@ -131,8 +133,7 @@ model = eqiora.compile(
 )
 plan = resolve(model, geometry)
 result = eqiora.run(plan)
-trial_id, = model.authored_formulations[0].trial_field_ids
-print(result.output(model.field(trial_id)).values("vertex").numpy())
+print(result.output(model.field("definition.temperature")).values("vertex").numpy())
 ```
 
 Expect eight boundary coefficients equal to 300 K and the center equal to
@@ -156,13 +157,12 @@ with tempfile.TemporaryDirectory(prefix="heated-body-") as scratch:
         geometry=geometry, bindings=bindings,
     )
     packaged_result = eqiora.run(resolve(packaged, geometry))
-    field_id, = packaged.authored_formulations[0].trial_field_ids
-    print(packaged_result.output(packaged.field(field_id)).values("vertex").numpy())
+    print(packaged_result.output(packaged.field("definition.temperature")).values("vertex").numpy())
 ```
 
-The package carries the component's equations, boundary relations, and
-formulation; you supply the geometry and physical parameters. The package is
-local to this example, and its source is the model you just derived.
+The local package carries the model and its exact bundled Scalar dependency;
+you supply the geometry and physical parameters. Both compilation paths retain
+package provenance and use the common Plan to derive the steady weak form.
 
 The complete runner performs package resolution and runs both steady and
 transient entries:
@@ -183,6 +183,32 @@ reference linear solver. `Geometry` supplies the exact region and boundary
 handles; names identify selections within that geometry. A `Plan` combines the
 model with these numerical choices. Python arranges the experiment while
 `.eqi` supplies its physical equations.
+
+## Write the same equations by hand
+
+Both imported components and hand-written equations are supported. The same
+steady problem, including its explicit weak form, is preserved separately:
+
+<Code code={handwrittenSource.slice(0, handwrittenSource.indexOf('/// Heat storage'))} lang="eqiora" title="examples/heated-body/handwritten.eqi" />
+
+Compile this alternative with the same geometry, bindings and numerical choices:
+
+```python
+handwritten = eqiora.compile(
+    path=project / "handwritten.eqi", entry="HeatedBody",
+    geometry=geometry, bindings=bindings,
+)
+handwritten_result = eqiora.run(resolve(handwritten, geometry))
+print(handwritten_result.output(
+    handwritten.field("definition.temperature")
+).values("vertex").numpy())
+```
+
+Here `zero_on` states that test functions vanish on the boundary, while the
+trial temperature retains its 300 K trace. `integrate` writes the weak balance
+we derived above. This alternative also gives 300.09375 K at the center. You
+can mix standard components with custom relations when a model needs a boundary
+law beyond the bundled choices; the common compiler still checks units and support.
 
 ## Change one physical parameter
 
