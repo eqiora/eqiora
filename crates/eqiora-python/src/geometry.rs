@@ -17,9 +17,8 @@ pub(crate) fn digest_to_hex(bytes: &[u8; 32]) -> String {
 
 /// One immutable exact Geometry produced by an accepted authored graph.
 ///
-/// The current constructor path is deliberately bounded to the admitted
-/// planar section.  Its public identity and observations do not encode that
-/// proving shape as a Python product type.
+/// Construction and observations delegate to the common canonical geometry
+/// owner. Primitive shape does not create a parallel Python product type.
 #[pyclass(
     name = "Geometry",
     module = "eqiora._eqiora",
