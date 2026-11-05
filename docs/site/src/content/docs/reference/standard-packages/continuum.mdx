@@ -61,11 +61,9 @@ GPU, unstructured-mesh, Robin or periodic execution support.
 
 The same `Eqiora.Scalar@0.2.0` module also provides fixed-SI thermal components:
 
-| Component | Physical meaning |
-|---|---|
-| `SteadyHeat2d` | Fourier flux `-conductivity * grad(temperature)`, volumetric `heating` |
-| `FixedTemperature2d` | Prescribed Kelvin temperature expression on a boundary |
-| `OutwardHeatFlux2d` | Prescribed physical outward heat flux expression in W/m² |
+- `SteadyHeat2d`: Fourier flux `-conductivity * grad(temperature)` and volumetric `heating`.
+- `FixedTemperature2d`: prescribed Kelvin temperature expression on a boundary.
+- `OutwardHeatFlux2d`: prescribed physical outward heat flux expression in W/m².
 
 Temperature is a Kelvin Field, conductivity is an explicit parameter in W/(m K),
 and heating has units W/m³. Positive heat flux leaves the body; use

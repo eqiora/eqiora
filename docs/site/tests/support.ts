@@ -164,7 +164,7 @@ export const TABLE_ROUTES = [
   { route: '/reference/rust/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
-  { route: '/reference/standard-packages/continuum/', tables: 3, direct: 3, component: 0 },
+  { route: '/reference/standard-packages/continuum/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/controls/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/boundary-interface-conditions/', tables: 1, direct: 1, component: 0 },
