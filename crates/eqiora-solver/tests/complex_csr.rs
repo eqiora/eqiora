@@ -157,7 +157,7 @@ fn scalar_domain_admission_is_independent_of_binary64_precision() {
         scalar_domain: Domain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: Properties::General,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
@@ -169,18 +169,18 @@ fn scalar_domain_admission_is_independent_of_binary64_precision() {
         std::num::NonZeroUsize::new(8).unwrap(),
     )
     .unwrap();
-    real.require_problem(plan, Domain::Real, ScalarType::F64, Properties::General)
+    real.require_problem(&plan, Domain::Real, ScalarType::F64, Properties::General)
         .unwrap();
     assert!(real.supports_scalar(Domain::Real, ScalarType::F64));
     assert!(!real.supports_scalar(Domain::Complex, ScalarType::F64));
     assert_eq!(
-        real.require_problem(plan, Domain::Complex, ScalarType::F64, Properties::General)
+        real.require_problem(&plan, Domain::Complex, ScalarType::F64, Properties::General)
             .unwrap_err()
             .code(),
         codes::INVALID_REALIZATION
     );
     assert!(
-        real.require_problem(plan, Domain::Real, ScalarType::F32, Properties::General)
+        real.require_problem(&plan, Domain::Real, ScalarType::F32, Properties::General)
             .is_err()
     );
     let complex = SolverCapabilities::exact([SolverCapability {
@@ -189,11 +189,11 @@ fn scalar_domain_admission_is_independent_of_binary64_precision() {
     }])
     .unwrap();
     complex
-        .require_problem(plan, Domain::Complex, ScalarType::F64, Properties::General)
+        .require_problem(&plan, Domain::Complex, ScalarType::F64, Properties::General)
         .unwrap();
     assert!(
         complex
-            .require_problem(plan, Domain::Real, ScalarType::F64, Properties::General)
+            .require_problem(&plan, Domain::Real, ScalarType::F64, Properties::General)
             .is_err()
     );
     assert!(
@@ -304,7 +304,7 @@ fn complex_property_admission_requires_the_exact_assertion_and_implemented_tuple
             scalar_type: ScalarType::F64,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: Properties::HermitianPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         };
         assert_eq!(
@@ -482,7 +482,7 @@ fn repeating_a_complex_request_uses_changed_coefficients_instead_of_stale_numeri
     // The reference provider exposes no retained factors. Callers must execute
     // each candidate freshly when preparation returns None.
     assert!(
-        <_ as LinearSolverBackend<C>>::prepare_linear(&REFERENCE_LINEAR_SOLVER, plan)
+        <_ as LinearSolverBackend<C>>::prepare_linear(&REFERENCE_LINEAR_SOLVER, plan.clone())
             .unwrap()
             .is_none()
     );

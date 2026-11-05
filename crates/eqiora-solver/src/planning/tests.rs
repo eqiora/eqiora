@@ -96,7 +96,7 @@ fn capability(plan: SolverPlan) -> SolverCapability {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: plan.preconditioner(),
+        preconditioner: plan.preconditioner().kind(),
         reduction: plan.reduction(),
         scalar_type: ScalarType::F64,
     }
@@ -119,7 +119,7 @@ impl CountingBackend {
     fn new(provider: SolverProvider, expected_plan: SolverPlan) -> Self {
         Self {
             provider,
-            capability: capability(expected_plan),
+            capability: capability(expected_plan.clone()),
             expected_plan,
             succeed: false,
             solve_calls: AtomicUsize::new(0),
@@ -133,7 +133,7 @@ impl CountingBackend {
     fn successful(provider: SolverProvider, expected_plan: SolverPlan) -> Self {
         Self {
             provider,
-            capability: capability(expected_plan),
+            capability: capability(expected_plan.clone()),
             expected_plan,
             succeed: true,
             solve_calls: AtomicUsize::new(0),
@@ -731,7 +731,7 @@ fn assert_all_rejected(error: &Diagnostic, reasons: &[(usize, &'static str)]) {
         format!("{POLICY_ID} no admitted candidate; trace=[{trace}]")
     );
 }
-fn permutations<T: Copy>(values: &mut [T], start: usize, visit: &mut impl FnMut(&[T])) {
+fn permutations<T>(values: &mut [T], start: usize, visit: &mut impl FnMut(&[T])) {
     if start == values.len() {
         visit(values);
         return;
@@ -826,7 +826,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
     let catalog = exact_catalog(&backends);
     let missing = catalog[..4].to_vec();
     let mut duplicate = catalog.to_vec();
-    duplicate.push(catalog[0]);
+    duplicate.push(catalog[0].clone());
     let mut unknown = catalog.to_vec();
     unknown.push(SolverCandidate::new(
         "unknown",
@@ -865,13 +865,13 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
         ] {
             let changed = plan_with_controls(
                 original.algorithm(),
-                original.preconditioner(),
+                original.preconditioner().clone(),
                 original.reduction(),
                 relative,
                 absolute,
                 iterations,
             );
-            let mut candidates = catalog;
+            let mut candidates = catalog.clone();
             candidates[i] = SolverCandidate::new(
                 SPECS[i].id,
                 SPECS[i].evidence,
@@ -918,17 +918,20 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
             if provider == spec.provider {
                 continue;
             }
-            let bad = CountingBackend::new(provider, original);
-            let mut candidates = catalog;
-            candidates[i] =
-                SolverCandidate::new(spec.id, "stale", LinearSolveRequest::new(&bad, original));
+            let bad = CountingBackend::new(provider, original.clone());
+            let mut candidates = catalog.clone();
+            candidates[i] = SolverCandidate::new(
+                spec.id,
+                "stale",
+                LinearSolveRequest::new(&bad, original.clone()),
+            );
             assert_rejections(&problem, &candidates, &[(i, "catalog.evidence-mismatch")]);
             candidates[i] = SolverCandidate::new(
                 spec.id,
                 spec.evidence,
                 LinearSolveRequest::new(
                     &bad,
-                    original.with_preconditioner(
+                    original.clone().with_preconditioner(
                         if original.preconditioner() == &PreconditionerPolicy::Identity {
                             PreconditionerPolicy::Jacobi
                         } else {
@@ -941,26 +944,28 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
             assert_eq!(bad.calls(), 0);
         }
         let changed = [
-            original.with_preconditioner(
+            original.clone().with_preconditioner(
                 if original.preconditioner() == &PreconditionerPolicy::Identity {
                     PreconditionerPolicy::Jacobi
                 } else {
                     PreconditionerPolicy::Identity
                 },
             ),
-            original.with_reduction(if original.reduction() == ReductionPolicy::Fast {
-                ReductionPolicy::Reproducible
-            } else {
-                ReductionPolicy::Fast
-            }),
+            original
+                .clone()
+                .with_reduction(if original.reduction() == ReductionPolicy::Fast {
+                    ReductionPolicy::Reproducible
+                } else {
+                    ReductionPolicy::Fast
+                }),
             plan(
                 LinearSolver::ConjugateGradient,
-                original.preconditioner(),
+                original.preconditioner().clone(),
                 original.reduction(),
             ),
         ];
         for changed in changed {
-            let mut candidates = catalog;
+            let mut candidates = catalog.clone();
             candidates[i] = SolverCandidate::new(
                 spec.id,
                 spec.evidence,
@@ -999,7 +1004,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
     for i in 0..SPECS.len() {
         let spec = SPECS[i];
         let original = (spec.plan)();
-        let exact = capability(original);
+        let exact = capability(original.clone());
         for changed in [
             SolverCapability {
                 algorithm: if exact.algorithm == LinearSolver::SparseLu {
@@ -1014,10 +1019,10 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
                 ..exact
             },
             SolverCapability {
-                preconditioner: if exact.preconditioner == PreconditionerPolicy::Jacobi {
-                    PreconditionerPolicy::Identity
+                preconditioner: if exact.preconditioner == crate::PreconditionerKind::Jacobi {
+                    crate::PreconditionerKind::Identity
                 } else {
-                    PreconditionerPolicy::Jacobi
+                    crate::PreconditionerKind::Jacobi
                 },
                 ..exact
             },
@@ -1034,12 +1039,12 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
                 ..exact
             },
         ] {
-            let bad = CountingBackend::with_capability(spec.provider, original, changed);
-            let mut candidates = catalog;
+            let bad = CountingBackend::with_capability(spec.provider, original.clone(), changed);
+            let mut candidates = catalog.clone();
             candidates[i] = SolverCandidate::new(
                 spec.id,
                 spec.evidence,
-                LinearSolveRequest::new(&bad, original),
+                LinearSolveRequest::new(&bad, original.clone()),
             );
             assert_rejections(
                 &problem,
@@ -1307,7 +1312,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             PreconditionerPolicy::Identity,
             ReductionPolicy::Reproducible,
         );
-        let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact);
+        let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact.clone());
         reference.capability = capability(reference_plan());
         let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
         // These descriptors advertise only General capabilities. The correct
@@ -1347,7 +1352,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         assert_eq!(direct.solver_provider(), FAER_PROVIDER);
         reference.capability = SolverCapability {
             operator_properties: properties,
-            ..capability(exact)
+            ..capability(exact.clone())
         };
         let accepted = crate::SolverSelection::resolve_host::<f64>(
             profile.clone(),
@@ -1360,7 +1365,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         )
         .unwrap();
         assert_eq!(accepted.selected_candidate_id(), id);
-        assert_eq!(accepted.solver_plan(), exact);
+        assert_eq!(accepted.solver_plan(), &exact);
         assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
         assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
     }
@@ -1373,10 +1378,10 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         PreconditionerPolicy::Identity,
         ReductionPolicy::Reproducible,
     );
-    let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact);
+    let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact.clone());
     reference.capability = SolverCapability {
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        ..capability(exact)
+        ..capability(exact.clone())
     };
     let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
     faer.capability.operator_properties = LinearOperatorProperties::SymmetricIndefinite;
@@ -1385,8 +1390,8 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         None,
         Some(ReductionPolicy::Reproducible),
     );
-    profile.require_plan(exact).unwrap();
-    let error = profile.require_plan(faer_sparse_lu_plan()).unwrap_err();
+    profile.require_plan(&exact).unwrap();
+    let error = profile.require_plan(&faer_sparse_lu_plan()).unwrap_err();
     assert!(
         error
             .message()
@@ -1407,7 +1412,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
             Some(&faer),
         )
         .unwrap();
-        assert_eq!(selected.solver_plan(), exact);
+        assert_eq!(selected.solver_plan(), &exact);
         assert_eq!(selected.solver_provider(), REFERENCE_PROVIDER);
         assert!(
             selected
@@ -1566,7 +1571,7 @@ fn host_planning_authenticates_execution_before_ranking_without_serial_fallback(
         assert!(
             limited
                 .require_resources(
-                    reference_plan(),
+                    &reference_plan(),
                     REFERENCE_PROVIDER,
                     ScalarDomain::Real,
                     ScalarType::F64
@@ -1630,7 +1635,7 @@ fn host_planning_authenticates_execution_before_ranking_without_serial_fallback(
         single
             .estimate_cost(
                 "manual",
-                reference_plan(),
+                &reference_plan(),
                 REFERENCE_PROVIDER,
                 ScalarDomain::Real,
                 ScalarType::F64

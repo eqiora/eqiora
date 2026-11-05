@@ -41,14 +41,18 @@ fn bicgstab_completes_omega_in_the_same_original_iteration() {
     let rhs = [2f64.powi(30), 1.];
     let ordinary = LinearProblem::new(&Diagonal, &rhs, LinearOperatorProperties::General).unwrap();
     let policy = plan(LinearSolver::BiConjugateGradientStabilized);
-    let premature = REFERENCE_LINEAR_SOLVER.solve(&ordinary, policy).unwrap();
+    let premature = REFERENCE_LINEAR_SOLVER
+        .solve(&ordinary, policy.clone())
+        .unwrap();
     assert_eq!(premature.values(), &[rhs[0], 1.]);
     assert!(!row_check(premature.values()).unwrap());
     let checked = ordinary.with_candidate_check(&row_check);
-    let solved = REFERENCE_LINEAR_SOLVER.solve(&checked, policy).unwrap();
+    let solved = REFERENCE_LINEAR_SOLVER
+        .solve(&checked, policy.clone())
+        .unwrap();
     assert_eq!(solved.values(), &[rhs[0], 0.5]);
     assert_eq!(solved.report().completed_iterations(), 1);
-    assert_eq!(solved.report().solver_plan(), policy);
+    assert_eq!(solved.report().solver_plan(), &policy);
     assert_eq!(solved.report().solver_provider(), REFERENCE_SOLVER_PROVIDER);
     assert_eq!(
         solved.report().execution_provider(),
@@ -110,7 +114,7 @@ fn structural_errors_and_zero_residual_rejection_do_not_become_success() {
         calls.store(0, Ordering::SeqCst);
         assert_eq!(
             REFERENCE_LINEAR_SOLVER
-                .solve(&problem.with_candidate_check(&reject), policy)
+                .solve(&problem.with_candidate_check(&reject), policy.clone())
                 .unwrap_err()
                 .code(),
             codes::NUMERICAL_SOLVE_FAILED
@@ -180,7 +184,7 @@ fn check_forbidden_execution(forbidden: &ForbiddenExecution) {
     let policy = plan(LinearSolver::BiConjugateGradientStabilized);
     assert_eq!(
         REFERENCE_LINEAR_SOLVER
-            .solve_with_execution(&problem, policy, forbidden)
+            .solve_with_execution(&problem, policy.clone(), forbidden)
             .unwrap_err()
             .code(),
         codes::INVALID_REALIZATION
@@ -188,7 +192,7 @@ fn check_forbidden_execution(forbidden: &ForbiddenExecution) {
     assert_eq!(
         eqiora_solver::LinearSolution::accept_with_execution(
             &problem,
-            policy,
+            policy.clone(),
             REFERENCE_SOLVER_PROVIDER,
             ConvergenceReason::ResidualToleranceSatisfied,
             1,
@@ -210,7 +214,7 @@ fn check_forbidden_execution(forbidden: &ForbiddenExecution) {
         assert_eq!(
             eqiora_solver::LinearSolution::accept_with_verifier(
                 &problem,
-                policy,
+                policy.clone(),
                 REFERENCE_SOLVER_PROVIDER,
                 SERIAL_EXECUTION_PROVIDER,
                 producer,
@@ -270,10 +274,12 @@ fn complex_cg_lowering_checks_physical_complex_coordinates_with_one_budget() {
         .unwrap()
         .with_candidate_check(&check);
     let policy = plan(LinearSolver::ConjugateGradient);
-    let solved = REFERENCE_LINEAR_SOLVER.solve(&problem, policy).unwrap();
+    let solved = REFERENCE_LINEAR_SOLVER
+        .solve(&problem, policy.clone())
+        .unwrap();
     assert_eq!(solved.values(), &[rhs[0], C::new(0.5, -0.5)]);
     assert_eq!(solved.report().completed_iterations(), 1);
-    assert_eq!(solved.report().solver_plan(), policy);
+    assert_eq!(solved.report().solver_plan(), &policy);
 }
 
 #[test]

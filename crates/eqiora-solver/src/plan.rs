@@ -4,9 +4,9 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 
-mod wire;
 mod preconditioner;
-pub use preconditioner::{PreconditionerKind, FixedFactorizationChoice, UpperDiagonalSchurConfig};
+mod wire;
+pub use preconditioner::{FixedFactorizationChoice, PreconditionerKind, UpperDiagonalSchurConfig};
 
 /// Linear algorithm selected independently from model meaning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -227,7 +227,7 @@ mod tests {
             plan.algorithm(),
             LinearSolver::BiConjugateGradientStabilized
         );
-        assert_eq!(plan.preconditioner(), PreconditionerPolicy::Jacobi);
+        assert_eq!(plan.preconditioner(), &PreconditionerPolicy::Jacobi);
         assert_eq!(plan.reduction(), ReductionPolicy::Fast);
         assert_eq!(plan.maximum_iterations().get(), 300);
     }

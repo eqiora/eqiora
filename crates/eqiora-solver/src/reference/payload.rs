@@ -88,7 +88,7 @@ mod tests {
         orientation: LinearOperatorOrientation,
     ) -> Option<usize> {
         super::super::canonical_csr_numeric_workspace_bytes(
-            plan(algorithm, preconditioner),
+            &plan(algorithm, preconditioner),
             ScalarDomain::Real,
             ScalarType::F64,
             n,
@@ -167,7 +167,7 @@ mod tests {
         ] {
             assert_eq!(
                 canonical_csr_numeric_workspace_bytes(
-                    policy,
+                    &policy,
                     domain,
                     ScalarType::F64,
                     1,
@@ -178,7 +178,7 @@ mod tests {
         }
         assert_eq!(
             canonical_csr_numeric_workspace_bytes(
-                policy,
+                &policy,
                 ScalarDomain::Real,
                 ScalarType::F32,
                 1,
@@ -188,7 +188,7 @@ mod tests {
         );
         assert_eq!(
             canonical_csr_numeric_workspace_bytes(
-                policy.with_reduction(ReductionPolicy::Fast),
+                &policy.with_reduction(ReductionPolicy::Fast),
                 ScalarDomain::Real,
                 ScalarType::F64,
                 1,

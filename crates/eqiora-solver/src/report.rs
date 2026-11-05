@@ -716,7 +716,7 @@ mod tests {
 
         let solution = crate::LinearSolution::accept_with_verifier(
             &problem,
-            plan,
+            plan.clone(),
             solver_provider("eqiora.cuda.test-solver"),
             execution_provider("eqiora.cuda.test"),
             cuda,
@@ -729,7 +729,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(solution.report().execution(), cuda);
-        assert_eq!(solution.report().solver_plan(), plan);
+        assert_eq!(solution.report().solver_plan(), &plan);
         assert_eq!(
             solution.report().verification(),
             ExecutionReport::host_serial()
@@ -752,7 +752,7 @@ mod tests {
                 crate::SERIAL_EXECUTION_PROVIDER,
                 ExecutionReport::host_serial(),
                 LinearOperatorOrientation::Normal,
-                plan,
+                plan.clone(),
                 reason,
                 iterations,
                 initial_residual_norm,

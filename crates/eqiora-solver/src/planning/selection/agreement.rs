@@ -178,16 +178,31 @@ impl Agreement {
     fn optional_count(&mut self, value: Option<usize>) -> Result<(), Diagnostic> {
         self.option(value, Self::count)
     }
-    fn preconditioner_configuration(&mut self, policy: &PreconditionerPolicy) -> Result<(),Diagnostic> {
+    fn preconditioner_configuration(
+        &mut self,
+        policy: &PreconditionerPolicy,
+    ) -> Result<(), Diagnostic> {
         if let PreconditionerPolicy::UpperDiagonalSchur(config) = policy {
             for group in config.groups() {
                 self.count(group.len())?;
                 for block in group {
-                    let field=match block {crate::AlgebraicBlock::Field(field)=>{self.tag(0);field},crate::AlgebraicBlock::ConstraintMultiplier{field}=>{self.tag(1);field}};
+                    let field = match block {
+                        crate::AlgebraicBlock::Field(field) => {
+                            self.tag(0);
+                            field
+                        }
+                        crate::AlgebraicBlock::ConstraintMultiplier { field } => {
+                            self.tag(1);
+                            field
+                        }
+                    };
                     self.0.update(field.ulid().to_bytes());
                 }
             }
-            for choice in [config.a_factorization(),config.schur_factorization()] { self.tag(algorithm(choice.algorithm())); self.string(choice.provider())?; }
+            for choice in [config.a_factorization(), config.schur_factorization()] {
+                self.tag(algorithm(choice.algorithm()));
+                self.string(choice.provider())?;
+            }
             self.count(config.maximum_schur_entries().get())?;
             self.count(config.maximum_schur_products().get())?;
         }
@@ -296,8 +311,8 @@ mod tests {
         assert_eq!(original.candidate_id, changed.candidate_id);
         assert_eq!(original.plan.algorithm(), changed.plan.algorithm());
         assert_eq!(
-            original.plan.preconditioner(),
-            changed.plan.preconditioner()
+            original.plan.preconditioner().kind(),
+            changed.plan.preconditioner().kind()
         );
         assert_eq!(original.plan.reduction(), changed.plan.reduction());
         assert_ne!(fingerprint(original), fingerprint(changed));
@@ -313,7 +328,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     2e-12,
                     1e-14,
@@ -324,7 +339,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     1e-12,
                     2e-14,
@@ -335,7 +350,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     1e-12,
                     1e-14,
@@ -422,7 +437,7 @@ mod tests {
             scalar_type: ScalarType::F64,
             algorithm: original.plan.algorithm(),
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: original.plan.preconditioner(),
+            preconditioner: original.plan.preconditioner().kind(),
             reduction: original.plan.reduction(),
         }])
         .unwrap();
@@ -446,7 +461,7 @@ mod tests {
         let mut zero = original.clone();
         zero.plan = catalog_plan(
             original.plan.algorithm(),
-            original.plan.preconditioner(),
+            original.plan.preconditioner().kind(),
             original.plan.reduction(),
             1e-12,
             0.0,
@@ -456,7 +471,7 @@ mod tests {
         let mut negative_zero = zero.clone();
         negative_zero.plan = catalog_plan(
             original.plan.algorithm(),
-            original.plan.preconditioner(),
+            original.plan.preconditioner().kind(),
             original.plan.reduction(),
             1e-12,
             -0.0,

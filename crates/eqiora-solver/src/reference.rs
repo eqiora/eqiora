@@ -251,7 +251,9 @@ fn build_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
         return Ok(None);
     }
     if !matches!(policy, PreconditionerPolicy::Jacobi) {
-        return Err(invalid_realization("diagonal preconditioning requires Identity or Jacobi"));
+        return Err(invalid_realization(
+            "diagonal preconditioning requires Identity or Jacobi",
+        ));
     }
     let mut diagonal = vec![S::zero(); problem.operator().rows()];
     if problem.operator().diagonal(&mut diagonal)? == DiagonalAvailability::Unavailable {
@@ -536,7 +538,9 @@ mod tests {
                 LinearOperatorProperties::SymmetricIndefinite,
             )
             .unwrap();
-            let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+            let solution = REFERENCE_LINEAR_SOLVER
+                .solve(&problem, plan.clone())
+                .unwrap();
             assert!((solution.values()[0] - 1.0).abs() < 1.0e-12);
             assert!((solution.values()[1] + 1.0).abs() < 1.0e-12);
             assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
@@ -630,7 +634,7 @@ mod tests {
                     .unwrap();
             assert_eq!(
                 REFERENCE_LINEAR_SOLVER
-                    .solve(&problem, plan)
+                    .solve(&problem, plan.clone())
                     .unwrap_err()
                     .code(),
                 codes::NUMERICAL_SOLVE_FAILED

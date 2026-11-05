@@ -43,7 +43,9 @@ struct DiagonalAction<S> {
     inverse_diagonal: Option<Vec<S>>,
 }
 
-impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedLinearPreconditioner<S> for DiagonalAction<S> {
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedLinearPreconditioner<S>
+    for DiagonalAction<S>
+{
     fn dimension(&self) -> usize {
         self.dimension
     }
@@ -63,7 +65,9 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedLinearPrecond
 ///
 /// # Errors
 /// Returns typed diagnostics for mismatched binding, failed action or convergence.
-pub fn solve_bicgstab_with_preconditioner<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(
+pub fn solve_bicgstab_with_preconditioner<
+    S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync,
+>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
     plan: &SolverPlan,
@@ -475,7 +479,7 @@ mod action_tests {
                 solve_bicgstab_with_preconditioner(
                     REFERENCE_SOLVER_PROVIDER,
                     &problem,
-                    plan,
+                    &plan,
                     &SERIAL_LINEAR_EXECUTION,
                     &action
                 )
@@ -498,7 +502,7 @@ mod action_tests {
             solve_bicgstab_with_preconditioner(
                 REFERENCE_SOLVER_PROVIDER,
                 &problem,
-                wrong,
+                &wrong,
                 &SERIAL_LINEAR_EXECUTION,
                 &action
             )

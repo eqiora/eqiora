@@ -21,7 +21,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: crate::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -29,7 +29,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: crate::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -37,7 +37,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: crate::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -110,9 +110,9 @@ pub(crate) fn declared_cuda_selection_has_literal_tuples_and_unknown_costs() {
             .unwrap();
             let expected = SolverPlan::new(algorithm, 2e-9, 3e-12, NonZeroUsize::new(73).unwrap())
                 .unwrap()
-                .with_preconditioner(preconditioner)
+                .with_preconditioner(preconditioner.clone())
                 .with_reduction(ReductionPolicy::Fast);
-            assert_eq!(selection.solver_plan(), expected);
+            assert_eq!(selection.solver_plan(), &expected);
             assert_eq!(selection.selected_candidate_id(), id);
             assert_eq!(selection.execution(), deployment().1);
             assert_eq!(selection.solver_provider(), CUDA_PROVIDER);

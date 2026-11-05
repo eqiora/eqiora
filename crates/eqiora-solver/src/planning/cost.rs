@@ -513,7 +513,7 @@ mod run_forecast_tests {
             SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(10).unwrap()).unwrap();
         profile.estimate_cost(
             "manual",
-            plan,
+            &plan,
             provider,
             ScalarDomain::Real,
             ScalarType::F64,
@@ -736,7 +736,7 @@ mod realification_cost_tests {
             );
             let cost = requested.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Real,
                 ScalarType::F64,
@@ -762,7 +762,7 @@ mod realification_cost_tests {
         );
         let cost = one_iteration.estimate_cost(
             "manual",
-            plan,
+            &plan,
             REFERENCE_PROVIDER,
             ScalarDomain::Real,
             ScalarType::F64,
@@ -794,7 +794,7 @@ mod realification_cost_tests {
             // typed acceptance: those included terms have no modeled bound here.
             let real = profile.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Real,
                 ScalarType::F64,
@@ -802,7 +802,7 @@ mod realification_cost_tests {
             assert_eq!(real.total_work(), Some(real_total));
             let complex = profile.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Complex,
                 ScalarType::F64,
@@ -830,7 +830,7 @@ mod realification_cost_tests {
             profile
                 .estimate_cost(
                     "manual",
-                    plan,
+                    &plan,
                     REFERENCE_PROVIDER,
                     ScalarDomain::Complex,
                     ScalarType::F64
