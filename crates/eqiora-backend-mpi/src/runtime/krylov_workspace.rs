@@ -135,7 +135,7 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Fast);
-        let error = match KrylovWorkspace::new(&problem, plan) {
+        let error = match KrylovWorkspace::new(&problem, &plan) {
             Ok(_) => panic!("MPI workspace unexpectedly admitted sparse LU"),
             Err(error) => error,
         };

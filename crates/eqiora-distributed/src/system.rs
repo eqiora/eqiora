@@ -5,7 +5,7 @@ use eqiora_solver::{
 };
 
 use crate::agreement::{
-    DistributedAdmissionFingerprintV1, DistributedLayoutAgreementIdentityV1,
+    DistributedAdmissionFingerprintV2, DistributedLayoutAgreementIdentityV1,
     PartitionAgreementIdentityV1, distributed_admission_fingerprint,
     distributed_layout_agreement_identity, partition_agreement_identity,
 };
@@ -200,7 +200,7 @@ impl DistributedLinearSystem {
     pub fn admission_fingerprint(
         &self,
         plan: &SolverPlan,
-    ) -> Result<DistributedAdmissionFingerprintV1, Diagnostic> {
+    ) -> Result<DistributedAdmissionFingerprintV2, Diagnostic> {
         self.validate_plan(plan)?;
         distributed_admission_fingerprint(
             self.system_identity,
@@ -216,8 +216,13 @@ impl DistributedLinearSystem {
                 "distributed solver algorithm does not accept the asserted operator properties",
             ));
         }
-        if matches!(plan.preconditioner(), PreconditionerPolicy::UpperDiagonalSchur(_)) {
-            return Err(invalid_realization("distributed upper diagonal-Schur preconditioning is not implemented"));
+        if matches!(
+            plan.preconditioner(),
+            PreconditionerPolicy::UpperDiagonalSchur(_)
+        ) {
+            return Err(invalid_realization(
+                "distributed upper diagonal-Schur preconditioning is not implemented",
+            ));
         }
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {}

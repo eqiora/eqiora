@@ -10,8 +10,13 @@ pub(super) fn inverse_diagonal(
     if plan.preconditioner() == &PreconditionerPolicy::Identity {
         return Ok(None);
     }
-    if matches!(plan.preconditioner(), PreconditionerPolicy::UpperDiagonalSchur(_)) {
-        return Err(solve_failed("CUDA upper diagonal-Schur preconditioning is not implemented"));
+    if matches!(
+        plan.preconditioner(),
+        PreconditionerPolicy::UpperDiagonalSchur(_)
+    ) {
+        return Err(solve_failed(
+            "CUDA upper diagonal-Schur preconditioning is not implemented",
+        ));
     }
     let mut inverse = Vec::with_capacity(system.rows());
     for row in 0..system.rows() {
@@ -95,7 +100,7 @@ mod tests {
         .with_reduction(ReductionPolicy::Fast);
         let error = CudaLinearSolver::capabilities()
             .require_problem(
-                plan,
+                &plan,
                 eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::General,
@@ -113,7 +118,7 @@ mod tests {
         .unwrap();
         let defensive_error = inverse_diagonal(
             &system,
-            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            &plan.with_preconditioner(PreconditionerPolicy::Jacobi),
         )
         .unwrap_err();
         assert_eq!(defensive_error.code(), codes::NUMERICAL_SOLVE_FAILED);

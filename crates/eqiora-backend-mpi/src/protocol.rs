@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_distributed::{DistributedAdmissionFingerprintV1, Partition, PartitionId};
+use eqiora_distributed::{DistributedAdmissionFingerprintV2, Partition, PartitionId};
 use eqiora_solver::{
     ConvergenceReason, ExecutionProvider, ExecutionTopology, LinearOperatorOrientation,
     LinearSolver, PreconditionerPolicy, ProviderLibrary, ReductionPolicy, SolveReport,
@@ -15,7 +15,7 @@ mod solver_tag;
 const ADMISSION_PROTOCOL_VERSION: u8 = 1;
 const ADMISSION_RECORD_BYTES: usize = 58;
 const PHASE_STATUS_BYTES: usize = 28;
-const PRODUCER_REPORT_DOMAIN_V2: &[u8] = b"eqiora.mpi-producer-report-summary/v2\0";
+const PRODUCER_REPORT_DOMAIN_V3: &[u8] = b"eqiora.mpi-producer-report-summary/v3\0";
 const PROVIDER_RECORD_DOMAIN_V1: &[u8] = b"eqiora.mpi-provider-record/v1\0";
 
 /// Communication boundary synchronized by one fixed-size status collective.
@@ -126,7 +126,7 @@ const SUCCESSFUL_TERMINAL_PHASES: [CollectivePhaseV1; 8] = [
 /// without creating a second ordinal namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MpiCollectiveTraceV1 {
-    admission_fingerprint: DistributedAdmissionFingerprintV1,
+    admission_fingerprint: DistributedAdmissionFingerprintV2,
     capacity: usize,
     steps: Vec<CollectiveStepV1>,
 }
@@ -134,7 +134,7 @@ pub struct MpiCollectiveTraceV1 {
 impl MpiCollectiveTraceV1 {
     #[cfg(feature = "mpi-runtime")]
     pub(crate) fn accepted(
-        admission_fingerprint: DistributedAdmissionFingerprintV1,
+        admission_fingerprint: DistributedAdmissionFingerprintV2,
         capacity: usize,
         steps: Vec<CollectiveStepV1>,
         completed_iterations: usize,
@@ -154,7 +154,7 @@ impl MpiCollectiveTraceV1 {
 
     /// Exact system/layout/plan identity agreed during collective admission.
     #[must_use]
-    pub const fn admission_fingerprint(&self) -> DistributedAdmissionFingerprintV1 {
+    pub const fn admission_fingerprint(&self) -> DistributedAdmissionFingerprintV2 {
         self.admission_fingerprint
     }
 
@@ -458,7 +458,7 @@ impl AdmissionRecordV1 {
     pub fn new(
         partitions: NonZeroUsize,
         partition: PartitionId,
-        fingerprint: DistributedAdmissionFingerprintV1,
+        fingerprint: DistributedAdmissionFingerprintV2,
         failure: DistributedProtocolFailureV1,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
@@ -741,13 +741,14 @@ fn reserved_vector<T>(capacity: usize, purpose: &'static str) -> Result<Vec<T>, 
 
 /// Domain-separated fixed-size summary of accepted producer evidence.
 ///
-/// V2 adds the complete solver, production-execution, and verification
-/// provider descriptors. This is an in-memory MPI agreement protocol, not a
+/// V3 retains the complete preconditioner policy alongside solver, production-
+/// execution, and verification provider descriptors. This is an in-memory MPI
+/// agreement protocol, not a
 /// durable artifact wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProducerReportSummaryV2([u8; 32]);
+pub struct ProducerReportSummaryV3([u8; 32]);
 
-impl ProducerReportSummaryV2 {
+impl ProducerReportSummaryV3 {
     /// Fixed summary extent in bytes.
     pub const ENCODED_LEN: usize = 32;
 
@@ -757,7 +758,7 @@ impl ProducerReportSummaryV2 {
     /// # Errors
     /// Returns `EQ0807` if a string or count exceeds portable `u64`.
     pub fn from_report(report: &SolveReport) -> Result<Self, Diagnostic> {
-        ProducerReportRecordV2::from_report(report).summarize()
+        ProducerReportRecordV3::from_report(report).summarize()
     }
 
     /// Raw summary bytes for one fixed-size all-rank comparison.
@@ -779,12 +780,12 @@ const SUBSTITUTED_PROVIDER_LIBRARIES: &[ProviderLibrary] =
     &[ProviderLibrary::new("eqiora-test-provider", "9.9.9")];
 
 #[cfg(feature = "mpi-test-hooks")]
-impl ProducerReportSummaryV2 {
+impl ProducerReportSummaryV3 {
     pub(crate) fn from_report_with_substitution(
         report: &SolveReport,
         substitution: ProviderSummarySubstitution,
     ) -> Result<Self, Diagnostic> {
-        let mut record = ProducerReportRecordV2::from_report(report);
+        let mut record = ProducerReportRecordV3::from_report(report);
         match substitution {
             ProviderSummarySubstitution::SolverImplementationVersion => {
                 record.solver_provider = SolverProvider::new(
@@ -806,7 +807,7 @@ impl ProducerReportSummaryV2 {
 }
 
 #[derive(Debug, Clone)]
-struct ProducerReportRecordV2 {
+struct ProducerReportRecordV3 {
     solver_provider: SolverProvider,
     execution_provider: ExecutionProvider,
     verification_provider: ExecutionProvider,
@@ -828,7 +829,7 @@ struct ProducerReportRecordV2 {
     maximum_iterations: NonZeroUsize,
 }
 
-impl ProducerReportRecordV2 {
+impl ProducerReportRecordV3 {
     fn from_report(report: &SolveReport) -> Self {
         let plan = report.solver_plan();
         Self {
@@ -854,12 +855,12 @@ impl ProducerReportRecordV2 {
         }
     }
 
-    fn summarize(self) -> Result<ProducerReportSummaryV2, Diagnostic> {
+    fn summarize(&self) -> Result<ProducerReportSummaryV3, Diagnostic> {
         self.solver_provider.validate()?;
         self.execution_provider.validate()?;
         self.verification_provider.validate()?;
         let mut hash = Sha256::new();
-        hash.update(PRODUCER_REPORT_DOMAIN_V2);
+        hash.update(PRODUCER_REPORT_DOMAIN_V3);
         update_provider(
             &mut hash,
             0,
@@ -924,11 +925,9 @@ impl ProducerReportRecordV2 {
             hash.update(value.to_bits().to_be_bytes());
         }
         hash.update([solver_tag::linear_solver_tag(self.algorithm)]);
-        hash.update([match &self.preconditioner {
-            PreconditionerPolicy::Identity => 0,
-            PreconditionerPolicy::Jacobi => 1,
-            PreconditionerPolicy::UpperDiagonalSchur(_) => return Err(protocol_error("MPI upper diagonal-Schur preconditioning is not implemented")),
-        }]);
+        let policy = self.preconditioner.identity_bytes()?;
+        update_usize(&mut hash, policy.len(), "preconditioner policy byte count")?;
+        hash.update(policy);
         hash.update([match self.reduction {
             ReductionPolicy::Reproducible => 0,
             ReductionPolicy::Fast => 1,
@@ -940,7 +939,7 @@ impl ProducerReportRecordV2 {
             self.maximum_iterations.get(),
             "maximum iterations",
         )?;
-        Ok(ProducerReportSummaryV2(hash.finalize().into()))
+        Ok(ProducerReportSummaryV3(hash.finalize().into()))
     }
 }
 

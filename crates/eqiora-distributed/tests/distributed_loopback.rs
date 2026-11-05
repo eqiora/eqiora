@@ -357,7 +357,7 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
     .with_preconditioner(PreconditionerPolicy::Jacobi)
     .with_reduction(ReductionPolicy::Reproducible);
 
-    let fingerprint = system.admission_fingerprint(plan).unwrap();
+    let fingerprint = system.admission_fingerprint(&plan).unwrap();
     // Fixed v1 binary-domain goldens: changing one is a protocol change.
     assert_eq!(
         system.partition_identity().as_bytes(),
@@ -373,17 +373,28 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
             104, 106, 177, 181, 160, 58, 248, 46, 150, 82, 119, 170,
         ]
     );
+    // Independently spell the v2 protocol, including the literal closed policy wire.
+    use sha2::{Digest, Sha256};
+    let mut expected = Sha256::new();
+    expected.update(b"eqiora.distributed-admission/v2\0");
+    expected.update(system.system_identity().as_bytes());
+    expected.update(system.partition_identity().as_bytes());
+    expected.update(system.layout_identity().as_bytes());
+    expected.update([0]); // CG
+    expected.update(8_u64.to_be_bytes());
+    expected.update(b"\"jacobi\"");
+    expected.update([0]); // reproducible
+    expected.update(1.0e-12_f64.to_bits().to_be_bytes());
+    expected.update(1.0e-14_f64.to_bits().to_be_bytes());
+    expected.update(40_u64.to_be_bytes());
     assert_eq!(
         fingerprint.as_bytes(),
-        [
-            162, 19, 116, 139, 208, 141, 156, 170, 231, 66, 78, 247, 203, 72, 117, 95, 243, 26,
-            198, 228, 218, 178, 16, 190, 163, 138, 176, 188, 97, 195, 91, 177,
-        ]
+        <[u8; 32]>::from(expected.finalize())
     );
-    assert_eq!(system.admission_fingerprint(plan).unwrap(), fingerprint);
+    assert_eq!(system.admission_fingerprint(&plan).unwrap(), fingerprint);
     assert_ne!(
         system
-            .admission_fingerprint(plan.with_reduction(ReductionPolicy::Fast))
+            .admission_fingerprint(&plan.clone().with_reduction(ReductionPolicy::Fast))
             .unwrap(),
         fingerprint
     );
@@ -396,7 +407,7 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Jacobi);
     assert_ne!(
-        system.admission_fingerprint(changed_plan).unwrap(),
+        system.admission_fingerprint(&changed_plan).unwrap(),
         fingerprint
     );
 
@@ -414,7 +425,7 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
     let permuted = DistributedLinearSystem::from_complete(&complete, permuted).unwrap();
     assert_ne!(permuted.partition_identity(), system.partition_identity());
     assert_ne!(permuted.layout_identity(), system.layout_identity());
-    assert_ne!(permuted.admission_fingerprint(plan).unwrap(), fingerprint);
+    assert_ne!(permuted.admission_fingerprint(&plan).unwrap(), fingerprint);
 
     let changed_storage = TridiagonalStorage::new(4, vec![1.0, 2.0, 3.0, 4.5]);
     let changed_complete = CanonicalCsrSystemView::new(
@@ -455,7 +466,7 @@ fn distributed_plan_admission_fails_before_execution() {
     )
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Jacobi);
-    assert!(system.admission_fingerprint(jacobi).is_err());
+    assert!(system.admission_fingerprint(&jacobi).is_err());
 
     let general =
         CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
@@ -466,7 +477,7 @@ fn distributed_plan_admission_fails_before_execution() {
     )
     .unwrap();
     let system = DistributedLinearSystem::from_complete(&general, partition).unwrap();
-    assert!(system.admission_fingerprint(jacobi).is_err());
+    assert!(system.admission_fingerprint(&jacobi).is_err());
 }
 
 #[test]
@@ -492,17 +503,17 @@ fn symmetric_indefinite_minres_has_one_exact_distributed_admission() {
     )
     .unwrap();
 
-    let fingerprint = system.admission_fingerprint(minres).unwrap();
-    assert_eq!(system.admission_fingerprint(minres).unwrap(), fingerprint);
+    let fingerprint = system.admission_fingerprint(&minres).unwrap();
+    assert_eq!(system.admission_fingerprint(&minres).unwrap(), fingerprint);
     assert_ne!(
         system
-            .admission_fingerprint(minres.with_reduction(ReductionPolicy::Fast))
+            .admission_fingerprint(&minres.clone().with_reduction(ReductionPolicy::Fast))
             .unwrap(),
         fingerprint
     );
     assert!(
         system
-            .admission_fingerprint(minres.with_preconditioner(PreconditionerPolicy::Jacobi))
+            .admission_fingerprint(&minres.with_preconditioner(PreconditionerPolicy::Jacobi))
             .is_err()
     );
 }

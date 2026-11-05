@@ -117,7 +117,7 @@ fn mpi_child_selects_and_rejects_planning_drift() {
             );
             assert_eq!(selected.execution(), execution);
             assert_eq!(selected.solver_plan().algorithm(), algorithm);
-            assert_eq!(selected.solver_plan().preconditioner(), preconditioner);
+            assert_eq!(selected.solver_plan().preconditioner(), &preconditioner);
             assert_eq!(selected.solver_plan().reduction(), reduction);
         }
     }
@@ -461,8 +461,8 @@ fn mpi_child_executes_admitted_run() {
     let (cg_complete, cg_system) = admitted_case(&group, dimension, &expected_solution);
     for reduction in [ReductionPolicy::Reproducible, ReductionPolicy::Fast] {
         let plan = solver_plan(reduction);
-        let admitted = group.admit(&cg_system, &cg_complete, plan).unwrap();
-        assert_eq!(admitted.plan(), plan);
+        let admitted = group.admit(&cg_system, &cg_complete, plan.clone()).unwrap();
+        assert_eq!(admitted.plan(), &plan);
         assert_eq!(admitted.system(), &cg_system);
         let fingerprint = admitted.admission_fingerprint();
         let result = admitted.solve_and_replicate_with_trace().unwrap();
@@ -507,7 +507,7 @@ fn mpi_child_executes_admitted_run() {
         reject: false,
     };
     let result = group
-        .admit(&system, &complete, plan)
+        .admit(&system, &complete, plan.clone())
         .unwrap()
         .solve_and_replicate_with_local_action(&mut local_action)
         .unwrap();
@@ -529,7 +529,7 @@ fn mpi_child_executes_admitted_run() {
     );
     assert_eq!(
         result.solution().report().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert_eq!(
         result.solution().report().reduction(),
@@ -625,7 +625,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: eqiora_solver::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -633,7 +633,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: eqiora_solver::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -641,7 +641,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -650,7 +650,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
     group
         .solver_capabilities()
         .require_problem(
-            minres_plan(),
+            &minres_plan(),
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricIndefinite,
@@ -664,7 +664,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
         let error = group
             .solver_capabilities()
             .require_problem(
-                unsupported,
+                &unsupported,
                 eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
@@ -687,7 +687,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
         let error = group
             .solver_capabilities()
             .require_problem(
-                unverified_cross_product,
+                &unverified_cross_product,
                 eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricPositiveDefinite,

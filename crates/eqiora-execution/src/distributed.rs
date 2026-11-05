@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
 use eqiora_distributed::{
-    DistributedAdmissionFingerprintV1, DistributedLayoutAgreementIdentityV1,
+    DistributedAdmissionFingerprintV2, DistributedLayoutAgreementIdentityV1,
     PartitionAgreementIdentityV1,
 };
 use eqiora_solver::{CanonicalCsrAgreementFingerprintV1, SolverPlan};
@@ -105,7 +105,7 @@ pub struct DistributedLinearExecutionTrace {
     system: CanonicalCsrAgreementFingerprintV1,
     partition: PartitionAgreementIdentityV1,
     layout: DistributedLayoutAgreementIdentityV1,
-    admission: DistributedAdmissionFingerprintV1,
+    admission: DistributedAdmissionFingerprintV2,
     process_group: ProcessGroupSlot,
     partitions: NonZeroUsize,
     workers_per_partition: NonZeroUsize,
@@ -135,7 +135,7 @@ impl DistributedLinearExecutionTrace {
         system: CanonicalCsrAgreementFingerprintV1,
         partition: PartitionAgreementIdentityV1,
         layout: DistributedLayoutAgreementIdentityV1,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
         process_group: ProcessGroupSlot,
         partitions: NonZeroUsize,
         workers_per_partition: NonZeroUsize,
@@ -202,7 +202,7 @@ impl DistributedLinearExecutionTrace {
 
     /// System, layout, and plan admission agreed by all partitions.
     #[must_use]
-    pub const fn admission(&self) -> DistributedAdmissionFingerprintV1 {
+    pub const fn admission(&self) -> DistributedAdmissionFingerprintV2 {
         self.admission
     }
 

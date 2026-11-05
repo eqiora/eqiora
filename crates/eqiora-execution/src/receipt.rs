@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
-use eqiora_distributed::{DistributedAdmissionFingerprintV1, DistributedLinearSystem};
+use eqiora_distributed::{DistributedAdmissionFingerprintV2, DistributedLinearSystem};
 use eqiora_realization::PortableRealizationGraph;
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, ExecutionProvider, ExecutionReport,
@@ -177,11 +177,11 @@ enum AdmittedExecutionKind<'system> {
     },
     DistributedHost {
         system: &'system DistributedLinearSystem,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
     },
     DistributedLocalAction {
         system: &'system DistributedLinearSystem,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
     },
 }
 
@@ -477,7 +477,7 @@ impl<'system> AdmittedExecution<'system> {
 
     /// Distributed admission identity, when this is a process-group run.
     #[must_use]
-    pub const fn distributed_admission(&self) -> Option<DistributedAdmissionFingerprintV1> {
+    pub const fn distributed_admission(&self) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedHost { admission, .. }
             | AdmittedExecutionKind::DistributedLocalAction { admission, .. } => Some(*admission),
@@ -487,7 +487,7 @@ impl<'system> AdmittedExecution<'system> {
 
     /// Admission identity for a host-owned distributed action.
     #[must_use]
-    pub const fn distributed_host_admission(&self) -> Option<DistributedAdmissionFingerprintV1> {
+    pub const fn distributed_host_admission(&self) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedHost { admission, .. } => Some(*admission),
             AdmittedExecutionKind::Host
@@ -500,7 +500,7 @@ impl<'system> AdmittedExecution<'system> {
     #[must_use]
     pub const fn distributed_local_action_admission(
         &self,
-    ) -> Option<DistributedAdmissionFingerprintV1> {
+    ) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedLocalAction { admission, .. } => Some(*admission),
             AdmittedExecutionKind::Host

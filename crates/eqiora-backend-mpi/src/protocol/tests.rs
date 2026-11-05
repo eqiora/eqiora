@@ -203,235 +203,235 @@ fn producer_summary_covers_every_admitted_report_axis() {
         1.0e-12,
     )
     .unwrap();
-    let summary = ProducerReportSummaryV2::from_report(&report).unwrap();
-    let baseline = ProducerReportRecordV2::from_report(&report);
+    let summary = ProducerReportSummaryV3::from_report(&report).unwrap();
+    let baseline = ProducerReportRecordV3::from_report(&report);
     assert_eq!(baseline.summarize().unwrap(), summary);
 
     let cases = [
         (
             "solver provider ID",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 solver_provider: SolverProvider::new(
                     BackendId::new("eqiora.other.cg"),
                     baseline.solver_provider.implementation_version(),
                     baseline.solver_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "solver provider implementation version",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 solver_provider: SolverProvider::new(
                     baseline.solver_provider.id(),
                     "9.9.9",
                     baseline.solver_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "solver provider libraries",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 solver_provider: SolverProvider::new(
                     baseline.solver_provider.id(),
                     baseline.solver_provider.implementation_version(),
                     CHANGED_LIBRARIES,
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "execution provider ID",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 execution_provider: ExecutionProvider::new(
                     ExecutionId::new("eqiora.other.mpi"),
                     baseline.execution_provider.implementation_version(),
                     baseline.execution_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "execution provider implementation version",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 execution_provider: ExecutionProvider::new(
                     baseline.execution_provider.id(),
                     "9.9.9",
                     baseline.execution_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "execution provider libraries",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 execution_provider: ExecutionProvider::new(
                     baseline.execution_provider.id(),
                     baseline.execution_provider.implementation_version(),
                     CHANGED_LIBRARIES,
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "verification provider ID",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 verification_provider: ExecutionProvider::new(
                     ExecutionId::new("eqiora.other.verifier"),
                     baseline.verification_provider.implementation_version(),
                     baseline.verification_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "verification provider implementation version",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 verification_provider: ExecutionProvider::new(
                     baseline.verification_provider.id(),
                     "9.9.9",
                     baseline.verification_provider.libraries(),
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "verification provider libraries",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 verification_provider: ExecutionProvider::new(
                     baseline.verification_provider.id(),
                     baseline.verification_provider.implementation_version(),
                     CHANGED_LIBRARIES,
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "backend compatibility projection",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 backend: "eqiora.other.cg",
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "execution adapter compatibility projection",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 execution_adapter: "eqiora.other.mpi",
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "distributed ranks",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 topology: ExecutionTopology::Distributed {
                     ranks: NonZeroUsize::new(4).unwrap(),
                     workers_per_partition: NonZeroUsize::MIN,
                 },
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "workers per partition",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 topology: ExecutionTopology::Distributed {
                     ranks: NonZeroUsize::new(3).unwrap(),
                     workers_per_partition: NonZeroUsize::new(2).unwrap(),
                 },
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "orientation",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 orientation: LinearOperatorOrientation::Transposed,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "reason",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 reason: ConvergenceReason::InitialResidualSatisfied,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "iterations",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 completed_iterations: 3,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "initial residual bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 initial_residual_norm: f64::from_bits(baseline.initial_residual_norm.to_bits() + 1),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "reported residual bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 reported_residual_norm: f64::from_bits(
                     baseline.reported_residual_norm.to_bits() + 1,
                 ),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "true residual bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 true_residual_norm: f64::from_bits(baseline.true_residual_norm.to_bits() + 1),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "target bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 residual_target: f64::from_bits(baseline.residual_target.to_bits() + 1),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "algorithm",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "preconditioner",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 preconditioner: PreconditionerPolicy::Identity,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "reduction",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 reduction: ReductionPolicy::Fast,
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "relative tolerance bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 relative_tolerance: f64::from_bits(baseline.relative_tolerance.to_bits() + 1),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "absolute tolerance bits",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 absolute_tolerance: f64::from_bits(baseline.absolute_tolerance.to_bits() + 1),
-                ..baseline
+                ..baseline.clone()
             },
         ),
         (
             "maximum iterations",
-            ProducerReportRecordV2 {
+            ProducerReportRecordV3 {
                 maximum_iterations: NonZeroUsize::new(11).unwrap(),
-                ..baseline
+                ..baseline.clone()
             },
         ),
     ];
@@ -439,10 +439,10 @@ fn producer_summary_covers_every_admitted_report_axis() {
         assert_ne!(changed.summarize().unwrap(), summary, "missing {axis} axis");
     }
 
-    let minres = ProducerReportRecordV2 {
+    let minres = ProducerReportRecordV3 {
         algorithm: LinearSolver::MinimumResidual,
         preconditioner: PreconditionerPolicy::Identity,
-        ..baseline
+        ..baseline.clone()
     }
     .summarize()
     .expect("stable producer-report tag 2 represents MINRES");

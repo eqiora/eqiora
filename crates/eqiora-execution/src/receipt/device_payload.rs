@@ -95,7 +95,7 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Fast);
-        let error = minimum_device_payload_bytes(&system, plan).unwrap_err();
+        let error = minimum_device_payload_bytes(&system, &plan).unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert_eq!(

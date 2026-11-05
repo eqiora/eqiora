@@ -159,7 +159,7 @@ fn portable_graph_with_workers(
         let plan = RealizationPlan::new(
             default.space(),
             default.discretization(),
-            default.solver(),
+            default.solver().clone(),
             Target::HostCpu { threads: workers },
             default.schedule(),
         )
@@ -201,7 +201,7 @@ fn reference_spd_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])
@@ -224,7 +224,7 @@ fn cuda_solver_capabilities() -> SolverCapabilities {
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         ],
-        [PreconditionerPolicy::Jacobi],
+        [eqiora_solver::PreconditionerKind::Jacobi],
         [ReductionPolicy::Fast],
         eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
@@ -237,7 +237,7 @@ fn cuda_minres_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Fast,
         scalar_type: ScalarType::F64,
     }])
@@ -253,6 +253,7 @@ fn portable_cuda_graph() -> eqiora_realization::PortableRealizationGraph {
         default.discretization(),
         default
             .solver()
+            .clone()
             .with_preconditioner(PreconditionerPolicy::Jacobi)
             .with_reduction(ReductionPolicy::Fast),
         Target::CudaGpu { device: 0 },
@@ -355,7 +356,7 @@ fn distributed_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabili
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         ],
-        [PreconditionerPolicy::Jacobi],
+        [eqiora_solver::PreconditionerKind::Jacobi],
         [reduction],
         eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
@@ -368,7 +369,7 @@ fn distributed_minres_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])
@@ -387,6 +388,7 @@ fn portable_distributed_graph_with(
         default.discretization(),
         default
             .solver()
+            .clone()
             .with_preconditioner(PreconditionerPolicy::Jacobi)
             .with_reduction(reduction),
         Target::HostCpu {
@@ -472,7 +474,7 @@ fn portable_distributed_minres_graph_with(
         SolverCapabilities::new(
             [LinearSolver::MinimumResidual],
             [LinearOperatorProperties::SymmetricIndefinite],
-            [PreconditionerPolicy::Identity],
+            [eqiora_solver::PreconditionerKind::Identity],
             [reduction],
             eqiora_core::ScalarDomain::Real,
             [ScalarType::F64],
@@ -649,14 +651,14 @@ fn distributed_trace(
         system.system_identity(),
         system.partition_identity(),
         system.layout_identity(),
-        system.admission_fingerprint(plan).unwrap(),
+        system.admission_fingerprint(&plan).unwrap(),
         ProcessGroupSlot::new(0),
         system.partition().count(),
         NonZeroUsize::MIN,
         complete.columns(),
-        DistributedLinearExecutionTrace::collective_capacity(plan).unwrap(),
+        DistributedLinearExecutionTrace::collective_capacity(&plan).unwrap(),
         steps,
-        plan,
+        &plan,
     )
     .unwrap()
 }
@@ -951,15 +953,15 @@ fn host_receipt_seals_the_fixed_dag_and_existing_identities() {
     let system = system([1.0, 0.0]);
     let fingerprint = system.agreement_fingerprint();
     let binding = serial_binding(&graph);
-    let plan = binding.solver_plan();
+    let plan = binding.solver_plan().clone();
     let admitted = AdmittedExecution::admit_host_linear(&graph, &system, binding).unwrap();
-    let accepted = admitted.accept(solve(&system, plan)).unwrap();
+    let accepted = admitted.accept(solve(&system, plan.clone())).unwrap();
     let receipt = accepted.receipt();
 
     assert_eq!(receipt.operator(), fingerprint);
     assert_eq!(receipt.dimension(), 2);
-    assert_eq!(receipt.solver_plan(), plan);
-    assert_eq!(receipt.report().solver_plan(), plan);
+    assert_eq!(receipt.solver_plan(), &plan);
+    assert_eq!(receipt.report().solver_plan(), &plan);
     assert_eq!(receipt.solver_provider(), reference_solver_provider());
     assert_eq!(receipt.execution_provider(), serial_execution_provider());
     assert_eq!(receipt.verification_provider(), serial_execution_provider());
@@ -994,7 +996,7 @@ fn host_receipt_seals_the_fixed_dag_and_existing_identities() {
     );
     assert_ne!(receipt.output().as_bytes(), [0; 32]);
     assert_eq!(receipt.dag().operator(), fingerprint);
-    assert_eq!(receipt.dag().solver_plan(), plan);
+    assert_eq!(receipt.dag().solver_plan(), &plan);
     assert_eq!(
         receipt.dag().steps(),
         &[
@@ -1011,10 +1013,10 @@ fn receipt_binding_sharing_preserves_the_entire_accepted_receipt_and_rejects_for
     let accept = |graph: &eqiora_realization::PortableRealizationGraph, right| {
         let system = system(right);
         let binding = serial_binding(graph);
-        let plan = binding.solver_plan();
+        let plan = binding.solver_plan().clone();
         AdmittedExecution::admit_host_linear(graph, &system, binding)
             .unwrap()
-            .accept(solve(&system, plan))
+            .accept(solve(&system, plan.clone()))
             .unwrap()
             .into_parts()
             .1
@@ -1199,7 +1201,7 @@ fn distributed_binding_accepts_only_the_exact_symmetric_indefinite_minres_tuple(
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         ],
-        [PreconditionerPolicy::Identity],
+        [eqiora_solver::PreconditionerKind::Identity],
         [ReductionPolicy::Reproducible],
         eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
@@ -1223,7 +1225,7 @@ fn distributed_binding_accepts_only_the_exact_symmetric_indefinite_minres_tuple(
     );
     assert_eq!(
         binding.solver_plan().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
 
     let rejected = DeploymentBinding::bind_distributed(
@@ -1252,7 +1254,7 @@ fn distributed_binding_accepts_only_the_exact_symmetric_indefinite_minres_tuple(
             SolverCapabilities::new(
                 [LinearSolver::MinimumResidual],
                 [LinearOperatorProperties::SymmetricIndefinite],
-                [PreconditionerPolicy::Identity],
+                [eqiora_solver::PreconditionerKind::Identity],
                 [ReductionPolicy::Fast],
                 eqiora_core::ScalarDomain::Real,
                 [ScalarType::F64],
@@ -1418,8 +1420,8 @@ fn distributed_receipt_seals_layout_collectives_and_complete_host_output() {
     let partitions = NonZeroUsize::new(2).unwrap();
     let distributed = distributed_system(&complete, partitions);
     let binding = distributed_binding(&graph, partitions);
-    let plan = binding.solver_plan();
-    let admission = distributed.admission_fingerprint(plan).unwrap();
+    let plan = binding.solver_plan().clone();
+    let admission = distributed.admission_fingerprint(&plan).unwrap();
     let admitted =
         AdmittedExecution::admit_distributed_linear(&graph, &distributed, &complete, binding)
             .unwrap();
@@ -1429,10 +1431,10 @@ fn distributed_receipt_seals_layout_collectives_and_complete_host_output() {
     assert_eq!(admitted.distributed_host_admission(), Some(admission));
     assert_eq!(admitted.distributed_local_action_system(), None);
     assert_eq!(admitted.distributed_local_action_admission(), None);
-    let trace = distributed_trace(&distributed, &complete, plan);
+    let trace = distributed_trace(&distributed, &complete, plan.clone());
     let accepted = admitted
         .accept_distributed(
-            distributed_solution(&complete, plan, partitions),
+            distributed_solution(&complete, plan.clone(), partitions),
             trace.clone(),
         )
         .unwrap();
@@ -1475,8 +1477,10 @@ fn distributed_admission_and_trace_fail_closed_on_cross_wiring() {
     .unwrap_err();
     assert!(rejected.message().contains("identity"));
 
-    let plan = distributed_binding(&graph, partitions).solver_plan();
-    let trace = distributed_trace(&distributed, &complete, plan);
+    let plan = distributed_binding(&graph, partitions)
+        .solver_plan()
+        .clone();
+    let trace = distributed_trace(&distributed, &complete, plan.clone());
     let mut sparse = trace.steps().to_vec();
     sparse[1] = DistributedCollectiveStepV1::new(
         sparse[1].phase(),
@@ -1487,14 +1491,14 @@ fn distributed_admission_and_trace_fail_closed_on_cross_wiring() {
         distributed.system_identity(),
         distributed.partition_identity(),
         distributed.layout_identity(),
-        distributed.admission_fingerprint(plan).unwrap(),
+        distributed.admission_fingerprint(&plan).unwrap(),
         ProcessGroupSlot::new(0),
         partitions,
         NonZeroUsize::MIN,
         complete.columns(),
-        DistributedLinearExecutionTrace::collective_capacity(plan).unwrap(),
+        DistributedLinearExecutionTrace::collective_capacity(&plan).unwrap(),
         sparse,
-        plan,
+        &plan,
     )
     .unwrap_err();
     assert!(rejected.message().contains("ordinals"));
@@ -1510,7 +1514,7 @@ fn binding_rejects_a_provider_without_the_exact_solver_tuple() {
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         ],
-        [PreconditionerPolicy::Identity],
+        [eqiora_solver::PreconditionerKind::Identity],
         [ReductionPolicy::Reproducible],
         eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
@@ -1556,7 +1560,7 @@ fn distributed_admission_rejects_sparse_lu_before_fingerprinting() {
     let complete = system([1.0, 0.0]);
     let distributed = distributed_system(&complete, NonZeroUsize::new(2).unwrap());
     let plan = SolverPlan::new(LinearSolver::SparseLu, 0.0, 1.0e-12, NonZeroUsize::MIN).unwrap();
-    let error = distributed.admission_fingerprint(plan).unwrap_err();
+    let error = distributed.admission_fingerprint(&plan).unwrap_err();
 
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
     assert_eq!(error.message(), "distributed sparse LU is not implemented");
@@ -1579,7 +1583,7 @@ fn execution_and_plan_substitution_fail_at_the_output_boundary() {
     .unwrap();
     let admitted = AdmittedExecution::admit_host_linear(&graph, &system, binding).unwrap();
     let error = admitted
-        .accept(solve(&system, serial_binding(&graph).solver_plan()))
+        .accept(solve(&system, serial_binding(&graph).solver_plan().clone()))
         .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
 
@@ -1600,7 +1604,7 @@ fn execution_and_plan_substitution_fail_at_the_output_boundary() {
 fn same_id_provider_version_and_library_substitution_fail_at_receipt_boundary() {
     let graph = portable_graph();
     let system = system([1.0, 0.0]);
-    let plan = serial_binding(&graph).solver_plan();
+    let plan = serial_binding(&graph).solver_plan().clone();
     let expected_solver = reference_solver_provider();
     let expected_execution = serial_execution_provider();
     let substituted = [
@@ -1638,7 +1642,12 @@ fn same_id_provider_version_and_library_substitution_fail_at_receipt_boundary() 
         let admitted =
             AdmittedExecution::admit_host_linear(&graph, &system, serial_binding(&graph)).unwrap();
         let error = admitted
-            .accept(solve_with_providers(&system, plan, solver, execution))
+            .accept(solve_with_providers(
+                &system,
+                plan.clone(),
+                solver,
+                execution,
+            ))
             .unwrap_err();
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert!(error.message().contains("provider provenance contradicts"));
@@ -1660,7 +1669,7 @@ fn same_id_provider_version_and_library_substitution_fail_at_receipt_boundary() 
             AdmittedExecution::admit_host_linear(&graph, &system, serial_binding(&graph)).unwrap();
         let solution = eqiora_solver::LinearSolution::accept_with_verifier(
             &system.linear_problem().unwrap(),
-            plan,
+            plan.clone(),
             expected_solver,
             expected_execution,
             ExecutionReport::host_serial(),
@@ -1683,9 +1692,11 @@ fn candidate_from_another_operator_is_rejected_by_true_residual_replay() {
     let admitted_system = system([1.0, 0.0]);
     let other_system = system([0.0, 1.0]);
     let binding = serial_binding(&graph);
-    let plan = binding.solver_plan();
+    let plan = binding.solver_plan().clone();
     let admitted = AdmittedExecution::admit_host_linear(&graph, &admitted_system, binding).unwrap();
-    let error = admitted.accept(solve(&other_system, plan)).unwrap_err();
+    let error = admitted
+        .accept(solve(&other_system, plan.clone()))
+        .unwrap_err();
 
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
     assert!(error.message().contains("independent host residual"));
@@ -1696,16 +1707,16 @@ fn accepted_output_fingerprint_changes_with_the_complete_vector() {
     let graph = portable_graph();
     let first_system = system([1.0, 0.0]);
     let second_system = system([0.0, 1.0]);
-    let plan = serial_binding(&graph).solver_plan();
+    let plan = serial_binding(&graph).solver_plan().clone();
 
     let first = AdmittedExecution::admit_host_linear(&graph, &first_system, serial_binding(&graph))
         .unwrap()
-        .accept(solve(&first_system, plan))
+        .accept(solve(&first_system, plan.clone()))
         .unwrap();
     let second =
         AdmittedExecution::admit_host_linear(&graph, &second_system, serial_binding(&graph))
             .unwrap()
-            .accept(solve(&second_system, plan))
+            .accept(solve(&second_system, plan.clone()))
             .unwrap();
 
     assert_ne!(first.receipt().output(), second.receipt().output());
@@ -1733,12 +1744,12 @@ fn cuda_receipt_seals_exact_movement_generation_fences_and_dag() {
     let device = cuda_device(1 << 20);
     let queue = materialized_queue(device.id(), 0, 1);
     let binding = cuda_binding(&graph, device);
-    let plan = binding.solver_plan();
+    let plan = binding.solver_plan().clone();
     let admitted = AdmittedExecution::admit_cuda_linear(&graph, &system, binding).unwrap();
     assert!(admitted.minimum_device_payload_bytes().unwrap() > 0);
     let (trace, _) = cuda_trace(queue.device(), queue);
     let accepted = admitted
-        .accept_cuda(cuda_solution(&system, plan), trace)
+        .accept_cuda(cuda_solution(&system, plan.clone()), trace)
         .unwrap();
     let receipt = accepted.receipt();
 
@@ -1796,10 +1807,10 @@ fn cuda_minres_admission_accounts_for_exact_resident_workspace() {
     let system = symmetric_indefinite_system([1.0, 0.0]);
     let device = cuda_device(232);
     let binding = cuda_minres_binding(&graph, device);
-    let plan = binding.solver_plan();
+    let plan = binding.solver_plan().clone();
 
     assert_eq!(plan.algorithm(), LinearSolver::MinimumResidual);
-    assert_eq!(plan.preconditioner(), PreconditionerPolicy::Identity);
+    assert_eq!(plan.preconditioner(), &PreconditionerPolicy::Identity);
     assert_eq!(plan.reduction(), ReductionPolicy::Fast);
     let admitted = AdmittedExecution::admit_cuda_linear(&graph, &system, binding).unwrap();
 
@@ -1830,7 +1841,7 @@ fn cuda_binding_rejects_capability_and_memory_before_device_allocation() {
             eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         ],
-        [PreconditionerPolicy::Jacobi],
+        [eqiora_solver::PreconditionerKind::Jacobi],
         [ReductionPolicy::Reproducible],
         eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
@@ -1873,12 +1884,12 @@ fn cuda_binding_rejects_capability_and_memory_before_device_allocation() {
     let tight_queue = materialized_queue(tight.id(), 0, 2);
     let tight_system = system([1.0, 0.0]);
     let tight_binding = cuda_binding(&graph, tight);
-    let tight_plan = tight_binding.solver_plan();
+    let tight_plan = tight_binding.solver_plan().clone();
     let admitted =
         AdmittedExecution::admit_cuda_linear(&graph, &tight_system, tight_binding).unwrap();
     let (trace, _) = cuda_trace(tight_queue.device(), tight_queue);
     let rejected = admitted
-        .accept_cuda(cuda_solution(&tight_system, tight_plan), trace)
+        .accept_cuda(cuda_solution(&tight_system, tight_plan.clone()), trace)
         .unwrap_err();
     assert!(rejected.message().contains("external sparse workspace"));
 }
