@@ -210,7 +210,7 @@ impl PyPreconditioner {
             maximum_products,
         )
         .map(|v| Self {
-            native: PreconditionerPolicy::UpperDiagonalSchur(v),
+            native: PreconditionerPolicy::upper_diagonal_schur(v),
         })
         .map_err(|d| validation_error(py, &[d]))
     }
@@ -226,7 +226,7 @@ impl PyPreconditioner {
     fn upper_diagonal_schur_config(&self) -> Option<PyUpperDiagonalSchurConfig> {
         match &self.native {
             PreconditionerPolicy::UpperDiagonalSchur(native) => Some(PyUpperDiagonalSchurConfig {
-                native: native.clone(),
+                native: native.as_ref().clone(),
             }),
             _ => None,
         }
