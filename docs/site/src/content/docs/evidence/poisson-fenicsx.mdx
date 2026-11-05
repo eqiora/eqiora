@@ -17,9 +17,44 @@ the published `0.1.5` release does not contain this workflow.
 
 ## Follow-up: reusing admission checks
 
-A second matched comparison measures a development build that reuses admission
-checks during live scalar execution. The completed fixed-budget observations
-are recorded separately from the earlier comparison below.
+A second development build reuses admission checks during live scalar execution.
+In eight matched pairs against the preceding build, Eqiora's ordinary execution
+medians were lower at all four mesh levels. These are separate observations;
+the earlier comparison below remains unchanged.
+
+Each entry is a candidate/baseline wall-time ratio within a matched pair.
+Values under one mean less time for the candidate. Ranges are observed ranges,
+not confidence intervals. FEniCSx is the unchanged environmental control.
+
+| Cells per axis | Eqiora: median [range] | FEniCSx: median [range] |
+|---:|---:|---:|
+| 4 | 0.788 [0.769–0.816] | 0.985 [0.960–1.007] |
+| 8 | 0.843 [0.821–0.870] | 1.020 [0.952–1.069] |
+| 16 | 0.892 [0.860–0.907] | 1.013 [0.977–1.044] |
+| 32 | 0.924 [0.891–0.938] | 1.001 [0.980–1.049] |
+
+The same fixed schedule used two excluded exploratory campaigns and eight
+matched pairs with alternating launch order, on the same shared host and pinned
+CPU. Each campaign used four meshes, two warmups and seven timed calls with
+unchanged independent accuracy gates and solver controls. All eighteen campaigns
+in the completed attempt passed. The eight pairs are the comparison units;
+individual calls are not independent replicates.
+
+An earlier attempt stopped after its baseline exploratory campaign: the existing
+installed-wheel isolation check rejected the candidate environment's location
+inside the harness root before candidate numerical work. That attempt is retained.
+A fresh sibling environment corrected the installation location, and the unchanged
+fixed-budget protocol ran in a new output directory. No equations, accuracy
+reference, tolerances or solver controls changed, and no completed candidate
+campaign was replaced.
+
+Both revisions used authenticated optimized wheels with the same release profile,
+including its package overrides. The source, wheel, build-record provenance,
+original-report digests, every timing sample, accuracy summaries, CPU observations,
+launch-order summaries and drift are retained in the
+<ExactSourceLink path="docs/performance/2026-11-05-poisson-admission-reuse.json" kind="blob">admission-reuse measurement record</ExactSourceLink>.
+This descriptive shared-host comparison establishes no stable timing guarantee,
+universal speedup, cylinder-speed target or short-Run non-regression target.
 
 ## Follow-up: retaining the original assembled equations
 

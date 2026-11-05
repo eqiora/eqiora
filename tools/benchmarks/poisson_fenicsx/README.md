@@ -141,10 +141,12 @@ RSS and stage snapshots. Record any JIT child peak separately. These process
 high-water marks are not a simultaneous aggregate process-tree peak and must
 not be described as operator-only memory or subtracted into such a claim.
 
-The current shared host is approved only for installation and correctness
-smoke tests. Their reports must identify themselves as non-reference runs.
-A quiet, explicitly identified environment is required before publishing a
-stable timing or speed comparison. Slower results are retained and explained.
+Shared-host installation and correctness smoke reports must identify themselves
+as non-reference runs. A fixed-budget matched comparison may also report
+descriptive shared-host observations when it retains every campaign, records
+controls and interference, and states the limit of its inference. A quiet,
+explicitly identified environment is required before publishing a stable timing
+or speed comparison. Slower results are retained and explained.
 
 ## Reproduce a correctness smoke
 
