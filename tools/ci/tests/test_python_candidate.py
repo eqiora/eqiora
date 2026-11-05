@@ -1104,6 +1104,13 @@ invalid candidate
             Path("examples/python/mesh_error_estimation.ipynb"),
         ):
             self.assertIn(relative, PYTHON_TEST_RESOURCES)
+        # Saved imported and handwritten inverse-Poisson examples share one installed workflow.
+        for relative in (
+            Path("examples/inverse-poisson.eqi"),
+            Path("examples/python/learn_inverse_poisson.py"),
+            Path("docs/site/src/content/docs/learn/inverse-problems/_examples/inverse-poisson-handwritten.eqi"),
+        ):
+            self.assertIn(relative, PYTHON_TEST_RESOURCES)
         # Controls tests use the maintained adapter, but load the package from the wheel.
         self.assertIn(
             Path("examples/standard-sampled-components/src/main.eqi"),
