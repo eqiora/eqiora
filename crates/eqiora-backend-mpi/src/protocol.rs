@@ -805,7 +805,7 @@ impl ProducerReportSummaryV2 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ProducerReportRecordV2 {
     solver_provider: SolverProvider,
     execution_provider: ExecutionProvider,
@@ -846,7 +846,7 @@ impl ProducerReportRecordV2 {
             true_residual_norm: report.true_residual_norm(),
             residual_target: report.residual_target(),
             algorithm: plan.algorithm(),
-            preconditioner: plan.preconditioner(),
+            preconditioner: plan.preconditioner().clone(),
             reduction: plan.reduction(),
             relative_tolerance: plan.relative_tolerance(),
             absolute_tolerance: plan.absolute_tolerance(),
@@ -924,9 +924,10 @@ impl ProducerReportRecordV2 {
             hash.update(value.to_bits().to_be_bytes());
         }
         hash.update([solver_tag::linear_solver_tag(self.algorithm)]);
-        hash.update([match self.preconditioner {
+        hash.update([match &self.preconditioner {
             PreconditionerPolicy::Identity => 0,
             PreconditionerPolicy::Jacobi => 1,
+            PreconditionerPolicy::UpperDiagonalSchur(_) => return Err(protocol_error("MPI upper diagonal-Schur preconditioning is not implemented")),
         }]);
         hash.update([match self.reduction {
             ReductionPolicy::Reproducible => 0,

@@ -361,7 +361,7 @@ impl MpiExecutionGroup {
         complete: &'model CanonicalCsrSystemView,
         plan: SolverPlan,
     ) -> Result<AdmittedDistributedRun<'group, 'model>, Diagnostic> {
-        let prepared = PreparedRun::new(self, system, complete, plan);
+        let prepared = PreparedRun::new(self, system, complete, &plan);
         let failure = prepared
             .as_ref()
             .err()
@@ -797,8 +797,8 @@ impl AdmittedDistributedRun<'_, '_> {
 
     /// The sole solver plan sealed by collective admission.
     #[must_use]
-    pub const fn plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Exact system/layout/plan identity agreed by every rank.
@@ -1776,7 +1776,7 @@ impl<'model> PreparedRun<'model> {
         group: &MpiExecutionGroup,
         system: &'model DistributedLinearSystem,
         complete: &'model CanonicalCsrSystemView,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         require_partition(group, system.partition())?;
         if !system.matches_complete(complete) {
@@ -1836,7 +1836,7 @@ impl RunBuffers {
         complete: &CanonicalCsrSystemView,
         problem: &DistributedLinearProblem<'_>,
         complete_problem: &eqiora_solver::LinearProblem<'_>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let ranks = group.partitions.get();
         let local_dimension = problem.right_hand_side().len();

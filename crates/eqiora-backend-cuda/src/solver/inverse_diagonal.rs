@@ -5,10 +5,13 @@ use crate::runtime::solve_failed;
 
 pub(super) fn inverse_diagonal(
     system: &CanonicalCsrSystemView,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<Option<Vec<f64>>, Diagnostic> {
-    if plan.preconditioner() == PreconditionerPolicy::Identity {
+    if plan.preconditioner() == &PreconditionerPolicy::Identity {
         return Ok(None);
+    }
+    if matches!(plan.preconditioner(), PreconditionerPolicy::UpperDiagonalSchur(_)) {
+        return Err(solve_failed("CUDA upper diagonal-Schur preconditioning is not implemented"));
     }
     let mut inverse = Vec::with_capacity(system.rows());
     for row in 0..system.rows() {

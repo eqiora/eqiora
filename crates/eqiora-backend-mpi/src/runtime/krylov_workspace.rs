@@ -33,7 +33,7 @@ pub(super) struct MinresWorkspace {
 impl KrylovWorkspace {
     pub(super) fn new(
         problem: &DistributedLinearProblem<'_>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let dimension = problem.right_hand_side().len();
         let mut solution = zeroed(dimension, "distributed Krylov solution")?;
