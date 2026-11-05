@@ -238,7 +238,7 @@ impl DifferentiableEvaluation {
         let (tangent, solves) = self.native.jvp(
             tangent.values.coordinates(),
             &self.projection,
-            LinearSolveRequest::new(self.backend, self.identity.solver),
+            LinearSolveRequest::new(self.backend, self.identity.solver.clone()),
         )?;
         Ok(DifferentiableResult {
             output: self.output_values(),
@@ -267,7 +267,7 @@ impl DifferentiableEvaluation {
         let (input_cotangent, solves) = self.native.vjp(
             cotangent.values.coordinates(),
             &self.projection,
-            LinearSolveRequest::new(self.backend, self.identity.solver),
+            LinearSolveRequest::new(self.backend, self.identity.solver.clone()),
         )?;
         Ok(DifferentiableResult {
             output: self.output_values(),
