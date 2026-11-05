@@ -21,7 +21,7 @@
 | Reference BiCGSTAB, general/Jacobi | ✅ | ✅ | ⬜ | ⬜ | Deterministic right-preconditioned reference BiCGSTAB with reproducible reductions accepts only after an independent true-residual check, for real and complex systems, with restart and shadow-vector recovery inside the original budget; [`fluid.cartesian-advection-diffusion-fvm-2d`](../../verify/fluid/cartesian-advection-diffusion-fvm-2d/README.md). Not yet: a registered restart/failure case, arbitrary conditioning, device accuracy, scaling. |
 | Additional reference BiCGSTAB tuples | ✅ | ✅ | ⬜ | ⬜ | General/identity and asserted SPD or symmetric-indefinite identity/Jacobi tuples are exact and unit-tested, but do not inherit registered numerical evidence from the general/Jacobi transport case; production preconditioners and performance remain |
 | Exact solver capability tuples | ✅ | ✅ | ✅ | ⬜ | Solver admission records exact algorithm/operator-property/preconditioner/reduction/scalar combinations; reference MINRES accepts real symmetric and complex Hermitian/HPD operators with Identity or Jacobi (Jacobi needs a positive diagonal, which does not prove definiteness). Unimplemented combinations are rejected before any work. |
-| Explicit upper diagonal-Schur preconditioning | ✅ | 🟨 | ⬜ | ⬜ | Two caller-selected ordered semantic groups use fixed faer sparse-LU factors with real `f64`, normal, host-serial BiCGSTAB/Fast for General or SymmetricIndefinite operators. Ordinary pilot remains incomplete; [policy and limits](#upper-diagonal-schur-policy), [specified pilot](../../verify/numerics/structured-upper-diagonal-schur/README.md). |
+| Explicit upper diagonal-Schur preconditioning | ✅ | ✅ | ✅ | ⬜ | Two caller-selected ordered semantic groups use fixed faer sparse-LU factors with real `f64`, normal, host-serial BiCGSTAB/Fast for General or SymmetricIndefinite operators. A registered 54-run manufactured Stokes pilot passes; [policy and limits](#upper-diagonal-schur-policy), [pilot evidence](../../verify/numerics/structured-upper-diagonal-schur/README.md). |
 | Deterministic host solver planning | ✅ | ✅ | ⬜ | ⬜ | One planner ranks reference and faer solvers by `Robust`, `Fast` or `LowMemory` from proven operator properties (30 real, 28 complex tuples), checks manual choices and keeps the decision through replay; it also selects within an explicit Rayon, CUDA or MPI deployment, without fallback. Not yet: whole-Run timings, LU fill, placement or automatic block/Schur selection; [`numerics.host-serial-solver-planning`](../../verify/numerics/host-serial-solver-planning/README.md), [`numerics.host-serial-solver-planning-private`](../../verify/numerics/host-serial-solver-planning-private/README.md), [`numerics.mpi-distributed`](../../verify/numerics/mpi-distributed/README.md). [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md) |
 | Plan a fixed scalar-storage Run workload | ✅ | ✅ | ⬜ | ⬜ | `Plan.for_run` (Rust and Python) plans a fixed linear scalar Q1 backward-Euler Run, forecasting assembly passes and choosing faer sparse LU with one factorization when it pays off; changed schedules are rejected. Not yet: elapsed-time optimality, process memory bounds, arbitrary time dependence. |
 | Exact Realization admission tuples | ✅ | ✅ | ⬜ | ⬜ | Realization admission stores exact (space, layout, capacity, schedule, solver) combinations rather than independent sets; registered cases admit P1 FEM with CG and P0 FVM with BiCGSTAB/Jacobi and reject their untested cross-combination; [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md), [`solid.isotropic-elasticity-2d`](../../verify/solid/isotropic-elasticity-2d/README.md), [RFC 0010](../../rfcs/0010-execution-backend-contracts.md) |
@@ -85,5 +85,16 @@ Execution is limited to normal real binary64 host-serial BiCGSTAB with Fast
 reductions and General or SymmetricIndefinite operators. Complex, transpose or
 adjoint, SPD/CG, reproducible reductions, Rayon, MPI and CUDA compositions are
 not admitted. The [ordinary pilot](../../verify/numerics/structured-upper-diagonal-schur/README.md)
-is specified and currently blocked before solving; the full pilot has not run.
-There is no registered passing evidence, performance or robustness claim.
+passes as a registered first-party analytic case through the ordinary package
+Model, Plan and Run. It checks direct faer, manual composition and explicitly
+ranked composition across refinements `2,4,8`, lengths `1,2 m` and viscosities
+`0.5,1,2 Pa s`: 54 runs with independent analytic convergence, gauge,
+equilibrium and true-residual checks. The normalized equations are identical
+across this similarity sweep; it supplies no independent conditioning or
+viscosity-robustness evidence. A second physics consumer and performance
+evidence remain absent.
+
+Canonical Plan replay retains the full composition and provider intent. Result
+replay checks gauge-metadata presence and finiteness, not independent numerical
+reauthentication of a changed finite multiplier; the live Run supplies the
+numerical gauge evidence.
