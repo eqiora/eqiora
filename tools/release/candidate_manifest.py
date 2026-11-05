@@ -31,7 +31,9 @@ REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
 FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 MANIFEST_BYTES_LIMIT = 1_048_576
-ARCHIVE_MEMBER_COUNT_LIMIT = 4_096
+# Bound archive traversal metadata separately from payload sizes.
+# Allow audited tracked-source growth without changing any byte ceiling.
+ARCHIVE_MEMBER_COUNT_LIMIT = 8_192
 # The native extension is subject to a distinct expanded-member bound.
 # Keep a bounded 40 MiB per-member envelope distinct from the tighter raw-family
 # and expanded-archive ceilings so one native module fits without widening the

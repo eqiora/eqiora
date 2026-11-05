@@ -105,13 +105,10 @@ store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without
 fetching anything.
 
-Development builds also bundle the documented entrypoints `Eqiora.Fluid@0.4.0`
-and `Eqiora.Solid@0.4.0` through the same APIs. The fluid entrypoint includes its
-exact `Eqiora.Mechanics.Interfaces` dependency; the solid entrypoint has no
-package dependencies. For example, request `"Eqiora.Fluid"` with `version="0.4.0"`
-in `eqiora.add_bundled_dependency(...)`. The published Eqiora 0.1.5 distribution
-is unchanged. The components retain their existing explicit two-dimensional
-interfaces.
+Development builds also bundle `Eqiora.Solid@0.4.0` through the same APIs.
+This package has no dependencies and retains its explicit two-dimensional
+interfaces. Request `"Eqiora.Solid"` with `version="0.4.0"` in
+`eqiora.add_bundled_dependency(...)`.
 
 ## Packages in this directory
 
