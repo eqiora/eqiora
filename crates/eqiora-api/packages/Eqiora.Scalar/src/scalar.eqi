@@ -41,3 +41,38 @@ public component NormalFlux2d(
     normal(coefficient * grad(potential)) - flux = 0;
   }
 }
+
+public component SteadyHeat2d(
+  support body: volume(ambient_dimension = 2),
+  variable temperature: K on body in h1,
+  parameter conductivity: W / (m * K),
+  expression heating: W / m ^ 3 on body
+) {
+  law heat_balance on body {
+    flux -conductivity * grad(temperature);
+    source heating;
+  }
+}
+
+public component FixedTemperature2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in h1,
+  expression value: K on face
+) {
+  relation prescribed_temperature on face {
+    trace(temperature) - value = 0;
+  }
+}
+
+public component OutwardHeatFlux2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in smooth,
+  parameter conductivity: W / (m * K),
+  expression flux: W / m ^ 2 on face
+) {
+  relation prescribed_heat_flux on face {
+    normal(-conductivity * grad(temperature)) - flux = 0;
+  }
+}
