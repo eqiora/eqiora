@@ -19,6 +19,12 @@ The full pilot uses refinements `2,4,8`, lengths `1,2 m`, and viscosities
 The normalized equations are identical. It provides no independent
 conditioning or viscosity robustness claim.
 
+For this polynomial, `div(u)=0`, `div(2 mu sym(grad(u)))=(2 mu U/L^2,0)`,
+and `grad(p)=(P/L,0)`. Substituting `P=mu U/L` gives
+`-div(2 mu sym(grad(u))-p I)=(-P/L,0)=grad(q)`. The pressure
+has zero mean by symmetry. These identities establish the oracle independently
+of every tested solver.
+
 The analytic convergence, gauge and equilibrium limits are predeclared in
 `case.toml`; they retain the existing oracle's normalized limits. Solver
 agreement alone cannot pass the case. Positive degree-four assembly and
