@@ -25,6 +25,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
+        let _linear = self.linear_solve_span(plan).entered();
         problem.require_candidate_check_execution(execution.report())?;
         self.capabilities().require_problem(
             plan,
@@ -113,12 +114,7 @@ fn solve_real_coordinates(
             real_execution,
         )?
     } else {
-        <ReferenceLinearSolver as LinearSolverBackend<f64>>::solve_with_execution(
-            &ReferenceLinearSolver,
-            &block_problem,
-            plan,
-            real_execution,
-        )?
+        ReferenceLinearSolver.solve_real_with_execution(&block_problem, plan, real_execution)?
     };
     let values = real
         .values()

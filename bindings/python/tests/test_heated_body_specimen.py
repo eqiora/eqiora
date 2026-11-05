@@ -1,5 +1,6 @@
 """Independent Q1 heat balance and exact offline package/Plan replay."""
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 
@@ -198,3 +199,48 @@ def test_transient_heat_rejects_incomplete_or_incompatible_data(mutation):
     with pytest.raises(eqiora.ValidationError):
         model = eqiora.compile(source=source, entry="TransientHeatedBody", geometry=geometry, bindings=bindings)
         eqiora.State.initial(transient_plan(model, geometry))
+
+
+def test_reference_profile_times_solve_without_changing_q1_result():
+    geometry, bindings = example.geometry_and_bindings()
+    model = eqiora.compile(path=SPECIMEN / "src/main.eqi", entry="HeatedBody",
+                           geometry=geometry, bindings=bindings)
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+        geometry, eqiora.meshing.CartesianMesher(cells=(2, 2))))
+    plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        provider=eqiora.solve.SolverProvider.reference(),
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+    before = plan.to_bytes()
+    ordinary = eqiora.run(plan)
+    profiled = eqiora.run(plan, profile=True)
+    check_heat(model, ordinary)
+    check_heat(model, profiled)
+    assert ordinary.profile is None
+    assert profiled.plan_key == ordinary.plan_key
+    # The existing Result wire includes elapsed_seconds in its identity.
+    # Compare all semantic content, and separately retain exact saved replay.
+    ordinary_content = json.loads(ordinary.to_bytes())["content"]
+    profiled_content = json.loads(profiled.to_bytes())["content"]
+    for content in (ordinary_content, profiled_content):
+        elapsed = content.pop("elapsed_seconds")
+        assert np.isfinite(elapsed) and elapsed >= 0
+    assert profiled_content == ordinary_content
+    for result in (ordinary, profiled):
+        replay = eqiora.Result.from_bytes(plan, result.to_bytes())
+        assert replay.to_bytes() == result.to_bytes()
+        assert replay.profile is None
+    assert plan.to_bytes() == before
+    linear, = [phase for phase in profiled.profile.phases
+               if tuple(phase.path) == ("run", "solve", "linear_solve")]
+    assert linear.calls == 1
+    assert linear.fields == {"linear_solver": "BiConjugateGradientStabilized",
+                             "solver_provider": "eqiora.reference"}
+    assert np.isfinite(linear.inclusive_seconds)
+    assert 0 <= linear.self_seconds <= linear.inclusive_seconds
+    assert any(tuple(phase.path) == ("run", "solve", "assembly")
+               for phase in profiled.profile.phases)
+    assert not any(phase.path.count("linear_solve") > 1
+                   for phase in profiled.profile.phases)

@@ -5034,11 +5034,11 @@ class MeshPlan:
 
 Resolve and generate from geometry and an explicit meshing provider.
 
-Pass a MeshPlan alone to generate a previously inspected plan.
+Pass a MeshPlan alone or with None to generate a previously inspected plan.
 
 ```python
 @overload
-def generate(plan: MeshPlan, /) -> Mesh: ...
+def generate(plan: MeshPlan, provider: None=None, /) -> Mesh: ...
 
 @overload
 def generate(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> Mesh: ...

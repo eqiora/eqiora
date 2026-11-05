@@ -636,6 +636,115 @@ mod tests {
     }
 
     #[test]
+    fn reference_real_and_complex_public_calls_have_one_solve_span() {
+        use eqiora::solver::{
+            CanonicalCsrSystemView, CsrStorage, LinearOperatorOrientation,
+            LinearOperatorProperties, LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER,
+            SolverPlan,
+        };
+        struct Diagonal;
+        impl CsrStorage for Diagonal {
+            fn rows(&self) -> usize {
+                2
+            }
+            fn columns(&self) -> usize {
+                2
+            }
+            fn row_offsets(&self) -> &[usize] {
+                &[0, 1, 2]
+            }
+            fn column_indices(&self) -> &[usize] {
+                &[0, 1]
+            }
+            fn values(&self) -> &[f64] {
+                &[2.0, 2.0]
+            }
+        }
+        // 2I x = [2,4] has x=[1,2]. As complex coordinates this is
+        // the one-dimensional HPD problem 2z=2+4i, with z=1+2i.
+        let source = CanonicalCsrSystemView::new(
+            &Diagonal,
+            &[2.0, 4.0],
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
+        for algorithm in [
+            LinearSolver::ConjugateGradient,
+            LinearSolver::BiConjugateGradientStabilized,
+        ] {
+            let plan = SolverPlan::new(
+                algorithm,
+                1e-12,
+                1e-14,
+                std::num::NonZeroUsize::new(10).unwrap(),
+            )
+            .unwrap();
+            for domain in [eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex] {
+                let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+                let solve = || {
+                    request
+                        .solve_real_coordinates(
+                            &source,
+                            source.right_hand_side(),
+                            domain,
+                            LinearOperatorOrientation::Normal,
+                        )
+                        .unwrap()
+                };
+                let ordinary = solve();
+                let collector = ProfileCollector::default();
+                let profiled = collector.capture(|| {
+                    let _run = tracing::span!(target: TELEMETRY_TARGET, tracing::Level::INFO, "eqiora_phase", phase = "run", family = "profile_test").entered();
+                    solve()
+                });
+                assert_eq!(ordinary, profiled);
+                assert_eq!(profiled.values(), &[1.0, 2.0]);
+                let data = collector.finish();
+                assert_eq!(data.phases.len(), 2, "{data:?}");
+                let linear = data
+                    .phases
+                    .iter()
+                    .find(|phase| phase.path == ["run", "linear_solve"])
+                    .unwrap();
+                assert_eq!(linear.calls, 1);
+                assert_eq!(linear.fields["linear_solver"], format!("{algorithm:?}"));
+                assert_eq!(linear.fields["solver_provider"], "eqiora.reference");
+                assert_eq!(linear.self_time, linear.inclusive);
+                let run = data
+                    .phases
+                    .iter()
+                    .find(|phase| phase.path == ["run"])
+                    .unwrap();
+                assert_eq!(run.inclusive, run.self_time + linear.inclusive);
+            }
+        }
+        // A rejected public call must also close its single span normally.
+        let plan = SolverPlan::new(
+            LinearSolver::SparseLu,
+            1e-12,
+            1e-14,
+            std::num::NonZeroUsize::MIN,
+        )
+        .unwrap();
+        for domain in [eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex] {
+            let collector = ProfileCollector::default();
+            let failure = collector.capture(|| {
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan).solve_real_coordinates(
+                    &source,
+                    source.right_hand_side(),
+                    domain,
+                    LinearOperatorOrientation::Normal,
+                )
+            });
+            assert!(failure.is_err());
+            let data = collector.finish();
+            assert_eq!(data.phases.len(), 1);
+            assert_eq!(data.phases[0].path, ["linear_solve"]);
+            assert_eq!(data.phases[0].calls, 1);
+        }
+    }
+
+    #[test]
     fn aggregate_only_phase_events_retain_one_representative() {
         let collector = ProfileCollector::default();
         collector.capture(|| {

@@ -50,22 +50,18 @@ impl ReferenceLinearSolver {
     pub fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::reference()
     }
-}
 
-impl LinearSolverBackend for ReferenceLinearSolver {
-    fn provider(&self) -> SolverProvider {
-        Self::provider(self)
+    fn linear_solve_span(&self, plan: SolverPlan) -> tracing::Span {
+        tracing::span!(
+            target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase",
+            phase = "linear_solve", linear_solver = ?plan.algorithm(),
+            solver_provider = self.provider().id().as_str(),
+        )
     }
 
-    fn capabilities(&self) -> SolverCapabilities {
-        Self::capabilities(self)
-    }
-
-    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<num_complex::Complex64>> {
-        Some(self)
-    }
-
-    fn solve_with_execution(
+    // Complex coordinate lowering shares the real recurrence without starting
+    // another public-call span inside the complex solve.
+    fn solve_real_with_execution(
         &self,
         problem: &LinearProblem<'_>,
         plan: SolverPlan,
@@ -93,6 +89,30 @@ impl LinearSolverBackend for ReferenceLinearSolver {
                 "the reference adapter does not implement sparse LU",
             )),
         }
+    }
+}
+
+impl LinearSolverBackend for ReferenceLinearSolver {
+    fn provider(&self) -> SolverProvider {
+        Self::provider(self)
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        Self::capabilities(self)
+    }
+
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<num_complex::Complex64>> {
+        Some(self)
+    }
+
+    fn solve_with_execution(
+        &self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        let _linear = self.linear_solve_span(plan).entered();
+        self.solve_real_with_execution(problem, plan, execution)
     }
 }
 
