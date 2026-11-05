@@ -221,6 +221,23 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         ]);
         let mapping =
             RegionDofMap::new(&mesh, &layouts, reference, &domains, &traces, &prescribed).unwrap();
+        let ownership = mapping.algebraic_structure().unwrap();
+        let blocks: Vec<_> = ownership.blocks().collect();
+        assert_eq!(
+            ownership.partition_coordinates(&[blocks.clone()]).unwrap(),
+            vec![(0..2 * count - 1).collect::<Vec<_>>()]
+        );
+        // Adjacent regional P1 Fields share one interior quotient coordinate.
+        // They must be unioned in one solver group rather than claimed disjoint.
+        if count > 1 {
+            assert!(
+                ownership
+                    .partition_coordinates(
+                        &blocks.iter().map(|block| vec![*block]).collect::<Vec<_>>()
+                    )
+                    .is_err()
+            );
+        }
         primal_reactions::check(
             &mapping,
             &regions

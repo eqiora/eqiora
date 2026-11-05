@@ -385,3 +385,60 @@ fn partial_rows_survive_preparation_but_absent_targets_reject() {
             .contains("omit an assembly target")
     );
 }
+
+#[test]
+fn reduced_ownership_is_retained_and_invalidates_prepared_identity() {
+    use eqiora_core::Id;
+    use eqiora_solver::{AlgebraicBlock, AlgebraicStructure};
+    let a = Id::new();
+    let b = Id::new();
+    let inventory = AlgebraicStructure::new([a, b], []).unwrap();
+    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
+    let target = plan.target_id(0).unwrap();
+    assert!(
+        plan.clone()
+            .with_algebraic_structure(target, inventory.clone())
+            .is_err()
+    );
+    let structure = |first, second| {
+        inventory
+            .clone()
+            .with_coordinates(
+                2,
+                vec![
+                    (AlgebraicBlock::Field(a), vec![first]),
+                    (AlgebraicBlock::Field(b), vec![second]),
+                ],
+            )
+            .unwrap()
+    };
+    let maps = vec![vec![TargetAssemblyMap::new(
+        target,
+        AssemblyMap::<f64>::new(
+            vec![Some(DofId::new(0)), Some(DofId::new(1))],
+            vec![
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Free(DofId::new(1)),
+            ],
+        )
+        .unwrap(),
+    )]];
+    let prepared = plan
+        .clone()
+        .with_algebraic_structure(target, structure(0, 1))
+        .unwrap()
+        .prepare(maps.clone())
+        .unwrap();
+    let permuted = plan
+        .with_algebraic_structure(target, structure(1, 0))
+        .unwrap()
+        .prepare(maps)
+        .unwrap();
+    assert_ne!(prepared.structure_identity(), permuted.structure_identity());
+    assert_eq!(prepared.algebraic_structure(target), Some(&structure(0, 1)));
+    assert!(
+        prepared
+            .with_algebraic_structure(target, structure(0, 1))
+            .is_err()
+    );
+}

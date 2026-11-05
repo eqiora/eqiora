@@ -43,6 +43,33 @@ fn fixture() -> (RegionDofMap<f64>, [AlgebraicConstraint; 2], FieldDof) {
 }
 
 #[test]
+fn retained_ownership_preserves_elimination_and_distinct_multiplier_coordinates() {
+    let (base, constraints, _) = fixture();
+    let mapping = base.with_algebraic_constraints(&constraints).unwrap();
+    let ownership = mapping.algebraic_structure().unwrap();
+    assert_eq!(ownership.coordinate_count(), Some(7)); // 3 + 3 P1 nodes - 1 essential + 2 multipliers.
+    for (block, values) in ownership.coordinates().unwrap() {
+        match block {
+            eqiora_solver::AlgebraicBlock::Field(field) => assert_eq!(
+                values.len(),
+                if *field == constraints[0].field() {
+                    2
+                } else {
+                    3
+                }
+            ),
+            eqiora_solver::AlgebraicBlock::ConstraintMultiplier { .. } => {
+                assert_eq!(values.len(), 1)
+            }
+        }
+    }
+    let groups: Vec<_> = ownership.blocks().map(|block| vec![block]).collect();
+    let mut coordinates = ownership.partition_coordinates(&groups).unwrap().concat();
+    coordinates.sort_unstable();
+    assert_eq!(coordinates, (0..7).collect::<Vec<_>>());
+}
+
+#[test]
 fn plural_gauges_share_exact_cell_coordinates_and_preserve_physical_recovery() {
     let (base, constraints, fixed) = fixture();
     let mapping = base

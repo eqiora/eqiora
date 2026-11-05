@@ -15,10 +15,14 @@ pub(crate) struct MappedRegionAssembly<S: Coefficient, P: Projection<S> = Native
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Reduced and full targets share the exact constrained Field layout.
     pub(crate) fn assembly_plan(&self) -> Result<AssemblyPlan, Diagnostic> {
-        AssemblyPlan::new(vec![
+        let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(self.free_count())?,
             AssemblyTarget::new(self.full_count())?,
-        ])
+        ])?;
+        let target = plan
+            .target_id(0)
+            .ok_or_else(|| invalid("missing reduced target"))?;
+        plan.with_algebraic_structure(target, self.algebraic_structure()?)
     }
 
     pub(crate) fn prepare_assembly<'mesh>(

@@ -97,6 +97,41 @@ impl MixedLayout {
         })
     }
 
+    /// Capture ownership directly from the retained eliminated mixed layout.
+    pub(crate) fn algebraic_structure(
+        &self,
+        velocity: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        pressure: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};
+        let constraint = self
+            .gauge
+            .map(|_| AlgebraicConstraint::ZeroIntegral { field: pressure });
+        let velocity_coordinates = self
+            .reduced_vertex_velocity
+            .iter()
+            .flatten()
+            .filter_map(|coordinate| coordinate.map(DofId::index))
+            .chain(self.reduced_bubble_offset..self.reduced_pressure_offset)
+            .collect();
+        let mut membership = vec![
+            (AlgebraicBlock::Field(velocity), velocity_coordinates),
+            (
+                AlgebraicBlock::Field(pressure),
+                (self.reduced_pressure_offset..self.reduced_pressure_offset + self.vertex_count)
+                    .collect(),
+            ),
+        ];
+        if let Some(gauge) = self.gauge {
+            membership.push((
+                AlgebraicBlock::ConstraintMultiplier { field: pressure },
+                vec![gauge.reduced],
+            ));
+        }
+        AlgebraicStructure::new([velocity, pressure], constraint)?
+            .with_coordinates(self.reduced_size, membership)
+    }
+
     pub(crate) fn reduced_cell_map(
         &self,
         cell: usize,
@@ -336,4 +371,51 @@ fn checked_add(left: usize, right: usize, name: &str) -> Result<usize, Diagnosti
 fn checked_mul(left: usize, right: usize, name: &str) -> Result<usize, Diagnostic> {
     left.checked_mul(right)
         .ok_or_else(|| invalid(format!("{name} overflows usize")))
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::*;
+    use eqiora_core::Id;
+    use eqiora_solver::AlgebraicBlock;
+
+    #[test]
+    fn eliminated_mini_layout_retains_velocity_pressure_and_gauge_ownership() {
+        let mesh = SimplicialMesh::new(
+            2,
+            vec![vec![0., 0.], vec![1., 0.], vec![0., 1.]],
+            vec![vec![0, 1, 2]],
+            eqiora_meshing::MeshQualityGate::new(0.01).unwrap(),
+        )
+        .unwrap();
+        let velocity = Id::new();
+        let pressure = Id::new();
+        let layout = MixedLayout::new(&mesh, &[Some([0., 0.]), None, None], true).unwrap();
+        let structure = layout.algebraic_structure(velocity, pressure).unwrap();
+        let memberships = structure.coordinates().unwrap();
+        let get = |block| {
+            &memberships
+                .iter()
+                .find(|(owner, _)| *owner == block)
+                .unwrap()
+                .1
+        };
+        // Two free vertices with two components plus one two-component bubble.
+        assert_eq!(
+            get(AlgebraicBlock::Field(velocity)),
+            &(0..6).collect::<Vec<_>>()
+        );
+        assert_eq!(get(AlgebraicBlock::Field(pressure)), &vec![6, 7, 8]);
+        assert_eq!(
+            get(AlgebraicBlock::ConstraintMultiplier { field: pressure }),
+            &vec![9]
+        );
+        assert_eq!(structure.coordinate_count(), Some(10));
+        let no_gauge = MixedLayout::new(&mesh, &[Some([0., 0.]); 3], false)
+            .unwrap()
+            .algebraic_structure(velocity, pressure)
+            .unwrap();
+        assert_eq!(no_gauge.coordinate_count(), Some(5)); // Bubble coefficients remain free.
+        assert!(no_gauge.constraints().is_empty());
+    }
 }

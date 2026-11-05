@@ -81,6 +81,14 @@ pub(crate) struct FinalizedMiniStokesState {
 }
 
 impl FinalizedMiniStokesState {
+    pub(crate) fn algebraic_structure(
+        &self,
+        velocity: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        pressure: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        self.layout.algebraic_structure(velocity, pressure)
+    }
+
     pub(crate) const fn assembly_report(&self) -> &AssemblyReport {
         &self.assembly_report
     }

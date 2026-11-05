@@ -34,7 +34,10 @@ pub enum AlgebraicBlock {
 }
 
 /// Exact unknown Fields and explicitly realized gauges for a canonical projection.
-/// This retains semantic blocks; it does not infer DOF ranges from matrix entries.
+/// Before discrete realization this retains only the exact semantic inventory.
+/// `coordinates() == None` means executable membership is unestablished; it is
+/// never interpreted as an empty partition or an inferred single block.
+/// Methods bind reduced coordinates from their retained elimination/quotient map.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraicStructure {
     fields: Vec<Id<kinds::Field>>,
@@ -128,6 +131,12 @@ impl AlgebraicStructure {
         self.coordinates = Some(ordered);
         self.coordinate_count = count;
         Ok(self)
+    }
+
+    /// Number of reduced coordinates, when the method has established ownership.
+    #[must_use]
+    pub fn coordinate_count(&self) -> Option<usize> {
+        self.coordinates.as_ref().map(|_| self.coordinate_count)
     }
 
     /// Exact reduced membership; absent before binding the method's discrete layout.
@@ -255,6 +264,31 @@ mod tests {
     use crate::{LinearOperatorProperties, SolverPlanningProfile};
 
     #[test]
+    fn a_fully_essential_field_retains_empty_membership() {
+        let a = Id::new();
+        let b = Id::new();
+        let structure = AlgebraicStructure::new([a, b], [])
+            .unwrap()
+            .with_coordinates(
+                1,
+                vec![
+                    (AlgebraicBlock::Field(a), vec![]),
+                    (AlgebraicBlock::Field(b), vec![0]),
+                ],
+            )
+            .unwrap();
+        assert_eq!(
+            structure
+                .partition_coordinates(&[
+                    vec![AlgebraicBlock::Field(a)],
+                    vec![AlgebraicBlock::Field(b)]
+                ])
+                .unwrap(),
+            vec![vec![], vec![0]]
+        );
+    }
+
+    #[test]
     fn quotient_membership_is_unioned_only_inside_explicit_solver_groups() {
         let a = Id::new();
         let b = Id::new();
@@ -278,6 +312,12 @@ mod tests {
             .clone()
             .with_coordinates(5, membership.clone())
             .unwrap();
+        let mut reordered = membership.clone();
+        reordered.reverse();
+        assert_eq!(
+            structure,
+            inventory.clone().with_coordinates(5, reordered).unwrap()
+        );
         let groups = vec![vec![a_block, b_block], vec![p_block, gauge]];
         assert_eq!(
             structure.partition_coordinates(&groups).unwrap(),

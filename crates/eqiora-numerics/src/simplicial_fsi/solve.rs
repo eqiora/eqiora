@@ -31,10 +31,17 @@ pub(crate) use reference::finalize_fixed_reference_fsi_step_with_packet_set;
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalizedFixedReferenceFsiStep<const D: usize> {
     canonical_system: Arc<CanonicalCsrSystemView>,
+    algebraic_structure: eqiora_solver::AlgebraicStructure,
     state: FinalizedState<D>,
 }
 
 impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
+    /// Exact reduced ownership including shared trace quotient coordinates.
+    #[must_use]
+    pub fn algebraic_structure(&self) -> &eqiora_solver::AlgebraicStructure {
+        &self.algebraic_structure
+    }
+
     pub(crate) fn free_field_dof(
         &self,
         key: crate::region_assembly::mapping::FieldDof,
@@ -172,6 +179,13 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAcceptance<'a, D> {
             .mapping()
             .validate_step_history(&previous.fields, layout.time_step())?;
         let target_roles = FixedReferenceFsiAssemblyTargetRoles::from_plan(&plan)?;
+        if plan.algebraic_structure(target_roles.reduced())
+            != Some(&layout.mapping().algebraic_structure()?)
+        {
+            return Err(invalid(
+                "FSI prepared ownership differs from its retained constrained quotient map",
+            ));
+        }
         let cell_count = mesh.entity_count(D).ok_or_else(|| {
             invalid("fixed-reference FSI mesh omits its top-dimensional cell stratum")
         })?;
@@ -230,6 +244,7 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAcceptance<'a, D> {
             LinearOperatorProperties::SymmetricIndefinite,
         )?);
         Ok(FinalizedFixedReferenceFsiStep {
+            algebraic_structure: self.layout.mapping().algebraic_structure()?,
             canonical_system,
             state: FinalizedState {
                 mesh: self.mesh.clone(),
