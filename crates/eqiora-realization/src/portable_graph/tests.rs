@@ -585,7 +585,7 @@ fn structured_preconditioner_wire_retains_complete_policy_identity() {
         if reversed {
             groups.swap(0, 1);
         }
-        PreconditionerPolicy::UpperDiagonalSchur(
+        PreconditionerPolicy::upper_diagonal_schur(
             UpperDiagonalSchurConfig::new(
                 groups,
                 FixedFactorizationChoice::new(LinearSolver::SparseLu, provider).unwrap(),
