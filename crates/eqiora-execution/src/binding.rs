@@ -634,7 +634,7 @@ impl DeploymentBinding {
 
     /// Solver plan selected by the portable root.
     #[must_use]
-    pub fn solver_plan(&self) -> SolverPlan {
+    pub fn solver_plan(&self) -> &SolverPlan {
         linear_contract(&self.realization)
             .expect("DeploymentBinding construction validated the linear contract")
             .plan
@@ -682,35 +682,35 @@ impl DeploymentBinding {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct HostContract {
-    pub(crate) plan: SolverPlan,
+pub(crate) struct HostContract<'a> {
+    pub(crate) plan: &'a SolverPlan,
     pub(crate) properties: eqiora_solver::LinearOperatorProperties,
     pub(crate) workers: std::num::NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct CudaContract {
-    pub(crate) plan: SolverPlan,
+pub(crate) struct CudaContract<'a> {
+    pub(crate) plan: &'a SolverPlan,
     pub(crate) properties: eqiora_solver::LinearOperatorProperties,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DistributedContract {
-    pub(crate) plan: SolverPlan,
+pub(crate) struct DistributedContract<'a> {
+    pub(crate) plan: &'a SolverPlan,
     pub(crate) properties: LinearOperatorProperties,
     pub(crate) workers_per_partition: std::num::NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DistributedCudaContract {
-    pub(crate) plan: SolverPlan,
+pub(crate) struct DistributedCudaContract<'a> {
+    pub(crate) plan: &'a SolverPlan,
     pub(crate) properties: LinearOperatorProperties,
     pub(crate) workers_per_partition: std::num::NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LinearContract {
-    plan: SolverPlan,
+struct LinearContract<'a> {
+    plan: &'a SolverPlan,
     properties: eqiora_solver::LinearOperatorProperties,
     scalar_type: ScalarType,
     partition: VectorLayoutKind,
@@ -718,7 +718,7 @@ struct LinearContract {
     placement: PlacementRequirementNode,
 }
 
-fn linear_contract(realization: &PortableRealizationGraph) -> Result<LinearContract, Diagnostic> {
+fn linear_contract(realization: &PortableRealizationGraph) -> Result<LinearContract<'_>, Diagnostic> {
     let SolveRoot::Linear(root) = realization.root() else {
         return Err(invalid(
             "the first execution contract admits only a portable linear solve root",
@@ -745,7 +745,7 @@ fn linear_contract(realization: &PortableRealizationGraph) -> Result<LinearContr
 
 pub(crate) fn host_contract(
     realization: &PortableRealizationGraph,
-) -> Result<HostContract, Diagnostic> {
+) -> Result<HostContract<'_>, Diagnostic> {
     let contract = linear_contract(realization)?;
     if contract.partition != VectorLayoutKind::Replicated {
         return Err(invalid("host execution v1 requires replicated algebra"));
@@ -775,7 +775,7 @@ pub(crate) fn host_contract(
 
 pub(crate) fn cuda_contract(
     realization: &PortableRealizationGraph,
-) -> Result<CudaContract, Diagnostic> {
+) -> Result<CudaContract<'_>, Diagnostic> {
     let contract = linear_contract(realization)?;
     if contract.partition != VectorLayoutKind::Replicated {
         return Err(invalid(
@@ -811,7 +811,7 @@ pub(crate) fn cuda_contract(
 
 pub(crate) fn distributed_contract(
     realization: &PortableRealizationGraph,
-) -> Result<DistributedContract, Diagnostic> {
+) -> Result<DistributedContract<'_>, Diagnostic> {
     let contract = linear_contract(realization)?;
     if contract.partition != VectorLayoutKind::Distributed {
         return Err(invalid(
@@ -872,7 +872,7 @@ pub(crate) fn distributed_contract(
 
 pub(crate) fn distributed_cuda_contract(
     realization: &PortableRealizationGraph,
-) -> Result<DistributedCudaContract, Diagnostic> {
+) -> Result<DistributedCudaContract<'_>, Diagnostic> {
     let contract = linear_contract(realization)?;
     if contract.partition != VectorLayoutKind::Distributed {
         return Err(invalid(

@@ -261,7 +261,7 @@ impl CudaLinearExecutionTrace {
     pub(crate) fn validate_against(
         self,
         system: &CanonicalCsrSystemView,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         device: DeviceId,
         queue: QueueSlot,
     ) -> Result<(), Diagnostic> {
@@ -315,6 +315,7 @@ impl CudaLinearExecutionTrace {
             "zero initial solution",
         )?;
         let diagonal = match (plan.preconditioner(), self.transfers.inverse_diagonal) {
+            (PreconditionerPolicy::UpperDiagonalSchur(_), _) => return Err(invalid("CUDA upper diagonal-Schur preconditioning is not implemented")),
             (PreconditionerPolicy::Identity, None) => None,
             (PreconditionerPolicy::Jacobi, Some(transfer)) => Some(require_upload(
                 transfer,

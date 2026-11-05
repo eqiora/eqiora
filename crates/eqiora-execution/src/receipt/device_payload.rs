@@ -5,7 +5,7 @@ use crate::binding::invalid;
 
 pub(super) fn minimum_device_payload_bytes(
     system: &CanonicalCsrSystemView,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<usize, Diagnostic> {
     let vector_count = match plan.algorithm() {
         LinearSolver::ConjugateGradient => 3usize,
@@ -17,7 +17,7 @@ pub(super) fn minimum_device_payload_bytes(
             ));
         }
     };
-    let diagonal_count = usize::from(plan.preconditioner() == PreconditionerPolicy::Jacobi);
+    let diagonal_count = usize::from(plan.preconditioner() == &PreconditionerPolicy::Jacobi);
     let dimension = system.columns();
     let index_elements = system
         .row_offsets()

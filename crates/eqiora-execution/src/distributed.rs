@@ -84,7 +84,7 @@ impl DistributedCollectiveStepV1 {
 ///
 /// # Errors
 /// Returns `EQ0807` when the capacity would overflow `usize`.
-fn distributed_collective_trace_capacity(plan: SolverPlan) -> Result<usize, Diagnostic> {
+fn distributed_collective_trace_capacity(plan: &SolverPlan) -> Result<usize, Diagnostic> {
     const SETUP_AND_FINALIZATION: usize = 64;
     const PER_ITERATION: usize = 32;
     plan.maximum_iterations()
@@ -120,7 +120,7 @@ impl DistributedLinearExecutionTrace {
     /// # Errors
     /// Returns a structured diagnostic when the plan's iteration bound cannot
     /// be represented by the fixed distributed trace schedule.
-    pub fn collective_capacity(plan: SolverPlan) -> Result<usize, Diagnostic> {
+    pub fn collective_capacity(plan: &SolverPlan) -> Result<usize, Diagnostic> {
         distributed_collective_trace_capacity(plan)
     }
 
@@ -142,7 +142,7 @@ impl DistributedLinearExecutionTrace {
         owner_gather_dimension: usize,
         trace_capacity: usize,
         steps: Vec<DistributedCollectiveStepV1>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let maximum_capacity = distributed_collective_trace_capacity(plan)?;
         if trace_capacity > maximum_capacity || steps.len() > trace_capacity {
