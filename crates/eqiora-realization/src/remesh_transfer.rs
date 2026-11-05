@@ -73,7 +73,7 @@ impl AleFsiRemeshScaleProfile2d {
 /// declared charts with the constraints defined by RFC 0065.  Source/target
 /// identities remain orchestration inputs and are intentionally not copied
 /// into this reusable numerical policy.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiRemeshTransferPlan2d {
     quadrature: QuadraturePolicy,
     scales: AleFsiRemeshScaleProfile2d,
@@ -101,7 +101,7 @@ impl AleFsiRemeshTransferPlan2d {
                 "ALE FSI remesh transfer requires the exact degree-eight triangle Duffy quadrature policy",
             ));
         }
-        Self::require_solver_policy(solver)?;
+        Self::require_solver_policy(&solver)?;
         Ok(Self {
             quadrature,
             scales,
@@ -120,7 +120,7 @@ impl AleFsiRemeshTransferPlan2d {
     /// # Errors
     /// Returns `EQ0807` unless the algorithm admits both operator classes and
     /// identity preconditioning is selected for the zero-diagonal KKT system.
-    pub fn require_solver_policy(solver: SolverPlan) -> Result<(), Diagnostic> {
+    pub fn require_solver_policy(solver: &SolverPlan) -> Result<(), Diagnostic> {
         if !solver
             .algorithm()
             .accepts(LinearOperatorProperties::SymmetricPositiveDefinite)
@@ -132,7 +132,7 @@ impl AleFsiRemeshTransferPlan2d {
                 "ALE FSI remesh transfer requires one solver compatible with SPD mass and symmetric-indefinite constrained projections",
             ));
         }
-        if solver.preconditioner() != PreconditionerPolicy::Identity {
+        if solver.preconditioner() != &PreconditionerPolicy::Identity {
             return Err(invalid_realization(
                 "ALE FSI remesh transfer requires identity preconditioning because its KKT multiplier diagonal is zero",
             ));
@@ -142,20 +142,20 @@ impl AleFsiRemeshTransferPlan2d {
 
     /// Integration policy used on every common-refinement fragment.
     #[must_use]
-    pub const fn quadrature(self) -> QuadraturePolicy {
+    pub const fn quadrature(&self) -> QuadraturePolicy {
         self.quadrature
     }
 
     /// Typed physical normalization shared by both ALE Realizations.
     #[must_use]
-    pub const fn scales(self) -> AleFsiRemeshScaleProfile2d {
+    pub const fn scales(&self) -> AleFsiRemeshScaleProfile2d {
         self.scales
     }
 
     /// Sole common solver policy for constrained and unconstrained projections.
     #[must_use]
-    pub const fn solver(self) -> SolverPlan {
-        self.solver
+    pub const fn solver(&self) -> &SolverPlan {
+        &self.solver
     }
 }
 
@@ -218,12 +218,13 @@ mod tests {
             LinearSolver::SparseLu,
         ] {
             let policy = plan(algorithm);
-            let accepted = AleFsiRemeshTransferPlan2d::new(quadrature, scales(), policy).unwrap();
+            let accepted =
+                AleFsiRemeshTransferPlan2d::new(quadrature, scales(), policy.clone()).unwrap();
             assert_eq!(accepted.quadrature(), quadrature);
             assert_eq!(accepted.scales(), scales());
-            assert_eq!(accepted.solver(), policy);
+            assert_eq!(accepted.solver(), &policy);
             let error = AleFsiRemeshTransferPlan2d::require_solver_policy(
-                policy.with_preconditioner(PreconditionerPolicy::Jacobi),
+                &policy.with_preconditioner(PreconditionerPolicy::Jacobi),
             )
             .unwrap_err();
             assert!(error.message().contains("multiplier diagonal is zero"));

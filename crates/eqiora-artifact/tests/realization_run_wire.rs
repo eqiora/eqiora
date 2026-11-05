@@ -259,7 +259,7 @@ fn realization_wire_retains_admitted_solver_algorithms() {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction,
                 scalar_type: ScalarType::F64,
             }])
@@ -366,7 +366,7 @@ fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])

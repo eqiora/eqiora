@@ -12,8 +12,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use super::*;
@@ -288,7 +288,7 @@ fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
     assert_eq!(decoded.to_bytes().unwrap(), bytes);
 
     let mut expected = Sha256::new();
-    expected.update(b"eqiora.portable-realization-graph/v5\0");
+    expected.update(b"eqiora.portable-realization-graph/v6\0");
     expected.update(&bytes);
     assert_eq!(
         graph.digest().unwrap(),
@@ -326,7 +326,7 @@ fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
     );
 
     let unsupported = String::from_utf8(bytes.clone()).unwrap().replace(
-        "eqiora.portable-realization-graph/v5",
+        "eqiora.portable-realization-graph/v6",
         "eqiora.portable-realization-graph/v2",
     );
     assert_eq!(
@@ -545,7 +545,7 @@ fn capabilities() -> RealizationCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Fast,
         scalar_type: ScalarType::F64,
     }])
@@ -565,4 +565,54 @@ fn capabilities() -> RealizationCapabilities {
 
 fn scale(dimension: DimExponents) -> PositivePhysicalScale {
     PositivePhysicalScale::new(DynQuantity::new(1.0, dimension)).unwrap()
+}
+
+#[test]
+fn structured_preconditioner_wire_retains_complete_policy_identity() {
+    use eqiora_solver::{
+        AlgebraicBlock, FixedFactorizationChoice, PreconditionerPolicy, UpperDiagonalSchurConfig,
+    };
+    let mut graph = Fixture::new(NonZeroU16::MIN)
+        .resolve()
+        .portable_graph()
+        .unwrap();
+    let field = graph.fields()[0].field();
+    let make = |provider: &str, entries, products| {
+        PreconditionerPolicy::UpperDiagonalSchur(
+            UpperDiagonalSchurConfig::new(
+                [
+                    vec![AlgebraicBlock::Field(field)],
+                    vec![AlgebraicBlock::ConstraintMultiplier { field }],
+                ],
+                FixedFactorizationChoice::new(LinearSolver::SparseLu, provider).unwrap(),
+                FixedFactorizationChoice::new(LinearSolver::SparseLu, "reference").unwrap(),
+                entries,
+                products,
+            )
+            .unwrap(),
+        )
+    };
+    let base = graph.linear_solves[0].plan.clone();
+    graph.linear_solves[0].plan = base.clone().with_preconditioner(make("reference", 16, 64));
+    let bytes = graph.to_bytes().unwrap();
+    let decoded = PortableRealizationGraph::from_bytes(&bytes).unwrap();
+    assert_eq!(
+        decoded.linear_solves()[0].plan(),
+        graph.linear_solves()[0].plan()
+    );
+    assert_eq!(decoded.to_bytes().unwrap(), bytes);
+    let digest = graph.digest().unwrap();
+    for policy in [
+        make("another-provider", 16, 64),
+        make("reference", 17, 64),
+        make("reference", 16, 65),
+    ] {
+        graph.linear_solves[0].plan = base.clone().with_preconditioner(policy);
+        assert_ne!(graph.digest().unwrap(), digest);
+    }
+    let old = String::from_utf8(bytes).unwrap().replace(
+        "portable-realization-graph/v6",
+        "portable-realization-graph/v5",
+    );
+    assert!(PortableRealizationGraph::from_bytes(old.as_bytes()).is_err());
 }
