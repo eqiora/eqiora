@@ -1,4 +1,4 @@
-//! Handle-first exact planar construction for the post-#530 geometry path.
+//! Handle-first construction of exact Cartesian and planar primitives.
 //!
 //! This stack-only owner is independent of the persisted authored-CAD graph.
 //! Operations retain exact construction meaning and non-persisted topology
@@ -16,6 +16,12 @@ use crate::{
     CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarRectangleGeometryV2,
     CircularHoleGeometry, ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION,
     GeometryBuildReceipt, GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
+};
+
+mod topology;
+use topology::{BoundarySource, OperationKind, RegionSource};
+pub use topology::{
+    GeometryBoundaryHandle, GeometryOperation, GeometryRegionHandle, GeometryTopologyHandle,
 };
 
 static NEXT_GRAPH_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -129,6 +135,18 @@ impl GeometryGraph {
         }))
     }
 
+    /// Construct one exact axis-aligned cuboid with six owned boundary faces.
+    pub fn cuboid(
+        &self,
+        x_bounds_m: [f64; 2],
+        y_bounds_m: [f64; 2],
+        z_bounds_m: [f64; 2],
+    ) -> Result<GeometryOperation, Diagnostic> {
+        let mut bounds = [x_bounds_m, y_bounds_m, z_bounds_m];
+        CanonicalCartesianBoxGeometryV1::validate_bounds(&mut bounds)?;
+        Ok(self.operation(OperationKind::Cuboid { bounds }))
+    }
+
     /// Construct one exact Cartesian interval.
     pub fn interval(&self, bounds_m: [f64; 2]) -> Result<GeometryOperation, Diagnostic> {
         validate_interval(bounds_m, "interval")?;
@@ -138,7 +156,11 @@ impl GeometryGraph {
     }
 
     /// Construct one exact planar circle.
-    pub fn circle(&self, center_m: [f64; 2], radius_m: f64) -> Result<GeometryOperation, Diagnostic> {
+    pub fn circle(
+        &self,
+        center_m: [f64; 2],
+        radius_m: f64,
+    ) -> Result<GeometryOperation, Diagnostic> {
         if !center_m.into_iter().all(f64::is_finite) || !radius_m.is_finite() || radius_m <= 0.0 {
             return Err(invalid(
                 "circle centre must be finite and radius must be finite and positive",
@@ -289,6 +311,10 @@ impl GeometryGraph {
                 CanonicalCartesianBoxGeometryV1::new(vec![bounds], sets)
                     .map(CanonicalGeometryV1::from_cartesian_box_v1)
             }
+            OperationKind::Cuboid { bounds } => {
+                CanonicalCartesianBoxGeometryV1::new(bounds.to_vec(), sets)
+                    .map(CanonicalGeometryV1::from_cartesian_box_v1)
+            }
             OperationKind::Rectangle { bounds } => {
                 CanonicalPlanarRectangleGeometryV2::new(bounds, sets)
                     .map(CanonicalGeometryV1::from_planar_rectangle_v2)
@@ -361,6 +387,20 @@ impl GeometryGraph {
                     _ => Err(invalid(
                         "boundary handle is absent from the interval result",
                     )),
+                }
+            }
+            (OperationKind::Cuboid { .. }, GeometryTopologyHandle::Region(handle))
+                if handle.operation == target.operation
+                    && handle.source == RegionSource::Cuboid =>
+            {
+                Ok(0)
+            }
+            (OperationKind::Cuboid { .. }, GeometryTopologyHandle::Boundary(handle))
+                if handle.operation == target.operation =>
+            {
+                match handle.source {
+                    BoundarySource::Cuboid(member) => Ok(member),
+                    _ => Err(invalid("boundary handle is absent from the cuboid result")),
                 }
             }
             (OperationKind::Rectangle { .. }, GeometryTopologyHandle::Region(handle))
@@ -449,196 +489,6 @@ impl GeometryGraph {
                 "topology handle is stale or absent from this result",
             )),
         }
-    }
-}
-
-/// One immutable result of a primitive or Boolean operation.
-#[derive(Clone, Debug, PartialEq)]
-pub struct GeometryOperation {
-    owner: u64,
-    operation: u64,
-    kind: OperationKind,
-}
-
-impl GeometryOperation {
-    /// Direct typed handle for this operation's interior region.
-    #[must_use]
-    pub const fn region(&self) -> GeometryRegionHandle {
-        let source = match self.kind {
-            OperationKind::Interval { .. } => RegionSource::Interval,
-            OperationKind::Rectangle { .. } => RegionSource::Rectangle,
-            OperationKind::Circle { .. } => RegionSource::Circle,
-            OperationKind::Subtract { .. } => RegionSource::Subtract,
-            OperationKind::Partition { .. } => RegionSource::Partition,
-        };
-        GeometryRegionHandle {
-            owner: self.owner,
-            operation: self.operation,
-            source,
-        }
-    }
-
-    /// Direct typed boundary handles in construction order.
-    ///
-    /// Rectangle and subtract order is x-lower, x-upper, y-lower, y-upper;
-    /// subtract then appends the created cut boundary. A circle has one member.
-    #[must_use]
-    pub fn boundaries(&self) -> Vec<GeometryBoundaryHandle> {
-        let sources: &[BoundarySource] = match self.kind {
-            OperationKind::Interval { .. } => {
-                &[BoundarySource::Interval(0), BoundarySource::Interval(1)]
-            }
-            OperationKind::Rectangle { .. } => &[
-                BoundarySource::Rectangle(0),
-                BoundarySource::Rectangle(1),
-                BoundarySource::Rectangle(2),
-                BoundarySource::Rectangle(3),
-            ],
-            OperationKind::Circle { .. } => &[BoundarySource::Circle],
-            OperationKind::Subtract { .. } => &[
-                BoundarySource::Subtract(0),
-                BoundarySource::Subtract(1),
-                BoundarySource::Subtract(2),
-                BoundarySource::Subtract(3),
-                BoundarySource::Subtract(4),
-            ],
-            OperationKind::Partition { .. } => &[],
-        };
-        sources
-            .iter()
-            .copied()
-            .map(|source| GeometryBoundaryHandle {
-                owner: self.owner,
-                operation: self.operation,
-                source,
-            })
-            .collect()
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum OperationKind {
-    Interval {
-        bounds: [f64; 2],
-    },
-    Rectangle {
-        bounds: [[f64; 2]; 2],
-    },
-    Circle {
-        center: [f64; 2],
-        radius: f64,
-    },
-    Subtract {
-        bounds: [[f64; 2]; 2],
-        center: [f64; 2],
-        radius: f64,
-        rectangle_operation: u64,
-        circle_operation: u64,
-    },
-    Partition {
-        bounds: [[f64; 2]; 2],
-        interface_x: f64,
-        left_operation: u64,
-        right_operation: u64,
-    },
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RegionSource {
-    Interval,
-    Rectangle,
-    Circle,
-    Subtract,
-    Partition,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BoundarySource {
-    Interval(usize),
-    Rectangle(usize),
-    Circle,
-    Subtract(usize),
-}
-
-/// Direct construction-owned two-dimensional topology handle.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct GeometryRegionHandle {
-    owner: u64,
-    operation: u64,
-    source: RegionSource,
-}
-
-impl GeometryRegionHandle {
-    /// Topological dimension carried by this construction handle.
-    #[must_use]
-    pub const fn dimension(self) -> usize {
-        match self.source {
-            RegionSource::Interval => 1,
-            RegionSource::Rectangle
-            | RegionSource::Circle
-            | RegionSource::Subtract
-            | RegionSource::Partition => 2,
-        }
-    }
-}
-
-/// Direct construction-owned one-dimensional topology handle.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct GeometryBoundaryHandle {
-    owner: u64,
-    operation: u64,
-    source: BoundarySource,
-}
-
-impl GeometryBoundaryHandle {
-    /// Topological dimension carried by this construction handle.
-    #[must_use]
-    pub const fn dimension(self) -> usize {
-        match self.source {
-            BoundarySource::Interval(_) => 0,
-            BoundarySource::Rectangle(_) | BoundarySource::Circle | BoundarySource::Subtract(_) => {
-                1
-            }
-        }
-    }
-}
-
-/// Dimension-carrying input to atomic semantic naming.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GeometryTopologyHandle {
-    /// One exact region.
-    Region(GeometryRegionHandle),
-    /// One exact boundary.
-    Boundary(GeometryBoundaryHandle),
-}
-
-impl GeometryTopologyHandle {
-    /// Topological dimension of this handle.
-    #[must_use]
-    pub const fn dimension(&self) -> usize {
-        match self {
-            Self::Region(handle) => handle.dimension(),
-            Self::Boundary(handle) => handle.dimension(),
-        }
-    }
-
-    const fn owner(&self) -> u64 {
-        match self {
-            Self::Region(handle) => handle.owner,
-            Self::Boundary(handle) => handle.owner,
-        }
-    }
-}
-
-impl From<GeometryRegionHandle> for GeometryTopologyHandle {
-    fn from(handle: GeometryRegionHandle) -> Self {
-        Self::Region(handle)
-    }
-}
-
-impl From<GeometryBoundaryHandle> for GeometryTopologyHandle {
-    fn from(handle: GeometryBoundaryHandle) -> Self {
-        Self::Boundary(handle)
     }
 }
 

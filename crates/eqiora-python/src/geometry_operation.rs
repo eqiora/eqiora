@@ -1,9 +1,10 @@
-//! Python projection of the stack-only handle-first planar operation core.
+//! Python projection of the shared handle-first Geometry operation core.
 
 use std::collections::BTreeMap;
 
 use eqiora::geometry::{
-    GeometryGraph, GeometryBoundaryHandle, GeometryOperation, GeometryRegionHandle, GeometryTopologyHandle,
+    GeometryBoundaryHandle, GeometryGraph, GeometryOperation, GeometryRegionHandle,
+    GeometryTopologyHandle,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -75,6 +76,20 @@ impl PyGeometryGraph {
     ) -> PyResult<PyGeometryOperation> {
         self.graph
             .rectangle(x_bounds, y_bounds)
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    #[pyo3(signature = (*, x_bounds, y_bounds, z_bounds))]
+    fn cuboid(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_sequence_pair)] x_bounds: [f64; 2],
+        #[pyo3(from_py_with = extract_sequence_pair)] y_bounds: [f64; 2],
+        #[pyo3(from_py_with = extract_sequence_pair)] z_bounds: [f64; 2],
+    ) -> PyResult<PyGeometryOperation> {
+        self.graph
+            .cuboid(x_bounds, y_bounds, z_bounds)
             .map(|operation| PyGeometryOperation { operation })
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }

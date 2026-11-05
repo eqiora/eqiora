@@ -30,23 +30,7 @@ impl CanonicalCartesianBoxGeometryV1 {
         mut bounds: Vec<[f64; 2]>,
         entity_sets: Vec<NamedEntitySet>,
     ) -> Result<Self, Diagnostic> {
-        if bounds.is_empty() || bounds.len() > MAX_DIMENSION {
-            return Err(invalid(
-                "Cartesian box requires between one and three coordinate axes",
-            ));
-        }
-        for axis in &mut bounds {
-            for value in axis.iter_mut() {
-                if *value == 0.0 {
-                    *value = 0.0;
-                }
-            }
-            if !axis[0].is_finite() || !axis[1].is_finite() || axis[0] >= axis[1] {
-                return Err(invalid(
-                    "Cartesian box bounds must be finite strict intervals",
-                ));
-            }
-        }
+        Self::validate_bounds(&mut bounds)?;
         let entity_sets = canonical_entity_sets(bounds.len(), entity_sets)?;
         let wire = WireCartesianBoxV1 {
             schema: SCHEMA.to_owned(),
@@ -63,6 +47,28 @@ impl CanonicalCartesianBoxGeometryV1 {
             digest: digest_with_schema(SCHEMA, &bytes),
             bytes,
         })
+    }
+
+    /// Normalize and check Cartesian primitive bounds before topology is named.
+    pub(crate) fn validate_bounds(bounds: &mut [[f64; 2]]) -> Result<(), Diagnostic> {
+        if bounds.is_empty() || bounds.len() > MAX_DIMENSION {
+            return Err(invalid(
+                "Cartesian box requires between one and three coordinate axes",
+            ));
+        }
+        for axis in bounds {
+            for value in axis.iter_mut() {
+                if *value == 0.0 {
+                    *value = 0.0;
+                }
+            }
+            if !axis[0].is_finite() || !axis[1].is_finite() || axis[0] >= axis[1] {
+                return Err(invalid(
+                    "Cartesian box bounds must be finite strict intervals",
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn decode_canonical(

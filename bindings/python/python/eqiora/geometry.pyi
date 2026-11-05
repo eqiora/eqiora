@@ -35,6 +35,7 @@ class GeometryOperation:
     ``boundaries`` are listed in construction order: an interval returns
     ``(lower, upper)``, a rectangle returns
     ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
+    a cuboid returns ``(x_lower, x_upper, y_lower, y_upper, z_lower, z_upper)``,
     and subtract returns the four outer boundaries followed by the created cut.
 
     Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryOperation``.
@@ -64,6 +65,13 @@ class GeometryGraph:
         *,
         x_bounds: tuple[float, float],
         y_bounds: tuple[float, float],
+    ) -> GeometryOperation: ...
+    def cuboid(
+        self,
+        *,
+        x_bounds: tuple[float, float],
+        y_bounds: tuple[float, float],
+        z_bounds: tuple[float, float],
     ) -> GeometryOperation: ...
     def circle(
         self,
