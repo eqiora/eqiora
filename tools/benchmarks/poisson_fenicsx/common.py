@@ -59,7 +59,8 @@ def finish(args, tool, prepared, execute, extract, profile):
     """Execute fresh numerical work on retained mesh/forms, not retained systems."""
     report = prepared
     report.update(tool=tool, cells_per_axis=args.cells, mode=args.mode,
-                  stable_timing_claim=False, measurement_status="shared-host correctness smoke; not a reference performance environment")
+                  stable_timing_claim=False, measurement_status=("correctness-only smoke; not performance evidence" if args.mode == "correctness-only"
+                                      else "unqualified timing collection; no stable reference-environment claim"))
     result, cold = clock(execute)
     coordinates, values, solve = extract(result)
     report["memory_after_execution_before_accuracy"] = memory()

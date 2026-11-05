@@ -94,6 +94,8 @@ def check_accuracy(coordinates, values, cells: int) -> dict:
     grid = nodal_grid(coordinates, values, cells)
     error = continuous_l2(grid)
     expected = table[cells]
+    if not np.isfinite(expected) or expected <= 0.0:
+        raise ComparisonError("independent reference error must be finite and positive")
     allowance = error_budget(cells, expected)
     if not np.isfinite(error) or abs(error-expected) > allowance:
         raise ComparisonError(f"N={cells} continuous L2 {error} differs from analytic {expected} by more than {allowance}")

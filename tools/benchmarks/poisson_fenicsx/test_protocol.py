@@ -1,6 +1,7 @@
 """Independent analytic and admission falsifiers; no native library execution."""
 import importlib.util
 import os
+import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -59,6 +60,16 @@ class ProtocolTests(unittest.TestCase):
             check_accuracy(duplicate, values, 4)
         with self.assertRaises(ComparisonError):
             check_accuracy(coordinates, values, 64)
+
+    def test_nonfinite_reference_cannot_turn_the_comparator_into_a_vacuous_pass(self):
+        coordinates, values = analytic_discrete_solution(4)
+        check_accuracy(coordinates, values, 4)
+        with tempfile.TemporaryDirectory() as temporary:
+            reference = Path(temporary) / "reference.csv"
+            for invalid in ("nan", "inf", "-inf"):
+                reference.write_text(f"cells_per_axis,fem_l2\n4,{invalid}\n")
+                with patch("accuracy.REFERENCE", reference), self.assertRaises(ComparisonError):
+                    check_accuracy(coordinates, values, 4)
 
     def test_boundary_identity_row_requires_one_actual_unit_diagonal(self):
         check_identity_row(3, [1, 3, 4], [0.0, 1.0, 0.0])
