@@ -762,7 +762,7 @@ impl<'a> LiveStaticExecution<'a> {
             .transpose()?;
         let (output, system) = plan
             .admission
-            .execute_linear_retained(backend, fields.as_ref())?;
+            .execute_reauthenticated_linear(backend, fields.as_ref())?;
         Ok(Self {
             plan,
             initial,
