@@ -234,6 +234,22 @@ fn admit_case(
         &composition
     );
     assert_eq!(plan.linear_solver_provider(), Some(FAER_SOLVER_PROVIDER));
+    if matches!(selection, Selection::Ranked) {
+        assert_eq!(
+            plan.solver_planning_objective(),
+            Some(eqiora::solver::SolverPlanningObjective::Robust)
+        );
+        assert_eq!(
+            plan.selected_solver_candidate_id(),
+            Some("eqiora.faer.bicgstab-indefinite-upper-diagonal-schur-fast-f64")
+        );
+        assert_eq!(
+            plan.selected_solver_evidence_case(),
+            Some("numerics.structured-upper-diagonal-schur")
+        );
+    } else {
+        assert!(plan.selected_solver_candidate_id().is_none());
+    }
     assert_eq!(
         plan.effective_solver().unwrap().algorithm(),
         if direct {
