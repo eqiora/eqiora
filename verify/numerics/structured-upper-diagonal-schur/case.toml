@@ -1,5 +1,5 @@
 id = "numerics.structured-upper-diagonal-schur"
-status = "specified"
+status = "implemented"
 scope = "ordinary-packaged-manufactured-stokes-fixed-upper-diagonal-schur-pilot"
 reference_kind = "analytic-manufactured-convergence-gauge-and-balance"
 capabilities = [
@@ -71,3 +71,17 @@ wall_time_or_rss_performance_claim = false
 [evidence]
 package = "eqiora"
 test = "structured_upper_diagonal_schur"
+
+[pilot]
+ordinary_similarity_runs = 54
+independent_analytic_checks = ["velocity L2", "velocity H1 seminorm", "pressure L2", "divergence L2", "pressure mean", "live gauge multiplier", "equilibrium", "independent true residual"]
+
+[controls]
+equivalent_grouped_and_signed_velocity_laws = "admit while preserving one maximal datum subtree"
+duplicate_velocity_trace = "reject"
+non_normal_tangential_traction = "preserve generic mixed admission"
+
+[artifact]
+plan = "canonical complete composition and provider-intent round trip"
+result = "canonical field and gauge metadata retention"
+independent_numerical_stokes_gauge_reauthentication_on_replay = false

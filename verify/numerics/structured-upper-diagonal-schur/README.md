@@ -1,29 +1,25 @@
 # Structured upper diagonal Schur pilot
 
-This specified case carries the manufactured Stokes oracle from
+This case runs the manufactured Stokes oracle from
 [the existing MINI case](../../fluid/simplicial-mini-stokes-2d/README.md)
 through an ordinary `Eqiora.Fluid` package Model, common Plan admission and
-common Run. It is not yet passing evidence. The first test uses `n=2`,
-`L=1 m`, and `mu=1 Pa s` to expose integration gaps before the full pilot.
+common Run. Its 54-member similarity sweep passes the predeclared analytic,
+gauge, equilibrium and independent true-residual checks for every method and
+physical member. A separate smallest case covers `n=2`, `L=1 m`, `mu=1 Pa s`.
 
-The initial ordinary test currently stops before solving: Plan admission reports
-`linear conservation form does not admit incompressible-flow scaling`. A focused
-public mathematical-lowering diagnostic identified the underlying rejection:
-`steady-Stokes boundary requires one direct law or one exact field-physical
-interface, found 0 interface candidates`. The prescribed vector is the sum of
-its two component contributions. The existing boundary matcher accepts only one
-prescribed contribution after splitting the equation into signed terms, so it
-rejects this complete vector expression. The boundary owner must retain that
-sum as one prescribed datum. The full similarity sweep has not run, and this
-case remains specified rather than executable evidence.
+Focused controls admit equivalent grouped and signed complete-vector boundary
+laws while preserving a single maximal prescribed subtree. They reject a
+duplicate velocity trace and preserve generic mixed admission for a non-normal
+tangential-traction boundary. No private solver or callback-only execution path
+substitutes for the ordinary Run.
 
-The proposed comparison has explicit direct faer, manual BiCGSTAB with the
+The comparison has explicit direct faer, manual BiCGSTAB with the
 fixed upper diagonal Schur composition, and ranking over that explicitly
 requested composition. Groups use the retained velocity Field, then the
 retained pressure Field and its gauge multiplier. Construction limits are
 explicit. They do not bound factor fill or process RSS.
 
-The full pilot uses refinements `2,4,8`, lengths `1,2 m`, and viscosities
+The pilot uses refinements `2,4,8`, lengths `1,2 m`, and viscosities
 `0.5,1,2 Pa s`, with `U=1 m/s` and `P=mu U/L`. Its exact fields are
 `u=U((x/L)^2,-2(x/L)(y/L))`, `p=P(x/L-1/2)`, and conservative force potential
 `q=-P(x/L-1/2)`. This is a physical similarity, units and geometry sweep.
@@ -42,8 +38,13 @@ agreement alone cannot pass the case. Positive degree-four assembly and
 independent degree-six error quadrature remain required. Existing acceptance
 criteria must stay unchanged.
 
-Run the initial integration test with:
+Run the complete pilot and its controls with:
 
 ```sh
 cargo test --locked -p eqiora --test structured_upper_diagonal_schur
 ```
+
+Canonical Plan replay checks complete composition and provider intent. Result
+replay checks canonical retention of gauge metadata. It does not independently
+reauthenticate a finite retained Stokes multiplier numerically; the live Run
+supplies the numerical gauge evidence.
