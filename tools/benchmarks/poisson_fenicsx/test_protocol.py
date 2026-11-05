@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from accuracy import ComparisonError, LEVELS, check_accuracy
+from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row
 
 spec = importlib.util.spec_from_file_location("comparison_driver", Path(__file__).with_name("run.py"))
 driver = importlib.util.module_from_spec(spec)
@@ -59,6 +59,14 @@ class ProtocolTests(unittest.TestCase):
             check_accuracy(duplicate, values, 4)
         with self.assertRaises(ComparisonError):
             check_accuracy(coordinates, values, 64)
+
+    def test_boundary_identity_row_requires_one_actual_unit_diagonal(self):
+        check_identity_row(3, [1, 3, 4], [0.0, 1.0, 0.0])
+        for columns, data in (([], []), ([1, 4], [0.0, 0.0]),
+                              ([3], [0.0]), ([3, 3], [1.0, 1.0]),
+                              ([3, 4], [1.0, 1.0])):
+            with self.assertRaises(ComparisonError):
+                check_identity_row(3, columns, data)
 
     def test_foreign_loader_environment_is_removed_only_for_fenicsx(self):
         foreign = {"LD_LIBRARY_PATH": "/foreign-openmpi", "LD_PRELOAD": "/foreign.so",

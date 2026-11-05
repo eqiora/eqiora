@@ -54,7 +54,7 @@ def environment(tool, import_seconds):
             "accuracy_driver_sha256": digest(Path(__file__).with_name("accuracy.py"))}
 
 
-def finish(args, tool, prepared, execute, extract, profile=None):
+def finish(args, tool, prepared, execute, extract, profile):
     """Execute fresh numerical work on retained mesh/forms, not retained systems."""
     report = prepared
     report.update(tool=tool, cells_per_axis=args.cells, mode=args.mode,
@@ -63,10 +63,7 @@ def finish(args, tool, prepared, execute, extract, profile=None):
     coordinates, values, solve = extract(result)
     report["accuracy"] = check_accuracy(coordinates, values, args.cells)
     report["solve"] = solve
-    if profile is not None:
-        report["profile"] = profile()
-    else:
-        report["profile"] = {"source": "explicit FEniCSx operation brackets", "required_phases_available": True}
+    report["profile"] = profile()
     if args.mode == "benchmark":
         if not report["profile"]["required_phases_available"]:
             raise ComparisonError("required_reference_linear_solve_phase_unavailable: use explicit --mode correctness-only; no subtraction or fallback")

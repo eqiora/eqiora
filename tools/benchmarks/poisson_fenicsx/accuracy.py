@@ -25,6 +25,7 @@ def error_budget(cells: int, reference: float) -> float:
     Both tools have the same effective free operator; zero boundary identity
     rows in PETSc do not change that subspace. This is the inherited comparison
     allowance, not a new rigorous floating-point certification of either tool.
+    The residual-to-error implication is independent of the Krylov algorithm.
     """
     if cells not in LEVELS:
         raise ComparisonError(f"no declared reference for N={cells}; supported {LEVELS}")
@@ -97,3 +98,14 @@ def check_accuracy(coordinates, values, cells: int) -> dict:
         raise ComparisonError(f"N={cells} continuous L2 {error} differs from analytic {expected} by more than {allowance}")
     return {"continuous_l2": error, "analytic_discrete_l2": expected,
             "comparison_allowance": allowance, "reference": str(REFERENCE.relative_to(ROOT))}
+
+
+def check_identity_row(row, columns, data):
+    """Require the actual symmetric-elimination boundary row, not a vacuous row."""
+    if len(columns) != len(data):
+        raise ComparisonError("boundary column/value inventories differ")
+    diagonal = [value for column, value in zip(columns, data, strict=True) if column == row]
+    if len(diagonal) != 1 or diagonal[0] != 1.0:
+        raise ComparisonError("boundary row requires exactly one stored unit diagonal")
+    if any(value != 0.0 for column, value in zip(columns, data, strict=True) if column != row):
+        raise ComparisonError("boundary row has a nonzero off-diagonal entry")

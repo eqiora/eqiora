@@ -16,7 +16,10 @@ Use uniform square cells, continuous tensor-product Q1 elements, real binary64
 coefficients, and tensor two-point Gauss integration for stiffness and load.
 FEniCSx must explicitly create quadrilateral cells; its default triangles would
 be a different discretization. Its degree-three quadrature rule must have the
-same points and weights as the declared two-point tensor rule.
+same points and weights as the declared two-point tensor rule. The driver
+checks the actual four Basix points and weights against that closed-form rule,
+with a fixed eight-ULP engineering conformance budget for coordinate/weight
+rounding. This is not a rigorous Basix roundoff proof or a PDE error tolerance.
 
 Correctness levels are 4, 8, 16 and 32 cells per axis. Larger levels 64, 128
 and 256 extend the same mathematical problem only after passing its analytic
@@ -32,7 +35,7 @@ supplies a private replacement assembly or solver kernel.
 
 Use one MPI rank and one CPU worker, a fixed single-core affinity, and explicit
 one-thread OpenMP, BLAS, MKL and Rayon settings. Eqiora's resolved execution
-must report host-serial and one worker. Use CG, identity/no preconditioner,
+must report host-serial and one worker. Use BiCGStab (PETSc `bcgs`), identity/no preconditioner,
 zero initial guess, relative residual tolerance `1e-12`, absolute tolerance
 `1e-14`, and at most 10000 iterations. PETSc must explicitly use the
 unpreconditioned Euclidean residual norm. Recompute the true residual and
@@ -42,6 +45,16 @@ Eqiora eliminates constrained coefficients. Standard FEniCSx assembly retains
 identity boundary rows. Homogeneous data and a zero initial guess give the
 same effective free operator, but not the same allocated matrix dimensions.
 Report total, free and stored algebraic sizes rather than equating them.
+
+The original protocol proposed CG. The first Eqiora smoke attempt stopped at
+resolution with `EQ0807`, before a solve or FEniCSx observation: ordinary 2D
+Geometry-backed Q1 Plans currently carry `General` operator properties. The
+stronger Q1 SPD proof in that owner is limited to one-dimensional intervals.
+This does not mean the mathematical 2D Poisson operator is nonsymmetric or
+indefinite. Before any comparison solve, both tools were changed to BiCGStab
+with the same residual controls. No private legacy path or weakened proof is
+used. The analytic residual-to-error bound is independent of this algorithm
+choice.
 
 The sine load is a single discrete eigenmode on these grids. This is useful
 for reproducible assembly and accuracy checks, but does not represent general
@@ -73,7 +86,10 @@ For each tool report wall time and process CPU time for these declared scopes:
   recovery, with existing mesh and model/forms. No matrix, preconditioner,
   factorization or previous Result is supplied for reuse.
 
-Exclude error integration, output inspection and file writes. Follow the
+Exclude error integration, output inspection, protocol-conformance diagnostics,
+Result destruction and file writes. Conformance checks inspect the actual
+assembled boundary rows and columns after the execution clock stops, so they
+do not artificially inflate the external library's execution duration. Follow the
 existing [repeated-execution measurement owner](../repeated_execution/run.py):
 retain a cold call, two warmups, seven raw samples, median, range and median
 absolute deviation. Keep the process CPU readings alongside wall samples.
@@ -82,7 +98,7 @@ Collect Eqiora `profile=True` in a separate diagnostic execution. Its inclusive
 wall spans and exclusive self times are different quantities; neither is a
 partition of the unprofiled median. The current scalar assembly-finalization
 span includes numeric preparation, representability checks and canonical
-system construction, but excludes some earlier mapping work. Reference CG
+system construction, but excludes some earlier mapping work. The reference solver
 currently has no separate solve span. A reviewed addition at the existing
 execution owner is needed before a separate Eqiora solve duration can be
 reported. Never infer it by subtracting other timings from Run wall time.

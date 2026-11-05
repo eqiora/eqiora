@@ -41,7 +41,7 @@ def main(args):
             **{name: (geometry.selection(name), geometry.selection("square")) for name in names},
             "diffusion": 1.0, "wave_number": np.pi, "source_scale": 2*np.pi**2, "boundary_offset": 0.0})
         plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
-            algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
             preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible,
             provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-12,
             absolute_tolerance=1e-14, maximum_iterations=10000))

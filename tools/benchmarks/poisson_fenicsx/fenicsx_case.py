@@ -13,6 +13,7 @@ from mpi4py import MPI
 import numpy as np
 from petsc4py import PETSc
 import ufl
+from accuracy import check_identity_row
 from common import ComparisonError, clock, environment, finish, memory, worker_arguments
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
@@ -78,8 +79,7 @@ def main(args):
         # columns. Never inflate FEniCSx execution time with this diagnostic.
         for row in boundary:
             columns, data = matrix.getRow(int(row))
-            if any(value != (1.0 if column == row else 0.0) for column, value in zip(columns, data, strict=True)):
-                raise ComparisonError("external essential boundary row differs from an identity row")
+            check_identity_row(int(row), columns, data)
         free_is = PETSc.IS().createGeneral(free, comm=MPI.COMM_SELF)
         boundary_is = PETSc.IS().createGeneral(boundary, comm=MPI.COMM_SELF)
         cross = matrix.createSubMatrix(free_is, boundary_is)
@@ -105,7 +105,7 @@ def main(args):
             solution.set(0.0)
             ksp = PETSc.KSP().create(MPI.COMM_SELF)
             ksp.setOperators(matrix)
-            ksp.setType("cg"); ksp.getPC().setType("none")
+            ksp.setType("bcgs"); ksp.getPC().setType("none")
             ksp.setNormType(PETSc.KSP.NormType.UNPRECONDITIONED)
             ksp.setInitialGuessNonzero(False)
             ksp.setTolerances(rtol=1e-12, atol=1e-14, max_it=10000)
@@ -119,7 +119,7 @@ def main(args):
             reason = int(ksp.getConvergedReason())
             if reason <= 0 or not np.isfinite(true_norm) or true_norm > target:
                 raise ComparisonError(f"PETSc solve did not meet the matched true residual: reason={reason}, true={true_norm}, target={target}")
-            summary = {"algorithm": "conjugate-gradient", "preconditioner": "identity",
+            summary = {"algorithm": "bicgstab", "preconditioner": "identity",
                        "completed_iterations": ksp.getIterationNumber(), "initial_residual_norm": rhs_norm,
                        "reported_residual_norm": ksp.getResidualNorm(), "true_residual_norm": true_norm,
                        "residual_target": target, "convergence_reason": reason,
