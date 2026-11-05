@@ -380,7 +380,7 @@ impl FinalizedScalarTransportFvmStep2d {
 
     /// Sole solver plan retained from the resolved portable graph.
     #[must_use]
-    pub fn solver_plan(&self) -> SolverPlan {
+    pub fn solver_plan(&self) -> &SolverPlan {
         self.core.solver_plan()
     }
 

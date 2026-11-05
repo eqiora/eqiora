@@ -414,7 +414,7 @@ fn require_two_dimensional_exact_bounds(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, )]
 struct ResolvedCartesianElasticityQ1Plan {
     cells: usize,
     points_per_axis: usize,

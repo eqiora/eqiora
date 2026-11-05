@@ -133,7 +133,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
 
     /// Exact solver policy selected by the resolved Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.core.solver_plan()
     }
 
@@ -395,7 +395,7 @@ impl PreparedDistributedFixedReferenceFsiStep2d {
 
     /// Exact solver policy selected by the resolved Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.finalized.solver_plan()
     }
 

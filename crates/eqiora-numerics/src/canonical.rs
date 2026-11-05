@@ -119,7 +119,7 @@ impl FinalizedScalarEllipticParameterPoint {
 
     /// Sole solver policy selected by the Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.problem.solver_plan()
     }
 
@@ -549,7 +549,7 @@ impl ScalarEllipticModel1d {
 }
 
 /// Explicit policy for the built-in default interval realization.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DefaultScalarElliptic1dConfig {
     /// Equal affine cells in the generated line mesh.
     pub cells: usize,
