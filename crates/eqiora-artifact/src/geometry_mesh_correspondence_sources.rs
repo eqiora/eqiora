@@ -146,14 +146,33 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         Ok((mesh, correspondence))
     }
 
-    /// Mesh entities realizing one exact named set of the adjacent partition.
-    pub fn adjacent_rectangle_partition_entity_set_entities(
+    /// Mesh entities realizing one named set of the exact planar source.
+    ///
+    /// Dispatch follows the retained correspondence protocol. Source digest,
+    /// named membership and entity dimension remain checked by that owner;
+    /// callers must also authenticate mesh-production replay before execution.
+    ///
+    /// # Errors
+    /// Rejects a foreign source, missing set or non-planar correspondence.
+    pub fn planar_entity_set_entities(
         &self,
         geometry: &CanonicalGeometryV1,
         name: &str,
     ) -> Result<Vec<MeshEntity>, Diagnostic> {
-        require_adjacent_rectangle_partition(geometry)?;
-        self.canonical_region_entity_set_entities(geometry, name)
+        match &self.wire {
+            WireCorrespondenceV1::PlanarRectangleV2(_) => {
+                self.resolve_rectangle_entities(geometry, name)
+            }
+            WireCorrespondenceV1::PlanarCircularHoleV2(_) => {
+                self.resolve_circular_hole_entities(geometry, name)
+            }
+            WireCorrespondenceV1::AuthoredRegion(_) => {
+                self.canonical_region_entity_set_entities(geometry, name)
+            }
+            _ => Err(invalid_artifact(
+                "correspondence has no planar source entity sets",
+            )),
+        }
     }
 
     /// Generate the unique complete correspondence for one authored planar

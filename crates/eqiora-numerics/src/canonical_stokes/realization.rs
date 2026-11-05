@@ -158,7 +158,7 @@ pub fn steady_stokes_fieldwise_requirements_2d(
 }
 
 mod plan;
-pub(super) use plan::steady_stokes_algebraic_structure;
+pub(crate) use plan::steady_stokes_algebraic_structure;
 pub use plan::steady_stokes_mini_plan_2d;
 
 /// Finalize one resolved coherent-SI Stokes Model through reference assembly.
@@ -456,7 +456,10 @@ fn solve_resolved_steady_stokes_mini_2d_with_assembly(
         mesh,
         assembly,
     )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan().clone())?;
+    let solved = backend.solve(
+        &finalized.linear_problem()?,
+        finalized.solver_plan().clone(),
+    )?;
     Ok((model, finalized.finish(solved)?))
 }
 

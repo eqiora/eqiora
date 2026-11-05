@@ -191,9 +191,11 @@ impl CommonSteadyStokesPlan {
         self.admission
             .resources()
             .geometry()?
-            .circular_hole_bounds()
+            .planar_axis_bounds()
             .copied()
-            .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))
+            .ok_or_else(|| {
+                invalid("steady-Stokes observation requires exact planar Geometry bounds")
+            })
     }
 
     /// Execute directly into the common producer-independent Result authority.

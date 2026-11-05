@@ -41,9 +41,9 @@ impl PyMesh {
                 provider_observation: SourceOwnedProviderObservation::AffineTriangle,
                 ..
             } => (if geometry.planar_rectangle_bounds().is_some() {
-                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+                correspondence.planar_entity_set_entities(geometry, name)
             } else {
-                correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+                correspondence.planar_entity_set_entities(geometry, name)
             })
             .and_then(|entities| validated_entities(entities, expected_dimension))
             .map_err(|diagnostic| validation_error(py, &[diagnostic])),
@@ -52,7 +52,7 @@ impl PyMesh {
                 correspondence,
                 ..
             } => correspondence
-                .planar_circular_hole_v2_entity_set_entities(geometry, name)
+                .planar_entity_set_entities(geometry, name)
                 .and_then(|entities| validated_entities(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::SourceOwnedCartesian {
@@ -62,7 +62,7 @@ impl PyMesh {
             } => (if geometry.cartesian_box_bounds().is_some() {
                 correspondence.cartesian_box_v1_entity_set_entities(geometry, name)
             } else {
-                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+                correspondence.planar_entity_set_entities(geometry, name)
             })
             .and_then(|entities| validated_entities(entities, expected_dimension))
             .map_err(|diagnostic| validation_error(py, &[diagnostic])),

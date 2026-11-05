@@ -45,21 +45,21 @@ impl PyMesh {
                 ..
             } => {
                 if geometry.planar_rectangle_bounds().is_some() {
-                    correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+                    correspondence.planar_entity_set_entities(geometry, name)
                 } else {
-                    correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+                    correspondence.planar_entity_set_entities(geometry, name)
                 }
             }
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
                 ..
-            } => correspondence.planar_circular_hole_v2_entity_set_entities(geometry, name),
+            } => correspondence.planar_entity_set_entities(geometry, name),
             AcceptedMeshSource::SourceOwnedCartesian {
                 geometry,
                 correspondence,
                 ..
-            } => correspondence.planar_rectangle_v2_entity_set_entities(geometry, name),
+            } => correspondence.planar_entity_set_entities(geometry, name),
         }
     }
 }
