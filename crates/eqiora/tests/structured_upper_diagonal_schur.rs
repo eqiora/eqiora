@@ -106,6 +106,7 @@ fn ordinary_manual_manufactured_stokes_small() {
     let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    let observed_mesh = mesh.mesh().clone();
     let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
         &policy,
         &geometry,
@@ -174,4 +175,116 @@ fn ordinary_manual_manufactured_stokes_small() {
         .run_result(&FaerLinearSolver)
         .expect("ordinary manufactured Run");
     assert_eq!(result.plan().identity(), plan.identity());
+    let errors = normalized_errors(&result, &observed_mesh, 1., 1.);
+    assert!(errors.iter().all(|value| value.is_finite() && *value > 0.));
+    let residual = result.solve_true_residual_norm(None, None).unwrap();
+    let target = result.solve_evidence(None, None).unwrap().residual_target();
+    assert!(residual <= target);
+}
+
+/// Integrate the declared analytic oracle from ordinary Result coefficient blocks.
+/// Barycentric P1/bubble values and gradients are written from their definitions.
+fn normalized_errors(
+    result: &eqiora_numerics::CommonResult,
+    mesh: &eqiora::meshing::SimplicialMesh,
+    length: f64,
+    pressure_scale: f64,
+) -> [f64; 4] {
+    use eqiora::meshing::{MeshEntity, MeshTopology};
+    let plan = result.plan().as_steady_stokes().unwrap();
+    let field_block = |id: &str, association: &str| {
+        let field = (0..result.field_count())
+            .find(|&index| result.field(index).unwrap().0 == id)
+            .unwrap();
+        (0..result.field_block_count(field))
+            .find_map(|index| {
+                let (kind, values, _) = result.field_block(field, index).unwrap();
+                (kind == association).then_some(values)
+            })
+            .unwrap()
+    };
+    let velocity = field_block(plan.velocity_field_id(), "vertex");
+    let bubbles = field_block(plan.velocity_field_id(), "cell-bubble");
+    let pressure = field_block(plan.pressure_field_id(), "vertex");
+    let quadrature = eqiora::meshing::simplex_duffy_gauss_legendre(2, 4).unwrap();
+    let mut sums = [0.; 4];
+    let mut pressure_integral = 0.;
+    for cell in 0..mesh.entity_count(2).unwrap() {
+        let ids = mesh.entity_vertices(MeshEntity::new(2, cell)).unwrap();
+        let coordinates = ids
+            .iter()
+            .map(|id| &mesh.vertices()[id.index()])
+            .collect::<Vec<_>>();
+        let dx1 = coordinates[1][0] - coordinates[0][0];
+        let dx2 = coordinates[2][0] - coordinates[0][0];
+        let dy1 = coordinates[1][1] - coordinates[0][1];
+        let dy2 = coordinates[2][1] - coordinates[0][1];
+        let determinant = dx1 * dy2 - dx2 * dy1;
+        let gradients = [
+            [(dy1 - dy2) / determinant, (dx2 - dx1) / determinant],
+            [dy2 / determinant, -dx2 / determinant],
+            [-dy1 / determinant, dx1 / determinant],
+        ];
+        for point in quadrature.points() {
+            let lambda = [
+                1. - point.coordinates[0] - point.coordinates[1],
+                point.coordinates[0],
+                point.coordinates[1],
+            ];
+            let bubble = 27. * lambda[0] * lambda[1] * lambda[2];
+            let bubble_gradient: [f64; 2] = std::array::from_fn(|axis| {
+                27. * (gradients[0][axis] * lambda[1] * lambda[2]
+                    + gradients[1][axis] * lambda[0] * lambda[2]
+                    + gradients[2][axis] * lambda[0] * lambda[1])
+            });
+            let location: [f64; 2] = std::array::from_fn(|axis| {
+                (0..3)
+                    .map(|node| lambda[node] * coordinates[node][axis])
+                    .sum::<f64>()
+                    / length
+            });
+            let exact = [location[0] * location[0], -2. * location[0] * location[1]];
+            let exact_gradient = [
+                [2. * location[0] / length, 0.],
+                [-2. * location[1] / length, -2. * location[0] / length],
+            ];
+            let mut value = [0.; 2];
+            let mut gradient = [[0.; 2]; 2];
+            for component in 0..2 {
+                value[component] = (0..3)
+                    .map(|node| lambda[node] * velocity[2 * ids[node].index() + component])
+                    .sum::<f64>()
+                    + bubble * bubbles[2 * cell + component];
+                for axis in 0..2 {
+                    gradient[component][axis] = (0..3)
+                        .map(|node| {
+                            gradients[node][axis] * velocity[2 * ids[node].index() + component]
+                        })
+                        .sum::<f64>()
+                        + bubble_gradient[axis] * bubbles[2 * cell + component];
+                }
+            }
+            let p = (0..3)
+                .map(|node| lambda[node] * pressure[ids[node].index()])
+                .sum::<f64>();
+            let weight = determinant.abs() * point.weight;
+            for component in 0..2 {
+                sums[0] += weight * (value[component] - exact[component]).powi(2);
+                for axis in 0..2 {
+                    sums[1] += weight
+                        * (gradient[component][axis] - exact_gradient[component][axis]).powi(2);
+                }
+            }
+            sums[2] += weight * (p - pressure_scale * (location[0] - 0.5)).powi(2);
+            sums[3] += weight * (gradient[0][0] + gradient[1][1]).powi(2);
+            pressure_integral += weight * p;
+        }
+    }
+    assert!((pressure_integral / (pressure_scale * length * length)).abs() <= 2e-10);
+    [
+        sums[0].sqrt() / length,
+        sums[1].sqrt(),
+        sums[2].sqrt() / (pressure_scale * length),
+        sums[3].sqrt(),
+    ]
 }
