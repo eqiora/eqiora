@@ -10,6 +10,7 @@ use eqiora_solver::{
     CanonicalCsrSystemView, CsrStorage, LinearOperatorOrientation, LinearOperatorProperties,
 };
 
+#[derive(Debug)]
 struct Sparse<S> {
     rows: usize,
     columns: usize,
@@ -34,18 +35,26 @@ impl<S> CsrStorage<S> for Sparse<S> {
         &self.values
     }
 }
+#[derive(Debug)]
 struct Factors<S> {
-    symbolic: SparseLuSymbolicFactor,
+    symbolic: std::sync::Arc<SparseLuSymbolicFactor>,
+    offsets: Vec<usize>,
+    indices: Vec<usize>,
     numeric: SparseLuNumericFactor<S>,
 }
 impl<S: SparseLuScalar> Factors<S> {
-    fn new(matrix: &Sparse<S>) -> Result<Self, Diagnostic> {
+    fn new(matrix: &Sparse<S>, previous: Option<&Self>) -> Result<Self, Diagnostic> {
         let system = CanonicalCsrSystemView::new(
             matrix,
             &vec![S::zero(); matrix.rows],
             LinearOperatorProperties::General,
         )?;
-        let symbolic = factor_symbolic(&system)?;
+        let symbolic = match previous.filter(|previous| {
+            previous.offsets == matrix.offsets && previous.indices == matrix.indices
+        }) {
+            Some(previous) => std::sync::Arc::clone(&previous.symbolic),
+            None => std::sync::Arc::new(factor_symbolic(&system)?),
+        };
         let numeric = factor_numeric(&symbolic, &system)?;
         // Faer's numeric preparation may retain a zero pivot. The raw fixed
         // triangular action on zero exposes division by that pivot as a
@@ -56,7 +65,12 @@ impl<S: SparseLuScalar> Factors<S> {
             &vec![S::zero(); matrix.rows],
             LinearOperatorOrientation::Normal,
         )?;
-        Ok(Self { symbolic, numeric })
+        Ok(Self {
+            symbolic,
+            numeric,
+            offsets: matrix.offsets.clone(),
+            indices: matrix.indices.clone(),
+        })
     }
     fn solve(&self, rhs: &[S]) -> Result<Vec<S>, Diagnostic> {
         solve_factored_oriented(
@@ -68,6 +82,7 @@ impl<S: SparseLuScalar> Factors<S> {
     }
 }
 /// Both fixed factors form one aggregate; callers must commit/discard this whole value.
+#[derive(Debug)]
 pub(super) struct UpperDiagonalSchur<S> {
     groups: [Vec<usize>; 2],
     a: Factors<S>,
@@ -76,12 +91,30 @@ pub(super) struct UpperDiagonalSchur<S> {
     dimension: usize,
 }
 impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
+    #[cfg(test)]
     pub(super) fn new(
         system: &CanonicalCsrSystemView<S>,
         groups: [Vec<usize>; 2],
         orientation: LinearOperatorOrientation,
         maximum_entries: usize,
         maximum_products: usize,
+    ) -> Result<Self, Diagnostic> {
+        Self::new_reusing(
+            system,
+            groups,
+            orientation,
+            maximum_entries,
+            maximum_products,
+            None,
+        )
+    }
+    fn new_reusing(
+        system: &CanonicalCsrSystemView<S>,
+        groups: [Vec<usize>; 2],
+        orientation: LinearOperatorOrientation,
+        maximum_entries: usize,
+        maximum_products: usize,
+        previous: Option<&Self>,
     ) -> Result<Self, Diagnostic> {
         let n = system.rows();
         if orientation != LinearOperatorOrientation::Normal
@@ -114,10 +147,6 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
             for k in system.row_offsets()[row]..system.row_offsets()[row + 1] {
                 let (h, c) = owner[system.column_indices()[k]]
                     .ok_or_else(|| invalid("missing column owner"))?;
-                entries = entries
-                    .checked_add(1)
-                    .filter(|&v| v <= maximum_entries)
-                    .ok_or_else(|| invalid("upper diagonal-Schur sparse entry budget exceeded"))?;
                 blocks[g * 2 + h][r].insert(c, system.values()[k]);
             }
         }
@@ -138,6 +167,12 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
             inverse.push(value);
         }
         let mut schur = blocks[3].clone();
+        for row in &schur {
+            entries = entries
+                .checked_add(row.len())
+                .filter(|&value| value <= maximum_entries)
+                .ok_or_else(|| invalid("upper diagonal-Schur entry budget exceeded"))?;
+        }
         let mut products = 0usize;
         for (row, drow) in blocks[2].iter().enumerate() {
             for (&k, &d) in drow {
@@ -161,8 +196,14 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
                 }
             }
         }
-        let a = Factors::new(&sparse(&blocks[0], sizes[0]))?;
-        let schur = Factors::new(&sparse(&schur, sizes[1]))?;
+        let a = Factors::new(
+            &sparse(&blocks[0], sizes[0]),
+            previous.map(|previous| &previous.a),
+        )?;
+        let schur = Factors::new(
+            &sparse(&schur, sizes[1]),
+            previous.map(|previous| &previous.schur),
+        )?;
         Ok(Self {
             groups,
             a,
@@ -187,7 +228,7 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
         let mut image = vec![S::zero(); rhs.len()];
         (&self.c as &dyn CsrStorage<S>).apply_rows(0..rhs.len(), &z2, &mut image)?;
         for (value, c) in rhs.iter_mut().zip(image) {
-            *value = *value - c;
+            *value -= c;
         }
         let z1 = self.a.solve(&rhs)?;
         for (group, values) in self.groups.iter().zip([z1, z2]) {
@@ -217,6 +258,159 @@ fn sparse<S: Copy>(rows: &[BTreeMap<usize, S>], columns: usize) -> Sparse<S> {
 }
 fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
+}
+
+/// Full-policy bound fixed action, admitted against retained original coordinates.
+#[derive(Debug)]
+pub(super) struct BoundUpperDiagonalSchur<S> {
+    policy: eqiora_solver::PreconditionerPolicy,
+    action: UpperDiagonalSchur<S>,
+}
+impl<S: SparseLuScalar> BoundUpperDiagonalSchur<S> {
+    pub(super) fn new(
+        problem: &eqiora_solver::LinearProblem<'_, S>,
+        plan: &eqiora_solver::SolverPlan,
+    ) -> Result<Self, Diagnostic> {
+        Self::new_reusing(problem, plan, None)
+    }
+    #[cfg(test)]
+    pub(super) fn shares_symbolic_with(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.action.a.symbolic, &other.action.a.symbolic)
+            && std::sync::Arc::ptr_eq(&self.action.schur.symbolic, &other.action.schur.symbolic)
+    }
+    pub(super) fn require_problem(
+        &self,
+        problem: &eqiora_solver::LinearProblem<'_, S>,
+        plan: &eqiora_solver::SolverPlan,
+    ) -> Result<(), Diagnostic> {
+        if self.policy != *plan.preconditioner()
+            || problem.operator().orientation() != LinearOperatorOrientation::Normal
+            || problem.operator().rows() != self.action.dimension
+            || problem.operator().columns() != self.action.dimension
+        {
+            return Err(invalid(
+                "prepared Schur action differs from original problem orientation, dimensions or policy",
+            ));
+        }
+        let eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner()
+        else {
+            return Err(invalid("prepared Schur policy is missing"));
+        };
+        crate::FaerLinearSolver.capabilities().require_problem(
+            plan,
+            S::DOMAIN,
+            S::STORAGE,
+            problem.properties(),
+        )?;
+        let system = problem
+            .canonical_csr_system()
+            .ok_or_else(|| invalid("prepared Schur action requires canonical CSR"))?;
+        if system.properties() != problem.properties() {
+            return Err(invalid("prepared Schur canonical properties differ"));
+        }
+        let structure = problem
+            .algebraic_structure()
+            .ok_or_else(|| invalid("prepared Schur action requires exact ownership"))?;
+        if structure.partition_coordinates(config.groups())?.as_slice()
+            != self.action.groups.as_slice()
+        {
+            return Err(invalid("prepared Schur action coordinate groups differ"));
+        }
+        Ok(())
+    }
+    pub(super) fn new_reusing(
+        problem: &eqiora_solver::LinearProblem<'_, S>,
+        plan: &eqiora_solver::SolverPlan,
+        previous: Option<&Self>,
+    ) -> Result<Self, Diagnostic> {
+        let eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner()
+        else {
+            return Err(invalid(
+                "upper diagonal-Schur action requires its complete policy",
+            ));
+        };
+        if S::DOMAIN != eqiora_core::ScalarDomain::Real
+            || S::STORAGE != eqiora_core::ScalarType::F64
+            || plan.algorithm() != eqiora_solver::LinearSolver::BiConjugateGradientStabilized
+            || plan.reduction() != eqiora_solver::ReductionPolicy::Fast
+        {
+            return Err(invalid(
+                "upper diagonal-Schur requires real binary64 BiCGSTAB/Fast",
+            ));
+        }
+        for choice in [config.a_factorization(), config.schur_factorization()] {
+            if choice.algorithm() != eqiora_solver::LinearSolver::SparseLu
+                || choice.provider() != crate::FAER_SOLVER_PROVIDER.id().as_str()
+            {
+                return Err(invalid(
+                    "fixed block factor provider does not match the resolved Faer provider",
+                ));
+            }
+        }
+        crate::FaerLinearSolver.capabilities().require_problem(
+            plan,
+            S::DOMAIN,
+            S::STORAGE,
+            problem.properties(),
+        )?;
+        let system = problem
+            .canonical_csr_system()
+            .ok_or_else(|| invalid("upper diagonal-Schur requires canonical CSR coefficients"))?;
+        if system.rows() != problem.operator().rows()
+            || system.columns() != problem.operator().columns()
+            || system.properties() != problem.properties()
+        {
+            return Err(invalid(
+                "upper diagonal-Schur canonical source and original operator differ",
+            ));
+        }
+        let structure = problem
+            .algebraic_structure()
+            .ok_or_else(|| invalid("upper diagonal-Schur requires retained realized ownership"))?;
+        let groups = structure.partition_coordinates(config.groups())?;
+        let groups: [Vec<usize>; 2] = groups
+            .try_into()
+            .map_err(|_| invalid("upper diagonal-Schur requires exactly two coordinate groups"))?;
+        let previous = previous.filter(|previous| &previous.policy == plan.preconditioner());
+        let action = UpperDiagonalSchur::new_reusing(
+            system,
+            groups,
+            problem.operator().orientation(),
+            config.maximum_schur_entries().get(),
+            config.maximum_schur_products().get(),
+            previous.map(|previous| &previous.action),
+        )?;
+        Ok(Self {
+            policy: plan.preconditioner().clone(),
+            action,
+        })
+    }
+}
+impl<S: SparseLuScalar> eqiora_solver::FixedLinearPreconditioner<S> for BoundUpperDiagonalSchur<S> {
+    fn dimension(&self) -> usize {
+        self.action.dimension
+    }
+    fn policy(&self) -> &eqiora_solver::PreconditionerPolicy {
+        &self.policy
+    }
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
+        self.action.apply(input, output)
+    }
+}
+
+pub(super) fn solve(
+    problem: &eqiora_solver::LinearProblem<'_>,
+    plan: &eqiora_solver::SolverPlan,
+    execution: &dyn eqiora_solver::ReplicatedLinearExecution,
+) -> Result<eqiora_solver::LinearSolution, Diagnostic> {
+    let action = BoundUpperDiagonalSchur::new(problem, plan)?;
+    eqiora_solver::solve_bicgstab_with_preconditioner(
+        crate::FAER_SOLVER_PROVIDER,
+        problem,
+        plan,
+        execution,
+        &action,
+    )
 }
 
 #[cfg(test)]
@@ -323,10 +517,10 @@ mod tests {
             ],
         ] {
             let mut rows = vec![BTreeMap::new(); 4];
-            for i in 0..4 {
-                for j in 0..4 {
-                    if local[i][j] != 0. {
-                        rows[i].insert(j, local[i][j]);
+            for (i, values) in local.iter().enumerate() {
+                for (j, &value) in values.iter().enumerate() {
+                    if value != 0. {
+                        rows[i].insert(j, value);
                     }
                 }
             }
@@ -351,6 +545,28 @@ mod tests {
     #[test]
     fn rejects_wrong_orientation_partition_and_resource_limits() {
         let system = fixture();
+        assert!(
+            UpperDiagonalSchur::new(
+                &system,
+                [vec![2, 0], vec![3, 1]],
+                LinearOperatorOrientation::Normal,
+                4,
+                3
+            )
+            .is_ok()
+        );
+        for (entries, products) in [(3, 3), (4, 2)] {
+            assert!(
+                UpperDiagonalSchur::new(
+                    &system,
+                    [vec![2, 0], vec![3, 1]],
+                    LinearOperatorOrientation::Normal,
+                    entries,
+                    products
+                )
+                .is_err()
+            );
+        }
         for orientation in [
             LinearOperatorOrientation::Transposed,
             LinearOperatorOrientation::ConjugateTransposed,

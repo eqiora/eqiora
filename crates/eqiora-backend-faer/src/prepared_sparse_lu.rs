@@ -16,14 +16,18 @@ use crate::sparse_lu_factor::{
 pub(super) fn prepare<S: SparseLuScalar + 'static>(
     plan: SolverPlan,
 ) -> Result<Option<Box<dyn PreparedLinearSolver<S>>>, Diagnostic> {
-    if plan.algorithm() != eqiora_solver::LinearSolver::SparseLu
-        || plan.preconditioner() != eqiora_solver::PreconditionerPolicy::Identity
-        || plan.reduction() != eqiora_solver::ReductionPolicy::Fast
-    {
+    let direct = plan.algorithm() == eqiora_solver::LinearSolver::SparseLu
+        && plan.preconditioner() == &eqiora_solver::PreconditionerPolicy::Identity;
+    let block = plan.algorithm() == eqiora_solver::LinearSolver::BiConjugateGradientStabilized
+        && matches!(
+            plan.preconditioner(),
+            eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(_)
+        );
+    if (!direct && !block) || plan.reduction() != eqiora_solver::ReductionPolicy::Fast {
         return Ok(None);
     }
     crate::FaerLinearSolver.capabilities().require_problem(
-        plan,
+        &plan,
         S::DOMAIN,
         S::STORAGE,
         eqiora_solver::LinearOperatorProperties::General,
@@ -58,8 +62,9 @@ struct Ready<S> {
     row_offsets: Vec<usize>,
     column_indices: Vec<usize>,
     coefficients: Vec<S>,
-    symbolic: Arc<SparseLuSymbolicFactor>,
-    numeric: Arc<SparseLuNumericFactor<S>>,
+    symbolic: Option<Arc<SparseLuSymbolicFactor>>,
+    numeric: Option<Arc<SparseLuNumericFactor<S>>>,
+    block: Option<Arc<crate::block_schur::BoundUpperDiagonalSchur<S>>>,
 }
 
 impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
@@ -81,6 +86,12 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
         structure: &PreparedLinearStructureIdentity,
         problem: &LinearProblem<'_, S>,
     ) -> Result<LinearSolution<S>, Diagnostic> {
+        if matches!(
+            self.plan.preconditioner(),
+            eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(_)
+        ) {
+            return self.solve_block_candidate(structure, problem);
+        }
         let system = problem.canonical_csr_system().ok_or_else(|| {
             invalid("prepared faer sparse LU requires an exact canonical CSR coefficient source")
         })?;
@@ -93,7 +104,7 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
             ));
         }
 
-        if let Some(initial) = accepted_initial(problem, self.plan)? {
+        if let Some(initial) = accepted_initial(problem, &self.plan)? {
             return Ok(initial);
         }
 
@@ -115,11 +126,12 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
 
         let symbolic = if same_symbolic {
             Arc::clone(
-                &self
-                    .tentative
+                self.tentative
                     .as_ref()
                     .expect("matching structure")
-                    .symbolic,
+                    .symbolic
+                    .as_ref()
+                    .ok_or_else(|| invalid("prepared direct factors are missing"))?,
             )
         } else {
             #[cfg(test)]
@@ -130,11 +142,12 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
         };
         let numeric = if same_numeric {
             Arc::clone(
-                &self
-                    .tentative
+                self.tentative
                     .as_ref()
                     .expect("matching coefficients")
-                    .numeric,
+                    .numeric
+                    .as_ref()
+                    .ok_or_else(|| invalid("prepared direct factors are missing"))?,
             )
         } else {
             #[cfg(test)]
@@ -143,7 +156,7 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
             }
             Arc::new(factor_numeric(&symbolic, system)?)
         };
-        let accepted = solve_factored(problem, self.plan, &symbolic, &numeric)?;
+        let accepted = solve_factored(problem, &self.plan, &symbolic, &numeric)?;
         if !same_numeric {
             self.tentative = Some(Arc::new(Ready {
                 structure: structure.clone(),
@@ -152,8 +165,79 @@ impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
                 row_offsets: system.row_offsets().to_vec(),
                 column_indices: system.column_indices().to_vec(),
                 coefficients,
-                symbolic,
-                numeric,
+                symbolic: Some(symbolic),
+                numeric: Some(numeric),
+                block: None,
+            }));
+        }
+        Ok(accepted)
+    }
+    fn solve_block_candidate(
+        &mut self,
+        identity: &PreparedLinearStructureIdentity,
+        problem: &LinearProblem<'_, S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
+        let eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(config) =
+            self.plan.preconditioner()
+        else {
+            return Err(invalid("structured prepared policy is missing"));
+        };
+        let ownership = problem
+            .algebraic_structure()
+            .ok_or_else(|| invalid("prepared Schur solve requires retained ownership"))?;
+        let identity = ownership.prepared_identity(identity, config.groups())?;
+        let system = problem
+            .canonical_csr_system()
+            .ok_or_else(|| invalid("prepared Schur solve requires canonical coefficients"))?;
+        let same_structure = self.tentative.as_ref().is_some_and(|ready| {
+            ready.structure == identity
+                && ready.rows == system.rows()
+                && ready.columns == system.columns()
+                && ready.row_offsets == system.row_offsets()
+                && ready.column_indices == system.column_indices()
+                && ready.block.is_some()
+        });
+        let same_numeric = same_structure
+            && self
+                .tentative
+                .as_ref()
+                .is_some_and(|ready| ready.coefficients == system.values());
+        let block = if same_numeric {
+            Arc::clone(
+                self.tentative
+                    .as_ref()
+                    .and_then(|ready| ready.block.as_ref())
+                    .ok_or_else(|| invalid("prepared Schur factors are missing"))?,
+            )
+        } else {
+            Arc::new(crate::block_schur::BoundUpperDiagonalSchur::new_reusing(
+                problem,
+                &self.plan,
+                self.tentative
+                    .as_ref()
+                    .filter(|_| same_structure)
+                    .and_then(|ready| ready.block.as_deref()),
+            )?)
+        };
+        block.require_problem(problem, &self.plan)?;
+        let accepted = eqiora_solver::solve_bicgstab_with_preconditioner(
+            FAER_SOLVER_PROVIDER,
+            problem,
+            &self.plan,
+            &eqiora_solver::SERIAL_LINEAR_EXECUTION,
+            block.as_ref(),
+        )?;
+        if !same_numeric {
+            self.tentative = Some(Arc::new(Ready {
+                structure: identity,
+                rows: system.rows(),
+                columns: system.columns(),
+                row_offsets: system.row_offsets().to_vec(),
+                column_indices: system.column_indices().to_vec(),
+                coefficients: system.values().to_vec(),
+                symbolic: None,
+                numeric: None,
+                block: Some(block),
             }));
         }
         Ok(accepted)
@@ -564,7 +648,7 @@ mod tests {
                 policy: SolverPlan,
                 execution: &dyn eqiora_solver::ReplicatedLinearExecution<C>,
             ) -> Result<LinearSolution<C>, Diagnostic> {
-                crate::require_serial_execution(execution, policy)?;
+                crate::require_serial_execution(execution, &policy)?;
                 let mut session = self.session.lock().unwrap();
                 assert_eq!(session.plan, policy);
                 session.begin_action()?;
@@ -671,3 +755,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod block_tests;

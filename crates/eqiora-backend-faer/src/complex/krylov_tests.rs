@@ -81,11 +81,11 @@ fn invoke<S: KrylovScalar>(
     problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
 ) -> Result<LinearSolution<S>, Diagnostic> {
-    let inverse = inverse_diagonal(problem, plan)?;
+    let inverse = inverse_diagonal(problem, &plan)?;
     match plan.algorithm() {
-        LinearSolver::ConjugateGradient => cg::solve(FAER_SOLVER_PROVIDER, problem, plan, inverse),
+        LinearSolver::ConjugateGradient => cg::solve(FAER_SOLVER_PROVIDER, problem, &plan, inverse),
         LinearSolver::BiConjugateGradientStabilized => {
-            bicgstab::solve(FAER_SOLVER_PROVIDER, problem, plan, inverse)
+            bicgstab::solve(FAER_SOLVER_PROVIDER, problem, &plan, inverse)
         }
         _ => unreachable!("private Krylov fixture"),
     }
@@ -132,10 +132,10 @@ fn native_complex_cg_and_bicg_solve_normal_and_exact_adjoint_actions() {
             let problem = LinearProblem::new(&oriented, &rhs, properties).unwrap();
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 let request = plan(algorithm, preconditioner);
-                let solution = FaerLinearSolver.solve(&problem, request).unwrap();
+                let solution = FaerLinearSolver.solve(&problem, request.clone()).unwrap();
                 assert_values(solution.values(), &X);
                 assert_eq!(solution.report().orientation(), orientation);
-                assert_eq!(solution.report().solver_plan(), request);
+                assert_eq!(solution.report().solver_plan(), &request);
                 assert_eq!(solution.report().solver_provider(), FAER_SOLVER_PROVIDER);
                 assert!(
                     solution.report().completed_iterations() <= request.maximum_iterations().get()
@@ -210,7 +210,7 @@ fn implicit_complex_parameter_product_and_real_dual_pairing_match_rationals() {
         LinearSolver::BiConjugateGradientStabilized,
         PreconditionerPolicy::Jacobi,
     );
-    let tangent = invoke(&problem, request).unwrap();
+    let tangent = invoke(&problem, request.clone()).unwrap();
     assert_values(
         tangent.values(),
         &[C::new(-3. / 65., 54. / 65.), C::new(93. / 65., -49. / 65.)],
