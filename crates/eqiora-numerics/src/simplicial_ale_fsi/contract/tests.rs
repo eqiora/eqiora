@@ -247,7 +247,7 @@ fn harmonic_solver() -> LinearSolveRequest<'static> {
         NonZeroUsize::new(500).unwrap(),
     )
     .unwrap();
-    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone())
 }
 
 #[test]
@@ -266,7 +266,7 @@ fn step_plan_admits_direct_general_solvers_without_changing_the_operator_class()
         },
     )
     .unwrap();
-    assert_eq!(plan.linear_solver(), solver);
+    assert_eq!(plan.linear_solver(), &solver);
     assert_eq!(
         plan.operator_properties(),
         LinearOperatorProperties::General

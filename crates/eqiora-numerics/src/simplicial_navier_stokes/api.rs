@@ -539,7 +539,7 @@ mod tests {
                     SolverPlan::new(algorithm, 1e-10, 1e-12, NonZeroUsize::new(100).unwrap())
                         .unwrap()
                         .with_reduction(reduction);
-                assert!(step_plan(linear, serial).is_ok());
+                assert!(step_plan(linear.clone(), serial).is_ok());
                 let error = step_plan(
                     linear.with_preconditioner(PreconditionerPolicy::Jacobi),
                     serial,
@@ -559,7 +559,7 @@ mod tests {
             let linear =
                 SolverPlan::new(algorithm, 1e-10, 1e-12, NonZeroUsize::new(100).unwrap()).unwrap();
             assert!(
-                step_plan(linear, serial)
+                step_plan(linear.clone(), serial)
                     .unwrap_err()
                     .message()
                     .contains("general-operator")

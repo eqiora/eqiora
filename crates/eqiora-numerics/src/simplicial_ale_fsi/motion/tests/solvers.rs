@@ -76,17 +76,17 @@ fn compatible_reference_plans_preserve_affine_harmonic_extension_and_exact_repor
     ] {
         let plan = SolverPlan::new(algorithm, 1e-13, 1e-15, NonZeroUsize::new(100).unwrap())
             .unwrap()
-            .with_preconditioner(preconditioner);
-        let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+            .with_preconditioner(preconditioner.clone());
+        let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone());
         let action =
-            P1HarmonicMeshMotionAction::new(&mesh, &partition, motion_policy(plan), solver)
+            P1HarmonicMeshMotionAction::new(&mesh, &partition, motion_policy(plan.clone()), solver)
                 .unwrap();
         assert!(action.fixed_exterior_vertices().is_empty());
         assert_eq!(action.harmonic_interior_vertices().len(), 9);
-        assert_eq!(action.policy().solver(), plan);
+        assert_eq!(action.policy().solver(), &plan);
         action.validate_reference(&mesh, &partition).unwrap();
         for report in action.influence_solve_reports() {
-            assert_eq!(report.solver_plan(), plan);
+            assert_eq!(report.solver_plan(), &plan);
             assert_eq!(report.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
             assert_eq!(
                 report.execution(),
@@ -185,7 +185,7 @@ fn general_only_and_unavailable_exact_profiles_reject_before_motion_assembly() {
         let error = P1HarmonicMeshMotionAction::<2>::new(
             &mesh,
             &partition,
-            motion_policy(request.plan()),
+            motion_policy(request.plan().clone()),
             request,
         )
         .unwrap_err();

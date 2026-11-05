@@ -207,7 +207,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     )
     .unwrap();
     let finalized = crate::finalized_spatial::FinalizedLinearCore::new(
-        policy,
+        policy.clone(),
         eqiora_realization::VectorLayoutKind::Replicated,
         eqiora_realization::Target::HostCpu {
             threads: NonZeroUsize::MIN,

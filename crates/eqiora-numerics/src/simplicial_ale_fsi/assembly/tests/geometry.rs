@@ -52,7 +52,7 @@ fn graph_geometry_requires_exact_model_rows_and_sealed_duration() {
         plan.scale(),
         plan.load(),
         plan.nonlinear(),
-        plan.linear_solver(),
+        plan.linear_solver().clone(),
         plan.target(),
     )
     .unwrap();

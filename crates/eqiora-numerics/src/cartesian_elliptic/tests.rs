@@ -34,7 +34,7 @@ fn both_methods_reproduce_a_linear_harmonic_field_on_a_nonuniform_grid() {
         NonZeroUsize::new(256).unwrap(),
     )
     .unwrap();
-    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone());
     let exact = |coordinate: &[f64]| 2.0 + coordinate[0] - 0.5 * coordinate[1];
     let source = |_: &[f64]| 0.0;
 
@@ -45,7 +45,7 @@ fn both_methods_reproduce_a_linear_harmonic_field_on_a_nonuniform_grid() {
         &exact,
         &cell_rule,
         &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     let fvm = solve_scalar_elliptic_cartesian_fvm_with_assembly(
@@ -56,7 +56,7 @@ fn both_methods_reproduce_a_linear_harmonic_field_on_a_nonuniform_grid() {
         &cell_rule,
         &facet_rule,
         &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
+        solver.clone(),
     )
     .unwrap();
 

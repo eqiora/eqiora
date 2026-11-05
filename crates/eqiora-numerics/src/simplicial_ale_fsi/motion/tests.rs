@@ -92,7 +92,7 @@ fn reference_solver() -> LinearSolveRequest<'static> {
     .expect("valid harmonic solver plan")
     .with_preconditioner(PreconditionerPolicy::Jacobi)
     .with_reduction(ReductionPolicy::Reproducible);
-    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone())
 }
 
 fn seal_motion<const D: usize>(
@@ -100,8 +100,13 @@ fn seal_motion<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
 ) -> P1HarmonicMeshMotionAction<D> {
     let solver = reference_solver();
-    P1HarmonicMeshMotionAction::new(mesh, partition, motion_policy(solver.plan()), solver)
-        .expect("motion seals")
+    P1HarmonicMeshMotionAction::new(
+        mesh,
+        partition,
+        motion_policy(solver.plan().clone()),
+        solver,
+    )
+    .expect("motion seals")
 }
 
 fn interface_vertices<const D: usize>(partition: &FixedReferenceFsiPartition<D>) -> Vec<VertexId> {
@@ -292,7 +297,7 @@ fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
     let motion = P1HarmonicMeshMotionAction::<2>::new(
         &mesh,
         &partition,
-        motion_policy(solver.plan()),
+        motion_policy(solver.plan().clone()),
         solver,
     )
     .expect("motion seals");
@@ -470,7 +475,7 @@ fn first_slice_rejects_a_partition_without_a_solved_fluid_interior() {
         P1HarmonicMeshMotionAction::<2>::new(
             &mesh,
             &partition,
-            motion_policy(reference_solver().plan()),
+            motion_policy(reference_solver().plan().clone()),
             reference_solver(),
         )
         .is_err()
@@ -484,7 +489,7 @@ fn tetrahedral_motion_rejects_incomplete_or_unsolved_dirichlet_closure() {
         P1HarmonicMeshMotionAction::<3>::new(
             &mesh,
             &partition,
-            motion_policy(reference_solver().plan()),
+            motion_policy(reference_solver().plan().clone()),
             reference_solver(),
         )
         .is_err()

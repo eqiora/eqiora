@@ -343,7 +343,7 @@ fn solve(
         .as_ref()
         .ok_or_else(|| invalid("missing reference"))?;
     let solved = crate::nullspace::solve_canonical_with_nullspace(
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone()),
         &system,
         reference,
     )?;

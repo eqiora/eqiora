@@ -430,7 +430,7 @@ fn tiny_active_set_violation_cannot_disappear_when_squared() {
     )
     .unwrap();
     let error = problem
-        .validate_values(&values(&problem, &fixture, scale, 2. * scale), plan, 0)
+        .validate_values(&values(&problem, &fixture, scale, 2. * scale), plan.clone(), 0)
         .unwrap_err();
     assert!(
         error

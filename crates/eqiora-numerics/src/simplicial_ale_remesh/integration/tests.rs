@@ -17,7 +17,7 @@ fn canonical_projection_solves_both_classes_and_replays_raw_coefficients() {
         LinearSolver::BiConjugateGradientStabilized,
     ] {
         let plan = policy(algorithm);
-        let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+        let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone());
         require_projection_solver(request).unwrap();
         for (matrix, rhs, properties) in [
             (
@@ -39,7 +39,7 @@ fn canonical_projection_solves_both_classes_and_replays_raw_coefficients() {
             for (actual, expected) in values.iter().zip([1., 2.]) {
                 assert!((actual - expected).abs() < 1e-9);
             }
-            assert_eq!(report.solver_plan(), plan);
+            assert_eq!(report.solver_plan(), &plan);
             assert_eq!(report.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
             assert!(report.completed_iterations() <= plan.maximum_iterations().get());
             assert!(report.true_residual_norm() <= report.residual_target());
@@ -95,7 +95,7 @@ fn projection_requires_both_exact_provider_classes_before_execution() {
         LinearOperatorProperties::SymmetricIndefinite,
     ] {
         let backend = OneClass(properties);
-        let error = require_projection_solver(LinearSolveRequest::new(&backend, plan)).unwrap_err();
+        let error = require_projection_solver(LinearSolveRequest::new(&backend, plan.clone())).unwrap_err();
         assert_eq!(
             error.code(),
             eqiora_core::diagnostic::codes::INVALID_REALIZATION
@@ -106,8 +106,11 @@ fn projection_requires_both_exact_provider_classes_before_execution() {
         plan.with_preconditioner(PreconditionerPolicy::Jacobi),
     ] {
         assert!(
-            require_projection_solver(LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan))
-                .is_err()
+            require_projection_solver(LinearSolveRequest::new(
+                &REFERENCE_LINEAR_SOLVER,
+                plan.clone()
+            ))
+            .is_err()
         );
     }
 }
