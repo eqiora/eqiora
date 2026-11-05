@@ -21,18 +21,23 @@ impl PyMesh {
     pub(crate) fn viewer_selection_names(&self) -> impl Iterator<Item = (&str, usize)> {
         let selections = match &self.source {
             AcceptedMeshSource::CoordinateFactors { .. } => &[][..],
-            AcceptedMeshSource::SourceOwned {
-                geometry,
-                correspondence,
-                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
-                ..
-            } => {
-                if geometry.planar_rectangle_bounds().is_some() {
-                    correspondence.planar_entity_set_entities(geometry, name)
-                } else {
-                    correspondence.planar_entity_set_entities(geometry, name)
-                }
-            }
+            AcceptedMeshSource::SourceOwned { geometry, .. }
+            | AcceptedMeshSource::SourceOwnedCartesian { geometry, .. } => geometry.entity_sets(),
+        };
+        selections
+            .iter()
+            .map(|selection| (selection.name(), selection.dimension()))
+    }
+
+    pub(crate) fn viewer_selection_entities(
+        &self,
+        name: &str,
+    ) -> Result<Vec<MeshEntity>, Diagnostic> {
+        match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => Err(Diagnostic::error(
+                codes::NOT_IMPLEMENTED,
+                "coordinate-factor grids have no Geometry selections",
+            )),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
