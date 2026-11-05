@@ -4,7 +4,9 @@ use eqiora_core::Diagnostic;
 use eqiora_realization::Space;
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
-use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
+#[cfg(test)]
+use crate::numerical_admission::CommonLinearRunOutput;
+use crate::numerical_admission::CommonSteadyStokesRunOutput;
 use crate::{CommonInitialState, CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
 
 pub(crate) mod artifact;

@@ -421,6 +421,7 @@ impl CommonSpatialPlan {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn run(
         &self,
         initial: Option<&CommonState>,
@@ -813,3 +814,11 @@ impl<'a> LiveStaticExecution<'a> {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+thread_local! {
+    static STATIC_FINALIZATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(in crate::numerical_admission) mod live_tests;

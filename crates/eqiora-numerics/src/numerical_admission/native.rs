@@ -680,6 +680,7 @@ impl NativeNumericalAdmission {
         Ok((resolved, portable, velocity, pressure))
     }
 
+    #[cfg(test)]
     pub(super) fn execute_linear(
         &self,
         backend: &dyn LinearSolverBackend,

@@ -14,6 +14,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
+        #[cfg(test)]
+        super::super::STATIC_FINALIZATIONS.with(|count| count.set(count.get() + 1));
         let q1_spd = operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
             && self.is_real_interval_q1(resources, selected);
         let (mapping, mut input) = self.static_assembly(

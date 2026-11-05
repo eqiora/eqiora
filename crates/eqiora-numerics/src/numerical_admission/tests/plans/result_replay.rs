@@ -295,3 +295,75 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
         from_zero
     );
 }
+
+#[test]
+fn live_static_acceptance_retains_original_equations_and_independent_replay() {
+    let geometry = cartesian_interval();
+    let model = scalar_box_model(
+        &geometry,
+        POISSON_INTERVAL,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let plan = resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[4]), spatial);
+        crate::numerical_admission::scalar::live_tests::check(&plan);
+    }
+}
+
+#[test]
+fn live_static_acceptance_checks_exact_initial_state_and_plan_ownership() {
+    let geometry = cartesian_interval();
+    let model = scalar_box_model(
+        &geometry,
+        POISSON_INTERVAL,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let other_model = scalar_box_model(
+        &geometry,
+        &POISSON_INTERVAL.replace("- source_scale", "- 2*source_scale"),
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let plan = resolve_scalar_box(
+        &model,
+        cartesian_box_resources(&geometry, &[4]),
+        CommonSpatialPolicy::Q1,
+    );
+    let other = resolve_scalar_box(
+        &other_model,
+        cartesian_box_resources(&geometry, &[4]),
+        CommonSpatialPolicy::Q1,
+    );
+    let initial = |plan: &CommonSpatialPlan, middle| {
+        plan.initial_state(
+            None,
+            vec![
+                CommonInitialField::new(
+                    plan.model_digest().to_owned(),
+                    plan.fields().next().unwrap().0,
+                    Some(
+                        CommonInitialValues::new(
+                            eqiora_core::ValueShape::scalar(),
+                            vec![0., 0., middle, 0., 0.],
+                        )
+                        .unwrap(),
+                    ),
+                    None,
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap()
+    };
+    crate::numerical_admission::scalar::live_tests::check_initial(
+        &plan,
+        &initial(&plan, 0.),
+        &initial(&plan, 0.25),
+        &initial(&other, 0.),
+    );
+}
