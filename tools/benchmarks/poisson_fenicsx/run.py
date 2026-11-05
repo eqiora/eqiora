@@ -22,7 +22,10 @@ def child_environment(backend: str, executable: Path, output: Path) -> dict:
     if backend == "fenicsx":
         # Never load the Eqiora build/test environment's OpenMPI or other
         # foreign libraries ahead of the isolated MPICH conda-forge RPATH.
-        env.pop("LD_LIBRARY_PATH", None)
+        for key in ("LD_LIBRARY_PATH", "MPICC", "MPICXX", "PETSC_OPTIONS", "PETSC_OPTIONS_YAML", "SLEPC_OPTIONS",
+                    "CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
+                    "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"):
+            env.pop(key, None)
         for key in list(env):
             if key.startswith(("OMPI_", "PMI_", "PMIX_", "I_MPI_", "MPICH_", "MPIEXEC_")):
                 env.pop(key)

@@ -51,12 +51,24 @@ def main(args):
 
     (model, plan), preparation = clock(prepare)
     field = plan.capability.fields[0]
+    env["resolved_execution"] = {name: getattr(plan.execution, name) for name in
+                                 ("scalar_type", "provider", "provider_version", "placement", "workers")}
+    env["linear_provider"] = {"id": plan.solve.provider.id,
+                              "implementation_version": plan.solve.provider.implementation_version}
 
     def extract(result):
         summary = result.solve
         fields = ("algorithm", "preconditioner", "completed_iterations", "initial_residual_norm",
                   "reported_residual_norm", "true_residual_norm", "residual_target")
         solve = {name: getattr(summary, name) for name in fields}
+        for name in ("backend", "adapter", "verification_adapter", "reduction",
+                     "relative_tolerance", "absolute_tolerance", "maximum_iterations"):
+            solve[name] = getattr(summary, name)
+        solve["convergence_reason"] = str(summary.reason)
+        if (solve["algorithm"] != "bicgstab" or solve["preconditioner"] != "identity"
+                or solve["relative_tolerance"] != 1e-12 or solve["absolute_tolerance"] != 1e-14
+                or solve["maximum_iterations"] != 10000):
+            raise ComparisonError("Eqiora solve report differs from the declared exact policy")
         if not np.isfinite(solve["true_residual_norm"]) or solve["true_residual_norm"] > solve["residual_target"]:
             raise ComparisonError("Eqiora true residual exceeds its accepted target")
         return np.asarray(plan.mesh.coordinates), np.asarray(result.output(field).values("vertex")), solve

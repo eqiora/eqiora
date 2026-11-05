@@ -91,7 +91,9 @@ class ProtocolTests(unittest.TestCase):
 
     def test_foreign_loader_environment_is_removed_only_for_fenicsx(self):
         foreign = {"LD_LIBRARY_PATH": "/foreign-openmpi", "LD_PRELOAD": "/foreign.so",
-                   "OMPI_MCA_btl": "foreign", "PYTHONPATH": "/repository-source"}
+                   "OMPI_MCA_btl": "foreign", "PYTHONPATH": "/repository-source",
+                   "MPICC": "/foreign/mpicc", "PETSC_OPTIONS": "-mat_type aijcusparse",
+                   "CFLAGS": "-ffast-math"}
         with patch.dict(os.environ, foreign):
             fenicsx = driver.child_environment("fenicsx", Path("/isolated/bin/python"), Path("/home/scratch"))
             eqiora = driver.child_environment("eqiora", Path("/wheel/bin/python"), Path("/home/scratch"))

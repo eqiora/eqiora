@@ -2,6 +2,8 @@
 import time
 IMPORT_START = time.perf_counter_ns()
 import json
+import os
+import sysconfig
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,9 +28,9 @@ def main(args):
     env = environment("fenicsx", IMPORT_SECONDS)
     env.update(mpi_library=MPI.Get_library_version(), petsc_version=PETSc.Sys.getVersionInfo(),
                petsc_scalar_type=str(PETSc.ScalarType), petsc_integer_type=str(PETSc.IntType),
-               compiler_environment={key: __import__("os").environ.get(key) for key in
+               compiler_environment={key: os.environ.get(key) for key in
                                      ("CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS")},
-               python_compiler_config={key: __import__("sysconfig").get_config_var(key) for key in ("CC", "CFLAGS", "LDSHARED")},
+               python_compiler_config={key: sysconfig.get_config_var(key) for key in ("CC", "CFLAGS", "LDSHARED")},
                blas=np.show_config(mode="dicts"))
     baseline = memory()
     domain, mesh_time = clock(lambda: mesh.create_unit_square(
@@ -127,6 +129,11 @@ def main(args):
             ksp.setInitialGuessNonzero(False)
             ksp.setTolerances(rtol=1e-12, atol=1e-14, max_it=10000)
             ksp.solve(rhs, solution)
+            rtol, atol, divergence, maxits = ksp.getTolerances()
+            if (ksp.getType() != "bcgs" or ksp.getPC().getType() != "none"
+                    or ksp.getNormType() != PETSc.KSP.NormType.UNPRECONDITIONED
+                    or ksp.getInitialGuessNonzero() or (rtol, atol, maxits) != (1e-12, 1e-14, 10000)):
+                raise ComparisonError("PETSc effective solve policy differs from the declared exact tuple")
             residual = rhs.duplicate()
             matrix.mult(solution, residual)
             residual.aypx(-1.0, rhs)
@@ -140,7 +147,9 @@ def main(args):
                        "completed_iterations": ksp.getIterationNumber(), "initial_residual_norm": rhs_norm,
                        "reported_residual_norm": ksp.getResidualNorm(), "true_residual_norm": true_norm,
                        "residual_target": target, "convergence_reason": reason,
-                       "initial_guess_nonzero": ksp.getInitialGuessNonzero(), "norm_type": "unpreconditioned"}
+                       "initial_guess_nonzero": ksp.getInitialGuessNonzero(), "norm_type": "unpreconditioned",
+                       "relative_tolerance": rtol, "absolute_tolerance": atol, "maximum_iterations": maxits,
+                       "divergence_tolerance": divergence}
             residual.destroy(); ksp.destroy()
             return solution, summary
 
