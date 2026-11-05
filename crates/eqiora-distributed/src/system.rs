@@ -199,7 +199,7 @@ impl DistributedLinearSystem {
     /// an available positive Jacobi diagonal exists when requested.
     pub fn admission_fingerprint(
         &self,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<DistributedAdmissionFingerprintV1, Diagnostic> {
         self.validate_plan(plan)?;
         distributed_admission_fingerprint(
@@ -210,16 +210,19 @@ impl DistributedLinearSystem {
         )
     }
 
-    fn validate_plan(&self, plan: SolverPlan) -> Result<(), Diagnostic> {
+    fn validate_plan(&self, plan: &SolverPlan) -> Result<(), Diagnostic> {
         if !plan.algorithm().accepts(self.properties) {
             return Err(invalid_realization(
                 "distributed solver algorithm does not accept the asserted operator properties",
             ));
         }
+        if matches!(plan.preconditioner(), PreconditionerPolicy::UpperDiagonalSchur(_)) {
+            return Err(invalid_realization("distributed upper diagonal-Schur preconditioning is not implemented"));
+        }
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {}
             LinearSolver::MinimumResidual
-                if plan.preconditioner() == PreconditionerPolicy::Identity => {}
+                if plan.preconditioner() == &PreconditionerPolicy::Identity => {}
             LinearSolver::MinimumResidual => {
                 return Err(invalid_realization(
                     "distributed MINRES currently admits identity preconditioning only",
@@ -236,7 +239,7 @@ impl DistributedLinearSystem {
                 ));
             }
         }
-        if plan.preconditioner() == PreconditionerPolicy::Jacobi {
+        if plan.preconditioner() == &PreconditionerPolicy::Jacobi {
             for partition in 0..self.operator.partition().count().get() {
                 let shard = self
                     .operator

@@ -100,7 +100,7 @@ pub(crate) fn distributed_admission_fingerprint(
     system: CanonicalCsrAgreementFingerprintV1,
     partition: PartitionAgreementIdentityV1,
     layout: DistributedLayoutAgreementIdentityV1,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<DistributedAdmissionFingerprintV1, Diagnostic> {
     let mut hash = Sha256::new();
     hash.update(DISTRIBUTED_ADMISSION_DOMAIN_V1);
@@ -111,6 +111,7 @@ pub(crate) fn distributed_admission_fingerprint(
     hash.update([match plan.preconditioner() {
         PreconditionerPolicy::Identity => 0,
         PreconditionerPolicy::Jacobi => 1,
+        PreconditionerPolicy::UpperDiagonalSchur(_) => return Err(invalid_realization("distributed upper diagonal-Schur preconditioning is not implemented")),
     }]);
     hash.update([match plan.reduction() {
         ReductionPolicy::Reproducible => 0,
