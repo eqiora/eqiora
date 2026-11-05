@@ -91,7 +91,11 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
 
     pub(crate) fn linear_problem(&self) -> Result<LinearProblem<'_, S>, Diagnostic> {
         require_equation_rows(self.canonical_system.as_ref())?;
-        self.canonical_system.linear_problem()
+        let problem = self.canonical_system.linear_problem()?;
+        match self.algebraic_structure.as_ref() {
+            Some(structure) => problem.with_algebraic_structure(structure),
+            None => Ok(problem),
+        }
     }
 
     pub(crate) fn validate_solution(&self, solution: &LinearSolution<S>) -> Result<(), Diagnostic> {
