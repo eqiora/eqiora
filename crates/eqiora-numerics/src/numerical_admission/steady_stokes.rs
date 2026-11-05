@@ -1,6 +1,15 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
+    pub(crate) fn has_pressure_gauge(&self) -> bool {
+        self.resolved
+            .plan()
+            .spatial()
+            .constraints()
+            .iter()
+            .any(|constraint| constraint.field().ulid().to_string() == self.pressure_field_id)
+    }
+
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
