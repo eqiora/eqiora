@@ -390,7 +390,7 @@ where
     }
 
     pub(in crate::numerical_admission) fn solve(
-        self,
+        &self,
         request: LinearSolveRequest<'_, S>,
         initial: Option<&BTreeMap<RawId, Vec<P>>>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
@@ -412,7 +412,7 @@ where
     }
 
     fn finish(
-        self,
+        &self,
         values: Vec<S>,
         solve_report: eqiora_solver::SolveReport,
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
@@ -433,7 +433,7 @@ where
         Ok(CommonLinearRunOutput {
             fields,
             solve_report,
-            assembly_report: self.assembly_report,
+            assembly_report: self.assembly_report.clone(),
             nullspace,
         })
     }

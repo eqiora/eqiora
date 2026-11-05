@@ -36,6 +36,66 @@ impl CommonResult {
         execution: crate::numerical_admission::CommonSpatialExecution,
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
     ) -> Result<Self, Diagnostic> {
+        let validation_plan = plan.clone();
+        let validation_initial = initial_state.clone();
+        let validation_nullspace = nullspace.clone();
+        Self::accept_spatial_with(
+            plan,
+            initial_state,
+            elapsed_seconds,
+            fields,
+            execution,
+            nullspace,
+            |values, execution| {
+                validation_plan.reaccept_static_execution(
+                    values,
+                    validation_nullspace.as_ref(),
+                    validation_initial.as_ref(),
+                    execution,
+                )
+            },
+        )
+    }
+
+    pub(crate) fn accept_live_linear(
+        mut live: crate::numerical_admission::LiveStaticExecution<'_>,
+    ) -> Result<Self, Diagnostic> {
+        let output = live.take_output()?;
+        let execution = crate::numerical_admission::CommonSpatialExecution {
+            solve: CommonSolveHistory::Linear(Box::new(CommonSolveEvidence::from_report(
+                &output.solve_report,
+            ))),
+            assembly: CommonAssemblyEvidence::from_report(&output.assembly_report),
+        };
+        let nullspace = output.nullspace.clone();
+        Self::accept_spatial_with(
+            live.plan().clone(),
+            live.initial().cloned(),
+            0.0,
+            output.fields,
+            execution,
+            output.nullspace,
+            |values, execution| live.validate(values, execution, nullspace.as_ref()),
+        )
+    }
+
+    fn accept_spatial_with(
+        plan: CommonSpatialPlan,
+        initial_state: Option<crate::CommonState>,
+        elapsed_seconds: f64,
+        fields: Vec<(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueType,
+            Vec<f64>,
+            Space,
+        )>,
+        execution: crate::numerical_admission::CommonSpatialExecution,
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
+        validate: impl FnOnce(
+            &std::collections::BTreeMap<eqiora_core::RawId, Vec<f64>>,
+            &crate::numerical_admission::CommonSpatialExecution,
+        ) -> Result<Option<(f64, f64)>, Diagnostic>,
+    ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         if let Some(state) = &initial_state {
             plan.static_initial_fields(state)?;
@@ -91,13 +151,11 @@ impl CommonResult {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         // Shape and finite-value validation precede equation reacceptance.
         plan.check_nullspace_evidence(&fields[0].2, nullspace.as_ref())?;
-        let residual = plan.reaccept_static_execution(
+        let residual = validate(
             &fields
                 .iter()
                 .map(|(id, _, values, _)| (id.erase(), values.clone()))
                 .collect(),
-            nullspace.as_ref(),
-            initial_state.as_ref(),
             &execution,
         )?;
         Self::finish_static(

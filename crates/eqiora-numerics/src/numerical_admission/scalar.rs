@@ -7,7 +7,7 @@ mod harmonic;
 pub(super) mod interval;
 mod nonlinear;
 mod reactions;
-mod regions;
+pub(super) mod regions;
 mod replay;
 mod state;
 mod support;
@@ -459,12 +459,7 @@ impl CommonSpatialPlan {
         if self.admission.nonlinear.is_some() {
             return self.run_newton_result(initial, backend);
         }
-        crate::CommonResult::accept_linear(
-            self.clone(),
-            initial.cloned(),
-            0.0,
-            self.run(initial, backend)?,
-        )
+        LiveStaticExecution::execute(self, initial, backend)?.publish()
     }
 
     #[must_use]
@@ -742,5 +737,79 @@ impl CommonSpatialPlan {
             ),
             _ => Err(invalid("missing scalar inventory")),
         }
+    }
+}
+
+// Transient execution ownership only: no public constructor, Clone or artifact form.
+// Plan, seed, recovered output and its original equation cannot be supplied separately.
+pub(crate) struct LiveStaticExecution<'a> {
+    plan: &'a CommonSpatialPlan,
+    initial: Option<&'a CommonState>,
+    output: Option<CommonLinearRunOutput<f64>>,
+    system: Option<regions::StaticRegionSystem<f64>>,
+}
+
+impl<'a> LiveStaticExecution<'a> {
+    fn execute(
+        plan: &'a CommonSpatialPlan,
+        initial: Option<&'a CommonState>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        plan.reauthenticate_portable_realization()?;
+        let fields = initial
+            .map(|state| plan.static_initial_fields(state))
+            .transpose()?;
+        let (output, system) = plan
+            .admission
+            .execute_linear_retained(backend, fields.as_ref())?;
+        Ok(Self {
+            plan,
+            initial,
+            output: Some(output),
+            system,
+        })
+    }
+
+    fn publish(self) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_live_linear(self)
+    }
+
+    pub(crate) fn plan(&self) -> &CommonSpatialPlan {
+        self.plan
+    }
+    pub(crate) fn initial(&self) -> Option<&CommonState> {
+        self.initial
+    }
+    pub(crate) fn take_output(&mut self) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        self.output
+            .take()
+            .ok_or_else(|| invalid("live static execution output was already consumed"))
+    }
+    pub(crate) fn validate(
+        &self,
+        values: &BTreeMap<eqiora_core::RawId, Vec<f64>>,
+        execution: &CommonSpatialExecution,
+        nullspace: Option<&crate::nullspace::NullspaceEvidence>,
+    ) -> Result<Option<(f64, f64)>, Diagnostic> {
+        let Some(system) = &self.system else {
+            return self
+                .plan
+                .reaccept_static_execution(values, nullspace, self.initial, execution);
+        };
+        crate::common_result::artifact::require_reference_assembly(&execution.assembly)?;
+        let crate::common_result::evidence::CommonSolveHistory::Linear(solve) = &execution.solve
+        else {
+            return Err(invalid(
+                "static Result solve history differs from its Plan strategy",
+            ));
+        };
+        solve.validate_plan(&ResolvedCommonPlan::Spatial(Box::new(self.plan.clone())))?;
+        system.validate_coefficients(values)?;
+        let fields = self
+            .initial
+            .map(|state| self.plan.static_initial_fields(state))
+            .transpose()?;
+        system.validate_initial_residual(fields.as_ref(), solve.initial_residual_norm())?;
+        Ok(None)
     }
 }
