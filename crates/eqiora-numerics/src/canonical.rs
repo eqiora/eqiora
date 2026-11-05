@@ -2,10 +2,9 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
-use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, GraphPath, RawId, ScalarType};
+use eqiora_core::{Diagnostic, GraphPath, Id, RawId, ScalarType};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
     LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,

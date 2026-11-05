@@ -15,8 +15,8 @@ use eqiora::realization::{
     resolve_transient_cell_centered_incompressible_flow,
 };
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_meshing::CartesianMesh;
