@@ -209,6 +209,45 @@ immediately after cold field return, before output/protocol inspection or
 accuracy/profiling. Final whole-child memory also includes untimed
 accuracy checks, reporting and diagnostic profiling.
 
+## Matched revision follow-up
+
+This follow-up is declared before implementation or candidate timing observations.
+It compares already installed baseline and candidate wheels with the same existing
+worker scripts, mathematical problem, solver controls and measurement boundaries.
+Wheel payloads must match the installed packages. Retain the actual source/build
+records and complete installed-family verification separately; a supplied revision
+or build-profile string does not authenticate a build.
+
+Run one exploratory diagnostic campaign per revision first, excluded from the
+paired summary. Then run exactly eight matched pairs, alternating baseline then
+candidate and candidate then baseline, four pairs in each order. Each campaign
+runs both Eqiora and FEniCSx at all four declared levels, with a fresh child and
+fresh JIT cache per tool and level. Each retains its cold execution, one extra
+diagnostic execution, two warmups and seven raw timed samples. Reuse no numerical
+matrix or result. Retain every attempt, failure, command, log and raw sample;
+do not stop for a favorable result, select a fastest attempt, or replace failures
+with retries. A failed campaign ends the attempt as incomplete.
+
+Use one fixed CPU for all workers, a separate CPU for the supervisor and one
+thread per library. Record the selected CPU and its SMT siblings, their load
+throughout each campaign, governors, boost controls and host load. Read controls
+without changing global settings or acting on other users' processes. Readiness
+requires valid declared inputs, matching software, effective affinity/thread
+controls and an operating monitor; CPU utilization is descriptive and has no
+pass cutoff. The earlier requirement for three exactly 100%-idle observations
+was an operational veto, not a mathematical or #727 requirement. It is removed
+before these observations, rather than replaced by a tuned utilization threshold.
+The two earlier readiness-stopped attempts remain retained and are not pairs in
+this campaign.
+
+The independent observational units are the eight pairs, not the seven calls
+within a process. Report each candidate/baseline median ratio, their median and
+range, each campaign's within-process spread, wall and process-CPU timing,
+differences by launch order and chronological drift. The exploratory campaigns
+remain separate. This is descriptive evidence on its stated host: it establishes
+no stable reference environment, #802 5% non-regression result, 2x cylinder result,
+general solver ranking or cross-tool internal-phase speed ratio.
+
 ## External sources
 
 - [FEniCSx download and supported binary installation](https://fenicsproject.org/download/)
