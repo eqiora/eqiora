@@ -12,7 +12,10 @@ from pathlib import Path
 
 from python_candidate_common import CandidateError
 
-FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
+# Raw transport envelopes; expanded archive limits remain independent.
+# Policy owner: docs/development/python-release-policy.md#artifact-resource-bounds
+SDIST_RAW_BYTES_LIMIT = 16_777_216
+WHEEL_RAW_BYTES_LIMIT = 20_971_520
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 
 
@@ -49,7 +52,10 @@ def family_inventory(directory: Path) -> tuple[dict[str, object], ...]:
         if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
             raise CandidateError(f"artifact family member is not one regular file: {path.name}")
         size = path.stat().st_size
-        if size > FAMILY_MEMBER_BYTES_LIMIT:
+        raw_limit = (
+            WHEEL_RAW_BYTES_LIMIT if path.name.endswith(".whl") else SDIST_RAW_BYTES_LIMIT
+        )
+        if size > raw_limit:
             raise CandidateError("artifact family member exceeds the raw byte ceiling")
         total_bytes += size
         if total_bytes > FAMILY_TOTAL_BYTES_LIMIT:

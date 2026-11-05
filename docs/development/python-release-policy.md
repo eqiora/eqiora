@@ -111,6 +111,21 @@ environments and replay the documented quick starts before promotion. A
 TestPyPI upload, tag selection, or production PyPI release requires maintainer
 release authority; ordinary feature work does not imply it.
 
+## Artifact resource bounds
+
+The builder and publication checker independently enforce the same transport
+policy: at most 16 MiB for one raw source archive, 20 MiB for one raw wheel,
+and 64 MiB for the raw family. The wheel receives one additional 4-MiB transport
+allocation for native-code growth; it does not inherit a larger source-archive
+budget. Even at both individual ceilings, the two-artifact family totals at
+most 36 MiB, below its aggregate ceiling.
+
+Each archive still permits at most 8,192 regular members, 40 MiB for one expanded
+member, and 64 MiB expanded in total. The manifest remains bounded by 1 MiB.
+These are resource limits, not required compression ratios. A change to one
+limit does not relax another. Increasing a raw transport envelope requires
+release-trust review and exact-boundary rejection tests in both admission paths.
+
 ## Dependencies and extras
 
 NumPy and exact `anywidget==0.11.0` are mandatory Python runtime dependencies.
