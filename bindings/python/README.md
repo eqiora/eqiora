@@ -50,7 +50,9 @@ this release.
 The base package pins `anywidget==0.11.0` and bundles the viewer's JavaScript
 and CSS, so notebook views work without downloading anything at display time.
 Importing `eqiora` does not load anywidget, ipywidgets, or traitlets. The
-PyTorch extra requires `torch>=2.14,<2.15` and is tested with PyTorch 2.14.0.
+published `0.1.5` PyTorch extra requires `torch>=2.14,<2.15` and was tested with
+PyTorch 2.14.0. The [development adapter](https://eqiora.org/guides/differentiation/)
+uses PyTorch 2.15 and requires a source build.
 The release candidate is tested with JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
 

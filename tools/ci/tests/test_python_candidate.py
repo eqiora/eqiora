@@ -298,7 +298,7 @@ class PythonCandidateTests(unittest.TestCase):
             pytest="pytest==9.1.1",
             mypy="mypy==2.3.0",
             twine="twine==6.2.0",
-            torch="torch==2.14.0",
+            torch="torch==2.15.0",
             jax=("jax==0.11.0", "jaxlib==0.11.0"),
             matplotlib="matplotlib==3.11.1",
             rust="1.89",
@@ -453,7 +453,7 @@ Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
-Requires-Dist: torch>=2.14,<2.15; extra == "torch"
+Requires-Dist: torch>=2.15,<2.16; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
@@ -531,7 +531,7 @@ Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2; extra == "gmsh"
-Requires-Dist: torch>=2.14,<2.15
+Requires-Dist: torch>=2.15,<2.16
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
@@ -1136,6 +1136,8 @@ invalid candidate
             # to `PYTHON_TEST_FIXTURES`, which is the drift this test exists
             # to catch.
             files = (
+                # The README test reads this authored root file in isolation.
+                "README.md",
                 "bindings/python/tests/test_vertical_slice.py",
                 "bindings/python/typecheck/base.py",
                 *(str(fixture / "payload.json") for fixture in PYTHON_TEST_FIXTURES),
@@ -1154,6 +1156,7 @@ invalid candidate
 
             self.assertEqual(tests, run_root / "bindings/python/tests")
             self.assertEqual(typecheck, run_root / "bindings/python/typecheck")
+            self.assertEqual((run_root / "README.md").read_text(), "README.md")
             test_path = tests / "test_vertical_slice.py"
             self.assertEqual(test_path.parents[3], run_root)
             for relative in files:

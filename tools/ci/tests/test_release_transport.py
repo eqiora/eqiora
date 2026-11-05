@@ -57,7 +57,7 @@ def _write_regular_tar_member(
     archive.addfile(member, io.BytesIO(payload))
 
 
-def _write_sdist(path: Path) -> None:
+def _write_sdist(path: Path, *, extra_members: int = 0) -> None:
     prefix = f"eqiora-{VERSION}"
     with tarfile.open(path, mode="w:gz") as archive:
         _write_regular_tar_member(
@@ -71,9 +71,11 @@ def _write_sdist(path: Path) -> None:
             b'[project]\nname = "eqiora"\ndynamic = ["version"]\n',
         )
         _write_regular_tar_member(archive, f"{prefix}/PKG-INFO", METADATA)
+        for index in range(extra_members):
+            _write_regular_tar_member(archive, f"{prefix}/fixtures/{index}.txt", b"")
 
 
-def _write_wheel(path: Path) -> None:
+def _write_wheel(path: Path, *, extra_members: int = 0) -> None:
     with zipfile.ZipFile(path, mode="w") as archive:
         archive.writestr("eqiora/__init__.py", b"")
         archive.writestr("eqiora/_eqiora.abi3.so", b"native fixture")
@@ -84,6 +86,8 @@ def _write_wheel(path: Path) -> None:
             "Tag: cp311-abi3-manylinux2014_x86_64\n",
         )
         archive.writestr(f"eqiora-{VERSION}.dist-info/METADATA", METADATA)
+        for index in range(extra_members):
+            archive.writestr(f"eqiora/fixtures/{index}.txt", b"")
 
 
 def candidate_fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
@@ -323,6 +327,30 @@ class CandidateManifestTests(unittest.TestCase):
             ]
             with mock.patch.object(sys, "argv", argv):
                 self.assertEqual(candidate_manifest_module.main(), 2)
+
+    def test_exact_regular_archive_member_count_boundary(self) -> None:
+        # Policy is declared independently of the implementation's limit.
+        for kind in ("sdist", "wheel"):
+            for count, accepted in ((8192, True), (8193, False)):
+                with self.subTest(kind=kind, count=count):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        manifest, artifacts, document = candidate_fixture(Path(temporary))
+                        record = next(
+                            item for item in document["artifacts"] if item["kind"] == kind
+                        )
+                        path = artifacts / record["filename"]
+                        if kind == "sdist":
+                            _write_sdist(path, extra_members=count - 3)
+                        else:
+                            _write_wheel(path, extra_members=count - 4)
+                        record["size"] = path.stat().st_size
+                        record["sha256"] = file_sha256(path)
+                        manifest.write_text(json.dumps(document), encoding="utf-8")
+                        if accepted:
+                            load_candidate_family(manifest, artifacts)
+                        else:
+                            with self.assertRaisesRegex(ManifestError, "expanded bounds"):
+                                load_candidate_family(manifest, artifacts)
 
     def test_manifest_and_expanded_archive_bounds_are_per_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
