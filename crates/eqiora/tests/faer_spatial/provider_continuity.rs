@@ -228,9 +228,10 @@ impl LinearSolverBackend for AuditedBackend<'_> {
             .canonical_csr_system()
             .expect("ordinary captured CSR boundary");
         let solution = match self.behavior {
-            Behavior::Delegate => self
-                .delegate
-                .solve_with_execution(problem, plan, execution)?,
+            Behavior::Delegate => {
+                self.delegate
+                    .solve_with_execution(problem, plan.clone(), execution)?
+            }
             Behavior::DoubledOperator => {
                 // A plausible stale/scaled-operator adapter bug. The selected production
                 // solver truthfully succeeds on 2A; the outer ordinary owner still owns A.

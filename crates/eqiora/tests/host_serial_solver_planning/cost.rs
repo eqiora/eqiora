@@ -964,7 +964,7 @@ fn expanded_real_catalogs_execute_each_literal_tuple_against_analytical_systems(
                     ReductionPolicy::Reproducible
                 },
             );
-            if preconditioner == J && (values[0] == 0. || values[3] == 0.) {
+            if preconditioner == &J && (values[0] == 0. || values[3] == 0.) {
                 // Stored zero diagonal entries are structurally present. Exact
                 // capability admission succeeds; numeric Jacobi admission fails.
                 backend

@@ -433,7 +433,7 @@ fn faer_bicgstab_spd_identity_and_jacobi_retain_normal_and_transpose_actions() {
                 [-2., 3.],
             ),
         ] {
-            let solution = LinearSolveRequest::new(&FaerLinearSolver, plan)
+            let solution = LinearSolveRequest::new(&FaerLinearSolver, plan.clone())
                 .solve_canonical_oriented(&system, &rhs, orientation)
                 .unwrap();
             for (actual, expected) in solution.values().iter().zip(expected) {
@@ -748,8 +748,8 @@ fn capability_from_fixture(value: &FrozenCapability) -> SolverCapability {
             other => panic!("unexpected frozen operator property {other}"),
         },
         preconditioner: match value.preconditioner.as_str() {
-            "Identity" => PreconditionerPolicy::Identity,
-            "Jacobi" => PreconditionerPolicy::Jacobi,
+            "Identity" => eqiora::solver::PreconditionerKind::Identity,
+            "Jacobi" => eqiora::solver::PreconditionerKind::Jacobi,
             other => panic!("unexpected frozen preconditioner {other}"),
         },
         reduction: match value.reduction.as_str() {
