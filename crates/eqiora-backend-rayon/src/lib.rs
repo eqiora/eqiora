@@ -322,7 +322,7 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
     ) -> Result<LinearSolution, Diagnostic> {
         Self::require_serial_entry(execution)?;
         self.supported_capabilities()?.require_problem(
-            plan,
+            &plan,
             problem.scalar_domain(),
             problem.scalar_type(),
             problem.properties(),
