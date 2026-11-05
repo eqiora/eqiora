@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../../examples/inverse-poisson.eqi?raw';
+import handwrittenSource from './_examples/inverse-poisson-handwritten.eqi?raw';
 import programSource from '../../../../../../../examples/python/learn_inverse_poisson.py?raw';
 import modelDownload from '../../../../../../../examples/inverse-poisson.eqi?url&no-inline';
 import programDownload from '../../../../../../../examples/python/learn_inverse_poisson.py?url&no-inline';
@@ -91,19 +92,41 @@ Vandenberghe, chapter 12 of
 
 ## Write the same balance in Eqiora
 
-The component takes its geometry, material, source, and boundary
-values as inputs:
+The component takes its geometry, material, source, and boundary values as
+inputs. The imported form reuses `Eqiora.Scalar@0.1.0` from a development build:
 
-<Code code={modelSource} lang="eqiora" title="inverse-poisson.eqi" />
+<Code code={modelSource} lang="eqiora" title="inverse-poisson.eqi — imported components" />
 
-Read `-div(diffusion * grad(potential))` as the conduction balance, the two sine
-factors as the source shape, and each `trace` relation as an edge temperature.
-The caller supplies the square and its four edges. This separation lets one
-component serve several meshes and parameter choices.
+`Poisson2d` supplies the volume balance. Its `source` argument retains the two
+sine factors and the source-scale Parameter. Each `FixedValue2d` binds an exact
+edge and the dimensionless boundary offset. Here `coefficient = diffusion`
+overrides the package's default value of one. The caller still owns the one
+potential Field and all five supports.
+
+### Write the complete equations directly
+
+The same problem can be written without imported components:
+
+<Code code={handwrittenSource} lang="eqiora" title="inverse-poisson-handwritten.eqi — direct equations" />
+
+Read `-div(diffusion * grad(potential))` as the scaled conduction balance, the
+two sine factors as the source shape, and each `trace` relation as an edge
+value. The temperature and conductivity scales derived above give these fixed
+units; the package does not infer a general heat law from a dimensionless field.
+
+Both forms use the same component signature. The caller supplies the square
+and its four edges, then chooses meshes and numerical methods separately.
+You can also mix the forms: retain the imported `Poisson2d` instance and replace
+one `FixedValue2d` instance with its corresponding handwritten `trace` relation,
+or keep the four imported boundary instances and write the volume balance
+directly. Replace the chosen law rather than adding a duplicate constraint.
+The [Scalar reference](/reference/standard-packages/continuum/#scalar-poisson-and-laplace)
+explains the available components and the outward constitutive-flux sign.
 
 ## Run the recovery experiment
 
-Use the environment from [Get started](/get-started/). Save
+Use the [development build from Get started](/get-started/#development-build);
+the published `0.1.5` release does not contain this Scalar package. Save
 <a href={modelDownload} download="inverse-poisson.eqi">inverse-poisson.eqi</a> and
 <a href={programDownload} download="learn_inverse_poisson.py">learn_inverse_poisson.py</a>
 beside `.venv`, then run:

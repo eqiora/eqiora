@@ -1,6 +1,6 @@
 ---
 title: Continuum laws and boundaries
-description: Build solid and fluid models with typed fields, material parameters, and physical boundary components.
+description: Build scalar, solid and fluid models with typed fields, material parameters, and physical boundary components.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/continuum.mdx
 ---
 
@@ -20,6 +20,41 @@ examples below compile as ordinary package imports.
 The examples on this page require a development build from the same checkout:
 the bundled Fluid release is 0.5.0 and Solid.LinearElasticity is 0.7.0. The published Eqiora
 0.1.5 distribution is unchanged and does not provide these package releases.
+
+## Scalar Poisson and Laplace
+
+Development builds bundle `Eqiora.Scalar@0.1.0`. Import
+`Eqiora.Scalar.scalar as scalar` for a **dimensionless potential** on a
+2D body whose coordinates are measured in metres. The dimensionless
+`coefficient` defaults to one; override it explicitly for another constant.
+
+| Component | Equation or boundary value |
+|---|---|
+| `Poisson2d` | `-div(coefficient * grad(potential)) = source`, with source in `1/m^2` |
+| `Laplace2d` | The same volume law with zero source and no source argument |
+| `FixedValue2d` | `trace(potential) = value`, with dimensionless boundary data |
+| `NormalFlux2d` | `normal(coefficient * grad(potential)) = flux`, with flux in `1/m` |
+
+The normal flux has the **positive constitutive-gradient sign**. It is not
+negative-gradient physical heat flux. Supply the same coefficient in the volume
+and flux components. Zero flux uses `flux = 0[1/m]`. Normal flux requires an
+authored `smooth` potential; the volume and fixed-value components require `h1`.
+The caller owns the potential, body, exact boundary selections and coverage.
+
+See the [source-recovery lesson](/learn/inverse-problems/heat-source-recovery/)
+for complete imported and handwritten versions of one problem. Save its imported
+source as `inverse-poisson.eqi` and use the lesson runner's complete
+`eqiora.compile` call with its entry, geometry and parameter bindings. The
+ordinary compile path resolves the bundled import. Explicit package
+projects can add `"Eqiora.Scalar"` with `version="0.1.0"` through
+`eqiora.add_bundled_dependency` and vendor it for offline reopening.
+
+This fixed-unit package is not a generic temperature, voltage or pressure law.
+The lesson derives its heat nondimensionalization separately. The
+<ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/README.md">package contract</ExactSourceLink>
+and <ExactSourceLink kind="blob" path="verify/numerics/packaged-scalar-elliptic-2d/README.md">verification case</ExactSourceLink>
+describe the existing host reference Q1 checks. The package adds no FVM, MPI,
+GPU, unstructured-mesh, Robin or periodic execution support.
 
 ## Elastic balance and boundaries
 
