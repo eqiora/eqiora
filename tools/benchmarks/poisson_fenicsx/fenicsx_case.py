@@ -13,7 +13,7 @@ from mpi4py import MPI
 import numpy as np
 from petsc4py import PETSc
 import ufl
-from accuracy import check_identity_row
+from accuracy import check_identity_row, q1_vertex_dof_coordinates
 from common import ComparisonError, clock, environment, finish, memory, worker_arguments
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
@@ -79,18 +79,15 @@ def main(args):
     # Export the exact mesh Geometry vertex by its actual dof/entity binding;
     # never snap or match approximate coordinates by proximity.
     domain.topology.create_connectivity(0, 2)
-    coordinates = np.empty(((args.cells+1)**2, 2))
-    seen = set()
+    vertex_bindings = []
     for vertex in range(domain.topology.index_map(0).size_local):
         entity = np.array([vertex], dtype=np.int32)
         dof = fem.locate_dofs_topological(space, 0, entity)
         geometry_index = mesh.entities_to_geometry(domain, 0, entity, permute=False)
-        if len(dof) != 1 or geometry_index.shape != (1, 1) or int(dof[0]) in seen:
-            raise ComparisonError("Q1 vertex/entity/dof correspondence is not one-to-one")
-        seen.add(int(dof[0]))
-        coordinates[dof[0]] = domain.geometry.x[geometry_index[0, 0], :2]
-    if seen != set(range((args.cells+1)**2)):
-        raise ComparisonError("Q1 vertex/entity/dof correspondence is incomplete")
+        if geometry_index.shape != (1, 1):
+            raise ComparisonError("Q1 vertex does not identify exactly one Geometry vertex")
+        vertex_bindings.append((vertex, dof.tolist(), domain.geometry.x[geometry_index[0, 0], :2]))
+    coordinates = q1_vertex_dof_coordinates(vertex_bindings, (args.cells+1)**2)
     env["coordinate_export"] = "exact mesh Geometry vertices through topological Q1 vertex/dof correspondence"
     free = np.setdiff1d(np.arange((args.cells+1)**2, dtype=PETSc.IntType), boundary)
 

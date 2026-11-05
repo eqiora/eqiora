@@ -111,3 +111,23 @@ def check_identity_row(row, columns, data):
         raise ComparisonError("boundary row requires exactly one stored unit diagonal")
     if any(value != 0.0 for column, value in zip(columns, data, strict=True) if column != row):
         raise ComparisonError("boundary row has a nonzero off-diagonal entry")
+
+
+def q1_vertex_dof_coordinates(rows, count):
+    """Preserve each authoritative vertex point paired with its exact scalar dof."""
+    coordinates = np.empty((count, 2))
+    vertices, dofs = set(), set()
+    for vertex, indices, point in rows:
+        if not 0 <= vertex < count or vertex in vertices or len(indices) != 1:
+            raise ComparisonError("Q1 vertex correspondence requires one distinct scalar dof per vertex")
+        dof = indices[0]
+        if not isinstance(dof, (int, np.integer)) or not 0 <= dof < count or dof in dofs:
+            raise ComparisonError("Q1 dof correspondence is duplicate or out of range")
+        point = np.asarray(point, dtype=np.float64)
+        if point.shape != (2,) or not np.isfinite(point).all():
+            raise ComparisonError("Q1 vertex has an invalid authoritative Geometry point")
+        vertices.add(vertex); dofs.add(dof)
+        coordinates[dof] = point
+    if vertices != set(range(count)) or dofs != set(range(count)):
+        raise ComparisonError("Q1 vertex/dof correspondence is incomplete")
+    return coordinates

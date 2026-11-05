@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row
+from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row, q1_vertex_dof_coordinates
 
 spec = importlib.util.spec_from_file_location("comparison_driver", Path(__file__).with_name("run.py"))
 driver = importlib.util.module_from_spec(spec)
@@ -67,6 +67,27 @@ class ProtocolTests(unittest.TestCase):
                               ([3, 4], [1.0, 1.0])):
             with self.assertRaises(ComparisonError):
                 check_identity_row(3, columns, data)
+
+    def test_topological_export_preserves_point_coefficient_pairs_under_permutation(self):
+        rows = [(0, [2], [0., 0.]), (1, [0], [1., 0.]),
+                (2, [3], [1., 1.]), (3, [1], [0., 1.])]
+        expected = np.array([[1., 0.], [0., 1.], [0., 0.], [1., 1.]])
+        # u=2x+3y gives these independent coefficients in actual dof order.
+        values = np.array([2., 3., 0., 5.])
+        for reordered in (rows, rows[::-1], [rows[i] for i in (2, 0, 3, 1)]):
+            coordinates = q1_vertex_dof_coordinates(reordered, 4)
+            np.testing.assert_array_equal(coordinates, expected)
+            np.testing.assert_array_equal(2*coordinates[:, 0]+3*coordinates[:, 1], values)
+        # Reverse dof numbering AND its coefficients; physical pairs persist.
+        reversed_rows = [(vertex, [3-index[0]], point) for vertex, index, point in rows]
+        coordinates = q1_vertex_dof_coordinates(reversed_rows, 4)
+        np.testing.assert_array_equal(2*coordinates[:, 0]+3*coordinates[:, 1], values[::-1])
+        for invalid in (rows[:-1], rows+[rows[0]],
+                        [rows[0], (1, [2], [1., 0.]), *rows[2:]],
+                        [(0, [2, 3], [0., 0.]), *rows[1:]],
+                        [(0, [4], [0., 0.]), *rows[1:]]):
+            with self.assertRaises(ComparisonError):
+                q1_vertex_dof_coordinates(invalid, 4)
 
     def test_foreign_loader_environment_is_removed_only_for_fenicsx(self):
         foreign = {"LD_LIBRARY_PATH": "/foreign-openmpi", "LD_PRELOAD": "/foreign.so",
