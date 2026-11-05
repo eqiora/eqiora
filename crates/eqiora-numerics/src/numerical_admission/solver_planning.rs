@@ -258,7 +258,7 @@ mod tests {
                     scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                    preconditioner: PreconditionerPolicy::Identity,
+                    preconditioner: eqiora_solver::PreconditionerKind::Identity,
                     reduction: ReductionPolicy::Fast,
                     scalar_type: ScalarType::F64,
                 },
@@ -266,7 +266,7 @@ mod tests {
                     scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::General,
-                    preconditioner: PreconditionerPolicy::Identity,
+                    preconditioner: eqiora_solver::PreconditionerKind::Identity,
                     reduction: ReductionPolicy::Fast,
                     scalar_type: ScalarType::F64,
                 },
@@ -320,12 +320,12 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let request = CommonLinearRequest::exact(
-            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone().with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();
         let decision = resolve_linear(
-            request,
+            request.clone(),
             LinearOperatorProperties::General,
             Some(true),
             None,
@@ -337,7 +337,7 @@ mod tests {
         let checked = decision
             .checked_backend(&REFERENCE_LINEAR_SOLVER, None)
             .unwrap();
-        let error = LinearSolveRequest::new(&checked, decision.solver)
+        let error = LinearSolveRequest::new(&checked, decision.solver.clone())
             .solve(&system.linear_problem().unwrap())
             .unwrap_err();
         assert!(
@@ -359,7 +359,7 @@ mod tests {
         )
         .unwrap();
         assert!(!complete_diagonal(&absent).unwrap());
-        let error = LinearSolveRequest::new(&checked, decision.solver)
+        let error = LinearSolveRequest::new(&checked, decision.solver.clone())
             .solve(&absent.linear_problem().unwrap())
             .unwrap_err();
         assert!(error.message().contains("profile"), "{error}");
@@ -389,7 +389,7 @@ mod tests {
         ] {
             let request = exact(algorithm, reduction, provider);
             let decision = resolve_linear(
-                request,
+                request.clone(),
                 properties,
                 Some(false),
                 None,
@@ -398,7 +398,7 @@ mod tests {
                 &ResolveOnlySparseBackend,
             )
             .unwrap();
-            assert_eq!(decision.solver, request.exact_request().unwrap().0);
+            assert_eq!(&decision.solver, request.exact_request().unwrap().0);
             assert_eq!(decision.provider, provider);
             assert_eq!(decision.planning_objective, None);
             assert!(decision.planning_audit_is_coherent());
@@ -416,7 +416,7 @@ mod tests {
         );
         assert!(
             resolve_linear(
-                request,
+                request.clone(),
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(true),
                 None,
@@ -437,7 +437,7 @@ mod tests {
         );
         assert!(
             resolve_linear(
-                request,
+                request.clone(),
                 LinearOperatorProperties::SymmetricIndefinite,
                 Some(true),
                 None,
@@ -449,7 +449,7 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let jacobi = CommonLinearRequest::exact(
-            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone().with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();
