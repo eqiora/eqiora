@@ -5,7 +5,7 @@ use eqiora::diagnostic::codes;
 use eqiora::meshing::MeshEntity;
 use pyo3::prelude::*;
 
-use super::{AcceptedMeshSource, PyMesh, SourceOwnedProviderObservation};
+use super::{AcceptedMeshSource, PyMesh};
 
 impl PyMesh {
     pub(crate) fn viewer_coordinates(&self, py: Python<'_>) -> PyResult<(Vec<f64>, [usize; 2])> {
@@ -21,23 +21,6 @@ impl PyMesh {
     pub(crate) fn viewer_selection_names(&self) -> impl Iterator<Item = (&str, usize)> {
         let selections = match &self.source {
             AcceptedMeshSource::CoordinateFactors { .. } => &[][..],
-            AcceptedMeshSource::SourceOwned { geometry, .. }
-            | AcceptedMeshSource::SourceOwnedCartesian { geometry, .. } => geometry.entity_sets(),
-        };
-        selections
-            .iter()
-            .map(|selection| (selection.name(), selection.dimension()))
-    }
-
-    pub(crate) fn viewer_selection_entities(
-        &self,
-        name: &str,
-    ) -> Result<Vec<MeshEntity>, Diagnostic> {
-        match &self.source {
-            AcceptedMeshSource::CoordinateFactors { .. } => Err(Diagnostic::error(
-                codes::NOT_IMPLEMENTED,
-                "coordinate-factor grids have no Geometry selections",
-            )),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,

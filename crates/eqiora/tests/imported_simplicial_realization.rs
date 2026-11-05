@@ -16,9 +16,8 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    ExecutionReport, LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
 use eqiora_numerics::{

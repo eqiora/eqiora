@@ -38,18 +38,6 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
-                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
-                ..
-            } => (if geometry.planar_rectangle_bounds().is_some() {
-                correspondence.planar_entity_set_entities(geometry, name)
-            } else {
-                correspondence.planar_entity_set_entities(geometry, name)
-            })
-            .and_then(|entities| validated_entities(entities, expected_dimension))
-            .map_err(|diagnostic| validation_error(py, &[diagnostic])),
-            AcceptedMeshSource::SourceOwned {
-                geometry,
-                correspondence,
                 ..
             } => correspondence
                 .planar_entity_set_entities(geometry, name)

@@ -1017,10 +1017,8 @@ pub fn solve_resolved_scalar_elliptic_cartesian_with_assembly(
         resolved.plan().target(),
         assembly,
     )?;
-    let solution = backend.solve(
-        &finalized.linear_problem()?,
-        finalized.solver_plan().clone(),
-    )?;
+    let solver = finalized.solver_plan().clone();
+    let solution = backend.solve(&finalized.linear_problem()?, solver)?;
     Ok((model, finalized.finish(solution)?))
 }
 
