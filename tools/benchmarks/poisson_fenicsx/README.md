@@ -141,10 +141,12 @@ RSS and stage snapshots. Record any JIT child peak separately. These process
 high-water marks are not a simultaneous aggregate process-tree peak and must
 not be described as operator-only memory or subtracted into such a claim.
 
-The current shared host is approved only for installation and correctness
-smoke tests. Their reports must identify themselves as non-reference runs.
-A quiet, explicitly identified environment is required before publishing a
-stable timing or speed comparison. Slower results are retained and explained.
+Shared-host installation and correctness smoke reports must identify themselves
+as non-reference runs. A fixed-budget matched comparison may also report
+descriptive shared-host observations when it retains every campaign, records
+controls and interference, and states the limit of its inference. A quiet,
+explicitly identified environment is required before publishing a stable timing
+or speed comparison. Slower results are retained and explained.
 
 ## Reproduce a correctness smoke
 
@@ -208,6 +210,84 @@ Use the pre-profile `memory_after_execution_before_accuracy` high-water mark
 immediately after cold field return, before output/protocol inspection or
 accuracy/profiling. Final whole-child memory also includes untimed
 accuracy checks, reporting and diagnostic profiling.
+
+## Matched revision follow-up
+
+This follow-up is declared before implementation or candidate timing observations.
+It compares already installed baseline and candidate wheels with the same existing
+worker scripts, mathematical problem, solver controls and measurement boundaries.
+Wheel payloads must match the installed packages. Retain the actual source/build
+records and complete installed-family verification separately; a supplied revision
+or build-profile string does not authenticate a build.
+
+Run one exploratory diagnostic campaign per revision first, excluded from the
+paired summary. Then run exactly eight matched pairs, alternating baseline then
+candidate and candidate then baseline, four pairs in each order. Each campaign
+runs both Eqiora and FEniCSx at all four declared levels, with a fresh child and
+fresh JIT cache per tool and level. Each retains its cold execution, one extra
+diagnostic execution, two warmups and seven raw timed samples. Reuse no numerical
+matrix or result. Retain every attempt, failure, command, log and raw sample;
+do not stop for a favorable result, select a fastest attempt, or replace failures
+with retries. A failed campaign ends the attempt as incomplete.
+
+Use one fixed CPU for all workers, a separate CPU for the supervisor and one
+thread per library. Record the selected CPU and its SMT siblings, their load
+throughout each campaign, governors, boost controls and host load. Retain initial
+control settings and every before/after observation; stop the attempt if governor,
+boost or topology differs from the initial settings. Read controls without
+changing global settings or acting on other users' processes. Readiness
+requires valid declared inputs, matching software, effective affinity/thread
+controls and an operating monitor; CPU utilization is descriptive and has no
+pass cutoff. The earlier requirement for three exactly 100%-idle observations
+was an operational veto, not a mathematical or #727 requirement. It is removed
+before these observations, rather than replaced by a tuned utilization threshold.
+The two earlier readiness-stopped attempts remain retained and are not pairs in
+this campaign.
+
+The independent observational units are the eight pairs, not the seven calls
+within a process. Report each candidate/baseline median ratio, their median and
+range, each campaign's within-process spread, wall and process-CPU timing,
+differences by launch order and chronological drift. The exploratory campaigns
+remain separate. This is descriptive evidence on its stated host: it establishes
+no stable reference environment, #802 5% non-regression result, 2x cylinder result,
+general solver ranking or cross-tool internal-phase speed ratio.
+
+`run_matched.py` uses existing installed environments; it does not install or
+build either revision. Supply each retained build record as a file, alongside
+the actual wheel digest, source revision and build profile. The runner verifies
+installed package payloads against the supplied wheels and matches the two
+Python/dependency environments. It retains build records verbatim but does not
+authenticate their declarations or replace complete installed-family checks.
+The allocated supervisor CPU must be on a different physical core from the
+worker and its SMT siblings. The output must be new, under home-backed scratch.
+
+```bash
+TMPDIR="$scratch/tmp" python3 tools/benchmarks/poisson_fenicsx/run_matched.py \
+  "$scratch/matched-attempt" --cpu "$COMPARE_CPU" --supervisor-cpu "$SUPERVISOR_CPU" \
+  --fenicsx-python "$scratch/environment/.pixi/envs/default/bin/python" \
+  --baseline-python "$BASELINE_PYTHON" --baseline-wheel "$BASELINE_WHEEL" \
+  --baseline-sha256 "$BASELINE_SHA256" --baseline-revision "$BASELINE_REVISION" \
+  --baseline-build-profile "$BASELINE_PROFILE" --baseline-build-record "$BASELINE_BUILD_RECORD" \
+  --candidate-python "$CANDIDATE_PYTHON" --candidate-wheel "$CANDIDATE_WHEEL" \
+  --candidate-sha256 "$CANDIDATE_SHA256" --candidate-revision "$CANDIDATE_REVISION" \
+  --candidate-build-profile "$CANDIDATE_PROFILE" --candidate-build-record "$CANDIDATE_BUILD_RECORD"
+```
+
+The plan is saved before preflight and campaigns. Each campaign retains its
+command, exit status, worker logs, CPU counter samples, control snapshots and
+ordinary harness output. `stages.json` preserves completed campaigns, including
+exploratory results. `summary.json` is written only after all eighteen campaigns
+complete; it reports eight pairs, both launch orders, chronological drift and
+process CPU alongside wall time. On interruption or failure, owned campaign
+processes are stopped and waited for, and `failure.json` identifies the incomplete
+attempt. Keep that directory; a later attempt must use a new one.
+
+Driver tests use synthetic timings and package payloads without native tools:
+
+```bash
+TMPDIR="$scratch/tmp" python3 -m unittest discover \
+  -s tools/benchmarks/poisson_fenicsx -p test_matched.py -v
+```
 
 ## External sources
 
