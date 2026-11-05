@@ -188,7 +188,7 @@ def test_common_run_cost_complete_auto_and_manual_alternatives(tmp_path, steps, 
         if label != "auto-fast":
             assert solved.backend == ("eqiora.reference" if label == "reference-bicgstab" else "eqiora.faer")
             assert solved.algorithm == ("bicgstab" if label == "reference-bicgstab" else "sparse-lu")
-            assert solved.preconditioner == "identity"
+            assert solved.preconditioner.kind == "identity"
             assert solved.reduction == ("reproducible" if label == "reference-bicgstab" else "fast")
         measurements.append({
             "variant": label, "plan_identity": planned.identity,

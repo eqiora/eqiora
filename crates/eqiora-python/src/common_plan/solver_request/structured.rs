@@ -238,3 +238,75 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyFixedFactorization>()?;
     module.add_class::<PyUpperDiagonalSchurConfig>()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn complete_policy_values_validate_and_preserve_explicit_gauges() -> PyResult<()> {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let module = PyModule::new(py, "structured_test")?;
+            register(&module)?;
+            module.add_class::<PySolverProvider>()?;
+            module.add_class::<PyLinearSolver>()?;
+            let field = crate::model::PyModelFieldRef::from_exact(
+                "test-model".into(),
+                ulid::Ulid::new().to_string(),
+            );
+            module.add("field", Py::new(py, field)?)?;
+            py.run(
+                pyo3::ffi::c_str!(
+                    r#"
+provider = SolverProvider.reference()
+factor = FixedFactorization(provider=provider)
+assert factor.algorithm == LinearSolver.SparseLu
+assert factor.provider == provider
+block = AlgebraicBlock.field(field)
+gauge = AlgebraicBlock.constraint_multiplier(field)
+assert block.field_id == gauge.field_id == field.id
+assert block.kind == "field" and gauge.kind == "constraint-multiplier"
+settings = dict(groups=([block], [gauge]), a_factorization=factor,
+                schur_factorization=factor, maximum_entries=16, maximum_products=64)
+policy = Preconditioner.upper_diagonal_schur(**settings)
+assert policy == Preconditioner.upper_diagonal_schur(**settings)
+assert hash(policy) == hash(Preconditioner.upper_diagonal_schur(**settings))
+assert policy.kind == "upper-diagonal-schur"
+config = policy.upper_diagonal_schur_config
+assert config.groups == ([block], [gauge])
+assert config.a_factorization == config.schur_factorization == factor
+assert config.maximum_entries == 16 and config.maximum_products == 64
+copy = config.groups
+copy[0].clear()
+assert config.groups == ([block], [gauge])
+assert Preconditioner.Identity.kind == "identity"
+assert Preconditioner.Jacobi.upper_diagonal_schur_config is None
+for replacement in ({"groups": ([block], [block])}, {"groups": ([], [gauge])},
+                    {"maximum_entries": 0}, {"maximum_products": 0}):
+    try:
+        Preconditioner.upper_diagonal_schur(**(settings | replacement))
+    except Exception:
+        pass
+    else:
+        raise AssertionError("invalid core policy was accepted")
+try:
+    FixedFactorization(provider=provider, algorithm=LinearSolver.ConjugateGradient)
+except Exception:
+    pass
+else:
+    raise AssertionError("iterative factorization was accepted")
+try:
+    config.maximum_entries = 3
+except AttributeError:
+    pass
+else:
+    raise AssertionError("configuration is mutable")
+"#
+                ),
+                Some(&module.dict()),
+                None,
+            )
+        })
+    }
+}

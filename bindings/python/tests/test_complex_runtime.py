@@ -162,7 +162,7 @@ def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay
     }""")
     plan, result = run(model, solve=solve)
     assert plan.solve.backend == provider.id
-    assert plan.solve.preconditioner == preconditioner
+    assert plan.solve.preconditioner.kind == preconditioner
     assert plan.solve.maximum_iterations == 8
     assert plan.solve.relative_tolerance == 1e-13
     assert plan.solve.absolute_tolerance == 1e-15
