@@ -16,8 +16,8 @@ use eqiora::solver::{
 };
 use eqiora_backend_faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonLinearRequest, CommonSolvePolicy, CommonSpatialPolicy,
-    ResolvedCommonPlan,
+    AuthenticatedCommonMesh, CommonLinearRequest, CommonScalingRequest, CommonSolvePolicy,
+    CommonSpatialPolicy, ResolvedCommonPlan,
 };
 use std::{collections::BTreeMap, num::NonZeroUsize};
 
@@ -149,7 +149,14 @@ fn ordinary_manual_manufactured_stokes_small() {
         CommonSolvePolicy::Linear(
             CommonLinearRequest::exact(solver, FAER_SOLVER_PROVIDER).unwrap(),
         ),
-        None,
+        Some(CommonScalingRequest::Incompressible(
+            eqiora_numerics::fluid::IncompressibleScalingRequest2d::from_si(
+                Some(1.0),
+                Some(1.0),
+                Some(1.0),
+            )
+            .unwrap(),
+        )),
         None,
         &FaerLinearSolver,
         None,
