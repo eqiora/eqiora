@@ -92,7 +92,9 @@ automatic padding, or trajectory differentiation.
 ## Phase-level profiling
 
 Pass `profile=True` to `run` or `submit` to record where the time goes. Profiling
-does not change the Model, Plan, numerical result, or saved Result:
+does not change the Model, Plan or numerical result content. A saved Result
+already includes the run's elapsed time, so separate executions can have
+different serialized bytes:
 
 ```python
 result = eqiora.run(
@@ -121,9 +123,15 @@ kept while `ProfilePhase` holds the full count and timing, so storage does not
 grow with the number of cells. Setup is split into backend resolution and
 discretization preparation, and assembly into initial linearization and
 line-search trials. Transient work is nested under `run/solve/time_step`, and
-Faer SparseLU reports symbolic factorization, numeric factorization, and back
-substitution separately. A Result loaded from bytes has no profile, because timing
-data is not part of the saved artifact. Leave profiling off for ordinary runs.
+each real or complex reference-solver call records one `linear_solve` phase,
+including calls rejected by that provider. Its fields identify the algorithm
+and provider. Faer SparseLU retains separate symbolic factorization, numeric
+factorization and actual back-substitution phases.
+
+A Result loaded from bytes has no phase profile: detailed phase timing is not
+serialized, while the existing overall elapsed time remains in the Result.
+Use a separate profiled execution to inspect phases; its times do not partition
+the elapsed time of an unprofiled execution. Leave profiling off for ordinary runs.
 
 A submitted run can also be awaited from asyncio, using the same native runtime:
 
