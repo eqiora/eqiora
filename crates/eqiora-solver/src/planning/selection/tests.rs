@@ -245,3 +245,81 @@ pub(crate) fn declared_host_selection_preserves_existing_reference_choice() {
         assert_eq!(selected.execution(), crate::ExecutionReport::host_serial());
     }
 }
+
+#[test]
+fn explicit_structured_policy_is_retained_and_requires_realized_cover_at_execution() {
+    use crate::{
+        AlgebraicBlock, AlgebraicStructure, FixedFactorizationChoice, PreconditionerKind,
+        UpperDiagonalSchurConfig,
+    };
+    let a = eqiora_core::Id::new();
+    let b = eqiora_core::Id::new();
+    let groups = [
+        vec![AlgebraicBlock::Field(a)],
+        vec![AlgebraicBlock::Field(b)],
+    ];
+    let choice = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
+    let policy = PreconditionerPolicy::UpperDiagonalSchur(
+        UpperDiagonalSchurConfig::new(groups, choice.clone(), choice, 32, 64).unwrap(),
+    );
+    let structure = AlgebraicStructure::new([a, b], []).unwrap();
+    let profile =
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+            .with_structure(structure.clone())
+            .unwrap()
+            .with_preconditioner(policy.clone());
+    let capability = SolverCapability {
+        scalar_domain: ScalarDomain::Real,
+        algorithm: LinearSolver::BiConjugateGradientStabilized,
+        operator_properties: LinearOperatorProperties::General,
+        preconditioner: PreconditionerKind::UpperDiagonalSchur,
+        reduction: ReductionPolicy::Fast,
+        scalar_type: ScalarType::F64,
+    };
+    let availability = SolverProviderAvailability::new(
+        FAER_PROVIDER,
+        SERIAL_EXECUTION_PROVIDER,
+        crate::ExecutionReport::host_serial(),
+        crate::SolverCapabilities::exact([capability]).unwrap(),
+    )
+    .unwrap();
+    let selected = SolverSelection::resolve_available::<f64>(
+        profile.clone(),
+        SolverPlanningObjective::Fast,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(8).unwrap(),
+        &[availability],
+    )
+    .unwrap();
+    assert_eq!(selected.solver_plan().preconditioner(), &policy);
+    assert_eq!(
+        selected.selected_evidence_case(),
+        "numerics.structured-upper-diagonal-schur"
+    );
+    assert!(
+        profile
+            .require_plan(
+                &selected
+                    .solver_plan()
+                    .clone()
+                    .with_preconditioner(PreconditionerPolicy::Identity)
+            )
+            .is_err()
+    );
+    let bound = structure
+        .with_coordinates(
+            2,
+            vec![
+                (AlgebraicBlock::Field(a), vec![1]),
+                (AlgebraicBlock::Field(b), vec![0]),
+            ],
+        )
+        .unwrap();
+    assert!(profile.require_structure(Some(&bound)).is_ok());
+    let changed = policy.identity_bytes().unwrap();
+    assert_ne!(
+        changed,
+        PreconditionerPolicy::Identity.identity_bytes().unwrap()
+    );
+}

@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.solver-planning/v11";
+const POLICY_ID: &str = "eqiora.solver-planning/v12";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";

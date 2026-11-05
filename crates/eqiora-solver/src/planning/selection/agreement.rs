@@ -21,7 +21,6 @@ impl SolverSelection {
         });
         out.string(self.candidate_id)?;
         out.tag(algorithm(self.plan.algorithm()));
-        out.tag(preconditioner(self.plan.preconditioner().kind()));
         out.preconditioner_configuration(self.plan.preconditioner())?;
         out.tag(reduction(self.plan.reduction()));
         out.0
@@ -30,6 +29,10 @@ impl SolverSelection {
             .update(self.plan.absolute_tolerance().to_bits().to_be_bytes());
         out.count(self.plan.maximum_iterations().get())?;
         let profile = &self.profile;
+        out.option(profile.requested_preconditioner(), |out, policy| {
+            out.tag(preconditioner(policy.kind()));
+            out.preconditioner_configuration(policy)
+        })?;
         out.tag(properties(profile.facts.properties));
         out.tag(match profile.facts.orientation {
             LinearOperatorOrientation::Normal => 0,
@@ -182,30 +185,9 @@ impl Agreement {
         &mut self,
         policy: &PreconditionerPolicy,
     ) -> Result<(), Diagnostic> {
-        if let PreconditionerPolicy::UpperDiagonalSchur(config) = policy {
-            for group in config.groups() {
-                self.count(group.len())?;
-                for block in group {
-                    let field = match block {
-                        crate::AlgebraicBlock::Field(field) => {
-                            self.tag(0);
-                            field
-                        }
-                        crate::AlgebraicBlock::ConstraintMultiplier { field } => {
-                            self.tag(1);
-                            field
-                        }
-                    };
-                    self.0.update(field.ulid().to_bytes());
-                }
-            }
-            for choice in [config.a_factorization(), config.schur_factorization()] {
-                self.tag(algorithm(choice.algorithm()));
-                self.string(choice.provider())?;
-            }
-            self.count(config.maximum_schur_entries().get())?;
-            self.count(config.maximum_schur_products().get())?;
-        }
+        let bytes = policy.identity_bytes()?;
+        self.count(bytes.len())?;
+        self.0.update(bytes);
         Ok(())
     }
     fn solver_provider(&mut self, provider: SolverProvider) -> Result<(), Diagnostic> {

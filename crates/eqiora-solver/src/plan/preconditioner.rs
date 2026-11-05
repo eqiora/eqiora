@@ -178,6 +178,18 @@ impl TryFrom<WireUpperDiagonalSchur> for UpperDiagonalSchurConfig {
     }
 }
 impl PreconditionerPolicy {
+    /// Canonical complete policy bytes for identity and collective agreement.
+    /// Uses the same closed wire representation as persisted solver controls.
+    ///
+    /// # Errors
+    /// Returns a typed diagnostic if canonical serialization fails.
+    pub fn identity_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
+        serde_json::to_vec(self).map_err(|error| {
+            invalid_plan(format!(
+                "preconditioner identity serialization failed: {error}"
+            ))
+        })
+    }
     /// Capability family without erasing the policy's retained configuration.
     pub const fn kind(&self) -> PreconditionerKind {
         match self {

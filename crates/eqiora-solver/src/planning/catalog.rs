@@ -80,6 +80,19 @@ pub(super) struct ExpectedCandidate {
 
 pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
+        FAER_SCHUR_GENERAL_ID | FAER_SCHUR_INDEFINITE_ID => ExpectedCandidate {
+            scalar_domain: ScalarDomain::Real,
+            properties: if id == FAER_SCHUR_GENERAL_ID {
+                LinearOperatorProperties::General
+            } else {
+                LinearOperatorProperties::SymmetricIndefinite
+            },
+            evidence_case: "numerics.structured-upper-diagonal-schur",
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            preconditioner: crate::PreconditionerKind::UpperDiagonalSchur,
+            reduction: ReductionPolicy::Fast,
+        },
         selection::MPI_CG_REPRO_ID | selection::MPI_CG_FAST_ID | selection::MPI_MINRES_ID => {
             let minres = id == selection::MPI_MINRES_ID;
             ExpectedCandidate {

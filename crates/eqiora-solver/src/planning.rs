@@ -18,7 +18,7 @@ pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 use selection::SolverProviderAvailability;
 pub use selection::SolverSelection;
 
-const POLICY_ID: &str = "eqiora.solver-planning/v11";
+const POLICY_ID: &str = "eqiora.solver-planning/v12";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -105,6 +105,9 @@ const REFERENCE_HERMITIAN_MINRES_JACOBI_ID: &str =
     "eqiora.reference.minres-hermitian-jacobi-reproducible-complex-f64";
 const REFERENCE_HPD_MINRES_JACOBI_ID: &str =
     "eqiora.reference.minres-hpd-jacobi-reproducible-complex-f64";
+const FAER_SCHUR_GENERAL_ID: &str = "eqiora.faer.bicgstab-general-upper-diagonal-schur-fast-f64";
+const FAER_SCHUR_INDEFINITE_ID: &str =
+    "eqiora.faer.bicgstab-indefinite-upper-diagonal-schur-fast-f64";
 const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
@@ -146,6 +149,7 @@ pub struct SolverPlanningProfile {
     execution: crate::ExecutionReport,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<crate::AlgebraicStructure>,
+    requested_preconditioner: Option<PreconditionerPolicy>,
     size: Option<SolverPlanningSize>,
     cost_request: Option<SolverCostRequest>,
     run_forecast: Option<cost::RunForecast>,
@@ -194,6 +198,18 @@ impl SolverPlanningProfile {
             && self.execution == crate::ExecutionReport::host_serial()
     }
 
+    /// Retain explicit complete preconditioner intent for exact and ranked admission.
+    #[must_use]
+    pub fn with_preconditioner(mut self, policy: PreconditionerPolicy) -> Self {
+        self.requested_preconditioner = Some(policy);
+        self
+    }
+
+    /// Complete explicit policy, if the caller constrained preconditioning.
+    pub const fn requested_preconditioner(&self) -> Option<&PreconditionerPolicy> {
+        self.requested_preconditioner.as_ref()
+    }
+
     /// Add method-derived Run work and retained numeric payload forecasts.
     /// These assumptions never authorize reuse or bound process memory.
     #[must_use]
@@ -221,6 +237,7 @@ impl SolverPlanningProfile {
             execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
@@ -258,6 +275,7 @@ impl SolverPlanningProfile {
             execution: crate::ExecutionReport::host_serial(),
             required_reduction,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
@@ -296,7 +314,18 @@ impl SolverPlanningProfile {
         &self,
         structure: Option<&crate::AlgebraicStructure>,
     ) -> Result<(), Diagnostic> {
-        if self.structure.as_ref() != structure {
+        let same = self.structure.as_ref() == structure;
+        let realized_from_symbolic = matches!(
+            self.requested_preconditioner(),
+            Some(PreconditionerPolicy::UpperDiagonalSchur(_))
+        ) && self.structure.as_ref().zip(structure).is_some_and(
+            |(planned, actual)| {
+                planned.coordinate_count().is_none()
+                    && planned.blocks().eq(actual.blocks())
+                    && planned.constraints() == actual.constraints()
+            },
+        );
+        if !same && !realized_from_symbolic {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
                 "profile.algebraic-structure-mismatch",
@@ -322,6 +351,31 @@ impl SolverPlanningProfile {
     }
 
     fn plan_rejection(&self, plan: &SolverPlan) -> Option<&'static str> {
+        if self
+            .requested_preconditioner
+            .as_ref()
+            .is_some_and(|policy| policy != plan.preconditioner())
+        {
+            return Some("profile.requested-preconditioner-mismatch");
+        }
+        if let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner() {
+            if self.requested_preconditioner.as_ref() != Some(plan.preconditioner()) {
+                return Some("profile.explicit-structured-policy-required");
+            }
+            let Some(structure) = &self.structure else {
+                return Some("profile.algebraic-structure-required");
+            };
+            let blocks: Vec<_> = structure.blocks().collect();
+            let requested: Vec<_> = config.groups().iter().flatten().copied().collect();
+            if blocks.len() != requested.len()
+                || blocks.iter().any(|block| !requested.contains(block))
+            {
+                return Some("profile.structured-groups-mismatch");
+            }
+            if plan.algorithm() != LinearSolver::BiConjugateGradientStabilized {
+                return Some("profile.structured-bicgstab-required");
+            }
+        }
         if self.cost_request.is_some_and(|cost| {
             [cost.identity_iterations(), cost.jacobi_iterations()]
                 .into_iter()
@@ -365,6 +419,15 @@ impl SolverPlanningProfile {
         if claimed != actual {
             return Err(invalid_profile(claimed, actual));
         }
+        if let Some(PreconditionerPolicy::UpperDiagonalSchur(config)) =
+            &self.requested_preconditioner
+        {
+            let structure = problem
+                .algebraic_structure()
+                .ok_or_else(|| invalid_catalog("execution.algebraic-structure-required"))?;
+            self.require_structure(Some(structure))?;
+            structure.partition_coordinates(config.groups())?;
+        }
         Ok(())
     }
 }
@@ -393,7 +456,12 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         evidence_case: &'static str,
         request: LinearSolveRequest<'backend, S>,
     ) -> Self {
-        Self::planned(id, evidence_case, request.plan().clone(), Some(request.backend()))
+        Self::planned(
+            id,
+            evidence_case,
+            request.plan().clone(),
+            Some(request.backend()),
+        )
     }
 
     const fn planned(
@@ -592,7 +660,9 @@ fn catalog_plan(
     let preconditioner = match preconditioner {
         crate::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
         crate::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
-        crate::PreconditionerKind::UpperDiagonalSchur => return Err(invalid_catalog("catalog.structured-policy-required")),
+        crate::PreconditionerKind::UpperDiagonalSchur => {
+            return Err(invalid_catalog("catalog.structured-policy-required"));
+        }
     };
     SolverPlan::new(
         algorithm,
@@ -604,6 +674,34 @@ fn catalog_plan(
         plan.with_preconditioner(preconditioner)
             .with_reduction(reduction)
     })
+}
+
+fn catalog_plan_for_profile(
+    profile: &SolverPlanningProfile,
+    expected: catalog::ExpectedCandidate,
+    relative: f64,
+    absolute: f64,
+    iterations: NonZeroUsize,
+) -> Result<SolverPlan, Diagnostic> {
+    if expected.preconditioner == crate::PreconditionerKind::UpperDiagonalSchur {
+        let policy = profile
+            .requested_preconditioner()
+            .filter(|policy| policy.kind() == expected.preconditioner)
+            .ok_or_else(|| invalid_catalog("catalog.structured-policy-required"))?;
+        return Ok(
+            SolverPlan::new(expected.algorithm, relative, absolute, iterations)?
+                .with_preconditioner(policy.clone())
+                .with_reduction(expected.reduction),
+        );
+    }
+    catalog_plan(
+        expected.algorithm,
+        expected.preconditioner,
+        expected.reduction,
+        relative,
+        absolute,
+        iterations,
+    )
 }
 
 /// Resolve one exact candidate from the host solver catalog.
@@ -625,6 +723,7 @@ fn resolve_solver_v11<'problem, 'backend>(
             execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
