@@ -2,8 +2,7 @@
 
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
-    SolverProvider,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverPlan, SolverProvider,
 };
 use pyo3::prelude::*;
 
@@ -89,11 +88,8 @@ impl PyResolvedLinear {
     }
 
     #[getter]
-    fn preconditioner(&self) -> &'static str {
-        match self.plan.preconditioner() {
-            PreconditionerPolicy::Identity => "identity",
-            PreconditionerPolicy::Jacobi => "jacobi",
-        }
+    fn preconditioner(&self) -> super::solver_request::PyPreconditioner {
+        self.plan.preconditioner().into()
     }
 
     #[getter]

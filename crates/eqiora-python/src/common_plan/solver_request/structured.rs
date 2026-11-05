@@ -1,0 +1,240 @@
+//! Immutable Python values over complete core preconditioner policies.
+use super::*;
+use crate::error::validation_error;
+use eqiora::solver::{AlgebraicBlock, FixedFactorizationChoice, UpperDiagonalSchurConfig};
+use pyo3::exceptions::PyTypeError;
+
+#[pyclass(
+    name = "AlgebraicBlock",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyAlgebraicBlock {
+    native: AlgebraicBlock,
+}
+#[pymethods]
+impl PyAlgebraicBlock {
+    #[staticmethod]
+    fn field(field: &crate::model::PyModelFieldRef) -> PyResult<Self> {
+        Self::from_field(field, false)
+    }
+    #[staticmethod]
+    fn constraint_multiplier(field: &crate::model::PyModelFieldRef) -> PyResult<Self> {
+        Self::from_field(field, true)
+    }
+    #[getter]
+    fn kind(&self) -> &'static str {
+        match self.native {
+            AlgebraicBlock::Field(_) => "field",
+            _ => "constraint-multiplier",
+        }
+    }
+    #[getter]
+    fn field_id(&self) -> String {
+        match self.native {
+            AlgebraicBlock::Field(field) | AlgebraicBlock::ConstraintMultiplier { field } => {
+                field.ulid().to_string()
+            }
+        }
+    }
+}
+impl PyAlgebraicBlock {
+    fn from_field(field: &crate::model::PyModelFieldRef, multiplier: bool) -> PyResult<Self> {
+        let field = ulid::Ulid::from_string(field.exact_id())
+            .map(eqiora::Id::from_ulid)
+            .map_err(|_| PyTypeError::new_err("invalid exact FieldRef"))?;
+        Ok(Self {
+            native: if multiplier {
+                AlgebraicBlock::ConstraintMultiplier { field }
+            } else {
+                AlgebraicBlock::Field(field)
+            },
+        })
+    }
+}
+
+#[pyclass(
+    name = "FixedFactorization",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyFixedFactorization {
+    native: FixedFactorizationChoice,
+}
+#[pymethods]
+impl PyFixedFactorization {
+    #[new]
+    #[pyo3(signature=(*, provider, algorithm=PyLinearSolver::SparseLu))]
+    fn new(
+        py: Python<'_>,
+        provider: &PySolverProvider,
+        algorithm: PyLinearSolver,
+    ) -> PyResult<Self> {
+        FixedFactorizationChoice::new(algorithm.into(), provider.native.id().as_str())
+            .map(|native| Self { native })
+            .map_err(|d| validation_error(py, &[d]))
+    }
+    #[getter]
+    fn algorithm(&self) -> PyLinearSolver {
+        self.native.algorithm().into()
+    }
+    #[getter]
+    fn provider(&self) -> PyResult<PySolverProvider> {
+        [
+            REFERENCE_LINEAR_SOLVER.provider(),
+            FaerLinearSolver.provider(),
+        ]
+        .into_iter()
+        .find(|p| p.id().as_str() == self.native.provider())
+        .map(|native| PySolverProvider { native })
+        .ok_or_else(|| {
+            PyTypeError::new_err("factorization provider is not in the compiled registry")
+        })
+    }
+}
+
+#[pyclass(
+    name = "UpperDiagonalSchurConfig",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyUpperDiagonalSchurConfig {
+    native: UpperDiagonalSchurConfig,
+}
+#[pymethods]
+impl PyUpperDiagonalSchurConfig {
+    #[getter]
+    fn groups(&self) -> (Vec<PyAlgebraicBlock>, Vec<PyAlgebraicBlock>) {
+        let g = self.native.groups();
+        (
+            g[0].iter()
+                .map(|native| PyAlgebraicBlock { native: *native })
+                .collect(),
+            g[1].iter()
+                .map(|native| PyAlgebraicBlock { native: *native })
+                .collect(),
+        )
+    }
+    #[getter]
+    fn a_factorization(&self) -> PyFixedFactorization {
+        PyFixedFactorization {
+            native: self.native.a_factorization().clone(),
+        }
+    }
+    #[getter]
+    fn schur_factorization(&self) -> PyFixedFactorization {
+        PyFixedFactorization {
+            native: self.native.schur_factorization().clone(),
+        }
+    }
+    /// Maximum retained Schur entries, excluding factor memory and RSS.
+    #[getter]
+    fn maximum_entries(&self) -> usize {
+        self.native.maximum_schur_entries().get()
+    }
+    /// Maximum scalar product contributions during Schur construction.
+    #[getter]
+    fn maximum_products(&self) -> usize {
+        self.native.maximum_schur_products().get()
+    }
+}
+
+#[pyclass(
+    name = "Preconditioner",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PyPreconditioner {
+    native: PreconditionerPolicy,
+}
+impl From<PyPreconditioner> for PreconditionerPolicy {
+    fn from(v: PyPreconditioner) -> Self {
+        v.native
+    }
+}
+impl From<&PreconditionerPolicy> for PyPreconditioner {
+    fn from(v: &PreconditionerPolicy) -> Self {
+        Self { native: v.clone() }
+    }
+}
+#[pymethods]
+impl PyPreconditioner {
+    #[classattr]
+    #[allow(non_snake_case)]
+    fn Identity() -> Self {
+        Self {
+            native: PreconditionerPolicy::Identity,
+        }
+    }
+    #[classattr]
+    #[allow(non_snake_case)]
+    fn Jacobi() -> Self {
+        Self {
+            native: PreconditionerPolicy::Jacobi,
+        }
+    }
+    #[staticmethod]
+    #[pyo3(signature=(*, groups, a_factorization, schur_factorization, maximum_entries, maximum_products))]
+    fn upper_diagonal_schur(
+        py: Python<'_>,
+        groups: (Vec<PyAlgebraicBlock>, Vec<PyAlgebraicBlock>),
+        a_factorization: PyFixedFactorization,
+        schur_factorization: PyFixedFactorization,
+        maximum_entries: usize,
+        maximum_products: usize,
+    ) -> PyResult<Self> {
+        UpperDiagonalSchurConfig::new(
+            [
+                groups.0.into_iter().map(|v| v.native).collect(),
+                groups.1.into_iter().map(|v| v.native).collect(),
+            ],
+            a_factorization.native,
+            schur_factorization.native,
+            maximum_entries,
+            maximum_products,
+        )
+        .map(|v| Self {
+            native: PreconditionerPolicy::UpperDiagonalSchur(v),
+        })
+        .map_err(|d| validation_error(py, &[d]))
+    }
+    #[getter]
+    fn kind(&self) -> &'static str {
+        match self.native {
+            PreconditionerPolicy::Identity => "identity",
+            PreconditionerPolicy::Jacobi => "jacobi",
+            PreconditionerPolicy::UpperDiagonalSchur(_) => "upper-diagonal-schur",
+        }
+    }
+    #[getter]
+    fn upper_diagonal_schur_config(&self) -> Option<PyUpperDiagonalSchurConfig> {
+        match &self.native {
+            PreconditionerPolicy::UpperDiagonalSchur(native) => Some(PyUpperDiagonalSchurConfig {
+                native: native.clone(),
+            }),
+            _ => None,
+        }
+    }
+}
+pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PyPreconditioner>()?;
+    module.add_class::<PyAlgebraicBlock>()?;
+    module.add_class::<PyFixedFactorization>()?;
+    module.add_class::<PyUpperDiagonalSchurConfig>()
+}

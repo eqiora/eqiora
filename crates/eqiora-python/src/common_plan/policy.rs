@@ -310,7 +310,7 @@ impl From<SolverPlanningObjective> for PySolverPlanningObjective {
     frozen,
     skip_from_py_object
 )]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PyLinear {
     pub(super) native: CommonLinearRequest,
 }
@@ -344,8 +344,9 @@ impl PyLinear {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
         let native = match (objective, algorithm, preconditioner, reduction, provider) {
-            (Some(objective), None, None, None, None) => CommonLinearRequest::program_controlled(
-                relative_tolerance, absolute_tolerance, maximum_iterations, objective.into()),
+            (Some(objective), None, preconditioner, None, None) => CommonLinearRequest::program_controlled(
+                relative_tolerance, absolute_tolerance, maximum_iterations, objective.into())
+                .map(|request| match preconditioner { Some(policy) => request.with_preconditioner(policy.into()), None => request }),
             (None, Some(algorithm), Some(preconditioner), Some(reduction), Some(provider)) => {
                 SolverPlan::new(algorithm.into(), relative_tolerance, absolute_tolerance, maximum_iterations)
                     .and_then(|plan| CommonLinearRequest::exact(plan.with_preconditioner(preconditioner.into())
@@ -353,7 +354,10 @@ impl PyLinear {
             }
             _ => return Err(PyTypeError::new_err("Linear requires either objective or the complete exact algorithm, preconditioner, reduction, provider tuple; mixed and incomplete intent is invalid")),
         }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        let native = cost.map_or(native, |cost| native.with_cost(cost.native));
+        let native = match cost {
+            Some(cost) => native.with_cost(cost.native),
+            None => native,
+        };
         Ok(Self { native })
     }
 
@@ -388,9 +392,7 @@ impl PyLinear {
     }
     #[getter]
     fn preconditioner(&self) -> Option<PyPreconditioner> {
-        self.native
-            .exact_request()
-            .map(|(p, _)| p.preconditioner().into())
+        self.native.requested_preconditioner().map(Into::into)
     }
     #[getter]
     fn reduction(&self) -> Option<PyReduction> {

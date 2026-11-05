@@ -31,19 +31,15 @@ solver_enum!(
     SparseLu
 );
 solver_enum!(
-    PyPreconditioner,
-    "Preconditioner",
-    PreconditionerPolicy,
-    Identity,
-    Jacobi
-);
-solver_enum!(
     PyReduction,
     "Reduction",
     ReductionPolicy,
     Reproducible,
     Fast
 );
+
+mod structured;
+pub(super) use structured::PyPreconditioner;
 
 /// An immutable observation of one compiled solver's complete release identity.
 #[pyclass(
@@ -113,7 +109,7 @@ impl PySolverProvider {
 
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyLinearSolver>()?;
-    module.add_class::<PyPreconditioner>()?;
+    structured::register(module)?;
     module.add_class::<PyReduction>()?;
     module.add_class::<PySolverProvider>()
 }
