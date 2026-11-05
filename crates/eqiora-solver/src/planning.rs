@@ -677,13 +677,12 @@ fn catalog_plan(
 }
 
 fn fixed_provider_rejection(plan: &SolverPlan, provider: SolverProvider) -> Option<&'static str> {
-    if let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner() {
-        if [config.a_factorization(), config.schur_factorization()]
+    if let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner()
+        && [config.a_factorization(), config.schur_factorization()]
             .iter()
             .any(|choice| choice.provider() != provider.id().as_str())
-        {
-            return Some("policy.fixed-factor-provider-mismatch");
-        }
+    {
+        return Some("policy.fixed-factor-provider-mismatch");
     }
     None
 }
