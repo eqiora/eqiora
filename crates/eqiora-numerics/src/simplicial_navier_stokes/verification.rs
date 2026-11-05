@@ -155,8 +155,8 @@ mod tests {
     use eqiora_realization::Target;
     use eqiora_solver::{
         BackendId, LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver,
-        LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution,
-        SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+        LinearSolverBackend, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
+        SolverCapability, SolverPlan, SolverProvider,
     };
 
     use super::*;
