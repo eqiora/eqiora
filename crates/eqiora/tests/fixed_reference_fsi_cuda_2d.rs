@@ -193,6 +193,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
         host.resolved
             .plan()
             .solver()
+            .clone()
             .with_reduction(ReductionPolicy::Fast),
     );
     let cuda_resolved = resolve_cuda_with_plan(
@@ -300,7 +301,7 @@ fn resolve_cuda_with_plan(
         device,
     )
     .expect("the exact one-device FSI plan is valid");
-    let solver_plan = plan.solver();
+    let solver_plan = plan.solver().clone();
     resolve_coupled_fieldwise(
         &CoupledFieldwiseRealizationRequest::explicit(
             host.resolved.model(),

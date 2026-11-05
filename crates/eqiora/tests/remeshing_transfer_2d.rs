@@ -29,7 +29,8 @@ fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
 
 #[test]
 fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         base.relative_tolerance(),
@@ -47,7 +48,8 @@ fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
 
 #[test]
 fn faer_bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         base.relative_tolerance(),
@@ -62,7 +64,8 @@ fn faer_bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
 
 #[test]
 fn sparse_lu_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::SparseLu,
         base.relative_tolerance(),

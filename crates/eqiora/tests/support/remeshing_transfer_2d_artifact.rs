@@ -1184,7 +1184,7 @@ fn projection_artifacts(
         RemeshProjectionEvidenceEnvelopeV1::prescribed_exactly(
             RemeshProjectionActionV1::AbsoluteDisplacement,
             overlap,
-            plan,
+            plan.clone(),
         )
         .unwrap()
     } else {

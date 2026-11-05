@@ -219,11 +219,11 @@ fn public_finalization_retains_requested_bicgstab_harmonic_policy() {
                 fixture.mesh_reference,
                 time_step,
                 nonlinear_solver_plan(),
-                motion_solver,
+                motion_solver.clone(),
             ),
         ),
         fixed_topology_ale_fsi_requirements(&fixture.canonical),
-        &capabilities_with_motion_solver(motion_solver),
+        &capabilities_with_motion_solver(motion_solver.clone()),
     )
     .unwrap();
     let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -363,14 +363,14 @@ fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
             )],
             [connection(&fixture.canonical)],
             AleGeometryQualityGate::new(0.3).unwrap(),
-            solver,
+            solver.clone(),
         )
         .unwrap();
         let action = P1HarmonicMeshMotionAction::new(
             &fixture.mesh,
             &fixture.partition,
             policy,
-            eqiora::solver::LinearSolveRequest::new(&FaerLinearSolver, solver),
+            eqiora::solver::LinearSolveRequest::new(&FaerLinearSolver, solver.clone()),
         )
         .unwrap();
         let actual = action

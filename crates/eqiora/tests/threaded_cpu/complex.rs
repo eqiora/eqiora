@@ -155,12 +155,13 @@ fn complex_reference_policies_preserve_original_values_and_pool_placement() {
                 (LinearOperatorOrientation::Normal, rhs),
                 (LinearOperatorOrientation::ConjugateTransposed, adjoint_rhs),
             ] {
-                let solved = LinearSolveRequest::new(typed, request)
+                let solved = LinearSolveRequest::new(typed, request.clone())
                     .solve_canonical_oriented(&source, &b, orientation)
                     .unwrap();
-                let serial = LinearSolveRequest::<C>::new(&REFERENCE_LINEAR_SOLVER, request)
-                    .solve_canonical_oriented(&source, &b, orientation)
-                    .unwrap();
+                let serial =
+                    LinearSolveRequest::<C>::new(&REFERENCE_LINEAR_SOLVER, request.clone())
+                        .solve_canonical_oriented(&source, &b, orientation)
+                        .unwrap();
                 assert_eq!(solved.values(), serial.values());
                 let x = solved.values();
                 let mut residual = [z; 2];
