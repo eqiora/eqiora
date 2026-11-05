@@ -130,10 +130,8 @@ def main(args):
             ksp.setTolerances(rtol=1e-12, atol=1e-14, max_it=10000)
             ksp.solve(rhs, solution)
             rtol, atol, divergence, maxits = ksp.getTolerances()
-            if (ksp.getType() != "bcgs" or ksp.getPC().getType() != "none"
-                    or ksp.getNormType() != PETSc.KSP.NormType.UNPRECONDITIONED
-                    or ksp.getInitialGuessNonzero() or (rtol, atol, maxits) != (1e-12, 1e-14, 10000)):
-                raise ComparisonError("PETSc effective solve policy differs from the declared exact tuple")
+            actual_policy = {"ksp_type": ksp.getType(), "pc_type": ksp.getPC().getType(),
+                             "norm_type": int(ksp.getNormType())}
             residual = rhs.duplicate()
             matrix.mult(solution, residual)
             residual.aypx(-1.0, rhs)
@@ -149,7 +147,7 @@ def main(args):
                        "residual_target": target, "convergence_reason": reason,
                        "initial_guess_nonzero": ksp.getInitialGuessNonzero(), "norm_type": "unpreconditioned",
                        "relative_tolerance": rtol, "absolute_tolerance": atol, "maximum_iterations": maxits,
-                       "divergence_tolerance": divergence}
+                       "divergence_tolerance": divergence, "actual_policy": actual_policy}
             residual.destroy(); ksp.destroy()
             return solution, summary
 
@@ -163,6 +161,11 @@ def main(args):
     def extract(result):
         function, summary, assembly_time, solve_time, matrix, rhs = result
         verify_boundary(matrix)
+        policy = summary["actual_policy"]
+        if (policy != {"ksp_type": "bcgs", "pc_type": "none", "norm_type": int(PETSc.KSP.NormType.UNPRECONDITIONED)}
+                or summary["initial_guess_nonzero"] or
+                (summary["relative_tolerance"], summary["absolute_tolerance"], summary["maximum_iterations"]) != (1e-12, 1e-14, 10000)):
+            raise ComparisonError(f"PETSc effective policy differs from the declared tuple: {summary}")
         values = function.x.array.copy()
         matrix.destroy(); rhs.destroy()
         return coordinates, values, summary
@@ -181,7 +184,7 @@ def main(args):
             return {"required_phases_available": True, "phase_inventory": ["assembly", "linear_solve"]}
         return {"required_phases_available": True, "assembly": assembly_time, "linear_solve": solve_time,
                 "assembly_scope": "matrix/vector allocation+assembly, lifting, ghost accumulation and BC application",
-                "linear_solve_scope": "KSP allocation/configuration+zero guess+KSPSolve+independent true-residual acceptance",
+                "linear_solve_scope": "KSP allocation/configuration+zero guess+KSPSolve+independent true-residual acceptance+effective-policy/summary getters",
                 "execution_extra": "field recovery included; protocol diagnostics/output inspection/result destruction excluded"}
 
     finish(args, "fenicsx", report, execute, extract, diagnostic)

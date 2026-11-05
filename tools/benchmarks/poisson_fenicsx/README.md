@@ -90,10 +90,11 @@ For each tool report wall time and process CPU time for these declared scopes:
   recovery, with existing mesh and model/forms. No matrix, preconditioner,
   factorization or previous Result is supplied for reuse.
 
-Exclude error integration, output inspection, protocol-conformance diagnostics,
-Result destruction and file writes. Conformance checks inspect the actual
-assembled boundary rows and columns after the execution clock stops, so they
-do not artificially inflate the external library's execution duration. Follow the
+Exclude error integration, output inspection, protocol-conformance assertions,
+Result destruction and file writes. Boundary-row/column checks and effective
+solver-policy assertions run after the execution clock stops. FEniCSx's solve
+bracket includes effective-policy getters and accepted-solve summary creation
+before native KSP cleanup; their included query cost is not hidden. Follow the
 existing [repeated-execution measurement owner](../repeated_execution/run.py):
 retain a cold call, two warmups, seven raw samples, median, range and median
 absolute deviation. Keep the process CPU readings alongside wall samples.
