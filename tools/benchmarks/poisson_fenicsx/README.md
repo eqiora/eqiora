@@ -248,6 +248,43 @@ remain separate. This is descriptive evidence on its stated host: it establishes
 no stable reference environment, #802 5% non-regression result, 2x cylinder result,
 general solver ranking or cross-tool internal-phase speed ratio.
 
+`run_matched.py` uses existing installed environments; it does not install or
+build either revision. Supply each retained build record as a file, alongside
+the actual wheel digest, source revision and build profile. The runner verifies
+installed package payloads against the supplied wheels and matches the two
+Python/dependency environments. It retains build records verbatim but does not
+authenticate their declarations or replace complete installed-family checks.
+The allocated supervisor CPU must be on a different physical core from the
+worker and its SMT siblings. The output must be new, under home-backed scratch.
+
+```bash
+TMPDIR="$scratch/tmp" python3 tools/benchmarks/poisson_fenicsx/run_matched.py \
+  "$scratch/matched-attempt" --cpu "$COMPARE_CPU" --supervisor-cpu "$SUPERVISOR_CPU" \
+  --fenicsx-python "$scratch/environment/.pixi/envs/default/bin/python" \
+  --baseline-python "$BASELINE_PYTHON" --baseline-wheel "$BASELINE_WHEEL" \
+  --baseline-sha256 "$BASELINE_SHA256" --baseline-revision "$BASELINE_REVISION" \
+  --baseline-build-profile "$BASELINE_PROFILE" --baseline-build-record "$BASELINE_BUILD_RECORD" \
+  --candidate-python "$CANDIDATE_PYTHON" --candidate-wheel "$CANDIDATE_WHEEL" \
+  --candidate-sha256 "$CANDIDATE_SHA256" --candidate-revision "$CANDIDATE_REVISION" \
+  --candidate-build-profile "$CANDIDATE_PROFILE" --candidate-build-record "$CANDIDATE_BUILD_RECORD"
+```
+
+The plan is saved before preflight and campaigns. Each campaign retains its
+command, exit status, worker logs, CPU counter samples, control snapshots and
+ordinary harness output. `stages.json` preserves completed campaigns, including
+exploratory results. `summary.json` is written only after all eighteen campaigns
+complete; it reports eight pairs, both launch orders, chronological drift and
+process CPU alongside wall time. On interruption or failure, owned campaign
+processes are stopped and waited for, and `failure.json` identifies the incomplete
+attempt. Keep that directory; a later attempt must use a new one.
+
+Driver tests use synthetic timings and package payloads without native tools:
+
+```bash
+TMPDIR="$scratch/tmp" python3 -m unittest discover \
+  -s tools/benchmarks/poisson_fenicsx -p test_matched.py -v
+```
+
 ## External sources
 
 - [FEniCSx download and supported binary installation](https://fenicsproject.org/download/)
