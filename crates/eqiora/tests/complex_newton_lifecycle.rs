@@ -465,7 +465,7 @@ fn complex_log_newton_solves_off_cut_and_rejects_undefined_initial_differentials
 #[test]
 fn complex_only_linear_provider_cannot_replace_the_real_newton_differential() {
     use eqiora::solver::{
-        BackendId, LinearOperatorProperties, LinearProblem, LinearSolution, PreconditionerPolicy,
+        BackendId, LinearOperatorProperties, LinearProblem, LinearSolution,
         ReplicatedLinearExecution, SolverCapabilities, SolverProvider,
     };
     use eqiora_core::ScalarType;

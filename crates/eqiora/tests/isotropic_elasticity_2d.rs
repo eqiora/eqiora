@@ -23,8 +23,8 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverCapability, SolverPlan,
 };
 use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::{
