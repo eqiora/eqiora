@@ -251,6 +251,9 @@ mod tests {
             register(&module)?;
             module.add_class::<PySolverProvider>()?;
             module.add_class::<PyLinearSolver>()?;
+            module.add_class::<crate::common_plan::policy::PyLinear>()?;
+            module.add_class::<crate::common_plan::policy::PySolverPlanningObjective>()?;
+            module.add_class::<PyReduction>()?;
             let field = crate::model::PyModelFieldRef::from_exact(
                 "test-model".into(),
                 ulid::Ulid::new().to_string(),
@@ -273,6 +276,14 @@ policy = Preconditioner.upper_diagonal_schur(**settings)
 assert policy == Preconditioner.upper_diagonal_schur(**settings)
 assert hash(policy) == hash(Preconditioner.upper_diagonal_schur(**settings))
 assert policy.kind == "upper-diagonal-schur"
+controls = dict(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=100)
+ranked = Linear(**controls, objective=SolverPlanningObjective.Robust, preconditioner=policy)
+exact = Linear(**controls, algorithm=LinearSolver.BiConjugateGradientStabilized,
+               reduction=Reduction.Reproducible, provider=provider, preconditioner=policy)
+assert ranked.preconditioner == exact.preconditioner == policy
+assert ranked.algorithm is None and exact.algorithm == LinearSolver.BiConjugateGradientStabilized
+assert Linear(**controls, objective=SolverPlanningObjective.Robust).preconditioner is None
+
 config = policy.upper_diagonal_schur_config
 assert config.groups == ([block], [gauge])
 assert config.a_factorization == config.schur_factorization == factor
