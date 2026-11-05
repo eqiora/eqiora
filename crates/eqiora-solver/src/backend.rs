@@ -6,7 +6,7 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
-    LinearSolution, LinearSolver, Oriented, PreconditionerPolicy, PreparedLinearSolver,
+    LinearSolution, LinearSolver, Oriented, PreconditionerKind, PreparedLinearSolver,
     ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
     SolverProvider,
 };
@@ -23,7 +23,7 @@ pub struct SolverCapability {
     /// Mathematical operator assertion accepted by that algorithm path.
     pub operator_properties: LinearOperatorProperties,
     /// Preconditioner implemented for this exact path.
-    pub preconditioner: PreconditionerPolicy,
+    pub preconditioner: PreconditionerKind,
     /// Reduction order implemented for this exact path.
     pub reduction: ReductionPolicy,
     /// Scalar representation implemented for this exact path.
@@ -53,7 +53,7 @@ impl BackendId {
 pub struct SolverCapabilities {
     combinations: BTreeSet<SolverCapability>,
     algorithms: BTreeSet<LinearSolver>,
-    preconditioners: BTreeSet<PreconditionerPolicy>,
+    preconditioners: BTreeSet<PreconditionerKind>,
     reductions: BTreeSet<ReductionPolicy>,
     scalar_types: BTreeSet<ScalarType>,
 }
@@ -67,7 +67,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -75,7 +75,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -83,7 +83,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -91,7 +91,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -99,7 +99,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::Symmetric,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -110,7 +110,7 @@ impl SolverCapabilities {
             LinearOperatorProperties::SymmetricPositiveDefinite,
             LinearOperatorProperties::SymmetricIndefinite,
         ] {
-            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+            for preconditioner in [PreconditionerKind::Identity, PreconditionerKind::Jacobi] {
                 combinations.push(SolverCapability {
                     scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::BiConjugateGradientStabilized,
@@ -143,7 +143,7 @@ impl SolverCapabilities {
                 LinearOperatorProperties::HermitianPositiveDefinite,
             ),
         ] {
-            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+            for preconditioner in [PreconditionerKind::Identity, PreconditionerKind::Jacobi] {
                 combinations.push(SolverCapability {
                     scalar_domain: eqiora_core::ScalarDomain::Complex,
                     algorithm,
@@ -162,7 +162,7 @@ impl SolverCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Complex,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             });
@@ -193,7 +193,7 @@ impl SolverCapabilities {
                 scalar_domain,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             });
@@ -209,7 +209,7 @@ impl SolverCapabilities {
     pub fn new(
         algorithms: impl IntoIterator<Item = LinearSolver>,
         operator_properties: impl IntoIterator<Item = LinearOperatorProperties>,
-        preconditioners: impl IntoIterator<Item = PreconditionerPolicy>,
+        preconditioners: impl IntoIterator<Item = PreconditionerKind>,
         reductions: impl IntoIterator<Item = ReductionPolicy>,
         scalar_domain: eqiora_core::ScalarDomain,
         scalar_types: impl IntoIterator<Item = ScalarType>,
@@ -293,7 +293,7 @@ impl SolverCapabilities {
 
     /// Preconditioners admitted by this adapter.
     #[must_use]
-    pub const fn preconditioners(&self) -> &BTreeSet<PreconditionerPolicy> {
+    pub const fn preconditioners(&self) -> &BTreeSet<PreconditionerKind> {
         &self.preconditioners
     }
 
@@ -327,13 +327,13 @@ impl SolverCapabilities {
     /// Returns `EQ0807` for any unsupported selection.
     pub fn require(
         &self,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         scalar_domain: eqiora_core::ScalarDomain,
         scalar_type: ScalarType,
     ) -> Result<(), Diagnostic> {
         if !self.combinations.iter().any(|entry| {
             entry.algorithm == plan.algorithm()
-                && entry.preconditioner == plan.preconditioner()
+                && entry.preconditioner == plan.preconditioner().kind()
                 && entry.reduction == plan.reduction()
                 && entry.scalar_type == scalar_type
                 && entry.scalar_domain == scalar_domain
@@ -354,7 +354,7 @@ impl SolverCapabilities {
     /// Returns `EQ0807` unless the exact tuple is implemented.
     pub fn require_problem(
         &self,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         scalar_domain: eqiora_core::ScalarDomain,
         scalar_type: ScalarType,
         operator_properties: LinearOperatorProperties,
@@ -363,7 +363,7 @@ impl SolverCapabilities {
             scalar_domain,
             algorithm: plan.algorithm(),
             operator_properties,
-            preconditioner: plan.preconditioner(),
+            preconditioner: plan.preconditioner().kind(),
             reduction: plan.reduction(),
             scalar_type,
         };
@@ -499,7 +499,7 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
 }
 
 /// One resolved backend instance paired with the sole validated solver plan.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct LinearSolveRequest<'a, S = f64> {
     backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
@@ -520,7 +520,7 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     /// Returns the backend's structured capability or numerical diagnostic.
     pub fn solve(&self, problem: &LinearProblem<'_, S>) -> Result<LinearSolution<S>, Diagnostic> {
         problem.require_candidate_check_execution(self.backend.default_execution())?;
-        self.backend.solve(problem, self.plan)
+        self.backend.solve(problem, self.plan.clone())
     }
 
     /// Solve one derivative right-hand side against an exact canonical CSR
@@ -574,14 +574,14 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
 
     /// Resolved adapter.
     #[must_use]
-    pub const fn backend(self) -> &'a dyn LinearSolverBackend<S> {
+    pub const fn backend(&self) -> &'a dyn LinearSolverBackend<S> {
         self.backend
     }
 
     /// Exact solver plan passed to the adapter.
     #[must_use]
-    pub const fn plan(self) -> SolverPlan {
-        self.plan
+    pub const fn plan(&self) -> &SolverPlan {
+        &self.plan
     }
 }
 
@@ -609,7 +609,7 @@ mod tests {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm,
                 operator_properties: properties,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             }]);

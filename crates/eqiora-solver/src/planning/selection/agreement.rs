@@ -21,7 +21,8 @@ impl SolverSelection {
         });
         out.string(self.candidate_id)?;
         out.tag(algorithm(self.plan.algorithm()));
-        out.tag(preconditioner(self.plan.preconditioner()));
+        out.tag(preconditioner(self.plan.preconditioner().kind()));
+        out.preconditioner_configuration(self.plan.preconditioner())?;
         out.tag(reduction(self.plan.reduction()));
         out.0
             .update(self.plan.relative_tolerance().to_bits().to_be_bytes());
@@ -177,6 +178,21 @@ impl Agreement {
     fn optional_count(&mut self, value: Option<usize>) -> Result<(), Diagnostic> {
         self.option(value, Self::count)
     }
+    fn preconditioner_configuration(&mut self, policy: &PreconditionerPolicy) -> Result<(),Diagnostic> {
+        if let PreconditionerPolicy::UpperDiagonalSchur(config) = policy {
+            for group in config.groups() {
+                self.count(group.len())?;
+                for block in group {
+                    let field=match block {crate::AlgebraicBlock::Field(field)=>{self.tag(0);field},crate::AlgebraicBlock::ConstraintMultiplier{field}=>{self.tag(1);field}};
+                    self.0.update(field.ulid().to_bytes());
+                }
+            }
+            for choice in [config.a_factorization(),config.schur_factorization()] { self.tag(algorithm(choice.algorithm())); self.string(choice.provider())?; }
+            self.count(config.maximum_schur_entries().get())?;
+            self.count(config.maximum_schur_products().get())?;
+        }
+        Ok(())
+    }
     fn solver_provider(&mut self, provider: SolverProvider) -> Result<(), Diagnostic> {
         self.provider(
             provider.id().as_str(),
@@ -224,10 +240,11 @@ fn algorithm(value: LinearSolver) -> u8 {
         LinearSolver::SparseLu => 3,
     }
 }
-fn preconditioner(value: PreconditionerPolicy) -> u8 {
+fn preconditioner(value: crate::PreconditionerKind) -> u8 {
     match value {
-        PreconditionerPolicy::Identity => 0,
-        PreconditionerPolicy::Jacobi => 1,
+        crate::PreconditionerKind::Identity => 0,
+        crate::PreconditionerKind::Jacobi => 1,
+        crate::PreconditionerKind::UpperDiagonalSchur => 2,
     }
 }
 fn reduction(value: ReductionPolicy) -> u8 {

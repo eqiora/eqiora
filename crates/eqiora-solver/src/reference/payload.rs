@@ -38,7 +38,7 @@ use eqiora_core::{ScalarDomain, ScalarType};
 /// actions and are outside this bound. Zero dimension has zero numeric payload;
 /// actual problem admission independently rejects unsupported shapes.
 pub(crate) fn canonical_csr_numeric_workspace_bytes(
-    plan: SolverPlan,
+    plan: &SolverPlan,
     scalar_domain: ScalarDomain,
     scalar_type: ScalarType,
     dimension: usize,
@@ -58,6 +58,7 @@ pub(crate) fn canonical_csr_numeric_workspace_bytes(
     let jacobi = match plan.preconditioner() {
         PreconditionerPolicy::Identity => 0,
         PreconditionerPolicy::Jacobi => 1,
+        PreconditionerPolicy::UpperDiagonalSchur(_) => return None,
     };
     let vectors = recurrence.checked_add(jacobi)?;
     let scalars = match orientation {

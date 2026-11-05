@@ -1,4 +1,5 @@
 mod bicgstab;
+pub use bicgstab::{FixedLinearPreconditioner, solve_bicgstab_with_preconditioner};
 mod complex;
 mod correction;
 mod initial_residual;
@@ -51,7 +52,7 @@ impl ReferenceLinearSolver {
         SolverCapabilities::reference()
     }
 
-    fn linear_solve_span(&self, plan: SolverPlan) -> tracing::Span {
+    fn linear_solve_span(&self, plan: &SolverPlan) -> tracing::Span {
         tracing::span!(
             target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase",
             phase = "linear_solve", linear_solver = ?plan.algorithm(),
@@ -64,7 +65,7 @@ impl ReferenceLinearSolver {
     fn solve_real_with_execution(
         &self,
         problem: &LinearProblem<'_>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
         problem.require_candidate_check_execution(execution.report())?;
@@ -111,15 +112,15 @@ impl LinearSolverBackend for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        let _linear = self.linear_solve_span(plan).entered();
-        self.solve_real_with_execution(problem, plan, execution)
+        let _linear = self.linear_solve_span(&plan).entered();
+        self.solve_real_with_execution(problem, &plan, execution)
     }
 }
 
 fn solve_preconditioned_conjugate_gradient(
     provider: SolverProvider,
     problem: &LinearProblem<'_>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution,
 ) -> Result<LinearSolution, Diagnostic> {
     let InitialResidual {
@@ -175,7 +176,7 @@ fn solve_preconditioned_conjugate_gradient(
                     execution.provider(),
                     execution.report(),
                     problem.operator().orientation(),
-                    plan,
+                    plan.clone(),
                     ConvergenceReason::ResidualToleranceSatisfied,
                     iteration,
                     initial_residual_norm,
@@ -226,7 +227,7 @@ enum DiagonalRequirement {
 
 fn build_inverse_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     problem: &LinearProblem<'_, S>,
-    policy: PreconditionerPolicy,
+    policy: &PreconditionerPolicy,
     requirement: DiagonalRequirement,
 ) -> Result<Option<Vec<S>>, Diagnostic> {
     let Some(mut diagonal) = build_diagonal(problem, policy, requirement)? else {
@@ -243,11 +244,14 @@ fn build_inverse_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
 
 fn build_diagonal<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     problem: &LinearProblem<'_, S>,
-    policy: PreconditionerPolicy,
+    policy: &PreconditionerPolicy,
     requirement: DiagonalRequirement,
 ) -> Result<Option<Vec<S>>, Diagnostic> {
-    if policy == PreconditionerPolicy::Identity {
+    if policy == &PreconditionerPolicy::Identity {
         return Ok(None);
+    }
+    if !matches!(policy, PreconditionerPolicy::Jacobi) {
+        return Err(invalid_realization("diagonal preconditioning requires Identity or Jacobi"));
     }
     let mut diagonal = vec![S::zero(); problem.operator().rows()];
     if problem.operator().diagonal(&mut diagonal)? == DiagonalAvailability::Unavailable {

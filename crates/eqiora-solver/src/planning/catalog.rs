@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     profile: &SolverPlanningProfile,
-    candidate: SolverCandidate<'_, S>,
+    candidate: &SolverCandidate<'_, S>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
     if S::DOMAIN != expected.scalar_domain {
@@ -74,7 +74,7 @@ pub(super) struct ExpectedCandidate {
     pub(super) evidence_case: &'static str,
     pub(super) provider: SolverProvider,
     pub(super) algorithm: LinearSolver,
-    pub(super) preconditioner: PreconditionerPolicy,
+    pub(super) preconditioner: crate::PreconditionerKind,
     pub(super) reduction: ReductionPolicy,
 }
 
@@ -97,9 +97,9 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
                     LinearSolver::ConjugateGradient
                 },
                 preconditioner: if minres {
-                    PreconditionerPolicy::Identity
+                    crate::PreconditionerKind::Identity
                 } else {
-                    PreconditionerPolicy::Jacobi
+                    crate::PreconditionerKind::Jacobi
                 },
                 reduction: if id == selection::MPI_CG_FAST_ID {
                     ReductionPolicy::Fast
@@ -124,35 +124,35 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
                     _ => LinearSolver::BiConjugateGradientStabilized,
                 },
                 preconditioner: if id == selection::CUDA_CG_ID {
-                    PreconditionerPolicy::Jacobi
+                    crate::PreconditionerKind::Jacobi
                 } else {
-                    PreconditionerPolicy::Identity
+                    crate::PreconditionerKind::Identity
                 },
                 reduction: ReductionPolicy::Fast,
             }
         }
         REFERENCE_SPD_MINRES_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_SPD_MINRES_ID)
         },
         REFERENCE_SYMMETRIC_MINRES_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_SYMMETRIC_MINRES_ID)
         },
         REFERENCE_INDEFINITE_MINRES_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_MINRES_ID)
         },
         REFERENCE_HERMITIAN_MINRES_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_HERMITIAN_MINRES_ID)
         },
         REFERENCE_HPD_MINRES_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_HPD_MINRES_ID)
         },
@@ -162,7 +162,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: REFERENCE_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_BICGSTAB_ID => ExpectedCandidate {
@@ -171,7 +171,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_IDENTITY_ID => ExpectedCandidate {
@@ -180,7 +180,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: REFERENCE_IDENTITY_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_IDENTITY_ID => ExpectedCandidate {
@@ -189,7 +189,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_IDENTITY_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPARSE_LU_ID => ExpectedCandidate {
@@ -198,7 +198,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_CG_ID => ExpectedCandidate {
@@ -207,7 +207,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::ConjugateGradient,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_CG_ID => ExpectedCandidate {
@@ -216,7 +216,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::ConjugateGradient,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPD_LU_ID => ExpectedCandidate {
@@ -225,16 +225,16 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_CG_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(REFERENCE_CG_ID)
         },
         FAER_CG_IDENTITY_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             evidence_case: PLANNING_EVIDENCE,
             ..expected_candidate(FAER_CG_ID)
         },
@@ -317,7 +317,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: "numerics.reference-minres-w64",
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::MinimumResidual,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_INDEFINITE_LU_ID => ExpectedCandidate {
@@ -326,7 +326,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_COMPLEX_ID => ExpectedCandidate {
@@ -335,11 +335,11 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
         REFERENCE_COMPLEX_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             ..expected_candidate(REFERENCE_COMPLEX_ID)
         },
         REFERENCE_COMPLEX_SYMMETRIC_ID | REFERENCE_COMPLEX_SYMMETRIC_JACOBI_ID => {
@@ -377,7 +377,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             })
         },
         REFERENCE_HPD_JACOBI_ID => ExpectedCandidate {
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: crate::PreconditionerKind::Jacobi,
             ..expected_candidate(REFERENCE_HPD_ID)
         },
         FAER_COMPLEX_BICGSTAB_ID => ExpectedCandidate {
@@ -436,7 +436,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         FAER_COMPLEX_SYMMETRIC_LU_ID => ExpectedCandidate {
@@ -445,7 +445,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         FAER_HERMITIAN_LU_ID => ExpectedCandidate {
@@ -454,7 +454,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         REFERENCE_HPD_ID => ExpectedCandidate {
@@ -463,7 +463,7 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::ConjugateGradient,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_HPD_LU_ID => ExpectedCandidate {
@@ -472,16 +472,16 @@ pub(super) fn expected_candidate(id: &str) -> ExpectedCandidate {
             evidence_case: PLANNING_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
         },
         _ => unreachable!("inventory validation rejects unknown candidate IDs"),
     }
 }
 
-fn plan_tuple_matches(plan: SolverPlan, expected: ExpectedCandidate) -> bool {
+fn plan_tuple_matches(plan: &SolverPlan, expected: ExpectedCandidate) -> bool {
     plan.algorithm() == expected.algorithm
-        && plan.preconditioner() == expected.preconditioner
+        && plan.preconditioner().kind() == expected.preconditioner
         && plan.reduction() == expected.reduction
 }
 

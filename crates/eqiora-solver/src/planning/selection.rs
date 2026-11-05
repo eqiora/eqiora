@@ -130,7 +130,7 @@ impl SolverSelection {
             objective,
             candidate_id: resolved.selected.id(),
             evidence_case: resolved.selected.evidence_case(),
-            plan: resolved.selected.plan(),
+            plan: resolved.selected.plan().clone(),
             provider: resolved.solver_provider,
             capabilities: resolved
                 .selected
@@ -249,7 +249,7 @@ impl SolverSelection {
             return Err(invalid_catalog("host-binding.selected-provider-mismatch"));
         }
         self.require_problem(problem, structure)?;
-        LinearSolveRequest::new(backend, self.plan).solve(problem)
+        LinearSolveRequest::new(backend, self.plan.clone()).solve(problem)
     }
 
     /// Exact operator and execution facts used during selection.
@@ -273,8 +273,8 @@ impl SolverSelection {
         self.evidence_case
     }
     /// Exact algorithm, preconditioner, reduction and convergence controls.
-    pub const fn solver_plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn solver_plan(&self) -> &SolverPlan {
+        &self.plan
     }
     /// Exact selected solver provider release.
     pub const fn solver_provider(&self) -> SolverProvider {
@@ -319,10 +319,10 @@ impl SolverSelection {
             return Err(invalid_catalog("profile.scalar-mismatch"));
         }
         self.profile.require_structure(structure)?;
-        self.profile.require_plan(self.plan)?;
+        self.profile.require_plan(&self.plan)?;
         self.profile.require_problem(problem)?;
         self.profile
-            .require_problem_resources(self.plan, self.provider, problem)
+            .require_problem_resources(&self.plan, self.provider, problem)
     }
 }
 

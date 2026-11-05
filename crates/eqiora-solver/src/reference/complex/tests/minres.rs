@@ -36,7 +36,7 @@ fn plan(limit: usize, absolute: f64) -> SolverPlan {
 }
 fn invoke(
     problem: &LinearProblem<'_, Complex64>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<Complex64>,
 ) -> Result<LinearSolution<Complex64>, Diagnostic> {
     solve_real_coordinates(

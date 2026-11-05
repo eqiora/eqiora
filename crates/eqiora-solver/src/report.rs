@@ -325,7 +325,7 @@ impl SolveReport {
 
     /// Preconditioner policy.
     #[must_use]
-    pub const fn preconditioner(&self) -> PreconditionerPolicy {
+    pub const fn preconditioner(&self) -> &PreconditionerPolicy {
         self.plan.preconditioner()
     }
 
@@ -337,8 +337,8 @@ impl SolveReport {
 
     /// Exact solver policy used to produce and accept the solution.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn solver_plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Successful termination condition.

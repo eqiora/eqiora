@@ -8,26 +8,32 @@ pub(super) fn solve_preconditioned_bicgstab<
 >(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<S>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     let action = DiagonalAction {
         dimension: problem.operator().columns(),
-        policy: plan.preconditioner(),
+        policy: plan.preconditioner().clone(),
         inverse_diagonal: build_inverse_diagonal(
             problem,
             plan.preconditioner(),
             DiagonalRequirement::FiniteNonzero,
         )?,
     };
-    solve_with_action(provider, problem, plan, execution, &action)
+    solve_bicgstab_with_preconditioner(provider, problem, plan, execution, &action)
 }
 
 /// A fixed linear realization of exactly one admitted preconditioner policy.
 /// Provider admission remains the caller's responsibility.
-trait FixedAction<S> {
+pub trait FixedLinearPreconditioner<S> {
+    /// Number of original operator coordinates.
     fn dimension(&self) -> usize;
-    fn policy(&self) -> PreconditionerPolicy;
+    /// Complete policy realized by this fixed action, including all configuration.
+    fn policy(&self) -> &PreconditionerPolicy;
+    /// Apply the same linear action for every right-hand side.
+    ///
+    /// # Errors
+    /// Propagates typed factor/action failures; output is unspecified on failure.
     fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic>;
 }
 
@@ -37,12 +43,12 @@ struct DiagonalAction<S> {
     inverse_diagonal: Option<Vec<S>>,
 }
 
-impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedAction<S> for DiagonalAction<S> {
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedLinearPreconditioner<S> for DiagonalAction<S> {
     fn dimension(&self) -> usize {
         self.dimension
     }
-    fn policy(&self) -> PreconditionerPolicy {
-        self.policy
+    fn policy(&self) -> &PreconditionerPolicy {
+        &self.policy
     }
     fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         apply_preconditioner(&self.inverse_diagonal, input, output);
@@ -50,12 +56,19 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync> FixedAction<S> for
     }
 }
 
-fn solve_with_action<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(
+/// Run the shared right-preconditioned recurrence against the original equations.
+/// The caller admits the provider and exactly binds the supplied action to its
+/// complete policy. This function validates policy, dimensions, execution and
+/// reduction before initial acceptance, and checks finite action outputs.
+///
+/// # Errors
+/// Returns typed diagnostics for mismatched binding, failed action or convergence.
+pub fn solve_bicgstab_with_preconditioner<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<S>,
-    action: &dyn FixedAction<S>,
+    action: &dyn FixedLinearPreconditioner<S>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     if plan.algorithm() != LinearSolver::BiConjugateGradientStabilized
         || action.policy() != plan.preconditioner()
@@ -85,7 +98,7 @@ fn solve_with_action<S: Scalar + ComplexFloat<Real = f64> + From<f64> + Sync>(
             execution.provider(),
             execution.report(),
             problem.operator().orientation(),
-            plan,
+            plan.clone(),
             ConvergenceReason::ResidualToleranceSatisfied,
             iteration,
             initial_residual_norm,
@@ -459,7 +472,7 @@ mod action_tests {
                 inverse_diagonal: None,
             };
             assert!(
-                solve_with_action(
+                solve_bicgstab_with_preconditioner(
                     REFERENCE_SOLVER_PROVIDER,
                     &problem,
                     plan,
@@ -482,7 +495,7 @@ mod action_tests {
         )
         .unwrap();
         assert!(
-            solve_with_action(
+            solve_bicgstab_with_preconditioner(
                 REFERENCE_SOLVER_PROVIDER,
                 &problem,
                 wrong,

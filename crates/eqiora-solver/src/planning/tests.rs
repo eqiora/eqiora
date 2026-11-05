@@ -929,7 +929,7 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
                 LinearSolveRequest::new(
                     &bad,
                     original.with_preconditioner(
-                        if original.preconditioner() == PreconditionerPolicy::Identity {
+                        if original.preconditioner() == &PreconditionerPolicy::Identity {
                             PreconditionerPolicy::Jacobi
                         } else {
                             PreconditionerPolicy::Identity
@@ -942,7 +942,7 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
         }
         let changed = [
             original.with_preconditioner(
-                if original.preconditioner() == PreconditionerPolicy::Identity {
+                if original.preconditioner() == &PreconditionerPolicy::Identity {
                     PreconditionerPolicy::Jacobi
                 } else {
                     PreconditionerPolicy::Identity

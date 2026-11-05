@@ -25,6 +25,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
+        let plan = &plan;
         let _linear = self.linear_solve_span(plan).entered();
         problem.require_candidate_check_execution(execution.report())?;
         self.capabilities().require_problem(
@@ -64,7 +65,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
 
 fn solve_real_coordinates(
     problem: &LinearProblem<'_, Complex64>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<Complex64>,
     source: &crate::CanonicalCsrSystemView<Complex64>,
 ) -> Result<LinearSolution<Complex64>, Diagnostic> {
@@ -126,7 +127,7 @@ fn solve_real_coordinates(
     // Verify the original typed action, not the numerical lowering.
     LinearSolution::accept_with_execution(
         problem,
-        plan,
+        plan.clone(),
         ReferenceLinearSolver.provider(),
         real.report().reason(),
         real.report().completed_iterations(),
