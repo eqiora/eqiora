@@ -66,7 +66,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
     solver: LinearSolveRequest<'_>,
 ) -> Result<AcceptedAleFsiRemeshProjection2d, Diagnostic> {
     require_quadrature(quadrature)?;
-    require_projection_solver(solver)?;
+    require_projection_solver(solver.clone())?;
     let source_reference = source_plan.reference();
     let source_partition = source_plan.partition();
     let source_motion = source_plan.motion();
@@ -140,7 +140,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &displacement_mixed,
         &displacement_prescribed,
         scale.length(),
-        solver,
+        solver.clone(),
     )?;
     let target_displacement = displacement_projection.coefficients;
     let maximum_displacement_trace_defect =
@@ -197,7 +197,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &fluid_current_overlap,
         normalization,
         quadrature,
-        solver,
+        solver.clone(),
     )?;
     let pressure = project_pressure(
         fields,
@@ -209,7 +209,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &fluid_current_overlap,
         normalization,
         quadrature,
-        solver,
+        solver.clone(),
     )?;
 
     let evidence = AleFsiRemeshProjectionEvidence2d::new(
@@ -468,7 +468,7 @@ fn project_vector_p1_with_trace(
             reduced_mass.clone(),
             &rhs,
             LinearOperatorProperties::SymmetricPositiveDefinite,
-            solver,
+            solver.clone(),
         )?;
         right_hand_side_norms.push(euclidean_norm(&rhs)?);
         for (&index, value) in free.iter().zip(solution) {
@@ -1099,7 +1099,7 @@ fn project_velocity(
         kkt,
         &kkt_rhs,
         LinearOperatorProperties::SymmetricIndefinite,
-        solver,
+        solver.clone(),
     )?;
 
     let mut coefficients = vec![[0.0; COMPONENTS]; scalar_dimension];
@@ -1647,7 +1647,7 @@ fn project_pressure(
         mass,
         &rhs,
         LinearOperatorProperties::SymmetricPositiveDefinite,
-        solver,
+        solver.clone(),
     )?;
     for value in &mut coefficients {
         *value *= normalization.physical.pressure();

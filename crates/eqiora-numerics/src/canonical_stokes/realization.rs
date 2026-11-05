@@ -306,7 +306,7 @@ where
         &quadrature,
         &facet_quadrature,
         &checked_assembly,
-        linear.plan(),
+        linear.plan().clone(),
         realization_graph.systems()[0].partition(),
         resolved.plan().target(),
     )?;
@@ -456,7 +456,7 @@ fn solve_resolved_steady_stokes_mini_2d_with_assembly(
         mesh,
         assembly,
     )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan().clone())?;
     Ok((model, finalized.finish(solved)?))
 }
 
@@ -515,7 +515,7 @@ fn require_exact_plan(
         scale_for(AlgebraicBlock::Field(velocity))?,
         scale_for(AlgebraicBlock::Field(pressure))?,
     )?;
-    let expected = steady_stokes_mini_plan_2d(model, mesh_artifact, scales, plan.solver())?;
+    let expected = steady_stokes_mini_plan_2d(model, mesh_artifact, scales, plan.solver().clone())?;
     if plan != &expected {
         return Err(invalid_realization(
             "field-wise plan differs from the exact coherent-SI MINI Stokes contract",
@@ -806,7 +806,7 @@ fn cartesian_essential_velocity(
         })
 }
 
-fn require_mini_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
+fn require_mini_solver(solver: &SolverPlan) -> Result<(), Diagnostic> {
     let properties = LinearOperatorProperties::SymmetricIndefinite;
     if !solver.algorithm().accepts(properties) {
         return Err(invalid_realization(

@@ -90,7 +90,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
                 )
             })?;
         let core = FinalizedLinearCore::new(
-            linear_solve.plan(),
+            linear_solve.plan().clone(),
             system.partition(),
             target,
             inner.canonical_system_arc(),
@@ -357,7 +357,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
                 )
             })?
             .plan();
-        let solved = backend.solve(&self.linear_system().linear_problem()?, plan)?;
+        let solved = backend.solve(&self.linear_system().linear_problem()?, plan.clone())?;
         self.finish(solved)
     }
 }

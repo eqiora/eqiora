@@ -599,8 +599,8 @@ pub fn remesh_resolved_fixed_topology_ale_fsi_2d(
         target_boundary,
         harmonic_backend,
     )?;
-    require_remesh_compatible(source, &target, transfer_plan)?;
-    let transfer_scale = numeric_remesh_scale(transfer_plan)?;
+    require_remesh_compatible(source, &target, &transfer_plan)?;
+    let transfer_scale = numeric_remesh_scale(&transfer_plan)?;
 
     let projection = project_simplicial_ale_fsi_remesh_2d(
         source,
@@ -610,7 +610,7 @@ pub fn remesh_resolved_fixed_topology_ale_fsi_2d(
         &target.motion,
         transfer_scale,
         &target.quadrature,
-        LinearSolveRequest::new(transfer_backend, transfer_plan.solver()),
+        LinearSolveRequest::new(transfer_backend, transfer_plan.solver().clone()),
     )?;
     let target = target.accept_initial(projection.initial_physical_state()?)?;
     if target.initial.time() != source_state.time()
@@ -650,7 +650,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         mesh,
         partition,
         motion_policy.clone(),
-        LinearSolveRequest::new(harmonic_backend, motion_policy.solver()),
+        LinearSolveRequest::new(harmonic_backend, motion_policy.solver().clone()),
     )?;
     let material = FixedReferenceFsiMaterial::<D>::new(
         [
@@ -682,7 +682,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         scale,
         FixedReferenceFsiLoad::Zero,
         plan.nonlinear(),
-        plan.coupled().solver(),
+        plan.coupled().solver().clone(),
         plan.coupled().target(),
     )?;
     let realization_graph = resolved.portable_graph()?;
@@ -729,7 +729,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
 fn require_remesh_compatible(
     source: &FinalizedResolvedFixedTopologyAleFsi<2>,
     target: &ReplayedResolvedFixedTopologyAleFsi<2>,
-    transfer: AleFsiRemeshTransferPlan2d,
+    transfer: &AleFsiRemeshTransferPlan2d,
 ) -> Result<(), Diagnostic> {
     if source.model != target.model
         || source.semantic_revision != target.semantic_revision
@@ -741,7 +741,7 @@ fn require_remesh_compatible(
             &source.realization_graph,
             &target.realization_graph,
         )
-        || numeric_remesh_scale(transfer)? != source.step_plan.scale()
+        || numeric_remesh_scale(&transfer)? != source.step_plan.scale()
         || target
             .realization_graph
             .domains()
@@ -756,7 +756,7 @@ fn require_remesh_compatible(
 }
 
 fn numeric_remesh_scale(
-    transfer: AleFsiRemeshTransferPlan2d,
+    transfer: &AleFsiRemeshTransferPlan2d,
 ) -> Result<FixedReferenceFsiScale<2>, Diagnostic> {
     let scales = transfer.scales();
     FixedReferenceFsiScale::<2>::new(

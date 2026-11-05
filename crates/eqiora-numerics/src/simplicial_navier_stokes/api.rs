@@ -91,7 +91,7 @@ impl MiniNavierStokesStepPlan2d {
             ));
         }
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
-            .require_plan(linear_solver)?;
+            .require_plan(&linear_solver)?;
         if target
             != (Target::HostCpu {
                 threads: NonZeroUsize::MIN,

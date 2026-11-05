@@ -84,7 +84,7 @@ impl FiniteConstraintProblem {
         plan: SolverPlan,
         active_set_mask: u32,
     ) -> Result<ConstraintAssessment, Diagnostic> {
-        solve::validate_values(self, values, plan, active_set_mask)
+        solve::validate_values(self, values, &plan, active_set_mask)
     }
 }
 

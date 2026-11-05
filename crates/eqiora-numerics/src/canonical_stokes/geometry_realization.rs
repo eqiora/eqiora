@@ -176,7 +176,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     backend: &dyn LinearSolverBackend,
 ) -> Result<SteadyStokesMiniSolution2d, Diagnostic> {
     let finalized = finalize_resolved_steady_stokes_geometry_mini_2d(program, resolved, binding)?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan().clone())?;
     finalized.finish(solved)
 }
 

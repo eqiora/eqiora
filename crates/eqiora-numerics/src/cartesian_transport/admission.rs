@@ -234,7 +234,7 @@ pub(super) fn require_exact_realization(
     Ok(ExactSelection {
         cells: cells_per_axis.get(),
         duration,
-        solver_plan: linear.plan(),
+        solver_plan: linear.plan().clone(),
         target,
         state_scale,
         weak_scale,
