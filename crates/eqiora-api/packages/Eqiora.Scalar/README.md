@@ -1,9 +1,9 @@
 # Eqiora.Scalar
 
-The development package `Eqiora.Scalar@0.1.0` supplies two-dimensional scalar
-Poisson and Laplace equations for a dimensionless potential on physical
-coordinates measured in metres. These components do not represent a generic
-unit-polymorphic temperature, voltage, or pressure field.
+The development package `Eqiora.Scalar@0.2.0` supplies two-dimensional scalar
+Poisson and Laplace equations for a dimensionless potential, and steady heat
+conduction for a temperature in kelvins. Coordinates are measured in metres.
+Each component declares its physical units explicitly.
 
 Import `Eqiora.Scalar.scalar as scalar`. `Poisson2d` adds
 `-div(coefficient * grad(potential)) = source`; `Laplace2d` adds the homogeneous
@@ -30,3 +30,38 @@ does not infer it. Meshes, numerical methods, solvers and execution targets
 remain separate choices. Existing numerical methods determine which expressions
 and boundaries can be solved. This package introduces no new backend support,
 Robin or periodic conditions, or nonlinear diffusion method.
+
+## Steady heat conduction
+
+`SteadyHeat2d` borrows the caller's `temperature: K` Field and body. Its physical
+conservation Law is `flux -conductivity * grad(temperature); source heating;`:
+the divergence of outward heat flux equals volumetric heating. Conductivity is
+an explicit positive parameter in `W / (m * K)`, and `heating` is an expression
+on the body in `W / m^3`. Supply `heating = 0[W/m^3]` for a source-free body.
+
+`FixedTemperature2d` takes a `value` expression in `K` on a boundary of the
+body. `OutwardHeatFlux2d` takes the same conductivity and a `flux` expression
+in `W / m^2`, imposing `normal(-conductivity * grad(temperature)) = flux`.
+Positive flux leaves the body; negative flux enters it. Supply
+`flux = 0[W/m^2]` for insulation. In this physical Law, the numerical owner
+checks that boundary conductivity matches the volume constitutive coefficient.
+
+For example, with a caller-owned `temperature` and exact boundary `left`:
+
+```eqiora
+instance heat: scalar.SteadyHeat2d(
+  body = body, temperature = temperature,
+  conductivity = 2[W/(m*K)], heating = 0[W/m^3]
+);
+instance cold: scalar.FixedTemperature2d(
+  body = body, face = left, temperature = temperature, value = 300[K]
+);
+```
+
+The caller must cover the remaining boundaries. The volume and fixed-temperature
+components require `h1`; the heat-flux component requires authored `smooth`
+regularity. The initial imported thermal workflow covers Cartesian 2D Q1 on
+CPU through the common Plan, with Plan and Result replay. It adds no verified
+threaded, MPI or GPU thermal-package path. Transient storage, convection,
+radiation, nonlinear materials and coupled thermal interfaces are not supplied
+by these components.
