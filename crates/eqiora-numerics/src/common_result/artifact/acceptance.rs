@@ -62,7 +62,10 @@ impl WireStaticEvidence {
                 let stokes = plan.as_steady_stokes().ok_or_else(|| {
                     invalid("steady-Stokes evidence requires a steady-Stokes Plan")
                 })?;
-                validate_stokes_gauge(acceptance.gauge_multiplier, stokes.has_pressure_gauge())?;
+                validate_stokes_gauge(
+                    acceptance.gauge_multiplier,
+                    stokes.gauge() == crate::CommonPressureGauge2d::ZeroIntegral,
+                )?;
                 StaticAcceptedEvidence::SteadyStokes(acceptance.clone())
             }
         };

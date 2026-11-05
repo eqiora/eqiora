@@ -232,6 +232,14 @@ impl ResolvedCommonPlan {
         let policy = self
             .linear_policy()
             .expect("linear Plan retains its execution");
+        let linear = match policy
+            .planning_profile
+            .as_ref()
+            .and_then(|profile| profile.requested_preconditioner())
+        {
+            Some(preconditioner) => linear.with_preconditioner(preconditioner.clone()),
+            None => linear,
+        };
         let linear = linear.with_execution(policy.execution, policy.workers);
         let linear = match self
             .linear_policy()

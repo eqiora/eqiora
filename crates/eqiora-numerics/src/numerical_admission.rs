@@ -408,7 +408,7 @@ pub enum CommonSolvePolicy {
     },
 }
 
-/// Pressure representative retained by an admitted transient Plan.
+/// Pressure representative retained by an admitted incompressible-flow Plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonPressureGauge2d {
     /// Pressure is represented by one zero-integral constraint.

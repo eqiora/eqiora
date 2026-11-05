@@ -360,34 +360,40 @@ fn manufactured_similarity_sweep_direct_manual_and_ranked() {
 
 #[test]
 fn canonical_replay_retains_complete_composition_and_gauge_metadata() {
-    let (plan, _) = admit_small(SOURCE, false).unwrap();
-    let bytes = plan.to_bytes().unwrap();
-    let replayed = ResolvedCommonPlan::from_bytes(&bytes, &FaerLinearSolver, &[]).unwrap();
-    assert_eq!(replayed.to_bytes().unwrap(), bytes);
-    assert_eq!(replayed.effective_solver(), plan.effective_solver());
-    assert_eq!(
-        replayed.linear_solver_provider(),
-        plan.linear_solver_provider()
-    );
-    let live = replayed
-        .as_steady_stokes()
-        .unwrap()
-        .run_result(&FaerLinearSolver)
-        .unwrap();
-    assert!(live.gauge_multiplier().unwrap().abs() <= 2e-10);
-    let result_bytes = live.to_bytes().unwrap();
-    let retained = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &replayed).unwrap();
-    assert_eq!(retained.to_bytes().unwrap(), result_bytes);
-    // Retention is a metadata round trip. Replay does not independently
-    // reauthenticate the numerical gauge value; the live Run above proves it.
-    assert_eq!(retained.gauge_multiplier(), live.gauge_multiplier());
-    assert_eq!(
-        retained
-            .solve_evidence(None, None)
+    for selection in [Selection::Manual, Selection::Ranked] {
+        let (plan, _) = admit_case(SOURCE, 2, 1., 1., selection).unwrap();
+        assert_eq!(
+            plan.as_steady_stokes().unwrap().gauge(),
+            eqiora_numerics::CommonPressureGauge2d::ZeroIntegral
+        );
+        let bytes = plan.to_bytes().unwrap();
+        let replayed = ResolvedCommonPlan::from_bytes(&bytes, &FaerLinearSolver, &[]).unwrap();
+        assert_eq!(replayed.to_bytes().unwrap(), bytes);
+        assert_eq!(replayed.effective_solver(), plan.effective_solver());
+        assert_eq!(
+            replayed.linear_solver_provider(),
+            plan.linear_solver_provider()
+        );
+        let live = replayed
+            .as_steady_stokes()
             .unwrap()
-            .preconditioner(),
-        replayed.effective_solver().unwrap().preconditioner()
-    );
+            .run_result(&FaerLinearSolver)
+            .unwrap();
+        assert!(live.gauge_multiplier().unwrap().abs() <= 2e-10);
+        let result_bytes = live.to_bytes().unwrap();
+        let retained = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &replayed).unwrap();
+        assert_eq!(retained.to_bytes().unwrap(), result_bytes);
+        // Retention is a metadata round trip. Replay does not independently
+        // reauthenticate the numerical gauge value; the live Run above proves it.
+        assert_eq!(retained.gauge_multiplier(), live.gauge_multiplier());
+        assert_eq!(
+            retained
+                .solve_evidence(None, None)
+                .unwrap()
+                .preconditioner(),
+            replayed.effective_solver().unwrap().preconditioner()
+        );
+    }
 }
 
 const FIRST_COMPONENT: &str =

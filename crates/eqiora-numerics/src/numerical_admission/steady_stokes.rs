@@ -1,13 +1,21 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
-    pub(crate) fn has_pressure_gauge(&self) -> bool {
-        self.resolved
+    /// Pressure representative established by the retained mixed realization.
+    #[must_use]
+    pub fn gauge(&self) -> CommonPressureGauge2d {
+        if self
+            .resolved
             .plan()
             .spatial()
             .constraints()
             .iter()
             .any(|constraint| constraint.field().ulid().to_string() == self.pressure_field_id)
+        {
+            CommonPressureGauge2d::ZeroIntegral
+        } else {
+            CommonPressureGauge2d::BoundaryTraction
+        }
     }
 
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {

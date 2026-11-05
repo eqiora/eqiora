@@ -484,7 +484,7 @@ impl PyPlan {
                     ),
                     velocity_space: space_name(plan.velocity_space()),
                     pressure_space: space_name(plan.pressure_space()),
-                    pressure_gauge: None,
+                    pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(
                         py,
