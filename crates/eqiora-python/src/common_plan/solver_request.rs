@@ -39,7 +39,7 @@ solver_enum!(
 );
 
 mod structured;
-pub(super) use structured::PyPreconditioner;
+pub(crate) use structured::PyPreconditioner;
 
 /// An immutable observation of one compiled solver's complete release identity.
 #[pyclass(

@@ -245,8 +245,8 @@ mod tests {
 
     #[test]
     fn complete_policy_values_validate_and_preserve_explicit_gauges() -> PyResult<()> {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        Python::initialize();
+        Python::attach(|py| {
             let module = PyModule::new(py, "structured_test")?;
             register(&module)?;
             module.add_class::<PySolverProvider>()?;

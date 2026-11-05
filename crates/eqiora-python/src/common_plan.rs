@@ -48,7 +48,7 @@ mod forward_policy;
 mod policy;
 use cost::{PySolverCandidateCost, PySolverCost};
 mod registration;
-mod solver_request;
+pub(crate) mod solver_request;
 use policy::{
     PyBackwardEuler, PyBdf, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama,
     PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d,
