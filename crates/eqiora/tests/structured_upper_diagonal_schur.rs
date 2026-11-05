@@ -151,7 +151,7 @@ fn ordinary_manual_manufactured_stokes_small() {
             CommonLinearRequest::exact(solver, FAER_SOLVER_PROVIDER).unwrap(),
         ),
         Some(CommonScalingRequest::Incompressible(
-            eqiora_numerics::fluid::IncompressibleScalingRequest2d::from_si(
+            eqiora_numerics::IncompressibleScalingRequest2d::from_si(
                 Some(1.0),
                 Some(1.0),
                 Some(1.0),
