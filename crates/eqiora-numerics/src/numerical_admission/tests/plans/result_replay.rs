@@ -344,7 +344,7 @@ fn live_static_acceptance_checks_exact_initial_state_and_plan_ownership() {
             None,
             vec![
                 CommonInitialField::new(
-                    plan.model_digest().to_owned(),
+                    plan.admission.model().digest().unwrap(),
                     plan.fields().next().unwrap().0,
                     Some(
                         CommonInitialValues::new(
