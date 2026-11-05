@@ -344,6 +344,22 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             });
         }
     }
+    // The fixed structured contract adds only normal real BiCGSTAB/Fast
+    // for these two operator classes; the manufactured pilot owns its
+    // numerical evidence. Existing flat-oracle expectations remain unchanged.
+    for operator_properties in [
+        LinearOperatorProperties::General,
+        LinearOperatorProperties::SymmetricIndefinite,
+    ] {
+        expected.insert(SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            operator_properties,
+            preconditioner: eqiora::solver::PreconditionerKind::UpperDiagonalSchur,
+            reduction: ReductionPolicy::Fast,
+            scalar_type: ScalarType::F64,
+        });
+    }
     assert_eq!(capabilities.combinations(), &expected);
     for unsupported in &oracle.contract_expectations.capabilities.negative {
         let tuple = capability_from_fixture(unsupported);
