@@ -1,11 +1,15 @@
 """Independent analytic and admission falsifiers; no native library execution."""
 import importlib.util
 import itertools
+import io
 import os
 import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
+from contextlib import redirect_stderr
+
+from common import worker_arguments
 
 import numpy as np
 
@@ -18,7 +22,7 @@ spec.loader.exec_module(driver)
 
 def analytic_discrete_solution(cells, dimension=2):
     # Independent existing reference derivation: tensor stiffness eigenvalue
-    # 2*k*m, with k=4*sin(theta/2)^2/h and m=h*(2+cos(theta))/3.
+    # d*k*m**(d-1), with k=4*sin(theta/2)^2/h and m=h*(2+cos(theta))/3.
     # Two-point Gauss load coefficient b=h*sum(1-t)*cos(theta*t).
     # See verify/numerics/cartesian-poisson-fem-fvm/references/README.md.
     h, theta = 1/cells, np.pi/cells
@@ -68,6 +72,17 @@ class ProtocolTests(unittest.TestCase):
         rows = [(i, [7-i], point) for i, point in enumerate(itertools.product((0., 1.), repeat=3))]
         actual = q1_vertex_dof_coordinates(rows[::-1], 8, 3)
         np.testing.assert_array_equal(actual, np.array(list(itertools.product((0., 1.), repeat=3)))[::-1])
+
+    def test_3d_scope_rejects_undeclared_level_and_benchmark_mode(self):
+        base = ["worker", "--dimension", "3", "--cells", "4", "--mode",
+                "correctness-only", "--output", "/home/scratch/result.json"]
+        with patch("sys.argv", base):
+            self.assertEqual(worker_arguments().dimension, 3)
+        invalid_level = base.copy(); invalid_level[4] = "32"
+        invalid_mode = base.copy(); invalid_mode[6] = "benchmark"
+        for invalid in (invalid_level, invalid_mode):
+            with patch("sys.argv", invalid), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                worker_arguments()
 
     def test_valid_field_falsifiers_do_not_reuse_invalid_baselines(self):
         coordinates, values = analytic_discrete_solution(4)

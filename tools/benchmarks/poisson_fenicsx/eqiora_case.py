@@ -27,12 +27,12 @@ def main(args):
 
     def mesh_setup():
         graph = eqiora.geometry.GeometryGraph()
-        rectangle = (graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+        primitive = (graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
                      if dimension == 2 else graph.cuboid(
                          x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0), z_bounds=(0.0, 1.0)))
         names = tuple(f"{axis}_{side}" for axis in "xyz"[:dimension] for side in ("lower", "upper"))
-        geometry = graph.build(rectangle, named_topology={region: rectangle.region,
-            **dict(zip(names, rectangle.boundaries, strict=True))})
+        geometry = graph.build(primitive, named_topology={region: primitive.region,
+            **dict(zip(names, primitive.boundaries, strict=True))})
         mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
             geometry, eqiora.meshing.CartesianMesher(cells=(args.cells,)*dimension)))
         return geometry, mesh, names
