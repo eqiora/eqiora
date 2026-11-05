@@ -41,12 +41,53 @@ public component Manufactured(
  relation top on y_upper { trace(velocity) = speed*(coordinate(0)/length_scale)^2*tensor_value(frame=body,components=[1,0]) - 2*speed*coordinate(0)*coordinate(1)/length_scale^2*tensor_value(frame=body,components=[0,1]); }
 }"#;
 
+#[derive(Debug, Clone, Copy)]
+enum Selection {
+    Direct,
+    Manual,
+    Ranked,
+    Generic,
+}
+
 fn admit_small(
     source: &str,
     generic: bool,
 ) -> Result<(ResolvedCommonPlan, eqiora::meshing::SimplicialMesh), eqiora::Diagnostic> {
+    admit_case(
+        source,
+        2,
+        1.,
+        1.,
+        if generic {
+            Selection::Generic
+        } else {
+            Selection::Manual
+        },
+    )
+}
+
+fn admit_case(
+    source: &str,
+    subdivisions: usize,
+    length: f64,
+    viscosity: f64,
+    selection: Selection,
+) -> Result<(ResolvedCommonPlan, eqiora::meshing::SimplicialMesh), eqiora::Diagnostic> {
+    let generic = matches!(selection, Selection::Generic);
+    let direct = matches!(selection, Selection::Direct | Selection::Generic);
+    let pressure_scale = viscosity / length; // U=1 m/s in every similarity member.
+    let source = source
+        .replace(
+            "parameter length_scale: m = 1;",
+            &format!("parameter length_scale: m = {length};"),
+        )
+        .replace(
+            "parameter pressure_scale: kg/(m*s^2) = 1;",
+            &format!("parameter pressure_scale: kg/(m*s^2) = {pressure_scale};"),
+        )
+        .replace("1[kg/(m*s)]", &format!("{viscosity}[kg/(m*s)]"));
     let graph = GeometryGraph::new();
-    let rectangle = graph.rectangle([0., 1.], [0., 1.]).unwrap();
+    let rectangle = graph.rectangle([0., length], [0., length]).unwrap();
     let edges = rectangle.boundaries();
     let mut sets = BTreeMap::from([("body".to_owned(), vec![rectangle.region().into()])]);
     for (name, edge) in ["x_lower", "x_upper", "y_lower", "y_upper"]
@@ -109,7 +150,7 @@ fn admit_small(
     let pressure = document.model().aliases()["definition.pressure"]
         .downcast()
         .unwrap();
-    let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
+    let policy = AffineTriangleMeshPolicy::new([subdivisions, subdivisions]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
     let observed_mesh = mesh.mesh().clone();
@@ -140,13 +181,13 @@ fn admit_small(
         )
         .unwrap(),
     );
-    let composition = if generic {
+    let composition = if direct {
         PreconditionerPolicy::Identity
     } else {
         composition
     };
     let solver = SolverPlan::new(
-        if generic {
+        if direct {
             LinearSolver::SparseLu
         } else {
             LinearSolver::BiConjugateGradientStabilized
@@ -158,18 +199,28 @@ fn admit_small(
     .unwrap()
     .with_preconditioner(composition.clone())
     .with_reduction(ReductionPolicy::Fast);
+    let request = if matches!(selection, Selection::Ranked) {
+        CommonLinearRequest::program_controlled(
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(10_000).unwrap(),
+            eqiora::solver::SolverPlanningObjective::Robust,
+        )
+        .unwrap()
+        .with_preconditioner(composition.clone())
+    } else {
+        CommonLinearRequest::exact(solver, FAER_SOLVER_PROVIDER).unwrap()
+    };
     let plan = ResolvedCommonPlan::resolve(
         &ModelEnvelope::from_program(document.model().program()).unwrap(),
         owner,
         CommonSpatialPolicy::MiniP1,
-        CommonSolvePolicy::Linear(
-            CommonLinearRequest::exact(solver, FAER_SOLVER_PROVIDER).unwrap(),
-        ),
+        CommonSolvePolicy::Linear(request),
         (!generic).then_some(CommonScalingRequest::Incompressible(
             eqiora_numerics::IncompressibleScalingRequest2d::from_si(
+                Some(length),
                 Some(1.0),
-                Some(1.0),
-                Some(1.0),
+                Some(pressure_scale),
             )
             .unwrap(),
         )),
@@ -183,6 +234,14 @@ fn admit_small(
         &composition
     );
     assert_eq!(plan.linear_solver_provider(), Some(FAER_SOLVER_PROVIDER));
+    assert_eq!(
+        plan.effective_solver().unwrap().algorithm(),
+        if direct {
+            LinearSolver::SparseLu
+        } else {
+            LinearSolver::BiConjugateGradientStabilized
+        }
+    );
     if !generic {
         let portable = plan.as_steady_stokes().unwrap().portable_realization();
         assert!(portable.systems()[0].blocks().contains(
@@ -205,13 +264,22 @@ fn admit_small(
 fn ordinary_manual_manufactured_stokes_small() {
     let (plan, observed_mesh) =
         admit_small(SOURCE, false).expect("ordinary manufactured Plan admission");
+    run_and_check(&plan, &observed_mesh, 1., 1.);
+}
+
+fn run_and_check(
+    plan: &ResolvedCommonPlan,
+    observed_mesh: &eqiora::meshing::SimplicialMesh,
+    length: f64,
+    pressure_scale: f64,
+) -> [f64; 4] {
     let result = plan
         .as_steady_stokes()
         .unwrap()
         .run_result(&FaerLinearSolver)
         .expect("ordinary manufactured Run");
     assert_eq!(result.plan().identity(), plan.identity());
-    let errors = normalized_errors(&result, &observed_mesh, 1., 1.);
+    let errors = normalized_errors(&result, observed_mesh, length, pressure_scale);
     assert!(errors.iter().all(|value| value.is_finite() && *value >= 0.));
     let residual = result.solve_true_residual_norm(None, None).unwrap();
     let target = result.solve_evidence(None, None).unwrap().residual_target();
@@ -224,10 +292,85 @@ fn ordinary_manual_manufactured_stokes_small() {
             <= 2e-10
     );
     let (_, balance) = result.steady_stokes_observation().unwrap().unwrap();
-    assert!(balance[5].iter().all(|value| value.abs() <= 2e-9));
+    assert!(
+        balance[5]
+            .iter()
+            .all(|value| (value / (pressure_scale * length)).abs() <= 2e-9)
+    );
     assert_eq!(
         result.solve_evidence(None, None).unwrap().preconditioner(),
         plan.effective_solver().unwrap().preconditioner()
+    );
+    errors
+}
+
+#[test]
+fn manufactured_similarity_sweep_direct_manual_and_ranked() {
+    for length in [1., 2.] {
+        for viscosity in [0.5, 1., 2.] {
+            for selection in [Selection::Direct, Selection::Manual, Selection::Ranked] {
+                let mut errors = Vec::new();
+                for subdivisions in [2, 4, 8] {
+                    let (plan, mesh) = admit_case(
+                        SOURCE,
+                        subdivisions,
+                        length,
+                        viscosity,
+                        selection,
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!("{selection:?} L={length} mu={viscosity} n={subdivisions}: {error}")
+                    });
+                    errors.push(run_and_check(&plan, &mesh, length, viscosity / length));
+                }
+                for (pair_index, pair) in errors.windows(2).enumerate() {
+                    let orders: [f64; 4] =
+                        std::array::from_fn(|index| (pair[0][index] / pair[1][index]).log2());
+                    eprintln!(
+                        "structured-schur-pilot mode={selection:?} L={length} mu={viscosity} pair={pair_index} orders={orders:?}"
+                    );
+                    for (index, minimum) in [1.75, 0.85, 0.85, 0.85].into_iter().enumerate() {
+                        assert!(
+                            orders[index] > minimum,
+                            "{selection:?} L={length} mu={viscosity} pair={pair_index} norm={index} order={} minimum={minimum}",
+                            orders[index]
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn canonical_replay_retains_complete_composition_and_gauge_metadata() {
+    let (plan, _) = admit_small(SOURCE, false).unwrap();
+    let bytes = plan.to_bytes().unwrap();
+    let replayed = ResolvedCommonPlan::from_bytes(&bytes, &FaerLinearSolver, &[]).unwrap();
+    assert_eq!(replayed.to_bytes().unwrap(), bytes);
+    assert_eq!(replayed.effective_solver(), plan.effective_solver());
+    assert_eq!(
+        replayed.linear_solver_provider(),
+        plan.linear_solver_provider()
+    );
+    let live = replayed
+        .as_steady_stokes()
+        .unwrap()
+        .run_result(&FaerLinearSolver)
+        .unwrap();
+    assert!(live.gauge_multiplier().unwrap().abs() <= 2e-10);
+    let result_bytes = live.to_bytes().unwrap();
+    let retained = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &replayed).unwrap();
+    assert_eq!(retained.to_bytes().unwrap(), result_bytes);
+    // Retention is a metadata round trip. Replay does not independently
+    // reauthenticate the numerical gauge value; the live Run above proves it.
+    assert_eq!(retained.gauge_multiplier(), live.gauge_multiplier());
+    assert_eq!(
+        retained
+            .solve_evidence(None, None)
+            .unwrap()
+            .preconditioner(),
+        replayed.effective_solver().unwrap().preconditioner()
     );
 }
 
