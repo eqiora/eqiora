@@ -797,6 +797,7 @@ mod resolve;
 mod resolved;
 mod scalar;
 pub(super) use scalar::ExecutableSpatialEquations;
+pub(crate) use scalar::LiveStaticExecution;
 pub(crate) mod solver_planning;
 mod spatial_planning;
 mod state;

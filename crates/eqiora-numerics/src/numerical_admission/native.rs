@@ -680,11 +680,27 @@ impl NativeNumericalAdmission {
         Ok((resolved, portable, velocity, pressure))
     }
 
+    #[cfg(test)]
     pub(super) fn execute_linear(
         &self,
         backend: &dyn LinearSolverBackend,
         initial: Option<&BTreeMap<eqiora_core::RawId, Vec<f64>>>,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        self.execute_linear_retained(backend, initial)
+            .map(|(output, _)| output)
+    }
+
+    pub(super) fn execute_linear_retained(
+        &self,
+        backend: &dyn LinearSolverBackend,
+        initial: Option<&BTreeMap<eqiora_core::RawId, Vec<f64>>>,
+    ) -> Result<
+        (
+            CommonLinearRunOutput<f64>,
+            Option<super::scalar::regions::StaticRegionSystem<f64>>,
+        ),
+        Diagnostic,
+    > {
         if initial.is_some()
             && (!matches!(self.recognized_model(), RecognizedNativeModel::Spatial(_))
                 || !matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_)))
@@ -694,7 +710,9 @@ impl NativeNumericalAdmission {
             ));
         }
         if let RecognizedNativeModel::ComplexSpatial(equations) = self.recognized_model() {
-            return self.execute_complex_linear(equations, backend);
+            return self
+                .execute_complex_linear(equations, backend)
+                .map(|output| (output, None));
         }
         self.revalidate()?;
         if backend.provider() != self.linear.provider
@@ -705,7 +723,8 @@ impl NativeNumericalAdmission {
             ));
         }
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
-            return super::coordinate_grid::execute(self, projection, backend);
+            return super::coordinate_grid::execute(self, projection, backend)
+                .map(|output| (output, None));
         }
         let RecognizedNativeModel::Spatial(lowered) = self.recognized_model() else {
             return Err(invalid(
@@ -717,16 +736,16 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial.scalar_constraint().is_none() {
-            return lowered
-                .finalize_static(
-                    self.linear.workers,
-                    (solve).plan(),
-                    self.resources(),
-                    &self.discretizations,
-                    &self.system_scaling,
-                    self.operator_properties,
-                )
-                .and_then(|system| system.solve(solve, initial));
+            let system = lowered.finalize_static(
+                self.linear.workers,
+                (solve).plan(),
+                self.resources(),
+                &self.discretizations,
+                &self.system_scaling,
+                self.operator_properties,
+            )?;
+            let output = system.solve(solve, initial)?;
+            return Ok((output, Some(system)));
         }
         let system = lowered.finalize_static(
             self.linear.workers,
@@ -737,7 +756,9 @@ impl NativeNumericalAdmission {
             LinearOperatorProperties::Symmetric,
         )?;
         let reference = lowered.mean_reference(self.resources(), &system.mapping)?;
-        system.solve_with_reference(solve, &reference)
+        system
+            .solve_with_reference(solve, &reference)
+            .map(|output| (output, None))
     }
 }
 
