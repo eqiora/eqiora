@@ -232,6 +232,7 @@ def read_campaign(directory, spec, cpu):
             wall = spread([row["wall_seconds"] for row in timing["samples"]])
             cpu_times = spread([row["process_cpu_seconds"] for row in timing["samples"]])
             rows.append({"tool": tool, "cells": cells, "wall": wall, "cpu": cpu_times,
+                         "plan_sha256": report.get("plan_sha256"),
                          "median_cpu_over_wall": cpu_times["median"] / wall["median"],
                          "software": {key: env[key] for key in ("python", "versions")}})
     return rows
