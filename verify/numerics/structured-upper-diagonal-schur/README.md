@@ -6,6 +6,17 @@ through an ordinary `Eqiora.Fluid` package Model, common Plan admission and
 common Run. It is not yet passing evidence. The first test uses `n=2`,
 `L=1 m`, and `mu=1 Pa s` to expose integration gaps before the full pilot.
 
+The initial ordinary test currently stops before solving: Plan admission reports
+`linear conservation form does not admit incompressible-flow scaling`. A focused
+public mathematical-lowering diagnostic identified the underlying rejection:
+`steady-Stokes boundary requires one direct law or one exact field-physical
+interface, found 0 interface candidates`. The prescribed vector is the sum of
+its two component contributions. The existing boundary matcher accepts only one
+prescribed contribution after splitting the equation into signed terms, so it
+rejects this complete vector expression. The boundary owner must retain that
+sum as one prescribed datum. The full similarity sweep has not run, and this
+case remains specified rather than executable evidence.
+
 The proposed comparison has explicit direct faer, manual BiCGSTAB with the
 fixed upper diagonal Schur composition, and ranking over that explicitly
 requested composition. Groups use the retained velocity Field, then the
