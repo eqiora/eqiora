@@ -104,3 +104,20 @@ def test_interval_cartesian_mesh_round_trips_exact_common_resources() -> None:
 def test_cartesian_mesher_rejects_invalid_cells(cells: tuple[object, ...]) -> None:
     with pytest.raises((eqiora.ValidationError, TypeError)):
         eqiora.meshing.CartesianMesher(cells=cells)
+
+
+def test_mesh_plan_none_provider_matches_omission_without_defaulting_geometry() -> None:
+    source = rectangle()
+    provider = eqiora.meshing.CartesianMesher(cells=(2, 3))
+    plan = eqiora.meshing.resolve(source, provider)
+    omitted = eqiora.meshing.generate(plan)
+    explicit_none = eqiora.meshing.generate(plan, None)
+    assert explicit_none.source_digest == omitted.source_digest == source.digest
+    assert explicit_none.production_lineage_bytes == omitted.production_lineage_bytes
+    np.testing.assert_array_equal(explicit_none.coordinates, omitted.coordinates)
+    np.testing.assert_array_equal(explicit_none.cells, omitted.cells)
+    for arguments in ((source,), (source, None)):
+        with pytest.raises(TypeError, match="requires an explicit provider"):
+            eqiora.meshing.generate(*arguments)
+    with pytest.raises(TypeError, match="does not accept a provider"):
+        eqiora.meshing.generate(plan, provider)
