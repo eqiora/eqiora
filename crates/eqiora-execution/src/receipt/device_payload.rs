@@ -7,6 +7,14 @@ pub(super) fn minimum_device_payload_bytes(
     system: &CanonicalCsrSystemView,
     plan: &SolverPlan,
 ) -> Result<usize, Diagnostic> {
+    if matches!(
+        plan.preconditioner(),
+        PreconditionerPolicy::UpperDiagonalSchur(_)
+    ) {
+        return Err(invalid(
+            "device payload estimation does not implement upper diagonal-Schur preconditioning",
+        ));
+    }
     let vector_count = match plan.algorithm() {
         LinearSolver::ConjugateGradient => 3usize,
         LinearSolver::BiConjugateGradientStabilized => 7,

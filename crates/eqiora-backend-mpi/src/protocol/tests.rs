@@ -207,6 +207,45 @@ fn producer_summary_covers_every_admitted_report_axis() {
     let baseline = ProducerReportRecordV3::from_report(&report);
     assert_eq!(baseline.summarize().unwrap(), summary);
 
+    // Summary agreement retains full structured configuration even though the
+    // current MPI execution capabilities reject this family before solving.
+    let groups = [
+        vec![eqiora_solver::AlgebraicBlock::Field(eqiora_core::Id::new())],
+        vec![eqiora_solver::AlgebraicBlock::Field(eqiora_core::Id::new())],
+    ];
+    let structured = |provider: &str, entries| {
+        let choice =
+            eqiora_solver::FixedFactorizationChoice::new(LinearSolver::SparseLu, provider).unwrap();
+        PreconditionerPolicy::UpperDiagonalSchur(
+            eqiora_solver::UpperDiagonalSchurConfig::new(
+                groups.clone(),
+                choice.clone(),
+                choice,
+                entries,
+                64,
+            )
+            .unwrap(),
+        )
+    };
+    let structured_baseline = ProducerReportRecordV3 {
+        preconditioner: structured("eqiora.faer", 32),
+        ..baseline.clone()
+    };
+    for policy in [
+        structured("eqiora.faer", 33),
+        structured("other.provider", 32),
+    ] {
+        assert_ne!(
+            structured_baseline.summarize().unwrap(),
+            ProducerReportRecordV3 {
+                preconditioner: policy,
+                ..baseline.clone()
+            }
+            .summarize()
+            .unwrap()
+        );
+    }
+
     let cases = [
         (
             "solver provider ID",

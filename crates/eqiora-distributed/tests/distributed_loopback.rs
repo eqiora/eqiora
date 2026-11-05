@@ -631,3 +631,49 @@ fn global_apply(offsets: &[usize], columns: &[usize], values: &[f64], input: &[f
         })
         .collect()
 }
+
+#[test]
+fn structured_policy_is_rejected_even_for_zero_rhs() {
+    use eqiora_solver::{AlgebraicBlock, FixedFactorizationChoice, UpperDiagonalSchurConfig};
+    let storage = TridiagonalStorage::new(2, vec![0.0, 0.0]);
+    let complete = CanonicalCsrSystemView::new(
+        &storage,
+        storage.rhs(),
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )
+    .unwrap();
+    let partition = Partition::balanced_contiguous(
+        GlobalVectorSpace::new(NonZeroUsize::new(2).unwrap(), ScalarType::F64),
+        NonZeroUsize::new(2).unwrap(),
+    )
+    .unwrap();
+    let system = DistributedLinearSystem::from_complete(&complete, partition).unwrap();
+    let choice = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
+    let policy = PreconditionerPolicy::UpperDiagonalSchur(
+        UpperDiagonalSchurConfig::new(
+            [
+                vec![AlgebraicBlock::Field(eqiora_core::Id::new())],
+                vec![AlgebraicBlock::Field(eqiora_core::Id::new())],
+            ],
+            choice.clone(),
+            choice,
+            4,
+            8,
+        )
+        .unwrap(),
+    );
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1e-12,
+        1e-14,
+        NonZeroUsize::MIN,
+    )
+    .unwrap()
+    .with_preconditioner(policy);
+    let error = system.admission_fingerprint(&plan).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("upper diagonal-Schur preconditioning is not implemented")
+    );
+}
