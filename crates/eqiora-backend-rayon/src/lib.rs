@@ -590,7 +590,7 @@ mod tests {
                     eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
                     eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
                 ],
-                [PreconditionerPolicy::Identity],
+                [eqiora_solver::PreconditionerKind::Identity],
                 [ReductionPolicy::Fast],
                 eqiora_core::ScalarDomain::Real,
                 [ScalarType::F64],

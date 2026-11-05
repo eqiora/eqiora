@@ -216,7 +216,7 @@ fn producer_summary_covers_every_admitted_report_axis() {
     let structured = |provider: &str, entries| {
         let choice =
             eqiora_solver::FixedFactorizationChoice::new(LinearSolver::SparseLu, provider).unwrap();
-        PreconditionerPolicy::UpperDiagonalSchur(
+        PreconditionerPolicy::upper_diagonal_schur(
             eqiora_solver::UpperDiagonalSchurConfig::new(
                 groups.clone(),
                 choice.clone(),

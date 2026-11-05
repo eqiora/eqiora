@@ -649,7 +649,7 @@ fn structured_policy_is_rejected_even_for_zero_rhs() {
     .unwrap();
     let system = DistributedLinearSystem::from_complete(&complete, partition).unwrap();
     let choice = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
-    let policy = PreconditionerPolicy::UpperDiagonalSchur(
+    let policy = PreconditionerPolicy::upper_diagonal_schur(
         UpperDiagonalSchurConfig::new(
             [
                 vec![AlgebraicBlock::Field(eqiora_core::Id::new())],
