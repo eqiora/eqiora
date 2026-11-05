@@ -41,8 +41,10 @@ public component Manufactured(
  relation top on y_upper { trace(velocity) = speed*(coordinate(0)/length_scale)^2*tensor_value(frame=body,components=[1,0]) - 2*speed*coordinate(0)*coordinate(1)/length_scale^2*tensor_value(frame=body,components=[0,1]); }
 }"#;
 
-#[test]
-fn ordinary_manual_manufactured_stokes_small() {
+fn admit_small(
+    source: &str,
+    generic: bool,
+) -> Result<(ResolvedCommonPlan, eqiora::meshing::SimplicialMesh), eqiora::Diagnostic> {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0., 1.], [0., 1.]).unwrap();
     let edges = rectangle.boundaries();
@@ -87,7 +89,7 @@ fn ordinary_manual_manufactured_stokes_small() {
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            SOURCE.as_bytes().to_vec(),
+            source.as_bytes().to_vec(),
         )],
     )
     .unwrap();
@@ -138,8 +140,17 @@ fn ordinary_manual_manufactured_stokes_small() {
         )
         .unwrap(),
     );
+    let composition = if generic {
+        PreconditionerPolicy::Identity
+    } else {
+        composition
+    };
     let solver = SolverPlan::new(
-        LinearSolver::BiConjugateGradientStabilized,
+        if generic {
+            LinearSolver::SparseLu
+        } else {
+            LinearSolver::BiConjugateGradientStabilized
+        },
         1e-11,
         1e-13,
         NonZeroUsize::new(10_000).unwrap(),
@@ -154,7 +165,7 @@ fn ordinary_manual_manufactured_stokes_small() {
         CommonSolvePolicy::Linear(
             CommonLinearRequest::exact(solver, FAER_SOLVER_PROVIDER).unwrap(),
         ),
-        Some(CommonScalingRequest::Incompressible(
+        (!generic).then_some(CommonScalingRequest::Incompressible(
             eqiora_numerics::IncompressibleScalingRequest2d::from_si(
                 Some(1.0),
                 Some(1.0),
@@ -166,13 +177,19 @@ fn ordinary_manual_manufactured_stokes_small() {
         &FaerLinearSolver,
         None,
         None,
-    )
-    .expect("ordinary manufactured Plan admission");
+    )?;
     assert_eq!(
         plan.effective_solver().unwrap().preconditioner(),
         &composition
     );
     assert_eq!(plan.linear_solver_provider(), Some(FAER_SOLVER_PROVIDER));
+    Ok((plan, observed_mesh))
+}
+
+#[test]
+fn ordinary_manual_manufactured_stokes_small() {
+    let (plan, observed_mesh) =
+        admit_small(SOURCE, false).expect("ordinary manufactured Plan admission");
     let result = plan
         .as_steady_stokes()
         .unwrap()
@@ -184,6 +201,51 @@ fn ordinary_manual_manufactured_stokes_small() {
     let residual = result.solve_true_residual_norm(None, None).unwrap();
     let target = result.solve_evidence(None, None).unwrap().residual_target();
     assert!(residual <= target);
+}
+
+const FIRST_COMPONENT: &str =
+    "speed*(coordinate(0)/length_scale)^2*tensor_value(frame=body,components=[1,0])";
+const SECOND_COMPONENT: &str =
+    "2*speed*coordinate(0)*coordinate(1)/length_scale^2*tensor_value(frame=body,components=[0,1])";
+
+fn rewritten_velocity_laws(law: &str) -> String {
+    let datum = format!("trace(velocity) = {FIRST_COMPONENT} - {SECOND_COMPONENT}");
+    assert_eq!(SOURCE.matches(&datum).count(), 4);
+    SOURCE.replace(&datum, law)
+}
+
+#[test]
+fn equivalent_grouped_and_signed_vector_boundary_residuals_admit() {
+    for law in [
+        format!("{SECOND_COMPONENT} - {FIRST_COMPONENT} + trace(velocity) = 0"),
+        format!("-((trace(velocity) - {FIRST_COMPONENT}) + {SECOND_COMPONENT}) = 0"),
+    ] {
+        let (plan, _) = admit_small(&rewritten_velocity_laws(&law), false)
+            .expect("equivalent vector boundary Plan");
+        assert!(plan.as_steady_stokes().is_some());
+    }
+}
+
+#[test]
+fn duplicate_velocity_trace_is_rejected() {
+    let source = rewritten_velocity_laws(&format!(
+        "trace(velocity) + trace(velocity) = 2*({FIRST_COMPONENT} - {SECOND_COMPONENT})"
+    ));
+    assert!(admit_small(&source, false).is_err());
+}
+
+#[test]
+fn tangential_traction_keeps_the_generic_mixed_projection() {
+    let top = format!(
+        "relation top on y_upper {{ trace(velocity) = {FIRST_COMPONENT} - {SECOND_COMPONENT}; }}"
+    );
+    assert!(SOURCE.contains(&top));
+    // Exact manufactured stress on y=L: sigma*n=P*(-2, 1/2-5*x/L).
+    let traction = "relation top on y_upper { normal(2*1[kg/(m*s)]*symmetric_part(grad(velocity))-isotropic_lift(pressure)) = pressure_scale*(-2*tensor_value(frame=body,components=[1,0]) + (0.5-5*coordinate(0)/length_scale)*tensor_value(frame=body,components=[0,1])); }";
+    let source = SOURCE.replace(&top, traction);
+    let (plan, _) = admit_small(&source, true).expect("generic mixed tangential-traction Plan");
+    assert!(plan.as_spatial().is_some());
+    assert!(plan.as_steady_stokes().is_none());
 }
 
 /// Integrate the declared analytic oracle from ordinary Result coefficient blocks.
