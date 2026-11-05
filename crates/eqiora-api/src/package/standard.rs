@@ -14,6 +14,7 @@ pub(super) const NAMES: &[&str] = &[
     "Eqiora.Controls.Sampled",
     "Eqiora.Stochastic.Processes",
     "Eqiora.Fluid",
+    "Eqiora.Scalar",
     "Eqiora.Solid",
     "Eqiora.Solid.LinearElasticity",
 ];
@@ -57,6 +58,12 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             include_bytes!("../../packages/Eqiora.Fluid/README.md"),
             "src/fluid.eqi",
             include_bytes!("../../packages/Eqiora.Fluid/src/fluid.eqi"),
+        )?),
+        "Eqiora.Scalar" => Some(sources(
+            include_bytes!("../../packages/Eqiora.Scalar/package.json"),
+            include_bytes!("../../packages/Eqiora.Scalar/README.md"),
+            "src/scalar.eqi",
+            include_bytes!("../../packages/Eqiora.Scalar/src/scalar.eqi"),
         )?),
         "Eqiora.Solid" => Some(sources(
             include_bytes!("../../packages/Eqiora.Solid/package.json"),

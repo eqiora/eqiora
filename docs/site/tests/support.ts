@@ -23,6 +23,7 @@ export const SITE_ROUTES = [
   '/guides/how-eqiora-fits-together/',
   '/contributing/',
   '/evidence/',
+  '/evidence/poisson-fenicsx/',
   '/gallery/',
   '/gallery/exact-cylinder-steady-stokes/',
   '/gallery/mixed-boundary-elasticity/',
@@ -153,6 +154,7 @@ export const TABLE_ROUTES = [
   { route: '/learn/mathematical-modeling/algebraic-relations-networks/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 2, direct: 2, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
+  { route: '/evidence/poisson-fenicsx/', tables: 7, direct: 7, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
@@ -162,7 +164,7 @@ export const TABLE_ROUTES = [
   { route: '/reference/rust/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
-  { route: '/reference/standard-packages/continuum/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/standard-packages/continuum/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/controls/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/boundary-interface-conditions/', tables: 1, direct: 1, component: 0 },
@@ -215,8 +217,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 104 || new Set(SITE_ROUTES).size !== 104) {
-    throw new Error('route authority is not 104 unique entries');
+  if (SITE_ROUTES.length !== 105 || new Set(SITE_ROUTES).size !== 105) {
+    throw new Error('route authority is not 105 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -234,7 +236,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 18, C: 85 } as const;
+  const cardinalities = { A: 1, B: 19, C: 85 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -246,12 +248,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 104 || seen.size !== 104) {
-    throw new Error('ORDER-UNION is not exactly 104 entries');
+  if (entries.length !== 105 || seen.size !== 105) {
+    throw new Error('ORDER-UNION is not exactly 105 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 104) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 105) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);

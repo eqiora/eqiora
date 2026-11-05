@@ -93,13 +93,14 @@ not update the lock or manage shared-store permissions.
 
 ## Bundled packages in Python and the CLI
 
-The Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below are available from development builds.
+The Scalar 0.1.0, Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below
+are available from development builds.
 The published Eqiora 0.1.5 distribution is unchanged. Current development builds
 write Model and Model Transaction v50 artifacts; use the build that produced an
 older artifact to open it, or regenerate it from source.
 
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
-`Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
+`Eqiora.Scalar@0.1.0`, `Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
 store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without
@@ -142,6 +143,10 @@ package identity, not by directory.
   displacement/traction connector instead.
 - [`Eqiora.Mechanics.BoundaryLoads`](Eqiora.Mechanics.BoundaryLoads/): depends
   on `Mechanics.Interfaces`; a normal-pressure load driven by a pressure Field.
+- [`Eqiora.Scalar`](Eqiora.Scalar/): 2D Poisson and Laplace laws for a
+  dimensionless potential on physical metre coordinates, with fixed-value and
+  outward constitutive-gradient boundary data. The coefficient defaults to one;
+  this is not a general thermal or unit-polymorphic package.
 - [`Eqiora.Fluid`](Eqiora.Fluid/): fixed-unit steady Stokes in 2D, inertial
   Stokes in 2D and conservative transient Navier–Stokes in 3D. Volume balances,
   explicit forced variants and velocity/traction interfaces remain distinct.

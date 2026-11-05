@@ -1,0 +1,44 @@
+id = "numerics.packaged-scalar-elliptic-2d"
+status = "implemented"
+scope = "bundled-fixed-unit-scalar-poisson-and-laplace-2d-host-q1"
+reference_kind = "analytic-sine-convergence-and-independent-integer-q1-stencil"
+
+capabilities = [
+  "bundled-scalar-poisson-and-laplace",
+  "dimension-checked-source-and-boundary-expressions",
+  "default-and-explicit-diffusion-coefficient",
+  "outward-constitutive-normal-flux",
+  "ordinary-source-bundled-import",
+]
+
+[problem]
+package = "Eqiora.Scalar@0.1.0"
+field = "dimensionless scalar potential"
+coordinates = "physical metres on the unit square"
+poisson = "-c laplacian(u) = 2 c pi^2 sin(pi*x) sin(pi*y), zero boundary"
+laplace = "-2 laplacian(u) = 0, left value zero, right constitutive flux +/-2 per metre, top and bottom zero flux"
+
+[reference]
+poisson = "u = sin(pi*x) sin(pi*y); existing Cartesian Poisson convergence and conservation bounds"
+laplace = "u = +/-x; independently assembled exact integer Q1 stiffness and outward-rounded residual error certificate"
+
+[execution]
+method = "continuous Q1 Galerkin"
+scalar = "f64"
+solver = "reference ConjugateGradient"
+target = "one host CPU thread"
+
+[claim_boundary]
+unit_polymorphism = false
+inferred_ambient_dimension = false
+unstructured_mesh = false
+fvm = false
+mpi = false
+gpu = false
+robin = false
+periodic = false
+performance = false
+
+[evidence]
+package = "eqiora"
+test = "standard_scalar_package"
