@@ -170,7 +170,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v11.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v12.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -187,7 +187,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.solver-planning/v11"
+        "eqiora.solver-planning/v12"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);

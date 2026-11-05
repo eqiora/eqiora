@@ -550,7 +550,7 @@ const OBJECTIVES: [SolverPlanningObjective; 3] = [
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
 const FAER_IDENTITY_ID: &str = "eqiora.faer.bicgstab-general-identity-fast-f64";
 const ORACLE: &str = include_str!(
-    "../../../../verify/numerics/host-serial-solver-planning/expected/policy-v11.json"
+    "../../../../verify/numerics/host-serial-solver-planning/expected/policy-v12.json"
 );
 
 fn reference_identity_plan() -> SolverPlan {
