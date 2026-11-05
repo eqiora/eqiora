@@ -54,8 +54,10 @@ def test_packaged_stokes_executes_and_replays_complete_block_policy(ranked):
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.MiniP1(), solve=request,
                      scaling=q.fluid.IncompressibleScaling(
                          length_m=1.0, velocity_m_per_s=1.0, pressure_pa=1.0))
-    live_result = q.run(plan)
     plan_bytes = plan.to_bytes()
+    assert q.Plan.from_bytes(plan_bytes).to_bytes() == plan_bytes
+    live_result = q.run(plan)
+    assert plan.to_bytes() == plan_bytes
     replayed_plan = q.Plan.from_bytes(plan_bytes)
     assert replayed_plan.to_bytes() == plan_bytes
     for candidate_plan in (plan, replayed_plan):
