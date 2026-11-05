@@ -154,7 +154,7 @@ export const TABLE_ROUTES = [
   { route: '/learn/mathematical-modeling/algebraic-relations-networks/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 2, direct: 2, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
-  { route: '/evidence/poisson-fenicsx/', tables: 7, direct: 7, component: 0 },
+  { route: '/evidence/poisson-fenicsx/', tables: 9, direct: 9, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },

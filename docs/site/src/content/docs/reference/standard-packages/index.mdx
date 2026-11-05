@@ -15,6 +15,7 @@ bind its physical inputs, and open its source to read the equations.
 |---|---|---|
 | Resistor networks and voltage sources | [Electrical components](/reference/standard-packages/electrical/) | [Circuits and dynamics](/learn/circuits-dynamics/) |
 | Dimensionless scalar Poisson and Laplace fields | [Scalar components](/reference/standard-packages/continuum/#scalar-poisson-and-laplace) | [Recovering a heat source](/learn/inverse-problems/heat-source-recovery/) |
+| Steady heat conduction | [Thermal components](/reference/standard-packages/continuum/#steady-heat-conduction) | [Heated body](/learn/heat-transfer/heated-body-in-eqiora/) |
 | Small-strain solid deformation | [Solid components](/reference/standard-packages/continuum/#elastic-balance-and-boundaries) | [Structural mechanics](/learn/structural-mechanics/) |
 | Viscous incompressible flow | [Fluid components](/reference/standard-packages/continuum/#steady-stokes-flow) | [Fluid mechanics](/learn/fluid-mechanics/) |
 | Delays and discrete integration | [Sampled controls](/reference/standard-packages/controls/) | [Decay and storage](/learn/circuits-dynamics/decay-and-storage/) |
@@ -88,7 +89,7 @@ above work with `add_bundled_dependency`; the others are here for reading.
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | Parallel DC circuit composed from Basic |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load, speed sensor |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Unit delay and discrete integrator on a supplied clock |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/src/scalar.eqi">Scalar</ExactSourceLink> | Fixed-unit 2D Poisson, Laplace, fixed value and normal constitutive flux |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/src/scalar.eqi">Scalar</ExactSourceLink> | Fixed-unit 2D Poisson/Laplace, steady heat and their value/flux boundaries |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi">Solid</ExactSourceLink> | Plane-strain and plane-stress elasticity, material properties, solid boundary conditions |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi">Fluid</ExactSourceLink> | Fixed-unit steady/inertial Stokes, conservative 3D transient flow, interfaces and boundary conditions |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Quasistatic and dynamic elastic balances and interfaces |
@@ -99,16 +100,18 @@ Each source file shows the full signatures and equations.
 
 ## Thermal components and material properties
 
+Development builds bundle steady heat and its temperature/physical flux boundaries
+in [Eqiora.Scalar](/reference/standard-packages/continuum/#steady-heat-conduction).
 These examples are local projects you can reuse and adapt:
 
 - <ExactSourceLink kind="tree" path="examples/heated-body">Heated body</ExactSourceLink>
-  contains steady conduction and constant-capacity transient components, complete
-  boundary and initial data, and a Python runner. Follow the
+  imports bundled steady conduction and provides a hand-written constant-capacity
+  transient component, complete boundary and initial data, and a Python runner. Follow the
   [thermal walkthrough](/learn/heat-transfer/heated-body-in-eqiora/).
 - <ExactSourceLink kind="tree" path="examples/property-composition">Property composition</ExactSourceLink>
   contains a temperature-dependent conductivity table, its attribution, and
   Fourier-flux and slab-conductance components that share the property.
   Read the [property syntax](/reference/language/composition/#material-properties).
 
-There is no bundled thermal package; resolve these examples as local
+The transient and property components remain local examples; resolve their
 `eqiora.toml` projects.
