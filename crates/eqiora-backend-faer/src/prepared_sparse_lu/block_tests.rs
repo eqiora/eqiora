@@ -218,6 +218,10 @@ fn cold_and_prepared_admission_reject_missing_provider_orientation_and_singular_
         )
         .unwrap(),
     );
+    assert!(
+        crate::prepared_sparse_lu::prepare::<f64>(plan.clone().with_preconditioner(bad.clone()))
+            .is_err()
+    );
     let zero = fixture(2., 0.);
     let zero_problem = zero
         .linear_problem()

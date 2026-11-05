@@ -147,6 +147,15 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
             for k in system.row_offsets()[row]..system.row_offsets()[row + 1] {
                 let (h, c) = owner[system.column_indices()[k]]
                     .ok_or_else(|| invalid("missing column owner"))?;
+                if g == 1 && h == 1 {
+                    // Charge the retained E seed before its sparse entry allocation.
+                    entries = entries
+                        .checked_add(1)
+                        .filter(|&value| value <= maximum_entries)
+                        .ok_or_else(|| {
+                            invalid("upper diagonal-Schur seed entry budget exceeded")
+                        })?;
+                }
                 blocks[g * 2 + h][r].insert(c, system.values()[k]);
             }
         }
@@ -166,13 +175,8 @@ impl<S: SparseLuScalar> UpperDiagonalSchur<S> {
             }
             inverse.push(value);
         }
-        let mut schur = blocks[3].clone();
-        for row in &schur {
-            entries = entries
-                .checked_add(row.len())
-                .filter(|&value| value <= maximum_entries)
-                .ok_or_else(|| invalid("upper diagonal-Schur entry budget exceeded"))?;
-        }
+        // Move the already charged E seed; no unbudgeted second sparse copy.
+        let mut schur = std::mem::take(&mut blocks[3]);
         let mut products = 0usize;
         for (row, drow) in blocks[2].iter().enumerate() {
             for (&k, &d) in drow {
@@ -260,6 +264,21 @@ fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
 
+pub(super) fn require_factor_choices(
+    config: &eqiora_solver::UpperDiagonalSchurConfig,
+) -> Result<(), Diagnostic> {
+    for choice in [config.a_factorization(), config.schur_factorization()] {
+        if choice.algorithm() != eqiora_solver::LinearSolver::SparseLu
+            || choice.provider() != crate::FAER_SOLVER_PROVIDER.id().as_str()
+        {
+            return Err(invalid(
+                "fixed block factor provider does not match the resolved Faer provider",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Full-policy bound fixed action, admitted against retained original coordinates.
 #[derive(Debug)]
 pub(super) struct BoundUpperDiagonalSchur<S> {
@@ -338,15 +357,7 @@ impl<S: SparseLuScalar> BoundUpperDiagonalSchur<S> {
                 "upper diagonal-Schur requires real binary64 BiCGSTAB/Fast",
             ));
         }
-        for choice in [config.a_factorization(), config.schur_factorization()] {
-            if choice.algorithm() != eqiora_solver::LinearSolver::SparseLu
-                || choice.provider() != crate::FAER_SOLVER_PROVIDER.id().as_str()
-            {
-                return Err(invalid(
-                    "fixed block factor provider does not match the resolved Faer provider",
-                ));
-            }
-        }
+        require_factor_choices(config)?;
         crate::FaerLinearSolver.capabilities().require_problem(
             plan,
             S::DOMAIN,
@@ -541,6 +552,60 @@ mod tests {
                 .is_err()
             );
         }
+    }
+    #[test]
+    fn schur_seed_and_new_fill_are_charged_before_entry_insertion() {
+        let seed_error = UpperDiagonalSchur::new(
+            &fixture(),
+            [vec![2, 0], vec![3, 1]],
+            LinearOperatorOrientation::Normal,
+            3,
+            3,
+        )
+        .unwrap_err();
+        assert!(seed_error.message().contains("seed entry budget exceeded"));
+        // E has two seeds; D diag(A)^-1 C introduces exactly one new slot.
+        let local = [
+            [1., 0., 1., 1.],
+            [0., 1., 0., 1.],
+            [1., 0., 2., 0.],
+            [0., 1., 0., 2.],
+        ];
+        let rows = local
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .copied()
+                    .enumerate()
+                    .filter(|(_, value)| *value != 0.)
+                    .collect()
+            })
+            .collect::<Vec<BTreeMap<usize, f64>>>();
+        let system = CanonicalCsrSystemView::new(
+            &sparse(&rows, 4),
+            &[0.; 4],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        assert!(
+            UpperDiagonalSchur::new(
+                &system,
+                [vec![0, 1], vec![2, 3]],
+                LinearOperatorOrientation::Normal,
+                3,
+                3
+            )
+            .is_ok()
+        );
+        let fill_error = UpperDiagonalSchur::new(
+            &system,
+            [vec![0, 1], vec![2, 3]],
+            LinearOperatorOrientation::Normal,
+            2,
+            3,
+        )
+        .unwrap_err();
+        assert!(fill_error.message().contains("fill budget exceeded"));
     }
     #[test]
     fn rejects_wrong_orientation_partition_and_resource_limits() {

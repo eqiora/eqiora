@@ -18,6 +18,9 @@ pub(super) fn rejection_reason<S: Scalar + num_complex::ComplexFloat<Real = f64>
     if provider != expected.provider {
         return Some("catalog.provider-mismatch");
     }
+    if let Some(reason) = fixed_provider_rejection(candidate.plan(), provider) {
+        return Some(reason);
+    }
     if candidate.execution_provider() != Some(profile.execution_provider)
         || candidate.execution() != Some(profile.execution)
     {

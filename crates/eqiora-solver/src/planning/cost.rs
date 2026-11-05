@@ -454,6 +454,9 @@ impl SolverPlanningProfile {
         scalar_domain: ScalarDomain,
         scalar_type: ScalarType,
     ) -> Result<(), Diagnostic> {
+        if let Some(reason) = fixed_provider_rejection(plan, provider) {
+            return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
+        }
         let estimate = self.estimate_cost("manual", plan, provider, scalar_domain, scalar_type);
         if let Some(reason) = resource_rejection(estimate, self.cost_request.unwrap_or_default()) {
             return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
@@ -468,6 +471,9 @@ impl SolverPlanningProfile {
         provider: SolverProvider,
         problem: &LinearProblem<'_, S>,
     ) -> Result<(), Diagnostic> {
+        if let Some(reason) = fixed_provider_rejection(plan, provider) {
+            return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
+        }
         if self
             .cost_request
             .unwrap_or_default()

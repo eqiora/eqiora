@@ -289,7 +289,7 @@ fn explicit_structured_policy_is_retained_and_requires_realized_cover_at_executi
         1e-12,
         1e-14,
         NonZeroUsize::new(8).unwrap(),
-        &[availability],
+        std::slice::from_ref(&availability),
     )
     .unwrap();
     assert_eq!(selected.solver_plan().preconditioner(), &policy);
@@ -306,6 +306,48 @@ fn explicit_structured_policy_is_retained_and_requires_realized_cover_at_executi
                     .with_preconditioner(PreconditionerPolicy::Identity)
             )
             .is_err()
+    );
+    let PreconditionerPolicy::UpperDiagonalSchur(config) = &policy else {
+        unreachable!()
+    };
+    let wrong_policy = PreconditionerPolicy::upper_diagonal_schur(
+        UpperDiagonalSchurConfig::new(
+            config.groups().clone(),
+            FixedFactorizationChoice::new(LinearSolver::SparseLu, "other.provider").unwrap(),
+            config.schur_factorization().clone(),
+            32,
+            64,
+        )
+        .unwrap(),
+    );
+    let wrong_profile = profile.clone().with_preconditioner(wrong_policy.clone());
+    let wrong_plan = selected
+        .solver_plan()
+        .clone()
+        .with_preconditioner(wrong_policy);
+    assert!(wrong_profile.require_plan(&wrong_plan).is_ok());
+    let manual = wrong_profile
+        .require_resources(
+            &wrong_plan,
+            FAER_PROVIDER,
+            ScalarDomain::Real,
+            ScalarType::F64,
+        )
+        .unwrap_err();
+    assert_eq!(manual.message(), "policy.fixed-factor-provider-mismatch");
+    let ranked = SolverSelection::resolve_available::<f64>(
+        wrong_profile,
+        SolverPlanningObjective::Fast,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(8).unwrap(),
+        std::slice::from_ref(&availability),
+    )
+    .unwrap_err();
+    assert!(
+        ranked
+            .message()
+            .contains("policy.fixed-factor-provider-mismatch")
     );
     let bound = structure
         .with_coordinates(

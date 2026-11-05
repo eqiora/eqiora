@@ -26,6 +26,9 @@ pub(super) fn prepare<S: SparseLuScalar + 'static>(
     if (!direct && !block) || plan.reduction() != eqiora_solver::ReductionPolicy::Fast {
         return Ok(None);
     }
+    if let eqiora_solver::PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner() {
+        crate::block_schur::require_factor_choices(config)?;
+    }
     crate::FaerLinearSolver.capabilities().require_problem(
         &plan,
         S::DOMAIN,
