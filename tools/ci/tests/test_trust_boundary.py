@@ -1381,6 +1381,8 @@ class LargeOrdinaryTreeTests(unittest.TestCase):
                         api.base_leaves[0]["path"] = protected
                     if operation not in ("delete", "rename-out"):
                         api.head_leaves[0]["path"] = protected
+                    if operation in ("rename-in", "rename-out"):
+                        api.head_leaves[0]["sha"] = api.base_leaves[0]["sha"]
                     if operation == "delete":
                         api.head_leaves.pop(0)
                     if operation == "mode":
@@ -1573,6 +1575,20 @@ class LargeOrdinaryTreeTests(unittest.TestCase):
         api = LargeFakeGitHub(3001)
         self.assert_closed(api)
         self.assertEqual(api.compare_reads, 0)
+
+    def test_tree_path_limits_accept_the_exact_boundary(self) -> None:
+        for path in ("a" * 4096, "é" * 2048, "/".join(["d"] * 127 + ["leaf"])):
+            with self.subTest(path_length=len(path)):
+                api = LargeFakeGitHub(300)
+                api.head_leaves[0]["path"] = path
+                api.refresh_trees()
+                self.assert_safe(api)
+        for path in ("a" * 4097, "é" * 2049, "/".join(["d"] * 128 + ["leaf"])):
+            with self.subTest(path_length=len(path)):
+                api = LargeFakeGitHub(300)
+                api.head_leaves[0]["path"] = path
+                api.refresh_trees()
+                self.assertIn("invalid relative path", self.assert_closed(api))
 
     def test_large_snapshot_with_no_changed_leaves_fails_closed(self) -> None:
         api = LargeFakeGitHub()
