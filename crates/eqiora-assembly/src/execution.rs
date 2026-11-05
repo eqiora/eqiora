@@ -98,6 +98,7 @@ impl AssemblyTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyPlan {
     targets: Vec<AssemblyTarget>,
+    algebraic_structures: Vec<Option<eqiora_solver::AlgebraicStructure>>,
     prepared: Option<Arc<PreparedAssemblyStructure>>,
 }
 
@@ -171,9 +172,47 @@ impl AssemblyPlan {
             ));
         }
         Ok(Self {
+            algebraic_structures: vec![None; targets.len()],
             targets,
             prepared: None,
         })
+    }
+
+    /// Bind method-authenticated reduced ownership to one exact output target.
+    /// The canonical flat projection keeps all semantic blocks in one solver group.
+    ///
+    /// # Errors
+    /// Rejects an absent target, unestablished/mismatched coordinates or rebinding
+    /// after structure preparation.
+    pub fn with_algebraic_structure(
+        mut self,
+        target: AssemblyTargetId,
+        structure: eqiora_solver::AlgebraicStructure,
+    ) -> Result<Self, Diagnostic> {
+        if self.prepared.is_some()
+            || self
+                .targets
+                .get(target.index())
+                .is_none_or(|shape| structure.coordinate_count() != Some(shape.size))
+            || self.algebraic_structures[target.index()].is_some()
+        {
+            return Err(assembly_failed(
+                "algebraic ownership must match one unprepared assembly target",
+            ));
+        }
+        self.algebraic_structures[target.index()] = Some(structure);
+        Ok(self)
+    }
+
+    /// Exact executable ownership for the requested target, when supplied by its method.
+    #[must_use]
+    pub fn algebraic_structure(
+        &self,
+        target: AssemblyTargetId,
+    ) -> Option<&eqiora_solver::AlgebraicStructure> {
+        self.algebraic_structures
+            .get(target.index())
+            .and_then(Option::as_ref)
     }
 
     /// Seal fixed packet maps and canonical CSR topology for repeated value assembly.
@@ -241,12 +280,23 @@ impl AssemblyPlan {
                 push_usize(&mut encoding, column)?;
             }
         }
+        let mut identity = PreparedLinearStructureIdentity::new(encoding)?;
+        for (index, structure) in self.algebraic_structures.iter().enumerate() {
+            if let Some(structure) = structure {
+                let mut target_encoding = identity.encoding().to_vec();
+                target_encoding.extend_from_slice(&(index as u64).to_be_bytes());
+                identity = structure.prepared_identity(
+                    &PreparedLinearStructureIdentity::new(target_encoding)?,
+                    &[structure.blocks().collect()],
+                )?;
+            }
+        }
         self.prepared = Some(Arc::new(PreparedAssemblyStructure {
             scalar: (S::DOMAIN, S::STORAGE),
             packets: packets.iter().map(PreparedPacketBinding::new).collect(),
             topologies,
             projections,
-            identity: PreparedLinearStructureIdentity::new(encoding)?,
+            identity,
         }));
         Ok(self)
     }

@@ -64,6 +64,32 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
         })
     }
 
+    fn algebraic_structure(&self) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        if !self.mapping.gauges.is_empty() {
+            return Err(invalid("real-coordinate gauge ownership is not admitted"));
+        }
+        let structure = self.mapping.algebraic_structure()?;
+        let membership = structure
+            .blocks()
+            .map(|block| {
+                let eqiora_solver::AlgebraicBlock::Field(field) = block else {
+                    return Err(invalid(
+                        "real-coordinate multiplier ownership is not admitted",
+                    ));
+                };
+                let values = self
+                    .mapping
+                    .keys()
+                    .filter(|key| key.field == field.erase())
+                    .flat_map(|key| self.global_coordinates(key))
+                    .filter_map(|global| self.constraints.free_index(global).map(DofId::index))
+                    .collect::<BTreeSet<_>>();
+                Ok((block, values.into_iter().collect()))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        structure.with_coordinates(self.free_count(), membership)
+    }
+
     pub(crate) fn full_count(&self) -> usize {
         self.ranges.last().map_or(0, |range| range.end)
     }
@@ -327,6 +353,10 @@ impl<'a, S: Coefficient + Send + Sync> RegionRealCoordinates<'a, S> {
             AssemblyTarget::new(self.constraints.free_count())?,
             AssemblyTarget::new(self.ranges.last().expect("nonempty mapped Fields").end)?,
         ])?;
+        let target = plan
+            .target_id(0)
+            .ok_or_else(|| invalid("missing reduced target"))?;
+        let plan = plan.with_algebraic_structure(target, self.algebraic_structure()?)?;
         let forms = input
             .forms
             .iter()

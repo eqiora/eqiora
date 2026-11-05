@@ -16,14 +16,7 @@ spec.loader.exec_module(example)
 
 
 def check_heat(model, result, heating=1):
-    form, = model.authored_formulations
-    trial_id, = form.trial_field_ids
-    (_, restriction_trial_id, zero_on, dimension, regularity), = form.test_restrictions
-    assert regularity == "h1"
-    assert len(dimension) == 7 and all(numerator == 0 and denominator == 1 for numerator, denominator in dimension)
-    assert restriction_trial_id == trial_id
-    assert len(zero_on) == len(set(zero_on)) == 4
-    field = model.field(trial_id)
+    field = model.field("definition.temperature")
     temperatures = np.sort(result.output(field).values("vertex").numpy().reshape(-1))
     assert temperatures.shape == (9,)
     # Four h=1/2 Q1 squares: each central-hat stiffness contribution is 2/3.
@@ -45,7 +38,8 @@ def test_steady_heated_body_package_runs_and_moves_offline(tmp_path):
     model = eqiora.compile_package(store, lock, entry="HeatedBody",
                                   geometry=geometry, bindings=bindings)
     plan = example.resolve(model, geometry)
-    assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
+    assert plan.formulation.requested == eqiora.FormulationSelectionMode.Automatic
+    assert not model.authored_formulations
     result = eqiora.run(plan)
     check_heat(model, result)
     restored = eqiora.Plan.from_bytes(plan.to_bytes())
@@ -54,10 +48,13 @@ def test_steady_heated_body_package_runs_and_moves_offline(tmp_path):
     assert eqiora.Result.from_bytes(restored, result.to_bytes()).to_bytes() == result.to_bytes()
     direct = eqiora.compile(path=project / "src/main.eqi", entry="HeatedBody",
                             geometry=geometry, bindings=bindings)
-    check_heat(direct, eqiora.run(example.resolve(direct, geometry)))
+    direct_plan = example.resolve(direct, geometry)
+    assert direct_plan.formulation.requested == eqiora.FormulationSelectionMode.Automatic
+    assert not direct.authored_formulations
+    check_heat(direct, eqiora.run(direct_plan))
     assert direct.structural_fingerprint == model.structural_fingerprint
     assert model.package_compilation_digest is not None
-    assert direct.package_compilation_digest is None
+    assert direct.package_compilation_digest is not None
     vendor = project / "vendor"
     vendor.mkdir()
     assert eqiora.vendor_project(project, store, vendor) == lock
@@ -140,7 +137,7 @@ def test_transient_heat_storage_runs_and_replays_offline(tmp_path):
     direct = eqiora.compile(path=project / "src/main.eqi", entry="TransientHeatedBody",
                             geometry=geometry, bindings=bindings)
     assert direct.structural_fingerprint == model.structural_fingerprint
-    assert direct.package_compilation_digest is None
+    assert direct.package_compilation_digest is not None
     assert model.package_compilation_digest is not None
     direct_plan = transient_plan(direct, geometry)
     check_transient(direct, eqiora.run(direct_plan, state=eqiora.State.initial(direct_plan),
@@ -244,3 +241,20 @@ def test_reference_profile_times_solve_without_changing_q1_result():
                for phase in profiled.profile.phases)
     assert not any(phase.path.count("linear_solve") > 1
                    for phase in profiled.profile.phases)
+
+
+def test_handwritten_heated_body_retains_authored_form_and_balance():
+    geometry, bindings = example.geometry_and_bindings()
+    model = eqiora.compile(path=SPECIMEN / "handwritten.eqi", entry="HeatedBody",
+                           geometry=geometry, bindings=bindings)
+    form, = model.authored_formulations
+    trial_id, = form.trial_field_ids
+    (_, restriction_trial_id, zero_on, dimension, regularity), = form.test_restrictions
+    assert regularity == "h1"
+    assert len(dimension) == 7 and all(n == 0 and d == 1 for n, d in dimension)
+    assert restriction_trial_id == trial_id
+    assert len(zero_on) == len(set(zero_on)) == 4
+    plan = example.resolve(model, geometry)
+    assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
+    assert model.package_compilation_digest is None
+    check_heat(model, eqiora.run(plan))

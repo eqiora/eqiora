@@ -30,6 +30,42 @@ struct Fixture {
 }
 
 #[test]
+fn retained_fsi_velocity_quotient_unions_inside_one_solver_group() {
+    use eqiora_solver::AlgebraicBlock;
+    let fixture = fixture();
+    let ownership = fixture.layout.mapping().algebraic_structure().unwrap();
+    let blocks: Vec<_> = ownership.blocks().collect();
+    let pressure = AlgebraicBlock::Field(fixture.fields.fluid_pressure);
+    let velocities: Vec<_> = blocks
+        .iter()
+        .copied()
+        .filter(|block| *block != pressure)
+        .collect();
+    let groups = vec![velocities.clone(), vec![pressure]];
+    let partition = ownership.partition_coordinates(&groups).unwrap();
+    assert!(
+        partition[0]
+            .iter()
+            .all(|coordinate| !partition[1].contains(coordinate))
+    );
+    assert_eq!(
+        partition.iter().map(Vec::len).sum::<usize>(),
+        fixture.layout.reduced_size()
+    );
+    assert_eq!(velocities.len(), 2);
+    assert!(
+        ownership
+            .partition_coordinates(&blocks.iter().map(|block| vec![*block]).collect::<Vec<_>>())
+            .is_err()
+    );
+    let plan = fixture.layout.mapping().assembly_plan().unwrap();
+    assert_eq!(
+        plan.algebraic_structure(plan.target_id(0).unwrap()),
+        Some(&ownership)
+    );
+}
+
+#[test]
 fn exact_partition_requires_complete_domains_and_quotient() {
     let fixture = fixture();
     let fluid = fixture

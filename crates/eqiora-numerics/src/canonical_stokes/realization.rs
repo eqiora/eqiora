@@ -310,7 +310,9 @@ where
         realization_graph.systems()[0].partition(),
         resolved.plan().target(),
     )?;
-    let inner = inner.with_block_system(&block_system)?;
+    let inner = inner
+        .with_block_system(&block_system)?
+        .with_algebraic_fields(velocity_id(model), pressure_id(model))?;
     let finalized = FinalizedSteadyStokesMini2dProblem::new(
         inner,
         physical_mesh.clone(),

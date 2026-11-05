@@ -42,7 +42,7 @@
 | Algebraic multigrid | ⬜ | ⬜ | ⬜ | ⬜ | Coarsening, smoothers, near-nullspace, and GPU/distributed paths are not implemented. The entry gate remains closed. |
 | Geometric multigrid | ⬜ | ⬜ | ⬜ | ⬜ | Mesh hierarchy, transfer, rediscretization, and adaptivity remain |
 | Domain decomposition | ⬜ | ⬜ | ⬜ | ⬜ | Schwarz, coarse spaces, and distributed evidence remain |
-| Field-split preconditioning | ⬜ | ⬜ | ⬜ | ⬜ | Mixed block systems and Schur complements remain |
+| Field-split preconditioning | ⬜ | ⬜ | ⬜ | ⬜ | Reduced Field and gauge membership is retained by finalized steady MINI and regional assembly, including quotient sharing and prepared identity binding. Explicit groups reject cross-group sharing; no block or Schur solver executes yet. |
 | Independent true-residual acceptance | ✅ | ✅ | ✅ | ⬜ | Host, MPI and CUDA solves are accepted only by an independent true-residual check whose real/complex norm is scaled to stay finite at tiny and huge magnitudes; the same norm serves solver, derivative, Newton and Stokes checks with bit-identical serial and threaded reductions. Not yet: scale-safe Krylov recurrences, device range coverage. |
 | Nonlinear residual contract | ✅ | ✅ | ✅ | ⬜ | Canonical relation and reference implicit steps |
 | Reference Newton solve | ✅ | ✅ | ✅ | ⬜ | Dense finite-difference/analytic bounded paths; not production scale |

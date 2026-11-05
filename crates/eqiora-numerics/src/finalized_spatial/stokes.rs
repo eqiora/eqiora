@@ -39,6 +39,23 @@ impl FinalizedSimplicialMiniStokes2dProblem {
         })
     }
 
+    pub(crate) fn with_algebraic_fields(
+        mut self,
+        velocity: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        pressure: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<Self, Diagnostic> {
+        self.core = self
+            .core
+            .with_algebraic_structure(self.state.algebraic_structure(velocity, pressure)?)?;
+        Ok(self)
+    }
+
+    /// Exact method-owned reduced Field and multiplier coordinates, when bound.
+    #[must_use]
+    pub fn algebraic_structure(&self) -> Option<&eqiora_solver::AlgebraicStructure> {
+        self.core.algebraic_structure()
+    }
+
     pub(crate) fn with_block_system(
         mut self,
         block_system: &DiscreteBlockSystem,

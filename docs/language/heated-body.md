@@ -1,9 +1,11 @@
 # Example: steady and transient heated bodies
 
 The [heated-body package](../../examples/heated-body/README.md) runs from the installed Python
-package. Its [source](../../examples/heated-body/src/main.eqi) defines steady heat conduction on
-a unit-square cross-section held at 300 K on all four sides, with a weak form whose test
-functions vanish on that boundary. The [Python runner](../../examples/heated-body/run.py)
+development build. Its [source](../../examples/heated-body/src/main.eqi) imports
+`SteadyHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.2.0` for a
+unit-square cross-section held at 300 K. The [hand-written alternative](../../examples/heated-body/handwritten.eqi)
+retains the same physical law and an explicit weak form whose tests vanish on the boundary.
+The [Python runner](../../examples/heated-body/run.py)
 supplies the geometry and chooses Q1 elements and a solver.
 
 On a mesh of four Q1 cells, a hand calculation gives 300 K at the eight boundary nodes and
@@ -24,4 +26,4 @@ every step, restarting, replay, and running the moved project offline.
 
 The transient model is assembled from the compiled region equations; there is no separately
 written transient weak form to compare against. Variable capacities, material interfaces,
-three-dimensional heat conduction, and a standard thermal package are not covered here.
+three-dimensional heat conduction, and bundled transient thermal components are not covered here.
