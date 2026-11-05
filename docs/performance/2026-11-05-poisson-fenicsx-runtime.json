@@ -17929,5 +17929,10 @@
   "public_projection": {
     "normalization": "Only environment filesystem prefixes, hostname labels and process-management identifiers are normalized or omitted. Scientific observations, timing/memory samples, versions and content hashes are unchanged. Per-report SHA-256 values identify the original private raw reports before normalization.",
     "original_combined_receipt_sha256": "7b0dab00c9122637bb4c1d53f3d5af0fb25d97673e5e6136daab3f7b2b7ae512"
+  },
+  "build_profile_provenance": {
+    "transferred_original_sha256": "302b5d54d0c96a8fb489579c4cffbbe34e68e4abc682801702ef7120d13684fa",
+    "corrected_original_sha256": "c421d097a62525a6d3f6864e568560a9ce3470f38e25759a22394b628aec9a7a",
+    "metadata_only_correction": "The transferred receipt still said the actual toolchain was pending in candidate_toolchain_selection; its actual_build_tools already recorded Rust/Cargo 1.89.0. The corrected receipt replaces only that stale description. Build settings, tools, source and wheel hashes are unchanged. The public build_profile uses this corrected receipt with the declared path/management normalization."
   }
 }
