@@ -249,7 +249,15 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             VectorLayoutKind::Replicated,
             Target::HostCpu { threads: workers },
             canonical,
-        );
+        )
+        .with_algebraic_structure(
+            plan.algebraic_structure(
+                plan.target_id(0)
+                    .ok_or_else(|| invalid("missing reduced target"))?,
+            )
+            .ok_or_else(|| invalid("missing reduced ownership"))?
+            .clone(),
+        )?;
         let full_system = systems.pop().expect("full assembly target");
         Ok((core, assembly_report, full_system))
     }

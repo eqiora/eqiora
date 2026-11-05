@@ -34,11 +34,16 @@ pub enum AlgebraicBlock {
 }
 
 /// Exact unknown Fields and explicitly realized gauges for a canonical projection.
-/// This retains semantic blocks; it does not infer DOF ranges from matrix entries.
+/// Before discrete realization this retains only the exact semantic inventory.
+/// `coordinates() == None` means executable membership is unestablished; it is
+/// never interpreted as an empty partition or an inferred single block.
+/// Methods bind reduced coordinates from their retained elimination/quotient map.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraicStructure {
     fields: Vec<Id<kinds::Field>>,
     constraints: Vec<AlgebraicConstraint>,
+    coordinates: Option<Vec<(AlgebraicBlock, Vec<usize>)>>,
+    coordinate_count: usize,
 }
 
 impl AlgebraicStructure {
@@ -69,7 +74,159 @@ impl AlgebraicStructure {
         Ok(Self {
             fields,
             constraints,
+            coordinates: None,
+            coordinate_count: 0,
         })
+    }
+
+    /// Retain exact method-owned reduced membership, including quotient sharing.
+    ///
+    /// # Errors
+    /// Rejects missing/repeated blocks, omitted/foreign/repeated coordinates,
+    /// and multiplier coordinates shared with another block.
+    pub fn with_coordinates(
+        mut self,
+        count: usize,
+        membership: Vec<(AlgebraicBlock, Vec<usize>)>,
+    ) -> Result<Self, eqiora_core::Diagnostic> {
+        let blocks: Vec<_> = self.blocks().collect();
+        if membership.len() != blocks.len() {
+            return Err(invalid_coordinates());
+        }
+        let mut covered = std::collections::BTreeSet::new();
+        let mut ordered = Vec::new();
+        for block in blocks {
+            let matches: Vec<_> = membership
+                .iter()
+                .filter(|(owner, _)| *owner == block)
+                .collect();
+            if matches.len() != 1 {
+                return Err(invalid_coordinates());
+            }
+            let values = &matches[0].1;
+            if matches!(block, AlgebraicBlock::ConstraintMultiplier { .. }) && values.len() != 1 {
+                return Err(invalid_coordinates());
+            }
+            let mut seen = std::collections::BTreeSet::new();
+            for &coordinate in values {
+                if coordinate >= count || !seen.insert(coordinate) {
+                    return Err(invalid_coordinates());
+                }
+                covered.insert(coordinate);
+            }
+            ordered.push((block, values.clone()));
+        }
+        if covered.len() != count {
+            return Err(invalid_coordinates());
+        }
+        for (block, values) in &ordered {
+            if matches!(block, AlgebraicBlock::ConstraintMultiplier { .. })
+                && ordered.iter().any(|(other, other_values)| {
+                    other != block && other_values.contains(&values[0])
+                })
+            {
+                return Err(invalid_coordinates());
+            }
+        }
+        self.coordinates = Some(ordered);
+        self.coordinate_count = count;
+        Ok(self)
+    }
+
+    /// Number of reduced coordinates, when the method has established ownership.
+    #[must_use]
+    pub fn coordinate_count(&self) -> Option<usize> {
+        self.coordinates.as_ref().map(|_| self.coordinate_count)
+    }
+
+    /// Exact reduced membership; absent before binding the method's discrete layout.
+    #[must_use]
+    pub fn coordinates(&self) -> Option<&[(AlgebraicBlock, Vec<usize>)]> {
+        self.coordinates.as_deref()
+    }
+
+    /// Union physical blocks within explicit disjoint solver groups.
+    ///
+    /// # Errors
+    /// Rejects absent ownership, missing/repeated/foreign blocks and cross-group sharing.
+    pub fn partition_coordinates(
+        &self,
+        groups: &[Vec<AlgebraicBlock>],
+    ) -> Result<Vec<Vec<usize>>, eqiora_core::Diagnostic> {
+        let coordinates = self.coordinates.as_ref().ok_or_else(invalid_coordinates)?;
+        let mut blocks = Vec::new();
+        let mut owners = vec![None; self.coordinate_count];
+        let mut result = Vec::new();
+        for (group_index, group) in groups.iter().enumerate() {
+            if group.is_empty() {
+                return Err(invalid_coordinates());
+            }
+            let mut union = std::collections::BTreeSet::new();
+            for block in group {
+                if blocks.contains(block) {
+                    return Err(invalid_coordinates());
+                }
+                blocks.push(*block);
+                let (_, values) = coordinates
+                    .iter()
+                    .find(|(owner, _)| owner == block)
+                    .ok_or_else(invalid_coordinates)?;
+                for &coordinate in values {
+                    if owners[coordinate].is_some_and(|owner| owner != group_index) {
+                        return Err(invalid_coordinates());
+                    }
+                    owners[coordinate] = Some(group_index);
+                    union.insert(coordinate);
+                }
+            }
+            result.push(union.into_iter().collect());
+        }
+        if blocks.len() != coordinates.len() || owners.iter().any(Option::is_none) {
+            return Err(invalid_coordinates());
+        }
+        Ok(result)
+    }
+
+    /// Bind exact reduced membership and ordering into the existing prepared identity.
+    ///
+    /// # Errors
+    /// Rejects unbound inventory-only structure.
+    pub fn prepared_identity(
+        &self,
+        base: &crate::PreparedLinearStructureIdentity,
+        groups: &[Vec<AlgebraicBlock>],
+    ) -> Result<crate::PreparedLinearStructureIdentity, eqiora_core::Diagnostic> {
+        let coordinates = self.coordinates.as_ref().ok_or_else(invalid_coordinates)?;
+        let mut encoding = b"eqiora.algebraic-coordinate-ownership/v1\0".to_vec();
+        encoding.extend_from_slice(&(base.encoding().len() as u64).to_be_bytes());
+        encoding.extend_from_slice(base.encoding());
+        encoding.extend_from_slice(&(self.coordinate_count as u64).to_be_bytes());
+        encoding.extend_from_slice(&(coordinates.len() as u64).to_be_bytes());
+        for (block, values) in coordinates {
+            let (tag, field) = match block {
+                AlgebraicBlock::Field(field) => (0, field),
+                AlgebraicBlock::ConstraintMultiplier { field } => (1, field),
+            };
+            encoding.push(tag);
+            encoding.extend_from_slice(&field.ulid().to_bytes());
+            encoding.extend_from_slice(&(values.len() as u64).to_be_bytes());
+            for &coordinate in values {
+                encoding.extend_from_slice(&(coordinate as u64).to_be_bytes());
+            }
+        }
+        self.partition_coordinates(groups)?;
+        encoding.extend_from_slice(&(groups.len() as u64).to_be_bytes());
+        for group in groups {
+            encoding.extend_from_slice(&(group.len() as u64).to_be_bytes());
+            for block in group {
+                let position = coordinates
+                    .iter()
+                    .position(|(owner, _)| owner == block)
+                    .ok_or_else(invalid_coordinates)?;
+                encoding.extend_from_slice(&(position as u64).to_be_bytes());
+            }
+        }
+        crate::PreparedLinearStructureIdentity::new(encoding)
     }
 
     /// Exact Field and gauge-multiplier blocks of the canonical projection.
@@ -94,10 +251,156 @@ impl AlgebraicStructure {
     }
 }
 
+fn invalid_coordinates() -> eqiora_core::Diagnostic {
+    eqiora_core::Diagnostic::error(
+        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+        "algebraic coordinates require complete exact ownership and disjoint solver groups",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{LinearOperatorProperties, SolverPlanningProfile};
+
+    #[test]
+    fn foreign_huge_coordinate_count_returns_a_diagnostic_before_allocation() {
+        let field = Id::new();
+        assert!(
+            AlgebraicStructure::new([field], [])
+                .unwrap()
+                .with_coordinates(usize::MAX, vec![(AlgebraicBlock::Field(field), vec![])])
+                .is_err()
+        );
+        assert!(
+            AlgebraicStructure::new([field], [])
+                .unwrap()
+                .with_coordinates(
+                    usize::MAX,
+                    vec![(AlgebraicBlock::Field(field), vec![usize::MAX - 1])]
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_fully_essential_field_retains_empty_membership() {
+        let a = Id::new();
+        let b = Id::new();
+        let structure = AlgebraicStructure::new([a, b], [])
+            .unwrap()
+            .with_coordinates(
+                1,
+                vec![
+                    (AlgebraicBlock::Field(a), vec![]),
+                    (AlgebraicBlock::Field(b), vec![0]),
+                ],
+            )
+            .unwrap();
+        assert_eq!(
+            structure
+                .partition_coordinates(&[
+                    vec![AlgebraicBlock::Field(a)],
+                    vec![AlgebraicBlock::Field(b)]
+                ])
+                .unwrap(),
+            vec![vec![], vec![0]]
+        );
+    }
+
+    #[test]
+    fn quotient_membership_is_unioned_only_inside_explicit_solver_groups() {
+        let a = Id::new();
+        let b = Id::new();
+        let p = Id::new();
+        let (a_block, b_block, p_block, gauge) = (
+            AlgebraicBlock::Field(a),
+            AlgebraicBlock::Field(b),
+            AlgebraicBlock::Field(p),
+            AlgebraicBlock::ConstraintMultiplier { field: p },
+        );
+        let inventory =
+            AlgebraicStructure::new([a, b, p], [AlgebraicConstraint::ZeroIntegral { field: p }])
+                .unwrap();
+        let membership = vec![
+            (a_block, vec![2, 0]),
+            (b_block, vec![0, 3]),
+            (p_block, vec![1]),
+            (gauge, vec![4]),
+        ];
+        let structure = inventory
+            .clone()
+            .with_coordinates(5, membership.clone())
+            .unwrap();
+        let mut reordered = membership.clone();
+        reordered.reverse();
+        assert_eq!(
+            structure,
+            inventory.clone().with_coordinates(5, reordered).unwrap()
+        );
+        let groups = vec![vec![a_block, b_block], vec![p_block, gauge]];
+        assert_eq!(
+            structure.partition_coordinates(&groups).unwrap(),
+            vec![vec![0, 2, 3], vec![1, 4]]
+        );
+        assert!(
+            structure
+                .partition_coordinates(&[vec![a_block], vec![b_block, p_block, gauge]])
+                .is_err()
+        );
+        assert!(
+            structure
+                .partition_coordinates(&[vec![a_block, b_block], vec![p_block]])
+                .is_err()
+        );
+        assert!(
+            structure
+                .partition_coordinates(&[vec![a_block, b_block], vec![p_block, gauge, gauge]])
+                .is_err()
+        );
+        let base = crate::PreparedLinearStructureIdentity::new(&b"retained layout"[..]).unwrap();
+        assert!(inventory.prepared_identity(&base, &groups).is_err());
+        let identity = structure.prepared_identity(&base, &groups).unwrap();
+        let reversed = vec![groups[1].clone(), groups[0].clone()];
+        assert_ne!(
+            identity,
+            structure.prepared_identity(&base, &reversed).unwrap()
+        );
+        let mut permutation = membership.clone();
+        permutation[0].1.reverse();
+        assert_ne!(
+            identity,
+            inventory
+                .clone()
+                .with_coordinates(5, permutation)
+                .unwrap()
+                .prepared_identity(&base, &groups)
+                .unwrap()
+        );
+        for (owner, values) in [
+            (a_block, vec![2, 2]),
+            (b_block, vec![0, 5]),
+            (gauge, vec![]),
+            (gauge, vec![0]),
+            (p_block, vec![]),
+        ] {
+            let mutated = membership
+                .iter()
+                .map(|(block, original)| {
+                    (
+                        *block,
+                        if *block == owner {
+                            values.clone()
+                        } else {
+                            original.clone()
+                        },
+                    )
+                })
+                .collect();
+            assert!(inventory.clone().with_coordinates(5, mutated).is_err());
+        }
+        assert!(inventory.with_coordinates(6, membership).is_err());
+    }
 
     #[test]
     fn exact_fields_and_gauges_are_complete_before_candidate_admission() {

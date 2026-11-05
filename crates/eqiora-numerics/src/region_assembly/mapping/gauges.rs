@@ -3,6 +3,58 @@ use super::*;
 use eqiora_solver::AlgebraicConstraint;
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
+    /// Retain reduced ownership from the exact constrained quotient map.
+    pub(crate) fn algebraic_structure(
+        &self,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        use eqiora_solver::{AlgebraicBlock, AlgebraicStructure};
+        let fields = self
+            .fields
+            .keys()
+            .map(|field| {
+                field
+                    .downcast::<eqiora_core::entity::kinds::Field>()
+                    .ok_or_else(|| invalid("mapped owner is not a Field"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let constraints = self
+            .gauges
+            .keys()
+            .map(|field| {
+                field
+                    .downcast::<eqiora_core::entity::kinds::Field>()
+                    .map(|field| AlgebraicConstraint::ZeroIntegral { field })
+                    .ok_or_else(|| invalid("gauge owner is not a Field"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut membership = Vec::new();
+        for &field in &fields {
+            let coordinates = self
+                .globals
+                .iter()
+                .filter(|(key, _)| key.field == field.erase())
+                .filter_map(|(_, global)| self.constraints.free_index(*global).map(DofId::index))
+                .collect::<BTreeSet<_>>();
+            membership.push((
+                AlgebraicBlock::Field(field),
+                coordinates.into_iter().collect(),
+            ));
+        }
+        for &constraint in &constraints {
+            let coordinate = self
+                .constraint_free_dof(constraint)
+                .ok_or_else(|| invalid("gauge multiplier is not free"))?;
+            membership.push((
+                AlgebraicBlock::ConstraintMultiplier {
+                    field: constraint.field(),
+                },
+                vec![coordinate.index()],
+            ));
+        }
+        AlgebraicStructure::new(fields, constraints)?
+            .with_coordinates(self.free_count(), membership)
+    }
+
     pub(crate) fn with_algebraic_constraints(
         mut self,
         constraints: &[AlgebraicConstraint],

@@ -45,6 +45,12 @@ impl FinalizedSteadyStokesMini2dProblem {
         }
     }
 
+    /// Exact reduced Field and gauge ownership retained by the mixed layout.
+    #[must_use]
+    pub fn algebraic_structure(&self) -> Option<&eqiora_solver::AlgebraicStructure> {
+        self.inner.algebraic_structure()
+    }
+
     /// Mathematical property preserved by the symmetric congruence.
     #[must_use]
     pub fn operator_properties(&self) -> LinearOperatorProperties {

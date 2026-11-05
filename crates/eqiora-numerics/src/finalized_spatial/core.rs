@@ -26,6 +26,7 @@ pub(crate) struct FinalizedLinearCore<S> {
     target: Target,
     canonical_system: Arc<CanonicalCsrSystemView<S>>,
     block_materialization: Option<BlockMaterialization>,
+    algebraic_structure: Option<eqiora_solver::AlgebraicStructure>,
 }
 
 impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
@@ -41,7 +42,27 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> FinalizedLinearCore<S> {
             target,
             canonical_system,
             block_materialization: None,
+            algebraic_structure: None,
         }
+    }
+
+    pub(crate) fn with_algebraic_structure(
+        mut self,
+        structure: eqiora_solver::AlgebraicStructure,
+    ) -> Result<Self, Diagnostic> {
+        if structure.coordinate_count() != Some(self.canonical_system.rows())
+            || self.algebraic_structure.is_some()
+        {
+            return Err(invalid_realization(
+                "finalized ownership differs from the original operator coordinates",
+            ));
+        }
+        self.algebraic_structure = Some(structure);
+        Ok(self)
+    }
+
+    pub(crate) fn algebraic_structure(&self) -> Option<&eqiora_solver::AlgebraicStructure> {
+        self.algebraic_structure.as_ref()
     }
 
     pub(super) fn operator_properties(&self) -> LinearOperatorProperties {
