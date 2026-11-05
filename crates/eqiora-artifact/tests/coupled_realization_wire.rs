@@ -51,7 +51,7 @@ fn coupled_round_trips_inventory_step_and_run_binding() {
     }
     let text = String::from_utf8(bytes).unwrap();
     for role in [
-        "eqiora.realization-envelope/v11",
+        "eqiora.realization-envelope/v12",
         "conforming-trace-quotient",
         "backward-euler-elimination",
         "symmetric-indefinite",

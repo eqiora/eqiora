@@ -151,8 +151,8 @@ impl P1HarmonicMeshMotionPolicy {
 
     /// Linear solver used solely for harmonic extension.
     #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
+    pub const fn solver(&self) -> &SolverPlan {
+        &self.solver
     }
 }
 
@@ -621,7 +621,7 @@ pub fn resolve_fixed_topology_ale_coupled(
     capabilities.supports_additional_linear_solver(
         requirements.coupled.execution(),
         &plan.coupled,
-        motion.solver,
+        &motion.solver,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     Ok(ResolvedFixedTopologyAleCoupledRealization {

@@ -103,7 +103,7 @@ impl ResolvedCommonPlan {
             );
         // The existing selector remains the sole exact/manual admission and ranking owner.
         let mut linear = solver_planning::resolve_typed_linear(
-            request.with_cost(cost),
+            request.clone().with_cost(cost),
             input.operator_properties,
             profile,
             &REFERENCE_LINEAR_SOLVER,
@@ -135,7 +135,7 @@ impl ResolvedCommonPlan {
         push_framed(&mut identity, planned.identity().as_bytes());
         push_framed(
             &mut identity,
-            &plan_artifact::linear_request_bytes(request)?,
+            &plan_artifact::linear_request_bytes(request.clone())?,
         );
         let encoded = serde_json::to_vec(&wire)
             .map_err(|error| invalid(format!("cannot encode Run planning context: {error}")))?;

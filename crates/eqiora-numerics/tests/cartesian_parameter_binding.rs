@@ -182,10 +182,16 @@ fn accepted_point_keeps_equal_primal_systems_with_different_derivatives_distinct
     );
 
     let positive_solution = REFERENCE_LINEAR_SOLVER
-        .solve(&positive.linear_problem().unwrap(), positive.solver_plan())
+        .solve(
+            &positive.linear_problem().unwrap(),
+            positive.solver_plan().clone(),
+        )
         .unwrap();
     let negative_solution = REFERENCE_LINEAR_SOLVER
-        .solve(&negative.linear_problem().unwrap(), negative.solver_plan())
+        .solve(
+            &negative.linear_problem().unwrap(),
+            negative.solver_plan().clone(),
+        )
         .unwrap();
     let positive = positive.finish(positive_solution).unwrap();
     let negative = negative.finish(negative_solution).unwrap();
@@ -278,7 +284,7 @@ fn affine_coordinate_coefficient_uses_the_existing_fem_and_fvm_finalizers() {
         let solved = REFERENCE_LINEAR_SOLVER
             .solve(
                 &finalized.linear_problem().unwrap(),
-                finalized.solver_plan(),
+                finalized.solver_plan().clone(),
             )
             .unwrap();
         let accepted = finalized.finish(solved).unwrap();
@@ -375,7 +381,7 @@ fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
         let solved = REFERENCE_LINEAR_SOLVER
             .solve(
                 &finalized.linear_problem().unwrap(),
-                finalized.solver_plan(),
+                finalized.solver_plan().clone(),
             )
             .unwrap();
         let accepted = finalized.finish(solved).unwrap();

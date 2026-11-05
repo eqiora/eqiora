@@ -18,7 +18,7 @@ pub use cost::{SolverCandidateCost, SolverCostRequest, SolverPlanningSize};
 use selection::SolverProviderAvailability;
 pub use selection::SolverSelection;
 
-const POLICY_ID: &str = "eqiora.solver-planning/v11";
+const POLICY_ID: &str = "eqiora.solver-planning/v12";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
@@ -105,6 +105,9 @@ const REFERENCE_HERMITIAN_MINRES_JACOBI_ID: &str =
     "eqiora.reference.minres-hermitian-jacobi-reproducible-complex-f64";
 const REFERENCE_HPD_MINRES_JACOBI_ID: &str =
     "eqiora.reference.minres-hpd-jacobi-reproducible-complex-f64";
+const FAER_SCHUR_GENERAL_ID: &str = "eqiora.faer.bicgstab-general-upper-diagonal-schur-fast-f64";
+const FAER_SCHUR_INDEFINITE_ID: &str =
+    "eqiora.faer.bicgstab-indefinite-upper-diagonal-schur-fast-f64";
 const PLANNING_EVIDENCE: &str = "numerics.host-serial-solver-planning";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
@@ -146,6 +149,7 @@ pub struct SolverPlanningProfile {
     execution: crate::ExecutionReport,
     required_reduction: Option<ReductionPolicy>,
     structure: Option<crate::AlgebraicStructure>,
+    requested_preconditioner: Option<PreconditionerPolicy>,
     size: Option<SolverPlanningSize>,
     cost_request: Option<SolverCostRequest>,
     run_forecast: Option<cost::RunForecast>,
@@ -194,6 +198,18 @@ impl SolverPlanningProfile {
             && self.execution == crate::ExecutionReport::host_serial()
     }
 
+    /// Retain explicit complete preconditioner intent for exact and ranked admission.
+    #[must_use]
+    pub fn with_preconditioner(mut self, policy: PreconditionerPolicy) -> Self {
+        self.requested_preconditioner = Some(policy);
+        self
+    }
+
+    /// Complete explicit policy, if the caller constrained preconditioning.
+    pub const fn requested_preconditioner(&self) -> Option<&PreconditionerPolicy> {
+        self.requested_preconditioner.as_ref()
+    }
+
     /// Add method-derived Run work and retained numeric payload forecasts.
     /// These assumptions never authorize reuse or bound process memory.
     #[must_use]
@@ -221,6 +237,7 @@ impl SolverPlanningProfile {
             execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
@@ -258,6 +275,7 @@ impl SolverPlanningProfile {
             execution: crate::ExecutionReport::host_serial(),
             required_reduction,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
@@ -296,7 +314,18 @@ impl SolverPlanningProfile {
         &self,
         structure: Option<&crate::AlgebraicStructure>,
     ) -> Result<(), Diagnostic> {
-        if self.structure.as_ref() != structure {
+        let same = self.structure.as_ref() == structure;
+        let realized_from_symbolic = matches!(
+            self.requested_preconditioner(),
+            Some(PreconditionerPolicy::UpperDiagonalSchur(_))
+        ) && self.structure.as_ref().zip(structure).is_some_and(
+            |(planned, actual)| {
+                planned.coordinate_count().is_none()
+                    && planned.blocks().eq(actual.blocks())
+                    && planned.constraints() == actual.constraints()
+            },
+        );
+        if !same && !realized_from_symbolic {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
                 "profile.algebraic-structure-mismatch",
@@ -311,7 +340,7 @@ impl SolverPlanningProfile {
     /// # Errors
     /// Returns `EQ0807` when Jacobi lacks a complete structural diagonal or the
     /// requested reduction differs from the execution requirement.
-    pub fn require_plan(&self, plan: SolverPlan) -> Result<(), Diagnostic> {
+    pub fn require_plan(&self, plan: &SolverPlan) -> Result<(), Diagnostic> {
         if let Some(reason) = self.plan_rejection(plan) {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
@@ -321,7 +350,32 @@ impl SolverPlanningProfile {
         Ok(())
     }
 
-    fn plan_rejection(&self, plan: SolverPlan) -> Option<&'static str> {
+    fn plan_rejection(&self, plan: &SolverPlan) -> Option<&'static str> {
+        if self
+            .requested_preconditioner
+            .as_ref()
+            .is_some_and(|policy| policy != plan.preconditioner())
+        {
+            return Some("profile.requested-preconditioner-mismatch");
+        }
+        if let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner() {
+            if self.requested_preconditioner.as_ref() != Some(plan.preconditioner()) {
+                return Some("profile.explicit-structured-policy-required");
+            }
+            let Some(structure) = &self.structure else {
+                return Some("profile.algebraic-structure-required");
+            };
+            let blocks: Vec<_> = structure.blocks().collect();
+            let requested: Vec<_> = config.groups().iter().flatten().copied().collect();
+            if blocks.len() != requested.len()
+                || blocks.iter().any(|block| !requested.contains(block))
+            {
+                return Some("profile.structured-groups-mismatch");
+            }
+            if plan.algorithm() != LinearSolver::BiConjugateGradientStabilized {
+                return Some("profile.structured-bicgstab-required");
+            }
+        }
         if self.cost_request.is_some_and(|cost| {
             [cost.identity_iterations(), cost.jacobi_iterations()]
                 .into_iter()
@@ -335,7 +389,7 @@ impl SolverPlanningProfile {
             .is_some_and(|required| plan.reduction() != required)
         {
             Some("profile.required-reduction-mismatch")
-        } else if plan.preconditioner() == PreconditionerPolicy::Jacobi
+        } else if plan.preconditioner() == &PreconditionerPolicy::Jacobi
             && self.facts.complete_diagonal != Some(true)
         {
             Some("profile.complete-diagonal-required")
@@ -365,12 +419,21 @@ impl SolverPlanningProfile {
         if claimed != actual {
             return Err(invalid_profile(claimed, actual));
         }
+        if let Some(PreconditionerPolicy::UpperDiagonalSchur(config)) =
+            &self.requested_preconditioner
+        {
+            let structure = problem
+                .algebraic_structure()
+                .ok_or_else(|| invalid_catalog("execution.algebraic-structure-required"))?;
+            self.require_structure(Some(structure))?;
+            structure.partition_coordinates(config.groups())?;
+        }
         Ok(())
     }
 }
 
 /// One untrusted member of the frozen host-serial solver catalog.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct SolverCandidate<'backend, S = f64> {
     id: &'static str,
     evidence_case: &'static str,
@@ -388,12 +451,17 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     SolverCandidate<'backend, S>
 {
     #[cfg(test)]
-    const fn new(
+    fn new(
         id: &'static str,
         evidence_case: &'static str,
         request: LinearSolveRequest<'backend, S>,
     ) -> Self {
-        Self::planned(id, evidence_case, request.plan(), Some(request.backend()))
+        Self::planned(
+            id,
+            evidence_case,
+            request.plan().clone(),
+            Some(request.backend()),
+        )
     }
 
     const fn planned(
@@ -413,60 +481,60 @@ impl<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         }
     }
 
-    fn provider(self) -> Option<SolverProvider> {
-        self.source.map(|source| match source {
+    fn provider(&self) -> Option<SolverProvider> {
+        self.source.as_ref().map(|source| match source {
             CandidateProvider::Host(backend) => backend.provider(),
             CandidateProvider::Declared(available) => available.provider,
         })
     }
 
-    fn execution_provider(self) -> Option<ExecutionProvider> {
-        self.source.map(|source| match source {
+    fn execution_provider(&self) -> Option<ExecutionProvider> {
+        self.source.as_ref().map(|source| match source {
             CandidateProvider::Host(backend) => backend.default_execution_provider(),
             CandidateProvider::Declared(available) => available.execution_provider,
         })
     }
 
-    fn execution(self) -> Option<crate::ExecutionReport> {
-        self.source.map(|source| match source {
+    fn execution(&self) -> Option<crate::ExecutionReport> {
+        self.source.as_ref().map(|source| match source {
             CandidateProvider::Host(backend) => backend.default_execution(),
             CandidateProvider::Declared(available) => available.execution,
         })
     }
 
-    fn capabilities(self) -> Option<crate::SolverCapabilities> {
-        self.source.map(|source| match source {
+    fn capabilities(&self) -> Option<crate::SolverCapabilities> {
+        self.source.as_ref().map(|source| match source {
             CandidateProvider::Host(backend) => backend.capabilities(),
             CandidateProvider::Declared(available) => available.capabilities.clone(),
         })
     }
 
-    const fn plan(self) -> SolverPlan {
-        self.plan
+    const fn plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Frozen catalog identity supplied by the caller.
     #[must_use]
-    const fn id(self) -> &'static str {
+    const fn id(&self) -> &'static str {
         self.id
     }
 
     /// Registered evidence identity supplied by the caller.
     #[must_use]
-    const fn evidence_case(self) -> &'static str {
+    const fn evidence_case(&self) -> &'static str {
         self.evidence_case
     }
 
     /// Exact backend and solver plan supplied by the caller.
     #[cfg(test)]
     #[must_use]
-    const fn request(self) -> LinearSolveRequest<'backend, S> {
+    fn request(&self) -> LinearSolveRequest<'backend, S> {
         LinearSolveRequest::new(
             match self.source {
                 Some(CandidateProvider::Host(backend)) => backend,
                 _ => panic!("host execution requires a bound host backend"),
             },
-            self.plan,
+            self.plan.clone(),
         )
     }
 }
@@ -498,8 +566,8 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
 
     /// Exact selected catalog member.
     #[must_use]
-    const fn selected(&self) -> SolverCandidate<'backend> {
-        self.selected
+    fn selected(&self) -> SolverCandidate<'backend> {
+        self.selected.clone()
     }
 
     /// Exact problem borrowed during resolution.
@@ -566,7 +634,7 @@ impl PlanningProfileFacts {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct CandidateEvaluation<'backend, S = f64> {
     candidate: SolverCandidate<'backend, S>,
     rejection: Option<&'static str>,
@@ -583,12 +651,19 @@ struct ResolvedCandidateSet<'backend, S = f64> {
 
 fn catalog_plan(
     algorithm: LinearSolver,
-    preconditioner: PreconditionerPolicy,
+    preconditioner: crate::PreconditionerKind,
     reduction: ReductionPolicy,
     relative_tolerance: f64,
     absolute_tolerance: f64,
     maximum_iterations: NonZeroUsize,
 ) -> Result<SolverPlan, Diagnostic> {
+    let preconditioner = match preconditioner {
+        crate::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
+        crate::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
+        crate::PreconditionerKind::UpperDiagonalSchur => {
+            return Err(invalid_catalog("catalog.structured-policy-required"));
+        }
+    };
     SolverPlan::new(
         algorithm,
         relative_tolerance,
@@ -599,6 +674,45 @@ fn catalog_plan(
         plan.with_preconditioner(preconditioner)
             .with_reduction(reduction)
     })
+}
+
+fn fixed_provider_rejection(plan: &SolverPlan, provider: SolverProvider) -> Option<&'static str> {
+    if let PreconditionerPolicy::UpperDiagonalSchur(config) = plan.preconditioner()
+        && [config.a_factorization(), config.schur_factorization()]
+            .iter()
+            .any(|choice| choice.provider() != provider.id().as_str())
+    {
+        return Some("policy.fixed-factor-provider-mismatch");
+    }
+    None
+}
+
+fn catalog_plan_for_profile(
+    profile: &SolverPlanningProfile,
+    expected: catalog::ExpectedCandidate,
+    relative: f64,
+    absolute: f64,
+    iterations: NonZeroUsize,
+) -> Result<SolverPlan, Diagnostic> {
+    if expected.preconditioner == crate::PreconditionerKind::UpperDiagonalSchur {
+        let policy = profile
+            .requested_preconditioner()
+            .filter(|policy| policy.kind() == expected.preconditioner)
+            .ok_or_else(|| invalid_catalog("catalog.structured-policy-required"))?;
+        return Ok(
+            SolverPlan::new(expected.algorithm, relative, absolute, iterations)?
+                .with_preconditioner(policy.clone())
+                .with_reduction(expected.reduction),
+        );
+    }
+    catalog_plan(
+        expected.algorithm,
+        expected.preconditioner,
+        expected.reduction,
+        relative,
+        absolute,
+        iterations,
+    )
 }
 
 /// Resolve one exact candidate from the host solver catalog.
@@ -620,6 +734,7 @@ fn resolve_solver_v11<'problem, 'backend>(
             execution: crate::ExecutionReport::host_serial(),
             required_reduction: None,
             structure: None,
+            requested_preconditioner: None,
             size: None,
             cost_request: None,
             run_forecast: None,
@@ -652,7 +767,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
     let evaluations = ordered
         .into_iter()
         .map(|candidate| {
-            let rejection = rejection_reason(&profile, candidate);
+            let rejection = rejection_reason(&profile, &candidate);
             let cost = rejection.is_none().then(|| {
                 profile.estimate_cost(
                     candidate.id(),
@@ -677,7 +792,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
     let mut admitted = evaluations
         .iter()
         .filter(|evaluation| evaluation.rejection.is_none())
-        .map(|evaluation| evaluation.candidate)
+        .map(|evaluation| &evaluation.candidate)
         .collect::<Vec<_>>();
     if admitted.is_empty() {
         let trace = evaluations
@@ -701,7 +816,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
             .and_then(|evaluation| evaluation.cost);
         cost::rank(objective, *candidate, profile.size, estimate)
     });
-    let selected = admitted[0];
+    let selected = admitted[0].clone();
     let solver_provider = selected
         .provider()
         .expect("selected candidate has an admitted provider");
@@ -713,7 +828,7 @@ fn resolve_candidates<'backend, S: Scalar + num_complex::ComplexFloat<Real = f64
             reasons.push((evaluation.candidate.id(), rejection));
         } else {
             reasons.push((evaluation.candidate.id(), "candidate.admitted"));
-            cost::append_reasons(&mut reasons, &profile, evaluation.candidate);
+            cost::append_reasons(&mut reasons, &profile, &evaluation.candidate);
             reasons.push((
                 evaluation.candidate.id(),
                 if evaluation.candidate.id() == selected_id {
@@ -798,7 +913,7 @@ fn has_complete_diagonal(rows: usize, row_offsets: &[usize], column_indices: &[u
 
 fn rank_key<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
-    candidate: SolverCandidate<'_, S>,
+    candidate: &SolverCandidate<'_, S>,
 ) -> (u8, u8, &'static str) {
     let plan = candidate.plan();
     match objective {

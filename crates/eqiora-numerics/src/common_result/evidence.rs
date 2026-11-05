@@ -199,7 +199,7 @@ impl CommonSolveEvidence {
             ),
             orientation: report.orientation(),
             algorithm: report.algorithm(),
-            preconditioner: report.preconditioner(),
+            preconditioner: report.preconditioner().clone(),
             reduction: report.reduction(),
             relative_tolerance: plan.relative_tolerance(),
             absolute_tolerance: plan.absolute_tolerance(),
@@ -228,8 +228,8 @@ impl CommonSolveEvidence {
     pub const fn algorithm(&self) -> LinearSolver {
         self.algorithm
     }
-    pub const fn preconditioner(&self) -> PreconditionerPolicy {
-        self.preconditioner
+    pub const fn preconditioner(&self) -> &PreconditionerPolicy {
+        &self.preconditioner
     }
     pub const fn reduction(&self) -> ReductionPolicy {
         self.reduction

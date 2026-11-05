@@ -90,7 +90,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
                 )
             })?;
         let core = FinalizedLinearCore::new(
-            linear_solve.plan(),
+            linear_solve.plan().clone(),
             system.partition(),
             target,
             inner.canonical_system_arc(),
@@ -133,7 +133,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
 
     /// Exact solver policy selected by the resolved Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.core.solver_plan()
     }
 
@@ -357,7 +357,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
                 )
             })?
             .plan();
-        let solved = backend.solve(&self.linear_system().linear_problem()?, plan)?;
+        let solved = backend.solve(&self.linear_system().linear_problem()?, plan.clone())?;
         self.finish(solved)
     }
 }
@@ -395,7 +395,7 @@ impl PreparedDistributedFixedReferenceFsiStep2d {
 
     /// Exact solver policy selected by the resolved Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.finalized.solver_plan()
     }
 

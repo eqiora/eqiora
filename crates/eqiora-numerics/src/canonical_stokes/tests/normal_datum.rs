@@ -312,3 +312,107 @@ fn complete_vector_datum_does_not_expand_transient_flow_admission() {
         "{error:?}"
     );
 }
+
+fn complete_vector_expression_source(parameters: &[(&str, &str)], residual: &str) -> String {
+    let declarations = parameters
+        .iter()
+        .map(|(name, value)| format!("parameter {name}:m/s={value};"))
+        .collect::<String>();
+    complete_vector_source(0.7)
+        .replace("parameter speed:m/s=0.7;", &declarations)
+        .replace(
+            "relation x_lower_zero on x_lower { trace(velocity)=speed*tensor_value(frame=fluid,components=[1,0]); }",
+            &format!("relation x_lower_zero on x_lower {{ {residual}; }}"),
+        )
+}
+
+fn grouped_complete_vector_value(values: [&str; 3], datum: &str) -> [f64; 2] {
+    let parameters = [("a", values[0]), ("b", values[1]), ("c", values[2])];
+    let source =
+        complete_vector_expression_source(&parameters, &format!("trace(velocity)={datum}"));
+    let (transaction, id, symbols) = compile("grouped-complete-datum.eqi", &source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), id).unwrap();
+    let model = lower_steady_incompressible_stokes_cartesian_2d(&program).unwrap();
+    let retained = model
+        .normal_velocity_parameters()
+        .flatten()
+        .copied()
+        .collect::<Vec<_>>();
+    // Keep each speed as a distinct dimensional Parameter, consumed by the
+    // retained datum, rather than an arithmetic literal folded by the compiler.
+    for (name, _) in parameters {
+        let parameter: Id<kinds::Parameter> = symbols.get(name).unwrap().downcast().unwrap();
+        assert!(
+            retained.contains(&parameter),
+            "datum omitted Parameter {name}"
+        );
+    }
+    model
+        .prescribed_velocity(
+            &PhysicalBoundarySupport::CartesianSide {
+                axis: 0,
+                side: BoundarySide::Lower,
+            },
+            None,
+            &[0., 0.5],
+        )
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn complete_vector_datum_keeps_nested_addition_and_subtraction_grouping() {
+    let vector = "tensor_value(frame=fluid,components=[1,0])";
+    for (datum, expected) in [
+        (format!("a*{vector}-(b*{vector}-c*{vector})"), 6.),
+        (format!("(a*{vector}-b*{vector})-c*{vector}"), 2.),
+        (format!("a*{vector}-(b*{vector}+c*{vector})"), 2.),
+        (format!("(a*{vector}-b*{vector})+c*{vector}"), 6.),
+    ] {
+        assert_eq!(
+            grouped_complete_vector_value(["7", "3", "2"], &datum),
+            [expected, 0.]
+        );
+    }
+}
+
+#[test]
+fn complete_vector_datum_does_not_reassociate_finite_nonassociative_addition() {
+    let vector = "tensor_value(frame=fluid,components=[1,0])";
+    let datum = format!("a*{vector}+(b*{vector}+c*{vector})");
+    // Binary64: b+c rounds back to b, so the authored a+(b+c) is zero.
+    // Reassociating as (a+b)+c would instead produce one.
+    let actual = grouped_complete_vector_value(["1e308", "-1e308", "1"], &datum);
+    assert_eq!(actual, [0., 0.]);
+    assert_ne!(actual[0], 1.);
+}
+
+#[test]
+fn complete_vector_datum_preserves_grouping_that_avoids_intermediate_overflow() {
+    let vector = "tensor_value(frame=fluid,components=[1,0])";
+    let datum = format!("a*{vector}+(b*{vector}+c*{vector})");
+    // The authored inner sum is zero. A left fold would overflow at a+b.
+    let actual = grouped_complete_vector_value(["1e308", "1e308", "-1e308"], &datum);
+    assert_eq!(actual, [1e308, 0.]);
+    assert!(actual.into_iter().all(f64::is_finite));
+}
+
+#[test]
+fn complete_vector_datum_rejects_duplicate_target_trace_and_interleaved_terms() {
+    let vector = "tensor_value(frame=fluid,components=[1,0])";
+    for residual in [
+        format!("trace(velocity)+trace(velocity)=a*{vector}+b*{vector}"),
+        format!("(trace(velocity)-a*{vector})+b*{vector}=0"),
+    ] {
+        let source = complete_vector_expression_source(&[("a", "1"), ("b", "2")], &residual);
+        assert!(
+            lower_steady_incompressible_stokes_cartesian_2d(&compile_program(&source)).is_err(),
+            "unsupported target/datum grouping was admitted: {residual}"
+        );
+    }
+}

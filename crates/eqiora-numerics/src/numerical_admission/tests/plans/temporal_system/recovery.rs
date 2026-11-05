@@ -974,7 +974,7 @@ fn joint_products<S: crate::spatial_expression::Coefficient + Send + Sync>(
     let canonical =
         CanonicalCsrSystemView::new(&partials.state, &rhs, LinearOperatorProperties::General)
             .unwrap();
-    let solved = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+    let solved = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone())
         .solve_canonical_oriented(&canonical, &rhs, LinearOperatorOrientation::Normal)
         .unwrap();
     // du1=16/5-2i, dm=31/10-2i; d(2m²)=4m dm,

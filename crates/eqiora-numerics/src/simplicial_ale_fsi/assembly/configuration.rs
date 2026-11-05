@@ -97,7 +97,7 @@ pub(super) fn current_pullbacks<const D: usize>(
         }),
         interfaces.iter().copied(),
         *quality_gate,
-        *solver,
+        solver.clone(),
     )?;
     if &policy != motion.policy() || duration.value() != plan.time_step() {
         return Err(invalid(

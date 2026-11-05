@@ -261,7 +261,7 @@ where
                     &mass_proof,
                     &mass.residuals[0].iter().map(|v| -*v).collect::<Vec<_>>(),
                     &BTreeSet::new(),
-                    solver,
+                    solver.clone(),
                 )?
             };
             for (column, weight) in weights.iter_mut().enumerate() {
@@ -457,7 +457,7 @@ where
                     &rate_proof,
                     &rhs,
                     &rows,
-                    solver,
+                    solver.clone(),
                 )?;
             }
         }

@@ -69,7 +69,7 @@ impl FlowGeometryBinding2d {
         for name in boundary_names.chain(std::iter::once(region_set)) {
             entity_sets.insert(
                 name.clone(),
-                correspondence.planar_circular_hole_v2_entity_set_entities(source, name)?,
+                correspondence.planar_entity_set_entities(source, name)?,
             );
         }
         let expected_cells = (0..mesh.mesh().entity_count(2).expect("2D mesh cells"))

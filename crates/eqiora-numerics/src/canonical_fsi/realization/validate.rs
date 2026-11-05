@@ -246,7 +246,7 @@ pub(super) fn require_exact_plan(
         mesh_artifact,
         plan.time_step().duration(),
         scales,
-        plan.solver(),
+        plan.solver().clone(),
         execution,
     )?;
     if plan != &expected {
@@ -465,7 +465,7 @@ fn require_cells_in_bounds(
 }
 
 pub(super) fn require_solver(
-    solver: SolverPlan,
+    solver: &SolverPlan,
     execution: FixedReferenceFsiExecutionProfile,
 ) -> Result<(), Diagnostic> {
     // Host algorithm/operator compatibility belongs to the supplied realization
@@ -482,7 +482,7 @@ pub(super) fn require_solver(
             "fixed-reference FSI CUDA execution currently implements and verifies only MINRES",
         ));
     }
-    if solver.preconditioner() != PreconditionerPolicy::Identity
+    if solver.preconditioner() != &PreconditionerPolicy::Identity
         || solver.reduction() != execution.reduction()
     {
         return Err(invalid_realization(match execution {

@@ -664,7 +664,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                 region,
                 mesh,
                 seed.fixed_reference_config().clone(),
-                seed.linear_solver(),
+                seed.linear_solver().clone(),
                 true,
             )
         })

@@ -301,7 +301,7 @@ fn output_tangent(
         .iter()
         .map(|value| -*value)
         .collect::<Vec<_>>();
-    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone())
         .solve_canonical_oriented(
             relation.state_jacobian(),
             &rhs,
@@ -329,7 +329,7 @@ fn previous_tangent(
         &mut rhs,
     )
     .unwrap();
-    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone())
         .solve_canonical_oriented(
             relation.state_jacobian(),
             &rhs,

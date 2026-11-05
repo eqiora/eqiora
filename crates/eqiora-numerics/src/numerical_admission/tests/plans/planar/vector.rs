@@ -282,7 +282,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
             &model,
             open_resources(&geometry, permuted),
             CommonSpatialPolicy::P1,
-            CommonSolvePolicy::Linear(solver),
+            CommonSolvePolicy::Linear(solver.clone()),
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
@@ -375,7 +375,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
                     prescribed_states: BTreeMap::new(),
                 },
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, admission.linear.solver),
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, admission.linear.solver.clone()),
                 None,
             )
             .unwrap();

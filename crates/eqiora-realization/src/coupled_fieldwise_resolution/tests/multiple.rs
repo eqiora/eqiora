@@ -108,7 +108,7 @@ fn three_domains_resolve_all_quotients_independently_of_input_order() {
             SymmetricCongruenceScaling::new(scales, physical_scale(functional_dimension()))
                 .unwrap(),
             original.operator_properties(),
-            original.solver(),
+            original.solver().clone(),
             original.target(),
             original.schedule(),
         )

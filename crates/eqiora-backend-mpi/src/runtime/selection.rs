@@ -7,7 +7,7 @@ use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_execution::{DeploymentBinding, DistributedExecutorDescriptor};
 use eqiora_solver::{
     AlgebraicStructure, CanonicalCsrSystemView, ExecutionReport, LinearOperatorProperties,
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    LinearSolver, PreconditionerKind, ReductionPolicy, SolverCapabilities, SolverCapability,
     SolverPlanningObjective, SolverPlanningProfile, SolverSelection,
 };
 use std::num::NonZeroUsize;
@@ -221,7 +221,7 @@ fn native_capabilities() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         },
@@ -229,7 +229,7 @@ fn native_capabilities() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         },
@@ -237,7 +237,7 @@ fn native_capabilities() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         },

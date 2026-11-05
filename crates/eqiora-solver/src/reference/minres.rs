@@ -4,7 +4,7 @@ use super::*;
 pub(super) fn solve(
     provider: SolverProvider,
     problem: &LinearProblem<'_>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution,
 ) -> Result<LinearSolution, Diagnostic> {
     // Symmetric congruence preserves the asserted symmetry and inertia. A
@@ -151,7 +151,7 @@ pub(super) fn solve(
                     execution.provider(),
                     execution.report(),
                     problem.operator().orientation(),
-                    plan,
+                    plan.clone(),
                     ConvergenceReason::ResidualToleranceSatisfied,
                     iteration,
                     initial_residual_norm,

@@ -33,11 +33,11 @@ pub(super) fn resolve(
     let solve = solve
         .ok_or_else(|| PyTypeError::new_err("finite resolve requires Linear or Newton controls"))?;
     let request = if let Ok(linear) = solve.extract::<Py<PyLinear>>() {
-        CommonSolvePolicy::Linear(linear.borrow(py).native)
+        CommonSolvePolicy::Linear(linear.borrow(py).native.clone())
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton = newton.borrow(py);
         CommonSolvePolicy::Newton {
-            linear: newton.linear.borrow(py).native,
+            linear: newton.linear.borrow(py).native.clone(),
             nonlinear: newton.native,
         }
     } else {

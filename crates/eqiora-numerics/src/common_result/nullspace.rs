@@ -28,9 +28,17 @@ impl CommonResult {
     pub fn gauge_residual(&self) -> Option<f64> {
         self.scalar_nullspace_evidence().map(|e| e.gauge_residual)
     }
-    /// Numerical multiplier, kept separate from the physical Field coordinates.
+    /// Numerical gauge multiplier, kept separate from physical Field coordinates.
+    /// For steady Stokes this is the dimensionless auxiliary coordinate of the
+    /// scaled mixed system, retained directly from the accepted solve.
     #[must_use]
     pub fn gauge_multiplier(&self) -> Option<f64> {
-        self.scalar_nullspace_evidence().map(|e| e.multiplier)
+        match &self.payload {
+            CommonResultPayload::Static(payload) => match &payload.acceptance {
+                StaticAcceptedEvidence::SteadyStokes(evidence) => evidence.gauge_multiplier,
+                _ => self.scalar_nullspace_evidence().map(|e| e.multiplier),
+            },
+            _ => self.scalar_nullspace_evidence().map(|e| e.multiplier),
+        }
     }
 }

@@ -44,7 +44,7 @@ impl CommonSpatialPlan {
             RecognizedNativeModel::Spatial(equations) => {
                 let system = equations.finalize_static(
                     admission.linear.workers,
-                    admission.linear.solver,
+                    admission.linear.solver.clone(),
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
@@ -71,7 +71,7 @@ impl CommonSpatialPlan {
                     .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
                 let system = equations.finalize_complex_static(
                     admission.linear.workers,
-                    admission.linear.solver,
+                    admission.linear.solver.clone(),
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
@@ -224,7 +224,7 @@ impl CommonSpatialPlan {
                     mesh,
                     input,
                     fields,
-                    self.admission.linear.solver,
+                    self.admission.linear.solver.clone(),
                     self.admission.linear.workers,
                 )
                 .map(|(n, t, p, a)| (n, t, p, a, None)),

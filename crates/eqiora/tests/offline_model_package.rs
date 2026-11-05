@@ -396,7 +396,7 @@ fn assert_package_semantics(store: &impl PackageStore, resolution: &ResolutionRe
     let solution = solve_scalar_physical_affine(
         &problem,
         &vec![1.0; problem.canonical_system().columns()],
-        LinearSolveRequest::new(&FaerLinearSolver, plan),
+        LinearSolveRequest::new(&FaerLinearSolver, plan.clone()),
     )
     .expect("physical solution");
     let value = |name: &str, unknown: fn(Id<kinds::Port>) -> PhysicalUnknown| {

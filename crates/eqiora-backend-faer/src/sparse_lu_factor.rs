@@ -10,10 +10,13 @@ use faer::{Conj, Mat, Par};
 
 /// Scalars supported by both the typed Eqiora boundary and faer's native LU.
 pub(super) trait SparseLuScalar:
-    Scalar + ComplexFloat<Real = f64> + ComplexField<Real = f64> + Sync
+    Scalar + ComplexFloat<Real = f64> + ComplexField<Real = f64> + From<f64> + Sync
 {
 }
-impl<S: Scalar + ComplexFloat<Real = f64> + ComplexField<Real = f64> + Sync> SparseLuScalar for S {}
+impl<S: Scalar + ComplexFloat<Real = f64> + ComplexField<Real = f64> + From<f64> + Sync>
+    SparseLuScalar for S
+{
+}
 
 /// Owned faer symbolic state for one exact canonical CSR structure.
 #[derive(Debug)]

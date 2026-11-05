@@ -164,7 +164,7 @@ fn exact_partition_replays_mesh_correspondence_and_parent_relative_interface() {
     );
     assert_eq!(
         correspondence
-            .adjacent_rectangle_partition_entity_set_entities(&geometry, "fluid")
+            .planar_entity_set_entities(&geometry, "fluid")
             .unwrap()
             .len(),
         4
@@ -190,21 +190,21 @@ fn exact_partition_replays_mesh_correspondence_and_parent_relative_interface() {
     );
     assert_eq!(
         correspondence
-            .adjacent_rectangle_partition_entity_set_entities(&geometry, "solid")
+            .planar_entity_set_entities(&geometry, "solid")
             .unwrap()
             .len(),
         4
     );
     assert_eq!(
         correspondence
-            .adjacent_rectangle_partition_entity_set_entities(&geometry, "interface")
+            .planar_entity_set_entities(&geometry, "interface")
             .unwrap()
             .len(),
         2
     );
     assert_eq!(
         correspondence
-            .adjacent_rectangle_partition_entity_set_entities(&geometry, "walls")
+            .planar_entity_set_entities(&geometry, "walls")
             .unwrap()
             .len(),
         4

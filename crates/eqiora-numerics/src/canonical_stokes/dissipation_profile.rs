@@ -347,7 +347,7 @@ impl StokesDissipationTopology2d {
         solver: LinearSolveRequest<'_>,
     ) -> Result<RealizedStokesDissipationGeometry2d, Diagnostic> {
         let (augmented, partition, policy, original_vertices) =
-            self.harmonic_auxiliary(solver.plan())?;
+            self.harmonic_auxiliary(solver.plan().clone())?;
         let action = P1HarmonicMeshMotionAction::<2>::new(&augmented, &partition, policy, solver)?;
         debug_assert_eq!(original_vertices, self.reference_mesh.vertices().len());
         let state = self.harmonic_state(profile, &action)?;
@@ -392,7 +392,7 @@ impl StokesDissipationTopology2d {
         action: &P1HarmonicMeshMotionAction<2>,
     ) -> Result<FixedTopologyGeometryState<2>, Diagnostic> {
         let (augmented, _, _, original_vertices) =
-            self.harmonic_auxiliary(action.policy().solver())?;
+            self.harmonic_auxiliary(action.policy().solver().clone())?;
         let [(domain, field)] = action.policy().drivers() else {
             return Err(invalid(
                 "Stokes shape motion requires its single auxiliary driver",

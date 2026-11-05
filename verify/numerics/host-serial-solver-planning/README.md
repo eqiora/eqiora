@@ -1,7 +1,8 @@
 # Deterministic host-serial solver planning
 
-This case verifies planning policy v11 over 30 real and 28 complex tuples (58 in
-all). The real inventory contains the frozen five-member General catalog,
+This case verifies planning policy v12 over 30 real and 28 complex tuples (58 in
+all). The existing unconfigured profile inventory remains frozen at 58 tuples; configured
+Schur candidates are covered by a separate case. The real inventory contains the frozen five-member General catalog,
 eleven SPD tuples, seven symmetric-indefinite tuples and seven symmetric tuples.
 The complex inventory spans four mathematical operator classes.
 The real problem is the normal-orientation,
@@ -35,7 +36,7 @@ only when both cases pass.
 Run:
 
 ```bash
-python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v11.py
+python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v12.py
 cargo test -p eqiora-solver planning::
 cargo test -p eqiora --test host_serial_solver_planning
 cargo run -p eqiora-verify -- run \
@@ -49,7 +50,7 @@ Selected reason codes name the caller's ranking preference: `robust-preference`,
 `fast-preference`, or `low-memory-preference`. They do not assert that the selected
 candidate uses reproducible reduction, direct factorization, or an iterative
 method: admission can exclude the preferred candidates.
-The v11 inventory also includes the existing reference and faer Identity BiCGSTAB tuples.
+The v12 inventory also includes the existing reference and faer Identity BiCGSTAB tuples.
 Without size facts, Robust/LowMemory retain the specialized CG/MINRES preference before general-purpose BiCGSTAB. Version6 also preserves that specialization within Fast's iterative fallback, after its reduction and sparse-LU priorities; absence of an optional faer provider must not demote CG solely by candidate-ID spelling. The General catalog preference ordering remains unchanged. The final ascending-ID tie-break selects Identity
 before Jacobi when both are admitted. Unknown or absent diagonal facts reject only
 Jacobi candidates, while unavailable provider/capability tuples retain their own reasons.
@@ -93,7 +94,7 @@ eligible, while a required Fast reduction can leave no admitted candidate.
 
 ## Boundary
 
-`Robust`, `Fast`, and `LowMemory` are names for this versioned v11 rule table,
+`Robust`, `Fast`, and `LowMemory` are names for this versioned v12 rule table,
 not empirical or universal optimization claims. This case proves no solver or
 provider superiority, timing, process memory, fill, scale, fallback, retry,
 portfolio, transport, advisor, learning, mutable discovery, durable decision

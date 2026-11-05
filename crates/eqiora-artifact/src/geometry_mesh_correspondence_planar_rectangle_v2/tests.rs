@@ -188,7 +188,7 @@ fn rectangle_cartesian_resources_have_analytic_counts_and_direct_membership() {
     assert_eq!(
         ["left", "right", "bottom", "top", "region"].map(|name| entity_indices(
             correspondence
-                .planar_rectangle_v2_entity_set_entities(&geometry, name)
+                .planar_entity_set_entities(&geometry, name)
                 .unwrap()
         )),
         [
@@ -458,7 +458,7 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
     assert_eq!(
         ["left", "right", "bottom", "top", "region"].map(|name| {
             correspondence
-                .planar_rectangle_v2_entity_set_entities(&geometry, name)
+                .planar_entity_set_entities(&geometry, name)
                 .unwrap()
                 .len()
         }),
@@ -679,7 +679,7 @@ fn local_refinement_history_replays_exact_boundary_membership_and_rejects_crossw
     ] {
         assert_eq!(
             correspondence
-                .planar_rectangle_v2_entity_set_entities(&geometry, name)
+                .planar_entity_set_entities(&geometry, name)
                 .unwrap()
                 .len(),
             count
