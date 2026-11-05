@@ -73,6 +73,6 @@ public component OutwardHeatFlux2d(
   expression flux: W / m ^ 2 on face
 ) {
   relation prescribed_heat_flux on face {
-    normal(-conductivity * grad(temperature)) - flux = 0;
+    normal(conductivity * grad(temperature)) + flux = 0;
   }
 }

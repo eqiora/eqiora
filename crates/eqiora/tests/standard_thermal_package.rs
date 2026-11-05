@@ -164,7 +164,20 @@ fn run_replayed(source: &str) -> [f64; 9] {
     let restored = CommonResult::from_bytes(&result_bytes, &replay).unwrap();
     assert_eq!(restored.to_bytes().unwrap(), result_bytes);
     let (_, values, _) = restored.field_block(0, 0).unwrap();
-    values.try_into().unwrap()
+    let owner = replay.authenticated_mesh().unwrap();
+    let mesh = owner.cartesian_mesh().unwrap().mesh();
+    // The independent stencil below uses x-minor indices. Interpret result
+    // coefficients through the actual Mesh topology instead of assuming its
+    // canonical vertex order matches the certificate's local indexing.
+    let mut ordered = [0.0; 9];
+    assert_eq!(values.len(), ordered.len());
+    for (vertex, value) in values.iter().enumerate() {
+        let index = mesh
+            .vertex_multi_index(eqiora::meshing::MeshEntity::new(0, vertex))
+            .unwrap();
+        ordered[index[0] + 3 * index[1]] = *value;
+    }
+    ordered
 }
 
 #[test]
@@ -335,5 +348,5 @@ fn physical_heat_flux_requires_the_volume_conductivity() {
         "temperature=temperature, conductivity=3[W/(m*K)], flux=2[W/m^2]",
     );
     let error = resolve(&source).expect_err("incompatible constitutive coefficient must reject");
-    assert!(error.contains("constitutive coefficient"), "{error}");
+    assert!(error.contains("complete constitutive flux"), "{error}");
 }
