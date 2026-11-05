@@ -52,7 +52,9 @@ that boundary; live Actions observation owns the provider side.
 
 Changed-file pagination must match the provider-owned pull-request count.
 Pull requests beyond the API's complete 3,000-file visibility boundary fail
-closed instead of trusting a truncated list.
+closed instead of trusting a truncated list. The current immutable compare guard
+also rejects changes above 299 files before classifying their paths; a large
+ordinary API migration therefore cannot receive an ordinary trust decision.
 
 The protected-base trust classifier may approve a coupled architecture ratchet
 when the only changed protected path is `tools/ci/architecture-debt.toml`.
