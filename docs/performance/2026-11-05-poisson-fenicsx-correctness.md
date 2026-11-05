@@ -76,3 +76,10 @@ standalone analytic and admission tests also pass.
 This report advances the two-dimensional accuracy part of the external
 comparison. A complete performance report still needs authenticated optimized
 builds, matched operation scopes and a quiet, recorded environment.
+
+Recreate the figure from the receipt, without either native library:
+
+```bash
+uv run --no-project --python 3.13 --with matplotlib==3.11.1 \
+  python tools/benchmarks/poisson_fenicsx/plot_accuracy.py
+```
