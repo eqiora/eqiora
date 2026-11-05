@@ -1,5 +1,6 @@
 """Independent analytic and admission falsifiers; no native library execution."""
 import importlib.util
+import itertools
 import os
 import tempfile
 from pathlib import Path
@@ -8,14 +9,14 @@ from unittest.mock import patch
 
 import numpy as np
 
-from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row, q1_vertex_dof_coordinates
+from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
 
 spec = importlib.util.spec_from_file_location("comparison_driver", Path(__file__).with_name("run.py"))
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 
 
-def analytic_discrete_solution(cells):
+def analytic_discrete_solution(cells, dimension=2):
     # Independent existing reference derivation: tensor stiffness eigenvalue
     # 2*k*m, with k=4*sin(theta/2)^2/h and m=h*(2+cos(theta))/3.
     # Two-point Gauss load coefficient b=h*sum(1-t)*cos(theta*t).
@@ -24,8 +25,8 @@ def analytic_discrete_solution(cells):
     k, mass = 4*np.sin(theta/2)**2/h, h*(2+np.cos(theta))/3
     t = (1+np.array([-1., 1.])/np.sqrt(3))/2
     load = h*np.sum((1-t)*np.cos(theta*t))
-    amplitude = np.pi**2*load**2/(k*mass)
-    coordinates = np.array([(i/cells, j/cells) for i in range(cells+1) for j in range(cells+1)])
+    amplitude = np.pi**2*load**dimension/(k*mass**(dimension-1))
+    coordinates = np.array(list(itertools.product(np.arange(cells+1)/cells, repeat=dimension)))
     values = amplitude*np.prod(np.sin(np.pi*coordinates), axis=1)
     boundary = np.any((coordinates == 0) | (coordinates == 1), axis=1)
     values[boundary] = 0
@@ -39,6 +40,34 @@ class ProtocolTests(unittest.TestCase):
             report = check_accuracy(coordinates, values, cells)
             self.assertLessEqual(abs(report["continuous_l2"]-report["analytic_discrete_l2"]),
                                  report["comparison_allowance"])
+
+    def test_3d_analytic_fields_match_existing_reference_and_reject_wrong_faces(self):
+        for cells in (4, 8, 16):
+            coordinates, values = analytic_discrete_solution(cells, 3)
+            check_accuracy(coordinates, values, cells, 3)
+        coordinates, values = analytic_discrete_solution(4, 3)
+        for axis in range(3):
+            for side in (0, 1):
+                invalid = values.copy()
+                invalid[np.flatnonzero(coordinates[:, axis] == side)[0]] = 1.0
+                with self.assertRaises(ComparisonError):
+                    check_accuracy(coordinates, invalid, 4, 3)
+        with self.assertRaises(ComparisonError):
+            check_accuracy(coordinates, values*1.1, 4, 3)
+        with self.assertRaises(ComparisonError):
+            check_accuracy(coordinates, values, 32, 3)
+
+    def test_actual_tensor_quadrature_requires_all_eight_3d_points_and_weights(self):
+        points = (1+np.array([-1., 1.])/np.sqrt(3))/2
+        tensor = np.array(list(itertools.product(points, repeat=3)))
+        check_tensor_gauss(tensor, np.full(8, 1/8), 3)
+        for invalid_points, invalid_weights in ((tensor[:-1], np.full(7, 1/8)),
+                (tensor, np.full(8, 1/4)), (tensor*0, np.full(8, 1/8))):
+            with self.assertRaises((ComparisonError, AssertionError)):
+                check_tensor_gauss(invalid_points, invalid_weights, 3)
+        rows = [(i, [7-i], point) for i, point in enumerate(itertools.product((0., 1.), repeat=3))]
+        actual = q1_vertex_dof_coordinates(rows[::-1], 8, 3)
+        np.testing.assert_array_equal(actual, np.array(list(itertools.product((0., 1.), repeat=3)))[::-1])
 
     def test_valid_field_falsifiers_do_not_reuse_invalid_baselines(self):
         coordinates, values = analytic_discrete_solution(4)

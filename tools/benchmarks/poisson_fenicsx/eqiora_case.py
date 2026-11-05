@@ -22,24 +22,30 @@ def main(args):
                blas=np.show_config(mode="dicts"))
     baseline = memory()
 
+    dimension = args.dimension
+    region = "square" if dimension == 2 else "cube"
+
     def mesh_setup():
         graph = eqiora.geometry.GeometryGraph()
-        rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
-        names = ("x_lower", "x_upper", "y_lower", "y_upper")
-        geometry = graph.build(rectangle, named_topology={"square": rectangle.region,
+        rectangle = (graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+                     if dimension == 2 else graph.cuboid(
+                         x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0), z_bounds=(0.0, 1.0)))
+        names = tuple(f"{axis}_{side}" for axis in "xyz"[:dimension] for side in ("lower", "upper"))
+        geometry = graph.build(rectangle, named_topology={region: rectangle.region,
             **dict(zip(names, rectangle.boundaries, strict=True))})
         mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
-            geometry, eqiora.meshing.CartesianMesher(cells=(args.cells, args.cells))))
+            geometry, eqiora.meshing.CartesianMesher(cells=(args.cells,)*dimension)))
         return geometry, mesh, names
 
     (geometry, mesh, names), mesh_time = clock(mesh_setup)
-    source = ROOT / "examples/inverse-poisson.eqi"
+    source = (ROOT / "examples/inverse-poisson.eqi" if dimension == 2
+              else Path(__file__).with_name("poisson_3d.eqi"))
 
     def prepare():
-        model = eqiora.compile(path=source, geometry=geometry, entry="InversePoisson", bindings={
-            "square": geometry.selection("square"),
-            **{name: (geometry.selection(name), geometry.selection("square")) for name in names},
-            "diffusion": 1.0, "wave_number": np.pi, "source_scale": 2*np.pi**2, "boundary_offset": 0.0})
+        model = eqiora.compile(path=source, geometry=geometry, entry="InversePoisson" if dimension == 2 else "PoissonCube", bindings={
+            region: geometry.selection(region),
+            **{name: (geometry.selection(name), geometry.selection(region)) for name in names},
+            "diffusion": 1.0, "wave_number": np.pi, "source_scale": dimension*np.pi**2, "boundary_offset": 0.0})
         plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
             algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
             preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible,
@@ -91,7 +97,7 @@ def main(args):
               "mesh_measurement": mesh_time, "preparation_measurement": preparation,
               "model_sha256": digest(source), "plan_sha256": digest_bytes(plan.to_bytes()),
               "package_compilation_digest": model.package_compilation_digest,
-              "dofs": {"total": (args.cells+1)**2, "free": (args.cells-1)**2, "stored_algebraic": (args.cells-1)**2}}
+              "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells-1)**dimension}}
     finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile)
 
 
