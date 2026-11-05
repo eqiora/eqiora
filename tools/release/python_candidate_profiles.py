@@ -51,6 +51,9 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("examples/inverse-poisson.eqi"),
+    Path("examples/python/learn_inverse_poisson.py"),
+    Path("docs/site/src/content/docs/learn/inverse-problems/_examples/inverse-poisson-handwritten.eqi"),
     Path("README.md"),
     Path("examples/research-conductivity/conductivity.eqi"),
     Path("examples/research-conductivity/research_workflow.py"),
