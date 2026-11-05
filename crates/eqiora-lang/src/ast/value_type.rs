@@ -59,6 +59,24 @@ impl FiniteBasisSyntax {
     }
 }
 
+/// One spatial axis, resolved against the declaration's exact support.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpatialExtentSyntax {
+    /// A checked assertion about the ambient spatial dimension.
+    Exact(u32),
+    /// The ambient dimension supplied by the exact bound support.
+    Support,
+}
+
+impl std::fmt::Display for SpatialExtentSyntax {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Exact(extent) => extent.fmt(formatter),
+            Self::Support => formatter.write_str("spatial"),
+        }
+    }
+}
+
 /// Closed mathematical type constructors. Arrays retain their element type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueTypeSyntaxKind {
@@ -95,15 +113,15 @@ pub enum ValueTypeSyntaxKind {
     Vector {
         /// Scalar component type.
         scalar: Box<ValueTypeSyntax>,
-        /// Exact positive spatial extent.
-        extent: u32,
+        /// Explicit positive extent or size from the exact support.
+        extent: SpatialExtentSyntax,
     },
     /// Spatial tensor with ordered axes and scalar components.
     Tensor {
         /// Scalar component type.
         scalar: Box<ValueTypeSyntax>,
-        /// Exact ordered spatial extents.
-        extents: Vec<u32>,
+        /// Ordered spatial axes, each explicit or sized by the exact support.
+        extents: Vec<SpatialExtentSyntax>,
     },
     /// Indexed channels, not a spatial frame or finite component basis.
     Array {

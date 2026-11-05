@@ -89,6 +89,11 @@ pub(super) fn collect(
                 {
                     (value.name(), value.range())
                 }
+                SignatureItem::Expression(value)
+                    if matches!(symbols.get(value.name()), Some(SymbolContract::Alias(_))) =>
+                {
+                    (value.name(), value.range())
+                }
                 SignatureItem::Field(value)
                     if matches!(symbols.get(value.name()), Some(SymbolContract::Field(..))) =>
                 {

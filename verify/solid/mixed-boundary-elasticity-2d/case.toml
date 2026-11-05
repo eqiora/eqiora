@@ -41,7 +41,7 @@ direct_package_coefficient_reverse_vjp_equal = true
 
 [package]
 name = "Eqiora.Solid.LinearElasticity"
-version = "0.6.0"
+version = "0.7.0"
 authority = "crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity"
 semantic_terminals = ["FixedDisplacement2d", "ZeroTraction2d"]
 

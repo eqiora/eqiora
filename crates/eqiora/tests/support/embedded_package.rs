@@ -149,48 +149,6 @@ pub(crate) fn public_sources(package: &str) -> PackageSourcesV1 {
                 ),
             ],
         ),
-        "Eqiora.Fluid.Incompressible" => sources(
-            include_bytes!(
-                "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/package.json"
-            ),
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!(
-                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/README.md"
-                    ),
-                ),
-                (
-                    "src/incompressible.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
-                    ),
-                ),
-            ],
-        ),
-        "Eqiora.Fluid.InertialStokes" => sources(
-            include_bytes!(
-                "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/package.json"
-            ),
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!(
-                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/README.md"
-                    ),
-                ),
-                (
-                    "src/inertial_stokes.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"
-                    ),
-                ),
-            ],
-        ),
         "Eqiora.Solid.LinearElasticity" => sources(
             include_bytes!(
                 "../../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/package.json"

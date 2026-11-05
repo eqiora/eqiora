@@ -31,8 +31,8 @@ pub use ast::{
     ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal,
     PureValueClassSyntax, RecordDecl, RecordMemberDecl, ReductionOp, RelationBody,
     RelationCondition, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax,
-    ValueTypeSyntaxKind, VisibilitySyntax,
+    SpatialExtentSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
+    ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

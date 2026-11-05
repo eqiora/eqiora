@@ -23,8 +23,8 @@ fn bundled_and_external_closure_moves_and_reopens_without_sources() {
     let lock = PackagedModelDocument::add_bundled_package_dependency_v1(
         &project,
         &store,
-        "Eqiora.Fluid.Incompressible",
-        "0.6.0",
+        "Eqiora.Fluid",
+        "0.5.0",
     )
     .unwrap();
     let vendor = fixture.child("vendor");
@@ -111,7 +111,7 @@ fn unavailable_standard_and_failed_publication_preserve_accepted_pair() {
         PackagedModelDocument::add_bundled_package_dependency_v1(
             &project,
             &store,
-            "Eqiora.Fluid.Incompressible",
+            "Eqiora.Fluid",
             "99.0.0"
         )
         .is_err()
@@ -122,8 +122,8 @@ fn unavailable_standard_and_failed_publication_preserve_accepted_pair() {
         PackagedModelDocument::add_bundled_package_dependency_v1(
             &project,
             &file,
-            "Eqiora.Fluid.Incompressible",
-            "0.6.0"
+            "Eqiora.Fluid",
+            "0.5.0"
         )
         .is_err()
     );
@@ -190,8 +190,8 @@ fn conflicting_local_standard_release_and_invalid_transport_are_rejected() {
     let error = PackagedModelDocument::add_bundled_package_dependency_v1(
         &project,
         &store,
-        "Eqiora.Fluid.Incompressible",
-        "0.6.0",
+        "Eqiora.Fluid",
+        "0.5.0",
     )
     .unwrap_err();
     assert!(error.to_string().contains("conflicting content"), "{error}");

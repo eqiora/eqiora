@@ -268,7 +268,7 @@ pub(super) fn admit_entity_sets(
     }
 }
 
-/// Admit exact same-support primitive pairs, construction-owned opposite-parent
+/// Admit exact same-support selections, construction-owned opposite-parent
 /// interfaces, and explicit periodic
 /// pairs of opposite primitive faces. Unsupported geometry has no chart fallback.
 pub(super) fn admit_geometry_boundary_junctions(
@@ -353,13 +353,16 @@ pub(super) fn admit_geometry_boundary_junctions(
                 };
                 if connection.semantics() == ConnectionSemantics::Conserving
                     && first.parent == second.parent
+                    && first.parent_entity_set == second.parent_entity_set
                     && first.entity_set == second.entity_set
                 {
-                    return contract(first_connector, first_boundary, first)
-                        .zip(contract(second_connector, second_boundary, second))
-                        .is_some_and(|(first, second)| {
-                            BoundaryPhysicalPortContract::validate_connection(&[first, second])
-                                .is_ok()
+                    // Coincidence on the same authenticated selection needs no chart.
+                    // Non-affine embedding metadata alone does not prove membership.
+                    return artifact
+                        .entity_set(&first.entity_set)
+                        .zip(artifact.entity_set(&first.parent_entity_set))
+                        .is_some_and(|(boundary, parent)| {
+                            artifact.selection_is_boundary_of(boundary, parent)
                         });
                 }
                 if connection.semantics() == ConnectionSemantics::SpatialPeriodic {
@@ -406,7 +409,7 @@ pub(super) fn admit_geometry_boundary_junctions(
         } else {
             diagnostics.push(kernel_error(
                 connection_id,
-                "geometry boundary-physical Connection requires the exact opposite-parent interface of one Geometry or an exact same-support primitive pair, or an explicit spatial-periodic pair of opposite primitive faces on one exact parent",
+                "geometry boundary-physical Connection requires the exact opposite-parent interface of one Geometry or an exact same-support selection pair, or an explicit spatial-periodic pair of opposite primitive faces on one exact parent",
             ));
         }
     }

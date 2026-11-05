@@ -1,9 +1,9 @@
 # Port-closed coherent-SI MINI Stokes
 
 This case verifies RFC 0046's first executable fluid boundary. The exact
-`Eqiora.Mechanics.Interfaces@0.1.0` package owns one nominal velocity/traction
+`Eqiora.Mechanics.Interfaces@0.3.0` package owns one nominal velocity/traction
 Connector and zero terminals. The exact
-`Eqiora.Fluid.Incompressible@0.2.0` package depends on it and binds the complete
+`Eqiora.Fluid@0.5.0` package depends on it and binds the complete
 exterior velocity trace and parent-outward Newtonian traction to those Ports.
 
 The direct fixture writes four `trace(velocity) = 0` Relations. The packaged
@@ -44,3 +44,13 @@ cargo run --locked -p eqiora-verify -- run --case fluid.port-closed-si-mini-stok
 This evidence does not claim a general natural/open-boundary solve, live Port
 or trace transfer, nonzero boundary data, fluid-fluid coupling, a solid velocity law,
 displacement-to-velocity conversion, structural dynamics, ALE, or FSI.
+
+The current consolidated Fluid release also has an unforced imported witness:
+`u=(U,0)` and `p=0` on the same rectangular mesh, with inward normal speed `U`
+on the left, inward speed `-U` on the right, and zero traction above and below.
+Zero strain and divergence satisfy the volume law, and the two normal signs
+prescribe the same rightward translation. Two independently specified speeds
+check that the original caller Parameter controls every velocity vertex while
+no force-potential Field is introduced. Pressure and MINI bubble coefficients
+are zero. This uses the existing `2e-10` physical reconstruction tolerance;
+it does not claim generic externally bound Geometry exterior composition.

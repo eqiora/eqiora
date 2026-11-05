@@ -42,6 +42,7 @@ mod preflight;
 mod quantity_member;
 mod scope;
 pub(crate) mod selected;
+mod support_environment;
 mod supports;
 
 pub(crate) use definition_graph::CheckedDefinitionGraph;
@@ -105,6 +106,9 @@ pub struct HierarchyLimits {
     pub max_instances: usize,
     /// Maximum named Kernel declarations after flattening.
     pub max_declarations: usize,
+    /// Maximum normalized LoweringExpression DAG nodes summed across expanded
+    /// consuming declarations, not the final generated Kernel arena node count.
+    pub max_expanded_expression_nodes: usize,
     /// Maximum anonymous Connections after flattening.
     pub max_connections: usize,
     /// Independent topology-normalization budgets for physical connection
@@ -147,6 +151,7 @@ impl Default for HierarchyLimits {
             max_instances: 1_000_000,
             max_declarations: 4_000_000,
             max_connections: 1_000_000,
+            max_expanded_expression_nodes: eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
             connection_sets,
             physical_exposures: PhysicalExposureProjectionLimits::default(),
             complete_exteriors: CompleteExteriorLimits::default(),
@@ -195,6 +200,7 @@ fn compile_external_component_from_definition<'a>(
         checked,
         &component,
         values.clone(),
+        binding.supports(),
     )?;
     // The Component summary already reserves one declaration, identity, and
     // provenance entry for every Parameter slot. An explicit external value
@@ -530,3 +536,11 @@ mod native_ast_tests;
 #[cfg(test)]
 #[path = "tests/observable.rs"]
 mod observable_tests;
+
+#[cfg(test)]
+#[path = "tests/expression_budget.rs"]
+mod expression_budget_tests;
+
+#[cfg(test)]
+#[path = "tests/support_sized.rs"]
+mod support_sized_tests;

@@ -46,7 +46,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def accepted(*, profile: bool = False) -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
-    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
+    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -125,7 +125,7 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
         "fluid": geometry.selection("region"),
         **{name: (geometry.selection(selection), geometry.selection("region"))
            for name, selection in names.items() if name != "fluid"},
-        "dynamic_viscosity": 0.001, "zero_pressure": 0.0,
+        "dynamic_viscosity": 0.001,
         "inlet_speed": 0.3, "channel_height": 0.41,
     }
     def compile_equations(filename, entry, parameters):
@@ -139,6 +139,19 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
             "relation upper_velocity on upper { trace(velocity) = 0; }\n"
             "  relation lower_velocity on lower { trace(velocity) = 0; }",
         )
+        if filename == "steady-flow-past-cylinder.eqi":
+            source = source.replace(
+                "boundaries(inlet, outlet, walls, cylinder)",
+                "boundaries(inlet, outlet, upper, lower, cylinder)",
+            ).replace(
+                "instance wall: stokes.NoSlip2d(body = fluid, face = walls);",
+                "instance upper_wall: stokes.NoSlip2d(body = fluid, face = upper);\n"
+                "  instance lower_wall: stokes.NoSlip2d(body = fluid, face = lower);",
+            ).replace(
+                "connect flow.mechanical[boundary = walls], wall.mechanical;",
+                "connect flow.mechanical[boundary = upper], upper_wall.mechanical;\n"
+                "  connect flow.mechanical[boundary = lower], lower_wall.mechanical;",
+            )
         return eqiora.compile(source=source, geometry=geometry, entry=entry,
                               bindings={**bindings, **parameters})
 
@@ -314,9 +327,10 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         entry='TransientFlowPastCylinder',
         bindings={
             **support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]),
-            **{'density': 1.0, 'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
+            **{'density': 1.0, 'dynamic_viscosity': 0.001, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
         },
     )
+    maximum_backsolves = 20_000
     linear = eqiora.solve.Linear(
         algorithm=eqiora.solve.LinearSolver.SparseLu,
         preconditioner=eqiora.solve.Preconditioner.Identity,
@@ -324,7 +338,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1.0e-6,
         absolute_tolerance=1.0e-12,
-        maximum_iterations=20_000,
+        maximum_iterations=maximum_backsolves,
     )
     plan = eqiora.resolve(
         model,
@@ -452,4 +466,80 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
     assert phase_calls[linear_path] > 1
     assert phase_calls[symbolic_path] == 1
     assert phase_calls[numeric_path] == phase_calls[linear_path]
-    assert phase_calls[backsolve_path] == phase_calls[linear_path]
+    # Each numeric factorization serves an original backsolve and any
+    # safeguarded residual corrections within the requested per-solve budget.
+    assert phase_calls[linear_path] <= phase_calls[backsolve_path]
+    assert phase_calls[backsolve_path] <= maximum_backsolves * phase_calls[linear_path]
+
+
+IMPORTED_TRANSLATION_SOURCE = """
+import Eqiora.Fluid.fluid as fluid;
+public component Translation(
+  support body: volume(ambient_dimension=2),
+  support inlet: boundary(parent=body),
+  support outlet: boundary(parent=body),
+  support walls: boundary(parent=body),
+  support cylinder: boundary(parent=body),
+  parameter speed: m/s
+) {
+  variable velocity: vector<m/s,2> on body in smooth;
+  variable pressure: Pa on body in h1;
+  instance flow: fluid.SteadyStokes2d(
+    body=body, exterior=boundaries(inlet,outlet,walls,cylinder),
+    velocity=velocity, pressure=pressure, dynamic_viscosity=1[Pa*s]
+  );
+  instance a: fluid.PrescribedVelocity2d(body=body,face=inlet,
+    velocity=speed*tensor_value(frame=body,components=[1,0]));
+  instance b: fluid.PrescribedVelocity2d(body=body,face=outlet,
+    velocity=speed*tensor_value(frame=body,components=[1,0]));
+  instance c: fluid.PrescribedVelocity2d(body=body,face=walls,
+    velocity=speed*tensor_value(frame=body,components=[1,0]));
+  instance d: fluid.PrescribedVelocity2d(body=body,face=cylinder,
+    velocity=speed*tensor_value(frame=body,components=[1,0]));
+  connect flow.mechanical[boundary=inlet], a.mechanical;
+  connect flow.mechanical[boundary=outlet], b.mechanical;
+  connect flow.mechanical[boundary=walls], c.mechanical;
+  connect flow.mechanical[boundary=cylinder], d.mechanical;
+}
+"""
+
+
+@pytest.mark.parametrize("speed", [0.7, 1.3])
+def test_imported_translation_on_curved_and_grouped_boundaries(speed):
+    # Uniform u=(U,0) has zero strain and divergence, with p=0 under the
+    # all-Dirichlet zero-mean gauge. It is represented exactly by MINI/P1 on
+    # any triangular mesh. The circular boundary moves with the flow here;
+    # this is not a stationary no-slip obstacle or a reaction-force oracle.
+    # Reuse the physical reconstruction tolerance of
+    # verify/fluid/port-closed-si-mini-stokes-2d, not observed Eqiora output.
+    geometry, mesh = geometry_and_mesh()
+    model = eqiora.compile(
+        source=IMPORTED_TRANSLATION_SOURCE, entry="Translation",
+        geometry=geometry,
+        bindings={"speed": speed, "body": geometry.selection("fluid"), **{
+            name: geometry.selection(name)
+            for name in ("inlet", "outlet", "walls", "cylinder")
+        }},
+    )
+    assert len(model.field_ids) == 2
+    assert model.parameter_ids == [model.parameter("definition.speed").id]
+    plan = eqiora.resolve(
+        model, mesh=mesh, spatial=eqiora.fem.MiniP1(), scaling=None,
+        solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.SparseLu,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Fast,
+            provider=eqiora.solve.SolverProvider.faer(),
+            relative_tolerance=1e-10, absolute_tolerance=1e-13,
+            maximum_iterations=10_000,
+        ),
+    )
+    result = eqiora.run(plan)
+    for candidate in (result, eqiora.Result.from_bytes(plan, result.to_bytes())):
+        velocity = candidate.output(plan.capability.velocity)
+        vertices = np.asarray(velocity.values("vertex")).reshape(-1, 2)
+        np.testing.assert_allclose(vertices[:, 0], speed, atol=2e-10, rtol=0)
+        np.testing.assert_allclose(vertices[:, 1], 0, atol=2e-10, rtol=0)
+        np.testing.assert_allclose(velocity.values("cell-bubble"), 0, atol=2e-10, rtol=0)
+        pressure = candidate.output(plan.capability.pressure)
+        np.testing.assert_allclose(pressure.values("vertex"), 0, atol=2e-10, rtol=0)

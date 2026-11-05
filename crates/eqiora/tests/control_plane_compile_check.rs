@@ -121,7 +121,7 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
 }
 
 #[test]
-fn one_transport_neutral_operation_owns_both_adapters() {
+fn shared_application_owners_serve_closed_control_and_ordinary_python() {
     let _operation: fn(&str, &str) -> Result<ModelDocument, Vec<eqiora::Diagnostic>> =
         ModelDocument::compile;
 
@@ -139,9 +139,13 @@ fn one_transport_neutral_operation_owns_both_adapters() {
 
     let python = rust_function(PYTHON_ADAPTER_SOURCE, "fn compile(");
     assert_eq!(
-        python.matches("ModelDocument::compile(").count(),
+        rust_call_count(python, "compile_source"),
         1,
-        "Python compile must invoke the transport-neutral operation exactly once"
+        "Python compile must invoke the shared source operation exactly once"
+    );
+    assert!(
+        !python.contains("ModelDocument::compile"),
+        "Python must not keep a parallel closed compiler path"
     );
     let compact_python = python
         .chars()
@@ -149,7 +153,7 @@ fn one_transport_neutral_operation_owns_both_adapters() {
         .collect::<String>();
     let detached_call = rust_call_expression(&compact_python, "py.detach");
     assert_eq!(
-        detached_call.matches("ModelDocument::compile(").count(),
+        rust_call_count(detached_call, "compile_source"),
         1,
         "the py.detach call expression itself must own the operation invocation"
     );
@@ -158,28 +162,41 @@ fn one_transport_neutral_operation_owns_both_adapters() {
 
 #[test]
 fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
+    assert_eq!(
+        rust_call_count("admitted_compile_source();", "compile_source"),
+        0
+    );
+    assert_eq!(
+        rust_call_count(
+            "admitted_compile_source(); compile_source();",
+            "compile_source"
+        ),
+        1
+    );
     let accepted = r#"
         fn compile(py: Python<'_>, filename: &str, source: &str) {
-            py.detach(move || ModelDocument::compile(filename, source));
+            py.detach(move || compile_source(filename, source));
         }
     "#;
     assert_eq!(
-        rust_call_expression(accepted, "py.detach")
-            .matches("ModelDocument::compile")
-            .count(),
+        rust_call_count(
+            rust_call_expression(accepted, "py.detach"),
+            "compile_source"
+        ),
         1
     );
 
     let post_detach_mutant = r#"
         fn compile(py: Python<'_>, filename: &str, source: &str) {
             py.detach(|| ());
-            ModelDocument::compile(filename, source);
+            compile_source(filename, source);
         }
     "#;
     assert_eq!(
-        rust_call_expression(post_detach_mutant, "py.detach")
-            .matches("ModelDocument::compile")
-            .count(),
+        rust_call_count(
+            rust_call_expression(post_detach_mutant, "py.detach"),
+            "compile_source"
+        ),
         0,
         "a compile call after a completed detach expression must not satisfy ownership"
     );
@@ -444,6 +461,19 @@ fn rust_call_expression<'a>(source: &'a str, callee: &str) -> &'a str {
     panic!("call to {callee:?} has an unterminated argument list")
 }
 
+fn rust_call_count(source: &str, callee: &str) -> usize {
+    let needle = format!("{callee}(");
+    source
+        .match_indices(&needle)
+        .filter(|(offset, _)| {
+            source[..*offset]
+                .chars()
+                .next_back()
+                .is_none_or(|character| !(character.is_alphanumeric() || character == '_'))
+        })
+        .count()
+}
+
 fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
     for forbidden in [
         "eqiora::compiler::",
@@ -454,7 +484,7 @@ fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
     ] {
         assert!(
             !function.contains(forbidden),
-            "{adapter} bypasses ModelDocument::compile through {forbidden:?}"
+            "{adapter} bypasses its shared application compilation owner through {forbidden:?}"
         );
     }
 }

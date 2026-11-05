@@ -192,12 +192,12 @@ def test_authored_elastic_energy_variation_replays_and_observes_same_functional(
     ).replace("  relation load on body {", """  observable energy: N = integral(
     mu * contract(symmetric_part(grad(displacement)), symmetric_part(grad(displacement)), axes=((0,0),(1,1)))
     + lambda * div(displacement) * div(displacement) / 2
-    - contract(grad(load_potential), displacement, axes=((0,0),)), measure(body));
+    - contract(grad(body_force_potential), displacement, axes=((0,0),)), measure(body));
   relation load on body {""")
     source = source.rstrip().removesuffix("}") + """
   form stationary for balance {
     test w: m for displacement zero_on x_lower, x_upper, y_lower, y_upper;
-    variation(energy,wrt=displacement,direction=w,holding=(mu,lambda,load_potential)) = 0;
+    variation(energy,wrt=displacement,direction=w,holding=(mu,lambda,body_force_potential)) = 0;
   }
 }"""
     model = eqiora.compile(source=source, geometry=geometry, entry="MixedBoundaryElasticity2d", bindings={

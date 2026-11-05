@@ -20,14 +20,14 @@ model Main() {
   relation ambient_pressure_definition on body {
     ambient_pressure - ambient_pressure_value = 0;
   }
-  instance law: fluid.SteadyStokesWithPotential2d(
+  instance law: fluid.ForcedSteadyStokesBalance2d(
     body = body,
     velocity = velocity,
     pressure = pressure,
     force_potential = force_potential,
     dynamic_viscosity = 6[kg / (m * s)]
   );
-  instance boundary: fluid.NewtonianMechanicalInterface2d(
+  instance boundary: fluid.VelocityTractionInterface2d(
     body = body,
     exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     velocity = velocity,

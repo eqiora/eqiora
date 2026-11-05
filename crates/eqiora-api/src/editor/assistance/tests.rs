@@ -399,3 +399,13 @@ fn semantic_completion_checks_shape_and_rebuilds_current_version() {
         ["value_bad", "value_good"]
     );
 }
+
+#[test]
+fn expression_slots_are_required_instance_bindings() {
+    let c = complete(
+        "component Source(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){} model M(){domain body=box(0,1,0,1);instance s:Source(body=body,so|",
+    );
+    assert_eq!(names(&c), ["source"]);
+    assert_eq!(c[0].required(), Some(true));
+    assert_eq!(c[0].insert_text(), "source = ");
+}

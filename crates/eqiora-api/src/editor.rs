@@ -91,7 +91,7 @@ pub enum EditorSymbolKind {
     Let,
     /// Exact coordinate projection of a declared support factor.
     Coordinate,
-    /// Pure-operator formal argument.
+    /// Typed expression requirement or pure-operator formal argument.
     Formal,
     /// Spatial support.
     Support,
@@ -648,6 +648,7 @@ fn component_symbol(component: &eqiora_lang::ComponentDecl) -> EditorSymbol {
 fn signature_item_symbol(item: &SignatureItem) -> Option<EditorSymbol> {
     let kind = match item {
         SignatureItem::Parameter(_) => EditorSymbolKind::Parameter,
+        SignatureItem::Expression(_) => EditorSymbolKind::Formal,
         SignatureItem::Support(_) => EditorSymbolKind::Support,
         SignatureItem::Field(_) => EditorSymbolKind::Field,
         SignatureItem::Clock(_) => EditorSymbolKind::Clock,

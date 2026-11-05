@@ -19,7 +19,8 @@ for (const width of [1280, 320]) {
     const main = page.getByRole('main');
     await expect(main).toContainText('uv init --python 3.13 first-eqiora-model');
     await expect(main).toContainText('uv add eqiora');
-    await expect(main).toContainText('no source checkout, Rust compiler, mesh generator or editor extension is needed');
+    await expect(main).toContainText('requires the development build');
+    await expect(main).toContainText('No mesh generator or editor extension is needed');
     await expect(main.getByRole('heading', { name: 'Development build', exact: true })).toBeVisible();
     await expect(main).toContainText('uv add ./eqiora-source');
     const revisionLink = main.getByRole('link', { name: 'The checked-out revision', exact: true });

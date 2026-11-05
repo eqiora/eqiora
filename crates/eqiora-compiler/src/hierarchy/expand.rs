@@ -5,6 +5,7 @@ mod identities;
 use identities::{contextualize_diagnostic, contextualize_diagnostics, one_diagnostic};
 mod indexed_relations;
 mod integral_partials;
+mod model_expansion;
 mod model_scope;
 pub(super) mod observable;
 mod parameters;
@@ -35,7 +36,7 @@ use crate::identity::{
 use crate::lower::{LoweringDomainContract, LoweringPortContract};
 
 use super::body_check::field_expression_type;
-use super::complete_exterior::CartesianDomain;
+use super::complete_exterior::ExteriorDomain;
 use super::field_slots::{FieldContract, component_field_interface, resolve_instance_fields};
 use super::occurrence_connections::{
     OccurrenceConnectionFragment, OccurrencePhysicalEndpoint, normalize_occurrence_connections,
@@ -52,6 +53,7 @@ mod binding_locations;
 mod cartesian;
 mod component_items;
 mod connector_domain;
+mod expression_bindings;
 mod external;
 mod indexed;
 mod input_bindings;
@@ -176,6 +178,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     boundary_embeddings: BTreeMap<FullElaborationIdentity, Option<CartesianBoundaryEmbedding>>,
     boundary_parents: BTreeMap<FullElaborationIdentity, FullElaborationIdentity>,
     boundary_sides: BTreeMap<FullElaborationIdentity, (usize, BoundarySide)>,
+    geometry_supports: BTreeMap<FullElaborationIdentity, ExteriorDomain<FullElaborationIdentity>>,
     complete_exterior_memberships: CompleteExteriorMembershipBudget,
 }
 
@@ -240,6 +243,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             boundary_embeddings: BTreeMap::new(),
             boundary_parents: BTreeMap::new(),
             boundary_sides: BTreeMap::new(),
+            geometry_supports: BTreeMap::new(),
             complete_exterior_memberships: CompleteExteriorMembershipBudget::new(
                 elaborator.limits.complete_exteriors,
             ),
@@ -269,59 +273,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             *emitted = true;
         }
         Ok(Some(name))
-    }
-
-    pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
-        self.expand_bound(&[], &[], &BTreeMap::new())
-    }
-
-    pub(super) fn expand_bound(
-        mut self,
-        supports: &[crate::external::ExternalSupportBinding],
-        clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
-        properties: &BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
-    ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
-        let model = self.model.clone();
-        let mut root_scope = Scope::default();
-        root_scope.extend_properties(properties);
-        root_scope.record_context =
-            super::parameters::RecordContext::model(self.elaborator, &model);
-        root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
-        root_scope.lexical_namespace = Some(model.namespace.clone());
-        root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
-        self.allocate_external_clocks(&mut root_scope, clocks)
-            .map_err(one_diagnostic)?;
-        self.allocate_external_supports(&mut root_scope, supports)
-            .map_err(one_diagnostic)?;
-        let identities = match self.allocate_model_scope(&mut root_scope) {
-            Ok(value) => value,
-            Err(error) => return Err(vec![error]),
-        };
-
-        self.expand_model_children(&model, &mut root_scope)?;
-
-        self.allocate_model_expression_bindings(&mut root_scope, &model)?;
-
-        if let Err(error) = self.materialize_model_items(&root_scope, &identities) {
-            return Err(vec![error]);
-        }
-        self.record_index_dependencies(&root_scope)
-            .map_err(one_diagnostic)?;
-        if let Err(error) = self.finalize_physical_connections() {
-            return Err(vec![error]);
-        }
-        self.expand_integral_partials().map_err(one_diagnostic)?;
-        self.items.sort_by_key(FlatItemBlueprint::sort_key);
-        Ok(ExpandedBlueprint::new(
-            self.model.name().to_owned(),
-            SourceLocation::new(self.model.file, self.model.range()),
-            (self.model_key, self.model_full),
-            self.items,
-            self.display_symbols,
-            self.physical_exposures,
-            self.notation_specs,
-        )
-        .with_structural_dependencies(self.structural_dependencies))
     }
 
     fn expand_component(
@@ -358,24 +309,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     *domain,
                 ))
             },
-            |identity| match parent_scope.spatial_support_by_identity(*identity)? {
-                SpatialSupport::Volume { dimensions, .. } => Some(CartesianDomain::Volume {
-                    ambient_dimension: *dimensions,
-                }),
-                SpatialSupport::Boundary {
-                    parent, dimensions, ..
-                } => {
-                    let (axis, side) = boundary_sides.get(identity)?;
-                    Some(CartesianDomain::Boundary {
-                        exact_parent: *parent,
-                        ambient_dimension: *dimensions,
-                        axis: *axis,
-                        side: *side,
-                    })
-                }
-                SpatialSupport::Coordinates { .. }
-                | SpatialSupport::Interface { .. }
-                | SpatialSupport::PhysicalInterface { .. } => None,
+            |identity| {
+                external::resolve_exterior_domain(
+                    identity,
+                    parent_scope,
+                    &self.geometry_supports,
+                    boundary_sides,
+                )
             },
             |name| parent_scope.boundary_set(name).cloned(),
             membership_budget,
@@ -590,6 +530,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .insert(slot.clone(), parent_scope.field_metadata[&target].clone());
             scope.insert_field_type(slot, field_type);
         }
+        self.bind_expression_arguments(
+            &component,
+            instance,
+            instance_file,
+            parent_scope,
+            &mut scope,
+        )
+        .map_err(one_diagnostic)?;
         self.record_properties(
             ComponentOccurrence {
                 definition: &component,
@@ -725,7 +673,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             vec![contextualize_diagnostic(
@@ -778,8 +726,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 display_name: boundary_family_display(
                                     &display_prefix,
                                     declaration.name(),
-                                    side.axis(),
-                                    side.side(),
+                                    side.cartesian(),
+                                    side.selection(),
                                 ),
                                 family_name: declaration.name(),
                                 selector_member: family.binder().member(),
@@ -977,7 +925,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             vec![contextualize_diagnostic(
@@ -1012,8 +960,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             boundary_family_display(
                                 &display_prefix,
                                 declaration.name(),
-                                side.axis(),
-                                side.side(),
+                                side.cartesian(),
+                                side.selection(),
                             ),
                             &identity,
                         )
@@ -1103,7 +1051,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &instance_path,
                             )]
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness().map_err(one_diagnostic)?.members() {
                         let boundary = *side.boundary();
                         let identity = identities
                             .boundary_family_entities
@@ -1123,8 +1071,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             boundary_family_display(
                                 &display_prefix,
                                 declaration.name(),
-                                side.axis(),
-                                side.side(),
+                                side.cartesian(),
+                                side.selection(),
                             ),
                             instance_path.clone(),
                             declaration.visibility() == VisibilitySyntax::Public,
@@ -1155,6 +1103,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         )
         .map_err(one_diagnostic)?;
 
+        self.allocate_component_expression_bindings(&mut scope, &component, true)
+            .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         self.expand_children(
             &component.namespace,
             component.owned_items().filter_map(|item| match item {
@@ -1167,7 +1117,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &mut scope,
         )?;
 
-        self.allocate_component_expression_bindings(&mut scope, &component)
+        self.allocate_component_expression_bindings(&mut scope, &component, false)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         self.materialize_component_items(

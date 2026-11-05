@@ -139,6 +139,7 @@ impl Evaluator<'_, '_> {
                         | ExprNode::Divergence(_)
                         | ExprNode::Trace { .. }
                         | ExprNode::NormalComponent { .. }
+                        | ExprNode::NormalVector { .. }
                 ) {
                     let program = self.program.ok_or_else(|| {
                         Diagnostic::error(

@@ -202,7 +202,7 @@ fn local_document_in(
                 declaration: &selected_bound,
             },
             prepared.supports(),
-        );
+        )?;
     }
     if let Some(entry) = entry
         && !bindings.is_empty()
@@ -245,6 +245,18 @@ fn local_document_in(
             prepared.parameters(),
             &parameters::RecordContext::component(&elaborator, &component),
         )?;
+        elaborator.selected_supports.insert(
+            preflight::DefinitionKey {
+                namespace: component.namespace.clone(),
+                name: component.name().to_owned(),
+            },
+            super::support_environment::SupportEnvironment::external(
+                prepared.supports(),
+                &mut super::supports::CompleteExteriorMembershipBudget::new(
+                    limits.complete_exteriors,
+                ),
+            )?,
+        );
         elaborator.selected_component = Some((
             preflight::DefinitionKey {
                 namespace: component.namespace.clone(),
@@ -332,7 +344,7 @@ pub(crate) fn resolved(
                 declaration: &selected_bound,
             },
             prepared.supports(),
-        );
+        )?;
         // Resolve every deferred topology obligation of the selected definition
         // against the same validated support context used by occurrence allocation.
         selected_checked = check::validate(&elaborator)?;
@@ -537,17 +549,8 @@ fn prepare(
     let mut prepared = ExternalComponentBinding::new(name, name, Vec::new(), Vec::new());
     let mut parameters = Vec::new();
     let mut supports = Vec::new();
-    let mut geometry_groups = BTreeMap::<
-        [u8; 32],
-        (
-            &eqiora_geometry::CanonicalGeometryV1,
-            Vec<(
-                &str,
-                &eqiora_geometry::NamedEntitySet,
-                Option<(&str, &eqiora_geometry::NamedEntitySet)>,
-            )>,
-        ),
-    >::new();
+    let mut geometry_partitions = Vec::new();
+    let mut geometry_groups = geometry::GeometryGroups::new();
     for &(name, value) in bindings {
         if !seen.insert(name) {
             return Err(fail(
@@ -623,6 +626,7 @@ fn prepare(
                             .to_owned(),
                     ));
                 };
+                geometry_partitions.push((geometry, parent, members, slot.range()));
                 let group = geometry_groups
                     .entry(geometry.digest_bytes())
                     .or_insert_with(|| (geometry, Vec::new()));
@@ -640,6 +644,7 @@ fn prepare(
                 }
                 supports.push(ExternalSupportBinding::CompleteExterior {
                     slot: name.to_owned(),
+                    context: None,
                     geometry: eqiora_schema::kernel::GeometryDigest::new(geometry.digest_bytes()),
                     parent_slot: parent_slot.clone(),
                     members: members
@@ -673,7 +678,12 @@ fn prepare(
                         parent: parent_slot,
                     } => Some((
                         parent_slot.as_str(),
-                        parent.ok_or_else(|| {
+                        crate::external_compile::selected_geometry_parent(
+                            parent,
+                            parent_slot,
+                            bindings,
+                        )
+                        .ok_or_else(|| {
                             fail(
                                 slot.range(),
                                 "boundary support requires its exact parent selection".to_owned(),
@@ -736,9 +746,7 @@ fn prepare(
             ));
         }
     }
-    for (_, (geometry, bindings)) in geometry_groups {
-        crate::external_compile::validate_geometry_bindings(file, geometry, &bindings)?;
-    }
+    geometry::authenticate(file, geometry_groups, geometry_partitions, &mut supports)?;
     parameters.extend(parameters::resolve_selected_parameters(
         file,
         signature,
@@ -978,3 +986,10 @@ fn source_budget(
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "selected_geometry_partition_tests.rs"]
+mod geometry_partition_tests;
+
+#[path = "selected_geometry.rs"]
+mod geometry;

@@ -95,7 +95,7 @@ fn malformed_model_exterior_relations_reach_exact_binding_gate() {
     for (members, expected) in [
         (
             vec![exact("left"), exact("right"), exact("bottom")],
-            "missing Cartesian side",
+            "omits an entity",
         ),
         (
             vec![
@@ -104,7 +104,7 @@ fn malformed_model_exterior_relations_reach_exact_binding_gate() {
                 exact("bottom"),
                 exact("bottom"),
             ],
-            "more than once",
+            "repeats an entity",
         ),
         (
             vec![

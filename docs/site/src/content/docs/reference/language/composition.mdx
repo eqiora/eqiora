@@ -115,3 +115,29 @@ For the physical reasoning, read
 [constitutive laws](/learn/mathematical-modeling/constitutive-laws/).
 To publish your own components, follow [Create and share a library](/guides/creating-libraries/).
 For ready-made components, browse the [standard library](/reference/standard-packages/).
+
+## Expression arguments
+
+Use an `expression` requirement when a component needs a formula with units and
+spatial support. The caller supplies the formula directly:
+
+```eqiora
+component Poisson(
+  support body: volume(ambient_dimension = 2),
+  variable u: K on body,
+  expression source: K/m^2 on body
+) {
+  relation balance on body { -div(grad(u)) = source; }
+}
+```
+
+For example, `source = -6*A*coordinate(0)/L^3` uses the caller's parameters
+`A: K` and `L: m`. Here `coordinate(0)` refers to the bound `body` support.
+The compiler checks units and support, then substitutes the formula without
+adding a field or parameter. Forwarding through another component preserves
+the caller's names and parameter derivatives.
+
+Expression requirements currently accept typed formulas with continuous
+or static activation, explicit units, and explicit support dimensions. They are
+required arguments; defaults and clocked formulas are rejected.
+The solver must still support the resulting equations.

@@ -245,6 +245,9 @@ fn expression_type_node(
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
         }
+        LoweringExpressionNode::NormalVector => {
+            ExpressionType::normal_vector(support).map_err(violation)
+        }
         LoweringExpressionNode::Name(name) if name == "time" => {
             Ok(ExpressionType::scalar(time_dimension(), None))
         }

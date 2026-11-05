@@ -13,13 +13,13 @@ public component MixedBoundaryElasticity2d(
 ) {
   // Supports describe the body and boundary roles, not geometric coordinates.
 
-  // The displacement is the unknown; load_potential defines a manufactured body load.
+  // The displacement is the unknown; body_force_potential defines a manufactured body load.
 
   variable displacement: vector<m, 2> on body in smooth;
-  variable load_potential: kg / (m * s ^ 2) on body;
+  variable body_force_potential: kg / (m * s ^ 2) on body;
 
   relation load on body {
-    load_potential - 2 * mu * coordinate(0) / length_scale = 0;
+    body_force_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }
 
   // Linear-momentum balance using the isotropic small-strain stress tensor.
@@ -27,7 +27,7 @@ public component MixedBoundaryElasticity2d(
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
-    ) - grad(load_potential) = 0;
+    ) - grad(body_force_potential) = 0;
   }
 
   // Clamp the left edge; impose zero traction on the other three edges.

@@ -417,8 +417,11 @@ fn assert_same_lowered_stokes(
         right.dynamic_viscosity_expression(),
     );
     assert_same_expression_action(
-        left.force_potential_expression(),
-        right.force_potential_expression(),
+        left.force_potential_expression()
+            .expect("fixture authors a nonzero force potential"),
+        right
+            .force_potential_expression()
+            .expect("fixture authors a nonzero force potential"),
     );
 }
 
@@ -629,7 +632,9 @@ fn exact_package_identity_and_lowered_meaning_are_name_and_order_independent() {
             eqiora_numerics::common::PhysicalBoundaryDisposition::TraceZero
         ));
     }
-    let force = direct_lowered.force_potential_expression();
+    let force = direct_lowered
+        .force_potential_expression()
+        .expect("fixture authors a nonzero force potential");
     assert_eq!(force.evaluate(&[0.0, 0.0]).expect("origin force"), 0.0);
     assert!((force.evaluate(&[0.25, 0.0]).expect("nonconstant force") - 1.0).abs() < 1.0e-15);
     assert!((force.evaluate(&[0.25, 0.25]).expect("peak force") - 2.0).abs() < 2.0e-15);

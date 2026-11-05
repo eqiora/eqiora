@@ -52,8 +52,8 @@ pub(super) fn lower(
                     fluid.representation,
                     fluid.model.velocity(),
                     fluid.model.pressure(),
-                    fluid.model.force_potential(),
                 ]);
+                allowed.extend(fluid.model.force_potential());
                 allowed.extend(fluid.volume_relations.iter().copied());
                 allowed.extend(fluid.boundary.relations.iter().copied());
                 allowed.extend(fluid.boundary.ports.iter().copied());
@@ -89,8 +89,8 @@ pub(super) fn lower(
                     solid.representation,
                     solid.model.velocity(),
                     solid.model.continuum().displacement(),
-                    solid.model.continuum().load_potential(),
                 ]);
+                allowed.extend(solid.model.continuum().load_potential());
                 allowed.extend(solid.volume_relations.iter().copied());
                 allowed.extend(solid.boundary.relations.iter().copied());
                 allowed.extend(solid.boundary.ports.iter().copied());

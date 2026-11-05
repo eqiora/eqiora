@@ -13,6 +13,13 @@ impl Parser<'_> {
             let start = self.current().range().start();
             let requirement = if self.at_keyword("support") {
                 SignatureItem::Support(self.parse_support_slot(start, VisibilitySyntax::Public)?)
+            } else if self.at_keyword("expression") {
+                self.bump();
+                SignatureItem::Expression(self.parse_field_head(
+                    start,
+                    crate::FieldRoleSyntax::Variable,
+                    false,
+                )?)
             } else if self.at_keyword("variable") || self.at_keyword("state") {
                 SignatureItem::Field(self.parse_field(false)?)
             } else if self.at_keyword("input") {
@@ -65,7 +72,7 @@ impl Parser<'_> {
                     range: TextRange::new(start, end),
                 })
             } else {
-                self.error_here("expected parameter, support, variable, state, clock, input, output, port, or property signature entry");
+                self.error_here("expected parameter, expression, support, variable, state, clock, input, output, port, or property signature entry");
                 return None;
             };
             requirements.push(requirement);

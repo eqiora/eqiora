@@ -1,3 +1,5 @@
+import Eqiora.Fluid.fluid as stokes;
+
 // Equations-only component for steady, incompressible flow around a cylinder.
 // The concrete channel and cylinder Geometry are authored separately in Python.
 public component SteadyFlowPastCylinder(
@@ -8,51 +10,31 @@ public component SteadyFlowPastCylinder(
   support cylinder: boundary(parent = fluid),
   // Values supplied when the component is compiled into a Model.
   parameter dynamic_viscosity: kg / (m * s),
-  parameter zero_pressure: kg / (m * s ^ 2),
   parameter inlet_speed: m / s,
   parameter channel_height: m
 ) {
-  // Supports name the volume and its semantic boundaries without defining their shape.
-
-  // Unknown continuum fields live on the fluid volume.
-
   variable velocity: vector<m / s, 2> on fluid in smooth;
   variable pressure: kg / (m * s ^ 2) on fluid in h1;
 
-  // Auxiliary fields keep prescribed forcing and profiles explicit and unit-checked.
-  variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable inlet_profile: m / s on fluid in h1;
+  instance flow: stokes.SteadyStokes2d(
+    body = fluid,
+    exterior = boundaries(inlet, outlet, walls, cylinder),
+    velocity = velocity,
+    pressure = pressure,
+    dynamic_viscosity = dynamic_viscosity
+  );
+  instance inflow: stokes.NormalVelocityInlet2d(
+    body = fluid,
+    face = inlet,
+    speed = 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+      / channel_height ^ 2
+  );
+  instance outflow: stokes.TractionFree2d(body = fluid, face = outlet);
+  instance wall: stokes.NoSlip2d(body = fluid, face = walls);
+  instance obstacle: stokes.NoSlip2d(body = fluid, face = cylinder);
 
-  relation force_definition on fluid {
-    force_potential - zero_pressure = 0;
-  }
-  relation inlet_profile_definition on fluid {
-    inlet_profile
-      - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
-        / channel_height ^ 2 = 0;
-  }
-
-  // Steady Stokes momentum balance and incompressibility in the fluid volume.
-  relation momentum on fluid {
-    -div(
-      2 * dynamic_viscosity * symmetric_part(grad(velocity))
-      - isotropic_lift(pressure)
-    ) - grad(force_potential) = 0;
-  }
-  relation incompressibility on fluid {
-    div(velocity) = 0;
-  }
-
-  // Boundary laws: parabolic inlet, traction-free outlet, and no-slip walls.
-  relation inlet_velocity on inlet {
-    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
-  }
-  relation outlet_traction on outlet {
-    normal(
-      2 * dynamic_viscosity * symmetric_part(grad(velocity))
-      - isotropic_lift(pressure)
-    ) = 0;
-  }
-  relation wall_velocity on walls { trace(velocity) = 0; }
-  relation cylinder_velocity on cylinder { trace(velocity) = 0; }
+  connect flow.mechanical[boundary = inlet], inflow.mechanical;
+  connect flow.mechanical[boundary = outlet], outflow.mechanical;
+  connect flow.mechanical[boundary = walls], wall.mechanical;
+  connect flow.mechanical[boundary = cylinder], obstacle.mechanical;
 }

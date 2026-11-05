@@ -73,69 +73,82 @@ impl RootExpansion<'_, '_> {
         scope: &mut Scope,
         file: &str,
         declarations: impl Iterator<Item = &'d eqiora_lang::NamedDefinitionDecl>,
+        before_children: bool,
     ) -> Result<(), Vec<Diagnostic>> {
         let order = crate::hierarchy::parameters::alias_order(file, declarations)?;
         for declaration in order {
-            if scope.parameter(declaration.name()).is_some() {
+            if scope.value_expression(declaration.name()).is_some() {
                 continue;
             }
-            let mut activation = scope
-                .alias_activation(file, declaration.value())
-                .map_err(|error| vec![error])?;
-            if let Some(clock) = declaration.activation() {
-                use crate::hierarchy::body_check::DependencyActivation;
-                let symbol = scope.symbol(clock);
-                let is_event =
-                    symbol.is_some_and(|value| matches!(value.kind, super::SymbolKind::Event));
-                let exact = symbol.map(|value| &value.internal_name);
-                let valid = match (&activation, exact) {
-                    (DependencyActivation::Continuous | DependencyActivation::Static, Some(_))
-                        if is_event =>
-                    {
-                        true
+            // Prepare atomically: clock assertions and extents may also depend on
+            // a child interface. The mandatory final pass reports deferred errors.
+            let prepared = (|| {
+                let mut activation = scope
+                    .alias_activation(file, declaration.value())
+                    .map_err(|error| vec![error])?;
+                if let Some(clock) = declaration.activation() {
+                    use crate::hierarchy::body_check::DependencyActivation;
+                    let symbol = scope.symbol(clock);
+                    let is_event =
+                        symbol.is_some_and(|value| matches!(value.kind, super::SymbolKind::Event));
+                    let exact = symbol.map(|value| &value.internal_name);
+                    let valid = match (&activation, exact) {
+                        (
+                            DependencyActivation::Continuous | DependencyActivation::Static,
+                            Some(_),
+                        ) if is_event => true,
+                        (DependencyActivation::Event(actual), Some(expected)) if is_event => {
+                            actual == expected
+                        }
+                        (DependencyActivation::Clock(actual), Some(expected)) if !is_event => {
+                            actual == expected
+                        }
+                        _ => false,
+                    };
+                    if !valid {
+                        return Err(vec![crate::diagnostics::source_error(
+                            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            declaration.range(),
+                            "let alias activation assertion does not match its exact occurrence context",
+                        )]);
                     }
-                    (DependencyActivation::Event(actual), Some(expected)) if is_event => {
-                        actual == expected
+                    if is_event {
+                        activation = DependencyActivation::Event(exact.unwrap().clone());
                     }
-                    (DependencyActivation::Clock(actual), Some(expected)) if !is_event => {
-                        actual == expected
-                    }
-                    _ => false,
-                };
-                if !valid {
-                    return Err(vec![crate::diagnostics::source_error(
-                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        declaration.range(),
-                        "let alias activation assertion does not match its exact occurrence context",
-                    )]);
                 }
-                if is_event {
-                    activation = DependencyActivation::Event(exact.unwrap().clone());
-                }
-            }
 
-            let mut expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
-                file,
-                declaration.value(),
-                scope,
-                None,
-            )
-            .map_err(|error| vec![error])?;
-            if let Some(syntax) = declaration.value_type() {
-                let values = scope.symbolic_parameters();
-                for extent in crate::hierarchy::parameters::extent_expressions(syntax) {
-                    let (_, dependencies) =
-                        crate::hierarchy::parameters::structural_extent(file, extent, &values)
-                            .map_err(|error| vec![error])?
-                            .ok_or_else(|| {
-                                vec![hierarchy_error("let array extent remained unresolved")]
-                            })?;
-                    expression = expression.with_structural_parameters(dependencies);
+                let mut expression =
+                    match crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                        file,
+                        declaration.value(),
+                        scope,
+                        None,
+                    ) {
+                        Ok(value) => value,
+                        Err(error) => return Err(vec![error]),
+                    };
+                if let Some(syntax) = declaration.value_type() {
+                    let values = scope.symbolic_parameters();
+                    for extent in crate::hierarchy::parameters::extent_expressions(syntax) {
+                        let (_, dependencies) =
+                            crate::hierarchy::parameters::structural_extent(file, extent, &values)
+                                .map_err(|error| vec![error])?
+                                .ok_or_else(|| {
+                                    vec![hierarchy_error("let array extent remained unresolved")]
+                                })?;
+                        expression = expression.with_structural_parameters(dependencies);
+                    }
                 }
-            }
+                Ok((expression, activation))
+            })();
+            let (expression, activation) = match prepared {
+                Ok(value) => value,
+                Err(_) if before_children => continue,
+                Err(errors) => return Err(errors),
+            };
             scope
-                .insert_runtime_let(declaration.name().to_owned(), expression, activation)
+                .insert_runtime_value(declaration.name().to_owned(), expression, activation)
                 .map_err(|message| vec![hierarchy_error(message)])?;
         }
         Ok(())
@@ -147,16 +160,19 @@ impl RootExpansion<'_, '_> {
         &self,
         scope: &mut Scope,
         model: &super::ModelDefinition<'_>,
+        before_children: bool,
     ) -> Result<(), Vec<Diagnostic>> {
-        crate::hierarchy::coordinates::allocate(
-            scope,
-            model.file,
-            model.owned_items().filter_map(|item| match item {
-                Item::Coordinate(value) => Some(value),
-                _ => None,
-            }),
-        )
-        .map_err(|error| vec![error])?;
+        if before_children {
+            crate::hierarchy::coordinates::allocate(
+                scope,
+                model.file,
+                model.owned_items().filter_map(|item| match item {
+                    Item::Coordinate(value) => Some(value),
+                    _ => None,
+                }),
+            )
+            .map_err(|error| vec![error])?;
+        }
         self.allocate_runtime_lets(
             scope,
             model.file,
@@ -164,6 +180,7 @@ impl RootExpansion<'_, '_> {
                 Item::Let(d) => Some(d),
                 _ => None,
             }),
+            before_children,
         )?;
         Ok(())
     }
@@ -171,16 +188,19 @@ impl RootExpansion<'_, '_> {
         &self,
         scope: &mut Scope,
         component: &super::ComponentDefinition<'_>,
+        before_children: bool,
     ) -> Result<(), Vec<Diagnostic>> {
-        crate::hierarchy::coordinates::allocate(
-            scope,
-            component.file,
-            component.owned_items().filter_map(|item| match item {
-                eqiora_lang::ComponentItem::Coordinate(value) => Some(value),
-                _ => None,
-            }),
-        )
-        .map_err(|error| vec![error])?;
+        if before_children {
+            crate::hierarchy::coordinates::allocate(
+                scope,
+                component.file,
+                component.owned_items().filter_map(|item| match item {
+                    eqiora_lang::ComponentItem::Coordinate(value) => Some(value),
+                    _ => None,
+                }),
+            )
+            .map_err(|error| vec![error])?;
+        }
         self.allocate_runtime_lets(
             scope,
             component.file,
@@ -188,6 +208,7 @@ impl RootExpansion<'_, '_> {
                 eqiora_lang::ComponentItem::Let(d) => Some(d),
                 _ => None,
             }),
+            before_children,
         )?;
         Ok(())
     }

@@ -41,9 +41,8 @@ const PACKAGED: &str =
 const MECHANICS_SOURCE: &str = include_str!(
     "../../../crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"
 );
-const FLUID_SOURCE: &str = include_str!(
-    "../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
-);
+const FLUID_SOURCE: &str =
+    include_str!("../../../crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi");
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.port_closed_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
@@ -205,8 +204,8 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
             "  parameter dynamic_viscosity: kg / (m * s) = 6;\n  parameter boundary_dynamic_viscosity: kg / (m * s) = 6;",
         )
         .replace(
-            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = dynamic_viscosity",
-            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = boundary_dynamic_viscosity",
+            "instance boundary: fluid.VelocityTractionInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = dynamic_viscosity",
+            "instance boundary: fluid.VelocityTractionInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = boundary_dynamic_viscosity",
         );
     assert_ne!(independent_equal_coefficient, PACKAGED);
     let independent = compile_root(
@@ -225,10 +224,10 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
     );
 
     let (volume_source, boundary_source) = FLUID_SOURCE
-        .split_once("public component NewtonianMechanicalInterface2d")
+        .split_once("public component VelocityTractionInterface2d")
         .expect("public fluid source owns a separate boundary Component");
     let wrong_stress_source = format!(
-        "{volume_source}public component NewtonianMechanicalInterface2d{}",
+        "{volume_source}public component VelocityTractionInterface2d{}",
         boundary_source.replace("- isotropic_lift(pressure)", "+ isotropic_lift(pressure)")
     );
     let wrong_stress_fluid = inline_fluid_release(&mechanics, &wrong_stress_source);
@@ -274,7 +273,7 @@ public connector OtherVelocityTractionBoundary {
         PackageDependencyV1::new(other_mechanics.package_identity().unwrap()),
     ];
     let source = format!(
-        "import Eqiora.Fluid.Incompressible.incompressible as fluid;\n\
+        "import Eqiora.Fluid.fluid as fluid;\n\
          import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{PACKAGED}"
     );
     let error = prepare_package_release_v1(
@@ -313,6 +312,93 @@ fn coefficient_derivatives(expression: &ScalarSpatialExpression<f64>) -> (u64, V
         assert_eq!(vjp[parameter].to_bits(), (cotangent * jvp).to_bits());
     }
     (primal.to_bits(), jvps, vjps)
+}
+
+#[test]
+fn imported_unforced_uniform_flow_preserves_normal_orientation_and_speed_parameter() {
+    let mechanics = public_mechanics_release();
+    let fluid = public_fluid_release(&mechanics);
+    let mesh = SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).unwrap();
+    // A uniform translation has zero strain and divergence. With zero pressure,
+    // top/bottom traction vanishes. Inward normal speeds U on the left and -U
+    // on the right prescribe exactly u=(U,0). Reuse the registered case's
+    // physical reconstruction tolerance, without taking values from Eqiora.
+    for speed in [0.7, 1.3] {
+        let source = format!(
+            r#"model Main() {{
+  domain body=box(0,4,0,2);
+  domain left=boundary(body,axis=0,side=lower);
+  domain right=boundary(body,axis=0,side=upper);
+  domain bottom=boundary(body,axis=1,side=lower);
+  domain top=boundary(body,axis=1,side=upper);
+  variable velocity:vector<m/s,2> on body in smooth;
+  variable pressure:Pa on body in h1;
+  parameter speed:m/s={speed};
+  instance flow:fluid.SteadyStokes2d(
+    body=body,exterior=boundaries(left,right,bottom,top),
+    velocity=velocity,pressure=pressure,dynamic_viscosity=1[Pa*s]
+  );
+  instance inlet:fluid.NormalVelocityInlet2d(body=body,face=left,speed=speed);
+  instance outlet:fluid.NormalVelocityInlet2d(body=body,face=right,speed=-speed);
+  instance lower:fluid.TractionFree2d(body=body,face=bottom);
+  instance upper:fluid.TractionFree2d(body=body,face=top);
+  connect flow.mechanical[boundary=left],inlet.mechanical;
+  connect flow.mechanical[boundary=right],outlet.mechanical;
+  connect flow.mechanical[boundary=bottom],lower.mechanical;
+  connect flow.mechanical[boundary=top],upper.mechanical;
+}}"#
+        );
+        let document = compile_root(&fluid, &mechanics, "fluid", "mechanics", &source);
+        let program = document.model().program();
+        let lowered = lower_steady_incompressible_stokes_cartesian_2d(program).unwrap();
+        assert_eq!(lowered.force_potential(), None);
+        assert_eq!(
+            program
+                .nodes()
+                .filter(|node| matches!(node, eqiora::kernel::KernelNode::Parameter(_)))
+                .count(),
+            1
+        );
+        assert!(matches!(
+            program.node(document.model().aliases()["speed"]),
+            Some(eqiora::kernel::KernelNode::Parameter(_))
+        ));
+        let mesh_reference = mesh.artifact_reference().unwrap();
+        let plan = steady_stokes_mini_plan_2d(&lowered, mesh_reference, scale_profile(), solver())
+            .unwrap();
+        let resolved = resolve_fieldwise(
+            &FieldwiseRealizationRequest::explicit(
+                program.model(),
+                SemanticRevision::new(program.revision().0),
+                RealizationRevision::new(1),
+                plan,
+            ),
+            steady_stokes_fieldwise_requirements_2d(&lowered),
+            &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+        )
+        .unwrap();
+        let (_, finalized) = finalize_resolved_steady_stokes_mini_2d(
+            program,
+            &resolved,
+            mesh_reference,
+            mesh.mesh(),
+        )
+        .unwrap();
+        let linear = REFERENCE_LINEAR_SOLVER
+            .solve(&finalized.linear_problem().unwrap(), solver())
+            .unwrap();
+        let solution = finalized.finish(linear).unwrap();
+        for value in solution.velocity().vertex_values() {
+            assert_close(value[0], speed, 2.0e-10);
+            assert_close(value[1], 0.0, 2.0e-10);
+        }
+        for value in solution.velocity().cell_bubble_values().iter().flatten() {
+            assert_close(*value, 0.0, 2.0e-10);
+        }
+        for value in solution.pressure().vertex_values() {
+            assert_close(*value, 0.0, 2.0e-10);
+        }
+    }
 }
 
 fn observe(
@@ -480,10 +566,7 @@ fn public_mechanics_release() -> PackageReleaseV1 {
 }
 
 fn public_fluid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    public_release(
-        "Eqiora.Fluid.Incompressible",
-        std::slice::from_ref(mechanics),
-    )
+    public_release("Eqiora.Fluid", std::slice::from_ref(mechanics))
 }
 
 fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
@@ -510,10 +593,10 @@ fn inline_fluid_release(mechanics: &PackageReleaseV1, source: &str) -> PackageRe
     let dependency = PackageDependencyV1::new(mechanics.package_identity().unwrap());
     prepare_package_release_v1(
         inline_sources(
-            "Eqiora.Fluid.Incompressible",
-            "0.2.0",
+            "Eqiora.Fluid",
+            "0.5.0",
             vec![dependency],
-            "src/incompressible.eqi",
+            "src/fluid.eqi",
             source,
         ),
         std::slice::from_ref(mechanics),
@@ -557,7 +640,7 @@ fn root_release(
         .expect("mechanics identity")
         .name;
     let source = format!(
-        "import {fluid_name}.incompressible as {fluid_alias};\n\
+        "import {fluid_name}.fluid as {fluid_alias};\n\
          import {mechanics_name}.interfaces as {mechanics_alias};\n{source}"
     );
     prepare_package_release_v1(

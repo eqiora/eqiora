@@ -41,7 +41,7 @@ CASE_SOURCE_PATHS = (
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
     "examples/steady-flow-past-cylinder.eqi",
-    "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
+    "crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi",
 )
 
 EXECUTION_CONTROL = re.compile(
@@ -309,11 +309,11 @@ def _check_case(
         report("Cylinder route exposes raw target math delimiters")
     source_tokens = (
         (
-            "relation momentum on fluid",
-            "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
-            "- isotropic_lift(pressure)",
-            "relation incompressibility on fluid",
-            "div(velocity) = 0;",
+            "import Eqiora.Fluid.fluid as stokes;",
+            "stokes.SteadyStokes2d(",
+            "stokes.NormalVelocityInlet2d(",
+            "stokes.TractionFree2d(",
+            "stokes.NoSlip2d(",
         )
         if enhanced
         else (

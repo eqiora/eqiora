@@ -105,7 +105,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 family.binder().set().as_str()
                             ))
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness()?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             hierarchy_error(
@@ -127,7 +127,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             family,
                             boundary,
                             member.target(),
-                            set.witness().ambient_dimension(),
+                            set.witness()?.ambient_dimension(),
                         )?;
                         let occurrence =
                             self.physical_ports.get_mut(&identity.full).ok_or_else(|| {
@@ -316,7 +316,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 family.binder().set().as_str()
                             ))
                         })?;
-                    for side in set.witness().sides() {
+                    for side in set.witness()?.members() {
                         let boundary = *side.boundary();
                         let member = set.member(&boundary).ok_or_else(|| {
                             hierarchy_error(
@@ -389,7 +389,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 binder.set().as_str()
                             ))
                         })?;
-                        for side in set.witness().sides() {
+                        for side in set.witness()?.members() {
                             let boundary = *side.boundary();
                             let member = set.member(&boundary).ok_or_else(|| {
                                 hierarchy_error(

@@ -19,9 +19,17 @@ pub(super) fn display_child(parent: &str, child: &str) -> String {
 pub(super) fn boundary_family_display(
     parent: &str,
     family: &str,
-    axis: usize,
-    side: BoundarySide,
+    cartesian: Option<(usize, BoundarySide)>,
+    selection: Option<&str>,
 ) -> String {
+    let Some((axis, side)) = cartesian else {
+        // Debug string quoting escapes delimiters and prevents display collisions.
+        return format!(
+            "{}[selection={:?}]",
+            display_child(parent, family),
+            selection.expect("proved Geometry member")
+        );
+    };
     let side = match side {
         BoundarySide::Lower => "lower",
         BoundarySide::Upper => "upper",

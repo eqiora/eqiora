@@ -130,7 +130,8 @@ fn signature(
 ) {
     match item {
         SignatureItem::Parameter(value) => visit(scope, &mut value.value_type),
-        SignatureItem::Field(value)
+        SignatureItem::Expression(value)
+        | SignatureItem::Field(value)
         | SignatureItem::Input(value)
         | SignatureItem::Output(value) => visit(scope, &mut value.value_type),
         SignatureItem::Port(value) => port(&mut value.syntax, scope, visit),

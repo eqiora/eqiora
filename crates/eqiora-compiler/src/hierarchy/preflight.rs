@@ -139,6 +139,8 @@ pub(super) struct Elaborator<'a> {
     pub(super) property_aliases: Vec<crate::resolved::ResolvedAlias>,
     pub(super) property_local_module: Option<crate::resolved::CompilationModuleId>,
     pub(super) selected_models: BTreeSet<DefinitionKey>,
+    pub(super) selected_supports:
+        BTreeMap<DefinitionKey, super::support_environment::SupportEnvironment>,
     pub(super) selected_boundary_sides:
         BTreeMap<(DefinitionKey, String), (usize, eqiora_schema::kernel::BoundarySide)>,
     pub(super) selected_component: Option<(DefinitionKey, super::parameters::SymbolicParameterMap)>,
@@ -237,6 +239,7 @@ impl<'a> Elaborator<'a> {
             property_local_module: None,
             selected_boundary_sides: BTreeMap::new(),
             selected_models: BTreeSet::new(),
+            selected_supports: BTreeMap::new(),
             selected_component: None,
             notations: notation::index(file, document),
             native: native
@@ -333,6 +336,7 @@ impl<'a> Elaborator<'a> {
             property_local_module: None,
             selected_boundary_sides: BTreeMap::new(),
             selected_models: BTreeSet::new(),
+            selected_supports: BTreeMap::new(),
             selected_component: None,
             notations: analysis
                 .units
@@ -398,12 +402,21 @@ impl<'a> Elaborator<'a> {
         &mut self,
         model: ModelDefinition<'a>,
         supports: &[crate::external::ExternalSupportBinding],
-    ) {
+    ) -> Result<(), Vec<Diagnostic>> {
         let key = DefinitionKey {
             namespace: model.namespace.clone(),
             name: model.name().to_owned(),
         };
         self.selected_models.insert(key.clone());
+        self.selected_supports.insert(
+            key.clone(),
+            super::support_environment::SupportEnvironment::external(
+                supports,
+                &mut super::supports::CompleteExteriorMembershipBudget::new(
+                    self.limits.complete_exteriors,
+                ),
+            )?,
+        );
         for support in supports {
             if let crate::external::ExternalSupportBinding::Boundary {
                 slot,
@@ -424,6 +437,7 @@ impl<'a> Elaborator<'a> {
             },
             model,
         );
+        Ok(())
     }
 
     pub(super) fn entry_model(&self, path: &str) -> Result<ModelDefinition<'a>, String> {

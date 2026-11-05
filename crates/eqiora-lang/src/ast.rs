@@ -27,7 +27,9 @@ pub use relation::{
 };
 mod value_type;
 
-pub use value_type::{FiniteBasisSyntax, ValueTypeSyntax, ValueTypeSyntaxKind};
+pub use value_type::{
+    FiniteBasisSyntax, SpatialExtentSyntax, ValueTypeSyntax, ValueTypeSyntaxKind,
+};
 
 pub use comments::DocComment;
 pub use compile_time::{NamedDefinitionDecl, ParameterDecl};

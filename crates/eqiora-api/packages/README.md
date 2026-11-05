@@ -1,9 +1,12 @@
 # Model Packages
 
-This directory contains Eqiora Model Packages in source form. They get no
-special treatment: no built-in names, search paths, or compiler branches.
-Packages maintained by the project and third-party packages resolve through
-the same content-addressed store.
+This directory contains Eqiora Model Packages in source form. Their equations
+and types follow the same semantics as third-party packages; the compiler has
+no physics branches selected by a package name. The distribution supplies an
+exact embedded catalog for transport. Whether selected explicitly or supplied
+by a source-compilation context in a development build, its releases use the
+ordinary checked package closure. This adds no filesystem search, network
+lookup, or fallback. Published Eqiora 0.1.5 is unchanged.
 
 ## Package layout
 
@@ -59,7 +62,7 @@ let model = PackagedModelDocument::compile_locked(
 ```
 
 Package compilation always produces the current Model format. Persisted Model
-v1–v44 bytes are not migrated and are rejected.
+v1–v49 bytes are not migrated and are rejected.
 
 `DirectoryPackageStore::open_ambient` opens the store from a path instead of a
 directory handle. Either way, the store reads only `<source-bundle-digest>.json`
@@ -90,12 +93,22 @@ not update the lock or manage shared-store permissions.
 
 ## Bundled packages in Python and the CLI
 
+The Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below are available from development builds.
+The published Eqiora 0.1.5 distribution is unchanged. Current development builds
+write Model and Model Transaction v50 artifacts; use the build that produced an
+older artifact to open it, or regenerate it from source.
+
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
-`Eqiora.Fluid.Incompressible@0.6.0` or `Eqiora.Solid.LinearElasticity@0.6.0`
+`Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
 store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without
 fetching anything.
+
+Development builds also bundle `Eqiora.Solid@0.4.0` through the same APIs.
+This package has no dependencies and retains its explicit two-dimensional
+interfaces. Request `"Eqiora.Solid"` with `version="0.4.0"` in
+`eqiora.add_bundled_dependency(...)`.
 
 ## Packages in this directory
 
@@ -129,16 +142,11 @@ package identity, not by directory.
   displacement/traction connector instead.
 - [`Eqiora.Mechanics.BoundaryLoads`](Eqiora.Mechanics.BoundaryLoads/): depends
   on `Mechanics.Interfaces`; a normal-pressure load driven by a pressure Field.
-- [`Eqiora.Fluid`](Eqiora.Fluid/): the place to start for 2D steady Stokes
-  flow. A ready-made model, separate balance and interface components, and
-  no-slip, traction-free, normal-pressure, inward-normal velocity, and field-driven
-  velocity and traction boundary conditions.
-- [`Eqiora.Fluid.Incompressible`](Eqiora.Fluid.Incompressible/): depends on
-  `Mechanics.Interfaces`; steady 2D and transient 3D incompressible Newtonian
-  volume laws, with separate velocity/traction boundary interfaces.
-- [`Eqiora.Fluid.InertialStokes`](Eqiora.Fluid.InertialStokes/): the 2D
-  incompressible Newtonian law with inertia used by the first fixed-reference
-  FSI case. It contains no boundary conditions, time method, or coupling.
+- [`Eqiora.Fluid`](Eqiora.Fluid/): fixed-unit steady Stokes in 2D, inertial
+  Stokes in 2D and conservative transient Navier–Stokes in 3D. Volume balances,
+  explicit forced variants and velocity/traction interfaces remain distinct.
+  The combined steady Stokes model and typed expression boundary conditions
+  use the shared Mechanics.Interfaces dependency.
 - [`org.example.parallel`](org.example.parallel/): an example third-party
   package with an analytic model, used to test offline resolution, source
   normalization, hierarchy expansion, and provenance.

@@ -79,7 +79,7 @@ fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()
             .call1((module.getattr("compile")?,))?;
         assert_eq!(
             signature.str()?.to_str()?,
-            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)"
+            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None, import_context='bundled')"
         );
         Ok(())
     })
@@ -127,19 +127,36 @@ fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
             "geometry".to_owned(),
             "bindings".to_owned(),
             "entry".to_owned(),
+            "import_context".to_owned(),
         ]
     );
     assert!(arguments.getattr("vararg")?.is_none());
     assert!(arguments.getattr("kwarg")?.is_none());
 
     let defaults = arguments.getattr("kw_defaults")?;
-    assert_eq!(defaults.len()?, 6);
+    assert_eq!(defaults.len()?, 7);
     for index in 0..6 {
         assert!(
             ast.call_method1("literal_eval", (defaults.get_item(index)?,))?
                 .is_none()
         );
     }
+    assert_eq!(
+        ast.call_method1("literal_eval", (defaults.get_item(6)?,))?
+            .extract::<String>()?,
+        "bundled"
+    );
+    assert_eq!(
+        ast.call_method1(
+            "unparse",
+            (arguments
+                .getattr("kwonlyargs")?
+                .get_item(6)?
+                .getattr("annotation")?,)
+        )?
+        .extract::<String>()?,
+        "Literal['bundled', 'closed']"
+    );
     assert_eq!(
         ast.call_method1("unparse", (declaration.getattr("returns")?,))?
             .extract::<String>()?,
@@ -175,10 +192,10 @@ fn independent_python_control_and_direct_compilations_share_canonical_identity()
             panic!("control-v2 rejected the accepted frozen source")
         };
         let control_reference = control_document.artifact_reference().unwrap();
-        assert_eq!(model.schema(), "eqiora.model-envelope/v49");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v50");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v49"
+            "eqiora.model-transaction-envelope/v50"
         );
         assert_eq!(model.model_id(), control_reference.model().to_string());
         assert_eq!(model.digest(), control_reference.artifact().as_str());

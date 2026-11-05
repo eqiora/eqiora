@@ -6,6 +6,9 @@ struct ChildFootprint<'a> {
 }
 
 use super::super::{clocks, parameters};
+use super::super::{
+    support_environment::SupportEnvironment, supports::CompleteExteriorMembershipBudget,
+};
 use super::*;
 use eqiora_lang::{ExprKind, InstanceDecl, NamedDefinitionDecl};
 use parameters::SymbolicParameterMap;
@@ -53,8 +56,18 @@ pub(in crate::hierarchy) fn component_contexts(
             contexts: Some(&mut contexts),
             context_count,
             instances_visited: 0,
+            memberships: CompleteExteriorMembershipBudget::new(
+                elaborator.limits.complete_exteriors,
+            ),
         }
-        .component(component, values.clone(), 0)?;
+        .component(
+            component,
+            values.clone(),
+            elaborator.selected_supports.get(key).cloned().unwrap_or(
+                SupportEnvironment::component(component.file, component.declaration)?,
+            ),
+            0,
+        )?;
     }
     Ok(contexts)
 }
@@ -64,6 +77,7 @@ pub(in crate::hierarchy) fn selected_component_summary(
     checked: &CheckedDefinitionGraph,
     component: &ComponentDefinition<'_>,
     values: SymbolicParameterMap,
+    supports: &[crate::external::ExternalSupportBinding],
 ) -> Result<DefinitionSummary, Vec<Diagnostic>> {
     Selected {
         elaborator,
@@ -73,8 +87,17 @@ pub(in crate::hierarchy) fn selected_component_summary(
         contexts: None,
         context_count: 0,
         instances_visited: 0,
+        memberships: CompleteExteriorMembershipBudget::new(elaborator.limits.complete_exteriors),
     }
-    .component(component, values, 0)
+    .component(
+        component,
+        values,
+        SupportEnvironment::external(
+            supports,
+            &mut CompleteExteriorMembershipBudget::new(elaborator.limits.complete_exteriors),
+        )?,
+        0,
+    )
 }
 
 fn model_values(
@@ -117,7 +140,16 @@ fn selected_expansion_size_with_contexts(
         contexts,
         context_count,
         instances_visited: 0,
+        memberships: CompleteExteriorMembershipBudget::new(elaborator.limits.complete_exteriors),
     };
+    let key = DefinitionKey {
+        namespace: model.namespace.clone(),
+        name: model.name().to_owned(),
+    };
+    let mut supports = SupportEnvironment::model(model.file, model.declaration)?;
+    if let Some(bound) = elaborator.selected_supports.get(&key) {
+        supports.overlay(bound);
+    }
     let mut diagnostics = Vec::new();
     let symbolic = preflight.contexts.is_some()
         && unresolved_extents(
@@ -134,7 +166,11 @@ fn selected_expansion_size_with_contexts(
         &mut diagnostics,
         if symbolic { None } else { Some(&values) },
     );
-    local.declarations = local
+    if preflight.contexts.is_none() {
+        local.instantiate(&supports.counts()?)?;
+    }
+    local.fixed.declarations = local
+        .fixed
         .declarations
         .checked_add(
             elaborator
@@ -170,10 +206,12 @@ fn selected_expansion_size_with_contexts(
         (
             &values,
             &parameters::RecordContext::model(elaborator, model),
+            &supports,
         ),
         0,
     )?;
-    local.connections = local
+    local.fixed.connections = local
+        .fixed
         .connections
         .checked_add(extra_connections)
         .ok_or_else(|| vec![definition_error("connection footprint overflows")])?;
@@ -203,6 +241,28 @@ fn selected_expansion_size_with_contexts(
         false,
         elaborator.limits,
     );
+    if let Some(external) = elaborator.selected_supports.get(&key) {
+        // Reserve external support entries before RootExpansion stages its root.
+        for (resource, count, limit) in [
+            (
+                "staged identities",
+                summary.staged_identities(),
+                elaborator.limits.identity.max_staged_identities,
+            ),
+            (
+                "provenance entries",
+                summary.provenance_entries(),
+                elaborator.limits.provenance.max_entries,
+            ),
+        ] {
+            super::super::checked_external_footprint(
+                resource,
+                count,
+                external.singular.len(),
+                limit,
+            )?;
+        }
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -215,11 +275,12 @@ fn selected_expansion_size_with_contexts(
 struct Selected<'a, 'd, 'c> {
     elaborator: &'a Elaborator<'d>,
     checked: &'a CheckedDefinitionGraph,
-    cache: Vec<(DefinitionKey, Values, DefinitionSummary)>,
+    cache: Vec<(DefinitionKey, Values, SupportEnvironment, DefinitionSummary)>,
     indexed_subtrees: BTreeMap<DefinitionKey, (bool, bool)>,
     contexts: Option<&'c mut ComponentContexts>,
     context_count: usize,
     instances_visited: usize,
+    memberships: CompleteExteriorMembershipBudget,
 }
 impl Selected<'_, '_, '_> {
     fn structural_profile(
@@ -233,7 +294,7 @@ impl Selected<'_, '_, '_> {
         if let Some(found) = self.indexed_subtrees.get(&key) {
             return Ok(*found);
         }
-        let mut found = (false, false);
+        let mut found = if component.signature().iter().any(|item| matches!(item, eqiora_lang::SignatureItem::Support(slot) if matches!(slot.syntax(), eqiora_lang::SupportSlotSyntax::CompleteExterior { .. }))) { (true, true) } else { (false, false) };
         if component.signature().iter().any(|item| match item {
             eqiora_lang::SignatureItem::Field(value) => {
                 parameters::extent_expressions(value.value_type())
@@ -310,7 +371,11 @@ impl Selected<'_, '_, '_> {
         file: &'i str,
         instances: impl IntoIterator<Item = &'i InstanceDecl>,
         sets: &[&NamedDefinitionDecl],
-        (values, records): (&SymbolicParameterMap, &parameters::RecordContext),
+        (values, records, supports): (
+            &SymbolicParameterMap,
+            &parameters::RecordContext,
+            &SupportEnvironment,
+        ),
         depth: usize,
     ) -> Result<ChildFootprint<'i>, Vec<Diagnostic>> {
         let mut edges = Vec::new();
@@ -450,7 +515,14 @@ impl Selected<'_, '_, '_> {
                         values,
                         &mut child_values,
                     )?;
-                    self.component(&child, child_values, depth + 1)?
+                    let child_supports = supports.bind(
+                        file,
+                        child.declaration,
+                        &member,
+                        self.contexts.is_some(),
+                        &mut self.memberships,
+                    )?;
+                    self.component(&child, child_values, child_supports, depth + 1)?
                 };
                 edges.push(Edge {
                     target: summaries.len(),
@@ -476,6 +548,7 @@ impl Selected<'_, '_, '_> {
         &mut self,
         component: &ComponentDefinition<'_>,
         mut values: SymbolicParameterMap,
+        supports: SupportEnvironment,
         depth: usize,
     ) -> Result<DefinitionSummary, Vec<Diagnostic>> {
         if depth > self.elaborator.limits.max_instance_depth {
@@ -491,10 +564,12 @@ impl Selected<'_, '_, '_> {
             .iter()
             .map(|(name, value)| (name.clone(), value.value.clone()))
             .collect::<Values>();
-        if let Some((_, _, summary)) = self
-            .cache
-            .iter()
-            .find(|(definition, inputs, _)| definition == &key && inputs == &cache_values)
+        if let Some((_, _, _, summary)) =
+            self.cache
+                .iter()
+                .find(|(definition, inputs, environment, _)| {
+                    definition == &key && inputs == &cache_values && environment == &supports
+                })
         {
             return Ok(summary.clone());
         }
@@ -568,10 +643,15 @@ impl Selected<'_, '_, '_> {
             (
                 &values,
                 &parameters::RecordContext::component(self.elaborator, component),
+                &supports,
             ),
             depth,
         )?;
-        local.connections = local
+        if self.contexts.is_none() {
+            local.instantiate(&supports.counts()?)?;
+        }
+        local.fixed.connections = local
+            .fixed
             .connections
             .checked_add(extra_connections)
             .ok_or_else(|| vec![definition_error("connection footprint overflows")])?;
@@ -603,7 +683,8 @@ impl Selected<'_, '_, '_> {
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        self.cache.push((key, cache_values, summary.clone()));
+        self.cache
+            .push((key, cache_values, supports, summary.clone()));
         Ok(summary)
     }
 }
@@ -751,6 +832,25 @@ mod tests {
                 }
             )
             .is_err()
+        );
+    }
+    #[test]
+    fn expression_forwarding_keeps_instance_expansion_limits() {
+        let source = "component Leaf(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){} component Outer(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){instance leaf:Leaf(body=body,source=source);} model M(){domain body=box(0,1,0,1);instance outer:Outer(body=body,source=1[K/m^2]);}";
+        assert!(size(source, HierarchyLimits::default()).is_ok());
+        let errors = size(
+            source,
+            HierarchyLimits {
+                max_instances: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("Component instances")),
+            "{errors:?}"
         );
     }
 }

@@ -7,7 +7,7 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use super::expression::{is_divergence_of_field, load_definition_root};
+use super::expression::is_divergence_of_field;
 use super::support::{
     continuum_representation, has_edge, lowering_error, model_lowering_error,
     require_continuous_relation, typed_relation, unique_root,
@@ -122,52 +122,63 @@ pub(super) fn incompressibility_relations(
         .collect()
 }
 
-pub(super) type VolumeAssignment<M> = (RawId, RawId, (RawId, ExprId), (RawId, M));
+pub(super) type VolumeAssignment<M> = (RawId, Option<(RawId, RawId, ExprId)>, (RawId, M));
 
-/// The ordered search is shared; the supplied momentum recognizer proves its own equations.
+/// Shared role search; each momentum recognizer proves its own equations.
 pub(super) fn volume_assignments<M: Copy>(
     relations: &[RawId],
     typed: &BTreeMap<RawId, TypedResidual<RawId>>,
     scalars: &[RawId],
     incompressibility: RawId,
+    definition: impl Fn(&ExprDag, ExprId, RawId, RawId) -> Result<Option<ExprId>, Diagnostic>,
     momentum: impl Fn(
         &TypedResidual<RawId>,
         ExprId,
         RawId,
-        RawId,
+        Option<RawId>,
         RawId,
     ) -> Result<Option<M>, Diagnostic>,
 ) -> Result<Vec<VolumeAssignment<M>>, Diagnostic> {
     let mut candidates = Vec::new();
-    for &force in scalars {
-        for &pressure in scalars {
-            if pressure == force {
+    for &pressure in scalars {
+        for force in scalars
+            .iter()
+            .copied()
+            .filter(|field| *field != pressure)
+            .map(Some)
+            .chain([None])
+        {
+            let definitions = if let Some(field) = force {
+                let mut definitions = Vec::new();
+                for &relation in relations {
+                    let expression = typed[&relation].expression();
+                    let root = unique_root(expression, relation)?;
+                    if let Some(node) = definition(expression, root, field, relation)? {
+                        definitions.push(Some((field, relation, node)));
+                    }
+                }
+                definitions
+            } else {
+                vec![None]
+            };
+            if definitions.len() != 1 {
                 continue;
             }
-            let definitions = relations
-                .iter()
-                .copied()
-                .filter_map(|relation| {
-                    let expression: &ExprDag = typed.get(&relation)?.expression();
-                    let root = unique_root(expression, relation).ok()?;
-                    load_definition_root(expression, root, force).map(|source| (relation, source))
-                })
-                .collect::<Vec<_>>();
             let mut momenta = Vec::new();
-            for relation in relations {
-                let residual = &typed[relation];
-                let root = unique_root(residual.expression(), *relation)?;
-                if let Some(parts) = momentum(residual, root, pressure, force, *relation)? {
-                    momenta.push((*relation, parts));
+            for &relation in relations {
+                if relation == incompressibility
+                    || definitions[0].is_some_and(|(_, definition, _)| relation == definition)
+                {
+                    continue;
+                }
+                let residual = &typed[&relation];
+                let root = unique_root(residual.expression(), relation)?;
+                if let Some(parts) = momentum(residual, root, pressure, force, relation)? {
+                    momenta.push((relation, parts));
                 }
             }
-            if definitions.len() == 1
-                && momenta.len() == 1
-                && definitions[0].0 != momenta[0].0
-                && definitions[0].0 != incompressibility
-                && momenta[0].0 != incompressibility
-            {
-                candidates.push((pressure, force, definitions[0], momenta[0]));
+            if momenta.len() == 1 {
+                candidates.push((pressure, definitions[0], momenta[0]));
             }
         }
     }

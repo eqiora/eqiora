@@ -104,14 +104,14 @@
           "type": "string"
         },
         "schema": {
-          "const": "eqiora.model-envelope/v49"
+          "const": "eqiora.model-envelope/v50"
         },
         "semanticRevision": {
           "minimum": 0,
           "type": "integer"
         },
         "transactionSchema": {
-          "const": "eqiora.model-transaction-envelope/v49"
+          "const": "eqiora.model-transaction-envelope/v50"
         }
       },
       "required": [

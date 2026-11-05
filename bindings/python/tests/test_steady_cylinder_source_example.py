@@ -22,4 +22,4 @@ def test_steady_cylinder_example_compiles_from_module_and_emitted_source():
     emitted = eqiora.compile(source=module.to_eqi(), geometry=geometry,
                              entry="SteadyFlowPastCylinder", bindings=bindings)
     assert direct.to_bytes() == emitted.to_bytes()
-    assert len(direct.field_ids) == 4
+    assert len(direct.field_ids) == 2

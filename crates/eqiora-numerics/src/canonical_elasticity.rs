@@ -64,7 +64,7 @@ const PRESSURE: DimExponents =
 ///
 /// This lowerer is identity-parametric: it recognizes typed structure rather
 /// than source names. It admits exactly one Cartesian box, one spatial-vector
-/// displacement, one scalar load-potential definition, one balance Relation,
+/// displacement, an optional scalar load-potential definition, one balance Relation,
 /// and one exact direct or conserving-interface boundary law on every side.
 /// Closed zero trace/traction terminals and direct constant real vector-Parameter
 /// tractions normalize to method-neutral dispositions. Live interface bindings
@@ -130,11 +130,11 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
 ) -> Result<LoweredIsotropicElasticitySubdomain2d, Diagnostic> {
     let (displacement, load_potential) = exact_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() != 2 {
+    if volume_relations.len() != 1 + usize::from(load_potential.is_some()) {
         return Err(lowering_error(
             domain,
             format!(
-                "2D isotropic elasticity requires one load-potential definition and one balance Relation, found {} volume Relations",
+                "2D isotropic elasticity requires an optional paired load-potential definition and one balance Relation, found {} volume Relations",
                 volume_relations.len()
             ),
         ));
@@ -147,7 +147,9 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
         let typed = typed_relation(program, relation)?;
         let expression = typed.expression();
         let root = unique_root(expression, relation)?;
-        if let Some(source) = load_definition_root(expression, root, load_potential) {
+        if let Some(source) =
+            load_potential.and_then(|field| load_definition_root(expression, root, field))
+        {
             if load_definition.replace((relation, source)).is_some() {
                 return Err(lowering_error(
                     relation,
@@ -165,14 +167,11 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
             ));
         }
     }
-    let (load_relation, load_root) = load_definition
-        .ok_or_else(|| lowering_error(domain, "load-potential definition is missing"))?;
+    let (load, load_potential_expression) =
+        lower_optional_load(program, domain, load_potential, load_definition, 2)?;
     let (balance_relation, stress_root, balance_typed) =
         balance.ok_or_else(|| lowering_error(domain, "elastic balance is missing"))?;
 
-    let load_expression = &relation_expression(program, load_relation)?;
-    let load_potential_expression =
-        spatial_expression::lower(program, load_expression, load_root, load_relation, 2)?;
     let (two_mu, lambda) = lower_isotropic_stress_coefficients(
         program,
         &balance_typed,
@@ -222,8 +221,7 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
         model: IsotropicElasticityContinuum::new(
             domain,
             displacement,
-            load_potential,
-            load_relation,
+            load,
             balance_relation,
             bounds,
             material,
@@ -583,7 +581,10 @@ fn unique_box<const D: usize>(
     )
 }
 
-fn exact_fields(program: &KernelProgram, domain: RawId) -> Result<(RawId, RawId), Diagnostic> {
+fn exact_fields(
+    program: &KernelProgram,
+    domain: RawId,
+) -> Result<(RawId, Option<RawId>), Diagnostic> {
     let fields = program
         .nodes()
         .filter_map(|node| match node {
@@ -596,11 +597,11 @@ fn exact_fields(program: &KernelProgram, domain: RawId) -> Result<(RawId, RawId)
             _ => None,
         })
         .collect::<Vec<_>>();
-    if fields.len() != 2 {
+    if !(1..=2).contains(&fields.len()) {
         return Err(lowering_error(
             domain,
             format!(
-                "2D isotropic elasticity requires exactly two continuum Fields, found {}",
+                "2D isotropic elasticity requires one displacement and an optional load-potential Field, found {}",
                 fields.len()
             ),
         ));
@@ -625,33 +626,69 @@ fn exact_fields(program: &KernelProgram, domain: RawId) -> Result<(RawId, RawId)
         .map(|field| field.id().erase())
         .collect::<Vec<_>>();
     if displacement.len() == 1
-        && potential.len() == 1
-        && continuum_representation(program, displacement[0])
-            == continuum_representation(program, potential[0])
+        && potential.len() <= 1
+        && fields.len() == 1 + potential.len()
+        && potential.first().is_none_or(|field| {
+            continuum_representation(program, displacement[0])
+                == continuum_representation(program, *field)
+        })
     {
-        Ok((displacement[0], potential[0]))
+        Ok((displacement[0], potential.first().copied()))
     } else {
         Err(lowering_error(
             domain,
-            "Fields must be exactly one length-valued spatial Cartesian `[2]` displacement and one pressure-valued invariant scalar load potential on the same continuum Representation",
+            "Fields must be exactly one length-valued spatial Cartesian `[2]` displacement and an optional pressure-valued invariant scalar load potential on the same continuum Representation",
         ))
     }
 }
 
-fn balance_root(expression: &ExprDag, root: ExprId, potential: RawId) -> Option<ExprId> {
-    let ExprNode::Sub(operator, load) = expression.node(root)? else {
-        return None;
+fn balance_root(expression: &ExprDag, root: ExprId, potential: Option<RawId>) -> Option<ExprId> {
+    let operator = if let Some(potential) = potential {
+        let ExprNode::Sub(operator, load) = expression.node(root)? else {
+            return None;
+        };
+        let ExprNode::Gradient(argument) = expression.node(*load)? else {
+            return None;
+        };
+        if !is_field(expression, *argument, potential) {
+            return None;
+        }
+        *operator
+    } else {
+        root
     };
-    let ExprNode::Neg(divergence) = expression.node(*operator)? else {
+    let ExprNode::Neg(divergence) = expression.node(operator)? else {
         return None;
     };
     let ExprNode::Divergence(stress) = expression.node(*divergence)? else {
         return None;
     };
-    let ExprNode::Gradient(argument) = expression.node(*load)? else {
-        return None;
-    };
-    is_field(expression, *argument, potential).then_some(*stress)
+    Some(*stress)
+}
+
+type LoweredConservativeLoad = (Option<(RawId, RawId)>, ScalarSpatialExpression<f64>);
+
+/// A load carrier and its defining relation are admitted together. Missing loads
+/// retain the zero tape used by assembly without inventing graph identities.
+fn lower_optional_load(
+    program: &KernelProgram,
+    domain: RawId,
+    potential: Option<RawId>,
+    definition: Option<(RawId, ExprId)>,
+    dimension: usize,
+) -> Result<LoweredConservativeLoad, Diagnostic> {
+    match (potential, definition) {
+        (None, None) => Ok((None, ScalarSpatialExpression::constant(dimension, 0.0))),
+        (Some(field), Some((relation, root))) => {
+            let expression = relation_expression(program, relation)?;
+            let tape = spatial_expression::lower(program, &expression, root, relation, dimension)?;
+            Ok((Some((field, relation)), tape))
+        }
+        _ => Err(lowering_error(
+            domain,
+            "load potential requires its paired definition Relation",
+        )),
+    }
 }
 
 fn load_definition_root(expression: &ExprDag, root: ExprId, potential: RawId) -> Option<ExprId> {

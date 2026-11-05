@@ -8,9 +8,9 @@ The admitted package chain is
 
 ```text
 verification root
-  -> Eqiora.Fluid.Incompressible@0.2.0
-       -> Eqiora.Mechanics.Interfaces@0.1.0
-  -> Eqiora.Mechanics.Interfaces@0.1.0
+  -> Eqiora.Fluid@0.5.0
+       -> Eqiora.Mechanics.Interfaces@0.3.0
+  -> Eqiora.Mechanics.Interfaces@0.3.0
 ```
 
 The root's direct mechanics dependency supplies the explicit zero terminals;

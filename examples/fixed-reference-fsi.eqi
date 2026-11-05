@@ -21,13 +21,12 @@ public component FixedReferenceFsi2d(
   support solid_x_upper: boundary(parent = solid),
   support solid_y_lower: boundary(parent = solid),
   support solid_y_upper: boundary(parent = solid),
-  // Material properties and the reference pressure are compile-time Model inputs.
+  // Material properties are compile-time Model inputs.
   parameter fluid_density: kg / m ^ 3,
   parameter fluid_viscosity: kg / (m * s),
   parameter solid_density: kg / m ^ 3,
   parameter solid_mu: kg / (m * s ^ 2),
-  parameter solid_lambda: kg / (m * s ^ 2),
-  parameter zero_pressure: kg / (m * s ^ 2)
+  parameter solid_lambda: kg / (m * s ^ 2)
 ) {
   // Each 2D volume owns four boundary roles; the touching pair becomes the interface.
 
@@ -35,34 +34,25 @@ public component FixedReferenceFsi2d(
 
   state fluid_velocity: vector<m / s, 2> on fluid in smooth;
   variable fluid_pressure: kg / (m * s ^ 2) on fluid in h1;
-  variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
   state solid_displacement: vector<m, 2> on solid in smooth;
   state solid_velocity: vector<m / s, 2> on solid in h1;
-  variable solid_load_potential: kg / (m * s ^ 2) on solid;
 
   // Fluid: transient Stokes momentum balance with incompressibility.
-  relation fluid_load_definition on fluid {
-    fluid_load_potential - zero_pressure = 0;
-  }
   relation fluid_momentum on fluid {
     fluid_density * derivative(fluid_velocity)
       - div(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
-        - isotropic_lift(fluid_pressure)) - grad(fluid_load_potential) = 0;
+        - isotropic_lift(fluid_pressure)) = 0;
   }
   relation incompressibility on fluid { div(fluid_velocity) = 0; }
 
   // Solid: velocity is the displacement derivative, followed by momentum balance.
-  relation solid_load_definition on solid {
-    solid_load_potential - zero_pressure = 0;
-  }
   relation solid_kinematics on solid {
     derivative(solid_displacement) - solid_velocity = 0;
   }
   relation solid_momentum on solid {
     solid_density * derivative(solid_velocity)
       - div(2 * solid_mu * symmetric_part(grad(solid_displacement))
-        + solid_lambda * isotropic_lift(div(solid_displacement)))
-      - grad(solid_load_potential) = 0;
+        + solid_lambda * isotropic_lift(div(solid_displacement))) = 0;
   }
 
   // Homogeneous exterior velocity conditions leave the touching boundaries for coupling.

@@ -42,6 +42,17 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 }
                 .expect("String write");
             }
+            SignatureItem::Expression(value) => {
+                write!(output, "expression {}: ", value.comments.named(&value.name))
+                    .expect("String write");
+                value_type::format_value_type(&value.value_type, output);
+                if let Some(domain) = &value.domain {
+                    write!(output, " on {domain}").expect("String write");
+                }
+                if let ActivationSyntax::Named(clock) = &value.activation {
+                    write!(output, " at {clock}").expect("String write");
+                }
+            }
             SignatureItem::Field(value) => format_unknown_head(value, output),
             SignatureItem::Clock(value) => {
                 write!(

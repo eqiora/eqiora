@@ -133,7 +133,6 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     cylinder = stokes.boundary("cylinder", parent=fluid)
 
     dynamic_viscosity = stokes.parameter("dynamic_viscosity", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-1)))
-    zero_pressure = stokes.parameter("zero_pressure", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
     inlet_speed = stokes.parameter("inlet_speed", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
     channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
@@ -146,27 +145,13 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     pressure = stokes.field(
         "pressure", role=eqiora.FieldRole.Variable, on=fluid, spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
-    force_potential = stokes.field(
-        "force_potential", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
-    )
-    inlet_profile = stokes.field(
-        "inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
-    )
-
-    stokes.relation("force_definition", eqiora.lang.equation(force_potential - zero_pressure, 0), on=fluid)
-    stokes.relation("inlet_profile_definition", eqiora.lang.equation(inlet_profile
-            - 4
-            * inlet_speed
-            * q.coordinate(1)
-            * (channel_height - q.coordinate(1))
-            / channel_height**2, 0), on=fluid)
     stress = (
         2 * dynamic_viscosity * q.symmetric_part(q.grad(velocity))
         - q.isotropic_lift(pressure)
     )
-    stokes.relation("momentum", eqiora.lang.equation(-q.div(stress) - q.grad(force_potential), 0), on=fluid, doc="Steady Stokes momentum balance.")
+    stokes.relation("momentum", eqiora.lang.equation(-q.div(stress), 0), on=fluid, doc="Steady Stokes momentum balance.")
     stokes.relation("incompressibility", eqiora.lang.equation(q.div(velocity), 0), on=fluid)
-    stokes.relation("inlet_velocity", eqiora.lang.equation(q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)), 0), on=inlet)
+    stokes.relation("inlet_velocity", eqiora.lang.equation(q.trace(velocity), -q.normal_vector() * (4 * inlet_speed * q.coordinate(1) * (channel_height - q.coordinate(1)) / channel_height**2)), on=inlet)
     stokes.relation("outlet_traction", eqiora.lang.equation(q.normal(stress), 0), on=outlet)
     stokes.relation("wall_velocity", eqiora.lang.equation(q.trace(velocity), 0), on=walls)
     stokes.relation("cylinder_velocity", eqiora.lang.equation(q.trace(velocity), 0), on=cylinder)
@@ -192,7 +177,6 @@ geometry = graph.build(fluid, named_topology={
 })
 parameters = {
     "dynamic_viscosity": 0.001,
-    "zero_pressure": 0.0,
     "inlet_speed": 0.3,
     "channel_height": 0.41,
 }
@@ -206,7 +190,12 @@ with tempfile.TemporaryDirectory() as directory:
     emitted = eqiora.compile(path=path, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.structural_fingerprint == emitted.structural_fingerprint
 shipped = eqiora.compile(source=shipped_source, filename='steady-flow-past-cylinder.eqi', geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
-assert direct.structural_fingerprint == shipped.structural_fingerprint
+# Imported standard components retain package identities. The handwritten
+# Module and its emitted text agree above; the shipped composition now has
+# its own package lineage and the same two physical unknowns.
+assert shipped.package_compilation_digest is not None
+assert direct.package_compilation_digest is None
+assert len(shipped.field_ids) == len(direct.field_ids) == 2
 
 other_comments = eqiora.compile(source=cylinder_source(doc='Different presentation-only documentation.'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.digest == other_comments.digest

@@ -4,6 +4,45 @@ Use the environment from [Get started](/get-started/). The sections below show
 how to declare a model, connect its geometry, and select numerical methods. For
 a mathematical introduction, choose a subject in [Learn](/learn/).
 
+## Import equations from bundled packages
+
+This workflow requires a [development build](/get-started/#development-build).
+The published `0.1.5` package uses the existing `compile_package` workflow.
+
+Text and file compilation resolve declared imports from the exact packages
+embedded in that development build. No manifest, package store,
+network access, or temporary project is needed:
+
+```python
+model = eqiora.compile(path="voltage-divider.eqi")
+```
+
+The file can import components, for example
+`import Eqiora.Electrical.Basic.basic as electrical;`. Use `entry=`,
+`geometry=`, and `bindings=` as usual when selecting a Component or binding
+its static inputs. An omitted entry requires exactly one Model in your source;
+Models from dependencies are never selected implicitly.
+
+Unknown packages and missing modules are errors. Compilation includes only
+declared packages and their exact dependencies. Changing the installed bundled
+release can change the package compilation identity. For reproducibility across
+distributions, use [`compile_package`](api.md#api-eqiora-compile_package) with
+your explicit store and resolution; it never substitutes a bundled release.
+
+The live Model, Plan, and Run retain the package compilation identity. For
+harmonic response, `plan.model` is the derived Model;
+`plan.package_compilation_digest` refers to the original source Model. Bare
+Model and Plan byte exports preserve their canonical meaning and identity but
+do not include package sidecars. Recompile the explicit locked package graph
+to restore that context after reopening.
+
+Set `import_context="closed"` to disable implicit bundled imports for text or
+file compilation. Python `Module` graphs always use their explicit dependency
+context. Rust callers use `eqiora::package::compile_source` and retain its
+`SourceCompilation::Packaged` result to keep package provenance. The CLI
+`eqiora check FILE` uses the same bundled import policy. The versioned
+compile/check control protocol still accepts closed source only.
+
 ## Native declarations
 
 Define fields, parameters, initial conditions, and equations in Python, then
@@ -998,14 +1037,14 @@ dependency to an existing project through the same manifest/lock transaction:
 import eqiora
 
 resolution = eqiora.add_bundled_dependency(
-    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.6.0"
+    ".", "package-store", "Eqiora.Fluid", version="0.5.0"
 )
 ```
 
 Create the store directory first. The request must match the release
 shipped in the distribution. The solid package is
-`Eqiora.Solid.LinearElasticity`, version `0.6.0`.
-The manifest records `version = "0.6.0"` and `sources = [{ bundled = true }]`
+`Eqiora.Solid.LinearElasticity`, version `0.7.0`.
+The manifest records `version = "0.5.0"` and `sources = [{ bundled = true }]`
 for the fluid dependency. Each dependency lists its explicit candidate sources.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the
@@ -1472,7 +1511,6 @@ model = eqiora.compile(
             for name in ("inlet", "outlet", "walls", "cylinder")
         },
         "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
         "inlet_speed": 0.3,
         "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
     },
@@ -1524,13 +1562,16 @@ Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the pressure field:
 
 ```console
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```
 
 The example files come from the [repository download](https://eqiora.org/get-started/#example-files);
-the Eqiora dependency comes from PyPI. The equivalent composition API is:
+install the Eqiora dependency from that same development checkout. The published
+0.1.5 wheel does not include the new direct boundary-data authoring used by the
+current example. Source builds require Rust, a C/C++ compiler, CMake and
+libclang; [CONTRIBUTING.md](../../CONTRIBUTING.md) describes repository tool setup. The equivalent composition API is:
 
 ```python
 import eqiora.matplotlib as eqplot
@@ -1881,7 +1922,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v49` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v50` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

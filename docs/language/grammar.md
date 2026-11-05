@@ -16,6 +16,8 @@ value-kind = "parameter" | "variable" | "state" | "let" | "input" | "output"
            | "port" | "observable" | "property"
 signature = "(" [signature-entry {"," signature-entry}] ")"
 signature-entry = value-head ["=" expression] | support-requirement | clock-requirement
+                | expression-requirement
+expression-requirement = "expression" identifier [annotation] ":" type "on" qualified-name
 support-requirement = "support" identifier [annotation] ":" support-contract
 clock-requirement = "clock" identifier [annotation] ":" "periodic"
 container = ["public"] ("component" | "model") identifier [annotation] signature body

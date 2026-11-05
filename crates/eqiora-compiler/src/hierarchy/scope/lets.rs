@@ -99,7 +99,7 @@ impl Scope {
         })
     }
 
-    pub(in crate::hierarchy) fn insert_runtime_let(
+    pub(in crate::hierarchy) fn insert_runtime_value(
         &mut self,
         name: String,
         expression: LoweringExpression,
@@ -116,7 +116,7 @@ impl Scope {
             )
             .is_some()
         {
-            Err("runtime let alias collides with a scoped value")
+            Err("runtime expression collides with a scoped value")
         } else {
             Ok(())
         }

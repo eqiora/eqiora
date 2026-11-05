@@ -114,10 +114,13 @@ pub(super) fn connection<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<
 pub(super) fn require_zero_load<const D: usize>(
     model: &AleFsiCartesianModel<D>,
 ) -> Result<(), Diagnostic> {
-    let fluid_load = model.fluid().force_potential_expression().constant_value();
+    let fluid_load = model
+        .fluid()
+        .force_potential_expression()
+        .map(|source| source.constant_value());
     let solid = model.solid().continuum();
     let solid_load = solid.load_potential_expression().constant_value();
-    if fluid_load != Some(0.0) || solid_load != Some(0.0) {
+    if fluid_load.is_some_and(|value| value != Some(0.0)) || solid_load != Some(0.0) {
         return Err(invalid_realization(
             "fixed-topology ALE FSI v1 requires exact zero canonical fluid and solid load potentials",
         ));

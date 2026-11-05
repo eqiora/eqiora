@@ -159,8 +159,7 @@ fn conservative_replay_binds_every_physical_role_and_closed_rule() {
         domain: Id::<kinds::Domain>::new().erase(),
         velocity: Id::<kinds::Field>::new().erase(),
         pressure: Id::<kinds::Field>::new().erase(),
-        source: Id::<kinds::Field>::new().erase(),
-        source_definition: relation(),
+        source: Some((Id::<kinds::Field>::new().erase(), relation())),
         momentum_relation: relation(),
         incompressibility_relation: relation(),
         boundary_relations: &boundaries,
@@ -175,8 +174,9 @@ fn conservative_replay_binds_every_physical_role_and_closed_rule() {
     reject(|c| c.law.domain = relation());
     reject(|c| c.law.velocity = relation());
     reject(|c| c.law.pressure = relation());
-    reject(|c| c.law.source = relation());
-    reject(|c| c.law.source_definition = relation());
+    reject(|c| c.law.source = Some((relation(), c.law.source.unwrap().1)));
+    reject(|c| c.law.source = Some((c.law.source.unwrap().0, relation())));
+    reject(|c| c.law.source = None);
     reject(|c| c.law.momentum_relation = relation());
     reject(|c| c.law.incompressibility_relation = relation());
     reject(|c| {
@@ -200,7 +200,7 @@ fn conservative_replay_binds_every_physical_role_and_closed_rule() {
     assert!(
         valid
             .replay(IntegralConservativeSource {
-                source_definition: relation(),
+                source: Some((source.source.unwrap().0, relation())),
                 ..source
             })
             .is_err()

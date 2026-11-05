@@ -18,7 +18,7 @@ model Main() {
   relation fluid_load_definition on fluid_domain {
     fluid_load_potential - fluid_zero_pressure = 0;
   }
-  instance fluid_law: inertial.InertialStokesWithPotential2d(
+  instance fluid_law: fluid.ForcedInertialStokes2d(
     body = fluid_domain,
     velocity = fluid_velocity,
     pressure = fluid_pressure,
@@ -26,7 +26,7 @@ model Main() {
     density = 2[kg / m^3],
     dynamic_viscosity = 0.5[kg / (m * s)]
   );
-  instance fluid_boundary: fluid.NewtonianMechanicalInterface2d(
+  instance fluid_boundary: fluid.VelocityTractionInterface2d(
     body = fluid_domain,
     exterior = boundaries(
       fluid_x_lower, fluid_x_upper, fluid_y_lower, fluid_y_upper

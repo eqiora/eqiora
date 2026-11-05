@@ -2793,10 +2793,13 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 ### `eqiora.compile`
 
-Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
+Compile source or a file with embedded package imports, or an explicit Module graph.
+
+Set import_context="closed" to disable implicit packages for text or files.
+Module graphs always use their explicitly supplied dependencies.
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None, import_context: Literal['bundled', 'closed']='bundled') -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>
@@ -4248,6 +4251,16 @@ Spatial coordinate along `axis`.
 def coordinate(axis: int) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-normal_vector"></a>
+
+### `eqiora.lang.normal_vector`
+
+Unit outward normal on the enclosing boundary's ambient Cartesian space.
+
+```python
+def normal_vector() -> Expression: ...
+```
+
 <a id="api-eqiora-lang-dot"></a>
 
 ### `eqiora.lang.dot`
@@ -5019,10 +5032,16 @@ class MeshPlan:
 
 ### `eqiora.meshing.generate`
 
-Run a resolved meshing plan and return the mesh.
+Resolve and generate from geometry and an explicit meshing provider.
+
+Pass a MeshPlan alone or with None to generate a previously inspected plan.
 
 ```python
-def generate(plan: MeshPlan, /) -> Mesh: ...
+@overload
+def generate(plan: MeshPlan, provider: None=None, /) -> Mesh: ...
+
+@overload
+def generate(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> Mesh: ...
 ```
 
 <a id="api-eqiora-meshing-resolve"></a>
@@ -5855,20 +5874,27 @@ class TimePlanView:
 Adaptive explicit Tsitouras 5(4) integration.
 
 Tolerances are in SI units and are set per Field, derivative order,
-component, and real or imaginary part.
+component, and real or imaginary part. Alternatively, `absolute_tolerance`
+specifies the SI tolerance of one real scalar first-order ODE state.
+The scalar form is bound and checked for positive finite controls at
+`resolve`; it does not broadcast or accept extra contracts. Specify
+exactly one tolerance form. Before resolution the scalar request has no
+Field-bound mapping, so `absolute_tolerances` is `None`.
 
 ```python
 @final
 class Tsitouras45:
     def with_conserved_norm(self, fields: Sequence[FieldRef], *, target: float, tolerance: float, dimension: Dimension) -> Self: ...
     def with_hermitian_parameter(self, parameter: ParameterRef) -> Self: ...
-    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float], events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
+    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float] | None=None, absolute_tolerance: float | None=None, events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
     @property
     def initial_step_s(self) -> float: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float] | None: ...
+    @property
+    def absolute_tolerance(self) -> float | None: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property

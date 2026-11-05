@@ -24,8 +24,7 @@ use crate::diagnostics::source_error;
 
 use super::CompleteExteriorLimits;
 use super::complete_exterior::{
-    CartesianDomain, CompleteExteriorError, CompleteExteriorWitness,
-    prove_complete_cartesian_exterior,
+    CompleteExteriorError, CompleteExteriorWitness, ExteriorDomain, prove_complete_exterior,
 };
 
 #[derive(Clone, Debug)]
@@ -466,24 +465,50 @@ impl<I: Ord> ForwardedBoundarySetBinding<I> {
 /// by forwarding an enclosing proved set.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum ResolvedBoundarySet<I> {
+    Deferred {
+        exact_parent: I,
+        ambient_dimension: usize,
+        source_range: TextRange,
+    },
     Explicit(ExplicitBoundarySetBinding<I>),
     Forwarded(ForwardedBoundarySetBinding<I>),
 }
 
 impl<I: Ord> ResolvedBoundarySet<I> {
-    pub(super) fn witness(&self) -> &CompleteExteriorWitness<I> {
+    pub(super) fn witness(&self) -> Result<&CompleteExteriorWitness<I>, Diagnostic> {
         match self {
-            Self::Explicit(binding) => binding.witness(),
-            Self::Forwarded(binding) => binding.witness(),
+            Self::Explicit(binding) => Ok(binding.witness()),
+            Self::Forwarded(binding) => Ok(binding.witness()),
+            Self::Deferred { .. } => Err(super::hierarchy_error(
+                "complete-exterior topology obligation remains unresolved at occurrence",
+            )),
         }
     }
 
-    /// Locator records keyed by identity. Slice order carries no meaning.
+    pub(super) fn exact_parent(&self) -> &I {
+        match self {
+            Self::Deferred { exact_parent, .. } => exact_parent,
+            Self::Explicit(binding) => binding.witness().exact_parent(),
+            Self::Forwarded(binding) => binding.witness().exact_parent(),
+        }
+    }
+
+    pub(super) fn ambient_dimension(&self) -> usize {
+        match self {
+            Self::Deferred {
+                ambient_dimension, ..
+            } => *ambient_dimension,
+            Self::Explicit(binding) => binding.witness().ambient_dimension(),
+            Self::Forwarded(binding) => binding.witness().ambient_dimension(),
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn members(&self) -> &[ResolvedBoundaryMember<I>] {
         match self {
             Self::Explicit(binding) => binding.members(),
             Self::Forwarded(binding) => binding.members(),
+            Self::Deferred { .. } => &[],
         }
     }
 
@@ -491,22 +516,42 @@ impl<I: Ord> ResolvedBoundarySet<I> {
         match self {
             Self::Explicit(binding) => binding.member(exact_identity),
             Self::Forwarded(binding) => binding.member(exact_identity),
+            Self::Deferred { .. } => None,
         }
     }
 
-    /// Source range of the explicit or forwarded binding that established
-    /// this occurrence's complete-exterior proof.
     pub(super) const fn source_range(&self) -> TextRange {
         match self {
             Self::Explicit(binding) => binding.source_range,
             Self::Forwarded(binding) => binding.source_range,
+            Self::Deferred { source_range, .. } => *source_range,
         }
     }
 
-    fn proved(&self) -> &Arc<ProvedBoundarySet<I>> {
+    fn forwarded(&self, target: String, source_range: TextRange) -> Self
+    where
+        I: Clone,
+    {
         match self {
-            Self::Explicit(binding) => &binding.proved,
-            Self::Forwarded(binding) => &binding.proved,
+            Self::Deferred {
+                exact_parent,
+                ambient_dimension,
+                ..
+            } => Self::Deferred {
+                exact_parent: exact_parent.clone(),
+                ambient_dimension: *ambient_dimension,
+                source_range,
+            },
+            Self::Explicit(binding) => Self::Forwarded(ForwardedBoundarySetBinding {
+                target,
+                proved: Arc::clone(&binding.proved),
+                source_range,
+            }),
+            Self::Forwarded(binding) => Self::Forwarded(ForwardedBoundarySetBinding {
+                target,
+                proved: Arc::clone(&binding.proved),
+                source_range,
+            }),
         }
     }
 }
@@ -726,6 +771,10 @@ fn complete_exterior_proof_diagnostic<I: Eq>(
 ) -> Diagnostic {
     let range = complete_exterior_error_range(&error, members).unwrap_or(binding_range);
     let (code, message) = match &error {
+        CompleteExteriorError::GeometryPartition { message } => (
+            codes::LANGUAGE_TYPE_ERROR,
+            format!("complete-exterior slot `{slot}`: {message}"),
+        ),
         CompleteExteriorError::Empty => (
             codes::LANGUAGE_TYPE_ERROR,
             format!("complete-exterior slot `{slot}` requires a nonempty BoundarySet"),
@@ -822,6 +871,7 @@ fn complete_exterior_error_range<I: Eq>(
         CompleteExteriorError::DuplicateGeometry { duplicate, .. } => Some(duplicate),
         CompleteExteriorError::UnknownDomain { domain } => Some(domain),
         CompleteExteriorError::Empty
+        | CompleteExteriorError::GeometryPartition { .. }
         | CompleteExteriorError::ExactParentIsNotVolume { .. }
         | CompleteExteriorError::ExactParentHasZeroDimension { .. }
         | CompleteExteriorError::MissingSide { .. }

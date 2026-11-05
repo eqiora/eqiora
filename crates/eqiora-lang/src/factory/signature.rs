@@ -7,6 +7,15 @@ pub(super) fn validate_signature(items: &[SignatureItem]) -> Result<(), AstConst
         checked_range(item.range())?;
         validate_identifier(item.name(), "signature name")?;
         match item {
+            SignatureItem::Expression(value)
+                if value.role() != crate::FieldRoleSyntax::Variable
+                    || value.spatial_regularity()
+                        != eqiora_schema::kernel::SpatialRegularity::Unspecified =>
+            {
+                return Err(AstConstructionError::new(
+                    "expression slots declare value types and support, not Field roles or regularity",
+                ));
+            }
             SignatureItem::Input(value) | SignatureItem::Output(value)
                 if value.role() != crate::FieldRoleSyntax::Variable =>
             {

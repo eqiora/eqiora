@@ -422,6 +422,12 @@ impl ResolvedSourceUnit {
         self.module.import_path()
     }
 
+    /// Canonical source label used by compiler diagnostics and hierarchy provenance.
+    #[must_use]
+    pub fn diagnostic_filename(&self) -> String {
+        source::source_label(self)
+    }
+
     /// File path recorded for provenance, as supplied by the source bundle.
     #[must_use]
     pub fn file(&self) -> &str {

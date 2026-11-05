@@ -2,6 +2,31 @@
 use super::*;
 
 impl DefinitionScope<'_, '_> {
+    /// Exact singular named binding shared by child contract specialization.
+    pub(in crate::hierarchy::body_check) fn child_binding_target<'a>(
+        &self,
+        occurrence: &'a eqiora_lang::InstanceDecl,
+        name: &str,
+    ) -> Option<&'a str> {
+        occurrence.bindings().iter().find_map(|binding| {
+            if binding.name() != name {
+                return None;
+            }
+            match binding.value().kind() {
+                eqiora_lang::ExprKind::Name(target) => Some(target.as_str()),
+                _ => None,
+            }
+        })
+    }
+    pub(in crate::hierarchy::body_check) fn child_bound_support(
+        &self,
+        occurrence: &eqiora_lang::InstanceDecl,
+        name: &str,
+    ) -> Option<SpatialSupport<String>> {
+        self.child_binding_target(occurrence, name)
+            .and_then(|name| self.spatial_support(name))
+    }
+
     pub(super) fn specialize_child_port(
         &self,
         instance: &str,
@@ -10,17 +35,7 @@ impl DefinitionScope<'_, '_> {
         let Some(occurrence) = self.child_instances.get(instance) else {
             return contract;
         };
-        let target = |name: &str| {
-            occurrence.bindings().iter().find_map(|binding| {
-                if binding.name() != name {
-                    return None;
-                }
-                match binding.value().kind() {
-                    eqiora_lang::ExprKind::Name(target) => Some(target.as_str()),
-                    _ => None,
-                }
-            })
-        };
+        let target = |name: &str| self.child_binding_target(occurrence, name);
         if let PortContract::Signal {
             support,
             activation,
@@ -28,8 +43,7 @@ impl DefinitionScope<'_, '_> {
         } = &mut contract
         {
             if let Some(current) = support
-                && let Some(bound) =
-                    target(current.domain()).and_then(|name| self.spatial_support(name))
+                && let Some(bound) = self.child_bound_support(occurrence, current.domain())
             {
                 *current = bound;
             }

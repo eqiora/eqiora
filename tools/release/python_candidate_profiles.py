@@ -95,7 +95,7 @@ PYTHON_TEST_RESOURCES = (
     Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
-    Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi"),
 )
 
 COMPLETE_PROFILE_NAMES = (

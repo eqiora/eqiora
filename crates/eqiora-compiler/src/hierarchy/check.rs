@@ -16,7 +16,7 @@ use eqiora_schema::kernel::BoundarySide;
 use crate::diagnostics::{BoundedDiagnostics, source_error};
 use crate::dimensions::lower_dimension;
 
-use super::complete_exterior::CartesianDomain;
+use super::complete_exterior::ExteriorDomain;
 use super::definition_graph::CheckedDefinitionGraph;
 use super::field_slots::{
     component_field_contracts, component_field_interface, model_field_contracts,
@@ -29,7 +29,7 @@ use super::parameters::{
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, SupportInterface,
-    component_support_interface, model_spatial_supports, resolve_instance_support_bindings,
+    component_support_interface, model_spatial_supports, resolve_definition_support_bindings,
     symbolic_complete_exterior_set,
 };
 
@@ -297,15 +297,31 @@ fn validate_definition_bodies_and_parameters(
                         occurrences_valid = false;
                         continue;
                     };
-                    let support_bindings = match resolve_instance_support_bindings(
+                    // Formal Boundary slots may form a deferred set; only a
+                    // concrete occurrence can establish its Geometry witness.
+                    let support_bindings = match resolve_definition_support_bindings(
                         definition.file,
                         child.declaration,
                         child_supports,
                         instance,
                         |name| parent_supports.visible_support(name).cloned(),
-                        |_| None,
+                        |name| match parent_supports.visible_support(name)? {
+                            eqiora_schema::kernel::typing::SpatialSupport::Boundary {
+                                domain,
+                                ..
+                            } => Some(ResolvedBoundaryTarget::new(name.to_owned(), domain.clone())),
+                            _ => None,
+                        },
                         |_| None,
                         |name| parent_boundary_sets.get(name).cloned(),
+                        |name| {
+                            matches!(
+                                parent_supports.visible_support(name),
+                                Some(
+                                    eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. }
+                                )
+                            )
+                        },
                         &mut complete_exterior_budget,
                     ) {
                         Ok(bindings) => Some(bindings),
@@ -370,14 +386,21 @@ fn validate_definition_bodies_and_parameters(
     for (key, definition) in elaborator.models() {
         let mut parameters = SymbolicParameterMap::new();
         let mut occurrences_valid = true;
-        let model_supports = match model_spatial_supports(definition.file, definition.declaration) {
-            Ok(supports) => Some(supports),
-            Err(errors) => {
-                occurrences_valid = false;
-                diagnostics.extend(errors);
-                None
-            }
-        };
+        let mut model_supports =
+            match model_spatial_supports(definition.file, definition.declaration) {
+                Ok(supports) => Some(supports),
+                Err(errors) => {
+                    occurrences_valid = false;
+                    diagnostics.extend(errors);
+                    None
+                }
+            };
+        if let (Some(actual), Some(bound)) = (
+            model_supports.as_mut(),
+            elaborator.selected_supports.get(key),
+        ) {
+            actual.extend(bound.singular.clone());
+        }
         match super::parameters::resolve_model_parameters_symbolically(
             definition.file,
             definition.declaration,
@@ -433,6 +456,9 @@ fn validate_definition_bodies_and_parameters(
                 occurrences_valid = false;
                 diagnostics.extend(errors);
             }
+        }
+        if let Some(supports) = elaborator.selected_supports.get(key) {
+            model_boundary_sets.extend(supports.exteriors.clone());
         }
         let model_fields = model_supports
             .as_ref()
@@ -552,56 +578,73 @@ fn validate_definition_bodies_and_parameters(
                         }) => Some(ResolvedBoundaryTarget::new(name.to_owned(), domain.clone())),
                         _ => None,
                     },
-                    |identity| match model_supports.get(identity)? {
-                        eqiora_schema::kernel::typing::SpatialSupport::Volume {
-                            dimensions,
-                            ..
-                        } => Some(CartesianDomain::Volume {
-                            ambient_dimension: *dimensions,
-                        }),
-                        eqiora_schema::kernel::typing::SpatialSupport::Boundary {
-                            parent,
-                            dimensions,
-                            ..
-                        } => {
-                            if let Some((axis, side)) = elaborator
-                                .selected_boundary_sides
-                                .get(&(key.clone(), identity.clone()))
-                            {
-                                return Some(CartesianDomain::Boundary {
+                    |identity| {
+                        if let Some(metadata) = elaborator
+                            .selected_supports
+                            .get(key)
+                            .and_then(|supports| supports.domains.get(identity))
+                        {
+                            return Some(metadata.clone());
+                        }
+                        match model_supports.get(identity)? {
+                            eqiora_schema::kernel::typing::SpatialSupport::Volume {
+                                dimensions,
+                                ..
+                            } => Some(ExteriorDomain::Volume {
+                                ambient_dimension: *dimensions,
+                            }),
+                            eqiora_schema::kernel::typing::SpatialSupport::Boundary {
+                                parent,
+                                dimensions,
+                                ..
+                            } => {
+                                if let Some((axis, side)) = elaborator
+                                    .selected_boundary_sides
+                                    .get(&(key.clone(), identity.clone()))
+                                {
+                                    return Some(ExteriorDomain::Boundary {
+                                        exact_parent: parent.clone(),
+                                        ambient_dimension: *dimensions,
+                                        axis: *axis,
+                                        side: *side,
+                                    });
+                                }
+                                let declaration =
+                                    definition.declaration.items().iter().find_map(|item| {
+                                        match item {
+                                            Item::Domain(domain) if domain.name() == identity => {
+                                                Some(domain)
+                                            }
+                                            _ => None,
+                                        }
+                                    })?;
+                                let DomainSyntax::Boundary { axis, side, .. } =
+                                    declaration.syntax()
+                                else {
+                                    return None;
+                                };
+                                Some(ExteriorDomain::Boundary {
                                     exact_parent: parent.clone(),
                                     ambient_dimension: *dimensions,
                                     axis: *axis,
-                                    side: *side,
-                                });
+                                    side: match side {
+                                        eqiora_lang::BoundarySideSyntax::Lower => {
+                                            BoundarySide::Lower
+                                        }
+                                        eqiora_lang::BoundarySideSyntax::Upper => {
+                                            BoundarySide::Upper
+                                        }
+                                    },
+                                })
                             }
-                            let declaration = definition.declaration.items().iter().find_map(
-                                |item| match item {
-                                    Item::Domain(domain) if domain.name() == identity => {
-                                        Some(domain)
-                                    }
-                                    _ => None,
-                                },
-                            )?;
-                            let DomainSyntax::Boundary { axis, side, .. } = declaration.syntax()
-                            else {
-                                return None;
-                            };
-                            Some(CartesianDomain::Boundary {
-                                exact_parent: parent.clone(),
-                                ambient_dimension: *dimensions,
-                                axis: *axis,
-                                side: match side {
-                                    eqiora_lang::BoundarySideSyntax::Lower => BoundarySide::Lower,
-                                    eqiora_lang::BoundarySideSyntax::Upper => BoundarySide::Upper,
-                                },
-                            })
+                            eqiora_schema::kernel::typing::SpatialSupport::Coordinates {
+                                ..
+                            }
+                            | eqiora_schema::kernel::typing::SpatialSupport::Interface { .. }
+                            | eqiora_schema::kernel::typing::SpatialSupport::PhysicalInterface {
+                                ..
+                            } => None,
                         }
-                        eqiora_schema::kernel::typing::SpatialSupport::Coordinates { .. }
-                        | eqiora_schema::kernel::typing::SpatialSupport::Interface { .. }
-                        | eqiora_schema::kernel::typing::SpatialSupport::PhysicalInterface {
-                            ..
-                        } => None,
                     },
                     |name| model_boundary_sets.get(name).cloned(),
                     |name| {

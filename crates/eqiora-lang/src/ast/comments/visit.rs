@@ -17,7 +17,7 @@ macro_rules! signature {
             match item {
                 crate::SignatureItem::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
                 crate::SignatureItem::Support(value) => $visit(value.range, &$($mutable)? value.comments),
-                crate::SignatureItem::Field(value) | crate::SignatureItem::Input(value) | crate::SignatureItem::Output(value) => $visit(value.range, &$($mutable)? value.comments),
+                crate::SignatureItem::Expression(value) | crate::SignatureItem::Field(value) | crate::SignatureItem::Input(value) | crate::SignatureItem::Output(value) => $visit(value.range, &$($mutable)? value.comments),
                 crate::SignatureItem::Clock(value) => $visit(value.range, &$($mutable)? value.comments),
                 crate::SignatureItem::Property(value) => $visit(value.range, &$($mutable)? value.comments),
                 crate::SignatureItem::Port(value) => $visit(value.range, &$($mutable)? value.comments),

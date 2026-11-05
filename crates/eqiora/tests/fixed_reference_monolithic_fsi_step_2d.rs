@@ -317,17 +317,6 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             )
             .unwrap(),
         ),
-        (
-            "zero_pressure",
-            eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(
-                    eqiora::language::DecimalLiteral::from_f64(0.0)
-                        .expect("finite fixture literal"),
-                ),
-                eqiora::language::TextRange::new(0, 0),
-            )
-            .unwrap(),
-        ),
     ];
     let mut compile_bindings = vec![
         (

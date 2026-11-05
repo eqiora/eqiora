@@ -105,6 +105,23 @@ fn observe_external_name(
     Ok(())
 }
 
+pub(crate) fn selected_geometry_parent<'a>(
+    explicit: Option<&'a NamedEntitySet>,
+    parent_slot: &str,
+    bindings: &[(&str, crate::StaticBindingValue<'a>)],
+) -> Option<&'a NamedEntitySet> {
+    explicit.or_else(|| {
+        bindings.iter().find_map(|(name, value)| match value {
+            crate::StaticBindingValue::GeometrySupport { selection, .. }
+                if *name == parent_slot =>
+            {
+                Some(*selection)
+            }
+            _ => None,
+        })
+    })
+}
+
 #[allow(
     clippy::type_complexity,
     reason = "the closed tuple avoids a second public selection lifecycle"

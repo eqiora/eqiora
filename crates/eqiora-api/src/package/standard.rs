@@ -7,13 +7,22 @@ use eqiora_package::{
 
 use super::{PackagePreparationError, prepare_package_release_v1};
 
+/// Exact package names shipped by this catalog; module suffixes are resolved separately.
+pub(super) const NAMES: &[&str] = &[
+    "Eqiora.Mechanics.Interfaces",
+    "Eqiora.Electrical.Basic",
+    "Eqiora.Controls.Sampled",
+    "Eqiora.Stochastic.Processes",
+    "Eqiora.Fluid",
+    "Eqiora.Solid",
+    "Eqiora.Solid.LinearElasticity",
+];
+
 pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
     let mut releases = Vec::new();
     if matches!(
         name,
-        "Eqiora.Mechanics.Interfaces"
-            | "Eqiora.Fluid.Incompressible"
-            | "Eqiora.Solid.LinearElasticity"
+        "Eqiora.Mechanics.Interfaces" | "Eqiora.Fluid" | "Eqiora.Solid.LinearElasticity"
     ) {
         let mechanics = sources(
             include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/package.json"),
@@ -43,11 +52,17 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             "src/processes.eqi",
             include_bytes!("../../packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
         )?),
-        "Eqiora.Fluid.Incompressible" => Some(sources(
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/package.json"),
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/README.md"),
-            "src/incompressible.eqi",
-            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"),
+        "Eqiora.Fluid" => Some(sources(
+            include_bytes!("../../packages/Eqiora.Fluid/package.json"),
+            include_bytes!("../../packages/Eqiora.Fluid/README.md"),
+            "src/fluid.eqi",
+            include_bytes!("../../packages/Eqiora.Fluid/src/fluid.eqi"),
+        )?),
+        "Eqiora.Solid" => Some(sources(
+            include_bytes!("../../packages/Eqiora.Solid/package.json"),
+            include_bytes!("../../packages/Eqiora.Solid/README.md"),
+            "src/solid.eqi",
+            include_bytes!("../../packages/Eqiora.Solid/src/solid.eqi"),
         )?),
         "Eqiora.Solid.LinearElasticity" => Some(sources(
             include_bytes!("../../packages/Eqiora.Solid.LinearElasticity/package.json"),
@@ -58,7 +73,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             ),
         )?),
         _ => {
-            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            return Err(PackagePreparationError::BundledCatalog(format!(
                 "distribution has no bundled package `{name}`"
             )));
         }
@@ -71,7 +86,7 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
         .expect("nonempty bundled closure")
         .package_identity()?;
     if identity.name.as_str() != name {
-        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+        return Err(PackagePreparationError::BundledCatalog(format!(
             "bundled package name `{name}` differs from exact shipped release `{}@{}`",
             identity.name, identity.version
         )));

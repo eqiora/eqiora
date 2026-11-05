@@ -37,7 +37,7 @@ fn spatial_supports(document: &Document) -> BTreeMap<String, SpatialSupport<Stri
     model_spatial_supports("supports.eqi", model).expect("fixture model has valid spatial supports")
 }
 
-fn cartesian_domains(document: &Document) -> BTreeMap<String, CartesianDomain<String>> {
+fn cartesian_domains(document: &Document) -> BTreeMap<String, ExteriorDomain<String>> {
     let model = document.models().first().expect("fixture model exists");
     let mut domains = BTreeMap::new();
     for declaration in model.items().iter().filter_map(|item| match item {
@@ -47,7 +47,7 @@ fn cartesian_domains(document: &Document) -> BTreeMap<String, CartesianDomain<St
         if let DomainSyntax::CartesianBox(bounds) = declaration.syntax() {
             domains.insert(
                 declaration.name().to_owned(),
-                CartesianDomain::Volume {
+                ExteriorDomain::Volume {
                     ambient_dimension: bounds.len(),
                 },
             );
@@ -60,14 +60,14 @@ fn cartesian_domains(document: &Document) -> BTreeMap<String, CartesianDomain<St
         let DomainSyntax::Boundary { parent, axis, side } = declaration.syntax() else {
             continue;
         };
-        let CartesianDomain::Volume { ambient_dimension } =
+        let ExteriorDomain::Volume { ambient_dimension } =
             domains.get(parent).expect("fixture boundary parent exists")
         else {
             panic!("fixture boundary parent is a volume");
         };
         domains.insert(
             declaration.name().to_owned(),
-            CartesianDomain::Boundary {
+            ExteriorDomain::Boundary {
                 exact_parent: parent.clone(),
                 ambient_dimension: *ambient_dimension,
                 axis: *axis,
@@ -207,10 +207,16 @@ fn complete_exterior_obligation_is_separate_from_singular_supports() {
         exterior,
         component(&document, "BoundaryFamily").range(),
     )
-    .expect("definition checking receives a proved symbolic exterior");
-    assert_eq!(symbolic.witness().exact_parent(), "body");
-    assert_eq!(symbolic.witness().sides().len(), 4);
-    assert_eq!(symbolic.members().len(), 4);
+    .expect("definition checking retains a deferred topology obligation");
+    assert_eq!(symbolic.exact_parent(), "body");
+    assert!(symbolic.witness().is_err());
+    assert!(matches!(
+        symbolic,
+        ResolvedBoundarySet::Deferred {
+            ambient_dimension: 2,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -245,9 +251,13 @@ fn explicit_complete_exterior_resolves_exact_members_and_canonical_sides() {
     assert_eq!(
         explicit
             .witness()
-            .sides()
+            .members()
             .iter()
-            .map(|side| (side.axis(), side.side(), side.boundary().as_str()))
+            .map(|side| (
+                side.cartesian().unwrap().0,
+                side.cartesian().unwrap().1,
+                side.boundary().as_str()
+            ))
             .collect::<Vec<_>>(),
         vec![
             (0, BoundarySide::Lower, "x_lower"),
@@ -291,7 +301,7 @@ fn forwarding_preserves_the_proved_identity_keyed_member_catalog() {
             .map(|member| member.target()),
         Some("flat::x_lower")
     );
-    assert_eq!(binding.witness(), explicit.witness());
+    assert_eq!(binding.witness(), explicit.witness().unwrap());
 }
 
 #[test]

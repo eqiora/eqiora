@@ -99,8 +99,12 @@ def test_current_reference_examples_and_displayed_python(tmp_path, monkeypatch):
             assert namespace["measurement"] == model.observable("measured_current")
             assert namespace["measurement"].model_digest == model.digest
         elif relative == "standard-packages/continuum.mdx":
+            assert len(models) == 2
+            for compiled in models:
+                assert compiled.package_compilation_digest is not None
+                assert compiled.field_ids == [compiled.field("displacement").id]
             assert model.field("displacement").id in model.field_ids
-            assert model.field("load_potential").id in model.field_ids
+            assert model.field_ids == [model.field("displacement").id]
             names = {
                 node["identity"]["name"]
                 for node in json.loads(namespace["resolution"])["nodes"]
@@ -133,10 +137,10 @@ def test_current_reference_language_sources_compile():
 
 
 @pytest.mark.parametrize("filename,package,version,entry,fields", [
-    ("elastic-body.eqi", "Eqiora.Solid.LinearElasticity", "0.6.0",
-     "ReferenceElasticBody", ("displacement", "load_potential")),
-    ("stokes.eqi", "Eqiora.Fluid.Incompressible", "0.6.0",
-     "ReferenceStokes", ("velocity", "pressure", "force_potential")),
+    ("elastic-body.eqi", "Eqiora.Solid.LinearElasticity", "0.7.0",
+     "ReferenceElasticBody", ("displacement",)),
+    ("stokes.eqi", "Eqiora.Fluid", "0.5.0",
+     "ReferenceStokes", ("velocity", "pressure")),
     ("sampled.eqi", "Eqiora.Controls.Sampled", "0.1.0",
      "SampledSignals", ("delay.memory", "integral.memory")),
 ])

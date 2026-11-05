@@ -331,8 +331,12 @@ impl ExpandedBlueprint {
         let mut identities =
             AssignedLoweringIdentities::new(self, &staged).map_err(|error| vec![error])?;
         let model = self.lowering_model(&staged).map_err(|error| vec![error])?;
-        let compiled =
-            crate::lower::lower_typed_model(&self.model_source.file, &model, &mut identities)?;
+        let compiled = crate::lower::lower_typed_model(
+            &self.model_source.file,
+            &model,
+            &mut identities,
+            limits.max_expanded_expression_nodes,
+        )?;
         let symbols = self
             .display_symbols
             .iter()

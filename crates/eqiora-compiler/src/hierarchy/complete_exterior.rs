@@ -1,16 +1,26 @@
-//! Identity-parametric proof of one complete Cartesian exterior.
+//! Complete-exterior proofs over exact occurrence identities.
 //!
-//! This module is deliberately independent of source syntax and the Semantic
-//! Kernel. Occurrence elaboration supplies exact Domain identities and a
-//! resolver; a successful proof returns only a canonical side-to-identity
-//! bijection. Occurrence binding and occurrence-free definition checking both
-//! use this same proof; neither is permitted to infer missing sides.
+//! Cartesian source domains retain the axis/side bijection. Geometry selections
+//! delegate coverage and incidence to their authenticated Geometry owner.
 
 use eqiora_schema::kernel::BoundarySide;
 
-/// One resolved Cartesian Domain needed by the complete-exterior proof.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum CartesianDomain<I> {
+/// Domain evidence available to the complete-exterior proof.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum ExteriorDomain<I> {
+    GeometryVolume {
+        geometry: std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>,
+        selection: String,
+        ambient_dimension: usize,
+    },
+    GeometryBoundary {
+        geometry: std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>,
+        selection: String,
+        parent_selection: String,
+        exact_parent: I,
+        ambient_dimension: usize,
+        embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
+    },
     /// Exact Cartesian volume identity and its authoritative dimension.
     Volume { ambient_dimension: usize },
     /// Exact Cartesian boundary identity metadata.
@@ -84,21 +94,21 @@ where
     }
 }
 
-/// One canonical Cartesian side and its unique exact Boundary identity.
+/// One exact Boundary member with optional genuine Cartesian metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct CompleteExteriorSide<I> {
-    axis: usize,
-    side: BoundarySide,
+pub(super) struct CompleteExteriorMember<I> {
+    cartesian: Option<(usize, BoundarySide)>,
     boundary: I,
+    selection: Option<String>,
 }
 
-impl<I> CompleteExteriorSide<I> {
-    pub(super) const fn axis(&self) -> usize {
-        self.axis
+impl<I> CompleteExteriorMember<I> {
+    pub(super) const fn cartesian(&self) -> Option<(usize, BoundarySide)> {
+        self.cartesian
     }
 
-    pub(super) const fn side(&self) -> BoundarySide {
-        self.side
+    pub(super) fn selection(&self) -> Option<&str> {
+        self.selection.as_deref()
     }
 
     pub(super) const fn boundary(&self) -> &I {
@@ -106,12 +116,12 @@ impl<I> CompleteExteriorSide<I> {
     }
 }
 
-/// Successful bijection from every Cartesian side to one exact Boundary.
+/// Successful complete partition with exact member identities.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct CompleteExteriorWitness<I> {
     exact_parent: I,
     ambient_dimension: usize,
-    sides: Box<[CompleteExteriorSide<I>]>,
+    members: Box<[CompleteExteriorMember<I>]>,
 }
 
 impl<I> CompleteExteriorWitness<I> {
@@ -123,15 +133,18 @@ impl<I> CompleteExteriorWitness<I> {
         self.ambient_dimension
     }
 
-    pub(super) const fn sides(&self) -> &[CompleteExteriorSide<I>] {
-        &self.sides
+    pub(super) const fn members(&self) -> &[CompleteExteriorMember<I>] {
+        &self.members
     }
 }
 
-/// Closed failures of the compiler-local Cartesian completeness proof.
+/// Closed failures of complete-exterior proof.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum CompleteExteriorError<I> {
     Empty,
+    GeometryPartition {
+        message: String,
+    },
     DuplicateExactMember {
         member: I,
     },
@@ -192,10 +205,10 @@ pub(super) enum CompleteExteriorError<I> {
 /// declaration order and lexical side names never participate. Validation is
 /// atomic: no partial witness is returned for any missing, repeated, or
 /// ill-typed member.
-pub(super) fn prove_complete_cartesian_exterior<I>(
+pub(super) fn prove_complete_exterior<I>(
     exact_parent: I,
     members: impl IntoIterator<Item = I>,
-    mut resolve: impl FnMut(&I) -> Option<CartesianDomain<I>>,
+    mut resolve: impl FnMut(&I) -> Option<ExteriorDomain<I>>,
 ) -> Result<CompleteExteriorWitness<I>, CompleteExteriorError<I>>
 where
     I: Clone + Ord,
@@ -206,7 +219,7 @@ where
 
 fn prove_boundary_set<I>(
     set: BoundarySet<I>,
-    resolve: &mut impl FnMut(&I) -> Option<CartesianDomain<I>>,
+    resolve: &mut impl FnMut(&I) -> Option<ExteriorDomain<I>>,
 ) -> Result<CompleteExteriorWitness<I>, CompleteExteriorError<I>>
 where
     I: Clone + Ord,
@@ -215,7 +228,15 @@ where
         resolve(&set.exact_parent).ok_or_else(|| CompleteExteriorError::UnknownDomain {
             domain: set.exact_parent.clone(),
         })?;
-    let CartesianDomain::Volume { ambient_dimension } = parent else {
+    if let ExteriorDomain::GeometryVolume {
+        geometry,
+        selection,
+        ambient_dimension,
+    } = parent
+    {
+        return prove_geometry_set(set, geometry, selection, ambient_dimension, resolve);
+    }
+    let ExteriorDomain::Volume { ambient_dimension } = parent else {
         return Err(CompleteExteriorError::ExactParentIsNotVolume {
             exact_parent: set.exact_parent,
         });
@@ -241,7 +262,7 @@ where
         let domain = resolve(member).ok_or_else(|| CompleteExteriorError::UnknownDomain {
             domain: member.clone(),
         })?;
-        let CartesianDomain::Boundary {
+        let ExteriorDomain::Boundary {
             exact_parent: actual_parent,
             ambient_dimension: actual_dimension,
             axis,
@@ -255,13 +276,13 @@ where
 
         if actual_parent != set.exact_parent {
             match resolve(&actual_parent) {
-                Some(CartesianDomain::Boundary { .. }) => {
+                Some(ExteriorDomain::Boundary { .. } | ExteriorDomain::GeometryBoundary { .. }) => {
                     return Err(CompleteExteriorError::BoundaryOfBoundary {
                         member: member.clone(),
                         actual_parent,
                     });
                 }
-                Some(CartesianDomain::Volume { .. }) => {
+                Some(ExteriorDomain::Volume { .. } | ExteriorDomain::GeometryVolume { .. }) => {
                     return Err(CompleteExteriorError::WrongParent {
                         member: member.clone(),
                         expected_parent: set.exact_parent.clone(),
@@ -321,10 +342,10 @@ where
             let boundary = sides[index]
                 .take()
                 .ok_or(CompleteExteriorError::MissingSide { axis, side })?;
-            canonical.push(CompleteExteriorSide {
-                axis,
-                side,
+            canonical.push(CompleteExteriorMember {
+                cartesian: Some((axis, side)),
                 boundary,
+                selection: None,
             });
         }
     }
@@ -332,7 +353,85 @@ where
     Ok(CompleteExteriorWitness {
         exact_parent: set.exact_parent,
         ambient_dimension,
-        sides: canonical.into_boxed_slice(),
+        members: canonical.into_boxed_slice(),
+    })
+}
+
+fn prove_geometry_set<I: Clone + Ord>(
+    set: BoundarySet<I>,
+    geometry: std::sync::Arc<eqiora_geometry::CanonicalGeometryV1>,
+    parent_name: String,
+    ambient_dimension: usize,
+    resolve: &mut impl FnMut(&I) -> Option<ExteriorDomain<I>>,
+) -> Result<CompleteExteriorWitness<I>, CompleteExteriorError<I>> {
+    let invalid = |message: &str| CompleteExteriorError::GeometryPartition {
+        message: message.to_owned(),
+    };
+    let parent = geometry
+        .entity_set(&parent_name)
+        .ok_or_else(|| invalid("missing Geometry parent selection"))?;
+    let mut members = Vec::new();
+    for identity in &set.members {
+        let Some(ExteriorDomain::GeometryBoundary {
+            geometry: owner,
+            selection,
+            parent_selection,
+            exact_parent,
+            ambient_dimension: dimensions,
+            embedding,
+        }) = resolve(identity)
+        else {
+            return Err(invalid(
+                "exterior member has no authenticated Geometry selection",
+            ));
+        };
+        if !std::sync::Arc::ptr_eq(&owner, &geometry)
+            || parent_selection != parent_name
+            || exact_parent != set.exact_parent
+            || dimensions != ambient_dimension
+        {
+            return Err(invalid(
+                "exterior member differs in Geometry owner, exact occurrence parent, selection parent or dimension",
+            ));
+        }
+        members.push(CompleteExteriorMember {
+            cartesian: embedding.map(|value| (value.normal_axis(), value.side())),
+            boundary: identity.clone(),
+            selection: Some(selection),
+        });
+    }
+    let parts = members
+        .iter()
+        .map(|member| {
+            geometry
+                .entity_set(
+                    member
+                        .selection
+                        .as_deref()
+                        .expect("Geometry member selection"),
+                )
+                .ok_or_else(|| invalid("missing Geometry boundary selection"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    geometry
+        .validate_complete_exterior_partition(
+            parent,
+            &parts,
+            eqiora_geometry::CanonicalGeometryLimits::default(),
+        )
+        .map_err(|error| invalid(error.message()))?;
+    // Cartesian single-side names/order stay stable. General parts use exact identity order.
+    if members.iter().all(|member| member.cartesian.is_some()) {
+        members.sort_by_key(|member| {
+            member
+                .cartesian
+                .map(|(axis, side)| (axis, matches!(side, BoundarySide::Upper)))
+        });
+    }
+    Ok(CompleteExteriorWitness {
+        exact_parent: set.exact_parent,
+        ambient_dimension,
+        members: members.into_boxed_slice(),
     })
 }
 
@@ -344,8 +443,8 @@ mod tests {
 
     type Identity = &'static str;
 
-    fn volume(ambient_dimension: usize) -> CartesianDomain<Identity> {
-        CartesianDomain::Volume { ambient_dimension }
+    fn volume(ambient_dimension: usize) -> ExteriorDomain<Identity> {
+        ExteriorDomain::Volume { ambient_dimension }
     }
 
     fn boundary(
@@ -353,8 +452,8 @@ mod tests {
         ambient_dimension: usize,
         axis: usize,
         side: BoundarySide,
-    ) -> CartesianDomain<Identity> {
-        CartesianDomain::Boundary {
+    ) -> ExteriorDomain<Identity> {
+        ExteriorDomain::Boundary {
             exact_parent,
             ambient_dimension,
             axis,
@@ -362,7 +461,7 @@ mod tests {
         }
     }
 
-    fn square() -> BTreeMap<Identity, CartesianDomain<Identity>> {
+    fn square() -> BTreeMap<Identity, ExteriorDomain<Identity>> {
         BTreeMap::from([
             ("body", volume(2)),
             ("x_lower", boundary("body", 2, 0, BoundarySide::Lower)),
@@ -373,12 +472,10 @@ mod tests {
     }
 
     fn prove(
-        domains: &BTreeMap<Identity, CartesianDomain<Identity>>,
+        domains: &BTreeMap<Identity, ExteriorDomain<Identity>>,
         members: impl IntoIterator<Item = Identity>,
     ) -> Result<CompleteExteriorWitness<Identity>, CompleteExteriorError<Identity>> {
-        prove_complete_cartesian_exterior("body", members, |identity| {
-            domains.get(identity).cloned()
-        })
+        prove_complete_exterior("body", members, |identity| domains.get(identity).cloned())
     }
 
     #[test]
@@ -395,9 +492,13 @@ mod tests {
         assert_eq!(witness.ambient_dimension(), 2);
         assert_eq!(
             witness
-                .sides()
+                .members()
                 .iter()
-                .map(|side| (side.axis(), side.side(), *side.boundary()))
+                .map(|side| (
+                    side.cartesian().unwrap().0,
+                    side.cartesian().unwrap().1,
+                    *side.boundary()
+                ))
                 .collect::<Vec<_>>(),
             [
                 (0, BoundarySide::Lower, "x_lower"),
@@ -521,7 +622,7 @@ mod tests {
             ("outer", volume(2)),
         ]);
         assert_eq!(
-            prove_complete_cartesian_exterior("body", ["body"], |identity| {
+            prove_complete_exterior("body", ["body"], |identity| {
                 boundary_parent.get(identity).cloned()
             }),
             Err(CompleteExteriorError::ExactParentIsNotVolume {

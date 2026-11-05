@@ -71,7 +71,8 @@ pub(super) fn resolve(
         &FaerLinearSolver,
     )
     .map_err(|d| validation_error(py, &[d]))?;
-    PyPlan::from_native_artifact(py, ResolvedCommonPlan::Algebraic(Box::new(native)))
+    PyPlan::from_native_artifact(py, ResolvedCommonPlan::Algebraic(Box::new(native)))?
+        .with_source_model(py, model)
 }
 
 pub(super) fn view(

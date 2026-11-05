@@ -162,3 +162,16 @@ def check_parameter_condition_metadata(
     request = eqiora.EvaluationMapPlan.from_parameters(plan, [parameter], [(2.,)])
     assert_type(request.parameters, tuple[eqiora.ParameterRef, ...] | None)
     assert_type(collection[0].parameters, tuple[eqiora.ParameterRef, ...] | None)
+
+
+def check_meshing_plan_optional_provider(
+    geometry: eqiora.geometry.Geometry,
+    plan: eqiora.meshing.MeshPlan,
+    provider: eqiora.meshing.CartesianMesher,
+) -> None:
+    assert_type(eqiora.meshing.generate(plan), Mesh)
+    assert_type(eqiora.meshing.generate(plan, None), Mesh)
+    assert_type(eqiora.meshing.generate(geometry, provider), Mesh)
+    eqiora.meshing.generate(geometry)  # type: ignore[call-overload]
+    eqiora.meshing.generate(geometry, None)  # type: ignore[call-overload]
+    eqiora.meshing.generate(plan, provider)  # type: ignore[call-overload]

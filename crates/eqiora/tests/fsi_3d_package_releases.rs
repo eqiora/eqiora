@@ -28,8 +28,8 @@ fn prepare_release(
 fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
     let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
     for (package, version) in [
-        ("Eqiora.Fluid.Incompressible", "0.6.0"),
-        ("Eqiora.Solid.LinearElasticity", "0.6.0"),
+        ("Eqiora.Fluid", "0.5.0"),
+        ("Eqiora.Solid.LinearElasticity", "0.7.0"),
     ] {
         let release = prepare_release(package, version, std::slice::from_ref(&mechanics));
         let identity = release.package_identity().expect("package identity");
@@ -41,14 +41,10 @@ fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
 #[test]
 fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
-    let fluid = prepare_release(
-        "Eqiora.Fluid.Incompressible",
-        "0.6.0",
-        std::slice::from_ref(&mechanics),
-    );
+    let fluid = prepare_release("Eqiora.Fluid", "0.5.0", std::slice::from_ref(&mechanics));
     let solid = prepare_release(
         "Eqiora.Solid.LinearElasticity",
-        "0.6.0",
+        "0.7.0",
         std::slice::from_ref(&mechanics),
     );
     let root = prepare_root(&mechanics, &fluid, &solid);
@@ -216,7 +212,7 @@ fn prepare_root(
     let source = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
     let model_source = format!(
         "import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n\
-         import Eqiora.Fluid.Incompressible.incompressible as fluid_laws;\n\
+         import Eqiora.Fluid.fluid as fluid_laws;\n\
          import Eqiora.Solid.LinearElasticity.linear_elasticity as solid_laws;\n{PACKAGED_ROOT}"
     );
     let manifest = PackageManifestV1::new(

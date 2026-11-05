@@ -277,6 +277,7 @@ pub(crate) fn lower_typed_model(
     file: &str,
     model: &LoweringModel,
     identities: &mut impl LoweringIdentities,
+    expression_node_limit: usize,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let mut bindings = BTreeMap::new();
     let mut diagnostics = crate::math::model_name_diagnostics(file, &model.name, model.range);
@@ -465,6 +466,8 @@ pub(crate) fn lower_typed_model(
         return Err(diagnostics);
     }
 
+    expression::budget::check_expanded_budget(file, model, &bindings, expression_node_limit)
+        .map_err(|error| vec![error])?;
     let expanded = expression::expand_observable_partials(file, model, &mut bindings)?;
     let model = expanded.as_ref();
     let model_id = identities.model(&model.name);

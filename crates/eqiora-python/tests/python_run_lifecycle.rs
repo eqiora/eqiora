@@ -296,24 +296,29 @@ fn python_common_finite_route_owns_exact_plan_state_and_result() -> PyResult<()>
         locals.set_item("eqiora", public_module(py)?)?;
         locals.set_item(
             "source",
-            format!(
-                "{}\n{}",
-                include_str!(
-                    "../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi"
-                ),
-                include_str!("../../../examples/voltage-divider/src/main.eqi")
-                    .replace("import Eqiora.Electrical.Basic.basic as electrical;", "")
-                    .replace("electrical.", "")
-            ),
+            include_str!("../../../examples/voltage-divider/src/main.eqi"),
         )?;
         py.run(c_str!(r#"
 model = eqiora.compile(source=source)
+assert model.package_compilation_digest is not None
+moved = eqiora.compile(source=source, filename="elsewhere.eqi")
+assert moved.digest == model.digest
+assert moved.package_compilation_digest == model.package_compilation_digest
 plan = eqiora.resolve(model, solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+assert plan.package_compilation_digest == model.package_compilation_digest
+assert plan.model is model
+portable = eqiora.Plan.from_bytes(plan.to_bytes())
+assert portable.identity == plan.identity
+assert portable.model.digest == model.digest
+assert portable.package_compilation_digest is None
+assert eqiora.Model.from_bytes(model.to_bytes()).package_compilation_digest is None
 assert plan.mesh is None
 assert plan.temporal is None
 state = eqiora.State.initial(plan)
 state = eqiora.State.from_bytes(plan, state.to_bytes())
-result = eqiora.run(plan, state=state)
+run = eqiora.submit(plan, state=state)
+assert run.package_compilation_digest == model.package_compilation_digest
+result = run.result()
 assert result.plan_key == plan.identity
 assert result.to_bytes() == eqiora.Result.from_bytes(plan, result.to_bytes()).to_bytes()
 "#), None, Some(&locals))

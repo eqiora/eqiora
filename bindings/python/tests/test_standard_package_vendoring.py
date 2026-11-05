@@ -9,7 +9,7 @@ import pytest
 import eqiora
 
 
-FLUID_MODEL = """import Eqiora.Fluid.Incompressible.incompressible as fluid;
+FLUID_MODEL = """import Eqiora.Fluid.fluid as fluid;
 
 model Main() {
   domain body = box(0, 4, 0, 2);
@@ -20,18 +20,11 @@ model Main() {
 
   variable velocity: vector<m / s, 2> on body;
   variable pressure: kg / (m * s ^ 2) on body;
-  variable force_potential: kg / (m * s ^ 2) on body;
-  variable inlet_speed: m / s on body;
   parameter dynamic_viscosity: kg / (m * s) = 2;
-  parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  relation force_definition on body {
-    force_potential - zero_pressure = 0;
-  }
-  instance governing: fluid.SteadyStokesWithPotential2d(
+  instance governing: fluid.SteadyStokesBalance2d(
     body = body,
     velocity = velocity,
     pressure = pressure,
-    force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
 }
@@ -65,7 +58,7 @@ def project(root: Path) -> tuple[Path, Path]:
 def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     resolution = eqiora.add_bundled_dependency(
-        application, store, "Eqiora.Fluid.Incompressible", version="0.6.0"
+        application, store, "Eqiora.Fluid", version="0.5.0"
     )
     vendor = application / "vendor"
     vendor.mkdir()
@@ -85,12 +78,12 @@ def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
 def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     resolution = eqiora.add_bundled_dependency(
-        application, store, "Eqiora.Fluid.Incompressible", version="0.6.0"
+        application, store, "Eqiora.Fluid", version="0.5.0"
     )
     manifest = (application / "eqiora.toml").read_bytes()
     with pytest.raises(eqiora.CompatibilityError):
         eqiora.add_bundled_dependency(
-            application, store, "Eqiora.Fluid.Incompressible", version="99.0.0"
+            application, store, "Eqiora.Fluid", version="99.0.0"
         )
     assert (application / "eqiora.toml").read_bytes() == manifest
     assert json.loads((application / "eqiora.lock").read_bytes())["resolution"] == json.loads(resolution)
@@ -105,7 +98,7 @@ def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) 
     updated = eqiora.update_project(application, second)
     assert updated != resolution
     assert eqiora.open_project(application, second) == updated
-    without_fluid = eqiora.remove_local_dependency(application, second, "Eqiora.Fluid.Incompressible")
+    without_fluid = eqiora.remove_local_dependency(application, second, "Eqiora.Fluid")
     assert eqiora.open_project(application, second) == without_fluid
 
 
@@ -116,7 +109,17 @@ def test_solid_is_an_ordinary_exact_bundled_dependency(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     resolution = eqiora.add_bundled_dependency(
-        application, store, "Eqiora.Solid.LinearElasticity", version="0.6.0"
+        application, store, "Eqiora.Solid.LinearElasticity", version="0.7.0"
     )
     assert eqiora.open_project(application, store) == resolution
     assert eqiora.compile_package(store, resolution, entry='Main').revision.number == 1
+
+
+@pytest.mark.parametrize("displaced", ["Eqiora.Fluid.Incompressible", "Eqiora.Fluid.InertialStokes"])
+def test_displaced_current_fluid_names_are_not_bundled_aliases(tmp_path, displaced):
+    application, store = project(tmp_path)
+    manifest = (application / "eqiora.toml").read_bytes()
+    with pytest.raises(eqiora.CompatibilityError, match="no bundled package"):
+        eqiora.add_bundled_dependency(application, store, displaced, version="0.5.0")
+    assert (application / "eqiora.toml").read_bytes() == manifest
+    assert not (application / "eqiora.lock").exists()

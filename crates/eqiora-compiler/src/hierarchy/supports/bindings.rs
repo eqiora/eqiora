@@ -9,7 +9,7 @@ pub(in crate::hierarchy) fn resolve_instance_support_bindings<I: Clone + Ord>(
     instance: &InstanceDecl,
     resolve_singular: impl FnMut(&str) -> Option<SpatialSupport<I>>,
     resolve_boundary_name: impl FnMut(&str) -> Option<ResolvedBoundaryTarget<I>>,
-    resolve_cartesian_domain: impl FnMut(&I) -> Option<CartesianDomain<I>>,
+    resolve_cartesian_domain: impl FnMut(&I) -> Option<ExteriorDomain<I>>,
     resolve_forwarded_set: impl FnMut(&str) -> Option<ResolvedBoundarySet<I>>,
     membership_budget: &mut CompleteExteriorMembershipBudget,
 ) -> Result<ResolvedSupportBindings<I>, Vec<Diagnostic>> {
@@ -41,7 +41,7 @@ pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
     instance: &InstanceDecl,
     mut resolve_singular: impl FnMut(&str) -> Option<SpatialSupport<I>>,
     mut resolve_boundary_name: impl FnMut(&str) -> Option<ResolvedBoundaryTarget<I>>,
-    mut resolve_cartesian_domain: impl FnMut(&I) -> Option<CartesianDomain<I>>,
+    mut resolve_cartesian_domain: impl FnMut(&I) -> Option<ExteriorDomain<I>>,
     mut resolve_forwarded_set: impl FnMut(&str) -> Option<ResolvedBoundarySet<I>>,
     mut abstract_boundary: impl FnMut(&str) -> bool,
     membership_budget: &mut CompleteExteriorMembershipBudget,
@@ -212,7 +212,7 @@ pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
             ));
             continue;
         }
-        if source_set.witness().exact_parent() != domain {
+        if source_set.exact_parent() != domain {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 binding_file,
@@ -225,7 +225,7 @@ pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
             ));
             continue;
         }
-        if source_set.witness().ambient_dimension() != *dimensions {
+        if source_set.ambient_dimension() != *dimensions {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 binding_file,
@@ -240,11 +240,7 @@ pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
         }
         boundary_sets.insert(
             binding.slot().to_owned(),
-            ResolvedBoundarySet::Forwarded(ForwardedBoundarySetBinding {
-                target: binding.target().to_owned(),
-                proved: Arc::clone(source_set.proved()),
-                source_range: binding.range(),
-            }),
+            source_set.forwarded(binding.target().to_owned(), binding.range()),
         );
     }
 
@@ -352,29 +348,26 @@ pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
                     ));
                 }
             }
-            if dimensions.checked_mul(2) != Some(member_count) {
-                diagnostics.push(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    binding_file,
-                    binding.range(),
-                    "abstract complete-exterior member count does not cover every Cartesian side",
-                ));
-            }
+            boundary_sets.insert(
+                binding.slot().to_owned(),
+                ResolvedBoundarySet::Deferred {
+                    exact_parent: domain.clone(),
+                    ambient_dimension: *dimensions,
+                    source_range: binding.range(),
+                },
+            );
             deferred_topology.insert(binding.slot().to_owned());
             continue;
         }
 
         let exact_parent = domain.clone();
-        let result =
-            prove_complete_cartesian_exterior(exact_parent.clone(), exact_members, |identity| {
-                if identity == &exact_parent {
-                    Some(CartesianDomain::Volume {
-                        ambient_dimension: *dimensions,
-                    })
-                } else {
-                    resolve_cartesian_domain(identity)
-                }
-            });
+        let result = prove_complete_exterior(exact_parent.clone(), exact_members, |identity| {
+            resolve_cartesian_domain(identity).or_else(|| {
+                (identity == &exact_parent).then_some(ExteriorDomain::Volume {
+                    ambient_dimension: *dimensions,
+                })
+            })
+        });
         match result {
             Ok(witness) => {
                 resolved_members.sort_unstable_by(|left, right| {

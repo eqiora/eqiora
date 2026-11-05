@@ -174,7 +174,8 @@ impl WireExpression {
                 }
                 WireExpressionNode::Sample { clock, .. } => references.push(clock),
                 WireExpressionNode::Trace { on, .. }
-                | WireExpressionNode::NormalComponent { on, .. } => references.push(on),
+                | WireExpressionNode::NormalComponent { on, .. }
+                | WireExpressionNode::NormalVector { on } => references.push(on),
                 _ => {}
             }
         }
@@ -384,6 +385,9 @@ pub(crate) enum WireExpressionNode {
     },
     Trace {
         value: u32,
+        on: WireId,
+    },
+    NormalVector {
         on: WireId,
     },
     NormalComponent {
@@ -597,6 +601,9 @@ impl WireExpressionNode {
                 value: value.index(),
                 on: WireId::from_raw(on.erase()),
             },
+            ExprNode::NormalVector { on } => Self::NormalVector {
+                on: WireId::from_raw(on.erase()),
+            },
             ExprNode::NormalComponent { value, on } => Self::NormalComponent {
                 value: value.index(),
                 on: WireId::from_raw(on.erase()),
@@ -792,6 +799,9 @@ impl WireExpressionNode {
             Self::Trace { value, on } => {
                 builder.trace(operand(ids, *value)?, on.typed::<kinds::Domain>()?)
             }
+            Self::NormalVector { on } => builder.push(ExprNode::NormalVector {
+                on: on.typed::<kinds::Domain>()?,
+            }),
             Self::NormalComponent { value, on } => {
                 builder.normal_component(operand(ids, *value)?, on.typed::<kinds::Domain>()?)
             }

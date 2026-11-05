@@ -19,12 +19,21 @@ stress around the obstacle.
 
 ## Before you begin
 
+This example requires a development build from the same checkout as its source;
+the published 0.1.5 wheel does not include the new boundary-data authoring.
+Source builds require Rust, a C/C++ compiler, CMake and libclang. See the
+<ExactSourceLink path="CONTRIBUTING.md" kind="blob">contributing guide</ExactSourceLink>
+for the repository tool setup.
+
 Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
-`.venv`. From the folder containing both, add the mesh and plotting extras,
-then run the example with the same Python environment:
+`.venv`. The one-call mesh generation and boundary selection shorthand used here
+require a [development build](/get-started/#development-build); they are newer than
+the published `0.1.5` release. From the folder containing both, install the mesh and
+plotting extras from that checkout, then run the example with the same Python
+environment:
 
 ```bash
-uv add 'eqiora[gmsh,matplotlib]'
+uv add './eqiora-source[gmsh,matplotlib]'
 uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
@@ -75,7 +84,7 @@ geometry = geometry_graph.build(
 <NotebookStage id="model-definition" step={2} title="Eqiora model definition" emoji="🧩">
 
 Start with the Cauchy stress. With velocity $\boldsymbol{u}$, pressure $p$, dynamic viscosity
-$\mu$, identity tensor $\boldsymbol{I}$, and force potential $\phi$:
+$\mu$, and identity tensor $\boldsymbol{I}$:
 
 $$
 \boldsymbol{\sigma}(\boldsymbol{u},p)
@@ -83,23 +92,27 @@ $$
 $$
 
 $$
--\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u},p)-\nabla\phi=0,
+-\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u},p)=0,
 \qquad
 \nabla\!\cdot\boldsymbol{u}=0
 $$
 
 Here $\mu=0.001\,\mathrm{kg}/(\mathrm{m}\,\mathrm{s})$,
-$\phi=0\,\mathrm{Pa}$, and pressure has source unit
-`kg/(m*s^2)`, displayed as pascals. The Eqiora source below states the same model.
+there is no body force, and pressure has source unit
+`kg/(m*s^2)`, displayed as pascals. The source imports the Stokes equations and boundary components from `Eqiora.Fluid`.
+It supplies the parameters, inlet profile and boundary connections.
 
 **Eqiora source form**
 
 <Code code={modelSource} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Complete cylinder model</ExactSourceLink>
-· <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Reusable incompressible balance component</ExactSourceLink>
+· <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">Reusable incompressible balance component</ExactSourceLink>
 
-Compile the component with the geometry used for meshing:
+Compile the component with the geometry used for meshing. Each boundary uses
+the `fluid` parent declared in the source and its binding below. An explicit
+`(boundary_selection, parent_selection)` pair is also supported and produces
+the same Model and Plan:
 
 ```python
 model = eqiora.compile(
@@ -109,11 +122,10 @@ model = eqiora.compile(
     bindings={
         "fluid": geometry.selection("fluid"),
         **{
-            side: (geometry.selection(side), geometry.selection("fluid"))
+            side: geometry.selection(side)
             for side in ("inlet", "outlet", "walls", "cylinder")
         },
         "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
         "inlet_speed": 0.3,
         "channel_height": 0.41,
     },
@@ -138,9 +150,9 @@ $$
 At the outlet, $\operatorname{normal}(\boldsymbol{\sigma})=0$. The walls and
 cylinder use $\boldsymbol{u}=0$.
 
-The full source above attaches these relations to `fluid`, `inlet`, `outlet`,
+The imported components attach these boundary laws to `fluid`, `inlet`, `outlet`,
 `walls`, and `cylinder`. At the left inlet, the outward normal points left,
-so `trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0` directs flow
+so `trace(velocity) = -normal_vector() * g` directs flow
 into the channel. The outlet law balances pressure and viscous traction together;
 it does not separately prescribe zero pressure and zero velocity gradient.
 
@@ -153,8 +165,7 @@ mesh_request = eqiora.meshing.GmshMesher(
     minimum_mean_ratio=1e-5,
     maximum_boundary_facets=50,
 )
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(mesh_plan)
+mesh = eqiora.meshing.generate(geometry, mesh_request)
 ```
 
 <Aside type="note" title="Mesh size">

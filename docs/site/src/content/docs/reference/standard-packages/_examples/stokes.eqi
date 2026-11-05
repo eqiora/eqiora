@@ -1,4 +1,4 @@
-import Eqiora.Fluid.Incompressible.incompressible as fluid;
+import Eqiora.Fluid.fluid as fluid;
 
 model ReferenceStokes() {
   domain body = box(0, 4, 0, 1);
@@ -8,26 +8,22 @@ model ReferenceStokes() {
   domain top = boundary(body, axis = 1, side = upper);
   variable velocity: vector<m / s, 2> on body in smooth;
   variable pressure: Pa on body in h1;
-  variable force_potential: Pa on body;
-  variable inlet_speed: m / s on body in h1;
-  relation inputs on body {
-    force_potential = 0[Pa];
-    inlet_speed = 1[m / s];
-  }
+  parameter inlet_speed: m / s = 1;
 
   parameter viscosity: Pa * s = 1;
-  instance flow: fluid.SteadyStokesWithPotential2d(
-    body = body,
+  instance flow: fluid.SteadyStokes2d(
+    body = body, exterior = boundaries(left, right, bottom, top),
     velocity = velocity, pressure = pressure,
-    force_potential = force_potential, dynamic_viscosity = viscosity
+    dynamic_viscosity = viscosity
   );
-  relation inlet on left {
-    trace(velocity) + normal(isotropic_lift(inlet_speed)) = 0;
-  }
-  relation outlet on right {
-    normal(2 * viscosity * symmetric_part(grad(velocity))
-      - isotropic_lift(pressure)) = 0;
-  }
-  relation lower_wall on bottom { trace(velocity) = 0; }
-  relation upper_wall on top { trace(velocity) = 0; }
+  instance inlet: fluid.NormalVelocityInlet2d(
+    body = body, face = left, speed = inlet_speed
+  );
+  instance outlet: fluid.TractionFree2d(body = body, face = right);
+  instance lower_wall: fluid.NoSlip2d(body = body, face = bottom);
+  instance upper_wall: fluid.NoSlip2d(body = body, face = top);
+  connect flow.mechanical[boundary = left], inlet.mechanical;
+  connect flow.mechanical[boundary = right], outlet.mechanical;
+  connect flow.mechanical[boundary = bottom], lower_wall.mechanical;
+  connect flow.mechanical[boundary = top], upper_wall.mechanical;
 }

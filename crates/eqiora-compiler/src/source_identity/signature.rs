@@ -13,6 +13,10 @@ pub(super) fn encode_signature(
                 encoder.u16(1)?;
                 encode_component_parameter(&mut encoder, value, budget)?;
             }
+            SignatureItem::Expression(value) => {
+                encoder.u16(10)?;
+                encode_field(&mut encoder, value, budget)?;
+            }
             SignatureItem::Support(value) => {
                 encoder.u16(2)?;
                 encode_support_slot(&mut encoder, value, budget)?;
@@ -52,4 +56,28 @@ pub(super) fn encode_signature(
         }
         encoder.finish()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn expression_contract_category_and_units_affect_identity() {
+        let parse = |source: &str| {
+            eqiora_lang::parse("signature.eqi", source)
+                .into_document()
+                .unwrap()
+        };
+        let identity = |source: &str| LocalSourceIdentity::from_document(&parse(source)).unwrap();
+        let source = "component C(support body:volume(ambient_dimension=2),expression source:K/m^2 on body){} model M(){}";
+        assert_ne!(identity(source), identity(&source.replace("K/m^2", "K/m")));
+        assert_ne!(
+            identity(source),
+            identity(&source.replace("expression", "variable"))
+        );
+        assert_eq!(
+            identity(source),
+            identity(&eqiora_lang::format(&parse(source)))
+        );
+    }
 }

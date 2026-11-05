@@ -163,3 +163,34 @@ fn affine_coefficient_partials_preserve_frozen_domains_and_active_zero_tangents(
         }
     }
 }
+
+#[test]
+fn composed_quotient_derivative_avoids_squared_denominator_extremes() {
+    for exponent in [-600, 600] {
+        let value = 2.0_f64.powi(exponent);
+        let data: Data<f64> = authored_coefficient(&format!(
+            "model M(){{domain body=box(0,1);parameter p:1={value:e};variable u:1 on body;relation r on body{{u=p;}}}}"
+        ));
+        let quotient = data.clone().divide(data);
+        assert_eq!(quotient.evaluate(&[0.5]).unwrap(), 1.);
+        let derivative = quotient.derivative(&|_| 1., 1).unwrap();
+        // d(p/p)/dp=0; both powers of two and the cancellation are exact.
+        assert_eq!(derivative.evaluate(&[0.5]).unwrap(), 0.);
+    }
+    for expression in ["p", "math.sqrt(p-1)"] {
+        let data: Data<f64> = authored_coefficient(&format!(
+            "model M(){{domain body=box(0,1);parameter p:1=0;variable u:1 on body;relation r on body{{u={expression};}}}}"
+        ));
+        let quotient = data.clone().divide(data);
+        assert!(quotient.evaluate(&[0.5]).is_err());
+        for direction in [0., 1.] {
+            assert!(
+                quotient
+                    .derivative(&|_| direction, 1)
+                    .unwrap()
+                    .evaluate(&[0.5])
+                    .is_err()
+            );
+        }
+    }
+}

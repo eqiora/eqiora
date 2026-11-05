@@ -570,6 +570,7 @@ fn validate_expression(
             | ExprNode::Add(_, _)
             | ExprNode::Sub(_, _)
             | ExprNode::Mul(_, _)
+            | ExprNode::Div(_, _)
             | ExprNode::PowI(_, _)
             | ExprNode::Symbol(SymbolRef::Coordinate { .. })
             | ExprNode::UnaryMath(

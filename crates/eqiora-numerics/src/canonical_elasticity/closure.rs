@@ -24,11 +24,15 @@ pub(super) fn require_closed_elasticity_models(
         .iter()
         .map(|lowered| ElasticityClosure {
             domain: lowered.model.domain(),
-            fields: vec![lowered.model.displacement(), lowered.model.load_potential()],
-            volume_relations: vec![
-                lowered.model.load_definition_relation(),
-                lowered.model.equilibrium_relation(),
-            ],
+            fields: std::iter::once(lowered.model.displacement())
+                .chain(lowered.model.load_potential())
+                .collect(),
+            volume_relations: lowered
+                .model
+                .load_definition_relation()
+                .into_iter()
+                .chain(std::iter::once(lowered.model.equilibrium_relation()))
+                .collect(),
             boundary_relations: lowered.model.boundary_relations(),
             boundary: &lowered.boundary,
         })

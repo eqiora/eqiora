@@ -10,9 +10,9 @@ use eqiora_sem::KernelProgram;
 
 use super::{
     ElasticityClosure, IsotropicElasticityContinuum, boundary, continuum_representation, has_edge,
-    load_definition_root, lower_isotropic_stress_coefficients, lowering_error, relation_expression,
-    relations_on, require_closed_elasticity_parts, require_continuous_relation, typed_relation,
-    unique_box, unique_root,
+    load_definition_root, lower_isotropic_stress_coefficients, lower_optional_load, lowering_error,
+    relation_expression, relations_on, require_closed_elasticity_parts,
+    require_continuous_relation, typed_relation, unique_box, unique_root,
 };
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
@@ -132,13 +132,20 @@ fn lower_isotropic_elastodynamics_cartesian<const D: usize>(
             fields: vec![
                 lowered.model.continuum().displacement(),
                 lowered.model.velocity,
-                lowered.model.continuum().load_potential(),
-            ],
-            volume_relations: vec![
-                lowered.model.continuum().load_definition_relation(),
-                lowered.model.kinematic_relation(),
-                lowered.model.continuum().equilibrium_relation(),
-            ],
+            ]
+            .into_iter()
+            .chain(lowered.model.continuum().load_potential())
+            .collect(),
+            volume_relations: lowered
+                .model
+                .continuum()
+                .load_definition_relation()
+                .into_iter()
+                .chain([
+                    lowered.model.kinematic_relation(),
+                    lowered.model.continuum().equilibrium_relation(),
+                ])
+                .collect(),
             boundary_relations: lowered.model.continuum().boundary_relations(),
             boundary: &lowered.boundary,
         }],
@@ -176,11 +183,11 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
 ) -> Result<LoweredIsotropicElastodynamicsSubdomain<D>, Diagnostic> {
     let (displacement, velocity, load_potential) = exact_fields::<D>(program, domain)?;
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() != 3 {
+    if volume_relations.len() != 2 + usize::from(load_potential.is_some()) {
         return Err(lowering_error(
             domain,
             format!(
-                "{D}D isotropic elastodynamics requires one load definition, one kinematic Relation, and one momentum Relation, found {} volume Relations",
+                "{D}D isotropic elastodynamics requires an optional paired load definition, one kinematic Relation, and one momentum Relation, found {} volume Relations",
                 volume_relations.len()
             ),
         ));
@@ -193,7 +200,9 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         require_continuous_relation(program, *relation)?;
         let expression = &relation_expression(program, *relation)?;
         let root = unique_root(expression, *relation)?;
-        if let Some(source) = load_definition_root(expression, root, load_potential) {
+        if let Some(source) =
+            load_potential.and_then(|field| load_definition_root(expression, root, field))
+        {
             require_unique(
                 &mut load_definition,
                 (*relation, source),
@@ -217,16 +226,13 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         }
     }
 
-    let (load_relation, load_root) =
-        load_definition.ok_or_else(|| lowering_error(domain, "load definition is missing"))?;
+    let (load, load_potential_expression) =
+        lower_optional_load(program, domain, load_potential, load_definition, D)?;
     let kinematic_relation =
         kinematics.ok_or_else(|| lowering_error(domain, "kinematic Relation is missing"))?;
     let (momentum_relation, momentum_parts) =
         momentum.ok_or_else(|| lowering_error(domain, "momentum Relation is missing"))?;
 
-    let load_expression = &relation_expression(program, load_relation)?;
-    let load_potential_expression =
-        spatial_expression::lower(program, load_expression, load_root, load_relation, D)?;
     let momentum_expression = &relation_expression(program, momentum_relation)?;
     let mass_density = spatial_expression::lower::<f64>(
         program,
@@ -303,8 +309,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
     let continuum = IsotropicElasticityContinuum::new(
         domain,
         displacement,
-        load_potential,
-        load_relation,
+        load,
         momentum_relation,
         bounds,
         material,
@@ -332,7 +337,11 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         model,
         representation: continuum_representation(program, displacement)
             .expect("field validation establishes one continuum Representation"),
-        volume_relations: [load_relation, kinematic_relation, momentum_relation],
+        volume_relations: load
+            .into_iter()
+            .map(|(_, relation)| relation)
+            .chain([kinematic_relation, momentum_relation])
+            .collect(),
         boundary: lowered_boundary,
     })
 }
@@ -342,7 +351,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
 pub(crate) struct LoweredIsotropicElastodynamicsSubdomain<const D: usize> {
     pub(crate) model: IsotropicElastodynamicsCartesianModel<D>,
     pub(crate) representation: RawId,
-    pub(crate) volume_relations: [RawId; 3],
+    pub(crate) volume_relations: Vec<RawId>,
     pub(crate) boundary: boundary::LoweredElasticityBoundary<D>,
 }
 
@@ -358,7 +367,7 @@ struct MomentumParts {
 fn exact_fields<const D: usize>(
     program: &KernelProgram,
     domain: RawId,
-) -> Result<(RawId, RawId, RawId), Diagnostic> {
+) -> Result<(RawId, RawId, Option<RawId>), Diagnostic> {
     let fields = program
         .nodes()
         .filter_map(|node| match node {
@@ -371,11 +380,11 @@ fn exact_fields<const D: usize>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if fields.len() != 3 {
+    if !(2..=3).contains(&fields.len()) {
         return Err(lowering_error(
             domain,
             format!(
-                "{D}D isotropic elastodynamics requires exactly three continuum Fields, found {}",
+                "{D}D isotropic elastodynamics requires displacement, velocity, and an optional load-potential Field, found {}",
                 fields.len()
             ),
         ));
@@ -396,22 +405,22 @@ fn exact_fields<const D: usize>(
     let velocity = unique(VELOCITY, &vector_shape, ValueFrame::SpatialCartesian);
     let scalar_shape = ValueShape::scalar();
     let potential = unique(PRESSURE, &scalar_shape, ValueFrame::Invariant);
-    if let ([displacement], [velocity], [potential]) = (
-        displacement.as_slice(),
-        velocity.as_slice(),
-        potential.as_slice(),
-    ) {
+    if let ([displacement], [velocity]) = (displacement.as_slice(), velocity.as_slice()) {
         let representation = continuum_representation(program, *displacement);
-        if representation == continuum_representation(program, *velocity)
-            && representation == continuum_representation(program, *potential)
+        if potential.len() <= 1
+            && fields.len() == 2 + potential.len()
+            && representation == continuum_representation(program, *velocity)
+            && potential
+                .first()
+                .is_none_or(|field| representation == continuum_representation(program, *field))
         {
-            return Ok((*displacement, *velocity, *potential));
+            return Ok((*displacement, *velocity, potential.first().copied()));
         }
     }
     Err(lowering_error(
         domain,
         format!(
-            "Fields must be exactly one length-valued displacement, one velocity-valued spatial Cartesian `[{D}]` Field, and one pressure-valued invariant scalar load potential on the same continuum Representation"
+            "Fields must be exactly one length-valued displacement, one velocity-valued spatial Cartesian `[{D}]` Field, and an optional pressure-valued invariant scalar load potential on the same continuum Representation"
         ),
     ))
 }
@@ -446,7 +455,7 @@ fn momentum_root(
     expression: &ExprDag,
     root: ExprId,
     velocity: RawId,
-    load_potential: RawId,
+    load_potential: Option<RawId>,
 ) -> Option<MomentumParts> {
     if let Some(ExprNode::Neg(inner)) = expression.node(root) {
         return momentum_root_oriented(expression, *inner, velocity, load_potential).map(|parts| {
@@ -457,6 +466,7 @@ fn momentum_root(
         });
     }
     momentum_root_oriented(expression, root, velocity, load_potential).or_else(|| {
+        let load_potential = load_potential?;
         let ExprNode::Sub(load, internal_balance) = expression.node(root)? else {
             return None;
         };
@@ -465,7 +475,7 @@ fn momentum_root(
             *internal_balance,
             *load,
             velocity,
-            load_potential,
+            Some(load_potential),
         )
         .map(|parts| MomentumParts {
             orientation: -1.0,
@@ -478,8 +488,11 @@ fn momentum_root_oriented(
     expression: &ExprDag,
     root: ExprId,
     velocity: RawId,
-    load_potential: RawId,
+    load_potential: Option<RawId>,
 ) -> Option<MomentumParts> {
+    if load_potential.is_none() {
+        return internal_momentum_parts(expression, root, velocity);
+    }
     let ExprNode::Sub(internal_balance, load) = expression.node(root)? else {
         return None;
     };
@@ -497,14 +510,22 @@ fn momentum_parts(
     internal_balance: ExprId,
     load: ExprId,
     velocity: RawId,
-    load_potential: RawId,
+    load_potential: Option<RawId>,
 ) -> Option<MomentumParts> {
     let ExprNode::Gradient(load_argument) = expression.node(load)? else {
         return None;
     };
-    if !is_field(expression, *load_argument, load_potential) {
+    if !is_field(expression, *load_argument, load_potential?) {
         return None;
     }
+    internal_momentum_parts(expression, internal_balance, velocity)
+}
+
+fn internal_momentum_parts(
+    expression: &ExprDag,
+    internal_balance: ExprId,
+    velocity: RawId,
+) -> Option<MomentumParts> {
     let ExprNode::Sub(inertia, divergence) = expression.node(internal_balance)? else {
         return None;
     };
@@ -613,6 +634,52 @@ model dynamic_solid_3d() {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction).expect("transaction commits");
         KernelProgram::from_snapshot(&store.snapshot(), model).expect("model validates")
+    }
+
+    #[test]
+    fn unforced_three_dimensional_elastodynamics_has_no_load_carrier() {
+        let source = SOURCE_3D
+            .replace("  variable load: kg / (m * s ^ 2) on solid;\n", "")
+            .replace("  parameter zero_pressure: kg / (m * s ^ 2) = 0;\n", "")
+            .replace(
+                "  relation load_definition on solid { load - zero_pressure = 0; }\n",
+                "",
+            )
+            .replace("      - grad(load)", "");
+        let marker = "  relation momentum on solid {";
+        let start = source.find(marker).unwrap() + marker.len();
+        let end = start + source[start..].find("= 0;").unwrap();
+        let residual = source[start..end].trim();
+        let reversed = source.replacen(&source[start..end], &format!(" -({residual}) "), 1);
+        for (source, orientation) in [(&source, 1.0), (&reversed, -1.0)] {
+            let model =
+                lower_isotropic_elastodynamics_cartesian_3d(&compile_program(source)).unwrap();
+            assert_eq!(model.momentum_orientation(), orientation);
+            assert_eq!(model.continuum().load_potential(), None);
+            assert_eq!(model.continuum().load_definition_relation(), None);
+            assert_eq!(
+                model
+                    .continuum()
+                    .conservative_body_force(&[0.2, 0.3, 0.4])
+                    .unwrap(),
+                [0.0; 3]
+            );
+        }
+        for rejected in [
+            source.replace("      - div(", "      + div("),
+            source.replace(
+                "density * derivative(velocity)",
+                "density * derivative(velocity) + density * derivative(velocity)",
+            ),
+            SOURCE_3D.replace("      - grad(load)", ""),
+        ] {
+            assert_eq!(
+                lower_isotropic_elastodynamics_cartesian_3d(&compile_program(&rejected))
+                    .unwrap_err()
+                    .code(),
+                eqiora_core::diagnostic::codes::INVALID_SPATIAL_LOWERING
+            );
+        }
     }
 
     #[test]

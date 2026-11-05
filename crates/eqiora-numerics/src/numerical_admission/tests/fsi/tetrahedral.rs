@@ -64,7 +64,6 @@ fn model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
         ("solid_density", 3., [1, -3, 0, 0, 0, 0, 0]),
         ("solid_mu", 4., [1, -1, -2, 0, 0, 0, 0]),
         ("solid_lambda", 2., [1, -1, -2, 0, 0, 0, 0]),
-        ("zero_pressure", 0., [1, -1, -2, 0, 0, 0, 0]),
     ]
     .map(|(name, value, powers)| {
         (

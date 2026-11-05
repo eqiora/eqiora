@@ -104,7 +104,13 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
             },
         ],
     };
-    let compiled = lower_typed_model("typed.eqi", &model, &mut FreshLoweringIdentities).unwrap();
+    let compiled = lower_typed_model(
+        "typed.eqi",
+        &model,
+        &mut FreshLoweringIdentities,
+        eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
+    )
+    .unwrap();
     let relation = compiled
         .transaction()
         .ops()
