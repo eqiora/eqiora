@@ -1,5 +1,10 @@
 use super::*;
 
+#[cfg(test)]
+thread_local! {
+    pub(super) static ADMISSION_REPLAYS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
@@ -550,6 +555,8 @@ impl NativeNumericalAdmission {
     }
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
+        #[cfg(test)]
+        ADMISSION_REPLAYS.with(|count| count.set(count.get() + 1));
         let replayed = RecognizedNativeAdmission::recognize(
             self.model(),
             self.authenticated_mesh(),
