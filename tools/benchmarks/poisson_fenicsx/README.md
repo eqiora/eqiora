@@ -21,9 +21,9 @@ checks the actual four Basix points and weights against that closed-form rule,
 with a fixed eight-ULP engineering conformance budget for coordinate/weight
 rounding. This is not a rigorous Basix roundoff proof or a PDE error tolerance.
 
-Correctness levels are 4, 8, 16 and 32 cells per axis. Larger levels 64, 128
-and 256 extend the same mathematical problem only after passing its analytic
-checks. Export coordinates and nodal coefficients and compare by coordinates,
+Only levels 4, 8, 16 and 32 cells per axis are implemented, tested and approved.
+The driver rejects larger levels. Extending to 64, 128 or 256 needs new
+independently generated references and review before observations. Export coordinates and nodal coefficients and compare by coordinates,
 never by library-specific numbering. In FEniCSx, use the explicit topological
 Q1 vertex-to-dof and vertex-to-Geometry maps to export authoritative mesh
 vertices. `tabulate_dof_coordinates()` evaluates a floating Geometry map and
@@ -70,8 +70,10 @@ Reuse the existing [80-digit sine-mode derivation and generator](
 ../../../verify/numerics/cartesian-poisson-fem-fvm/references/README.md) and its
 continuous L2 error table. Compute each result's continuous Q1 reconstruction
 error with eight-point Gauss integration per axis, outside the timed region.
-Use the existing a priori residual, local roundoff and integration allowance
+Reuse the existing analytically motivated regression/conformance allowance
 in `crates/eqiora-numerics/tests/support/cartesian_poisson.rs::error_budget`.
+It models residual, local roundoff and integration error; it is not a certified
+floating-point error bound for FEniCSx.
 Require decreasing errors and observed order greater than 1.9. A tool-to-tool
 match alone is not a scientific oracle. No allowance is fitted to observed
 results or substituted for the product's residual acceptance.
@@ -112,10 +114,11 @@ Collect Eqiora `profile=True` in that separate diagnostic execution. Its inclusi
 wall spans and exclusive self times are different quantities; neither is a
 partition of the unprofiled median. The current scalar assembly-finalization
 span includes numeric preparation, representability checks and canonical
-system construction, but excludes some earlier mapping work. The reference solver
-currently has no separate solve span. A reviewed addition at the existing
-execution owner is needed before a separate Eqiora solve duration can be
-reported. Never infer it by subtracting other timings from Run wall time.
+system construction, but excludes some earlier mapping work. The base wheel used when declaring this protocol lacked a separate reference
+solver span. The tested development profiling wheel adds that span at the
+existing execution owner. Older wheels without it remain unsupported in
+benchmark mode. Require the actual phase inventory before reporting a separate
+solve duration; never infer it by subtraction from Run wall time.
 
 FEniCSx assembly and KSPSolve brackets must state their exact included calls.
 These are tool-native operation boundaries, not identical internal functions;
