@@ -37,6 +37,7 @@ error_total_degree = 6
 
 [solve]
 scalar_type = "f64"
+reduction = "fast"
 provider = "eqiora.faer"
 comparisons = ["explicit SparseLU", "manual BiCGSTAB upper-diagonal-Schur", "ranked explicit structured composition"]
 relative_tolerance = 1e-11

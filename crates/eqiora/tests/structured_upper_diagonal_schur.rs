@@ -141,7 +141,7 @@ fn ordinary_manual_manufactured_stokes_small() {
     )
     .unwrap()
     .with_preconditioner(composition.clone())
-    .with_reduction(ReductionPolicy::Reproducible);
+    .with_reduction(ReductionPolicy::Fast);
     let plan = ResolvedCommonPlan::resolve(
         &ModelEnvelope::from_program(document.model().program()).unwrap(),
         owner,
