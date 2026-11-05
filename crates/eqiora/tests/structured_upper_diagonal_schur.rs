@@ -183,6 +183,21 @@ fn admit_small(
         &composition
     );
     assert_eq!(plan.linear_solver_provider(), Some(FAER_SOLVER_PROVIDER));
+    if !generic {
+        let portable = plan.as_steady_stokes().unwrap().portable_realization();
+        assert!(portable.systems()[0].blocks().contains(
+            &eqiora::realization::SystemBlock::ConstraintMultiplier(
+                eqiora::solver::AlgebraicConstraint::ZeroIntegral { field: pressure }
+            )
+        ));
+        assert_eq!(
+            portable.domains()[0].discretization().quadrature(),
+            eqiora::realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(2).unwrap(),
+                points_per_axis: NonZeroUsize::new(3).unwrap(),
+            }
+        );
+    }
     Ok((plan, observed_mesh))
 }
 
