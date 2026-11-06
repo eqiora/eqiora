@@ -305,6 +305,9 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
 
 #[test]
 fn live_static_acceptance_retains_original_equations_and_independent_replay() {
+    if !crate::numerical_admission::scalar::live_tests::attribution_child() {
+        return;
+    }
     let geometry = cartesian_interval();
     let model = scalar_box_model(
         &geometry,
@@ -319,6 +322,7 @@ fn live_static_acceptance_retains_original_equations_and_independent_replay() {
         let plan = resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[4]), spatial);
         crate::numerical_admission::scalar::live_tests::check(&plan);
     }
+    crate::numerical_admission::scalar::live_tests::attribution_complete();
 }
 
 #[test]

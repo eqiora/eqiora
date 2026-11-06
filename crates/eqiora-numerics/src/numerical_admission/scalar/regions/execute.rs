@@ -18,6 +18,11 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             operator_properties,
             quadrature,
         } = policy;
+        let _finalization = eqiora_execution::telemetry_span!(backend(
+            "scalar_system_finalization",
+            "scalar_static"
+        ))
+        .entered();
         #[cfg(test)]
         super::super::STATIC_FINALIZATIONS.with(|count| count.set(count.get() + 1));
         let q1_spd = operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
@@ -415,6 +420,11 @@ where
         request: LinearSolveRequest<'_, S>,
         initial: Option<&BTreeMap<RawId, Vec<P>>>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
+        let _preparation = eqiora_execution::telemetry_span!(backend(
+            "scalar_problem_preparation",
+            "scalar_static"
+        ))
+        .entered();
         // Ordinary execution needs only the canonical solve and recovery map.
         let initial = initial
             .map(|values| {
@@ -426,8 +436,22 @@ where
         if let Some(values) = &initial {
             problem = problem.with_initial_guess(values)?;
         }
-        let solution = request.solve(&problem)?;
+        drop(_preparation);
+        let solution = {
+            let _request = eqiora_execution::telemetry_span!(backend(
+                "scalar_linear_request",
+                "scalar_static"
+            ))
+            .entered();
+            request.solve(&problem)?
+        };
+        let _validation = eqiora_execution::telemetry_span!(backend(
+            "scalar_solution_validation",
+            "scalar_static"
+        ))
+        .entered();
         self.core.validate_solution(&solution)?;
+        drop(_validation);
         let (values, solve_report) = solution.into_parts();
         self.finish(values, solve_report, None)
     }
@@ -438,6 +462,11 @@ where
         solve_report: eqiora_solver::SolveReport,
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
+        let _recovery = eqiora_execution::telemetry_span!(backend(
+            "scalar_coordinate_recovery",
+            "scalar_static"
+        ))
+        .entered();
         let fields = self
             .mapping
             .recover_coordinates(&values)?

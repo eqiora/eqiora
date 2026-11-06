@@ -782,10 +782,16 @@ impl NativeNumericalAdmission {
                 "native numerical admission does not own recognized linear-region meaning",
             ));
         };
+        let _preflight = eqiora_execution::telemetry_span!(backend(
+            "scalar_structure_preflight",
+            "scalar_static"
+        ))
+        .entered();
         let structure = lowered.algebraic_structure(self.spatial.scalar_constraint())?;
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver.clone());
+        drop(_preflight);
         if self.spatial.scalar_constraint().is_none() {
             let system = lowered.finalize_static(
                 self.linear.workers,
