@@ -126,7 +126,10 @@ comparison.
 
 The [record](results/correctness.json) identifies the actual wheel producer and
 frozen harness separately. The [raw inventory](results/raw-sha256.json) binds
-the retained reports, candidate fields, logs and artifact receipt. Failed
+the retained reports, candidate fields, logs and artifact receipt. Successful
+worker reports and candidate fields are committed byte-for-byte under
+`results/raw`, so a clone can reproduce the figure without the original
+scratch directory. Failed
 adapter attempts remain in the parent scratch directory described by the
 record; they did not change the analytic reference or acceptance tolerances.
 

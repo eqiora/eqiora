@@ -1,0 +1,506 @@
+{
+  "environment": {
+    "host": "nvidia7",
+    "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+    "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+    "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+    "affinity": [
+      12
+    ],
+    "cpu_models": [
+      "Intel(R) Xeon(R) Gold 6346 CPU @ 3.10GHz"
+    ],
+    "versions": {
+      "fenics-dolfinx": "0.11.0",
+      "fenics-basix": "0.11.0",
+      "fenics-ffcx": "0.11.0",
+      "fenics-ufl": "2026.1.0",
+      "numpy": "2.5.4",
+      "petsc4py": "3.25.6",
+      "mpi4py": "4.1.2"
+    },
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "RAYON_NUM_THREADS": "1",
+      "BLIS_NUM_THREADS": "1"
+    },
+    "load_at_start": [
+      42.6279296875,
+      44.96142578125,
+      41.71728515625
+    ],
+    "imports_wall_seconds": 1.082631713,
+    "numpy_and_tool_imports_included": true,
+    "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+    "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+    "harness_sha256": {
+      "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+      "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+      "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+      "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+      "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+      "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+      "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+      "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+      "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+      "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+      "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+      "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+    },
+    "mpi_library": "MPICH Version:      5.0.1\nMPICH Release date: Fri Apr 10 09:45:31 AM CDT 2026\nMPICH ABI:          18:1:6\nMPICH Device:       ch4:ucx ofi\nMPICH configure:    --prefix=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default --disable-doc --disable-dependency-tracking --enable-cxx --enable-fortran --enable-f08 --enable-mpi-abi --with-wrapper-dl-type=none --disable-static --with-device=ch4:ucx,ofi --with-ucx=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default --with-libfabric=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default --with-hwloc=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default --with-yaksa=embedded --with-pm=hydra:gforker\nMPICH CC:           x86_64-conda-linux-gnu-cc -I/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/work=/usr/local/src/conda/mpich-5.0.1 -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix   -O2\nMPICH CXX:          x86_64-conda-linux-gnu-c++ -I/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -fvisibility-inlines-hidden -fmessage-length=0 -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/work=/usr/local/src/conda/mpich-5.0.1 -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix -O2\nMPICH F77:          x86_64-conda-linux-gnu-gfortran -I/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -I/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/build_env/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/work=/usr/local/src/conda/mpich-5.0.1 -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix -O2\nMPICH FC:           x86_64-conda-linux-gnu-gfortran -I/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -I/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/build_env/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpich_1787141874/work=/usr/local/src/conda/mpich-5.0.1 -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix -O2\nMPICH features:     threadcomm\n",
+    "petsc_version": {
+      "major": 3,
+      "minor": 25,
+      "subminor": 6,
+      "release": true,
+      "date": "Sep 28, 2026",
+      "authorinfo": [
+        "The PETSc Team",
+        "petsc-maint@mcs.anl.gov",
+        "https://petsc.org/"
+      ]
+    },
+    "petsc_scalar_type": "<class 'numpy.float64'>",
+    "petsc_integer_type": "<class 'numpy.int32'>",
+    "compiler_environment": {
+      "CC": null,
+      "CXX": null,
+      "CFLAGS": null,
+      "CXXFLAGS": null,
+      "LDFLAGS": null
+    },
+    "python_compiler_config": {
+      "CC": "gcc -pthread -B /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/share/python_compiler_compat",
+      "CFLAGS": "-fno-strict-overflow -Wsign-compare -DNDEBUG -O2 -Wall    -fPIC   -O2   -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/python-split_1793013953677/work=/usr/local/src/conda/python-split-3.13.18         -fPIC   -O2   -fno-merge-constants -isystem /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/python-split_1793013953677/work=/usr/local/src/conda/python-split-3.13.18     ",
+      "LDSHARED": "gcc -pthread -B /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/share/python_compiler_compat -shared        -Wl,--allow-shlib-undefined -Wl,-rpath,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib -Wl,-rpath-link,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib -L/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib        -Wl,--allow-shlib-undefined -Wl,-rpath,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib -Wl,-rpath-link,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib -L/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib"
+    },
+    "blas": {
+      "Compilers": {
+        "c": {
+          "name": "gcc",
+          "linker": "ld.bfd",
+          "version": "15.3.0",
+          "commands": "x86_64-conda-linux-gnu-cc",
+          "args": "-march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1791675323/work=/usr/local/src/conda/numpy-2.5.4, -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include",
+          "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -Wl,-rpath-link,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -L/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1791675323/work=/usr/local/src/conda/numpy-2.5.4, -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include"
+        },
+        "cython": {
+          "name": "cython",
+          "linker": "cython",
+          "version": "3.3.0",
+          "commands": "cython"
+        },
+        "c++": {
+          "name": "gcc",
+          "linker": "ld.bfd",
+          "version": "15.3.0",
+          "commands": "x86_64-conda-linux-gnu-c++",
+          "args": "-fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1791675323/work=/usr/local/src/conda/numpy-2.5.4, -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include",
+          "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -Wl,-rpath-link,/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -L/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib, -fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1791675323/work=/usr/local/src/conda/numpy-2.5.4, -fdebug-prefix-map=/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include"
+        }
+      },
+      "Machine Information": {
+        "host": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "linux"
+        },
+        "build": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "linux"
+        }
+      },
+      "Build Dependencies": {
+        "blas": {
+          "name": "blas",
+          "found": true,
+          "version": "3.9.0",
+          "detection method": "pkgconfig",
+          "include directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include",
+          "lib directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib",
+          "openblas configuration": "unknown",
+          "pc file directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib/pkgconfig"
+        },
+        "lapack": {
+          "name": "lapack",
+          "found": true,
+          "version": "3.9.0",
+          "detection method": "pkgconfig",
+          "include directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/include",
+          "lib directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib",
+          "openblas configuration": "unknown",
+          "pc file directory": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/lib/pkgconfig"
+        }
+      },
+      "Python Information": {
+        "path": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+        "version": "3.13"
+      },
+      "SIMD Extensions": {
+        "baseline": [
+          "X86_V2"
+        ],
+        "found": [
+          "X86_V3",
+          "X86_V4",
+          "AVX512_ICL"
+        ],
+        "not found": [
+          "AVX512_SPR"
+        ]
+      }
+    },
+    "solve_quadrature": {
+      "points": [
+        [
+          0.21132486540518713,
+          0.21132486540518713
+        ],
+        [
+          0.21132486540518713,
+          0.7886751345948129
+        ],
+        [
+          0.7886751345948129,
+          0.21132486540518713
+        ],
+        [
+          0.7886751345948129,
+          0.7886751345948129
+        ]
+      ],
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "degree": 3,
+      "rule": "gauss_jacobi"
+    },
+    "coordinate_export": "exact Geometry vertices through topological Q1 vertex/block-DOF correspondence",
+    "load_at_end": [
+      42.6279296875,
+      44.96142578125,
+      41.71728515625
+    ]
+  },
+  "memory_after_import": {
+    "current_rss_kib": 83324,
+    "process_peak_rss_kib": 83324,
+    "largest_completed_child_peak_rss_kib": 83324,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "memory_after_preparation": {
+    "current_rss_kib": 96632,
+    "process_peak_rss_kib": 96632,
+    "largest_completed_child_peak_rss_kib": 96120,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "dofs": {
+    "total": 50,
+    "free": 18,
+    "stored_algebraic": 50
+  },
+  "jit": {
+    "cache": "fresh directory",
+    "cffi_extra_compile_args": [
+      "-O3"
+    ]
+  },
+  "tool": "fenicsx",
+  "dimension": 2,
+  "cells_per_axis": 4,
+  "mode": "correctness-only",
+  "stable_timing_claim": false,
+  "measurement_status": "correctness-only smoke; not performance evidence",
+  "memory_after_execution_before_accuracy": {
+    "current_rss_kib": 99192,
+    "process_peak_rss_kib": 99192,
+    "largest_completed_child_peak_rss_kib": 96120,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "accuracy": {
+    "l2_error": 0.0024325794857616915,
+    "h1_seminorm_error": 0.040100670311407134,
+    "relative_l2_error": 0.19967388200440908,
+    "relative_h1_seminorm_error": 0.45368729451715273,
+    "quadrature_audit_absolute_difference": [
+      8.673617379884035e-19,
+      2.0816681711721685e-17
+    ]
+  },
+  "solve": {
+    "algorithm": "conjugate-gradient",
+    "preconditioner": "identity",
+    "completed_iterations": 2,
+    "initial_residual_norm": 0.9548182487623923,
+    "reported_residual_norm": 8.63504182433564e-17,
+    "true_residual_norm": 1.197100607745587e-16,
+    "residual_target": 9.548182487623924e-13,
+    "convergence_reason": 3,
+    "relative_tolerance": 1e-12,
+    "absolute_tolerance": 1e-14,
+    "maximum_iterations": 10000,
+    "divergence_tolerance": 10000.0,
+    "norm_type": "unpreconditioned",
+    "initial_guess_nonzero": false
+  },
+  "equilibrium_probe": {
+    "scope": "separate untimed affine-potential solve after cold execution",
+    "reaction": [
+      -1.0,
+      6.071532165918825e-17
+    ],
+    "body_force": [
+      1.0,
+      0.0
+    ],
+    "solve": {
+      "algorithm": "conjugate-gradient",
+      "preconditioner": "identity",
+      "completed_iterations": 5,
+      "initial_residual_norm": 0.1875,
+      "reported_residual_norm": 5.7808716461401364e-18,
+      "true_residual_norm": 9.794586290893405e-17,
+      "residual_target": 1.875e-13,
+      "convergence_reason": 3,
+      "relative_tolerance": 1e-12,
+      "absolute_tolerance": 1e-14,
+      "maximum_iterations": 10000,
+      "divergence_tolerance": 10000.0,
+      "norm_type": "unpreconditioned",
+      "initial_guess_nonzero": false
+    }
+  },
+  "profile": {
+    "required_phases_available": true,
+    "phase_inventory": [
+      "assembly",
+      "linear_solve"
+    ]
+  },
+  "diagnostic_execution": {
+    "additional_calls_per_tool": 2,
+    "position": "after cold ordinary execution and validation, before any warmups/samples",
+    "ordinary_execution_has_phase_instrumentation": false,
+    "cold_memory_scope": "process HWM immediately after ordinary field return, before output/protocol inspection, accuracy or profiling",
+    "final_memory_scope": "whole child, including untimed inspection/accuracy/reporting/diagnostic profiling",
+    "additional_problem_probe_calls": 1
+  },
+  "memory_at_end": {
+    "current_rss_kib": 100216,
+    "process_peak_rss_kib": 100216,
+    "largest_completed_child_peak_rss_kib": 100216,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "coordinates": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.25
+    ],
+    [
+      0.25,
+      0.0
+    ],
+    [
+      0.25,
+      0.25
+    ],
+    [
+      0.0,
+      0.5
+    ],
+    [
+      0.25,
+      0.5
+    ],
+    [
+      0.5,
+      0.0
+    ],
+    [
+      0.5,
+      0.25
+    ],
+    [
+      0.0,
+      0.75
+    ],
+    [
+      0.25,
+      0.75
+    ],
+    [
+      0.5,
+      0.5
+    ],
+    [
+      0.75,
+      0.0
+    ],
+    [
+      0.75,
+      0.25
+    ],
+    [
+      0.0,
+      1.0
+    ],
+    [
+      0.25,
+      1.0
+    ],
+    [
+      0.5,
+      0.75
+    ],
+    [
+      0.75,
+      0.5
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.25
+    ],
+    [
+      0.5,
+      1.0
+    ],
+    [
+      0.75,
+      0.75
+    ],
+    [
+      1.0,
+      0.5
+    ],
+    [
+      0.75,
+      1.0
+    ],
+    [
+      1.0,
+      0.75
+    ],
+    [
+      1.0,
+      1.0
+    ]
+  ],
+  "values": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.009825376219648938,
+      -0.009825376219648935
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.023728377835664845,
+      8.80422100739336e-19
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      2.650485381806902e-18,
+      -0.02372837783566484
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.009825376219648933,
+      0.009825376219648933
+    ],
+    [
+      5.9739635736030344e-18,
+      5.503790514569462e-18
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.009825376219648933,
+      -0.009825376219648935
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      4.1523310660850945e-18,
+      0.023728377835664845
+    ],
+    [
+      0.02372837783566485,
+      2.0405856477541613e-18
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.009825376219648933,
+      0.009825376219648933
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ]
+  ]
+}

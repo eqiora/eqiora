@@ -19,7 +19,7 @@ def main():
     record = json.loads(args.record.read_text())
     inventory = json.loads(args.record.with_name('raw-sha256.json').read_text())
     for row in record['rows']:
-        path = Path(record['raw_directory'])/row['raw_report']
+        path = args.record.parent/record['committed_raw_directory']/row['raw_report']
         if hashlib.sha256(path.read_bytes()).hexdigest() != inventory[row['raw_report']]['sha256']:
             raise ValueError('retained raw report does not match its committed digest')
         raw = json.loads(path.read_text())

@@ -1,0 +1,504 @@
+{
+  "environment": {
+    "host": "nvidia7",
+    "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+    "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+    "executable": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+    "affinity": [
+      12
+    ],
+    "cpu_models": [
+      "Intel(R) Xeon(R) Gold 6346 CPU @ 3.10GHz"
+    ],
+    "versions": {
+      "eqiora": "0.1.5",
+      "numpy": "2.5.4"
+    },
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "RAYON_NUM_THREADS": "1",
+      "BLIS_NUM_THREADS": "1"
+    },
+    "load_at_start": [
+      42.6279296875,
+      44.96142578125,
+      41.71728515625
+    ],
+    "imports_wall_seconds": 0.152860154,
+    "numpy_and_tool_imports_included": true,
+    "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+    "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+    "harness_sha256": {
+      "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+      "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+      "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+      "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+      "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+      "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+      "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+      "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+      "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+      "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+      "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+      "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+    },
+    "wheel_sha256": "4e08e0aca402f46c561d64c686f1df322c6f6f368ad0562da489a2d572b18257",
+    "source_revision_declared": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "rust_build_profile_declared": "release",
+    "module_path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/lib/python3.13/site-packages/eqiora/__init__.py",
+    "blas": {
+      "Compilers": {
+        "c": {
+          "name": "gcc",
+          "linker": "ld.bfd",
+          "version": "14.2.1",
+          "commands": "cc"
+        },
+        "cython": {
+          "name": "cython",
+          "linker": "cython",
+          "version": "3.3.0",
+          "commands": "cython"
+        },
+        "c++": {
+          "name": "gcc",
+          "linker": "ld.bfd",
+          "version": "14.2.1",
+          "commands": "c++"
+        }
+      },
+      "Machine Information": {
+        "host": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "linux"
+        },
+        "build": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "linux"
+        }
+      },
+      "Build Dependencies": {
+        "blas": {
+          "name": "scipy-openblas",
+          "found": true,
+          "version": "0.3.34.106.0",
+          "detection method": "pkgconfig",
+          "include directory": "/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/include",
+          "lib directory": "/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/lib",
+          "openblas configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=64",
+          "pc file directory": "/project/.openblas"
+        },
+        "lapack": {
+          "name": "scipy-openblas",
+          "found": true,
+          "version": "0.3.34.106.0",
+          "detection method": "pkgconfig",
+          "include directory": "/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/include",
+          "lib directory": "/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/lib",
+          "openblas configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=64",
+          "pc file directory": "/project/.openblas"
+        }
+      },
+      "Python Information": {
+        "path": "/tmp/build-env-au6kdu2e/bin/python",
+        "version": "3.13"
+      },
+      "SIMD Extensions": {
+        "baseline": [
+          "X86_V2"
+        ],
+        "found": [
+          "X86_V3",
+          "X86_V4",
+          "AVX512_ICL"
+        ],
+        "not found": [
+          "AVX512_SPR"
+        ]
+      }
+    },
+    "resolved_execution": {
+      "scalar_type": "f64",
+      "provider": "eqiora.host.serial",
+      "provider_version": "0.1.5",
+      "placement": "host-serial",
+      "workers": 1
+    },
+    "linear_provider": {
+      "id": "eqiora.reference",
+      "implementation_version": "0.1.5"
+    },
+    "load_at_end": [
+      42.6279296875,
+      44.96142578125,
+      41.71728515625
+    ]
+  },
+  "memory_after_import": {
+    "current_rss_kib": 36408,
+    "process_peak_rss_kib": 52696,
+    "largest_completed_child_peak_rss_kib": 34776,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "memory_after_preparation": {
+    "current_rss_kib": 45920,
+    "process_peak_rss_kib": 52696,
+    "largest_completed_child_peak_rss_kib": 34776,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "model_sha256": "c8b4b8c038f0c65d1619f3499cdba23239291af8c5233819b5b944f1052b7b4c",
+  "plan_sha256": "64645a706d4561671a5715e76ece00aa31d00819b13083e4892982376b6d2e5e",
+  "package_compilation_digest": "8e9de94fb8e8d5563ef42f133d938173db204df35551e7e8fd921c768559bcbd",
+  "dofs": {
+    "total": 50,
+    "free": 18,
+    "stored_algebraic": 18
+  },
+  "tool": "eqiora",
+  "dimension": 2,
+  "cells_per_axis": 4,
+  "mode": "correctness-only",
+  "stable_timing_claim": false,
+  "measurement_status": "correctness-only smoke; not performance evidence",
+  "memory_after_execution_before_accuracy": {
+    "current_rss_kib": 46956,
+    "process_peak_rss_kib": 52696,
+    "largest_completed_child_peak_rss_kib": 34776,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "accuracy": {
+    "l2_error": 0.002432579485761691,
+    "h1_seminorm_error": 0.040100670311407134,
+    "relative_l2_error": 0.19967388200440905,
+    "relative_h1_seminorm_error": 0.45368729451715273,
+    "quadrature_audit_absolute_difference": [
+      1.3010426069826053e-18,
+      2.0816681711721685e-17
+    ]
+  },
+  "solve": {
+    "algorithm": "conjugate-gradient",
+    "completed_iterations": 2,
+    "initial_residual_norm": 0.9548182487623925,
+    "reported_residual_norm": 9.142869425684538e-17,
+    "true_residual_norm": 1.3133084714921057e-16,
+    "residual_target": 9.548182487623926e-13,
+    "backend": "eqiora.reference",
+    "adapter": "eqiora.host.serial",
+    "verification_adapter": "eqiora.host.serial",
+    "reduction": "reproducible",
+    "relative_tolerance": 1e-12,
+    "absolute_tolerance": 1e-14,
+    "maximum_iterations": 10000,
+    "preconditioner": "identity",
+    "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+  },
+  "equilibrium_probe": {
+    "scope": "separate untimed affine-potential solve after cold execution",
+    "reaction": [
+      -0.9999999999999998,
+      6.938893903907228e-17
+    ],
+    "body_force": [
+      1.0,
+      0.0
+    ],
+    "solve": {
+      "algorithm": "conjugate-gradient",
+      "completed_iterations": 5,
+      "initial_residual_norm": 0.1875,
+      "reported_residual_norm": 4.676152944788886e-18,
+      "true_residual_norm": 3.543160547153122e-17,
+      "residual_target": 1.875e-13,
+      "backend": "eqiora.reference",
+      "adapter": "eqiora.host.serial",
+      "verification_adapter": "eqiora.host.serial",
+      "reduction": "reproducible",
+      "relative_tolerance": 1e-12,
+      "absolute_tolerance": 1e-14,
+      "maximum_iterations": 10000,
+      "preconditioner": "identity",
+      "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+    },
+    "model_sha256": "d43f3cf878ad25f833cc93348e29089eca4e7d10d69815a8f623f9e00b8caf4b"
+  },
+  "profile": {
+    "required_phases_available": true,
+    "phase_inventory": [
+      {
+        "path": [
+          "run"
+        ],
+        "fields": {
+          "family": "spatial"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "setup"
+        ],
+        "fields": {
+          "role": "backend_resolution"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve"
+        ],
+        "fields": {},
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "assembly"
+        ],
+        "fields": {
+          "role": "scalar_region_finalization"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "linear_solve"
+        ],
+        "fields": {
+          "linear_solver": "ConjugateGradient",
+          "solver_provider": "eqiora.reference"
+        },
+        "calls": 1
+      }
+    ]
+  },
+  "diagnostic_execution": {
+    "additional_calls_per_tool": 2,
+    "position": "after cold ordinary execution and validation, before any warmups/samples",
+    "ordinary_execution_has_phase_instrumentation": false,
+    "cold_memory_scope": "process HWM immediately after ordinary field return, before output/protocol inspection, accuracy or profiling",
+    "final_memory_scope": "whole child, including untimed inspection/accuracy/reporting/diagnostic profiling",
+    "additional_problem_probe_calls": 1
+  },
+  "memory_at_end": {
+    "current_rss_kib": 49544,
+    "process_peak_rss_kib": 52696,
+    "largest_completed_child_peak_rss_kib": 34776,
+    "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+  },
+  "coordinates": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.25
+    ],
+    [
+      0.0,
+      0.5
+    ],
+    [
+      0.0,
+      0.75
+    ],
+    [
+      0.0,
+      1.0
+    ],
+    [
+      0.25,
+      0.0
+    ],
+    [
+      0.25,
+      0.25
+    ],
+    [
+      0.25,
+      0.5
+    ],
+    [
+      0.25,
+      0.75
+    ],
+    [
+      0.25,
+      1.0
+    ],
+    [
+      0.5,
+      0.0
+    ],
+    [
+      0.5,
+      0.25
+    ],
+    [
+      0.5,
+      0.5
+    ],
+    [
+      0.5,
+      0.75
+    ],
+    [
+      0.5,
+      1.0
+    ],
+    [
+      0.75,
+      0.0
+    ],
+    [
+      0.75,
+      0.25
+    ],
+    [
+      0.75,
+      0.5
+    ],
+    [
+      0.75,
+      0.75
+    ],
+    [
+      0.75,
+      1.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.25
+    ],
+    [
+      1.0,
+      0.5
+    ],
+    [
+      1.0,
+      0.75
+    ],
+    [
+      1.0,
+      1.0
+    ]
+  ],
+  "values": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.009825376219648933,
+      -0.009825376219648933
+    ],
+    [
+      -0.02372837783566485,
+      -2.6764104398309658e-18
+    ],
+    [
+      -0.00982537621964894,
+      0.00982537621964893
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -2.5640370856793863e-18,
+      -0.02372837783566485
+    ],
+    [
+      -9.009603696652832e-18,
+      -7.820561297380543e-18
+    ],
+    [
+      -3.857483992340716e-18,
+      0.023728377835664845
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.00982537621964893,
+      -0.00982537621964894
+    ],
+    [
+      0.023728377835664845,
+      -3.996906749460791e-18
+    ],
+    [
+      0.009825376219648936,
+      0.009825376219648936
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ]
+  ]
+}

@@ -1167,5 +1167,7 @@
       "failure": "NumPy vector block index expansion promoted int32 PETSc indices to int64; essential-column inspection rejected the array",
       "complete_comparison": false
     }
-  ]
+  ],
+  "committed_raw_directory": "raw",
+  "committed_raw_scope": "Original byte-for-byte successful worker reports and candidate fields; raw-sha256.json keys are relative to this directory. Original scratch paths remain provenance only."
 }
