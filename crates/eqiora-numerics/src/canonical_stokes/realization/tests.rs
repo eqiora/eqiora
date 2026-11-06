@@ -3,6 +3,7 @@ use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 
 #[test]
 fn mini_solver_admission_separates_mathematics_from_provider_availability() {
+    let structure = eqiora_solver::AlgebraicStructure::new([Id::new(), Id::new()], []).unwrap();
     for (algorithm, preconditioner, reduction, admitted) in [
         (
             LinearSolver::MinimumResidual,
@@ -60,10 +61,10 @@ fn mini_solver_admission_separates_mathematics_from_provider_availability() {
             NonZeroUsize::new(10).expect("ten is non-zero"),
         )
         .expect("test plan")
-        .with_preconditioner(preconditioner)
+        .with_preconditioner(preconditioner.clone())
         .with_reduction(reduction);
         assert_eq!(
-            require_mini_solver(plan).is_ok(),
+            require_mini_solver(&plan, &structure).is_ok(),
             admitted,
             "unexpected admission for {algorithm:?}/{preconditioner:?}/{reduction:?}",
         );

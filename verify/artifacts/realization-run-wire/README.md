@@ -1,7 +1,7 @@
 # Realization and run wire verification
 
 This case compiles the canonical Poisson model, resolves typed Realization
-policy, serializes `eqiora.realization-envelope/v11`, and links it to
+policy, serializes `eqiora.realization-envelope/v12`, and links it to
 `eqiora.run-manifest/v2`. Both artifacts round-trip to identical canonical
 bytes and domain-separated digests.
 

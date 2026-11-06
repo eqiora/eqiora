@@ -245,7 +245,7 @@ fn divided_cubic_temperature_source_rebinds_and_differentiates() {
             let solved = REFERENCE_LINEAR_SOLVER
                 .solve(
                     &finalized.linear_problem().unwrap(),
-                    finalized.solver_plan(),
+                    finalized.solver_plan().clone(),
                 )
                 .unwrap();
             let accepted = finalized.finish(solved).unwrap();

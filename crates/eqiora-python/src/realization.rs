@@ -1,9 +1,6 @@
 //! Python projections of common numerical solve observations.
 
-use eqiora::solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy,
-};
+use eqiora::solver::{ConvergenceReason, LinearOperatorOrientation, LinearSolver, ReductionPolicy};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -45,7 +42,7 @@ pub(crate) struct PyLinearSolveSummary {
     verification_adapter: String,
     orientation: String,
     algorithm: String,
-    preconditioner: String,
+    preconditioner: crate::common_plan::solver_request::PyPreconditioner,
     reduction: String,
     relative_tolerance: f64,
     absolute_tolerance: f64,
@@ -77,11 +74,7 @@ impl PyLinearSolveSummary {
                 LinearSolver::SparseLu => "sparse-lu",
             }
             .to_owned(),
-            preconditioner: match report.preconditioner() {
-                PreconditionerPolicy::Identity => "identity",
-                PreconditionerPolicy::Jacobi => "jacobi",
-            }
-            .to_owned(),
+            preconditioner: report.preconditioner().into(),
             reduction: match report.reduction() {
                 ReductionPolicy::Reproducible => "reproducible",
                 ReductionPolicy::Fast => "fast",
@@ -145,8 +138,8 @@ impl PyLinearSolveSummary {
         &self.algorithm
     }
     #[getter]
-    fn preconditioner(&self) -> &str {
-        &self.preconditioner
+    fn preconditioner(&self) -> crate::common_plan::solver_request::PyPreconditioner {
+        self.preconditioner.clone()
     }
     #[getter]
     fn reduction(&self) -> &str {

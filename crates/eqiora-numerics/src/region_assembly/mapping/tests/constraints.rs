@@ -35,12 +35,12 @@ pub(super) fn check_stationary(
         }
     }
     let assess = |fields: &BTreeMap<RawId, RecoveredRegionField<f64>>| {
-        mapping.assess_temporal_state(mesh, input(), fields, &temporal, solver, |_| {
+        mapping.assess_temporal_state(mesh, input(), fields, &temporal, solver.clone(), |_| {
             panic!("regular stationary algebraic block needs no initial-rate partial")
         })
     };
     let validate = |fields: &BTreeMap<RawId, RecoveredRegionField<f64>>| {
-        mapping.validate_temporal_state(mesh, input(), fields, &temporal, solver, |_| {
+        mapping.validate_temporal_state(mesh, input(), fields, &temporal, solver.clone(), |_| {
             panic!("regular stationary algebraic block needs no initial-rate partial")
         })
     };

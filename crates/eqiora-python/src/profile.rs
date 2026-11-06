@@ -680,7 +680,7 @@ mod tests {
             )
             .unwrap();
             for domain in [eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex] {
-                let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+                let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone());
                 let solve = || {
                     request
                         .solve_real_coordinates(
@@ -729,12 +729,13 @@ mod tests {
         for domain in [eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex] {
             let collector = ProfileCollector::default();
             let failure = collector.capture(|| {
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan).solve_real_coordinates(
-                    &source,
-                    source.right_hand_side(),
-                    domain,
-                    LinearOperatorOrientation::Normal,
-                )
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone())
+                    .solve_real_coordinates(
+                        &source,
+                        source.right_hand_side(),
+                        domain,
+                        LinearOperatorOrientation::Normal,
+                    )
             });
             assert!(failure.is_err());
             let data = collector.finish();

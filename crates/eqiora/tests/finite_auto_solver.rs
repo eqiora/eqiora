@@ -99,11 +99,11 @@ fn real_finite_objectives_execute_reopen_and_preserve_exact_selection() {
         assert_eq!(resolved.solver_planning_objective(), Some(objective));
         assert_eq!(
             resolved.solver_planning_policy_id(),
-            Some("eqiora.solver-planning/v11")
+            Some("eqiora.solver-planning/v12")
         );
         assert_eq!(resolved.selected_solver_candidate_id(), Some(candidate));
         assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));
-        assert_eq!(plan.linear(), expected);
+        assert_eq!(plan.linear(), &expected);
         assert!(resolved.solver_planning_reasons().contains(&(
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
             "candidate.admitted"
@@ -173,7 +173,7 @@ fn finite_auto_identity_binds_effective_selection_and_replay_does_not_switch_it(
     assert_eq!(available.linear().algorithm(), LinearSolver::SparseLu);
     assert_eq!(
         unavailable.linear(),
-        expected_plan(
+        &expected_plan(
             LinearSolver::BiConjugateGradientStabilized,
             ReductionPolicy::Reproducible
         )
@@ -243,9 +243,9 @@ fn complex_finite_objectives_execute_and_reopen_the_selected_typed_provider() {
         assert_eq!(resolved.selected_solver_candidate_id(), Some(id));
         assert_eq!(
             resolved.solver_planning_policy_id(),
-            Some("eqiora.solver-planning/v11")
+            Some("eqiora.solver-planning/v12")
         );
-        assert_eq!(plan.linear(), expected_plan(algorithm, reduction));
+        assert_eq!(plan.linear(), &expected_plan(algorithm, reduction));
         assert_eq!(resolved.linear_solver_provider(), Some(backend.provider()));
         let initial = plan.initial_state(&[]).unwrap();
         let result = plan.run_result(&initial, backend).unwrap();
@@ -275,7 +275,7 @@ fn complex_finite_objectives_execute_and_reopen_the_selected_typed_provider() {
         let manual = CommonAlgebraicPlan::resolve(
             &model,
             CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(plan.linear(), backend.provider()).unwrap(),
+                CommonLinearRequest::exact(plan.linear().clone(), backend.provider()).unwrap(),
             ),
             None,
             &[],
@@ -334,7 +334,7 @@ fn canonical_finite_request_retains_forecasts_and_payload_limit_on_reopen() {
         let requested = requested.with_cost(cost);
         let plan = CommonAlgebraicPlan::resolve(
             &model,
-            CommonSolvePolicy::Linear(requested),
+            CommonSolvePolicy::Linear(requested.clone()),
             None,
             &[],
             None,

@@ -21,8 +21,8 @@ use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     BackendId, ExecutionId, ExecutionProvider, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider,
+    ProviderLibrary, ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    SolverProvider,
 };
 
 const POISSON: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
@@ -232,7 +232,7 @@ fn realization_wire_retains_admitted_solver_algorithms() {
         let plan = RealizationPlan::new(
             baseline.space(),
             baseline.discretization(),
-            solver,
+            solver.clone(),
             baseline.target(),
             baseline.schedule(),
         )
@@ -259,7 +259,7 @@ fn realization_wire_retains_admitted_solver_algorithms() {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction,
                 scalar_type: ScalarType::F64,
             }])
@@ -281,7 +281,7 @@ fn realization_wire_retains_admitted_solver_algorithms() {
             expected
         );
         let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
-        assert_eq!(decoded.solver_plan(), solver);
+        assert_eq!(decoded.solver_plan(), &solver);
         let provenance = ExecutionProvenanceV1::new(
             "eqiora.host.serial",
             "0.1.0",
@@ -366,7 +366,7 @@ fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])
@@ -518,7 +518,7 @@ fn device_ordinals_belong_to_run_provenance_and_not_portable_realization_identit
         let plan = RealizationPlan::new(
             baseline.space(),
             baseline.discretization(),
-            baseline.solver(),
+            baseline.solver().clone(),
             eqiora_realization::Target::CudaGpu { device },
             baseline.schedule(),
         )

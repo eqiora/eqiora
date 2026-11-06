@@ -48,7 +48,7 @@ mod forward_policy;
 mod policy;
 use cost::{PySolverCandidateCost, PySolverCost};
 mod registration;
-mod solver_request;
+pub(crate) mod solver_request;
 use policy::{
     PyBackwardEuler, PyBdf, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama,
     PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d,
@@ -484,7 +484,7 @@ impl PyPlan {
                     ),
                     velocity_space: space_name(plan.velocity_space()),
                     pressure_space: space_name(plan.pressure_space()),
-                    pressure_gauge: None,
+                    pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(
                         py,

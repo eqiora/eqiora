@@ -1,7 +1,6 @@
 use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_solver::{
-    CanonicalCsrAgreementFingerprintV1, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverPlan,
+    CanonicalCsrAgreementFingerprintV1, LinearSolver, ReductionPolicy, SolverPlan,
 };
 use sha2::{Digest, Sha256};
 
@@ -11,7 +10,7 @@ use crate::partition::Partition;
 
 const PARTITION_AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.partition-agreement/v1\0";
 const DISTRIBUTED_LAYOUT_AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.distributed-layout-agreement/v1\0";
-const DISTRIBUTED_ADMISSION_DOMAIN_V1: &[u8] = b"eqiora.distributed-admission/v1\0";
+const DISTRIBUTED_ADMISSION_DOMAIN_V2: &[u8] = b"eqiora.distributed-admission/v2\0";
 
 /// Fixed-size L2 identity for one complete unique-owner partition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,9 +38,9 @@ impl DistributedLayoutAgreementIdentityV1 {
 
 /// Fixed-size L2 identity for collective system/partition/plan admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DistributedAdmissionFingerprintV1([u8; 32]);
+pub struct DistributedAdmissionFingerprintV2([u8; 32]);
 
-impl DistributedAdmissionFingerprintV1 {
+impl DistributedAdmissionFingerprintV2 {
     /// Raw SHA-256 bytes for fixed-size collective comparison.
     #[must_use]
     pub const fn as_bytes(self) -> [u8; 32] {
@@ -100,18 +99,17 @@ pub(crate) fn distributed_admission_fingerprint(
     system: CanonicalCsrAgreementFingerprintV1,
     partition: PartitionAgreementIdentityV1,
     layout: DistributedLayoutAgreementIdentityV1,
-    plan: SolverPlan,
-) -> Result<DistributedAdmissionFingerprintV1, Diagnostic> {
+    plan: &SolverPlan,
+) -> Result<DistributedAdmissionFingerprintV2, Diagnostic> {
     let mut hash = Sha256::new();
-    hash.update(DISTRIBUTED_ADMISSION_DOMAIN_V1);
+    hash.update(DISTRIBUTED_ADMISSION_DOMAIN_V2);
     hash.update(system.as_bytes());
     hash.update(partition.as_bytes());
     hash.update(layout.as_bytes());
     hash.update([linear_solver_tag(plan.algorithm())]);
-    hash.update([match plan.preconditioner() {
-        PreconditionerPolicy::Identity => 0,
-        PreconditionerPolicy::Jacobi => 1,
-    }]);
+    let policy = plan.preconditioner().identity_bytes()?;
+    update_count(&mut hash, policy.len(), "preconditioner policy byte count")?;
+    hash.update(policy);
     hash.update([match plan.reduction() {
         ReductionPolicy::Reproducible => 0,
         ReductionPolicy::Fast => 1,
@@ -123,7 +121,7 @@ pub(crate) fn distributed_admission_fingerprint(
         plan.maximum_iterations().get(),
         "maximum iteration count",
     )?;
-    Ok(DistributedAdmissionFingerprintV1(hash.finalize().into()))
+    Ok(DistributedAdmissionFingerprintV2(hash.finalize().into()))
 }
 
 const fn linear_solver_tag(algorithm: LinearSolver) -> u8 {

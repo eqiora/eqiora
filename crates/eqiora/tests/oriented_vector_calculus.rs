@@ -217,7 +217,7 @@ fn polynomial_curl_is_observed_through_an_ordinary_plan_and_result() {
     .unwrap();
     let plan = CommonAlgebraicPlan::resolve(
         &model,
-        CommonSolvePolicy::Linear(linear),
+        CommonSolvePolicy::Linear(linear.clone()),
         None,
         &[],
         None,

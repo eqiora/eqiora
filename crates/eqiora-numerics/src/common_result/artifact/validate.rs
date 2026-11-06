@@ -147,7 +147,7 @@ pub(super) fn require_trajectory_family(
 }
 
 pub(crate) fn require_solver_contract(
-    expected: SolverPlan,
+    expected: &SolverPlan,
     solver_provider: SolverProvider,
     execution_provider: ExecutionProvider,
     workers: usize,
@@ -155,7 +155,7 @@ pub(crate) fn require_solver_contract(
 ) -> Result<(), Diagnostic> {
     if !solver_provider_matches(&solve.solver, solver_provider)
         || solve.algorithm != expected.algorithm()
-        || solve.preconditioner != expected.preconditioner()
+        || &solve.preconditioner != expected.preconditioner()
         || solve.reduction != expected.reduction()
         || solve.relative_tolerance.to_bits() != expected.relative_tolerance().to_bits()
         || solve.absolute_tolerance.to_bits() != expected.absolute_tolerance().to_bits()

@@ -160,7 +160,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     }
 
     /// Mesh entities realizing one exact rectangle-v2 entity set.
-    pub fn planar_rectangle_v2_entity_set_entities(
+    pub(super) fn resolve_rectangle_entities(
         &self,
         geometry: &CanonicalGeometryV1,
         name: &str,

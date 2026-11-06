@@ -39,7 +39,7 @@ where
                 .map(|value| -*value)
                 .collect::<Vec<_>>(),
             &BTreeSet::new(),
-            self.plan.linear(),
+            self.plan.linear().clone(),
         )?;
         let mut rate = coordinates.restrict_action(&full_rate)?;
         if self.algebraic.is_empty() {
@@ -79,7 +79,7 @@ where
             .checked_backend(backend, Some(&structure))?;
         let (unknown, _) = tangent.solve_correction(
             0,
-            LinearSolveRequest::new(&checked, self.plan.linear()),
+            LinearSolveRequest::new(&checked, self.plan.linear().clone()),
             self.plan.admission.linear.workers,
             None,
         )?;

@@ -6,7 +6,7 @@ use eqiora::artifact::{
     AffineTriangleMeshPolicy, GeometryMeshCorrespondenceEnvelopeV1,
     MeshProductionLineageEnvelopeV1, ModelEnvelope,
 };
-use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora::geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora::realization::{SolveRoot, TransformationNode};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
@@ -227,36 +227,36 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 ("patch-z".to_owned(), vec![fluid.region().into()]),
                 (
                     "edge-9".to_owned(),
-                    vec![PlanarTopologyHandle::from(fluid_edges[0])],
+                    vec![GeometryTopologyHandle::from(fluid_edges[0])],
                 ),
                 (
                     "edge-2".to_owned(),
-                    vec![PlanarTopologyHandle::from(fluid_edges[1])],
+                    vec![GeometryTopologyHandle::from(fluid_edges[1])],
                 ),
                 (
                     "edge-7".to_owned(),
-                    vec![PlanarTopologyHandle::from(fluid_edges[2])],
+                    vec![GeometryTopologyHandle::from(fluid_edges[2])],
                 ),
                 (
                     "edge-4".to_owned(),
-                    vec![PlanarTopologyHandle::from(fluid_edges[3])],
+                    vec![GeometryTopologyHandle::from(fluid_edges[3])],
                 ),
                 ("patch-a".to_owned(), vec![solid.region().into()]),
                 (
                     "edge-8".to_owned(),
-                    vec![PlanarTopologyHandle::from(solid_edges[0])],
+                    vec![GeometryTopologyHandle::from(solid_edges[0])],
                 ),
                 (
                     "edge-1".to_owned(),
-                    vec![PlanarTopologyHandle::from(solid_edges[1])],
+                    vec![GeometryTopologyHandle::from(solid_edges[1])],
                 ),
                 (
                     "edge-6".to_owned(),
-                    vec![PlanarTopologyHandle::from(solid_edges[2])],
+                    vec![GeometryTopologyHandle::from(solid_edges[2])],
                 ),
                 (
                     "edge-3".to_owned(),
-                    vec![PlanarTopologyHandle::from(solid_edges[3])],
+                    vec![GeometryTopologyHandle::from(solid_edges[3])],
                 ),
             ]),
         )
@@ -462,7 +462,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             &common_model,
             resources.clone(),
             scoped.clone(),
-            requested,
+            requested.clone(),
             scaling,
             Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,

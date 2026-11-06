@@ -73,7 +73,7 @@ typed constraint/gauge authenticity or common Python integration for those profi
 
 ## Declared CUDA availability
 
-Policy v11 also uses this aggregator to verify selection from declared CUDA
+Policy v12 also uses this aggregator to verify selection from declared CUDA
 metadata for the three existing real-f64 Fast tuples: SPD CG/Jacobi, General
 BiCGSTAB/Identity, and symmetric-indefinite MINRES/Identity. Literal expectations
 are independent of the catalog. Every objective retains exact convergence
@@ -91,7 +91,7 @@ is unchanged; its added CUDA claim is limited to declared-metadata selection.
 
 ## Declared MPI availability and planning agreement
 
-Policy v11 also admits the existing native MPI real-f64 tuples: SPD CG/Jacobi
+Policy v12 also admits the existing native MPI real-f64 tuples: SPD CG/Jacobi
 with Reproducible or Fast reduction, and symmetric-indefinite MINRES/Identity
 with Reproducible reduction. Literal expectations verify exact controls, policy
 admission before ranking, missing providers, wrong execution, unsupported General

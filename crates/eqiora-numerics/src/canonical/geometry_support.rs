@@ -76,8 +76,7 @@ pub(crate) fn geometry_rectangle_cartesian_support(
         if boundary_parent(program, boundary.id().erase()) != Some(domain) {
             continue;
         }
-        let facets =
-            correspondence.planar_rectangle_v2_entity_set_entities(geometry, entity_set)?;
+        let facets = correspondence.planar_entity_set_entities(geometry, entity_set)?;
         let mut side = None;
         for facet in facets {
             if facet.dimension() != EDGE_DIMENSION {

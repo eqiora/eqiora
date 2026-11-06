@@ -17,7 +17,7 @@ pub(super) fn execute(
         .linear
         .checked_backend(backend, Some(&structure))?;
     let (core, assembly_report) = finalize(admission, grid, equation)?;
-    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
+    let solution = LinearSolveRequest::new(&backend, admission.linear.solver.clone())
         .solve(&core.linear_problem()?)?;
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
@@ -124,7 +124,7 @@ pub(super) fn finalize(
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?);
     let core = crate::finalized_spatial::FinalizedLinearCore::new(
-        admission.linear.solver,
+        admission.linear.solver.clone(),
         VectorLayoutKind::Replicated,
         Target::HostCpu {
             threads: admission.linear.workers,

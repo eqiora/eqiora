@@ -74,7 +74,7 @@ impl FinalizedSimplicialMiniStokes2dProblem {
 
     /// Exact backend-neutral solver policy selected by the Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.core.solver_plan()
     }
 

@@ -185,7 +185,7 @@ impl CommonOdePlan {
         solve: Option<crate::CommonSolvePolicy>,
         linear_backend: &dyn eqiora_solver::LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        let linear = match (temporal.method(), solve) {
+        let linear = match (temporal.method(), solve.clone()) {
             (TimeMethod::ImplicitMidpoint, Some(solve)) => {
                 let request = match solve {
                     crate::CommonSolvePolicy::Linear(linear)
@@ -321,7 +321,7 @@ impl CommonOdePlan {
         push(&mut identity, backend.id().as_bytes());
         push(&mut identity, backend.version().as_bytes());
         push(&mut identity, b"host-serial");
-        if let Some(solve) = solve {
+        if let Some(solve) = solve.clone() {
             push(
                 &mut identity,
                 &crate::numerical_admission::plan_artifact::solve_intent_bytes(solve)?,
@@ -332,7 +332,7 @@ impl CommonOdePlan {
                 &mut identity,
                 &crate::numerical_admission::plan_artifact::solve_intent_bytes(
                     crate::CommonSolvePolicy::Linear(crate::CommonLinearRequest::exact(
-                        linear.solver,
+                        linear.solver.clone(),
                         linear.provider,
                     )?),
                 )?,

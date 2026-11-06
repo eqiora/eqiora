@@ -63,7 +63,8 @@ pub(crate) fn validate_resources(
         }
         (
             NativeSpatialPolicy::StokesMiniP1(_),
-            resources @ NativeMeshResources::GmshSimplicial { .. },
+            resources @ (NativeMeshResources::GmshSimplicial { .. }
+            | NativeMeshResources::AffineTriangleSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
         (
             NativeSpatialPolicy::TransientMiniP1(_),

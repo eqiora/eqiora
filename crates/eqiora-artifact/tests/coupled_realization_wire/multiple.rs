@@ -82,7 +82,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
             )
             .unwrap(),
             fixture.plan.operator_properties(),
-            fixture.plan.solver(),
+            fixture.plan.solver().clone(),
             fixture.plan.target(),
             fixture.plan.schedule(),
         )

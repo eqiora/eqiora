@@ -38,7 +38,7 @@ use eqiora_core::{ScalarDomain, ScalarType};
 /// actions and are outside this bound. Zero dimension has zero numeric payload;
 /// actual problem admission independently rejects unsupported shapes.
 pub(crate) fn canonical_csr_numeric_workspace_bytes(
-    plan: SolverPlan,
+    plan: &SolverPlan,
     scalar_domain: ScalarDomain,
     scalar_type: ScalarType,
     dimension: usize,
@@ -58,6 +58,7 @@ pub(crate) fn canonical_csr_numeric_workspace_bytes(
     let jacobi = match plan.preconditioner() {
         PreconditionerPolicy::Identity => 0,
         PreconditionerPolicy::Jacobi => 1,
+        PreconditionerPolicy::UpperDiagonalSchur(_) => return None,
     };
     let vectors = recurrence.checked_add(jacobi)?;
     let scalars = match orientation {
@@ -87,7 +88,7 @@ mod tests {
         orientation: LinearOperatorOrientation,
     ) -> Option<usize> {
         super::super::canonical_csr_numeric_workspace_bytes(
-            plan(algorithm, preconditioner),
+            &plan(algorithm, preconditioner),
             ScalarDomain::Real,
             ScalarType::F64,
             n,
@@ -166,7 +167,7 @@ mod tests {
         ] {
             assert_eq!(
                 canonical_csr_numeric_workspace_bytes(
-                    policy,
+                    &policy,
                     domain,
                     ScalarType::F64,
                     1,
@@ -177,7 +178,7 @@ mod tests {
         }
         assert_eq!(
             canonical_csr_numeric_workspace_bytes(
-                policy,
+                &policy,
                 ScalarDomain::Real,
                 ScalarType::F32,
                 1,
@@ -187,7 +188,7 @@ mod tests {
         );
         assert_eq!(
             canonical_csr_numeric_workspace_bytes(
-                policy.with_reduction(ReductionPolicy::Fast),
+                &policy.with_reduction(ReductionPolicy::Fast),
                 ScalarDomain::Real,
                 ScalarType::F64,
                 1,

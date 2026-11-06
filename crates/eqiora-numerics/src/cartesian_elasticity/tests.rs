@@ -254,7 +254,7 @@ model potential_probe() {
         3.0,
         lowered.source(),
         &quadrature,
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone()),
     )
     .unwrap();
     for (actual, exact) in solution.integrated_body_force().into_iter().zip([1.0, 2.0]) {

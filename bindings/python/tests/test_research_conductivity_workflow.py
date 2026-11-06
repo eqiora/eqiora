@@ -167,7 +167,8 @@ def test_compatible_solver_swap_keeps_discrete_problem(workflow, tmp_path):
 
     def accepted(summary, provider, orientation="normal"):
         for name, expected in provider.items():
-            assert getattr(summary, name) == expected
+            actual = getattr(summary, name)
+            assert (actual.kind if name == "preconditioner" else actual) == expected
         if orientation == "reverse":
             # Both orientations are the transpose of this real operator.
             assert summary.orientation in ("transposed", "conjugate-transposed")
@@ -196,7 +197,8 @@ def test_compatible_solver_swap_keeps_discrete_problem(workflow, tmp_path):
                               else q.solve.SolverProvider.reference())
         assert plan.solve.provider == requested_provider  # Includes implementation and library versions.
         for name in ("backend", "algorithm", "preconditioner", "reduction"):
-            assert getattr(plan.solve, name) == provider[name]
+            actual = getattr(plan.solve, name)
+            assert (actual.kind if name == "preconditioner" else actual) == provider[name]
 
         ordinary = q.run(plan)
         accepted(ordinary.solve, provider)
@@ -268,7 +270,8 @@ for index, (group, provider) in enumerate(zip(collection, providers, strict=True
     result_path = path.parent / (('direct' if index == 0 else 'iterative') + '.eqresult')
     result = q.Result.from_bytes(group.plan, result_path.read_bytes())
     for key, value in provider.items():
-        assert getattr(result.solve, key) == value
+        actual = getattr(result.solve, key)
+        assert (actual.kind if key == 'preconditioner' else actual) == value
     field = result.output(group.plan.fields[0]).values('vertex').numpy()
     np.testing.assert_allclose(field, expected[0][0], rtol=0, atol=2e-9)
     for signature, value in zip(group.outputs[1:], expected[0][1:], strict=True):
@@ -278,7 +281,8 @@ for index, (group, provider) in enumerate(zip(collection, providers, strict=True
         assert member.status == 'accepted' and not hasattr(member.result, 'jvp')
         assert member.result.evidence.plan_identity == group.plan.identity
         for key, value in provider.items():
-            assert getattr(member.result.evidence.steps[0].primal_solves[0], key) == value
+            actual = getattr(member.result.evidence.steps[0].primal_solves[0], key)
+            assert (actual.kind if key == 'preconditioner' else actual) == value
         for actual, target in zip(member.result.output, wanted, strict=True):
             np.testing.assert_allclose(actual, target, rtol=0, atol=2e-9)
 """

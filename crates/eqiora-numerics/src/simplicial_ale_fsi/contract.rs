@@ -194,8 +194,8 @@ impl<const D: usize> AleFsiStepPlan<D> {
 
     /// Common linear plan used for every general Newton action.
     #[must_use]
-    pub const fn linear_solver(&self) -> SolverPlan {
-        self.linear_solver
+    pub const fn linear_solver(&self) -> &SolverPlan {
+        &self.linear_solver
     }
 
     /// Mathematical class of every admitted Newton action.

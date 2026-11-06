@@ -21,7 +21,7 @@ impl SolverSelection {
         });
         out.string(self.candidate_id)?;
         out.tag(algorithm(self.plan.algorithm()));
-        out.tag(preconditioner(self.plan.preconditioner()));
+        out.preconditioner_configuration(self.plan.preconditioner())?;
         out.tag(reduction(self.plan.reduction()));
         out.0
             .update(self.plan.relative_tolerance().to_bits().to_be_bytes());
@@ -29,6 +29,10 @@ impl SolverSelection {
             .update(self.plan.absolute_tolerance().to_bits().to_be_bytes());
         out.count(self.plan.maximum_iterations().get())?;
         let profile = &self.profile;
+        out.option(profile.requested_preconditioner(), |out, policy| {
+            out.tag(preconditioner(policy.kind()));
+            out.preconditioner_configuration(policy)
+        })?;
         out.tag(properties(profile.facts.properties));
         out.tag(match profile.facts.orientation {
             LinearOperatorOrientation::Normal => 0,
@@ -177,6 +181,15 @@ impl Agreement {
     fn optional_count(&mut self, value: Option<usize>) -> Result<(), Diagnostic> {
         self.option(value, Self::count)
     }
+    fn preconditioner_configuration(
+        &mut self,
+        policy: &PreconditionerPolicy,
+    ) -> Result<(), Diagnostic> {
+        let bytes = policy.identity_bytes()?;
+        self.count(bytes.len())?;
+        self.0.update(bytes);
+        Ok(())
+    }
     fn solver_provider(&mut self, provider: SolverProvider) -> Result<(), Diagnostic> {
         self.provider(
             provider.id().as_str(),
@@ -224,10 +237,11 @@ fn algorithm(value: LinearSolver) -> u8 {
         LinearSolver::SparseLu => 3,
     }
 }
-fn preconditioner(value: PreconditionerPolicy) -> u8 {
+fn preconditioner(value: crate::PreconditionerKind) -> u8 {
     match value {
-        PreconditionerPolicy::Identity => 0,
-        PreconditionerPolicy::Jacobi => 1,
+        crate::PreconditionerKind::Identity => 0,
+        crate::PreconditionerKind::Jacobi => 1,
+        crate::PreconditionerKind::UpperDiagonalSchur => 2,
     }
 }
 fn reduction(value: ReductionPolicy) -> u8 {
@@ -279,8 +293,8 @@ mod tests {
         assert_eq!(original.candidate_id, changed.candidate_id);
         assert_eq!(original.plan.algorithm(), changed.plan.algorithm());
         assert_eq!(
-            original.plan.preconditioner(),
-            changed.plan.preconditioner()
+            original.plan.preconditioner().kind(),
+            changed.plan.preconditioner().kind()
         );
         assert_eq!(original.plan.reduction(), changed.plan.reduction());
         assert_ne!(fingerprint(original), fingerprint(changed));
@@ -296,7 +310,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     2e-12,
                     1e-14,
@@ -307,7 +321,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     1e-12,
                     2e-14,
@@ -318,7 +332,7 @@ mod tests {
             |s| {
                 s.plan = catalog_plan(
                     s.plan.algorithm(),
-                    s.plan.preconditioner(),
+                    s.plan.preconditioner().kind(),
                     s.plan.reduction(),
                     1e-12,
                     1e-14,
@@ -405,7 +419,7 @@ mod tests {
             scalar_type: ScalarType::F64,
             algorithm: original.plan.algorithm(),
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: original.plan.preconditioner(),
+            preconditioner: original.plan.preconditioner().kind(),
             reduction: original.plan.reduction(),
         }])
         .unwrap();
@@ -429,7 +443,7 @@ mod tests {
         let mut zero = original.clone();
         zero.plan = catalog_plan(
             original.plan.algorithm(),
-            original.plan.preconditioner(),
+            original.plan.preconditioner().kind(),
             original.plan.reduction(),
             1e-12,
             0.0,
@@ -439,7 +453,7 @@ mod tests {
         let mut negative_zero = zero.clone();
         negative_zero.plan = catalog_plan(
             original.plan.algorithm(),
-            original.plan.preconditioner(),
+            original.plan.preconditioner().kind(),
             original.plan.reduction(),
             1e-12,
             -0.0,

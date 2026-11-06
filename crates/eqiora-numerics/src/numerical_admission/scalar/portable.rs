@@ -100,7 +100,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
     };
     let discretization = Discretization::new(method, mesh, quadrature);
     validate_resources(&admission.spatial, admission.resources())?;
-    let solver = admission.linear.solver;
+    let solver = &admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
         admission.linear.scalar_domain,
@@ -163,7 +163,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
         admission.operator_properties,
         ScalarType::F64,
         VectorLayoutKind::Replicated,
-        solver,
+        solver.clone(),
         admission.nonlinear,
         Target::HostCpu {
             threads: admission.linear.workers,

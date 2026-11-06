@@ -22,8 +22,8 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver, ReductionPolicy,
+    SolverCapabilities, SolverCapability,
 };
 use serde_json::Value;
 
@@ -261,7 +261,7 @@ fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])

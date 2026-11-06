@@ -7,7 +7,7 @@ fn cuda_trace_rejects_queue_generation_and_visibility_substitution() {
     let device = cuda_device(1 << 20);
     let queue = materialized_queue(device.id(), 0, 3);
     let binding = cuda_binding(&graph, device);
-    let plan = binding.solver_plan();
+    let plan = binding.solver_plan().clone();
     let (trace, initial) = cuda_trace(queue.device(), queue);
     let transfers = trace.transfers();
     let duplicated_column = TransferEvidence::new(
@@ -61,7 +61,7 @@ fn cuda_trace_rejects_queue_generation_and_visibility_substitution() {
     let (wrong_trace, _) = cuda_trace(queue.device(), wrong_queue);
     let rejected = AdmittedExecution::admit_cuda_linear(&graph, &system, binding)
         .unwrap()
-        .accept_cuda(cuda_solution(&system, plan), wrong_trace)
+        .accept_cuda(cuda_solution(&system, plan.clone()), wrong_trace)
         .unwrap_err();
     assert!(rejected.message().contains("logical queue"));
 

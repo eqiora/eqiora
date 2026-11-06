@@ -111,7 +111,7 @@ pub(in crate::numerical_admission) fn portable(
         LinearOperatorProperties::SymmetricPositiveDefinite,
         ScalarType::F64,
         VectorLayoutKind::Replicated,
-        admission.linear.solver,
+        admission.linear.solver.clone(),
         None,
         Target::HostCpu {
             threads: admission.linear.workers,
@@ -140,7 +140,7 @@ pub(in crate::numerical_admission) fn execute(
         .linear
         .checked_backend(backend, Some(&structure))?;
     let (core, assembly_report) = finalize_projection(admission, grid, projection)?;
-    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
+    let solution = LinearSolveRequest::new(&backend, admission.linear.solver.clone())
         .solve(&core.linear_problem()?)?;
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
@@ -192,7 +192,7 @@ pub(super) fn finalize_projection(
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?);
     let core = crate::finalized_spatial::FinalizedLinearCore::new(
-        admission.linear.solver,
+        admission.linear.solver.clone(),
         VectorLayoutKind::Replicated,
         Target::HostCpu {
             threads: admission.linear.workers,

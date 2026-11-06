@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
-use eqiora_distributed::{DistributedAdmissionFingerprintV1, DistributedLinearSystem};
+use eqiora_distributed::{DistributedAdmissionFingerprintV2, DistributedLinearSystem};
 use eqiora_realization::PortableRealizationGraph;
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, ExecutionProvider, ExecutionReport,
@@ -177,11 +177,11 @@ enum AdmittedExecutionKind<'system> {
     },
     DistributedHost {
         system: &'system DistributedLinearSystem,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
     },
     DistributedLocalAction {
         system: &'system DistributedLinearSystem,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
     },
 }
 
@@ -477,7 +477,7 @@ impl<'system> AdmittedExecution<'system> {
 
     /// Distributed admission identity, when this is a process-group run.
     #[must_use]
-    pub const fn distributed_admission(&self) -> Option<DistributedAdmissionFingerprintV1> {
+    pub const fn distributed_admission(&self) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedHost { admission, .. }
             | AdmittedExecutionKind::DistributedLocalAction { admission, .. } => Some(*admission),
@@ -487,7 +487,7 @@ impl<'system> AdmittedExecution<'system> {
 
     /// Admission identity for a host-owned distributed action.
     #[must_use]
-    pub const fn distributed_host_admission(&self) -> Option<DistributedAdmissionFingerprintV1> {
+    pub const fn distributed_host_admission(&self) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedHost { admission, .. } => Some(*admission),
             AdmittedExecutionKind::Host
@@ -500,7 +500,7 @@ impl<'system> AdmittedExecution<'system> {
     #[must_use]
     pub const fn distributed_local_action_admission(
         &self,
-    ) -> Option<DistributedAdmissionFingerprintV1> {
+    ) -> Option<DistributedAdmissionFingerprintV2> {
         match &self.kind {
             AdmittedExecutionKind::DistributedLocalAction { admission, .. } => Some(*admission),
             AdmittedExecutionKind::Host
@@ -511,7 +511,7 @@ impl<'system> AdmittedExecution<'system> {
 
     /// Solver plan taken from the portable root.
     #[must_use]
-    pub fn solver_plan(&self) -> SolverPlan {
+    pub fn solver_plan(&self) -> &SolverPlan {
         self.binding.solver_plan()
     }
 
@@ -756,7 +756,7 @@ impl<'system> AdmittedExecution<'system> {
             operator: self.system.agreement_fingerprint(),
             output,
             dimension: self.system.columns(),
-            plan: self.binding.solver_plan(),
+            plan: self.binding.solver_plan().clone(),
             binding: Arc::new(self.binding),
             report,
             acceptance_verification: ExecutionReport::host_serial(),
@@ -881,8 +881,8 @@ impl ExecutionReceipt {
 
     /// Solver plan taken from the portable graph.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn solver_plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Solver-native accepted report retained without rewriting its verifier.
@@ -946,7 +946,7 @@ pub struct ExecutionDagView<'a> {
     receipt: &'a ExecutionReceipt,
 }
 
-impl ExecutionDagView<'_> {
+impl<'a> ExecutionDagView<'a> {
     /// Canonical topological order. Each step consumes the preceding step's
     /// candidate or completion; callers cannot edit these dependencies.
     #[must_use]
@@ -966,7 +966,7 @@ impl ExecutionDagView<'_> {
 
     /// Solver plan used by the solve step.
     #[must_use]
-    pub const fn solver_plan(self) -> SolverPlan {
-        self.receipt.plan
+    pub const fn solver_plan(self) -> &'a SolverPlan {
+        &self.receipt.plan
     }
 }

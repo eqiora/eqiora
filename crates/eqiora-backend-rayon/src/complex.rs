@@ -35,7 +35,7 @@ impl LinearSolverBackend<Complex64> for ThreadedLinearSolver<'_> {
             )
         })?;
         self.supported_capabilities()?.require_problem(
-            plan,
+            &plan,
             problem.scalar_domain(),
             problem.scalar_type(),
             problem.properties(),

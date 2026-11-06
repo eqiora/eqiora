@@ -635,7 +635,7 @@ fn verify_method(
         &accepted,
         &parameter_tangent,
         LinearOperatorProperties::SymmetricPositiveDefinite,
-        solver,
+        solver.clone(),
     )
     .unwrap();
 

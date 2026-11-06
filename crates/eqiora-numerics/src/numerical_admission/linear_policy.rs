@@ -64,7 +64,7 @@ impl NativeLinearPolicy {
 
     pub(crate) fn with_planning(mut self, decision: &SolverSelection) -> Result<Self, Diagnostic> {
         if self.scalar_domain != decision.scalar_domain()
-            || self.solver != decision.solver_plan()
+            || &self.solver != decision.solver_plan()
             || self.provider != decision.solver_provider()
             || self.execution != decision.execution_provider()
             || eqiora_solver::ExecutionReport::host(self.execution.id(), self.workers)
@@ -110,7 +110,7 @@ impl NativeLinearPolicy {
         }
         Ok(ProfileCheckedBackend {
             backend,
-            plan: self.solver,
+            plan: self.solver.clone(),
             profile: self.planning_profile.clone(),
         })
     }
@@ -195,7 +195,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
         Ok(Some(Box::new(ProfileCheckedPreparedLinear {
             prepared,
             profile: self.profile.clone(),
-            plan: self.plan,
+            plan: self.plan.clone(),
             provider: self.backend.provider(),
             action: PreparedLinearAction::Idle,
         })))
@@ -211,7 +211,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'st
         }
         if let Some(profile) = &self.profile {
             profile.require_problem(problem)?;
-            profile.require_problem_resources(plan, self.backend.provider(), problem)?;
+            profile.require_problem_resources(&plan, self.backend.provider(), problem)?;
         }
         self.backend.solve_with_execution(problem, plan, execution)
     }
@@ -258,7 +258,7 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         let result = (|| {
             if let Some(profile) = &self.profile {
                 profile.require_problem(problem)?;
-                profile.require_problem_resources(self.plan, self.provider, problem)?;
+                profile.require_problem_resources(&self.plan, self.provider, problem)?;
             }
             self.prepared.solve(structure, problem)
         })();

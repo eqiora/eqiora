@@ -131,7 +131,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` when this is not the v2 source variant, the Geometry
     /// identity differs, or the named set is absent or incomplete.
-    pub fn planar_circular_hole_v2_entity_set_entities(
+    pub(super) fn resolve_circular_hole_entities(
         &self,
         geometry: &CanonicalGeometryV1,
         name: &str,

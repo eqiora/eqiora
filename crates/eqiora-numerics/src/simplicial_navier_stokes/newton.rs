@@ -127,7 +127,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
     )?;
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     prepared.require_quadrature(cell_quadrature, facet_quadrature)?;
-    let mut linear = solver.prepare_linear(plan.linear_solver())?;
+    let mut linear = solver.prepare_linear(plan.linear_solver().clone())?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         if let Some(linear) = &mut linear {
@@ -272,7 +272,7 @@ fn solve_one_step(
                 })?;
                     prepared_linear.solve(structure, &linear_problem)?
                 } else {
-                    solver.solve(&linear_problem, plan.linear_solver())?
+                    solver.solve(&linear_problem, plan.linear_solver().clone())?
                 };
             Ok(solution.into_parts())
         },

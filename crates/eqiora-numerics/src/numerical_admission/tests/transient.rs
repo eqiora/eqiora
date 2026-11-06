@@ -99,7 +99,7 @@ public component AffineStorage(
         &model,
         resources,
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(linear),
+        CommonSolvePolicy::Linear(linear.clone()),
         None,
         Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
@@ -400,7 +400,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
         newton_policy(
-            CommonLinearRequest::exact(mini.linear(), overflow_probe.provider()).unwrap(),
+            CommonLinearRequest::exact(mini.linear().clone(), overflow_probe.provider()).unwrap(),
             nonlinear,
         ),
         Some(crate::CommonScalingRequest::Incompressible(
@@ -751,7 +751,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
-        newton_policy(linear, custom_nonlinear),
+        newton_policy(linear.clone(), custom_nonlinear),
         Some(crate::CommonScalingRequest::Incompressible(scaling)),
         Some(temporal.clone()),
         &ResolveOnlyBackend,
@@ -816,7 +816,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.solver-planning/v11")
+            Some("eqiora.solver-planning/v12")
         );
         // Two admitted candidates each retain admission, unknown-size fallback,
         // and selection reasons; three rejected candidates retain one reason.
@@ -1038,7 +1038,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::Linear(linear),
+            CommonSolvePolicy::Linear(linear.clone()),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.clone()),
             &ResolveOnlyBackend,
@@ -1052,7 +1052,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            newton_policy(linear, nonlinear),
+            newton_policy(linear.clone(), nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(
                 IncompressibleScalingRequest2d::from_si(Some(1.0), None, Some(3.0)).unwrap()
             )),
@@ -1068,7 +1068,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            newton_policy(linear, nonlinear),
+            newton_policy(linear.clone(), nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             None,
             &ResolveOnlyBackend,
@@ -1082,7 +1082,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            newton_policy(linear, nonlinear),
+            newton_policy(linear.clone(), nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.clone()),
             &ResolveOnlyBackend,
@@ -1099,7 +1099,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
                 spatial: CommonSpatialPolicy::MiniP1,
                 formulation: FormulationKind::IntegralConservative,
             },
-            newton_policy(linear, nonlinear),
+            newton_policy(linear.clone(), nonlinear),
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.clone()),
             &ResolveOnlyBackend,

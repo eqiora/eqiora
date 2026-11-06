@@ -39,7 +39,7 @@ pub(super) fn check_stationary(
                 seed,
                 nonlinear,
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver),
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver.clone()),
                 None,
             )
             .unwrap()

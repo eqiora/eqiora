@@ -20,7 +20,7 @@ use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(super) struct ExactSelection {
     pub(super) cells: usize,
     pub(super) duration: f64,
@@ -234,7 +234,7 @@ pub(super) fn require_exact_realization(
     Ok(ExactSelection {
         cells: cells_per_axis.get(),
         duration,
-        solver_plan: linear.plan(),
+        solver_plan: linear.plan().clone(),
         target,
         state_scale,
         weak_scale,

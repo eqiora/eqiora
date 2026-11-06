@@ -66,7 +66,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
     solver: LinearSolveRequest<'_>,
 ) -> Result<AcceptedAleFsiRemeshProjection2d, Diagnostic> {
     require_quadrature(quadrature)?;
-    require_projection_solver(solver)?;
+    require_projection_solver(&solver)?;
     let source_reference = source_plan.reference();
     let source_partition = source_plan.partition();
     let source_motion = source_plan.motion();
@@ -140,7 +140,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &displacement_mixed,
         &displacement_prescribed,
         scale.length(),
-        solver,
+        &solver,
     )?;
     let target_displacement = displacement_projection.coefficients;
     let maximum_displacement_trace_defect =
@@ -197,7 +197,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &fluid_current_overlap,
         normalization,
         quadrature,
-        solver,
+        &solver,
     )?;
     let pressure = project_pressure(
         fields,
@@ -209,7 +209,7 @@ pub fn project_simplicial_ale_fsi_remesh_2d(
         &fluid_current_overlap,
         normalization,
         quadrature,
-        solver,
+        &solver,
     )?;
 
     let evidence = AleFsiRemeshProjectionEvidence2d::new(
@@ -398,7 +398,7 @@ fn project_vector_p1_with_trace(
     mixed: &[[f64; COMPONENTS]],
     prescribed: &[Option<[f64; COMPONENTS]>],
     field_scale: f64,
-    solver: LinearSolveRequest<'_>,
+    solver: &LinearSolveRequest<'_>,
 ) -> Result<VectorP1Projection, Diagnostic> {
     if mass.len() != dimension * dimension
         || mixed.len() != dimension
@@ -884,7 +884,7 @@ fn project_velocity(
     fluid_overlap: &SimplicialRevisionOverlap2d,
     normalization: RemeshNormalization2d,
     quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
+    solver: &LinearSolveRequest<'_>,
 ) -> Result<VelocityProjection, Diagnostic> {
     let vertex_count = target_reference.vertices().len();
     let scalar_dimension = checked_sum(
@@ -1591,7 +1591,7 @@ fn project_pressure(
     overlap: &SimplicialRevisionOverlap2d,
     normalization: RemeshNormalization2d,
     quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
+    solver: &LinearSolveRequest<'_>,
 ) -> Result<PressureProjection, Diagnostic> {
     let dimension = target_partition
         .domain_vertices(fields.fluid_domain)

@@ -102,7 +102,7 @@ fn execute<S: Coefficient + Send + Sync>(
                     prescribed_states: BTreeMap::new(),
                 },
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(backend, policy),
+                LinearSolveRequest::new(backend, policy.clone()),
                 None,
             )
             .unwrap();
@@ -170,7 +170,7 @@ fn execute<S: Coefficient + Send + Sync>(
                     prescribed_states: BTreeMap::new(),
                 },
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(backend, policy),
+                LinearSolveRequest::new(backend, policy.clone()),
                 None,
             )
             .err()

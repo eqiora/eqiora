@@ -94,7 +94,7 @@ impl Fixture {
             drivers,
             connections[..2].iter().copied(),
             AleGeometryQualityGate::new(0.01).unwrap(),
-            reference_solver().plan(),
+            reference_solver().plan().clone(),
         )
         .unwrap();
         Self {
@@ -171,7 +171,7 @@ fn harmonic_motion_composes_three_domains_without_physical_roles() {
             fixture.policy.drivers().iter().rev().copied(),
             fixture.policy.interfaces().iter().rev().copied(),
             fixture.policy.quality_gate(),
-            fixture.policy.solver(),
+            fixture.policy.solver().clone(),
         )
         .unwrap();
         assert_eq!(fixture.policy, reversed);
@@ -259,7 +259,7 @@ fn harmonic_interfaces_are_exactly_the_cross_group_boundary() {
             fixture.policy.drivers().iter().copied(),
             interfaces,
             fixture.policy.quality_gate(),
-            fixture.policy.solver(),
+            fixture.policy.solver().clone(),
         )
         .unwrap();
         assert!(
@@ -277,7 +277,7 @@ fn harmonic_interfaces_are_exactly_the_cross_group_boundary() {
         [fixture.policy.drivers()[0]],
         fixture.policy.interfaces().iter().copied(),
         fixture.policy.quality_gate(),
-        fixture.policy.solver(),
+        fixture.policy.solver().clone(),
     )
     .unwrap();
     assert!(
@@ -339,7 +339,7 @@ fn coincident_interfaces_do_not_hide_a_missing_connection() {
         fixture.policy.drivers().iter().copied(),
         fixture.policy.interfaces().iter().copied().chain([extra]),
         fixture.policy.quality_gate(),
-        fixture.policy.solver(),
+        fixture.policy.solver().clone(),
     )
     .unwrap();
     let action =

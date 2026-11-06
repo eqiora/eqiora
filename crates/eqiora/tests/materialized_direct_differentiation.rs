@@ -67,11 +67,15 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
         )
         .is_err()
     );
-    let solver = LinearSolveRequest::new(&FaerLinearSolver, fixture.plan);
+    let solver = LinearSolveRequest::new(&FaerLinearSolver, fixture.plan.clone());
 
-    let forward =
-        forward_output_sensitivity(&accepted, &[1.0], LinearOperatorProperties::General, solver)
-            .unwrap();
+    let forward = forward_output_sensitivity(
+        &accepted,
+        &[1.0],
+        LinearOperatorProperties::General,
+        solver.clone(),
+    )
+    .unwrap();
     assert_eq!(
         forward.state().report().orientation(),
         LinearOperatorOrientation::Normal
@@ -89,9 +93,13 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
     let forward_projection = dot(&fixture.b, &fixture.x);
     assert_eq!(forward.output_tangent(), &[forward_projection]);
 
-    let adjoint =
-        adjoint_output_gradient(&accepted, &[1.0], LinearOperatorProperties::General, solver)
-            .unwrap();
+    let adjoint = adjoint_output_gradient(
+        &accepted,
+        &[1.0],
+        LinearOperatorProperties::General,
+        solver.clone(),
+    )
+    .unwrap();
     assert_eq!(
         adjoint.adjoint().report().orientation(),
         LinearOperatorOrientation::ConjugateTransposed
@@ -133,7 +141,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
     );
 
     let wrong_rhs_backend = CanonicalRhsMutant::default();
-    let wrong_rhs_solver = LinearSolveRequest::new(&wrong_rhs_backend, fixture.plan);
+    let wrong_rhs_solver = LinearSolveRequest::new(&wrong_rhs_backend, fixture.plan.clone());
     let wrong_rhs = forward_output_sensitivity(
         &accepted,
         &[1.0],
@@ -145,7 +153,8 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
     assert!(wrong_rhs.message().contains("true residual"));
 
     let wrong_transpose_backend = TransposeReturnsNormalMutant::default();
-    let wrong_transpose_solver = LinearSolveRequest::new(&wrong_transpose_backend, fixture.plan);
+    let wrong_transpose_solver =
+        LinearSolveRequest::new(&wrong_transpose_backend, fixture.plan.clone());
     let wrong_transpose = adjoint_output_gradient(
         &accepted,
         &[1.0],
@@ -296,7 +305,8 @@ impl LinearSolverBackend for CanonicalRhsMutant {
         let source_problem = source
             .linear_problem()?
             .with_initial_guess(&nonzero_initial)?;
-        let wrong = FaerLinearSolver.solve_with_execution(&source_problem, plan, execution)?;
+        let wrong =
+            FaerLinearSolver.solve_with_execution(&source_problem, plan.clone(), execution)?;
         assert_eq!(wrong.report().completed_iterations(), 1);
         self.factor_and_solve_reached.store(true, Ordering::SeqCst);
 
@@ -348,11 +358,12 @@ impl LinearSolverBackend for TransposeReturnsNormalMutant {
         );
         assert_eq!(problem.right_hand_side().len(), source.rows());
 
-        let normal = LinearSolveRequest::new(&FaerLinearSolver, plan).solve_canonical_oriented(
-            source,
-            problem.right_hand_side(),
-            LinearOperatorOrientation::Normal,
-        )?;
+        let normal = LinearSolveRequest::new(&FaerLinearSolver, plan.clone())
+            .solve_canonical_oriented(
+                source,
+                problem.right_hand_side(),
+                LinearOperatorOrientation::Normal,
+            )?;
         assert_eq!(normal.report().completed_iterations(), 1);
         let normal_values = normal.into_parts().0;
         let reported_transpose = ReportedTransposeNormalAction { source };
