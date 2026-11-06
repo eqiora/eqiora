@@ -81,7 +81,7 @@ def main(args):
             raise ComparisonError("Eqiora solve report differs from the declared exact policy")
         if not np.isfinite(solve["true_residual_norm"]) or solve["true_residual_norm"] > solve["residual_target"]:
             raise ComparisonError("Eqiora true residual exceeds its accepted target")
-        return np.asarray(plan.mesh.coordinates), np.asarray(result.output(field).values("vertex")), solve
+        return np.asarray(plan.mesh.coordinates), np.asarray(result.output(field).values("vertex")), solve, {}
 
     def profile():
         result = eqiora.run(plan, profile=True)
@@ -96,13 +96,13 @@ def main(args):
         return {"source": "separate profile=True diagnostic run; inclusive wall and exclusive self are not unprofiled wall partitions",
                 "required_phases_available": bool(assembly and linear), "phases": phases}
 
-    report = {"environment": env, "memory_after_import": baseline, "memory_after_preparation": memory(),
+    report = {"dimension": args.dimension, "cells_per_axis": args.cells, "environment": env, "memory_after_import": baseline, "memory_after_preparation": memory(),
               "mesh_measurement": mesh_time, "preparation_measurement": preparation,
               "model_sha256": digest(source), "plan_sha256": digest_bytes(plan.to_bytes()),
               "package_compilation_digest": model.package_compilation_digest,
               "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells-1)**dimension}}
     finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile,
-           accuracy=lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, args.dimension))
+           accuracy=lambda coordinates, values, associated: check_accuracy(coordinates, values, args.cells, args.dimension))
 
 
 def digest_bytes(value):

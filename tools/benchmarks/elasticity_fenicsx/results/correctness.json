@@ -1,0 +1,1181 @@
+{
+  "status": "correctness-only-qualified",
+  "performance_claim": false,
+  "harness": {
+    "harness_revision": "cf524dbb6595218cf15259cca6f5cdb4bf9351d8",
+    "harness_working_tree_clean": true,
+    "artifact_receipt_sha256": "e6c5059b62759f39f385e261a4641b51e234c07d5548b1d6cbe105baf80f5672",
+    "actual_producer_source": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "mode": "correctness-only",
+    "cpu": 12,
+    "threads": 1,
+    "ranks": 1,
+    "gpus": 0,
+    "previous_attempts_preserved": true
+  },
+  "artifact": {
+    "actual_producer_source": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "producer_git_tree": "989197ccfae236437902a787fb0b2ef35c1f6d16",
+    "sdist": {
+      "path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5.tar.gz",
+      "sha256": "ca62c7f9983684229c6e507dfe7be74213570eada5fee2a0383715ee4f08557d",
+      "size": 12028535
+    },
+    "wheel": {
+      "path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "kind": "wheel",
+      "python": "3.11",
+      "abi": "abi3",
+      "platform": "manylinux_2_17_x86_64",
+      "size": 17099176,
+      "sha256": "4e08e0aca402f46c561d64c686f1df322c6f6f368ad0562da489a2d572b18257"
+    }
+  },
+  "frozen_protocol_commit": "2a9aa5c21aa8c0fe08606ee3d4fdd02fc93f57cc",
+  "reference": "verify/solid/isotropic-elasticity-2d/references/README.md",
+  "controls": {
+    "cells_per_axis": [
+      4,
+      8,
+      16,
+      32
+    ],
+    "spatial": "vector quadrilateral Q1",
+    "mu_pa": 3,
+    "lambda_pa": 2,
+    "quadrature": "two-point tensor Gauss",
+    "algorithm": "conjugate-gradient",
+    "preconditioner": "identity",
+    "relative_tolerance": 1e-12,
+    "absolute_tolerance": 1e-14,
+    "maximum_iterations": 10000
+  },
+  "observed_orders": {
+    "eqiora": {
+      "l2_error": [
+        1.9953443458615505,
+        1.9946260853062219,
+        1.9983702905902405
+      ],
+      "h1_seminorm_error": [
+        1.0003993948319565,
+        1.0002983415586473,
+        1.0000451572697775
+      ]
+    },
+    "fenicsx": {
+      "l2_error": [
+        1.9953443458615516,
+        1.9946260853063116,
+        1.9983702905915537
+      ],
+      "h1_seminorm_error": [
+        1.000399394831956,
+        1.0002983415586477,
+        1.0000451572697775
+      ]
+    }
+  },
+  "raw_directory": "/data/nk523/.cache/eqiora/elasticity-fenicsx-correctness/shared-run",
+  "rows": [
+    {
+      "tool": "eqiora",
+      "cells_per_axis": 16,
+      "accuracy": {
+        "l2_error": 0.00015309685115629028,
+        "h1_seminorm_error": 0.010020320238099595,
+        "relative_l2_error": 0.012566677788724242,
+        "relative_h1_seminorm_error": 0.11336698224033638,
+        "quadrature_audit_absolute_difference": [
+          4.0657581468206416e-19,
+          3.469446951953614e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "completed_iterations": 32,
+        "initial_residual_norm": 0.32952653627252776,
+        "reported_residual_norm": 7.271121327392925e-14,
+        "true_residual_norm": 7.270352115813733e-14,
+        "residual_target": 3.2952653627252777e-13,
+        "backend": "eqiora.reference",
+        "adapter": "eqiora.host.serial",
+        "verification_adapter": "eqiora.host.serial",
+        "reduction": "reproducible",
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "preconditioner": "identity",
+        "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -0.9999999999999988,
+          1.1505553454416173e-15
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "completed_iterations": 51,
+          "initial_residual_norm": 0.05859375,
+          "reported_residual_norm": 2.5196067745460007e-14,
+          "true_residual_norm": 2.5313045918029576e-14,
+          "residual_target": 5.859375e-14,
+          "backend": "eqiora.reference",
+          "adapter": "eqiora.host.serial",
+          "verification_adapter": "eqiora.host.serial",
+          "reduction": "reproducible",
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "preconditioner": "identity",
+          "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+        },
+        "model_sha256": "d43f3cf878ad25f833cc93348e29089eca4e7d10d69815a8f623f9e00b8caf4b"
+      },
+      "dofs": {
+        "total": 578,
+        "free": 450,
+        "stored_algebraic": 450
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          {
+            "path": [
+              "run"
+            ],
+            "fields": {
+              "family": "spatial"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "setup"
+            ],
+            "fields": {
+              "role": "backend_resolution"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve"
+            ],
+            "fields": {},
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "assembly"
+            ],
+            "fields": {
+              "role": "scalar_region_finalization"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "linear_solve"
+            ],
+            "fields": {
+              "linear_solver": "ConjugateGradient",
+              "solver_provider": "eqiora.reference"
+            },
+            "calls": 1
+          }
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "eqiora": "0.1.5",
+          "numpy": "2.5.4"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n16/eqiora/result.json",
+      "committed_candidate_field": "n16/eqiora/candidate-field.json"
+    },
+    {
+      "tool": "fenicsx",
+      "cells_per_axis": 16,
+      "accuracy": {
+        "l2_error": 0.00015309685115628066,
+        "h1_seminorm_error": 0.010020320238099595,
+        "relative_l2_error": 0.012566677788723451,
+        "relative_h1_seminorm_error": 0.11336698224033638,
+        "quadrature_audit_absolute_difference": [
+          4.336808689942018e-19,
+          5.204170427930421e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "preconditioner": "identity",
+        "completed_iterations": 32,
+        "initial_residual_norm": 0.32952653627252765,
+        "reported_residual_norm": 7.27112212666607e-14,
+        "true_residual_norm": 7.269579049615649e-14,
+        "residual_target": 3.2952653627252767e-13,
+        "convergence_reason": 2,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "divergence_tolerance": 10000.0,
+        "norm_type": "unpreconditioned",
+        "initial_guess_nonzero": false
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -1.0000000000000002,
+          7.281501790412648e-16
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "preconditioner": "identity",
+          "completed_iterations": 51,
+          "initial_residual_norm": 0.05859374999999999,
+          "reported_residual_norm": 2.519396309767084e-14,
+          "true_residual_norm": 2.5149127977441164e-14,
+          "residual_target": 5.859374999999999e-14,
+          "convergence_reason": 2,
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "divergence_tolerance": 10000.0,
+          "norm_type": "unpreconditioned",
+          "initial_guess_nonzero": false
+        }
+      },
+      "dofs": {
+        "total": 578,
+        "free": 450,
+        "stored_algebraic": 578
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          "assembly",
+          "linear_solve"
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "fenics-dolfinx": "0.11.0",
+          "fenics-basix": "0.11.0",
+          "fenics-ffcx": "0.11.0",
+          "fenics-ufl": "2026.1.0",
+          "numpy": "2.5.4",
+          "petsc4py": "3.25.6",
+          "mpi4py": "4.1.2"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n16/fenicsx/result.json",
+      "committed_candidate_field": "n16/fenicsx/candidate-field.json"
+    },
+    {
+      "tool": "eqiora",
+      "cells_per_axis": 32,
+      "accuracy": {
+        "l2_error": 3.831747285928816e-05,
+        "h1_seminorm_error": 0.0050100033003147625,
+        "relative_l2_error": 0.0031452203717063595,
+        "relative_h1_seminorm_error": 0.05668171691871282,
+        "quadrature_audit_absolute_difference": [
+          3.7269449679189215e-19,
+          6.071532165918825e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "completed_iterations": 66,
+        "initial_residual_norm": 0.16826034961548042,
+        "reported_residual_norm": 9.736859177319086e-14,
+        "true_residual_norm": 9.750621955818655e-14,
+        "residual_target": 1.6826034961548042e-13,
+        "backend": "eqiora.reference",
+        "adapter": "eqiora.host.serial",
+        "verification_adapter": "eqiora.host.serial",
+        "reduction": "reproducible",
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "preconditioner": "identity",
+        "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -0.9999999999999938,
+          4.2910553582631294e-15
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "completed_iterations": 105,
+          "initial_residual_norm": 0.0302734375,
+          "reported_residual_norm": 2.631771273861432e-14,
+          "true_residual_norm": 2.6446755966618755e-14,
+          "residual_target": 3.0273437499999996e-14,
+          "backend": "eqiora.reference",
+          "adapter": "eqiora.host.serial",
+          "verification_adapter": "eqiora.host.serial",
+          "reduction": "reproducible",
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "preconditioner": "identity",
+          "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+        },
+        "model_sha256": "d43f3cf878ad25f833cc93348e29089eca4e7d10d69815a8f623f9e00b8caf4b"
+      },
+      "dofs": {
+        "total": 2178,
+        "free": 1922,
+        "stored_algebraic": 1922
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          {
+            "path": [
+              "run"
+            ],
+            "fields": {
+              "family": "spatial"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "setup"
+            ],
+            "fields": {
+              "role": "backend_resolution"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve"
+            ],
+            "fields": {},
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "assembly"
+            ],
+            "fields": {
+              "role": "scalar_region_finalization"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "linear_solve"
+            ],
+            "fields": {
+              "linear_solver": "ConjugateGradient",
+              "solver_provider": "eqiora.reference"
+            },
+            "calls": 1
+          }
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "eqiora": "0.1.5",
+          "numpy": "2.5.4"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n32/eqiora/result.json",
+      "committed_candidate_field": "n32/eqiora/candidate-field.json"
+    },
+    {
+      "tool": "fenicsx",
+      "cells_per_axis": 32,
+      "accuracy": {
+        "l2_error": 3.831747285925088e-05,
+        "h1_seminorm_error": 0.005010003300314763,
+        "relative_l2_error": 0.0031452203717032994,
+        "relative_h1_seminorm_error": 0.056681716918712835,
+        "quadrature_audit_absolute_difference": [
+          3.7947076036992655e-19,
+          6.071532165918825e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "preconditioner": "identity",
+        "completed_iterations": 66,
+        "initial_residual_norm": 0.16826034961548034,
+        "reported_residual_norm": 9.736857769042137e-14,
+        "true_residual_norm": 9.750268878436333e-14,
+        "residual_target": 1.6826034961548032e-13,
+        "convergence_reason": 2,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "divergence_tolerance": 10000.0,
+        "norm_type": "unpreconditioned",
+        "initial_guess_nonzero": false
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -1.0000000000000013,
+          2.282245573081987e-15
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "preconditioner": "identity",
+          "completed_iterations": 105,
+          "initial_residual_norm": 0.0302734375,
+          "reported_residual_norm": 2.604654117842681e-14,
+          "true_residual_norm": 2.6098643611345125e-14,
+          "residual_target": 3.0273437499999996e-14,
+          "convergence_reason": 2,
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "divergence_tolerance": 10000.0,
+          "norm_type": "unpreconditioned",
+          "initial_guess_nonzero": false
+        }
+      },
+      "dofs": {
+        "total": 2178,
+        "free": 1922,
+        "stored_algebraic": 2178
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          "assembly",
+          "linear_solve"
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "fenics-dolfinx": "0.11.0",
+          "fenics-basix": "0.11.0",
+          "fenics-ffcx": "0.11.0",
+          "fenics-ufl": "2026.1.0",
+          "numpy": "2.5.4",
+          "petsc4py": "3.25.6",
+          "mpi4py": "4.1.2"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n32/fenicsx/result.json",
+      "committed_candidate_field": "n32/fenicsx/candidate-field.json"
+    },
+    {
+      "tool": "eqiora",
+      "cells_per_axis": 4,
+      "accuracy": {
+        "l2_error": 0.002432579485761691,
+        "h1_seminorm_error": 0.040100670311407134,
+        "relative_l2_error": 0.19967388200440905,
+        "relative_h1_seminorm_error": 0.45368729451715273,
+        "quadrature_audit_absolute_difference": [
+          1.3010426069826053e-18,
+          2.0816681711721685e-17
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "completed_iterations": 2,
+        "initial_residual_norm": 0.9548182487623925,
+        "reported_residual_norm": 9.142869425684538e-17,
+        "true_residual_norm": 1.3133084714921057e-16,
+        "residual_target": 9.548182487623926e-13,
+        "backend": "eqiora.reference",
+        "adapter": "eqiora.host.serial",
+        "verification_adapter": "eqiora.host.serial",
+        "reduction": "reproducible",
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "preconditioner": "identity",
+        "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -0.9999999999999998,
+          6.938893903907228e-17
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "completed_iterations": 5,
+          "initial_residual_norm": 0.1875,
+          "reported_residual_norm": 4.676152944788886e-18,
+          "true_residual_norm": 3.543160547153122e-17,
+          "residual_target": 1.875e-13,
+          "backend": "eqiora.reference",
+          "adapter": "eqiora.host.serial",
+          "verification_adapter": "eqiora.host.serial",
+          "reduction": "reproducible",
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "preconditioner": "identity",
+          "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+        },
+        "model_sha256": "d43f3cf878ad25f833cc93348e29089eca4e7d10d69815a8f623f9e00b8caf4b"
+      },
+      "dofs": {
+        "total": 50,
+        "free": 18,
+        "stored_algebraic": 18
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          {
+            "path": [
+              "run"
+            ],
+            "fields": {
+              "family": "spatial"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "setup"
+            ],
+            "fields": {
+              "role": "backend_resolution"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve"
+            ],
+            "fields": {},
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "assembly"
+            ],
+            "fields": {
+              "role": "scalar_region_finalization"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "linear_solve"
+            ],
+            "fields": {
+              "linear_solver": "ConjugateGradient",
+              "solver_provider": "eqiora.reference"
+            },
+            "calls": 1
+          }
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "eqiora": "0.1.5",
+          "numpy": "2.5.4"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n4/eqiora/result.json",
+      "committed_candidate_field": "n4/eqiora/candidate-field.json"
+    },
+    {
+      "tool": "fenicsx",
+      "cells_per_axis": 4,
+      "accuracy": {
+        "l2_error": 0.0024325794857616915,
+        "h1_seminorm_error": 0.040100670311407134,
+        "relative_l2_error": 0.19967388200440908,
+        "relative_h1_seminorm_error": 0.45368729451715273,
+        "quadrature_audit_absolute_difference": [
+          8.673617379884035e-19,
+          2.0816681711721685e-17
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "preconditioner": "identity",
+        "completed_iterations": 2,
+        "initial_residual_norm": 0.9548182487623923,
+        "reported_residual_norm": 8.63504182433564e-17,
+        "true_residual_norm": 1.197100607745587e-16,
+        "residual_target": 9.548182487623924e-13,
+        "convergence_reason": 3,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "divergence_tolerance": 10000.0,
+        "norm_type": "unpreconditioned",
+        "initial_guess_nonzero": false
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -1.0,
+          6.071532165918825e-17
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "preconditioner": "identity",
+          "completed_iterations": 5,
+          "initial_residual_norm": 0.1875,
+          "reported_residual_norm": 5.7808716461401364e-18,
+          "true_residual_norm": 9.794586290893405e-17,
+          "residual_target": 1.875e-13,
+          "convergence_reason": 3,
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "divergence_tolerance": 10000.0,
+          "norm_type": "unpreconditioned",
+          "initial_guess_nonzero": false
+        }
+      },
+      "dofs": {
+        "total": 50,
+        "free": 18,
+        "stored_algebraic": 50
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          "assembly",
+          "linear_solve"
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "fenics-dolfinx": "0.11.0",
+          "fenics-basix": "0.11.0",
+          "fenics-ffcx": "0.11.0",
+          "fenics-ufl": "2026.1.0",
+          "numpy": "2.5.4",
+          "petsc4py": "3.25.6",
+          "mpi4py": "4.1.2"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n4/fenicsx/result.json",
+      "committed_candidate_field": "n4/fenicsx/candidate-field.json"
+    },
+    {
+      "tool": "eqiora",
+      "cells_per_axis": 8,
+      "accuracy": {
+        "l2_error": 0.000610110557481654,
+        "h1_seminorm_error": 0.020044785201173653,
+        "relative_l2_error": 0.05007982028019556,
+        "relative_h1_seminorm_error": 0.2267808566908423,
+        "quadrature_audit_absolute_difference": [
+          1.0842021724855044e-19,
+          3.469446951953614e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "completed_iterations": 12,
+        "initial_residual_norm": 0.6133304264599221,
+        "reported_residual_norm": 1.1867211070348557e-17,
+        "true_residual_norm": 2.9821903618866963e-16,
+        "residual_target": 6.133304264599221e-13,
+        "backend": "eqiora.reference",
+        "adapter": "eqiora.host.serial",
+        "verification_adapter": "eqiora.host.serial",
+        "reduction": "reproducible",
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "preconditioner": "identity",
+        "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -0.9999999999999997,
+          2.706168622523819e-16
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "completed_iterations": 23,
+          "initial_residual_norm": 0.109375,
+          "reported_residual_norm": 2.5584041917171234e-14,
+          "true_residual_norm": 2.5542696585741498e-14,
+          "residual_target": 1.09375e-13,
+          "backend": "eqiora.reference",
+          "adapter": "eqiora.host.serial",
+          "verification_adapter": "eqiora.host.serial",
+          "reduction": "reproducible",
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "preconditioner": "identity",
+          "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+        },
+        "model_sha256": "d43f3cf878ad25f833cc93348e29089eca4e7d10d69815a8f623f9e00b8caf4b"
+      },
+      "dofs": {
+        "total": 162,
+        "free": 98,
+        "stored_algebraic": 98
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          {
+            "path": [
+              "run"
+            ],
+            "fields": {
+              "family": "spatial"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "setup"
+            ],
+            "fields": {
+              "role": "backend_resolution"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve"
+            ],
+            "fields": {},
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "assembly"
+            ],
+            "fields": {
+              "role": "scalar_region_finalization"
+            },
+            "calls": 1
+          },
+          {
+            "path": [
+              "run",
+              "solve",
+              "linear_solve"
+            ],
+            "fields": {
+              "linear_solver": "ConjugateGradient",
+              "solver_provider": "eqiora.reference"
+            },
+            "calls": 1
+          }
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "eqiora": "0.1.5",
+          "numpy": "2.5.4"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n8/eqiora/result.json",
+      "committed_candidate_field": "n8/eqiora/candidate-field.json"
+    },
+    {
+      "tool": "fenicsx",
+      "cells_per_axis": 8,
+      "accuracy": {
+        "l2_error": 0.0006101105574816536,
+        "h1_seminorm_error": 0.020044785201173657,
+        "relative_l2_error": 0.050079820280195524,
+        "relative_h1_seminorm_error": 0.22678085669084233,
+        "quadrature_audit_absolute_difference": [
+          0.0,
+          3.469446951953614e-18
+        ]
+      },
+      "solve": {
+        "algorithm": "conjugate-gradient",
+        "preconditioner": "identity",
+        "completed_iterations": 12,
+        "initial_residual_norm": 0.6133304264599222,
+        "reported_residual_norm": 2.0236442623690308e-17,
+        "true_residual_norm": 3.588709815325875e-16,
+        "residual_target": 6.133304264599222e-13,
+        "convergence_reason": 3,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-14,
+        "maximum_iterations": 10000,
+        "divergence_tolerance": 10000.0,
+        "norm_type": "unpreconditioned",
+        "initial_guess_nonzero": false
+      },
+      "equilibrium_probe": {
+        "scope": "separate untimed affine-potential solve after cold execution",
+        "reaction": [
+          -0.9999999999999999,
+          1.8821749714348357e-16
+        ],
+        "body_force": [
+          1.0,
+          0.0
+        ],
+        "solve": {
+          "algorithm": "conjugate-gradient",
+          "preconditioner": "identity",
+          "completed_iterations": 23,
+          "initial_residual_norm": 0.10937499999999999,
+          "reported_residual_norm": 2.5584012735866858e-14,
+          "true_residual_norm": 2.5628125942056844e-14,
+          "residual_target": 1.0937499999999999e-13,
+          "convergence_reason": 2,
+          "relative_tolerance": 1e-12,
+          "absolute_tolerance": 1e-14,
+          "maximum_iterations": 10000,
+          "divergence_tolerance": 10000.0,
+          "norm_type": "unpreconditioned",
+          "initial_guess_nonzero": false
+        }
+      },
+      "dofs": {
+        "total": 162,
+        "free": 98,
+        "stored_algebraic": 162
+      },
+      "profile": {
+        "required_phases_available": true,
+        "phase_inventory": [
+          "assembly",
+          "linear_solve"
+        ]
+      },
+      "environment": {
+        "host": "nvidia7",
+        "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+        "affinity": [
+          12
+        ],
+        "versions": {
+          "fenics-dolfinx": "0.11.0",
+          "fenics-basix": "0.11.0",
+          "fenics-ffcx": "0.11.0",
+          "fenics-ufl": "2026.1.0",
+          "numpy": "2.5.4",
+          "petsc4py": "3.25.6",
+          "mpi4py": "4.1.2"
+        },
+        "thread_environment": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1"
+        },
+        "protocol_sha256": "e08823baba14bfdbcc20183952fd64d2bb9e6effc5b25825f45ddc126aeecdc6",
+        "accuracy_driver_sha256": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+        "harness_sha256": {
+          "accuracy.py": "ebe172da67bea05e80f29b1a6f100be92e027defb11769ff998e469e32cd64d3",
+          "eqiora_case.py": "7e28add8a2eb5c3a7f9b801a5b4592e0f9516a255d4de0013dfc9f9a986fd345",
+          "fenicsx_case.py": "2a3ebf1953264ca8a2a4cb6d69aabe20f5d082000a4e7fd0e8d1a7f2cd057768",
+          "run.py": "e76b2bfc5332b594af9bbe27415bd8d82130ae913be2216efd32c5c7ca6361f5",
+          "test_accuracy.py": "944894975b1c116589285942fae852835fd53e1771bbf8040e23366905392949",
+          "test_cli.py": "1f9ab20ac5ebb889f8b398b4d7fa332c27d7f5d956e2b5be04bb5b001a2caca7",
+          "test_validate.py": "9ab51a6d44c1e9e56430940fa82b45c168c0b720413ca994e21a65fde732307e",
+          "validate.py": "bdf595bd37078959694ac9ac2f7589608c1621bbc7ba41e1b085e3b18bd952d5",
+          "worker.py": "1f4399ce71e266143c50748eeaf03ca616300159842fb3b61362ae7a0eb8e4ed",
+          "tools/benchmarks/shared_measurement.py": "9069c368889f3b6d2dee17292d6d1b644ab453ab67d1368c4247d21864b7bc5f",
+          "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+          "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+        }
+      },
+      "raw_report": "n8/fenicsx/result.json",
+      "committed_candidate_field": "n8/fenicsx/candidate-field.json"
+    }
+  ],
+  "retained_adapter_failures": [
+    {
+      "log": "/data/nk523/.cache/eqiora/elasticity-fenicsx-correctness/attempt-1/eqiora-4/worker.log",
+      "harness_revision": "9d234b88af0f8e0f1709c2f25020119e16f53097",
+      "sha256": "b687eeca5c6d58186deb6dadde20a068173d1c8cd4d32cf35f1cb7b8029c5bea",
+      "failure": "typed public preconditioner policy was compared to the old string representation before analytic validation",
+      "complete_comparison": false
+    },
+    {
+      "log": "/data/nk523/.cache/eqiora/elasticity-fenicsx-correctness/attempt-2/fenicsx-4/worker.log",
+      "harness_revision": "992ccf8d24fb37893803582022b6f3083a28f189",
+      "sha256": "5ac3b709f7f3baf62dcbbe0ccfa65d846f3ec9cd27944dc11928166f4fba5e17",
+      "failure": "NumPy vector block index expansion promoted int32 PETSc indices to int64; essential-column inspection rejected the array",
+      "complete_comparison": false
+    }
+  ],
+  "committed_raw_directory": "raw",
+  "committed_raw_scope": "Original byte-for-byte successful candidate fields; raw-sha256.json keys are relative to this directory. Full raw worker reports with environment/build paths remain in the original scratch directory, bound by their original digests; committed scientific summaries are projections, not rewritten original reports."
+}

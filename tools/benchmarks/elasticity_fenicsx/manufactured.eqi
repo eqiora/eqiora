@@ -1,0 +1,39 @@
+import Eqiora.Solid.LinearElasticity.linear_elasticity as solid;
+
+public component ManufacturedElasticity2d(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body)
+) {
+  variable displacement: vector<m, 2> on body in h1;
+  variable load_potential: kg / (m * s ^ 2) on body;
+  parameter mu: kg / (m * s ^ 2) = 3;
+  parameter lambda: kg / (m * s ^ 2) = 2;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter load_scale: kg / (m * s ^ 2) = 1;
+
+  relation load on body {
+    load_potential
+      - load_scale * (
+          math.sin(wave_number * coordinate(0)) ^ 2
+          + math.sin(wave_number * coordinate(1)) ^ 2
+          - 4
+            * math.sin(wave_number * coordinate(0)) ^ 2
+            * math.sin(wave_number * coordinate(1)) ^ 2
+        ) = 0;
+  }
+  instance balance_law: solid.IsotropicBalanceWithPotential2d(
+    body = body,
+    displacement = displacement,
+    load_potential = load_potential,
+    mu = mu,
+    lambda = lambda
+  );
+
+  relation x_lower_value on x_lower { trace(displacement) = 0; }
+  relation x_upper_value on x_upper { trace(displacement) = 0; }
+  relation y_lower_value on y_lower { trace(displacement) = 0; }
+  relation y_upper_value on y_upper { trace(displacement) = 0; }
+}
