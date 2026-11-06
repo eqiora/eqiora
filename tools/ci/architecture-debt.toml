@@ -195,7 +195,7 @@ removal = "Fold mapped-product admission or results only when an existing owner 
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 130
+ceiling = 131
 # Analytic and exact table property integration:
 # decode_real_table authenticates resolved-array bytes, digest and bounded layout before common table
 # admission; Model replay and native callers share this artifact owner. Withdraw it if the existing
@@ -218,8 +218,12 @@ provider-occurrence wire and current Gmsh planar effective-policy value. They
 keep provider identity/version outside provider-neutral Geometry, Mesh, and
 correspondence artifacts, bind those resources, and add no provider registry,
 discovery protocol, trait, builder, or ambient choice.
+MshImportPolicyV1 carries explicit source units and import quality/resource
+limits through the existing lineage and replay owner. Generator settings cannot
+represent external bytes without falsely claiming generation. Its metre
+constructor keeps the wire unit private; no second public unit system is added.
 """
-removal = "replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Fold PlanarMeshQualityV1 into an already-counted general mesh-policy value only when Cartesian and unstructured providers can share it without inheriting irrelevant circular-boundary knobs, then lower by one."
+removal = "replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one. Fold PlanarMeshQualityV1 into an already-counted general mesh-policy value only when Cartesian and unstructured providers can share it without inheriting irrelevant circular-boundary knobs, then lower by one. Fold MshImportPolicyV1 into an existing shared acceptance-policy owner only when it preserves explicit units, quality/work limits and the external-source versus generated-occurrence distinction without generator-only settings, then lower by one."
 
 [[public_surface]]
 crate = "eqiora-assembly"
