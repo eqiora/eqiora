@@ -1,6 +1,8 @@
 //! Ordinary 3D Hex preparation. Numerical qualification is separately reviewed.
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
@@ -16,7 +18,33 @@ const SIDES: [&str; 6] = [
     "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
 ];
 
+fn preparation_evidence(source: &str) -> Option<PathBuf> {
+    static ATTEMPT: AtomicUsize = AtomicUsize::new(0);
+    let root = std::env::var_os("EQIORA_HEX_PREPARATION_DIR")?;
+    let directory = PathBuf::from(root).join(format!(
+        "{}-{}",
+        std::process::id(),
+        ATTEMPT.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    persist(&Some(directory.clone()), "model.eqi", source.as_bytes());
+    Some(directory)
+}
+
+fn persist(directory: &Option<PathBuf>, name: &str, bytes: &[u8]) {
+    use std::io::Write;
+    if let Some(directory) = directory {
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(directory.join(name))
+            .unwrap();
+        file.write_all(bytes).unwrap();
+    }
+}
+
 fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
+    let evidence = preparation_evidence(source);
     let graph = GeometryGraph::new();
     let cuboid = graph.cuboid([0., 2.], [0., 3.], [0., 4.]).unwrap();
     let mut names = BTreeMap::from([("body".to_owned(), vec![cuboid.region().into()])]);
@@ -81,6 +109,8 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
             .unwrap()
             .is_some()
     );
+    let model = eqiora::artifact::ModelEnvelope::from_program(document.program()).unwrap();
+    persist(&evidence, "model.json", &model.canonical_json().unwrap());
     let cells = CartesianMeshCellsV2::new([2; 3]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(&geometry, cells.cells())
@@ -99,7 +129,7 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
         production,
     )
     .unwrap();
-    let model = eqiora::artifact::ModelEnvelope::from_program(document.program()).unwrap();
+    persist(&evidence, "mesh.json", &owner.to_bytes().unwrap());
     let solver = eqiora_numerics::CommonSolvePolicy::Linear(
         eqiora_numerics::CommonLinearRequest::exact(
             eqiora::solver::SolverPlan::new(
@@ -130,6 +160,8 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
         }),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    let bytes = plan.to_bytes().unwrap();
+    persist(&evidence, "plan.json", &bytes);
     let description = plan.formulation().unwrap();
     assert_eq!(
         description.requested(),
@@ -145,7 +177,6 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
                 .source_identity()
         )
     );
-    let bytes = plan.to_bytes().unwrap();
     let replay = eqiora_numerics::ResolvedCommonPlan::from_bytes(
         &bytes,
         &eqiora::solver::REFERENCE_LINEAR_SOLVER,
