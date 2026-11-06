@@ -119,9 +119,19 @@ fn cartesian_box_resources(
     cells: &[usize],
 ) -> AuthenticatedCommonMesh {
     let policy = CartesianMeshCellsV2::new(cells.to_vec()).unwrap();
-    let (mesh, correspondence) =
+    let (mesh, correspondence) = if geometry.cartesian_box_bounds().is_some() {
         GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(geometry, policy.cells())
-            .unwrap();
+            .unwrap()
+    } else {
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
+            geometry,
+            policy
+                .cells()
+                .try_into()
+                .expect("planar rectangle has two axes"),
+        )
+        .unwrap()
+    };
     let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
         &policy,
         geometry,

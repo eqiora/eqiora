@@ -1,5 +1,6 @@
 //! Ordinary quadratic admission/topology; manufactured solves have separate oracles.
 use super::*;
+mod native_patch;
 
 #[test]
 fn quadratic_plan_keeps_shared_edges_faces_and_cell_nodes_through_replay() {

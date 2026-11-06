@@ -181,7 +181,7 @@ fn tensor_material_laws_retain_nonlinear_state_and_parameter_products() {
         corrupted[interior * width + width - 1] += 0.01;
         assert!(
             crate::CommonResult::from_bytes(
-                &super::super::result_replay::reseal_values(&result, 0, &corrupted),
+                &super::super::result_replay::reseal_block_values(&result, 0, 0, &corrupted),
                 &resolved,
             )
             .is_err()

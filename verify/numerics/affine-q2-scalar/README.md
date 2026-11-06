@@ -90,13 +90,25 @@ native existing `plan.linear_reactions` owner must retain all constrained physic
 weak-dual coordinates. The upper sum is +4 in 2D and +64/3 m in 3D. These scalar
 weak actions are not mechanical forces.
 
-The independent rational patch oracle and fixed residual/coefficient/reaction
-budgets are being prepared separately. Native export and execution remain on hold
-until that oracle and the producer protocol are frozen and reviewed. It will use
-solver relative and absolute tolerances 1e-14, retain all actual field coordinates
-and upper constrained reaction coordinates, and bind the mathematical input to
-separate Plan/Result/mesh producer receipts. Neither expectations nor allowances
-may be inferred from the native outputs.
+The independent [rational patch oracle](reference/POLYNOMIAL.md) owns the frozen
+residual, coefficient and reaction budgets. The native producer is implemented but
+has only been compiled with `--no-run`; it must be reviewed before its first solve.
+It uses solver relative and absolute tolerances 1e-14, retains every actual field
+coordinate and upper constrained reaction coordinate, and binds its mathematical
+input to separate Model/Plan/Result/mesh producer receipts and the actual test
+executable SHA. The producer prints its fresh artifact path before any solve and
+never overwrites a previous attempt. Scientific acceptance requires the unchanged
+external `reference/polynomial.py` gate; a producer test pass alone means exported.
+Neither expectations nor allowances come from native output.
+
+The native producer makes one ordinary solve in each dimension, one Plan reopen,
+one successful Result reopen and one native reaction reconstruction per case.
+It also checks honestly rehashed nonvertex field corruption, missing cell data and
+an altered essential midpoint through the existing Result reader. These negative
+reopens add no PDE solves. Set `EQIORA_Q2_POLYNOMIAL_OUTPUT` to a fresh home-backed
+path for controlled execution. Otherwise the test uses a fresh path under HOME.
+The launcher must record/pin one CPU and thread/rank controls and preserve the
+actual terminal status and all partial artifacts on failure.
 
 ## Checks without candidate solves
 

@@ -162,7 +162,7 @@ fn stationary_material_interfaces_preserve_unequal_flux_laws_and_replay() {
                 changed[1] += 0.25;
                 assert!(
                     crate::CommonResult::from_bytes(
-                        &result_replay::reseal_values(&result, index, &changed),
+                        &result_replay::reseal_block_values(&result, index, 0, &changed),
                         &plan
                     )
                     .is_err()

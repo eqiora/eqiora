@@ -296,7 +296,8 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                                 }
                             }
                         }
-                        let resealed = super::result_replay::reseal_values(&result, 0, &changed);
+                        let resealed =
+                            super::result_replay::reseal_block_values(&result, 0, 0, &changed);
                         let error = crate::CommonResult::from_bytes(&resealed, &plan).unwrap_err();
                         assert!(
                             error.message().contains("residual")
