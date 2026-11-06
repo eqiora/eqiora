@@ -260,6 +260,9 @@ does not establish optional native-backend or scientific claims.
   candidate. Installed-wheel product tests remain in the Python version matrix;
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
+- Installed Python wheel jobs have a 40-minute limit. This leaves bounded margin
+  for native dependency setup and the existing build and tests when package
+  downloads are slow; it does not change their commands or coverage.
 - Pages builds only the Rust executables and Rustdoc consumed by site generation.
   Its temporary CLI and facade-check executables use the unoptimized development
   profile without debug information or incremental output: their consumers inspect
