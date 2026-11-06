@@ -102,7 +102,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     primary_output = result.output(field)
     assert primary_output.value_type == q.ValueType.real(q.Dimension(temperature=1))
     primary = primary_output.values("vertex").numpy().reshape(-1)
-    secondary = replay.output(restored_model.field("definition.temperature")).values("vertex").numpy().reshape(-1)
+    secondary = replay.output(restored_model.field(field.id)).values("vertex").numpy().reshape(-1)
     assert primary.shape == secondary.shape == (9,)
     assert np.isfinite(primary).all()
     assert [float(x).hex() for x in primary] == [float(x).hex() for x in secondary]
@@ -112,7 +112,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     observations, origin = [], []
     for name, boundary, authored_boundary, quantity, unit in IDENTITIES:
         selected = model.observable(f"definition.{name}")
-        replay_selected = restored_model.observable(f"definition.{name}")
+        replay_selected = restored_model.observable(selected.id)
         domain = model.domain(f"definition.{authored_boundary}")
         assert selected.model_digest == replay_selected.model_digest == domain.model_digest == model.digest
         assert replay_selected.id == selected.id
