@@ -1,7 +1,6 @@
 """One ordinary installed Eqiora worker against the frozen external cylinder reference."""
 import time
 IMPORT_START = time.perf_counter_ns()
-import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -14,6 +13,10 @@ import numpy as np
 from common_basis import layout
 from public_mesh import author_geometry, compile_model, export_fields, export_mesh
 from reference_reader import associated, load_reference
+from mesh_levels import mesh_level
+from external_residual import residual_inf
+from common_basis import canonical_fields
+from worker import arguments
 from shared_measurement import ROOT, ComparisonError, clock, digest, environment, finish, memory
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 PROBLEM_ROOT = Path(__file__).resolve().parent
@@ -25,6 +28,9 @@ def prepare(args):
     if not args.wheel.is_file() or not re.fullmatch('[0-9a-f]{40}', args.revision):
         raise ComparisonError('requires wheel artifact and actual full producer source ID')
     reference = load_reference(args.reference_manifest, args.reference_sha256)
+    if args.case_label is not None and (reference.data.get('mesh_level') != args.case_label
+            or reference.data.get('mesh_controls') != mesh_level(args.case_label).controls()):
+        raise ComparisonError('worker case label/controls differ from its independently frozen reference mesh')
     env = environment('eqiora', IMPORT_SECONDS, protocol_root=PROBLEM_ROOT)
     env.update(wheel_sha256=digest(args.wheel), actual_producer_source_declared=args.revision,
                rust_build_profile_declared=args.build_profile, module_path=eqiora.__file__,
@@ -57,7 +63,7 @@ def prepare(args):
         return model, plan
     (model, plan), preparation = clock(make_plan)
     common = layout(reference.data)
-    report = {'dimension': 2, 'problem': 'finite-channel steady Stokes cylinder',
+    report = {'case_label': args.case_label, 'dimension': 2, 'problem': 'finite-channel steady Stokes cylinder',
               'mesh': {'vertices': mesh.vertex_count, 'cells': mesh.cell_count, 'digest': mesh.digest,
                        'geometry_digest': geometry.digest, 'topology': reference.data['cells'],
                        'boundary_edges': reference.data['boundaries']},
@@ -70,7 +76,8 @@ def prepare(args):
               'associated_units': {'velocity_cell_bubble': 'm/s', 'pressure_vertex': 'Pa',
                                    'cylinder_force_on_domain': 'N/m', 'cylinder_force_on_selection': 'N/m',
                                    'inlet_flux': 'm^2/s', 'outlet_flux': 'm^2/s'},
-              'expected_execution_calls': {'cold_candidate': 1, 'separate_profile': 1, 'warmups': 0, 'timed_samples': 0},
+              'expected_execution_calls': {'cold_candidate': 1, 'separate_profile': 1, 'warmups': 2 if args.mode == 'benchmark' else 0,
+                                           'timed_samples': 7 if args.mode == 'benchmark' else 0},
               'global_union_check': 'separate independent FEniCSx reconstruction from retained cold fields; no native Eqiora union-export claim'}
 
     def summary(result):
@@ -87,12 +94,17 @@ def prepare(args):
             raise ComparisonError('native candidate failed its own accepted residual contract')
         return row
 
+    cold_artifacts_written = False
+
     def extract(result):
+        nonlocal cold_artifacts_written
         # Standard product artifacts retain the cold result even if a public
         # observer unexpectedly fails before shared candidate serialization.
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        (args.output.parent/'candidate-plan.bin').write_bytes(plan.to_bytes())
-        (args.output.parent/'candidate-result.bin').write_bytes(result.to_bytes())
+        if not cold_artifacts_written:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            (args.output.parent/'candidate-plan.bin').write_bytes(plan.to_bytes())
+            (args.output.parent/'candidate-result.bin').write_bytes(result.to_bytes())
+            cold_artifacts_written = True
         fields = export_fields(plan, result)
         force = result.boundary_force(geometry.selection('cylinder'))
         inlet = result.boundary_flux(geometry.selection('inlet'))
@@ -102,6 +114,9 @@ def prepare(args):
                 or tuple(outlet.dimension) != (0, 2, -1, 0, 0, 0, 0)):
             raise ComparisonError('public cylinder force/flux units or frame differ from the declared intrinsic-2D problem')
         row = summary(result)
+        row['external_scaled_residual_inf'] = residual_inf(reference.operator, canonical_fields(fields))
+        if row['external_scaled_residual_inf'] > reference.manifest['residual_control']['absolute_scaled_residual_ceiling']:
+            raise ComparisonError('fresh execution failed the frozen external-operator residual ceiling')
         row['public_force_identity'] = {'digest': force.digest, 'source_digest': force.source_digest,
                                         'mesh_digest': force.mesh_digest, 'geometry_digest': force.geometry_digest}
         return (np.asarray(mesh.coordinates), fields['velocity_vertex'], row,
@@ -110,8 +125,14 @@ def prepare(args):
     def diagnostic():
         result = eqiora.run(plan, profile=True)
         native = summary(result)
-        inventory = [{'path': list(phase.path), 'fields': dict(phase.fields), 'calls': phase.calls}
+        phases = [{'path': list(phase.path), 'fields': dict(phase.fields), 'calls': phase.calls,
+                   'inclusive_seconds': phase.inclusive_seconds, 'self_seconds': phase.self_seconds}
                      for phase in result.profile.phases]
+        inventory = [{key: phase[key] for key in ('path', 'fields', 'calls')} for phase in phases]
+        available = all(any(p['path'][-1] == name for p in inventory) for name in ('assembly', 'linear_solve'))
+        if args.mode == 'benchmark':
+            return {'required_phases_available': available, 'phases': phases, 'solve': native,
+                    'scope': 'separate profile=True execution; native phases are not inferred ordinary-wall partitions'}
         return {'required_phases_available': all(any(p['path'][-1] == name for p in inventory)
                                                 for name in ('assembly', 'linear_solve')),
                 'phase_inventory': inventory, 'solve': native,
@@ -120,15 +141,7 @@ def prepare(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--reference-manifest', type=Path, required=True)
-    parser.add_argument('--reference-sha256', required=True)
-    parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--mode', choices=('correctness-only',), required=True)
-    parser.add_argument('--wheel', type=Path, required=True)
-    parser.add_argument('--revision', required=True)
-    parser.add_argument('--build-profile', choices=('release',), required=True)
-    args = parser.parse_args()
+    args = arguments('eqiora')
     if args.output.exists():
         raise ComparisonError('candidate output must be fresh; no overwrite or best-of-run selection')
     reference, report, execute, extract, diagnostic = prepare(args)

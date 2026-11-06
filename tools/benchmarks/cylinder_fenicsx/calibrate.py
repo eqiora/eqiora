@@ -16,11 +16,11 @@ from petsc4py import PETSc
 import numpy as np
 from accuracy import MU, U, H, physical_norms, discrete_inlet_flux, boundary_flux, check_trace_and_flux
 from budget import check_falsifiers, freeze_budget, residual_ceiling
-from fenicsx_adapter import prepare
+from fenicsx_adapter import prepare, export_fields
 from external_residual import residual_inf, validate_operator
 from common_basis import canonical_fields
 from reference_system import (build_system, observations, quadrature,
-                              scaled_operator, solve)
+                              scaled_operator, factor_solve, recover_mixed)
 from shared_measurement import ComparisonError, digest, environment
 from topology import cylinder_geometry_report
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
@@ -78,7 +78,9 @@ def main():
         directory = args.output/label; directory.mkdir()
         jit = {'cache_dir': str(directory/'jit'), 'cffi_extra_compile_args': ['-O3']}
         system = build_system(prepared, data, rule=rule, jit_options=jit)
-        function, fields, canonical, summary = solve(system, implementation)
+        canonical, summary = factor_solve(system, implementation)
+        function = recover_mixed(system, canonical)
+        fields = export_fields(prepared, function)
         # Residual acceptance uses the exported common hierarchy, including any
         # representation rounding, and the same designated-A operator for all runs.
         canonical = canonical_fields(fields)

@@ -8,14 +8,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import eqiora
 from public_mesh import compile_model, export_mesh, geometry_and_mesh
 from topology import mesh_arrays, cylinder_geometry_report
+from mesh_levels import LEVELS, mesh_level
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--level', choices=tuple(LEVELS), default='standard')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    geometry, mesh = geometry_and_mesh(eqiora)
+    geometry, mesh = geometry_and_mesh(eqiora, level=args.level)
     data = export_mesh(geometry, mesh)
+    data['mesh_level'] = args.level
+    data['mesh_controls'] = mesh_level(args.level).controls()
     mesh_arrays(data)
     data['geometry_audit'] = cylinder_geometry_report(data)
     model = compile_model(eqiora, geometry)

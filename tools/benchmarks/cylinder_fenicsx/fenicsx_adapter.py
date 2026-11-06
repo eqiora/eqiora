@@ -161,3 +161,18 @@ def boundary_flux_forms(prepared, velocity):
     measure = ufl.Measure('ds', domain=prepared.domain, subdomain_data=prepared.facets,
                           metadata={'quadrature_degree': 3, 'quadrature_rule': 'gauss_jacobi'})
     return {name: ufl.dot(velocity, normal)*measure(BOUNDARY_TAGS[name]) for name in ('inlet', 'outlet')}
+
+
+def observation_linear_forms(prepared):
+    """Immutable UFL functionals; fresh vectors/dots are assembled during extraction."""
+    velocity, pressure = ufl.TestFunctions(prepared.mixed_space)
+    # No solved coefficient Function is retained by these forms.
+    dx = ufl.Measure('dx', domain=prepared.domain,
+                     metadata={'quadrature_degree': 6, 'quadrature_rule': 'gauss_jacobi'})
+    force = []
+    for component in range(2):
+        indicator = cylinder_indicator(prepared, component)
+        force.append((2*.001*ufl.inner(ufl.sym(ufl.grad(velocity)), ufl.sym(ufl.grad(indicator)))
+                      -pressure*ufl.div(indicator))*dx)
+    flux = boundary_flux_forms(prepared, velocity)
+    return {'force_x': force[0], 'force_y': force[1], 'inlet_flux': flux['inlet'], 'outlet_flux': flux['outlet']}

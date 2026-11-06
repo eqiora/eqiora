@@ -12,6 +12,14 @@ from shared_measurement import ComparisonError
 
 
 @dataclass
+class Forms:
+    stiffness: object
+    transformation: object
+    common: dict
+    prepared: object
+
+
+@dataclass
 class System:
     matrix: object
     rhs: object
@@ -58,25 +66,36 @@ def basis_transformation(prepared):
     return transformation
 
 
-def build_system(prepared, data, *, rule, jit_options):
+def prepare_forms(prepared, data, *, rule, jit_options):
     stiffness, _ = weak_forms(prepared, quadrature_metadata=quadrature(rule))
-    form = fem.form(stiffness, jit_options=jit_options)
-    raw_nodal_matrix = petsc.assemble_matrix(form); raw_nodal_matrix.assemble()
-    transformation = basis_transformation(prepared)
-    full = raw_nodal_matrix.PtAP(transformation)
-    common = layout(data)
+    return Forms(fem.form(stiffness, jit_options=jit_options), basis_transformation(prepared), layout(data), prepared)
+
+
+def assemble_system(forms):
+    """Fresh PDE matrices/RHS; only immutable compiled forms/basis maps are retained."""
+    raw = petsc.assemble_matrix(forms.stiffness); raw.assemble()
+    full = raw.PtAP(forms.transformation)
+    common = forms.common
     free = common['free'].astype(PETSc.IntType)
     prescribed = common['prescribed']
     original = full.createVecRight(); original.array[:] = prescribed
     lifted = full.createVecLeft(); full.mult(original, lifted); lifted.scale(-1.)
-    free_is = PETSc.IS().createGeneral(free, comm=prepared.domain.comm)
+    free_is = PETSc.IS().createGeneral(free, comm=forms.prepared.domain.comm)
     matrix = full.createSubMatrix(free_is, free_is)
     rhs = matrix.createVecRight()
     sub = lifted.getSubVector(free_is); rhs.array[:] = sub.array; lifted.restoreSubVector(free_is, sub)
-    scales = common['scales']
-    for item in (full, original, lifted, free_is):
-        item.destroy()
-    return System(matrix, rhs, transformation, free, scales, prescribed, raw_nodal_matrix, prepared)
+    for item in (full, original, lifted, free_is): item.destroy()
+    return System(matrix, rhs, forms.transformation, free, common['scales'], prescribed, raw, forms.prepared)
+
+
+def build_system(prepared, data, *, rule, jit_options):
+    """Untimed calibration/toy convenience, using the same fresh assembly owner."""
+    return assemble_system(prepare_forms(prepared, data, rule=rule, jit_options=jit_options))
+
+
+def destroy_system(system):
+    """The immutable transformation is owned by preparation, not this fresh system."""
+    for item in (system.matrix, system.rhs, system.raw_nodal_matrix): item.destroy()
 
 
 def scaled_operator(system):
@@ -87,7 +106,7 @@ def scaled_operator(system):
     return matrix, rhs
 
 
-def solve(system, implementation):
+def factor_solve(system, implementation):
     if implementation not in ('mumps', 'superlu') or not PETSc.Sys.hasExternalPackage(implementation):
         raise ComparisonError('declared distinct external factorization unavailable')
     solution = system.matrix.createVecRight(); solution.set(0.)
@@ -101,20 +120,29 @@ def solve(system, implementation):
     if actual != implementation or reason <= 0 or not np.isfinite(solution.array).all():
         raise ComparisonError('external factorization failed or differs from declared implementation')
     canonical = system.prescribed.copy(); canonical[system.free] = solution.array
+    residual = system.rhs.duplicate()
+    system.matrix.mult(solution, residual); residual.axpy(-1., system.rhs)
+    physical_residual = residual.norm(PETSc.NormType.NORM_2)
+    own_scaled_residual = float(np.max(np.abs(residual.array*system.scales/(MU*U*U))))
+    summary = {'implementation': actual, 'ksp_type': ksp.getType(), 'pc_type': ksp.getPC().getType(),
+               'convergence_reason': reason, 'completed_iterations': ksp.getIterationNumber(),
+               'precision': 'float64', 'initial_guess_nonzero': ksp.getInitialGuessNonzero(),
+               'petsc_tolerances_diagnostic_only': list(ksp.getTolerances()),
+               'direct_solver_nominal_tolerances_are_not_forward_error_bounds': True,
+               'true_physical_free_residual_l2': physical_residual,
+               'own_scaled_free_residual_inf': own_scaled_residual}
+    for item in (solution, ksp, residual): item.destroy()
+    return canonical, summary
+
+
+def recover_mixed(system, canonical):
     nodal = system.transformation.createVecLeft()
     complete = system.transformation.createVecRight(); complete.array[:] = canonical
     system.transformation.mult(complete, nodal)
     function = fem.Function(system.prepared.mixed_space); function.x.array[:] = nodal.array
     function.x.scatter_forward()
-    fields = export_fields(system.prepared, function)
-    summary = {'implementation': actual, 'ksp_type': ksp.getType(), 'pc_type': ksp.getPC().getType(),
-               'convergence_reason': reason, 'completed_iterations': ksp.getIterationNumber(),
-               'precision': 'float64', 'initial_guess_nonzero': ksp.getInitialGuessNonzero(),
-               'petsc_tolerances_diagnostic_only': list(ksp.getTolerances()),
-               'direct_solver_nominal_tolerances_are_not_forward_error_bounds': True}
-    for item in (solution, ksp, nodal, complete):
-        item.destroy()
-    return function, fields, canonical, summary
+    nodal.destroy(); complete.destroy()
+    return function
 
 
 def observations(system, function, fields, canonical, *, jit_options):
