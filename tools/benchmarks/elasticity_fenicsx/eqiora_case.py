@@ -78,7 +78,7 @@ def prepare(args):
         return row
 
     def extract(result):
-        return np.asarray(plan.mesh.coordinates), result.output(field).values('vertex').numpy().reshape(-1, 2), summary(result)
+        return np.asarray(plan.mesh.coordinates), result.output(field).values('vertex').numpy().reshape(-1, 2), summary(result), {}
 
     def diagnostic():
         result = eqiora.run(plan, profile=True)
@@ -100,7 +100,7 @@ def prepare(args):
         return {'required_phases_available': available, 'phases': phases,
                 'source': 'separate profile=True diagnostic execution; no inferred ordinary timing partitions'}
 
-    report = {'environment': env, 'memory_after_import': baseline, 'memory_after_preparation': memory(),
+    report = {'dimension': args.dimension, 'cells_per_axis': args.cells, 'environment': env, 'memory_after_import': baseline, 'memory_after_preparation': memory(),
               'mesh_measurement': mesh_time, 'preparation_measurement': preparation,
               'model_sha256': digest(source), 'plan_sha256': hashlib.sha256(plan.to_bytes()).hexdigest(),
               'package_compilation_digest': model.package_compilation_digest,
@@ -111,7 +111,7 @@ def prepare(args):
 
 def main(args):
     report, execute, extract, diagnostic = prepare(args)
-    finish(args, 'eqiora', report, execute, extract, diagnostic, accuracy=check_accuracy, diagnostic_extra_calls=1)
+    finish(args, 'eqiora', report, execute, extract, diagnostic, accuracy=lambda coordinates, values, associated: check_accuracy(coordinates, values, args.cells), diagnostic_extra_calls=1)
 
 
 if __name__ == '__main__':

@@ -175,9 +175,9 @@ def main(args):
             raise ComparisonError(f"PETSc effective policy differs from the declared tuple: {summary}")
         values = function.x.array.copy()
         matrix.destroy(); rhs.destroy()
-        return coordinates, values, summary
+        return coordinates, values, summary, {}
 
-    report = {"environment": env, "memory_after_import": baseline, "memory_after_preparation": memory(),
+    report = {"dimension": args.dimension, "cells_per_axis": args.cells, "environment": env, "memory_after_import": baseline, "memory_after_preparation": memory(),
               "mesh_measurement": mesh_time, "preparation_measurement": preparation,
               "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells+1)**dimension},
               "jit": {"cache": "fresh directory", "cffi_extra_compile_args": ["-O3"]}}
@@ -195,7 +195,7 @@ def main(args):
                 "execution_extra": "field recovery included; protocol diagnostics/output inspection/result destruction excluded"}
 
     finish(args, "fenicsx", report, execute, extract, diagnostic,
-           accuracy=lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, args.dimension))
+           accuracy=lambda coordinates, values, associated: check_accuracy(coordinates, values, args.cells, args.dimension))
 
 
 if __name__ == "__main__":

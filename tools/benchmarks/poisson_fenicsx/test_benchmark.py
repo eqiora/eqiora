@@ -41,7 +41,7 @@ class BenchmarkTests(unittest.TestCase):
             self.assertFalse(in_clock, "output inspection must remain outside the clock")
             extracted.append(result)
             events.append("extract")
-            return coordinates, values, {"fixture": "independently derived discrete sine field"}
+            return coordinates, values, {"fixture": "independently derived discrete sine field"}, {}
 
         def clock(function):
             nonlocal in_clock, clock_calls
@@ -72,10 +72,10 @@ class BenchmarkTests(unittest.TestCase):
             return {"required_phases_available": phases,
                     "fixture_diagnostic_seconds": 10000.0}
 
-        prepared = {"environment": {}, "mesh_measurement": {"fixture": "mesh"},
+        prepared = {"dimension": dimension, "cells_per_axis": cells, "environment": {}, "mesh_measurement": {"fixture": "mesh"},
                     "preparation_measurement": {"fixture": "preparation"}}
         self.last_timed = timed
-        actual_accuracy = lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, dimension)
+        actual_accuracy = lambda coordinates, values, associated: check_accuracy(coordinates, values, cells, dimension)
         with patch.object(measurement, "clock", clock), patch.object(measurement, "memory", memory), \
                 patch.object(measurement.os, "getloadavg", return_value=(0, 0, 0)):
             measurement.finish(args, tool, prepared, execute, extract, profile, accuracy=accuracy,
@@ -143,22 +143,67 @@ class BenchmarkTests(unittest.TestCase):
         coordinates = np.array([[0., 0.], [1., 0.]])
         values = np.array([[1., -2.], [3., 4.]])
         seen = []
-        def accuracy(points, field, cells):
-            seen.append((points.shape, field.shape, cells))
+        def accuracy(points, field, associated):
+            seen.append((points.shape, field.shape, associated))
             raise ComparisonError("independent vector oracle rejected candidate")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "result.json"
             args = SimpleNamespace(dimension=2, cells=4, mode="benchmark", output=output)
             with patch.object(measurement, "memory", return_value={}), self.assertRaises(ComparisonError):
                 measurement.finish(args, "eqiora", {"environment": {}}, lambda: object(),
-                                   lambda result: (coordinates, values, {}),
+                                   lambda result: (coordinates, values, {}, {}),
                                    lambda: self.fail("rejected field must not enter diagnostic"), accuracy=accuracy)
-            self.assertEqual(seen, [((2, 2), (2, 2), 4)])
+            self.assertEqual(seen, [((2, 2), (2, 2), {})])
             candidate = json.loads(output.with_name("candidate-field.json").read_text())
             self.assertEqual(candidate["values_float64_hex"],
                              [[float(value).hex() for value in row] for row in values])
             self.assertFalse(output.exists())
         self.assertEqual(measurement.float64_hex([[float("nan"), float("inf")]]), [["nan", "inf"]])
+
+    def test_mixed_associations_are_retained_before_rejection_and_after_acceptance(self):
+        import numpy as np
+        coordinates = np.array([[0., 0.], [1., 0.]])
+        velocity = np.array([[1., -2.], [3., 4.]])
+        for reject in (False, True):
+            fields = {
+                "velocity_bubble": {"association": "cell-bubble", "values": np.array([[-0., 0.25]])},
+                "pressure": {"association": "vertex", "values": np.array([2., float("nan") if reject else 3.])},
+            }
+            def accuracy(points, primary, associated):
+                self.assertIs(associated, fields)
+                self.assertIs(primary, velocity)
+                self.assertIs(points, coordinates)
+                if reject:
+                    raise ComparisonError("nonfinite pressure rejected by independent oracle")
+                return {"accepted": True}
+            with tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary) / "result.json"
+                # No Cartesian resolution or dimension attributes are required by the runner.
+                args = SimpleNamespace(mode="correctness-only", output=output)
+                prepared = {"environment": {}, "dimension": 2, "mesh": {"cells": [[0, 1, 2]]}}
+                def run():
+                    with patch.object(measurement, "memory", return_value={}):
+                        measurement.finish(args, "reference", prepared, lambda: object(),
+                                           lambda result: (coordinates, velocity, {}, fields),
+                                           lambda: {"required_phases_available": True}, accuracy=accuracy)
+                if reject:
+                    with self.assertRaisesRegex(ComparisonError, "nonfinite pressure"):
+                        run()
+                else:
+                    run()
+                candidate = json.loads(output.with_name("candidate-field.json").read_text())
+                self.assertEqual(candidate["associated_fields"]["velocity_bubble"],
+                                 {"association": "cell-bubble", "values_float64_hex": [["-0x0.0p+0", "0x1.0000000000000p-2"]]})
+                self.assertEqual(candidate["associated_fields"]["pressure"]["values_float64_hex"],
+                                 [2.0.hex(), "nan" if reject else 3.0.hex()])
+                if reject:
+                    self.assertFalse(output.exists())
+                else:
+                    report = json.loads(output.read_text())
+                    self.assertEqual(report["associated_fields"]["pressure"],
+                                     {"association": "vertex", "values": [2., 3.]})
+                    self.assertEqual(report["mesh"], prepared["mesh"])
+                    self.assertNotIn("cells_per_axis", report)
 
     def driver_arguments(self, output, *, levels=None):
         args = ["run.py", str(output), "--eqiora-python", "/installed/eqiora/python",
