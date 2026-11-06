@@ -52,7 +52,7 @@ def prepare(eqiora, directory, *, source=None):
     field = model.field('definition.displacement')
     observables = tuple(model.observable('definition.'+name) for name in ('energy', 'left_x', 'left_y', 'left_z'))
     plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), quadrature=eqiora.fem.GaussLegendre(2), solve=eqiora.solve.Linear(
-        algorithm=eqiora.solve.LinearSolver.ConjugateGradient, preconditioner=eqiora.solve.Preconditioner.Identity,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity,
         reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
         relative_tolerance=1e-14, absolute_tolerance=1e-14, maximum_iterations=10000))
     write(directory, 'plan.json', plan.to_bytes())

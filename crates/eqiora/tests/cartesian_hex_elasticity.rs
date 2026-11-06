@@ -103,7 +103,7 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
     let solver = eqiora_numerics::CommonSolvePolicy::Linear(
         eqiora_numerics::CommonLinearRequest::exact(
             eqiora::solver::SolverPlan::new(
-                eqiora::solver::LinearSolver::ConjugateGradient,
+                eqiora::solver::LinearSolver::BiConjugateGradientStabilized,
                 1e-14,
                 1e-14,
                 NonZeroUsize::new(10000).unwrap(),
