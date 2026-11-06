@@ -41,7 +41,7 @@ impl CommonSpatialPlan {
                 prepared,
                 candidate_check,
             ),
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                 .solve_with_candidate_check(
                     current_mesh.unwrap_or_else(|| mesh.mesh()),
@@ -75,7 +75,7 @@ impl CommonSpatialPlan {
         let Some(motion) = motion else {
             return Ok(None);
         };
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        let (NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
             return Err(invalid(
@@ -241,7 +241,7 @@ impl CommonSpatialPlan {
                 input.prescribed_states = prescribed_states;
                 Ok((mapping, input))
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let state = self.prescribed_geometry_at(time_s)?;
                 let (mapping, forms, natural) = bound.simplicial_assembly_with_boundary(
@@ -350,7 +350,7 @@ impl CommonSpatialPlan {
             .iter()
             .any(|region| region.form.motion().is_some())
         {
-            let (NativeMeshResources::GmshSimplicial { mesh, .. }
+            let (NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =
                 self.admission.resources()
             else {
@@ -472,7 +472,7 @@ impl CommonSpatialPlan {
                         self.linear().clone(),
                         initial_partial,
                     )?,
-                    NativeMeshResources::GmshSimplicial { mesh, .. }
+                    NativeMeshResources::MshSimplicial { mesh, .. }
                     | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                         .assess_temporal_state(
                             mesh.mesh(),

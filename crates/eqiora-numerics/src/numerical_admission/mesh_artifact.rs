@@ -13,6 +13,8 @@ use sha2::{Digest, Sha256};
 
 use super::{AuthenticatedCommonMesh, Diagnostic, NativeMeshResources, invalid};
 
+use super::native::MshSourcePolicy;
+
 const SCHEMA: &str = "eqiora.authenticated-common-mesh/v4";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 128 * 1024 * 1024;
@@ -23,6 +25,7 @@ enum WireMeshKind {
     StructuredCartesian,
     AffineTriangle,
     Gmsh4152,
+    ExternalMsh41,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -194,7 +197,7 @@ impl AuthenticatedCommonMesh {
             NativeMeshResources::Cartesian { mesh, .. } => Some(mesh),
             NativeMeshResources::Coordinates(grid) => Some(&grid.mesh),
             NativeMeshResources::AffineTriangleSimplicial { .. }
-            | NativeMeshResources::GmshSimplicial { .. } => None,
+            | NativeMeshResources::MshSimplicial { .. } => None,
         }
     }
 
@@ -204,7 +207,7 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { .. } | NativeMeshResources::Coordinates(_) => None,
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-            | NativeMeshResources::GmshSimplicial { mesh, .. } => Some(mesh),
+            | NativeMeshResources::MshSimplicial { mesh, .. } => Some(mesh),
         }
     }
 
@@ -214,7 +217,7 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { correspondence, .. }
             | NativeMeshResources::AffineTriangleSimplicial { correspondence, .. }
-            | NativeMeshResources::GmshSimplicial { correspondence, .. } => Some(correspondence),
+            | NativeMeshResources::MshSimplicial { correspondence, .. } => Some(correspondence),
             NativeMeshResources::Coordinates(_) => None,
         }
     }
@@ -225,8 +228,21 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { production, .. }
             | NativeMeshResources::AffineTriangleSimplicial { production, .. }
-            | NativeMeshResources::GmshSimplicial { production, .. } => Some(production),
+            | NativeMeshResources::MshSimplicial { production, .. } => Some(production),
             NativeMeshResources::Coordinates(_) => None,
+        }
+    }
+
+    /// Original bytes of an external MSH source, without a generator execution claim.
+    #[must_use]
+    pub fn msh_source_bytes(&self) -> Option<&[u8]> {
+        match &self.resources {
+            NativeMeshResources::MshSimplicial {
+                provider_output,
+                policy: MshSourcePolicy::External(_),
+                ..
+            } => Some(provider_output),
+            _ => None,
         }
     }
 
@@ -234,9 +250,15 @@ impl AuthenticatedCommonMesh {
     #[must_use]
     pub fn gmsh_provider_output(&self) -> Option<&[u8]> {
         match &self.resources {
-            NativeMeshResources::GmshSimplicial {
-                provider_output, ..
+            NativeMeshResources::MshSimplicial {
+                provider_output,
+                policy: MshSourcePolicy::Gmsh4152(_),
+                ..
             } => Some(provider_output),
+            NativeMeshResources::MshSimplicial {
+                policy: MshSourcePolicy::External(_),
+                ..
+            } => None,
             NativeMeshResources::Coordinates(_)
             | NativeMeshResources::Cartesian { .. }
             | NativeMeshResources::AffineTriangleSimplicial { .. } => None,
@@ -276,15 +298,18 @@ impl WirePhysicalMesh {
                 production.canonical_json()?,
                 None,
             ),
-            NativeMeshResources::GmshSimplicial {
+            NativeMeshResources::MshSimplicial {
                 geometry,
                 provider_output,
                 mesh,
                 correspondence,
                 production,
-                ..
+                policy,
             } => (
-                WireMeshKind::Gmsh4152,
+                match policy {
+                    MshSourcePolicy::Gmsh4152(_) => WireMeshKind::Gmsh4152,
+                    MshSourcePolicy::External(_) => WireMeshKind::ExternalMsh41,
+                },
                 geometry.canonical_bytes(),
                 mesh.canonical_json()?,
                 correspondence.canonical_json()?,
@@ -303,9 +328,13 @@ impl WirePhysicalMesh {
     }
 
     fn validate(&self) -> Result<(), Diagnostic> {
-        if matches!(self.kind, WireMeshKind::Gmsh4152) != self.provider_output_base64.is_some() {
+        if matches!(
+            self.kind,
+            WireMeshKind::Gmsh4152 | WireMeshKind::ExternalMsh41
+        ) != self.provider_output_base64.is_some()
+        {
             return Err(invalid(
-                "only a Gmsh authenticated common Mesh carries provider output",
+                "only an MSH authenticated common Mesh carries retained source output",
             ));
         }
         Ok(())
@@ -338,6 +367,37 @@ impl WirePhysicalMesh {
                 correspondence,
                 production,
             ),
+            WireMeshKind::ExternalMsh41 => {
+                let policy = production
+                    .msh_import_policy()
+                    .ok_or_else(|| invalid("external MSH common Mesh has a non-import policy"))?;
+                let encoded = self
+                    .provider_output_base64
+                    .as_deref()
+                    .expect("validated MSH source");
+                let padding = encoded
+                    .as_bytes()
+                    .iter()
+                    .rev()
+                    .take_while(|&&byte| byte == b'=')
+                    .count()
+                    .min(2);
+                let decoded_bound = encoded
+                    .len()
+                    .div_ceil(4)
+                    .saturating_mul(3)
+                    .saturating_sub(padding);
+                if decoded_bound > policy.maximum_source_bytes() {
+                    return Err(invalid(
+                        "external MSH source exceeds the declared byte limit before decoding",
+                    ));
+                }
+                AuthenticatedCommonMesh::import_msh41(
+                    geometry,
+                    policy,
+                    decode(encoded, "MSH source")?,
+                )
+            }
             WireMeshKind::Gmsh4152 => {
                 let policy = production.gmsh_mesh_policy().ok_or_else(|| {
                     invalid("Gmsh authenticated common Mesh has a non-Gmsh production policy")

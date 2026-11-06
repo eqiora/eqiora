@@ -131,7 +131,7 @@ impl CommonSpatialPlan {
                 &current,
                 mesh.mesh(),
             ),
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => evaluate(mesh.mesh()),
             _ => Err(invalid("volume balance requires the exact affine mesh")),
         }

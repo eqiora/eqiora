@@ -284,7 +284,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
             NativeMeshResources::Cartesian { .. } => {
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             }
-            NativeMeshResources::GmshSimplicial { .. }
+            NativeMeshResources::MshSimplicial { .. }
             | NativeMeshResources::AffineTriangleSimplicial { .. } => {
                 eqiora_meshing::ReferenceCell::simplex(dimension)?
             }

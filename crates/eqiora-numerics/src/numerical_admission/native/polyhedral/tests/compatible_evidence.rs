@@ -100,7 +100,7 @@ fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
         &BTreeMap::new(),
     )
     .unwrap();
-    let NativeMeshResources::GmshSimplicial { mesh: envelope, .. } = &owner.resources else {
+    let NativeMeshResources::MshSimplicial { mesh: envelope, .. } = &owner.resources else {
         unreachable!()
     };
     let mesh = envelope.mesh();
