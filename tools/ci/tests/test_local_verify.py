@@ -280,6 +280,49 @@ class PlanTests(unittest.TestCase):
             )
         )
 
+    def test_fast_studio_manifest_and_lock_share_existing_surface_commands(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            chrome = Path(scratch) / "chrome"
+            chrome.touch()
+            for path in ("studio/package.json", "studio/package-lock.json"):
+                with self.subTest(path=path):
+                    fast = build_plan(
+                        "fast", [path], [], workspace(), chrome_executable=chrome
+                    )
+                    affected = build_plan(
+                        "affected", [path], [], workspace(), chrome_executable=chrome
+                    )
+                    studio = tuple(
+                        item
+                        for item in affected.commands
+                        if item.label.startswith("Studio ")
+                        and item.label != "Studio interaction tests"
+                    )
+                    self.assertEqual(fast.commands, studio)
+                    self.assertEqual(
+                        tuple(item.label for item in fast.commands),
+                        ("Studio quality", "Studio unit tests", "Studio build"),
+                    )
+                    self.assertTrue(
+                        any(
+                            "interaction tests are deferred" in item
+                            for item in fast.limitations
+                        )
+                    )
+
+    def test_fast_does_not_add_heavy_python_or_experiment_surface_checks(self) -> None:
+        for path in (
+            "bindings/python/python/eqiora/solve.py",
+            "experiments/cubecl-local-action/src/lib.rs",
+        ):
+            with self.subTest(path=path):
+                plan = build_plan("fast", [path], [], workspace())
+                labels = {item.label for item in plan.commands}
+                self.assertNotIn("Python isolated wheel and tests", labels)
+                self.assertNotIn("CubeCL tests", labels)
+
     def test_affected_missing_chrome_defers_only_interaction_tests(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             absent = Path(scratch) / "chrome"
@@ -569,6 +612,77 @@ class PlanTests(unittest.TestCase):
             lanes["Root dependency policy"].name,
             {lanes["Rust tests"].name, lanes["Studio unit tests"].name},
         )
+
+
+class EntrypointTests(unittest.TestCase):
+    def invoke(
+        self, tier: str, paths: tuple[str, ...], plan: VerificationPlan | None = None
+    ) -> tuple[int, str, str]:
+        module = importlib.import_module("local_verify")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(sys, "argv", ["local_verify.py", tier])
+            )
+            stack.enter_context(
+                mock.patch("local_verify.local_changed_paths", return_value=paths)
+            )
+            stack.enter_context(
+                mock.patch("local_verify.load_workspace", return_value=workspace())
+            )
+            if plan is not None:
+                stack.enter_context(
+                    mock.patch("local_verify.build_plan", return_value=plan)
+                )
+            stack.enter_context(contextlib.redirect_stdout(stdout))
+            stack.enter_context(contextlib.redirect_stderr(stderr))
+            status = module.main()
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_changed_pr_with_deferred_checks_returns_without_scheduler_or_scratch(
+        self,
+    ) -> None:
+        with (
+            mock.patch("local_verify.run_plan") as scheduler,
+            mock.patch("verification_scheduler._scratch_base") as scratch,
+        ):
+            status, stdout, stderr = self.invoke("pr", ("studio/package-lock.json",))
+        self.assertEqual(status, 0, stderr)
+        self.assertIn("No local checks apply at the pr tier", stdout)
+        self.assertIn("deferred to fast/affected or hosted", stdout)
+        self.assertIn("No checks were executed", stdout)
+        scheduler.assert_not_called()
+        scratch.assert_not_called()
+
+    def test_no_changed_paths_is_still_a_cli_error(self) -> None:
+        with mock.patch("local_verify.run_plan") as scheduler:
+            status, _stdout, stderr = self.invoke("pr", ())
+        self.assertEqual(status, 2)
+        self.assertIn("no local changes", stderr)
+        scheduler.assert_not_called()
+
+    def test_empty_non_pr_plans_still_reject_before_scratch(self) -> None:
+        for tier in ("fast", "affected", "periodic"):
+            with (
+                self.subTest(tier=tier),
+                mock.patch("verification_scheduler._scratch_base") as scratch,
+            ):
+                plan = VerificationPlan(tier, ("studio/package.json",), (), (), (), ())
+                status, _stdout, stderr = self.invoke(tier, plan.paths, plan)
+                self.assertEqual(status, 2)
+                self.assertIn("1 through 32 commands", stderr)
+                scratch.assert_not_called()
+
+    def test_oversized_pr_execution_still_rejects_before_scratch(self) -> None:
+        commands = tuple(
+            PlannedCommand(str(index), ("forbidden",)) for index in range(33)
+        )
+        plan = VerificationPlan("pr", ("studio/package.json",), (), (), commands, ())
+        with mock.patch("verification_scheduler._scratch_base") as scratch:
+            status, _stdout, stderr = self.invoke("pr", plan.paths, plan)
+        self.assertEqual(status, 2)
+        self.assertIn("1 through 32 commands", stderr)
+        scratch.assert_not_called()
 
 
 class Issue496UnixSocketScratchTests(unittest.TestCase):
