@@ -145,6 +145,10 @@ mod tests {
         for dimension in 1..=3 {
             let mesh = CartesianMesh::from_axes(vec![vec![-1.0, -0.0, 2.0]; dimension]).unwrap();
             let index = CartesianFacetIndex::new(&mesh);
+            assert_eq!(
+                index.on_plane(0, 0.0).len(),
+                2_usize.pow(dimension as u32 - 1)
+            );
             for &facet in index.on_plane(0, 0.0) {
                 let parents = mesh.incidence(facet, dimension).unwrap();
                 assert_eq!(parents.len(), 2);
