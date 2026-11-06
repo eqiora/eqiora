@@ -40,12 +40,11 @@ impl Context<'_> {
         if ty.value_type.array_rank() != 0 {
             return None;
         }
-        if let Some(support) = &ty.support {
-            if !matches!(support, eqiora_schema::kernel::typing::SpatialSupport::Volume { dimensions, .. } if *dimensions == self.dimensions)
-                || Some(support) != self.supports.get(self.field)
-            {
-                return None;
-            }
+        if let Some(support) = &ty.support
+            && (!matches!(support, eqiora_schema::kernel::typing::SpatialSupport::Volume { dimensions, .. } if *dimensions == self.dimensions)
+                || Some(support) != self.supports.get(self.field))
+        {
+            return None;
         }
         let shape = ty
             .shape()
