@@ -800,6 +800,8 @@ impl<'a> LiveStaticExecution<'a> {
         let (output, system) = plan
             .admission
             .execute_reauthenticated_linear(backend, fields.as_ref())?;
+        #[cfg(test)]
+        live_tests::capture::record(plan, system.as_ref())?;
         Ok(Self {
             plan,
             initial,

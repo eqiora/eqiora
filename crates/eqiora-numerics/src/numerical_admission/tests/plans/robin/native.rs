@@ -11,7 +11,10 @@ fn output_root() -> PathBuf {
         std::env::var_os("EQIORA_ROBIN_OUTPUT")
             .expect("explicit home-backed new Robin capture directory required"),
     );
-    assert!(root.is_absolute() && root.starts_with(std::env::var_os("HOME").unwrap()));
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap())
+        .canonicalize()
+        .unwrap();
+    assert!(root.is_absolute() && root.starts_with(home));
     assert!(!root.exists(), "preserve earlier candidate attempts");
     std::fs::create_dir_all(root.parent().unwrap()).unwrap();
     std::fs::create_dir(&root).unwrap();
@@ -29,8 +32,29 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
     for (name, inputs) in CASES {
         let directory = root.join(name);
         std::fs::create_dir(&directory).unwrap();
+        let authored = source(inputs);
+        let source_sha = write(&directory.join("model.eqi"), authored.as_bytes());
+        write(
+            &directory.join("case-attempt.json"),
+            &json_bytes(&serde_json::json!({
+                "schema":1,"case":name,"inputs":inputs,"status":"attempt-started",
+                "source_head":source_head,"authored_source_sha256":source_sha,
+                "native_executable_sha256":executable_sha,
+            })),
+        );
         let (model, original) = compile_and_resolve(inputs, &REFERENCE_LINEAR_SOLVER);
+        let model_bytes = model.canonical_json().unwrap();
         let plan_bytes = original.to_bytes().unwrap();
+        let mesh_bytes = original
+            .as_spatial()
+            .unwrap()
+            .admission
+            .authenticated_mesh()
+            .to_bytes()
+            .unwrap();
+        write(&directory.join("model.json"), &model_bytes);
+        write(&directory.join("plan.json"), &plan_bytes);
+        write(&directory.join("mesh.json"), &mesh_bytes);
         let plan = replay_plan(original, &REFERENCE_LINEAR_SOLVER);
         assert_eq!(plan.to_bytes().unwrap(), plan_bytes);
         let spatial = plan.as_spatial().unwrap();
@@ -38,6 +62,10 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
         let (field, ty) = spatial.fields().next().unwrap();
         assert_eq!(spatial.fields().count(), 1);
         assert_eq!(ty.scalar_domain(), eqiora_core::ScalarDomain::Real);
+        assert_eq!(
+            ty.dimension(),
+            DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).unwrap()
+        );
         assert_eq!(
             spatial.field_space(field).unwrap(),
             Space::continuous_lagrange(std::num::NonZeroU16::MIN)
@@ -55,35 +83,31 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
                 [0., length / 2., length]
             );
         }
-        let RecognizedNativeModel::Spatial(equations) = spatial.admission.recognized_model() else {
-            panic!("real scalar equations");
-        };
-        let system = equations
-            .finalize_static(
-                spatial.admission.linear.workers,
-                spatial.linear().clone(),
-                spatial.admission.resources(),
-                &spatial.admission.discretizations,
-                &spatial.admission.system_scaling,
-                RegionAssemblyPolicy {
-                    operator_properties: spatial.admission.operator_properties,
-                    quadrature: spatial.admission.assembly_quadrature(),
-                },
-            )
-            .unwrap();
-        assert_eq!(system.mapping.full_count(), 9);
-        assert_eq!(system.mapping.free_count(), 6);
-        assert_eq!(system.mapping.field_scale(field.erase()).unwrap(), 1.);
-        for (form, rule) in &system.assembly.input.forms {
+        // Capture the exact finalized occurrence returned by the ordinary public Run.
+        let guard = crate::numerical_admission::scalar::live_tests::capture::CaptureGuard::start();
+        let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+        let result_bytes = result.to_bytes().unwrap();
+        write(&directory.join("result.json"), &result_bytes);
+        let capture = guard.finish(); // Disarm before independent artifact/reaction replay.
+        assert_eq!(capture.plan_identity, spatial.identity());
+        assert_eq!(capture.plan_identity, result.plan().identity());
+        assert_eq!(capture.quadrature.len(), 1);
+        assert_eq!(capture.dual_scales.len(), 1);
+        assert_eq!(capture.mapping.full_count(), 9);
+        assert_eq!(capture.mapping.free_count(), 6);
+        assert_eq!(capture.mapping.field_scale(field.erase()).unwrap(), 1.);
+        for rule in &capture.quadrature {
             assert!(rule.polynomial_exactness().unwrap() >= 3);
-            let dual = form.physical_dual_scale(field.erase()).unwrap();
+        }
+        for (owner, dual) in &capture.dual_scales {
+            assert_eq!(*owner, field.erase());
             assert_eq!(dual.value(), 1.);
             assert_eq!(
                 dual.dim(),
                 DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap()
             );
         }
-        let mut keys = system.mapping.keys().collect::<Vec<_>>();
+        let mut keys = capture.mapping.keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 9);
         keys.sort_by(|a, b| {
             let x = mesh.vertex_coordinates(a.entity).unwrap();
@@ -102,19 +126,21 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             .collect::<Vec<_>>();
         assert_eq!(
             keys.iter()
-                .map(|key| system.mapping.global_dof(*key).unwrap())
+                .map(|key| capture.mapping.global_dof(*key).unwrap())
                 .collect::<BTreeSet<_>>()
                 .len(),
             9
         );
         for (i, key) in keys.iter().enumerate() {
             assert_eq!(
-                system.mapping.free_dof(*key).is_none(),
+                capture.mapping.free_dof(*key).is_none(),
                 coordinates[i][0] == 0.
             );
         }
-        let full = &system.assembly.full;
+        let full = &capture.full;
         assert_eq!(full.rhs().len(), 9);
+        assert_eq!(full.matrix().rows(), 9);
+        assert_eq!(full.matrix().columns(), 9);
         let matrix = keys
             .iter()
             .map(|a| {
@@ -123,8 +149,8 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
                         binary64_hex(
                             full.matrix()
                                 .entry(
-                                    system.mapping.global_dof(*a).unwrap(),
-                                    system.mapping.global_dof(*b).unwrap(),
+                                    capture.mapping.global_dof(*a).unwrap(),
+                                    capture.mapping.global_dof(*b).unwrap(),
                                 )
                                 .unwrap(),
                         )
@@ -134,17 +160,9 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             .collect::<Vec<_>>();
         let load = keys
             .iter()
-            .map(|key| binary64_hex(full.rhs()[system.mapping.global_dof(*key).unwrap()]))
+            .map(|key| binary64_hex(full.rhs()[capture.mapping.global_dof(*key).unwrap()]))
             .collect::<Vec<_>>();
-        // Exactly one ordinary solve per fixed case. Matrix/reaction capture reassembles only.
-        let output = system
-            .solve(
-                LinearSolveRequest::<f64>::new(&REFERENCE_LINEAR_SOLVER, spatial.linear().clone()),
-                None,
-            )
-            .unwrap();
-        let result = crate::CommonResult::accept_linear(spatial.clone(), None, 0., output).unwrap();
-        let result_bytes = result.to_bytes().unwrap();
+        // The ordinary Result above owns the same captured live occurrence.
         assert_eq!(
             crate::CommonResult::from_bytes(&result_bytes, &plan)
                 .unwrap()
@@ -177,6 +195,12 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             })
             .collect::<Vec<_>>();
         let recovered = spatial.linear_reactions(values).unwrap();
+        let reaction_scale = recovered.physical_scales[&field.erase()];
+        assert_eq!(reaction_scale.value(), 1.);
+        assert_eq!(
+            reaction_scale.dim(),
+            DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap()
+        );
         let mut reactions = recovered
             .constrained_actions
             .iter()
@@ -205,14 +229,6 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             "units":{"coordinates":"m","A":"W/(m*K)","b":"W/m","coefficients":"K","left_reactions":"W/m","integrated_heat":"W/m","pointwise_heat_flux":"W/m^2"},
             "A_binary64_hex":matrix,"b_binary64_hex":load,"coefficients":records,
             "left_reactions":reaction_records,"heat_convention":"physical_outward_heat=-weak_reaction"});
-        let source = source(inputs);
-        let model_bytes = model.canonical_json().unwrap();
-        let mesh_bytes = spatial.admission.authenticated_mesh().to_bytes().unwrap();
-        write(&directory.join("model.eqi"), source.as_bytes());
-        write(&directory.join("model.json"), &model_bytes);
-        write(&directory.join("plan.json"), &plan_bytes);
-        write(&directory.join("mesh.json"), &mesh_bytes);
-        write(&directory.join("result.json"), &result_bytes);
         let payload_sha = write(&directory.join("robin-input.json"), &json_bytes(&payload));
         let receipt = serde_json::json!({"schema":1,"status":"exported-not-yet-compared","ordinary_solves":1,
             "native_executable_sha256":executable_sha,"source_head":source_head,"producer_source_sha256":digest(include_bytes!("native.rs")),
@@ -220,8 +236,9 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             "mesh_sha256":digest(&mesh_bytes),"result_sha256":digest(&result_bytes),"plan_identity":plan.identity(),
             "model_digest":spatial.model_digest(),"mesh_digest":spatial.mesh_digest(),"result_identity":result.identity(),
             "field_id":field.ulid().to_string(),"coefficient_entities":entities.iter().map(|e|[e.dimension(),e.index()]).collect::<Vec<_>>(),
-            "operator_global_dofs":keys.iter().map(|k|system.mapping.global_dof(*k).unwrap()).collect::<Vec<_>>(),
+            "operator_global_dofs":keys.iter().map(|k|capture.mapping.global_dof(*k).unwrap()).collect::<Vec<_>>(),
             "effective_quadrature":spatial.admission.assembly_quadrature(),"physical_scales":"identity-checked",
+            "captured_live_plan_identity":capture.plan_identity,"ordinary_public_runs":1,
             "physical_outward_left_heat_binary64_hex":binary64_hex(-reactions.iter().map(|(_,v)|v).sum::<f64>())});
         write(
             &directory.join("producer-receipt.json"),

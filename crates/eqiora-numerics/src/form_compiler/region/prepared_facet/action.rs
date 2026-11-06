@@ -40,9 +40,9 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
             residual: self.affine.rhs().iter().map(|value| -*value).collect(),
         };
         for row in 0..count {
-            for column in 0..count {
+            for (column, value) in point.iter().enumerate() {
                 let entry = self.affine.matrix()[row * count + column];
-                action.residual[row] += entry * point[column];
+                action.residual[row] += entry * value;
                 if let Some(weight) = pullback.and_then(|p| p.weight(column, false)) {
                     action.jacobian[row * count + column] += entry * weight;
                 }

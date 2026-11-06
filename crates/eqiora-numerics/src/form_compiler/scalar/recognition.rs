@@ -437,6 +437,12 @@ pub(super) fn recognize_flux(
         &|id| validate_source_expression(dag, id, owner).is_ok(),
     )?;
     let robin = crate::scalar_conservation::affine_robin_terms(dag, &view, field, false)?;
+    // Preserve existing non-Robin recognition and its retained proof inventory.
+    let view = if robin.is_some() {
+        view
+    } else {
+        crate::additive_residual::AdditiveResidualView::derive(dag, *root, owner)?
+    };
     if !(1..=if robin.is_some() { 3 } else { 2 }).contains(&view.leaves().len()) {
         return Ok(None);
     }
