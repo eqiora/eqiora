@@ -51,9 +51,6 @@ impl CommonResult {
     pub(crate) fn accept_live_linear(
         mut live: crate::numerical_admission::LiveStaticExecution<'_>,
     ) -> Result<Self, Diagnostic> {
-        let _acceptance =
-            eqiora_execution::telemetry_span!(backend("scalar_live_acceptance", "scalar_static"))
-                .entered();
         let output = live.take_output()?;
         let execution = crate::numerical_admission::CommonSpatialExecution {
             solve: CommonSolveHistory::Linear(Box::new(CommonSolveEvidence::from_report(
@@ -86,9 +83,6 @@ impl CommonResult {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
         live: Option<&crate::numerical_admission::LiveStaticExecution<'_>>,
     ) -> Result<Self, Diagnostic> {
-        let _packing =
-            eqiora_execution::telemetry_span!(backend("scalar_result_packing", "scalar_static"))
-                .entered();
         require_elapsed(elapsed_seconds)?;
         if let Some(state) = &initial_state {
             plan.static_initial_fields(state)?;
@@ -148,7 +142,6 @@ impl CommonResult {
             .iter()
             .map(|(id, _, values, _)| (id.erase(), values.clone()))
             .collect();
-        drop(_packing);
         let residual = match live {
             Some(live) => live.validate(&values, &execution, nullspace.as_ref())?,
             None => plan.reaccept_static_execution(
@@ -158,11 +151,6 @@ impl CommonResult {
                 &execution,
             )?,
         };
-        let _publication = eqiora_execution::telemetry_span!(backend(
-            "scalar_result_publication",
-            "scalar_static"
-        ))
-        .entered();
         Self::finish_static(
             ResolvedCommonPlan::Spatial(Box::new(plan)),
             CommonResultFamily::Spatial,
