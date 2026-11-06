@@ -334,6 +334,42 @@ The separate native reference case also checks global balance; this comparison
 reports its field-error and solver-policy gates. Qualified runtime measurements
 remain pending; no 3D speed claim is made.
 
+## Three-dimensional timing protocol
+
+This follow-up is declared before enabling 3D benchmark mode or observing its
+timings. It uses the same mathematical controls, independent reference,
+measurement boundaries and memory scopes above. Only the declared 4, 8 and 16
+levels are supported. The current installed wheel must first pass both tools'
+correctness checks at those levels, and its retained producer record must show
+the actual optimized build. Keep the wheel's producer revision separate from
+the harness revision; a declared build-profile argument is not authentication.
+
+The ordinary external comparison is one complete campaign: a fresh process and
+fresh JIT cache for each tool at each level, alternating tool order by level.
+Each process retains one cold execution, one separate diagnostic execution,
+two uninstrumented warmups and seven uninstrumented samples. This is six child
+processes, not the eighteen-campaign baseline/candidate protocol of
+`run_matched.py`. Its seven calls describe within-process spread; they are not
+seven independent process repetitions. Reuse no numerical matrix or Result.
+
+Accuracy and solver-policy checks precede the warmup/sample loop. Required
+assembly and linear-solve diagnostic spans must be present; missing telemetry
+rejects benchmark mode without a subtraction-based replacement. Retain every
+raw sample, cold/preparation/import observation, memory snapshot and failure.
+Report median, range, MAD and process CPU alongside wall time. Internal phase
+definitions remain tool-native: publish no cross-tool phase ratios and do not
+subtract inclusive spans into an invented phase.
+
+Before launch, inspect the selected CPU and its SMT siblings, record thread
+placement, host load and controls, and use a separate physical core for any
+outer supervisor. Keep one worker/thread and one MPI rank, with GPU hidden.
+Do not change global settings or apply an arbitrary utilization pass cutoff.
+The primary measurement supervisor chooses the CPU and retains its monitoring
+records. A failed campaign remains an incomplete attempt; do not select a faster
+retry or stop after a favorable sample. Any additional campaign budget must be
+declared before its observations. Shared-host results remain descriptive and
+establish no stable baseline, general solver ranking or #802 performance target.
+
 The current harness requires matching installed Python APIs for every supplied
 revision. In particular, solver observations now return complete preconditioner
 values and this harness reads their `kind`. Reproduce historical measurements
