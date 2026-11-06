@@ -12,7 +12,7 @@ import statistics
 import sys
 import time
 
-from accuracy import ComparisonError, LEVELS, check_accuracy
+from accuracy import ComparisonError, LEVELS, check_accuracy, declared_levels
 
 ROOT = Path(__file__).resolve().parents[3]
 THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "BLIS_NUM_THREADS")
@@ -58,7 +58,7 @@ def environment(tool, import_seconds):
 def finish(args, tool, prepared, execute, extract, profile):
     """Execute fresh numerical work on retained mesh/forms, not retained systems."""
     report = prepared
-    report.update(tool=tool, cells_per_axis=args.cells, mode=args.mode,
+    report.update(tool=tool, dimension=args.dimension, cells_per_axis=args.cells, mode=args.mode,
                   stable_timing_claim=False, measurement_status=("correctness-only smoke; not performance evidence" if args.mode == "correctness-only"
                                       else "unqualified timing collection; no stable reference-environment claim"))
     result, cold = clock(execute)
@@ -67,10 +67,10 @@ def finish(args, tool, prepared, execute, extract, profile):
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Preserve the actual candidate even if an accuracy/export gate rejects.
     # Hex strings retain non-finite status as valid JSON and finite values exactly.
-    candidate = {"coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
+    candidate = {"dimension": args.dimension, "coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
                  "values_float64_hex": [float(x).hex() for x in values], "solve": solve}
     args.output.with_name("candidate-field.json").write_text(json.dumps(candidate, indent=2, allow_nan=False)+"\n")
-    report["accuracy"] = check_accuracy(coordinates, values, args.cells)
+    report["accuracy"] = check_accuracy(coordinates, values, args.cells, args.dimension)
     report["solve"] = solve
     report["profile"] = profile()
     report["diagnostic_execution"] = {
@@ -110,10 +110,16 @@ def finish(args, tool, prepared, execute, extract, profile):
 def worker_arguments():
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dimension", type=int, choices=(2, 3), default=2)
     parser.add_argument("--cells", type=int, choices=LEVELS, required=True)
     parser.add_argument("--mode", choices=("correctness-only", "benchmark"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--wheel", type=Path)
     parser.add_argument("--revision")
     parser.add_argument("--build-profile")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.cells not in declared_levels(args.dimension):
+        parser.error("mesh level has no declared reference for this dimension")
+    if args.dimension == 3 and args.mode != "correctness-only":
+        parser.error("3D comparison currently supports correctness-only mode")
+    return args
