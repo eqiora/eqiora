@@ -93,6 +93,7 @@ fn resolve_products(
         &REFERENCE_LINEAR_SOLVER,
         None,
         projection.as_ref(),
+        None,
     )
     .unwrap();
     (

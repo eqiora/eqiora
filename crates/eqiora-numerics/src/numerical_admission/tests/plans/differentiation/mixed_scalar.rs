@@ -78,6 +78,7 @@ fn mixed_scalar_fields_share_primal_replay_and_observation_products() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap(),
             &REFERENCE_LINEAR_SOLVER,
@@ -94,6 +95,7 @@ fn mixed_scalar_fields_share_primal_replay_and_observation_products() {
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
             None,
         )

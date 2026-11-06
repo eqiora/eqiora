@@ -313,29 +313,36 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     ));
                 }
                 covered_facets.insert(witness.facet);
-                // Conforming P1/Q1/MINI traces have vertex-supported DOFs only.
-                // Cell bubbles never enter the quotient, even on interface cells.
-                let vertices = if dimension == 1 {
-                    vec![witness.facet]
-                } else {
-                    mesh.incidence(witness.facet, 0)
-                        .ok_or_else(|| invalid("trace has no vertex closure"))?
-                        .into_iter()
-                        .map(|entry| entry.entity)
-                        .collect()
-                };
-                for entity in vertices {
+                let supports = [left, right]
+                    .into_iter()
+                    .zip(witness.sides)
+                    .map(|(layout, side)| {
+                        let space = DiscreteSpace::new(layout.space, reference)?;
+                        let bound = space.bind_cell(mesh, side.entity)?;
+                        Ok(space
+                            .trace_dofs(side.local_ordinal)?
+                            .into_iter()
+                            .map(|local| (bound[local].0, space.local_dofs()[local].slot()))
+                            .collect::<BTreeSet<_>>())
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                if supports[0] != supports[1] {
+                    return Err(invalid(
+                        "conforming trace coefficient inventories differ; no interpolation or dropped midpoint is admitted",
+                    ));
+                }
+                for &(entity, slot) in &supports[0] {
                     for component in 0..left.components {
                         let a = FieldDof {
                             field: left.field,
                             entity,
-                            slot: 0,
+                            slot,
                             component,
                         };
                         let b = FieldDof {
                             field: right.field,
                             entity,
-                            slot: 0,
+                            slot,
                             component,
                         };
                         let first = representative(&representatives, a)?;

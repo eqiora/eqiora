@@ -71,6 +71,7 @@ fn scalar_domains_preserve_cartesian_field_entities_in_two_and_three_dimensions(
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap();
                 let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -192,6 +193,7 @@ fn transient_tpfa_keeps_affine_time_data_on_anisotropic_cartesian_cells() {
                     None,
                     Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
                     &REFERENCE_LINEAR_SOLVER,
+                    None,
                     None,
                     None,
                 )

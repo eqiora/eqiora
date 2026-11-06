@@ -66,11 +66,13 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                 reference,
                 &admission.discretizations,
                 &admission.system_scaling,
+                admission.assembly_quadrature(),
             )?;
             let points_per_axis = NonZeroUsize::new(regions::quadrature_points(
                 reference,
                 &admission.discretizations,
                 &forms,
+                admission.assembly_quadrature(),
             )?)
             .expect("positive Gauss point count");
             let quadrature = if simplex {

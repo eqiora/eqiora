@@ -2,6 +2,60 @@ use super::{CommonFieldAssociation, invalid};
 use eqiora_core::{Diagnostic, ScalarDomain, ValueType};
 use eqiora_realization::{Space, SpaceFamily};
 
+pub(super) type BlockLayout = (CommonFieldAssociation, Vec<usize>);
+
+/// Canonical entity-dimension order is shared by mapping, field recovery and
+/// the existing multi-block Result codec. A nodal cell center is not a bubble.
+pub(super) fn entity_block_layout(
+    space: Space,
+    dimension: usize,
+    entities: &[eqiora_meshing::MeshEntity],
+    value_shape: &[usize],
+) -> Result<Vec<BlockLayout>, Diagnostic> {
+    if entities.is_empty() || entities.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(invalid(
+            "coefficient topology must be nonempty, unique and canonically ordered",
+        ));
+    }
+    let mut blocks = Vec::new();
+    for stratum in 0..=dimension {
+        let count = entities
+            .iter()
+            .filter(|entity| entity.dimension() == stratum)
+            .count();
+        if count == 0 {
+            continue;
+        }
+        let association = if stratum == dimension {
+            if space.family() == SpaceFamily::SimplexP1Bubble {
+                CommonFieldAssociation::CellBubble
+            } else {
+                CommonFieldAssociation::Cell
+            }
+        } else {
+            match stratum {
+                0 => CommonFieldAssociation::Vertex,
+                1 => CommonFieldAssociation::Edge,
+                2 => CommonFieldAssociation::Face,
+                _ => {
+                    return Err(invalid(
+                        "Result has an unsupported coefficient entity stratum",
+                    ));
+                }
+            }
+        };
+        let mut shape = vec![count];
+        shape.extend_from_slice(value_shape);
+        blocks.push((association, shape));
+    }
+    if blocks.iter().map(|(_, shape)| shape[0]).sum::<usize>() != entities.len() {
+        return Err(invalid(
+            "Result coefficient topology has entities outside its mesh dimension",
+        ));
+    }
+    Ok(blocks)
+}
+
 /// Finite coefficients whose scalar-domain width is checked by the owning Field.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonResultFieldBlock {
@@ -60,7 +114,7 @@ impl CommonResultField {
         space: Space,
         blocks: Vec<CommonResultFieldBlock>,
     ) -> Result<Self, Diagnostic> {
-        space_name(space)?;
+        common_space_name(space)?;
         space
             .coefficient_dimension(value_type.dimension())
             .ok_or_else(|| invalid("Result coefficient dimension overflows"))?;
@@ -104,15 +158,21 @@ impl CommonResultField {
     }
     #[must_use]
     pub fn space(&self) -> &str {
-        space_name(self.space).expect("validated Result Space")
+        common_space_name(self.space).expect("validated Result Space")
     }
 }
 
 /// Canonical codec/presentation spelling; numerical meaning stays in Space.
-pub(super) fn space_name(space: Space) -> Result<&'static str, Diagnostic> {
+///
+/// # Errors
+/// Returns a typed diagnostic for a Space without an admitted canonical codec.
+pub fn common_space_name(space: Space) -> Result<&'static str, Diagnostic> {
     match space.family() {
         SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
             Ok("continuous-lagrange-p1")
+        }
+        SpaceFamily::ContinuousLagrange { order } if order.get() == 2 => {
+            Ok("continuous-lagrange-p2")
         }
         SpaceFamily::CellConstant => Ok("cell-constant"),
         SpaceFamily::SimplexP1Bubble => Ok("simplex-p1-bubble"),
@@ -125,6 +185,9 @@ pub(super) fn space_name(space: Space) -> Result<&'static str, Diagnostic> {
 pub(super) fn space_from_name(name: &str) -> Result<Space, Diagnostic> {
     match name {
         "continuous-lagrange-p1" => Ok(Space::continuous_lagrange(std::num::NonZeroU16::MIN)),
+        "continuous-lagrange-p2" => Ok(Space::continuous_lagrange(
+            std::num::NonZeroU16::new(2).expect("quadratic order"),
+        )),
         "cell-constant" => Ok(Space::cell_constant()),
         "simplex-p1-bubble" => Ok(Space::simplex_p1_bubble()),
         "tetrahedral-edge" => Ok(Space::tetrahedral_edge()),
@@ -162,4 +225,69 @@ pub(super) fn model_field_types(
             _ => None,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod quadratic_tests {
+    use super::*;
+    use eqiora_meshing::MeshEntity;
+
+    #[test]
+    fn full_quadratic_blocks_preserve_entity_order_and_distinguish_nodal_centers() {
+        let space = Space::continuous_lagrange(std::num::NonZeroU16::new(2).unwrap());
+        for (dimension, counts, expected) in [
+            (
+                2,
+                vec![4, 4, 1],
+                vec![
+                    CommonFieldAssociation::Vertex,
+                    CommonFieldAssociation::Edge,
+                    CommonFieldAssociation::Cell,
+                ],
+            ),
+            (
+                3,
+                vec![8, 12, 6, 1],
+                vec![
+                    CommonFieldAssociation::Vertex,
+                    CommonFieldAssociation::Edge,
+                    CommonFieldAssociation::Face,
+                    CommonFieldAssociation::Cell,
+                ],
+            ),
+        ] {
+            let entities = counts
+                .iter()
+                .enumerate()
+                .flat_map(|(d, &n)| (0..n).map(move |i| MeshEntity::new(d, i)))
+                .collect::<Vec<_>>();
+            let blocks = entity_block_layout(space, dimension, &entities, &[]).unwrap();
+            assert_eq!(
+                blocks
+                    .iter()
+                    .map(|(association, _)| *association)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                blocks.iter().map(|(_, shape)| shape[0]).collect::<Vec<_>>(),
+                counts
+            );
+            assert!(
+                !blocks
+                    .iter()
+                    .any(|(association, _)| *association == CommonFieldAssociation::CellBubble)
+            );
+            let mut bad = entities.clone();
+            bad.swap(0, 1);
+            assert!(entity_block_layout(space, dimension, &bad, &[]).is_err());
+            let mut bad = entities.clone();
+            bad.push(entities[0]);
+            assert!(entity_block_layout(space, dimension, &bad, &[]).is_err());
+        }
+        assert_eq!(
+            space_from_name(common_space_name(space).unwrap()).unwrap(),
+            space
+        );
+    }
 }

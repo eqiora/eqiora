@@ -143,7 +143,7 @@ fn add_scalar_projection(
             )
         })?;
     let dimension = projection.dimension.exponents();
-    for block in projection.blocks {
+    let blocks = projection.blocks.into_iter().map(|block| {
         let expected = match block.association {
             "vertex" => target.vertex_count,
             "cell" => target.cell_count,
@@ -177,6 +177,10 @@ fn add_scalar_projection(
                 )],
             ));
         }
+        Ok((block, expected))
+    }).collect::<PyResult<Vec<_>>>()?;
+    // Reject unsupported or malformed later blocks before publishing any earlier block.
+    for (block, expected) in blocks {
         let minimum = block.values.iter().copied().fold(f64::INFINITY, f64::min);
         let maximum = block
             .values
@@ -219,4 +223,75 @@ fn add_scalar_projection(
 
 fn unsupported(py: Python<'_>, message: &str) -> PyErr {
     diagnostic_error(py, &[Diagnostic::error(codes::NOT_IMPLEMENTED, message)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::scene::MeshTarget;
+    use super::*;
+
+    fn projection(associations: &[(&'static str, usize)]) -> ScalarProjection {
+        ScalarProjection {
+            identity: "field".to_owned(),
+            mesh_digest: "mesh".to_owned(),
+            model_digest: "model".to_owned(),
+            field_id: "u".to_owned(),
+            observation_digest: None,
+            operator: None,
+            dimension: DimExponents::DIMENSIONLESS,
+            frame: "scalar".to_owned(),
+            space: "continuous-lagrange-p2".to_owned(),
+            blocks: associations
+                .iter()
+                .map(|&(association, count)| ScalarBlock {
+                    association,
+                    values: vec![1.; count],
+                    coefficient_count: count,
+                    logical_count: count,
+                    support_indices: None,
+                })
+                .collect(),
+        }
+    }
+
+    fn builder() -> SceneBuilder {
+        let mut builder = SceneBuilder::default();
+        builder
+            .register_mesh_target(
+                "mesh".to_owned(),
+                MeshTarget {
+                    layer_id: "mesh-layer".to_owned(),
+                    vertex_count: 4,
+                    cell_count: 1,
+                },
+            )
+            .unwrap();
+        builder
+    }
+
+    #[test]
+    fn unsupported_quadratic_blocks_do_not_publish_a_partial_vertex_layer() {
+        Python::initialize();
+        Python::attach(|py| {
+            let mut scene = builder();
+            assert!(
+                add_scalar_projection(
+                    py,
+                    &mut scene,
+                    projection(&[("vertex", 4), ("edge", 4), ("cell", 1)])
+                )
+                .is_err()
+            );
+            assert!(
+                scene.finish().is_err(),
+                "a rejected Q2 layer must leave no vertex-only scene"
+            );
+            let mut scene = builder();
+            assert!(add_scalar_projection(py, &mut scene, projection(&[("vertex", 4)])).is_ok());
+            assert!(
+                scene.finish().is_ok(),
+                "the supported scalar control must still publish"
+            );
+        });
+    }
 }

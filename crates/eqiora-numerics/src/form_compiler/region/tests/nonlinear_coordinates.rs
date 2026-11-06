@@ -216,6 +216,7 @@ model Main() {{domain body=box(0,1);instance physics:Equation(body=body,response
                             C::new(0., 0.)
                         }])
                     },
+                    None,
                 )
                 .unwrap();
             let projected = prepared.project::<Real>().unwrap();

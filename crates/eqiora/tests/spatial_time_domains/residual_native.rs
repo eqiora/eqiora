@@ -43,6 +43,7 @@ fn residual_native_spatial_constraints_keep_the_physical_branch_and_replay() {
             &REFERENCE_LINEAR_SOLVER,
             Some(IdaTimeBackend::CAPABILITIES),
             None,
+            None,
         )
         .unwrap();
         let bytes = plan.to_bytes().unwrap();
@@ -162,6 +163,7 @@ fn residual_native_complex_constraints_follow_the_half_angle_branch() {
             &REFERENCE_LINEAR_SOLVER,
             Some(IdaTimeBackend::CAPABILITIES),
             None,
+            None,
         )
         .unwrap();
         let initial = plan
@@ -250,6 +252,7 @@ fn residual_native_prescribed_acceleration_completes_algebraic_initial_rates() {
         &REFERENCE_LINEAR_SOLVER,
         Some(IdaTimeBackend::CAPABILITIES),
         document.authored_formulation_projection().unwrap(),
+        None,
     )
     .unwrap();
     let initial = plan

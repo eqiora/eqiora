@@ -165,21 +165,8 @@ fn materialize_common_result_unprofiled(
             .iter()
             .map(|extent| extent.get() as usize)
             .collect::<Vec<_>>();
-        use eqiora::realization::SpaceFamily;
-        let space = match typed_space.family() {
-            SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
-                "continuous-lagrange-p1"
-            }
-            SpaceFamily::CellConstant => "cell-constant",
-            SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
-            SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
-            SpaceFamily::TetrahedralFace => "tetrahedral-face",
-            _ => {
-                return Err(PyRuntimeError::new_err(
-                    "common Result Field declared an unknown exact space",
-                ));
-            }
-        };
+        let space = eqiora_numerics::common_space_name(typed_space)
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
         let field = Py::new(
             py,
             PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),

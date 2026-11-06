@@ -50,6 +50,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

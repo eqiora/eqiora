@@ -146,6 +146,7 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, String> {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .map_err(|error| error.to_string())
 }

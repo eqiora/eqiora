@@ -746,6 +746,7 @@ fn plan_for(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap()
     .as_spatial()

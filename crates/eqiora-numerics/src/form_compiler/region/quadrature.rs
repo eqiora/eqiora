@@ -4,30 +4,51 @@ use eqiora_meshing::ReferenceCellFamily;
 use eqiora_realization::SpaceFamily;
 
 impl<S: Coefficient> BoundRegionForm<S> {
+    /// Retain one admitted rule for volume and authenticated facet preparation.
+    pub(crate) fn with_assembly_points(mut self, points: usize) -> Result<Self, Diagnostic> {
+        if points < self.minimum_gauss_points() {
+            return Err(invalid(
+                "assembly quadrature underintegrates the bound polynomial form",
+            ));
+        }
+        self.assembly_points = Some(points);
+        Ok(self)
+    }
+
+    pub(crate) fn retained_assembly_points(&self) -> Option<usize> {
+        self.assembly_points
+    }
+
     /// Degree of the basis products in the bound weak residual and Jacobian.
     pub(super) fn required_polynomial_exactness(&self) -> usize {
-        let constant = self
+        let maximum_basis = self
             .fields
             .iter()
-            .all(|layout| layout.space.family() == SpaceFamily::CellConstant);
-        let mut exactness = if constant {
+            .map(|field| self.field_basis_degree(field.field))
+            .max()
+            .unwrap_or(0);
+        let mut exactness = if maximum_basis == 0 {
             0
+        } else if maximum_basis == 1 {
+            if self.reference.family() == ReferenceCellFamily::Hypercube {
+                3
+            } else {
+                2
+            }
         } else if self
             .fields
             .iter()
-            .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
+            .any(|field| field.space.family() == SpaceFamily::SimplexP1Bubble)
         {
             2 * (self.form.dimension + 1)
-        } else if self.reference.family() == ReferenceCellFamily::Hypercube {
-            3
         } else {
-            2
+            0
         };
         if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
-            let degree = if self
+            let floor = if self
                 .fields
                 .iter()
-                .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
+                .any(|field| field.space.family() == SpaceFamily::SimplexP1Bubble)
             {
                 3 * (self.form.dimension + 1) - 1
             } else if self.reference.family() == ReferenceCellFamily::Hypercube {
@@ -35,26 +56,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
             } else {
                 2
             };
-            exactness = exactness.max(degree);
+            exactness = exactness.max(floor);
         }
-        let simplex = self.reference.family() == ReferenceCellFamily::Simplex;
-        let basis = if constant {
-            0
-        } else if self
-            .fields
-            .iter()
-            .any(|field| field.space.family() == SpaceFamily::SimplexP1Bubble)
-        {
-            self.form.dimension + 1
-        } else {
-            1usize
-        };
-        let gradient = if simplex || self.form.dimension == 1 {
-            basis.saturating_sub(1)
-        } else {
-            basis
-        };
         for row in &self.form.rows {
+            let basis = self.field_basis_degree(row.tested);
+            let gradient = self.field_gradient_degree(row.tested);
             let mut include = |data: &super::Data<S>, basis_degree: usize| {
                 if let Some(degree) = data.polynomial_degree() {
                     exactness = exactness.max(degree.saturating_add(basis_degree));
@@ -66,34 +72,49 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 include(data, basis);
             }
             for term in &row.terms {
+                let trial_basis = self.field_basis_degree(term.trial);
+                let trial_gradient = self.field_gradient_degree(term.trial);
                 let product = match term.pairing {
-                    super::Pairing::Value => 2 * basis,
+                    super::Pairing::Value => basis + trial_basis,
                     super::Pairing::Components { test, trial } => {
-                        let degree = |component: crate::form_compiler::bilinear::BasisComponent| {
+                        let degree = |component: crate::form_compiler::bilinear::BasisComponent,
+                                      value,
+                                      derivative| {
                             if component.requires_gradient() {
-                                gradient
+                                derivative
                             } else {
-                                basis
+                                value
                             }
                         };
-                        degree(test) + degree(trial)
+                        degree(test, basis, gradient) + degree(trial, trial_basis, trial_gradient)
                     }
                     super::Pairing::Gradient
                     | super::Pairing::SymmetricGradient
                     | super::Pairing::Curl
-                    | super::Pairing::Divergence => 2 * gradient,
+                    | super::Pairing::Divergence => gradient + trial_gradient,
                     super::Pairing::TestGradientTrialValue(_)
-                    | super::Pairing::SkewGradient(_)
-                    | super::Pairing::TestDivergenceTrialValue
-                    | super::Pairing::TestValueTrialDivergence => basis + gradient,
+                    | super::Pairing::TestDivergenceTrialValue => gradient + trial_basis,
+                    super::Pairing::TestValueTrialDivergence => basis + trial_gradient,
+                    super::Pairing::SkewGradient(_) => {
+                        (gradient + trial_basis).max(basis + trial_gradient)
+                    }
                 };
                 include(&term.coefficient, product);
             }
             for term in &row.dyadics {
-                include(&term.coefficient, 2 * basis + gradient);
+                include(
+                    &term.coefficient,
+                    2 * self.field_basis_degree(term.field) + gradient,
+                );
             }
             for term in &row.components {
-                if let Some(degree) = term.value.polynomial_degree(basis, gradient) {
+                if let Some(degree) = term.value.polynomial_degree(|field, derivative| {
+                    if derivative {
+                        self.field_gradient_degree(field)
+                    } else {
+                        self.field_basis_degree(field)
+                    }
+                }) {
                     include(
                         &term.coefficient,
                         degree.saturating_add(if term.test.requires_gradient() {
@@ -113,6 +134,32 @@ impl<S: Coefficient> BoundRegionForm<S> {
             }
         }
         exactness
+    }
+
+    pub(super) fn field_basis_degree(&self, field: eqiora_core::RawId) -> usize {
+        let field = self.eliminations.get(&field).copied().unwrap_or(field);
+        match self
+            .fields
+            .iter()
+            .find(|layout| layout.field == field)
+            .expect("bound Field degree")
+            .space
+            .family()
+        {
+            SpaceFamily::CellConstant => 0,
+            SpaceFamily::ContinuousLagrange { order } => usize::from(order.get()),
+            SpaceFamily::SimplexP1Bubble => self.form.dimension + 1,
+            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace => 1,
+        }
+    }
+
+    fn field_gradient_degree(&self, field: eqiora_core::RawId) -> usize {
+        let basis = self.field_basis_degree(field);
+        if self.reference.family() == ReferenceCellFamily::Simplex || self.form.dimension == 1 {
+            basis.saturating_sub(1)
+        } else {
+            basis
+        }
     }
 
     /// Gauss points per axis covering the same degree checked during preparation.

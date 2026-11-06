@@ -50,6 +50,7 @@ fn assemble(
         mesh,
         &selected,
         &eqiora_realization::SystemScaling::Dimensional,
+        None,
     )?;
     for (_, rule) in &mut input.forms {
         *rule = quadrature.clone();

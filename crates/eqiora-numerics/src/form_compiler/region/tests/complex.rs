@@ -320,6 +320,7 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
                 (&facet, incidence, &[side]),
                 &QuadratureRule::point(),
                 |_, normal| Ok(vec![C::new(2., -4.) * normal[0]]),
+                None,
             )
             .unwrap();
         complex_close(contribution.rhs()[side], C::new(2., -4.) * sign);

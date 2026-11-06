@@ -87,10 +87,13 @@ impl RecognizedNativeAdmission {
             &self.resources,
             &selected,
             scaling,
-            if fields.is_some() {
-                LinearOperatorProperties::General
-            } else {
-                properties
+            RegionAssemblyPolicy {
+                operator_properties: if fields.is_some() {
+                    LinearOperatorProperties::General
+                } else {
+                    properties
+                },
+                quadrature: self.assembly_quadrature,
             },
         )?;
         let prepared = if let Some(fields) = fields
@@ -221,7 +224,10 @@ impl RecognizedNativeAdmission {
             &self.resources,
             &selected,
             scaling,
-            LinearOperatorProperties::General,
+            RegionAssemblyPolicy {
+                operator_properties: LinearOperatorProperties::General,
+                quadrature: self.assembly_quadrature,
+            },
         )?;
         let coordinates = crate::region_assembly::mapping::RegionRealCoordinates::new(&mapping)?;
         Ok(eqiora_solver::SolverPlanningSize::dense_bound(
@@ -246,7 +252,12 @@ impl RecognizedNativeAdmission {
                 RecognizedNativeModel::ComplexSpatial(equations),
                 NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(None),
             ) => equations
-                .assemble_real_static(&self.resources, &self.discretizations(spatial)?, scaling)?
+                .assemble_real_static(
+                    &self.resources,
+                    &self.discretizations(spatial)?,
+                    scaling,
+                    self.assembly_quadrature,
+                )?
                 .scalar_domain(),
             (RecognizedNativeModel::ComplexSpatial(_), _) => Ok(eqiora_core::ScalarDomain::Complex),
             _ => Ok(eqiora_core::ScalarDomain::Real),

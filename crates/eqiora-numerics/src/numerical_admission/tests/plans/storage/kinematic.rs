@@ -41,6 +41,7 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

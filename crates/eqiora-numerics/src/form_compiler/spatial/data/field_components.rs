@@ -139,8 +139,7 @@ impl<S: Coefficient> FieldComponent<S> {
 
     pub(in crate::form_compiler) fn polynomial_degree(
         &self,
-        value_degree: usize,
-        gradient_degree: usize,
+        field_degree: impl Fn(RawId, bool) -> usize,
     ) -> Option<usize> {
         self.rows.iter().try_fold(0, |degree, row| {
             let inputs = row
@@ -152,11 +151,10 @@ impl<S: Coefficient> FieldComponent<S> {
                         let column = self.columns.iter().find(|column| {
                             column.real == Some(index) || column.imaginary == Some(index)
                         })?;
-                        Some(if column.component.requires_gradient() {
-                            gradient_degree
-                        } else {
-                            value_degree
-                        })
+                        Some(field_degree(
+                            column.field,
+                            column.component.requires_gradient(),
+                        ))
                     } else {
                         self.bindings
                             .iter()

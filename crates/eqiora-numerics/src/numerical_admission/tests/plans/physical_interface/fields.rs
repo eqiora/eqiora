@@ -83,6 +83,7 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
                 &ResolveOnlyBackend,
                 None,
                 Some(&projection),
+                None,
             )
             .unwrap();
             assert_eq!(

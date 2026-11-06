@@ -68,6 +68,7 @@ fn planar_vector_traces_preserve_every_component() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
@@ -182,6 +183,7 @@ fn planar_vector_traces_preserve_every_component() {
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap_err();
                 assert!(error.message().contains(expected), "{error:?}");
@@ -195,6 +197,7 @@ fn planar_vector_traces_preserve_every_component() {
                 Some(request.clone()),
                 None,
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
                 None,
             )
@@ -288,6 +291,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let admission = &resolved.as_spatial().unwrap().admission;
@@ -322,7 +326,8 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
                 .bind_spaces(
                     reference,
                     &[],
-                    &eqiora_realization::SystemScaling::Dimensional
+                    &eqiora_realization::SystemScaling::Dimensional,
+                    None
                 )
                 .is_err()
         );
@@ -331,7 +336,8 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
                 .bind_spaces(
                     reference,
                     &[selected[0].clone(), selected[0].clone()],
-                    &eqiora_realization::SystemScaling::Dimensional
+                    &eqiora_realization::SystemScaling::Dimensional,
+                    None
                 )
                 .is_err()
         );
@@ -360,6 +366,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
                 mesh,
                 &selected,
                 &eqiora_realization::SystemScaling::Dimensional,
+                None,
             )
             .unwrap();
         let output = mapping

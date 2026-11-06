@@ -47,6 +47,7 @@ pub(crate) enum CommonFieldAssociation {
 }
 
 mod fields;
+pub use fields::common_space_name;
 use fields::{CommonResultField, CommonResultFieldBlock};
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

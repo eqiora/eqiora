@@ -31,6 +31,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
     };
     let plan = resolve(CommonSpatialPolicy::Q1, exact.clone()).unwrap();
@@ -237,6 +238,7 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap();
                 let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -294,7 +296,8 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                                 }
                             }
                         }
-                        let resealed = super::result_replay::reseal_values(&result, 0, &changed);
+                        let resealed =
+                            super::result_replay::reseal_block_values(&result, 0, 0, &changed);
                         let error = crate::CommonResult::from_bytes(&resealed, &plan).unwrap_err();
                         assert!(
                             error.message().contains("residual")

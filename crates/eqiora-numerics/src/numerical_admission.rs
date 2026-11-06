@@ -99,6 +99,7 @@ pub enum CommonSpatialPolicy {
     TetrahedralEdge,
     TetrahedralFace,
     Q1,
+    Q2,
     P1,
     CellCenteredTpfa,
     MiniP1,
@@ -834,6 +835,7 @@ mod resolved;
 mod scalar;
 pub(super) use scalar::ExecutableSpatialEquations;
 pub(crate) use scalar::LiveStaticExecution;
+use scalar::RegionAssemblyPolicy;
 pub(crate) mod solver_planning;
 mod spatial_planning;
 mod state;

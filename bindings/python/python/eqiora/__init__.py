@@ -424,6 +424,7 @@ def resolve(
     scaling=None,
     temporal=None,
     enforcement=None,
+    quadrature=None,
 ) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
 
@@ -436,6 +437,7 @@ def resolve(
         scaling=scaling,
         temporal=temporal,
         enforcement=enforcement,
+        quadrature=quadrature,
     )
 
 

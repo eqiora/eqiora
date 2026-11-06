@@ -72,8 +72,10 @@ fn steady_dyadic_transport_uses_newton_without_backward_euler() {
     let (_, values, _) = result.field_block(0, 0).unwrap();
     let mut changed = values.to_vec();
     changed[8] += 0.25;
-    let error =
-        crate::CommonResult::from_bytes(&result_replay::reseal_values(&result, 0, &changed), &plan)
-            .unwrap_err();
+    let error = crate::CommonResult::from_bytes(
+        &result_replay::reseal_block_values(&result, 0, 0, &changed),
+        &plan,
+    )
+    .unwrap_err();
     assert!(error.message().contains("residual"), "{error:?}");
 }

@@ -25,7 +25,7 @@ pub(crate) fn validate_resources(
             resources @ NativeMeshResources::Cartesian { .. },
         ) if request
             .policies()
-            .all(|policy| policy == CommonSpatialPolicy::Q1) =>
+            .all(|policy| matches!(policy, CommonSpatialPolicy::Q1 | CommonSpatialPolicy::Q2)) =>
         {
             validate_cartesian_resources(resources)
         }

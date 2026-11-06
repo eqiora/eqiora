@@ -52,6 +52,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
                     &recognized.resources,
                     &selected,
                     &eqiora_realization::SystemScaling::Dimensional,
+                    None,
                 )
                 .unwrap()
                 .finalize_real(NonZeroUsize::MIN, solver.clone())
@@ -147,6 +148,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
             None,
         )

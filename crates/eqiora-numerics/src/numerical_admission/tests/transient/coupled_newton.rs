@@ -132,6 +132,7 @@ fn resolve_with_boundary(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     replay_plan(plan, &REFERENCE_LINEAR_SOLVER)

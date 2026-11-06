@@ -54,6 +54,10 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         Ok(())
     }
 
+    pub(crate) fn polynomial_degree(&self) -> Option<usize> {
+        self.datum.polynomial_degree()
+    }
+
     pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         self.datum.evaluate(point, normal)
     }

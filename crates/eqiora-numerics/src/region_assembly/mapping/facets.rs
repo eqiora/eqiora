@@ -11,6 +11,7 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
     facet: MeshEntity,
     parent: EntityIncidence,
     datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+    datum_degree: Option<usize>,
 ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
     let cell = mesh
         .geometry_map(parent.entity)
@@ -37,8 +38,9 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
         field,
         &cell,
         (&geometry, parent, &positions),
-        &form.natural_facet_quadrature(field)?,
+        &form.natural_facet_quadrature(field, datum_degree)?,
         datum,
+        datum_degree,
     )
 }
 
@@ -73,10 +75,15 @@ pub(crate) fn prepare_interface_facets<'mesh, 'form, S: Coefficient + 'form>(
             }
             for witness in &trace.facets {
                 let parent = witness.sides[side];
-                let facet =
-                    prepare_mesh_facet(mesh, form, field, witness.facet, parent, |_, _| {
-                        Ok(vec![<S as From<f64>>::from(0.); layout.components])
-                    })?;
+                let facet = prepare_mesh_facet(
+                    mesh,
+                    form,
+                    field,
+                    witness.facet,
+                    parent,
+                    |_, _| Ok(vec![<S as From<f64>>::from(0.); layout.components]),
+                    Some(0),
+                )?;
                 result.push((parent.entity.index(), facet));
             }
         }

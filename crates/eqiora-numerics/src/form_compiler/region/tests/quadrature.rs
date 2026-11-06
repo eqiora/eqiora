@@ -1,4 +1,61 @@
 use super::*;
+use eqiora_meshing::QuadratureRule;
+
+#[test]
+fn quadratic_diffusion_and_mass_use_the_actual_bound_basis_degree() {
+    let quadratic = Space::continuous_lagrange(std::num::NonZeroU16::new(2).unwrap());
+    for dimension in [2, 3] {
+        let bounds = if dimension == 2 {
+            "0,1,0,1"
+        } else {
+            "0,1,0,1,0,1"
+        };
+        // A reaction-diffusion residual keeps u an unknown Field; a standalone
+        // algebraic equality is correctly classified as prescribed data.
+        for (equation, simplex_degree) in [
+            ("-div(grad(u))=1[K/m^2]", 2),
+            ("-div(grad(u))+u/1[m^2]=1[K/m^2]", 4),
+        ] {
+            let form = derive_dimension(&format!("model Quadratic() {{ domain body=box({bounds}); variable u:K on body in h1; relation balance on body {{ {equation}; }} }}"), dimension).unwrap();
+            let (fields, rows) = form.si_bindings(|_| Ok(quadratic)).unwrap();
+            for reference in [
+                ReferenceCell::simplex(dimension).unwrap(),
+                ReferenceCell::hypercube(dimension).unwrap(),
+            ] {
+                let bound = form.bind(reference, &fields, &rows, None).unwrap();
+                let expected = if reference.family() == eqiora_meshing::ReferenceCellFamily::Simplex
+                {
+                    simplex_degree
+                } else {
+                    4
+                };
+                assert_eq!(bound.required_polynomial_exactness(), expected);
+                let n = bound.minimum_gauss_points();
+                if reference.family() == eqiora_meshing::ReferenceCellFamily::Hypercube {
+                    assert_eq!(n, 3);
+                }
+                let map = AffineGeometryMap::new(
+                    reference,
+                    dimension,
+                    vec![0.; dimension],
+                    (0..dimension * dimension)
+                        .map(|i| f64::from(i / dimension == i % dimension))
+                        .collect(),
+                )
+                .unwrap();
+                let rule = |n| {
+                    if reference.family() == eqiora_meshing::ReferenceCellFamily::Simplex {
+                        simplex_duffy_gauss_legendre(dimension, n).unwrap()
+                    } else {
+                        QuadratureRule::tensor_product_gauss_legendre(dimension, n).unwrap()
+                    }
+                };
+                assert!(bound.prepare_cell(&map, &rule(n)).is_ok());
+                assert!(bound.prepare_cell(&map, &rule(n - 1)).is_err());
+            }
+        }
+    }
+}
 
 #[test]
 fn constant_basis_keeps_the_polynomial_data_degree() {

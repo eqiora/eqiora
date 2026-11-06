@@ -66,6 +66,7 @@ fn accepted_step_parameter_products_hold_physical_history_fixed() {
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap();
                 let plan = resolved.as_spatial().unwrap();

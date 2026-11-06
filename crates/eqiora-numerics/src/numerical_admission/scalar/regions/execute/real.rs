@@ -29,10 +29,19 @@ impl ExecutableSpatialEquations<C> {
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<RealStaticAssembly, Diagnostic> {
         // A real-linear map makes no complex symmetry or definiteness promise.
         let properties = LinearOperatorProperties::General;
-        let (mapping, input) = self.static_assembly(resources, selected, scaling, properties)?;
+        let (mapping, input) = self.static_assembly(
+            resources,
+            selected,
+            scaling,
+            RegionAssemblyPolicy {
+                operator_properties: properties,
+                quadrature,
+            },
+        )?;
         let coordinates = RegionRealCoordinates::new(&mapping)?;
         let (reduced, full, report) = match resources {
             NativeMeshResources::Cartesian { mesh, .. } => {
@@ -61,8 +70,9 @@ impl ExecutableSpatialEquations<C> {
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<StaticSpatialSystem<C>, Diagnostic> {
-        self.assemble_real_static(resources, selected, scaling)?
+        self.assemble_real_static(resources, selected, scaling, quadrature)?
             .finalize(workers, solver)
     }
 }

@@ -234,6 +234,7 @@ pub(super) enum RecognizedNativeModel {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct RecognizedNativeAdmission {
     /// Explicit formulation choices, replayed before automatic role derivation.
+    pub(super) assembly_quadrature: Option<eqiora_realization::QuadraturePolicy>,
     pub(super) equation_tests: BTreeMap<eqiora_core::RawId, eqiora_core::RawId>,
     pub(super) model: ModelEnvelope,
     pub(super) model_digest: String,
@@ -368,11 +369,12 @@ impl RecognizedNativeAdmission {
             elasticity,
             resources,
             model_geometries: owner.model_geometries,
+            assembly_quadrature: None,
         })
     }
 
     pub(super) fn complete(
-        self,
+        mut self,
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
         temporal: Option<CommonTemporalPolicy>,
@@ -413,6 +415,13 @@ impl RecognizedNativeAdmission {
             &linear,
             self.numerical_scalar_domain(&spatial, &system_scaling, nonlinear, temporal.as_ref())?,
         )?;
+        if self.assembly_quadrature.is_some()
+            && !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
+        {
+            return Err(invalid(
+                "assembly quadrature override requires finite-element realization",
+            ));
+        }
         let discretizations = self.discretizations(&spatial)?;
         if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
             match &self.recognized {
@@ -438,12 +447,37 @@ impl RecognizedNativeAdmission {
                 }
             }
         }
+        if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
+            self.assembly_quadrature = Some(match &self.recognized {
+                RecognizedNativeModel::Spatial(equations) => equations.assembly_quadrature_policy(
+                    &self.resources,
+                    &discretizations,
+                    &system_scaling,
+                    temporal.as_ref(),
+                    self.assembly_quadrature,
+                )?,
+                RecognizedNativeModel::ComplexSpatial(equations) => equations
+                    .assembly_quadrature_policy(
+                        &self.resources,
+                        &discretizations,
+                        &system_scaling,
+                        temporal.as_ref(),
+                        self.assembly_quadrature,
+                    )?,
+                _ => {
+                    return Err(invalid(
+                        "assembly quadrature requires scalar finite-element equations",
+                    ));
+                }
+            });
+        }
         let policy_identity = policy_identity(
             &spatial,
             &linear,
             temporal.as_ref(),
             time_backend,
             nonlinear,
+            self.assembly_quadrature,
         )?;
         Ok(NativeNumericalAdmission {
             recognition: self,
@@ -557,14 +591,15 @@ impl NativeNumericalAdmission {
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
         #[cfg(test)]
         ADMISSION_REPLAYS.with(|count| count.set(count.get() + 1));
-        let replayed = RecognizedNativeAdmission::recognize(
+        let mut recognized = RecognizedNativeAdmission::recognize(
             self.model(),
             self.authenticated_mesh(),
             &self.spatial.request(),
             self.temporal.as_ref().map(|_| 0.),
             &self.recognition.equation_tests,
-        )?
-        .complete(
+        )?;
+        recognized.assembly_quadrature = self.assembly_quadrature();
+        let replayed = recognized.complete(
             self.spatial.clone(),
             self.linear.clone(),
             self.temporal.clone(),
@@ -590,6 +625,10 @@ impl NativeNumericalAdmission {
 
     pub(super) const fn program(&self) -> &KernelProgram {
         &self.recognition.program
+    }
+
+    pub(super) const fn assembly_quadrature(&self) -> Option<eqiora_realization::QuadraturePolicy> {
+        self.recognition.assembly_quadrature
     }
 
     pub(super) const fn recognized_model(&self) -> &RecognizedNativeModel {
@@ -760,7 +799,10 @@ impl NativeNumericalAdmission {
                 self.resources(),
                 &self.discretizations,
                 &self.system_scaling,
-                self.operator_properties,
+                RegionAssemblyPolicy {
+                    operator_properties: self.operator_properties,
+                    quadrature: self.assembly_quadrature(),
+                },
             )?;
             let output = system.solve(solve, initial)?;
             return Ok((output, Some(system)));
@@ -771,7 +813,10 @@ impl NativeNumericalAdmission {
             self.resources(),
             &self.discretizations,
             &self.system_scaling,
-            LinearOperatorProperties::Symmetric,
+            RegionAssemblyPolicy {
+                operator_properties: LinearOperatorProperties::Symmetric,
+                quadrature: self.assembly_quadrature(),
+            },
         )?;
         let reference = lowered.mean_reference(self.resources(), &system.mapping)?;
         system

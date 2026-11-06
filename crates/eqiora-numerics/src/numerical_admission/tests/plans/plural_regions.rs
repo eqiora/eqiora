@@ -126,6 +126,7 @@ fn chain_plan(model: &ModelEnvelope, count: usize) -> Result<ResolvedCommonPlan,
         &ResolveOnlyBackend,
         None,
         None,
+        None,
     )
 }
 
@@ -391,7 +392,10 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
-            plan.admission.operator_properties,
+            RegionAssemblyPolicy {
+                operator_properties: plan.admission.operator_properties,
+                quadrature: None,
+            },
         )
         .and_then(|system| {
             system.solve(
@@ -461,6 +465,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
             None,
             None,
             supplied,
+            None,
             None,
             None,
         )

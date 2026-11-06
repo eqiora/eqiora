@@ -6,8 +6,9 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         envelope: &SimplicialMeshEnvelopeV1,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
-        self.simplicial_assembly_at(envelope, selected, scaling, None)
+        self.simplicial_assembly_at(envelope, selected, scaling, None, quadrature)
     }
 
     pub(in crate::numerical_admission) fn simplicial_assembly_at(
@@ -16,13 +17,14 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
         self.simplicial_assembly_with_boundary(envelope, selected, scaling, state, |_, law, value| {
             if law.trace_field.is_some_and(|field| field != law.tested) {
                 return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
             }
             Ok(Some(value))
-        })
+        }, quadrature)
     }
 
     pub(in crate::numerical_admission) fn simplicial_assembly_with_boundary(
@@ -36,6 +38,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
             S,
         ) -> Result<Option<S>, Diagnostic>,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
         let current = state
             .map(|state| state.reconstruct_mesh(envelope.mesh()))
@@ -102,8 +105,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             }
         }
         let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
-        let bound = self.bind_spaces(reference, selected, scaling)?;
-        let points = super::super::quadrature_points(reference, selected, &bound)?;
+        let bound = self.bind_spaces(reference, selected, scaling, quadrature)?;
+        let points = super::super::quadrature_points(reference, selected, &bound, quadrature)?;
         let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)?;
         // Binding checks the differential/Space pairing and every boundary law.
         // Only authenticated homogeneous natural laws permit an empty facet load.
@@ -130,18 +133,37 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                             continue;
                         };
                         for &facet in facets {
-                            let vertices = mesh.entity_vertices(facet).expect("facet vertices");
+                            let parents = mesh.incidence(facet, dimension).expect("facet parents");
+                            let [parent] = parents.as_slice() else {
+                                return Err(invalid(
+                                    "simplicial boundary requires exactly one owned parent",
+                                ));
+                            };
+                            if domains[parent.entity.index()] != region.form.domain() {
+                                return Err(invalid(
+                                    "simplicial boundary parent differs from its Region",
+                                ));
+                            }
                             if law.quantity == PhysicalBoundaryQuantity::Trace {
-                                for vertex in vertices {
-                                    for (component, value) in law
-                                        .evaluate(&mesh.vertices()[vertex.index()], &[])?
-                                        .into_iter()
-                                        .enumerate()
+                                let layout = form
+                                    .fields()
+                                    .iter()
+                                    .find(|layout| layout.field == *field)
+                                    .ok_or_else(|| invalid("essential Field has no bound space"))?;
+                                let space = crate::discrete_space::DiscreteSpace::new(
+                                    layout.space,
+                                    reference,
+                                )?;
+                                for (entity, slot, point) in
+                                    space.facet_interpolation_points(mesh, *parent)?
+                                {
+                                    for (component, value) in
+                                        law.evaluate(&point, &[])?.into_iter().enumerate()
                                     {
                                         let key = FieldDof {
                                             field: *field,
-                                            entity: vertex,
-                                            slot: 0,
+                                            entity,
+                                            slot,
                                             component,
                                         };
                                         let Some(value) = boundary_value(key, law, value)? else {
@@ -154,18 +176,6 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                     }
                                 }
                             } else {
-                                let parents =
-                                    mesh.incidence(facet, dimension).expect("facet parents");
-                                let [parent] = parents.as_slice() else {
-                                    return Err(invalid(
-                                        "simplicial boundary requires exactly one owned parent",
-                                    ));
-                                };
-                                if domains[parent.entity.index()] != region.form.domain() {
-                                    return Err(invalid(
-                                        "simplicial boundary parent differs from its Region",
-                                    ));
-                                }
                                 natural.push((
                                     parent.entity.index(),
                                     crate::region_assembly::mapping::prepare_mesh_facet(
@@ -175,6 +185,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                         facet,
                                         *parent,
                                         |point, normal| law.evaluate(point, normal),
+                                        law.polynomial_degree(),
                                     )?,
                                 ));
                             }

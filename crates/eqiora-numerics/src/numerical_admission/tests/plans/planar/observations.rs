@@ -50,6 +50,7 @@ fn planar_storage_observations_select_exact_sparse_outputs() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let spatial = plan.as_spatial().unwrap();
@@ -197,6 +198,7 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
             None,
             Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
             None,
         )

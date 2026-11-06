@@ -124,6 +124,7 @@ fn independent_rate_parameter_action_retains_time_dependent_trace_lifts() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let plan = resolved.as_spatial().unwrap();

@@ -19,15 +19,23 @@ Finite-element discretization policies.
 from eqiora import fem
 
 scalar_method = fem.Q1()
+quadratic_scalar_method = fem.Q2()
+quadrature = fem.GaussLegendre(4)
 flow_method = fem.MiniP1()
 print(scalar_method.space)
 print(flow_method.velocity_space, flow_method.pressure_space)
 ```
 
 `Q1` selects continuous tensor-product elements for Cartesian scalar and
-elasticity problems. `MiniP1` selects the mixed velocity/pressure spaces for
+elasticity problems. `Q2` selects full quadratic elements for static linear
+scalar problems on affine Cartesian quads/hexes. It does not curve the geometry;
+its complete coefficient blocks include nonvertex nodes. `MiniP1` selects the mixed velocity/pressure spaces for
 triangular Stokes problems. Pass the matching policy as `spatial=` to
 `eqiora.resolve`; complete setups are in [modeling](/guides/modeling/).
+Pass `quadrature=quadrature` to control assembly explicitly. Full Q2 defaults to
+at least four points per axis; nonpolynomial accuracy still needs a separate
+study. Insufficient polynomial rules reject. The effective rule is retained in
+the serialized Plan and used again on replay.
 
 ## API
 
@@ -87,6 +95,34 @@ class Q1:
     def method(self) -> str: ...
     @property
     def space(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-Q2"></a>
+
+## `Q2`
+
+Full tensor-product Q2 scalar Galerkin policy on affine quads and hexes.
+
+The ordinary path supports static linear real or complex scalar Fields in
+two or three dimensions. Geometry stays affine and linear; interpolation
+coefficients are stored on vertices, edges, faces where present, and cells.
+Cell-center coefficients are nodal values, not hierarchical bubbles.
+Vector, transient and nonlinear Q2 requests are rejected. Point sampling and
+derived Observable reconstruction remain limited to their admitted spaces;
+unsupported requests reject instead of selecting only vertex coefficients.
+
+```python
+@final
+class Q2:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...

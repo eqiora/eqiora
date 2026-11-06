@@ -49,6 +49,7 @@ fn fixture(
         &REFERENCE_LINEAR_SOLVER,
         Some(DiffsolTimeBackend::CAPABILITIES),
         None,
+        None,
     )
     .unwrap();
     let plan = ResolvedCommonPlan::from_bytes(

@@ -41,6 +41,7 @@ pub(crate) fn policy_identity(
     temporal: Option<&CommonTemporalPolicy>,
     time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     nonlinear: Option<NonlinearSolvePlan>,
+    quadrature: Option<eqiora_realization::QuadraturePolicy>,
 ) -> Result<String, Diagnostic> {
     let mut bytes = Vec::new();
     push_framed(
@@ -113,6 +114,12 @@ pub(crate) fn policy_identity(
         bytes.extend_from_slice(&nonlinear.maximum_line_search_steps().to_be_bytes());
     }
     push_linear_policy_identity(&mut bytes, linear)?;
+    if let Some(quadrature) = quadrature {
+        let encoded = serde_json::to_vec(&quadrature).map_err(|error| {
+            invalid(format!("cannot encode assembly quadrature policy: {error}"))
+        })?;
+        push_framed(&mut bytes, &encoded);
+    }
     Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
 }
 
@@ -252,6 +259,7 @@ pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
 fn spatial_policy_tag(policy: CommonSpatialPolicy) -> &'static [u8] {
     match policy {
         CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 => b"scalar-continuous-lagrange-1",
+        CommonSpatialPolicy::Q2 => b"scalar-continuous-lagrange-2",
         CommonSpatialPolicy::MiniP1 => b"linear-mini-p1-duffy4",
         CommonSpatialPolicy::TetrahedralEdge => b"tetrahedral-edge-moment-duffy3",
         CommonSpatialPolicy::TetrahedralFace => b"tetrahedral-face-moment-duffy3",

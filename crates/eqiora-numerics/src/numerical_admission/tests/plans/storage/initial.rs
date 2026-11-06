@@ -42,6 +42,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
