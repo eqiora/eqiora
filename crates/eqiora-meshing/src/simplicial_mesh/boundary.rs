@@ -144,4 +144,25 @@ mod tests {
         assert!(mesh.signed_boundary(MeshEntity::new(3, 2)).is_none());
         assert!(mesh.signed_boundary(MeshEntity::new(4, 0)).is_none());
     }
+    #[test]
+    fn explicit_signed_cancellation_accepts_valid_shared_interfaces_in_each_dimension() {
+        use crate::MeshQualityGate;
+        for (dimension,vertices,cells) in [
+            (1,vec![vec![0.],vec![1.],vec![2.]],vec![vec![0,1],vec![1,2]]),
+            (2,vec![vec![0.,0.],vec![1.,0.],vec![1.,1.],vec![0.,1.]],vec![vec![0,1,2],vec![0,2,3]]),
+        ] {
+            SimplicialMesh::new(dimension,vertices,cells,MeshQualityGate::new(0.01).unwrap()).unwrap().validate_signed_boundary_cancellation().unwrap();
+        }
+        for cells in [vec![vec![0,1,2,3],vec![1,2,3,4]],vec![vec![1,0,3,2],vec![2,1,4,3]]] {
+            mesh(cells).validate_signed_boundary_cancellation().unwrap();
+        }
+    }
+
+    #[test]
+    fn explicit_signed_cancellation_rejects_positive_closed_overlapping_complex() {
+        use crate::MeshQualityGate;
+        let overlapping = SimplicialMesh::new(2,vec![vec![0.25,0.25],vec![0.75,0.25],vec![0.75,0.75],vec![0.25,0.75]],vec![vec![0,1,2],vec![0,2,3],vec![0,1,3],vec![1,2,3]],MeshQualityGate::new(0.01).unwrap()).unwrap();
+        assert!(overlapping.validate_signed_boundary_cancellation().is_err());
+    }
+
 }

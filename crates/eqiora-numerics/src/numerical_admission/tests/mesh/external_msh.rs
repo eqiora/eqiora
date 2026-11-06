@@ -515,12 +515,16 @@ public component Affine(support body:volume(ambient_dimension=2), support left:b
     }
 }
 
+fn hidden_interior_double_cover_source() -> &'static [u8] {
+    b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 8 1 8\n2 1 0 8\n1\n2\n3\n4\n5\n6\n7\n8\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0.25 0.25 0\n0.75 0.25 0\n0.75 0.75 0\n0.25 0.75 0\n$EndNodes\n$Elements\n1 6 1 6\n2 1 2 6\n1 1 2 3\n2 1 3 4\n3 5 6 7\n4 5 7 8\n5 5 6 8\n6 6 7 8\n$EndElements\n"
+}
+
 #[test]
 fn external_msh_rectangle_rejects_hidden_positive_interior_double_cover() {
     // The external square boundary is correct. A disconnected interior K4
     // has four positive cells and two parents on every edge, but its induced
     // orientations do not cancel. Boundary coverage alone cannot detect it.
-    let source = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 8 1 8\n2 1 0 8\n1\n2\n3\n4\n5\n6\n7\n8\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0.25 0.25 0\n0.75 0.25 0\n0.75 0.75 0\n0.25 0.75 0\n$EndNodes\n$Elements\n1 6 1 6\n2 1 2 6\n1 1 2 3\n2 1 3 4\n3 5 6 7\n4 5 7 8\n5 5 6 8\n6 6 7 8\n$EndElements\n";
+    let source = hidden_interior_double_cover_source();
     let parsed = eqiora_io_gmsh::import_msh41(
         source,
         eqiora_io_gmsh::Msh41Policy::mesh(2, eqiora_meshing::MeshQualityGate::new(0.01).unwrap())
@@ -538,5 +542,14 @@ fn external_msh_rectangle_rejects_hidden_positive_interior_double_cover() {
     let failure =
         AuthenticatedCommonMesh::import_msh41(exact_rectangle(), policy(4, 4096), source.to_vec())
             .unwrap_err();
+    assert!(failure.message().contains("cancel"));
+}
+
+#[test]
+fn external_msh_generic_planar_rejects_hidden_interior_double_cover() {
+    let source = hidden_interior_double_cover_source();
+    let parsed = eqiora_io_gmsh::import_msh41(source,eqiora_io_gmsh::Msh41Policy::mesh(2,eqiora_meshing::MeshQualityGate::new(0.01).unwrap()).unwrap(),|_,_,_|{}).unwrap();
+    assert_eq!(parsed.cells().len(),6);
+    let failure = AuthenticatedCommonMesh::import_msh41(square(1.),policy(4,4096),source.to_vec()).unwrap_err();
     assert!(failure.message().contains("cancel"));
 }
