@@ -70,6 +70,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 typed.expression(),
                 view,
                 row.tested,
+                false,
             )?
             else {
                 continue;

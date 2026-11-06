@@ -253,8 +253,7 @@ fn robin_facet_matrix_survives_projection_residual_jacobian_and_pullback() {
                         (&facet, incidence, vertices),
                         &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
                         |p, n| law.evaluate(p, n),
-                        degree,
-                        law.robin_coefficient()
+                        (degree, law.robin_coefficient()),
                     )
                     .is_err()
             );
@@ -321,6 +320,16 @@ fn robin_authored_proofs_keep_trial_trace_and_only_essential_zero_test_trace() {
         )
         .unwrap()
         .unwrap();
+        let Err(callback_error) =
+            derived.admit_quadrature(&QuadratureRule::tensor_product_gauss_legendre(2, 3).unwrap())
+        else {
+            panic!("Robin cannot enter the diffusion/load callback adapter");
+        };
+        assert!(
+            callback_error
+                .message()
+                .contains("common bound Region form")
+        );
         assert_eq!(
             crate::form_compiler::scalar::authored::admit(&projection, &program, &derived).is_ok(),
             accepted

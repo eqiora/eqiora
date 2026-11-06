@@ -108,7 +108,7 @@ pub(crate) fn admit(
     }
     let mut right = right.unwrap_or(AuthoredFormExpressionV1::Number { value: 0.0 });
     for boundary in &derived.boundary_roles {
-        if let Some((alpha, trace)) = boundary.robin {
+        if let Some((alpha, trace)) = boundary.robin() {
             let typed = typed_relation(program, boundary.relation)?;
             let coefficient = AuthoredFormExpressionV1::from_expression(typed.expression(), alpha)?
                 .ok_or_else(|| {

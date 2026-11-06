@@ -410,6 +410,7 @@ pub(super) struct BoundaryFlux {
     pub(super) normal: ExprId,
     pub(super) datum: Option<(ExprId, bool)>,
     pub(super) robin: Option<(ExprId, ExprId)>,
+    pub(super) normal_negative: bool,
 }
 
 /// Bind the complete constitutive flux before retaining its prescribed datum.
@@ -435,7 +436,7 @@ pub(super) fn recognize_flux(
         owner,
         &|id| validate_source_expression(dag, id, owner).is_ok(),
     )?;
-    let robin = crate::scalar_conservation::affine_robin_terms(dag, &view, field)?;
+    let robin = crate::scalar_conservation::affine_robin_terms(dag, &view, field, false)?;
     if !(1..=if robin.is_some() { 3 } else { 2 }).contains(&view.leaves().len()) {
         return Ok(None);
     }
@@ -502,6 +503,7 @@ pub(super) fn recognize_flux(
         normal: operator.value(),
         datum: data,
         robin: robin.map(|r| (r.coefficient, r.trace)),
+        normal_negative: operator.sign() == crate::additive_residual::AdditiveSign::Negative,
     }))
 }
 

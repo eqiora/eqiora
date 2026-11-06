@@ -200,9 +200,9 @@ fn recognize_exterior_law_oriented(
         (None, Some(normal), Some((robin, coefficient_expression, trace_expression)))
             if normal_sign == Some(robin.sign()) =>
         {
-            let _ = affine_robin_terms(expression, &view, field)?.ok_or_else(|| {
-                view.mismatch("Robin requires one exact affine conormal equation")
-            })?;
+            let _ = affine_robin_terms(expression, &view, field, reversed_conormal)?.ok_or_else(
+                || view.mismatch("Robin requires one exact affine conormal equation"),
+            )?;
             let coefficient = spatial_expression::lower::<f64>(
                 program,
                 expression,
@@ -343,6 +343,7 @@ pub(crate) fn affine_robin_terms(
     expression: &ExprDag,
     view: &AdditiveResidualView,
     field: RawId,
+    reversed_conormal: bool,
 ) -> Result<Option<AffineRobinTerms>, Diagnostic> {
     let coefficients = view
         .leaves()
@@ -368,7 +369,8 @@ pub(crate) fn affine_robin_terms(
     let [normal] = normals.as_slice() else {
         return Ok(None);
     };
-    if normal.sign() != robin.sign() {
+    let same_sign = normal.sign() == robin.sign();
+    if same_sign == reversed_conormal {
         return Err(view.mismatch("Robin trace and conormal must have the same sign"));
     }
     let values = view
@@ -378,7 +380,10 @@ pub(crate) fn affine_robin_terms(
         .collect::<Vec<_>>();
     let datum = match values.as_slice() {
         [] => None,
-        [datum] => Some((datum.value(), datum.sign() == normal.sign())),
+        [datum] => Some((
+            datum.value(),
+            (datum.sign() == normal.sign()) ^ reversed_conormal,
+        )),
         _ => return Err(view.mismatch("Robin data must be one prescribed expression")),
     };
     Ok(Some(AffineRobinTerms {

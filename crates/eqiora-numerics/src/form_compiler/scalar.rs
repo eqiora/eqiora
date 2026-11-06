@@ -52,7 +52,17 @@ struct BoundaryRole {
     operator_node: ExprId,
     discharge: BoundaryDischarge,
     flux_data: Option<(ExprId, bool)>,
-    robin: Option<(ExprId, ExprId)>,
+}
+
+impl BoundaryRole {
+    fn robin(&self) -> Option<(ExprId, ExprId)> {
+        match self.discharge {
+            BoundaryDischarge::AffineRobin {
+                coefficient, trace, ..
+            } => Some((coefficient, trace)),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +131,11 @@ impl DerivedScalarGalerkinForm {
         &self,
         quadrature: &QuadratureRule,
     ) -> Result<AdmittedScalarGalerkinForm<'_>, Diagnostic> {
-        if self.conjugate_test
+        if self
+            .boundary_roles
+            .iter()
+            .any(|boundary| boundary.robin().is_some())
+            || self.conjugate_test
             || !self.volume_nodes.gradient_only_trial
             || self
                 .volume_nodes
@@ -493,7 +507,6 @@ fn boundary_inventory(
         }
         let relation = relations[0];
         let typed = typed_relation(program, relation)?;
-        let mut robin = None;
         let (operator_node, discharge, flux_data) =
             if let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? {
                 (nodes.trace, BoundaryDischarge::ZeroTestTrace, None)
@@ -506,10 +519,16 @@ fn boundary_inventory(
                 volume_nodes,
                 field,
             )? {
-                robin = flux.robin;
                 (
                     flux.normal,
-                    if flux.datum.is_some() || flux.robin.is_some() {
+                    if let Some((coefficient, trace)) = flux.robin {
+                        BoundaryDischarge::AffineRobin {
+                            coefficient,
+                            trace,
+                            datum: flux.datum,
+                            normal_negative: flux.normal_negative,
+                        }
+                    } else if flux.datum.is_some() {
                         BoundaryDischarge::PrescribedFlux
                     } else {
                         BoundaryDischarge::ZeroFlux
@@ -528,7 +547,6 @@ fn boundary_inventory(
             operator_node,
             discharge,
             flux_data,
-            robin,
         };
         if by_side.insert((axis, side), role).is_some() {
             return Err(role_error(

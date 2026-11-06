@@ -82,6 +82,7 @@ pub(super) enum FormulationRule {
     ZeroTestTraceDischarge,
     TraceOrZeroFluxDischarge,
     TraceOrPrescribedFlux,
+    TraceOrAffineRobin,
     SourcePairing,
 }
 
@@ -99,6 +100,7 @@ impl FormulationRule {
             Self::TraceOrPrescribedFlux => {
                 "fem.derive.v1.boundary-pairing.trace-or-prescribed-flux"
             }
+            Self::TraceOrAffineRobin => "fem.derive.v1.boundary-substitution.trace-or-affine-robin",
             Self::SourcePairing => SOURCE_PAIRING,
         }
     }
@@ -109,6 +111,7 @@ pub(super) struct LawIdentity {
     pub(super) domain: RawId,
     pub(super) unknown: RawId,
     pub(super) relations: Vec<RawId>,
+    pub(super) boundary_supports: Vec<RawId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +142,12 @@ pub(super) enum BoundaryDischarge {
     ZeroTestTrace,
     ZeroFlux,
     PrescribedFlux,
+    AffineRobin {
+        coefficient: ExprId,
+        trace: ExprId,
+        datum: Option<(ExprId, bool)>,
+        normal_negative: bool,
+    },
 }
 
 impl BoundaryDischarge {
@@ -147,6 +156,7 @@ impl BoundaryDischarge {
             Self::ZeroTestTrace => ZERO_TEST_TRACE_DISCHARGE,
             Self::ZeroFlux => "fem.derive.v1.boundary-discharge.zero-flux-law",
             Self::PrescribedFlux => "fem.derive.v1.boundary-pairing.prescribed-flux-law",
+            Self::AffineRobin { .. } => "fem.derive.v1.boundary-substitution.affine-robin",
         }
     }
 }
@@ -211,6 +221,10 @@ impl PrimalGalerkinCorrespondence {
             .boundaries
             .iter()
             .any(|b| b.discharge != BoundaryDischarge::ZeroTestTrace);
+        let has_robin = source
+            .boundaries
+            .iter()
+            .any(|b| matches!(b.discharge, BoundaryDischarge::AffineRobin { .. }));
         let has_prescribed = source
             .boundaries
             .iter()
@@ -222,7 +236,9 @@ impl PrimalGalerkinCorrespondence {
                 FormulationRule::TestPairing
             },
             source.diffusion_rule.formulation_rule(),
-            if has_prescribed {
+            if has_robin {
+                FormulationRule::TraceOrAffineRobin
+            } else if has_prescribed {
                 FormulationRule::TraceOrPrescribedFlux
             } else if has_natural {
                 FormulationRule::TraceOrZeroFluxDischarge
@@ -230,6 +246,9 @@ impl PrimalGalerkinCorrespondence {
                 FormulationRule::ZeroTestTraceDischarge
             },
         ];
+        if has_robin && has_prescribed {
+            rules.push(FormulationRule::TraceOrPrescribedFlux);
+        }
         if source.values.iter().any(|term| term.trial_dependent) {
             rules.push(FormulationRule::ValuePairing);
         }
@@ -258,18 +277,77 @@ impl PrimalGalerkinCorrespondence {
             },
             sign: source.divergence_sign,
         });
-        entries.extend(source.boundaries.iter().map(|boundary| CertificateEntry {
-            rule_id: boundary.discharge.rule_id(),
-            relation: boundary.relation,
-            source_node: boundary.operator_node,
-            slot: WeakTermSlot::Boundary {
-                test: MatrixSlot::Test,
-            },
-            sign: match source.divergence_sign {
-                WeakSign::Positive => WeakSign::Negative,
-                WeakSign::Negative => WeakSign::Positive,
-            },
-        }));
+        for boundary in source.boundaries {
+            entries.push(CertificateEntry {
+                rule_id: boundary.discharge.rule_id(),
+                relation: boundary.relation,
+                source_node: boundary.operator_node,
+                slot: WeakTermSlot::Boundary {
+                    test: MatrixSlot::Test,
+                },
+                sign: match source.divergence_sign {
+                    WeakSign::Positive => WeakSign::Negative,
+                    WeakSign::Negative => WeakSign::Positive,
+                },
+            });
+            if let BoundaryDischarge::AffineRobin {
+                coefficient,
+                trace,
+                datum,
+                normal_negative,
+            } = boundary.discharge
+            {
+                entries.push(CertificateEntry {
+                    rule_id: "fem.derive.v1.boundary-substitution.robin-normal-orientation",
+                    relation: boundary.relation,
+                    source_node: boundary.operator_node,
+                    slot: WeakTermSlot::Boundary {
+                        test: MatrixSlot::Test,
+                    },
+                    sign: if normal_negative {
+                        WeakSign::Negative
+                    } else {
+                        WeakSign::Positive
+                    },
+                });
+                for (rule_id, source_node) in [
+                    (
+                        "fem.derive.v1.boundary-substitution.robin-coefficient",
+                        coefficient,
+                    ),
+                    (
+                        "fem.derive.v1.boundary-substitution.robin-trial-trace",
+                        trace,
+                    ),
+                ] {
+                    entries.push(CertificateEntry {
+                        rule_id,
+                        relation: boundary.relation,
+                        source_node,
+                        slot: WeakTermSlot::Bilinear {
+                            test: MatrixSlot::Test,
+                            trial: MatrixSlot::Trial,
+                        },
+                        sign: WeakSign::Positive,
+                    });
+                }
+                if let Some((source_node, negative)) = datum {
+                    entries.push(CertificateEntry {
+                        rule_id: "fem.derive.v1.boundary-substitution.robin-datum",
+                        relation: boundary.relation,
+                        source_node,
+                        slot: WeakTermSlot::Linear {
+                            test: MatrixSlot::Test,
+                        },
+                        sign: if negative {
+                            WeakSign::Negative
+                        } else {
+                            WeakSign::Positive
+                        },
+                    });
+                }
+            }
+        }
         entries.extend(source.values.iter().map(|term| CertificateEntry {
             rule_id: if term.trial_dependent {
                 VALUE_PAIRING
@@ -296,6 +374,11 @@ impl PrimalGalerkinCorrespondence {
                 domain: source.domain,
                 unknown: source.unknown,
                 relations,
+                boundary_supports: source
+                    .boundaries
+                    .iter()
+                    .map(|boundary| boundary.domain)
+                    .collect(),
             },
             formulation: EffectiveFormulation {
                 kind: FormulationKind::PrimalGalerkin,
