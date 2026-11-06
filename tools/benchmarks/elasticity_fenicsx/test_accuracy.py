@@ -53,6 +53,17 @@ class AccuracyTests(unittest.TestCase):
         coordinates, values = fixture(8)
         self.assertEqual(check_accuracy(coordinates, values, 8), check_accuracy(coordinates[::-1], values[::-1], 8))
 
+    def test_convergence_falsifiers(self):
+        rows = {n: check_accuracy(*fixture(n), n) for n in LEVELS}
+        with self.assertRaises(ComparisonError):
+            check_convergence({4: rows[4]})
+        constant = {n: dict(rows[4]) for n in LEVELS}
+        with self.assertRaises(ComparisonError):
+            check_convergence(constant)
+        slow = {n: {'l2_error': 1/n, 'h1_seminorm_error': 1/n} for n in LEVELS}
+        with self.assertRaises(ComparisonError):
+            check_convergence(slow)
+
     def test_equilibrium_falsifiers(self):
         check_equilibrium((-1, 0), (1, 0))
         for reaction, body_force in (((0, 0), (0, 0)), ((1, 0), (1, 0)), ((0, -1), (1, 0))):

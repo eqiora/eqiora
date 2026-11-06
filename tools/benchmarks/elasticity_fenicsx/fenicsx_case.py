@@ -110,7 +110,7 @@ def prepare(args):
             raise ComparisonError('PETSc effective policy differs from protocol')
         if reason <= 0 or not np.isfinite(true_norm) or true_norm > target:
             raise ComparisonError(f'PETSc true residual rejected: reason={reason}, true={true_norm}, target={target}')
-        summary = {'algorithm': 'cg', 'preconditioner': 'identity', 'completed_iterations': ksp.getIterationNumber(),
+        summary = {'algorithm': 'conjugate-gradient', 'preconditioner': 'identity', 'completed_iterations': ksp.getIterationNumber(),
                    'initial_residual_norm': initial_norm, 'reported_residual_norm': ksp.getResidualNorm(),
                    'true_residual_norm': true_norm, 'residual_target': target, 'convergence_reason': reason,
                    'relative_tolerance': rtol, 'absolute_tolerance': atol, 'maximum_iterations': maxits,

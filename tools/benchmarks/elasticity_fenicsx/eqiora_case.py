@@ -67,7 +67,7 @@ def prepare(args):
             'backend', 'adapter', 'verification_adapter', 'reduction',
             'relative_tolerance', 'absolute_tolerance', 'maximum_iterations')}
         row['convergence_reason'] = str(native.reason)
-        if (row['algorithm'] != 'cg' or row['preconditioner'] != 'identity'
+        if (row['algorithm'] != 'conjugate-gradient' or row['preconditioner'] != 'identity'
                 or (row['relative_tolerance'], row['absolute_tolerance'], row['maximum_iterations']) != (1e-12, 1e-14, 10000)):
             raise ComparisonError('Eqiora effective solve policy differs from protocol')
         target = max(1e-14, 1e-12*row['initial_residual_norm'])
