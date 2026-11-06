@@ -32,9 +32,29 @@ class SavedEvidence(unittest.TestCase):
                     value['coefficients'][30]['component'],value['coefficients'][31]['component'] = value['coefficients'][31]['component'],value['coefficients'][30]['component']
                 path.write_text(json.dumps(value))
                 inventory['files_sha256'][relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+                inventory['original_files_sha256'][relative] = inventory['files_sha256'][relative]
                 (root/'inventory.json').write_text(json.dumps(inventory))
                 with self.assertRaises(ValueError):
                     saved.main(root)
+
+
+    def test_metadata_projection_cannot_change_numeric_proof(self):
+        root = saved.HERE/'evidence'
+        inventory = saved.read(root/'inventory.json')
+        relative = 'python-7612/launch.json'
+        projection = inventory['metadata_projections'][relative]
+        parent = Path.home()/'.cache/eqiora/hex-saved-tests'
+        parent.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=parent) as temporary:
+            directory = Path(temporary)
+            path = directory/relative
+            path.parent.mkdir(parents=True)
+            value = saved.read(root/relative)
+            value['pid'] += 1
+            path.write_text(json.dumps(value))
+            projection = dict(projection,public_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            with self.assertRaises(ValueError):
+                saved.checked_projection(directory,relative,projection)
 
 
 if __name__ == '__main__':

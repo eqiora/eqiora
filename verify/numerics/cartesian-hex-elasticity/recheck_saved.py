@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Recheck committed original Hex evidence; no Eqiora import or PDE solve.
 
-Checks byte integrity, saved-artifact associations and independent mathematics.
+Checks scientific bytes, explicit metadata projections, saved associations and mathematics.
 It does not rerun original processes or replace native artifact admission.
 """
 import base64
@@ -55,6 +55,50 @@ def checked_file(root, relative, expected):
     path = (root/relative).resolve()
     require(path.is_relative_to(root.resolve()), 'inventory path escapes archive')
     require(sha256(path.read_bytes()) == expected, f'changed original file: {relative}')
+
+
+def canonical(value):
+    return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+
+
+def leaves(value,path=''):
+    if isinstance(value,dict) and value:
+        return {k:v for name,item in value.items() for k,v in leaves(item,path+'/'+name.replace('~','~0').replace('/','~1')).items()}
+    if isinstance(value,list) and value:
+        return {k:v for index,item in enumerate(value) for k,v in leaves(item,path+'/'+str(index)).items()}
+    return {path:value}
+
+
+def checked_projection(root,relative,record):
+    protected = {'model.eqi','model.json','mesh.json','plan.json','result.json','original-result.json','primary.json','replay.json'}
+    require(Path(relative).name not in protected and not relative.startswith('archived-sources/'), 'scientific/source bytes cannot be projected')
+    checked_file(root,relative,record['public_sha256'])
+    if record['format'] == 'json-leaf-projection':
+        public = leaves(read(root/relative))
+        expected = record['original_leaf_sha256']
+        changed = record['changed_string_fields']
+        require(set(public) == set(expected) and set(changed) <= set(expected), 'projection changed JSON field inventory')
+        for pointer,value in public.items():
+            if pointer in changed:
+                mapping = changed[pointer]
+                require(mapping['original_value_sha256'] == expected[pointer], 'projection original value binding differs')
+                require(type(value) is str and '<ARCHIVED-HOST>/' in value and value == mapping['public_value'], 'projection invented a non-path replacement')
+            else:
+                require(sha256(canonical(value)) == expected[pointer], 'projection changed an unredacted value')
+    elif record['format'] == 'text-line-projection':
+        public = (root/relative).read_bytes().decode().splitlines(keepends=True)
+        expected = record['original_line_sha256']
+        changed = record['changed_lines']
+        require(len(public) == len(expected) and set(changed) <= {str(i) for i in range(len(expected))}, 'projection changed log line inventory')
+        for index,value in enumerate(public):
+            if str(index) in changed:
+                mapping = changed[str(index)]
+                require(mapping['original_value_sha256'] == expected[index], 'log original value binding differs')
+                require('<ARCHIVED-HOST>/' in value and value == mapping['public_value'], 'log replacement differs')
+            else:
+                require(sha256(value.encode()) == expected[index], 'projection changed an unredacted log line')
+    else:
+        raise ValueError('unknown metadata projection format')
 
 
 def bind_export(directory, document_path, result_path, preparation_path, limits):
@@ -112,8 +156,18 @@ def bind_export(directory, document_path, result_path, preparation_path, limits)
 def main(root=None):
     root = HERE/'evidence' if root is None else Path(root)
     inventory = read(root/'inventory.json')
+    projections = inventory['metadata_projections']
+    require(inventory['projected_metadata_file_count'] == len(projections), 'metadata projection count differs')
+    require(set(inventory['original_files_sha256']) == set(inventory['files_sha256']), 'original/public file inventory differs')
+    require(set(inventory['byte_exact_original_files']) == set(inventory['files_sha256'])-set(projections), 'byte-exact/projection scope differs')
     for relative,expected in inventory['files_sha256'].items():
         checked_file(root,relative,expected)
+        if relative in projections:
+            record = projections[relative]
+            require(record['public_sha256'] == expected and record['original_sha256'] == inventory['original_files_sha256'][relative], 'original/public projection digest binding differs')
+            checked_projection(root,relative,record)
+        else:
+            require(expected == inventory['original_files_sha256'][relative], 'byte-exact original digest differs')
     require({str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()} == set(inventory['files_sha256'])|{'inventory.json'}, 'unlisted archive file')
     for relative,expected in inventory['reference_sha256'].items():
         checked_file(HERE/'reference',relative,expected)
@@ -142,7 +196,7 @@ def main(root=None):
         require((native/'artifacts'/name).read_bytes() == (recovered/'artifacts'/name).read_bytes(), 'read-only preparation changed original inputs')
     for lane in ('primary','replay'):
         bind_export(native/'artifacts',recovered/(lane+'.json'),native/'artifacts/result.json',native/'preparation.json',limits)
-    print('saved-hex: original hashes, complete physical fields, lineage and independent primary/replay checks PASS; initial PDEs 2, recovery/recheck new PDEs 0')
+    print('saved-hex: scientific originals, metadata projections, physical fields and independent primary/replay checks PASS; initial PDEs 2, recovery/recheck new PDEs 0')
     return 0
 
 

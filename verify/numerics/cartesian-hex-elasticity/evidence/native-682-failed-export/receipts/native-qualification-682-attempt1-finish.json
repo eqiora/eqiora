@@ -5,14 +5,14 @@
     "taskset",
     "-c",
     "60",
-    "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
     "native_ordinary_hex_result_observation_and_canonical_replay",
     "--ignored",
     "--exact",
     "--nocapture"
   ],
   "source_commit": "6826671d537882b3daded212866e76250b9c036f",
-  "output_directory": "/home/nk523/tmp/eqiora-hex-execution/native-qualification-682-attempt1",
+  "output_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1",
   "maximum_authorized_candidate_runs": 1,
   "finished_at": "2026-11-06T14:06:58.336892+00:00",
   "exit_code": 101

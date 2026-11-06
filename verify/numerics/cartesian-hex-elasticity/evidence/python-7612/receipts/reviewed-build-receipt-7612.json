@@ -1,26 +1,26 @@
 {
-  "binary_path": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "binary_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
   "binary_sha256": "23faa18949cac7a7125403a51418ef8d95ea8d1a0dc8e4e18176ad32c1da00ff",
   "build_completion": {
     "builder_pid": 1321674,
     "command": [
-      "/home/nk523/tmp/eqiora-hex-execution/venv/bin/maturin",
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin",
       "build",
       "--locked",
       "--interpreter",
-      "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python",
       "--out",
-      "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected"
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
     ],
     "environment": {
       "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
-      "CARGO_TARGET_DIR": "/home/nk523/tmp/eqiora-hex-execution/target",
-      "LD_LIBRARY_PATH": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+      "CARGO_TARGET_DIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target",
+      "LD_LIBRARY_PATH": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib",
       "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
-      "PATH": "/home/nk523/tmp/eqiora-hex-execution/venv/bin:/home/nk523/.local/bin:/home/nk523/.pixi/envs/nodejs/bin:/home/nk523/.pixi/bin:/home/nk523/texlive/current/bin/x86_64-linux:/home/nk523/.atuin/bin:/home/nk523/.local/bin:/data/nk523/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/data/nk523/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e/home/tmp/arg0-linux/codex-arg01zSd8u:/home/nk523/.local/bin:/home/nk523/.config/orca/cli/bin:/home/nk523/.local/bin:/home/nk523/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
-      "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
-      "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
-      "TMPDIR": "/home/nk523/tmp/eqiora-hex-execution"
+      "PATH": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
+      "SUNDIALS_INCLUDE_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include",
+      "SUNDIALS_LIBRARY_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib",
+      "TMPDIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
     },
     "exit_code": 0,
     "finished_at": "2026-11-06T13:34:47.521622+00:00",
@@ -32,30 +32,30 @@
   "build_launch": {
     "builder_pid": 1321674,
     "command": [
-      "/home/nk523/tmp/eqiora-hex-execution/venv/bin/maturin",
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin",
       "build",
       "--locked",
       "--interpreter",
-      "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python",
       "--out",
-      "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected"
+      "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
     ],
     "environment": {
       "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
-      "CARGO_TARGET_DIR": "/home/nk523/tmp/eqiora-hex-execution/target",
-      "LD_LIBRARY_PATH": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+      "CARGO_TARGET_DIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target",
+      "LD_LIBRARY_PATH": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib",
       "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
-      "PATH": "/home/nk523/tmp/eqiora-hex-execution/venv/bin:/home/nk523/.local/bin:/home/nk523/.pixi/envs/nodejs/bin:/home/nk523/.pixi/bin:/home/nk523/texlive/current/bin/x86_64-linux:/home/nk523/.atuin/bin:/home/nk523/.local/bin:/data/nk523/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/data/nk523/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e/home/tmp/arg0-linux/codex-arg01zSd8u:/home/nk523/.local/bin:/home/nk523/.config/orca/cli/bin:/home/nk523/.local/bin:/home/nk523/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
-      "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
-      "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
-      "TMPDIR": "/home/nk523/tmp/eqiora-hex-execution"
+      "PATH": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
+      "SUNDIALS_INCLUDE_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include",
+      "SUNDIALS_LIBRARY_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib",
+      "TMPDIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
     },
     "launcher_pid": 1321646,
     "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
     "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
     "started_at": "2026-11-06T13:34:31.597864+00:00"
   },
-  "extension_path": "/data/nk523/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+  "extension_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
   "extension_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
   "inspector_pid": 1326339,
   "logs_sha256": {
@@ -90,7 +90,7 @@
   "producer_review": "accepted",
   "producer_sha256": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
   "profile_calls": 0,
-  "python": "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+  "python": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python",
   "python_version": "3.13.14 (main, Aug  5 2026, 15:44:26) [Clang 22.1.3 ]",
   "reference_sha256": {
     "README.md": "9eb8ab1a1e1e9aab1a75b729d743699ab33b12621f5c18299b578ae630ac06c3",
@@ -111,6 +111,6 @@
   },
   "wheel_extension_member": "eqiora/_eqiora.abi3.so",
   "wheel_extension_member_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
-  "wheel_path": "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+  "wheel_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
   "wheel_sha256": "6537738d8a34cbabd5794cf607aa9dfc442d197d92492cfefc0dc1146200868b"
 }

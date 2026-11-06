@@ -1,15 +1,15 @@
 {
   "new_pde_solves": 0,
   "original_attempt_status": "export-failed-after-one-completed-run",
-  "recovery_binary": "/data/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "recovery_binary": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
   "recovery_pid": 1445477,
   "review_receipt": {
     "held_tests": 2,
-    "ldd_path": "/home/nk523/tmp/eqiora-hex-execution/native-recovery-ldd.txt",
+    "ldd_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-recovery-ldd.txt",
     "new_pde_solves": 0,
     "no_solve_tests_passed": 8,
-    "original_artifact_directory": "/home/nk523/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0",
-    "original_attempt_directory": "/home/nk523/tmp/eqiora-hex-execution/native-qualification-682-attempt1",
+    "original_artifact_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0",
+    "original_attempt_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1",
     "original_attempt_exit_code": 101,
     "original_attempt_status": "one-completed-run-followed-by-exporter-assertion-failure",
     "original_files_sha256": {
@@ -23,14 +23,14 @@
       "run-attempt.json": "15a4bbe7cd46753114183a25b8cee4723037b9c13a49a9f024052d25285ae430"
     },
     "original_pid": 1431892,
-    "original_runtime_binary_copy": "/home/nk523/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d",
+    "original_runtime_binary_copy": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d",
     "original_runtime_binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
     "original_source_commit": "6826671d537882b3daded212866e76250b9c036f",
     "primary_review": {
       "original_pending_receipt_sha256": "837d606cfe0648f08f63f21d7037b670feacb784bbc4f6542c9e5715888bf9db",
       "scope": "Read-only recovery of original682 result only; zero new PDE solves. Entire recovery code reviewed: no run_result call, exact archived inputs, Plan/Model/Result identities, corrected Cartesian logical shape, native observation/replay, unchanged independent protocol. Original attempt remains failed."
     },
-    "recovery_binary_path": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "recovery_binary_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
     "recovery_binary_sha256": "a657c7b181558f0be939f35cbbe3d0111bdd3cef12e4582491916f7c826283b5",
     "recovery_harness_sha256": "e0abbac4766e84932f18ebe3863b21a772f7398f45aa344db9aa23b5f3cc2973",
     "recovery_invocations": 0,

@@ -1,5 +1,5 @@
 {
-  "binary": "/data/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "binary": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
   "binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
   "cpu": "60",
   "environment": {
@@ -19,7 +19,7 @@
       1426967
     ],
     "archived_python_source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
-    "binary_path": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "binary_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
     "binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
     "export_bindings": {
       "facet_quadrature": [
@@ -51,11 +51,11 @@
     },
     "frozen_runtime_manifest_sha256": "c9084b89b5d545d6f3740b91f13e1a1e1228529e10c0ed9f3360e251a2dedc70",
     "held_scientific_tests": 1,
-    "ldd_path": "/home/nk523/tmp/eqiora-hex-execution/native-producer-ldd.txt",
+    "ldd_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-ldd.txt",
     "model_source_sha256": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
-    "native_producer_path": "/home/nk523/tmp/eqiora-hex-execution/tree/crates/eqiora/tests/cartesian_hex_elasticity.rs",
+    "native_producer_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora/tests/cartesian_hex_elasticity.rs",
     "native_producer_sha256": "9ea32ad363ed8220e549213cad3cacb754496b4ed00043b08fdf489cedc7b6fc",
-    "no_solve_log": "/home/nk523/tmp/eqiora-hex-execution/native-producer-frozen-checked.log",
+    "no_solve_log": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked.log",
     "no_solve_tests_passed": 7,
     "pde_solves_by_new_native_producer": 0,
     "plan_assembly_quadrature": {
@@ -64,7 +64,7 @@
     },
     "plan_bytes_match_archived_python": true,
     "plan_identity": "a00df5b7695ad90f0e3563e5e0554c1af4bc8feccbb526892688984d7b5a1a87",
-    "preparation_artifact_directory": "/home/nk523/tmp/eqiora-hex-execution/native-producer-frozen-checked-artifacts/1426967-0",
+    "preparation_artifact_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked-artifacts/1426967-0",
     "primary_review": {
       "original_pending_receipt_sha256": "a553463323c65a99685e78a4d0f3c7876191d4bc70e8652c65841616bfb2f971",
       "reviewed_source_commit": "6826671d537882b3daded212866e76250b9c036f",

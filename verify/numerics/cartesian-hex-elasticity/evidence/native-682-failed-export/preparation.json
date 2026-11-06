@@ -1,5 +1,5 @@
 {
-  "artifact_directory": "/home/nk523/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0",
+  "artifact_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0",
   "field": "1M8HS9XJX0718F6PJNAYBBGQ0C",
   "mesh_digest": "7f64bea505ce6559f795e34f8a36fb84408a9d50f33586d80dde686ce347a2fa",
   "model_digest": "08c99fba194e99c01dedbe0a17ff017b975cc306d65c3290926b4718ad8fd5a3",
@@ -10,6 +10,6 @@
     "0AN9XRQFDEF6X009FAJC7M6J37"
   ],
   "plan_identity": "a00df5b7695ad90f0e3563e5e0554c1af4bc8feccbb526892688984d7b5a1a87",
-  "result_path": "/home/nk523/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0/result.json",
+  "result_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0/result.json",
   "status": "prepared-no-run"
 }

@@ -2,12 +2,12 @@
   "started_at": "2026-11-06T13:46:43.213907+00:00",
   "launcher_pid": 1371770,
   "command": [
-    "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
-    "/home/nk523/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py",
     "--output",
-    "/home/nk523/tmp/eqiora-hex-execution/python-qualification-7612-attempt1",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/python-qualification-7612-attempt1",
     "--build-receipt",
-    "/home/nk523/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json",
     "--execute"
   ],
   "cpu_affinity": [
