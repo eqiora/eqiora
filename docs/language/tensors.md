@@ -302,6 +302,13 @@ nonlinear component maps, and other unsupported distribution operations reject.
 Full weak-form trial-space admission remains a separate boundary from these Model
 expression checks.
 
+Authored weak forms accept real or complex vector and matrix coefficients created
+with `tensor_value(frame=body, components=...)`. Their spatial extents must match
+the volume dimension. Component defaults retain their units and row-major values
+in saved forms; model Parameters retain their identities. Channel arrays are not
+spatial coefficients. This does not add support to constant-only `trace` or
+`normal` operands: those operations still require their existing spatial support.
+
 Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
 operators. Trace, normal and tangential trace accept the same exact `on`/`from`
 selectors; their retained target must equal the integral support. H(div) tests
@@ -311,7 +318,7 @@ physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v19`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v20`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked

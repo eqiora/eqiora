@@ -116,6 +116,35 @@ impl Context<'_> {
             E::Rational {
                 dimension: units, ..
             } => dimension(units),
+            E::SpatialTensor {
+                complex,
+                dimension: units,
+                shape,
+                values,
+            } => {
+                if !(1..=2).contains(&shape.len())
+                    || shape
+                        .iter()
+                        .any(|extent| *extent as usize != self.dimensions)
+                {
+                    return None;
+                }
+                self.remaining = self.remaining.checked_sub(values.len())?;
+                let dimension = dimension(units)?;
+                let ty = eqiora_core::ValueType::shaped(
+                    if *complex {
+                        eqiora_core::ScalarDomain::Complex
+                    } else {
+                        eqiora_core::ScalarDomain::Real
+                    },
+                    dimension,
+                    eqiora_core::ValueShape::new(shape.iter().copied()).ok()?,
+                    eqiora_core::ValueFrame::SpatialCartesian,
+                )
+                .ok()?;
+                eqiora_core::ValueLiteral::new(ty, values.iter().copied()).ok()?;
+                Some(dimension)
+            }
             E::Field { ulid } => {
                 let id = Id::<kinds::Field>::from_ulid(ulid.parse().ok()?);
                 let KernelNode::Field(field) = self.program.node(id.erase())? else {

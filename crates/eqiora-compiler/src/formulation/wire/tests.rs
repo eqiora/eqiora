@@ -141,13 +141,14 @@ fn plural_codec_rejects_duplicate_test_names_and_old_schema() {
     );
     let bytes = projection().canonical_bytes().to_vec();
     for schema in [
+        "eqiora.authored-form/v19",
         "eqiora.authored-form/v18",
         "eqiora.authored-form/v17",
         "eqiora.authored-scalar-form/v3",
     ] {
         let old = String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("eqiora.authored-form/v19", schema);
+            .replace("eqiora.authored-form/v20", schema);
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 }
@@ -176,4 +177,76 @@ fn one_codec_owns_canonical_round_trip_and_fail_closed_decode() {
     assert!(AuthoredFormulationProjection::decode(malformed_identity.as_bytes()).is_err());
 
     assert!(AuthoredFormulationProjection::decode(&vec![b' '; MAX_BYTES + 1]).is_err());
+}
+
+#[test]
+fn spatial_tensor_wire_rejects_malformed_payloads_before_live_use() {
+    let valid = AuthoredFormExpressionV1::SpatialTensor {
+        complex: false,
+        dimension: DimExponents::DIMENSIONLESS.exponents(),
+        shape: vec![2, 2],
+        values: vec![(2., 0.), (3., 0.), (5., 0.), (7., 0.)],
+    };
+    let mut wire = projection().wire;
+    wire.equations[0].1 = valid.clone();
+    assert!(AuthoredFormulationProjection::decode(&serde_json::to_vec(&wire).unwrap()).is_ok());
+    let mut invalid = Vec::new();
+    for shape in [
+        vec![],
+        vec![0],
+        vec![2, 3],
+        vec![2, 2, 1],
+        vec![u32::MAX, u32::MAX],
+    ] {
+        let mut value = valid.clone();
+        if let AuthoredFormExpressionV1::SpatialTensor { shape: target, .. } = &mut value {
+            *target = shape;
+        }
+        invalid.push(value);
+    }
+    for values in [vec![(2., 0.)], vec![(2., 1.); 4], vec![(0., 0.); 65536]] {
+        let mut value = valid.clone();
+        if let AuthoredFormExpressionV1::SpatialTensor { values: target, .. } = &mut value {
+            *target = values;
+        }
+        invalid.push(value);
+    }
+    invalid.push(AuthoredFormExpressionV1::SpatialTensor {
+        complex: false,
+        dimension: DimExponents::DIMENSIONLESS.exponents(),
+        shape: vec![65536],
+        values: vec![(0., 0.); 65536],
+    });
+    for exponent in [(2, 2), (1, 0), (-1, -1)] {
+        let mut value = valid.clone();
+        if let AuthoredFormExpressionV1::SpatialTensor { dimension, .. } = &mut value {
+            dimension[0] = exponent;
+        }
+        invalid.push(value);
+    }
+    for value in invalid {
+        wire.equations[0].1 = value.clone();
+        assert!(
+            AuthoredFormulationProjection::decode(&serde_json::to_vec(&wire).unwrap()).is_err()
+        );
+        wire.equations[0].1 = valid.clone();
+        wire.gauge = Some(WireGauge {
+            field_ulids: wire.trial_ulids.clone(),
+            reference: (value, valid.clone()),
+            compatibility: (valid.clone(), valid.clone()),
+        });
+        assert!(super::spatial_tensor::check(&wire).is_err());
+        wire.gauge = None;
+    }
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(
+            super::spatial_tensor::literal(
+                true,
+                &DimExponents::DIMENSIONLESS.exponents(),
+                &[1],
+                &[(value, 0.)],
+            )
+            .is_err()
+        );
+    }
 }

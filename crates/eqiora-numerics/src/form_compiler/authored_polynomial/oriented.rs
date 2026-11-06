@@ -65,7 +65,7 @@ impl Context<'_> {
                 self.physical_shape(real, depth + 1)?;
                 self.physical_shape(imag, depth + 1)?;
             }
-            E::Number { .. } | E::Rational { .. } => {}
+            E::Number { .. } | E::Rational { .. } | E::SpatialTensor { .. } => {}
             E::Curl { .. } | E::Cross { .. } => {}
             _ => return None,
         }
