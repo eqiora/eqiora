@@ -297,6 +297,28 @@ def test_checked_in_python_demo_runs_with_packaged_component_resource() -> None:
     assert "net flux" in completed.stdout
 
 
+def test_steady_mini_profile_reports_one_assembly_and_preserves_artifact() -> None:
+    _, _, plan, profiled = accepted(profile=True)
+    ordinary = eqiora.run(plan)
+    assert ordinary.profile is None
+    assert profiled.to_bytes() == ordinary.to_bytes()
+    assert profiled.profile is not None
+    phases = profiled.profile.phases
+    assembly = [phase for phase in phases if phase.name == "assembly"]
+    assert len(assembly) == 1
+    assert tuple(assembly[0].path) == ("run", "solve", "assembly")
+    assert assembly[0].fields["role"] == "mini_stokes_finalization"
+    assert assembly[0].calls == 1
+    linear = [phase for phase in phases if phase.name == "linear_solve"]
+    assert len(linear) == 1
+    assert tuple(linear[0].path) == ("run", "solve", "linear_solve")
+    assert linear[0].calls == 1
+    paths = {tuple(phase.path) for phase in phases}
+    for name in ("symbolic_factorization", "numeric_factorization", "backsolve"):
+        assert ("run", "solve", "linear_solve", name) in paths
+    assert all(phase.path.count("assembly") <= 1 for phase in phases)
+
+
 def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan() -> None:
     geometry, _, steady_plan, steady_result = accepted(profile=True)
     result = steady_result
