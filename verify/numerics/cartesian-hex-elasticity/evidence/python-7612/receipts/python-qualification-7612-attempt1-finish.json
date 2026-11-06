@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-11-06T13:46:43.213907+00:00",
+  "launcher_pid": 1371770,
+  "command": [
+    "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+    "/home/nk523/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py",
+    "--output",
+    "/home/nk523/tmp/eqiora-hex-execution/python-qualification-7612-attempt1",
+    "--build-receipt",
+    "/home/nk523/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json",
+    "--execute"
+  ],
+  "cpu_affinity": [
+    60
+  ],
+  "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+  "scope": "one installed-Python numerical candidate; no retries",
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "LD_LIBRARY_PATH": null,
+    "LD_PRELOAD": null
+  },
+  "pid": 1371774,
+  "exit_code": 0,
+  "finished_at": "2026-11-06T13:46:47.963567+00:00"
+}

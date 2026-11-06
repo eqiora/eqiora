@@ -1,0 +1,154 @@
+{
+  "argv": [
+    "/home/nk523/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py",
+    "--output",
+    "/home/nk523/tmp/eqiora-hex-execution/python-qualification-7612-attempt1",
+    "--build-receipt",
+    "/home/nk523/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json",
+    "--execute"
+  ],
+  "build_receipt_sha256": "f7cd2cd068096fc83632a6ad9ce5b82ffd2cb043d0d3232c68381b4988654d3b",
+  "cpu_affinity": [
+    60
+  ],
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "",
+    "LD_LIBRARY_PATH": null,
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1"
+  },
+  "eqiora_version": "0.1.5",
+  "extension": "/data/nk523/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+  "extension_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
+  "files": {
+    "check.py": "7b011f51cd2e842b15797a3f9c0fa5fb3ff6850e8558fee9745d0944d574522b",
+    "model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "production.py": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
+    "reference/protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+    "reference/reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+  },
+  "pid": 1371774,
+  "python": "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+  "python_version": "3.13.14 (main, Aug  5 2026, 15:44:26) [Clang 22.1.3 ]",
+  "runtime_build": {
+    "binary_path": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "binary_sha256": "23faa18949cac7a7125403a51418ef8d95ea8d1a0dc8e4e18176ad32c1da00ff",
+    "build_completion": {
+      "builder_pid": 1321674,
+      "command": [
+        "/home/nk523/tmp/eqiora-hex-execution/venv/bin/maturin",
+        "build",
+        "--locked",
+        "--interpreter",
+        "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+        "--out",
+        "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected"
+      ],
+      "environment": {
+        "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
+        "CARGO_TARGET_DIR": "/home/nk523/tmp/eqiora-hex-execution/target",
+        "LD_LIBRARY_PATH": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+        "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
+        "PATH": "/home/nk523/tmp/eqiora-hex-execution/venv/bin:/home/nk523/.local/bin:/home/nk523/.pixi/envs/nodejs/bin:/home/nk523/.pixi/bin:/home/nk523/texlive/current/bin/x86_64-linux:/home/nk523/.atuin/bin:/home/nk523/.local/bin:/data/nk523/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/data/nk523/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e/home/tmp/arg0-linux/codex-arg01zSd8u:/home/nk523/.local/bin:/home/nk523/.config/orca/cli/bin:/home/nk523/.local/bin:/home/nk523/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
+        "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
+        "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+        "TMPDIR": "/home/nk523/tmp/eqiora-hex-execution"
+      },
+      "exit_code": 0,
+      "finished_at": "2026-11-06T13:34:47.521622+00:00",
+      "launcher_pid": 1321646,
+      "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+      "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
+      "started_at": "2026-11-06T13:34:31.597864+00:00"
+    },
+    "build_launch": {
+      "builder_pid": 1321674,
+      "command": [
+        "/home/nk523/tmp/eqiora-hex-execution/venv/bin/maturin",
+        "build",
+        "--locked",
+        "--interpreter",
+        "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+        "--out",
+        "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected"
+      ],
+      "environment": {
+        "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
+        "CARGO_TARGET_DIR": "/home/nk523/tmp/eqiora-hex-execution/target",
+        "LD_LIBRARY_PATH": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+        "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
+        "PATH": "/home/nk523/tmp/eqiora-hex-execution/venv/bin:/home/nk523/.local/bin:/home/nk523/.pixi/envs/nodejs/bin:/home/nk523/.pixi/bin:/home/nk523/texlive/current/bin/x86_64-linux:/home/nk523/.atuin/bin:/home/nk523/.local/bin:/data/nk523/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/data/nk523/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e/home/tmp/arg0-linux/codex-arg01zSd8u:/home/nk523/.local/bin:/home/nk523/.config/orca/cli/bin:/home/nk523/.local/bin:/home/nk523/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin",
+        "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
+        "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+        "TMPDIR": "/home/nk523/tmp/eqiora-hex-execution"
+      },
+      "launcher_pid": 1321646,
+      "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+      "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
+      "started_at": "2026-11-06T13:34:31.597864+00:00"
+    },
+    "extension_path": "/data/nk523/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+    "extension_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
+    "inspector_pid": 1326339,
+    "logs_sha256": {
+      "installed-extension-ldd.txt": "fbfb03f13c129e8e12fc099b530d8f1c52f87c805b08c64d88f5ce0f3afeac60",
+      "native-aligned-preparation.log": "6c15e4b71c58c793c2bcd56a400257ef9d0f3b8fd642fe9a10f42f3e7b196618",
+      "python-controls.log": "d29b00cb5137557f467b62b8f779e0ab54f86e656f7df7dbbb59a1b6d186030d",
+      "python-positive.log": "2826a5e72c9f873a0370a41fe46a67989c4a682af951a8514eeb48dfd0b0e61b"
+    },
+    "model_source_sha256": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "pde_solves": 0,
+    "primary_review": {
+      "checks": [
+        "actual Model/Plan/Mesh/Field and Observable identities",
+        "retained eight Hex cells and complete physical vertex/component bijection",
+        "Q1 and effective Gauss2 volume/facet quadrature",
+        "explicit authored form selected and replayed",
+        "reference unchanged and independent pre-candidate review retained",
+        "runtime wheel/member/installed dependencies independently audited"
+      ],
+      "execution_controls": {
+        "cpu": 60,
+        "gpu_visible": false,
+        "ld_overrides": false,
+        "threads": 1
+      },
+      "original_build_receipt_sha256": "7d9197bc4c2cd464d08e5465c1f64f899da657622086fb7c5420b2f9694890de",
+      "provenance_audit_sha256": "ab76be66a720ff1191730b68c844010e2b7b8e873fc40c83149e002de689735a",
+      "reviewed_at": "2026-11-06T13:46:28.436465+00:00",
+      "scope": "Exactly one ordinary installed-Python Hex Run; preserve Result before observations, unchanged independent protocol on primary and replay. No Rust numerical run or performance campaign authorized by this receipt.",
+      "wheel_build_stdout_sha256": "999c329b06fa87edc4972dff3b314ab08860a653c9d9dc65178c7c8244b05e46"
+    },
+    "producer_review": "accepted",
+    "producer_sha256": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
+    "profile_calls": 0,
+    "python": "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+    "python_version": "3.13.14 (main, Aug  5 2026, 15:44:26) [Clang 22.1.3 ]",
+    "reference_sha256": {
+      "README.md": "9eb8ab1a1e1e9aab1a75b729d743699ab33b12621f5c18299b578ae630ac06c3",
+      "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+      "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c",
+      "test_reference.py": "3cc32a8f2559c1bac432b73a8ea1913c029991e7cbdb2aff7710401ae86a239d"
+    },
+    "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+    "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
+    "status": "fresh-frozen-wheel-installed-no-numerical-run",
+    "tracked_clean": true,
+    "wheel_bundled_libraries": {
+      "eqiora.libs/libsundials_core-b797f02a.so.7": "5b6920e5f28db68d08d23765f13756b6f7ee8d567af7c2ff38d1066272c76c49",
+      "eqiora.libs/libsundials_ida-37c028a5.so.7": "12b94ac4ec6ba8f395b7681d4b5b0d4051e8fdca4e2029fb32ada640a6d3bc16",
+      "eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7": "0f4e3733c35f047207dad22c6ed1be16e4f79b35e46aced580733125f4d7ac77",
+      "eqiora.libs/libsundials_sunlinsoldense-89216335.so.5": "63ad4138b6c54e0c109de8d6a98a15f7219b7282b4e664c1dcbfc7a1f4c606c6",
+      "eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5": "a483e7cab3eca899f1cce6fae13097b0470c3b7695ec424aeedfb2194f4e1bb7"
+    },
+    "wheel_extension_member": "eqiora/_eqiora.abi3.so",
+    "wheel_extension_member_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
+    "wheel_path": "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+    "wheel_sha256": "6537738d8a34cbabd5794cf607aa9dfc442d197d92492cfefc0dc1146200868b"
+  },
+  "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+  "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
+  "started_at": "2026-11-06T13:46:43.967742+00:00"
+}

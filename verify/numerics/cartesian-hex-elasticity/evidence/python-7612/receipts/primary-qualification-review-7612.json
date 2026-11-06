@@ -1,0 +1,68 @@
+{
+  "files_sha256": {
+    "launch.json": "1269c961bac464363ae9380351d80e59dc98a3a4d8d7c758e39f9d8c989cad80",
+    "mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "preparation.json": "19d3a3a72d35eb6c427df6ed98f17c18a3a07b0408868848be6a7e1f48a5fab7",
+    "primary.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "qualification.json": "3cc36f34eab46b78e19bca889ada6f24a48affe4c4b1cb5af0df65da33e400ef",
+    "replay.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "result.json": "8338544d1c1e60adace5d3eefaddb76869fb706bf26a91fd2415efeac8461938"
+  },
+  "primary": {
+    "coefficients": 81,
+    "displacement_budget_m": 2.996431266317272e-10,
+    "energy_J": 8.156250000000005,
+    "independent_energy_J": 8.15625,
+    "independent_left_traction_N": [
+      -13.5,
+      -4.5,
+      -2.25
+    ],
+    "left_traction_N": [
+      -13.49999999999998,
+      -4.500000000000031,
+      -2.250000000000004
+    ],
+    "maximum_displacement_error_m": 1.3433698597964394e-14,
+    "maximum_free_residual_N": 9.832958778486387e-15,
+    "protocol_passed": true,
+    "residual_budget_N": 1.0830447649823327e-10
+  },
+  "primary_replay_bytes_equal": true,
+  "qualification": {
+    "ordinary_run_attempted": 1,
+    "ordinary_run_completed": 1,
+    "pde_solves": 1,
+    "profile_calls": 0,
+    "status": "passed",
+    "warmups": 0
+  },
+  "reference_sha256": {
+    "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+    "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+  },
+  "replay": {
+    "coefficients": 81,
+    "displacement_budget_m": 2.996431266317272e-10,
+    "energy_J": 8.156250000000005,
+    "independent_energy_J": 8.15625,
+    "independent_left_traction_N": [
+      -13.5,
+      -4.5,
+      -2.25
+    ],
+    "left_traction_N": [
+      -13.49999999999998,
+      -4.500000000000031,
+      -2.250000000000004
+    ],
+    "maximum_displacement_error_m": 1.3433698597964394e-14,
+    "maximum_free_residual_N": 9.832958778486387e-15,
+    "protocol_passed": true,
+    "residual_budget_N": 1.0830447649823327e-10
+  },
+  "scope": "Independent comparison of retained results only; zero additional solves; Rust numerical producer remains unqualified."
+}

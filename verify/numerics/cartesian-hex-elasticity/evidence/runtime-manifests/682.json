@@ -1,0 +1,9 @@
+{
+  "original_producer_commit": "6826671d537882b3daded212866e76250b9c036f",
+  "source_binary": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "preserved_copy": "/home/nk523/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d",
+  "sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+  "distinct_inode": true,
+  "original_attempt": "native-qualification-682-attempt1",
+  "original_pid": 1431892
+}

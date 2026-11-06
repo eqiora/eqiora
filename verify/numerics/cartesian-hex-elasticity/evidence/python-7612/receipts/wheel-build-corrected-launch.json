@@ -1,0 +1,26 @@
+{
+  "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+  "source_tree": "be4c49c4942b86ea4585c15a06f6b1b4067db08b",
+  "command": [
+    "/home/nk523/tmp/eqiora-hex-execution/venv/bin/maturin",
+    "build",
+    "--locked",
+    "--interpreter",
+    "/home/nk523/tmp/eqiora-hex-execution/venv/bin/python",
+    "--out",
+    "/home/nk523/tmp/eqiora-hex-execution/wheels-corrected"
+  ],
+  "started_at": "2026-11-06T13:34:31.597864+00:00",
+  "launcher_pid": 1321646,
+  "environment": {
+    "TMPDIR": "/home/nk523/tmp/eqiora-hex-execution",
+    "CARGO_TARGET_DIR": "/home/nk523/tmp/eqiora-hex-execution/target",
+    "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
+    "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+    "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
+    "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
+    "LD_LIBRARY_PATH": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+    "PATH": "/home/nk523/tmp/eqiora-hex-execution/venv/bin:/home/nk523/.local/bin:/home/nk523/.pixi/envs/nodejs/bin:/home/nk523/.pixi/bin:/home/nk523/texlive/current/bin/x86_64-linux:/home/nk523/.atuin/bin:/home/nk523/.local/bin:/data/nk523/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/data/nk523/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e/home/tmp/arg0-linux/codex-arg01zSd8u:/home/nk523/.local/bin:/home/nk523/.config/orca/cli/bin:/home/nk523/.local/bin:/home/nk523/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+  },
+  "builder_pid": 1321674
+}

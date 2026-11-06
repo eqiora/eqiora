@@ -1,0 +1,72 @@
+{
+  "actual_preparation_pids": [
+    1426967
+  ],
+  "archived_python_source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+  "binary_path": "/home/nk523/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+  "export_bindings": {
+    "facet_quadrature": [
+      2,
+      2
+    ],
+    "field": "1M8HS9XJX0718F6PJNAYBBGQ0C",
+    "observables": [
+      "5027P9MQE8EY85GFRQ9HK2MNZD",
+      "6C29WHA5EXV06JHKZQ3BR6A3K6",
+      "6Y7R2PAZDEJME4Y9F0X7BEJD2V",
+      "0AN9XRQFDEF6X009FAJC7M6J37"
+    ],
+    "volume_quadrature": [
+      3,
+      2
+    ]
+  },
+  "files_sha256": {
+    "native-producer-frozen-checked-artifacts/1426967-0/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-producer-frozen-checked-artifacts/1426967-0/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-producer-frozen-checked-artifacts/1426967-0/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-producer-frozen-checked-artifacts/1426967-0/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-producer-frozen-checked-artifacts/1426967-0/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-producer-frozen-checked.log": "db6af304f74abe2673c8ceda17eff0b6ebdd675bb9eaf221d93ea159e12d1992",
+    "native-producer-frozen-no-solve.log": "6596e8e27293adafff9d18021834bbd062bfedfd8e760f8799594bc0a1a09c13",
+    "native-producer-ldd.txt": "9b642f86ab9d4105e8fa72bd359f99cc8c5d15419459434fd759417cf51fa959",
+    "native-producer-review.diff": "de8681b0ed4e959239813271d0119ccd47c18d638802e827b67a83fe9a13de05"
+  },
+  "frozen_runtime_manifest_sha256": "c9084b89b5d545d6f3740b91f13e1a1e1228529e10c0ed9f3360e251a2dedc70",
+  "held_scientific_tests": 1,
+  "ldd_path": "/home/nk523/tmp/eqiora-hex-execution/native-producer-ldd.txt",
+  "model_source_sha256": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+  "native_producer_path": "/home/nk523/tmp/eqiora-hex-execution/tree/crates/eqiora/tests/cartesian_hex_elasticity.rs",
+  "native_producer_sha256": "9ea32ad363ed8220e549213cad3cacb754496b4ed00043b08fdf489cedc7b6fc",
+  "no_solve_log": "/home/nk523/tmp/eqiora-hex-execution/native-producer-frozen-checked.log",
+  "no_solve_tests_passed": 7,
+  "pde_solves_by_new_native_producer": 0,
+  "plan_assembly_quadrature": {
+    "kind": "gauss-legendre",
+    "points_per_axis": 2
+  },
+  "plan_bytes_match_archived_python": true,
+  "plan_identity": "a00df5b7695ad90f0e3563e5e0554c1af4bc8feccbb526892688984d7b5a1a87",
+  "preparation_artifact_directory": "/home/nk523/tmp/eqiora-hex-execution/native-producer-frozen-checked-artifacts/1426967-0",
+  "primary_review": {
+    "original_pending_receipt_sha256": "a553463323c65a99685e78a4d0f3c7876191d4bc70e8652c65841616bfb2f971",
+    "reviewed_source_commit": "6826671d537882b3daded212866e76250b9c036f",
+    "scope": "Exactly one first ordinary Rust Run; no retries, profiles, warmups or scientific tolerance changes. Source, full81 coordinate map, actual public observations, SI units, immediate Result retention and canonical replay reviewed. All recorded file/library hashes independently verified."
+  },
+  "producer_review": "accepted",
+  "reference_sha256": {
+    "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+    "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+  },
+  "resolved_library_sha256": {
+    "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "1cd555ac46b7887edeaf3c42aac5408c8135e52f6b37870da2cf82d5fe14e829",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6": "d8db8739a1633c972cec6a4fe0566bdcec6fd088f98723492ab0361f66238f75",
+    "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1": "02f3f192bf5f79b811f1e34a650fea443d407408703448906585232383957f60",
+    "/usr/lib/x86_64-linux-gnu/libm.so.6": "1b87a1a50b496cfead2b0ad134c2ff536705c82608db240c7e8aa48d6c0e4217"
+  },
+  "source_commit": "6826671d537882b3daded212866e76250b9c036f",
+  "source_tree": "2b2b2b1eb525aa73093ff0ae63774926053a00cc",
+  "status": "built-and-no-solve-controls-passed-native-scientific-run-held",
+  "tracked_clean": true
+}

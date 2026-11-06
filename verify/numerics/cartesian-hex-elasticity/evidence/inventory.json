@@ -1,0 +1,99 @@
+{
+  "files_sha256": {
+    "archived-sources/native-producer-682.rs.txt": "9ea32ad363ed8220e549213cad3cacb754496b4ed00043b08fdf489cedc7b6fc",
+    "archived-sources/native-recovery-1d010.rs.txt": "e0abbac4766e84932f18ebe3863b21a772f7398f45aa344db9aa23b5f3cc2973",
+    "archived-sources/python-check-7612.py.txt": "7b011f51cd2e842b15797a3f9c0fa5fb3ff6850e8558fee9745d0944d574522b",
+    "archived-sources/python-export-7612.py.txt": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
+    "native-682-failed-export/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-682-failed-export/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-682-failed-export/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-682-failed-export/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-682-failed-export/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-682-failed-export/artifacts/result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-682-failed-export/launch.json": "9ef5d4f6d4e3679b5666ce0447ff673ddb3cc3ec465943fa18d3ad235104d8a2",
+    "native-682-failed-export/preparation.json": "cb2af824601bbdc0540eacb41372292776ad5b3d9dba1cdd8baca8f2492a77cb",
+    "native-682-failed-export/receipts/native-producer-build-receipt.accepted.json": "a9eb771c6fd38f16ef49c9fbde1515825c559c9d1e3b5474d15cb5ad2b5dd5b0",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-finish.json": "67095599251e4c0d06c3210343da748dba774531a00e0c72a2243d8201c8cf97",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-start.json": "1a3e6cd8490fb2525c53124941d7ed38bb333697b47c7c6cfbed286e903a0c7c",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1.log": "a164ad965cfdb89b8a0c698d0a6874ed08a45a18a868815215a9b52860b73e57",
+    "native-682-failed-export/run-attempt.json": "15a4bbe7cd46753114183a25b8cee4723037b9c13a49a9f024052d25285ae430",
+    "native-recovery-1d010/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-recovery-1d010/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-recovery-1d010/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-recovery-1d010/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-recovery-1d010/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-recovery-1d010/original-result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-recovery-1d010/primary.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "native-recovery-1d010/protocol-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/protocol-stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-finish.json": "491622757eb3f2dd58ac9a23d48ba3a3c722282d6567c4a8000f24a073cace60",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-start.json": "e0929813cc2ee1be58abf5af33d9525ae0cae4cfac6a96125308c37b12125859",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1.log": "c9018d54a504e38d314a08d51f72608c882ae9367d04474b434dfa6bb225fbeb",
+    "native-recovery-1d010/receipts/native-recovery-build-receipt.accepted.json": "eb63b09d3652abd7d2fabcedf067934ea393bfc4f53caa4b15df7495da0173c4",
+    "native-recovery-1d010/receipts/primary-native-recovery-review-1d010.json": "0923a41c521ce2ebb4529de3c3e4eac4c4aa780485d259874c0ca8634440dee3",
+    "native-recovery-1d010/recovery-launch.json": "3be5327679618f7f80e24678758f56116c3117215bfc6fddb4f1ca8b31d8f452",
+    "native-recovery-1d010/recovery-qualification.json": "36254acad82886ff433b592928bccd46ce5ed3e2cbf2cdece81a80eebf1ce2d2",
+    "native-recovery-1d010/replay.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "python-7612/launch.json": "1269c961bac464363ae9380351d80e59dc98a3a4d8d7c758e39f9d8c989cad80",
+    "python-7612/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "python-7612/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "python-7612/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "python-7612/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "python-7612/preparation.json": "19d3a3a72d35eb6c427df6ed98f17c18a3a07b0408868848be6a7e1f48a5fab7",
+    "python-7612/primary.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/qualification.json": "3cc36f34eab46b78e19bca889ada6f24a48affe4c4b1cb5af0df65da33e400ef",
+    "python-7612/receipts/primary-qualification-review-7612.json": "d7ea46200e2984a85bff2a0a7e5e0c2f79dad3a4ef89d4c86f621f99c306b363",
+    "python-7612/receipts/python-qualification-7612-attempt1-finish.json": "98722b97f9df925be40b1b818b350596c77b0a1fa56a88efc349d0cf3a650d2a",
+    "python-7612/receipts/python-qualification-7612-attempt1-start.json": "2806901cb44aa23e4c91a68f490febf51336ad553766aa3c890de81703c34cfe",
+    "python-7612/receipts/python-qualification-7612-attempt1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "python-7612/receipts/reviewed-build-receipt-7612.json": "f7cd2cd068096fc83632a6ad9ce5b82ffd2cb043d0d3232c68381b4988654d3b",
+    "python-7612/receipts/wheel-build-completion.json": "6d3690d7666e2d421551db792cdd82b943c5d064b7fb0103d11a21bde508d6c2",
+    "python-7612/receipts/wheel-build-corrected-completion.json": "dcdc47530558995dcfb2399c55a8f52164c8b56908d6f6d6760497ac2d215023",
+    "python-7612/receipts/wheel-build-corrected-launch.json": "52b4d59c466dc5f499e9a19783cb981c1907f3964539c9c64df368cba57d2e17",
+    "python-7612/receipts/wheel-build-corrected.log": "999c329b06fa87edc4972dff3b314ab08860a653c9d9dc65178c7c8244b05e46",
+    "python-7612/receipts/wheel-build-launch.json": "f027905dbfc51abdddd18d5a90f65e21c1590cc789b349c596aa929b20eda8a8",
+    "python-7612/receipts/wheel-build.log": "13e792e11398305150105c6a5ee6978ef66ddf067f093ee3bca7e0931bab41f4",
+    "python-7612/replay.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/result.json": "8338544d1c1e60adace5d3eefaddb76869fb706bf26a91fd2415efeac8461938",
+    "runtime-manifests/1d010.json": "df8c9fde1e630279baeba1262b7bbf4606d5775409c06b240b27ba543c5c3eb4",
+    "runtime-manifests/682.json": "8ebfef67f2963d1d1e6647eb1ae8eafe851628d8b90afc38e8b20bcf50e8f95e",
+    "runtime-manifests/7612.json": "c9084b89b5d545d6f3740b91f13e1a1e1228529e10c0ed9f3360e251a2dedc70"
+  },
+  "initial_campaign": {
+    "native": {
+      "binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+      "process_exit_code": 101,
+      "qualification": "export-failed-after-accepted-result-save",
+      "source_commit": "6826671d537882b3daded212866e76250b9c036f"
+    },
+    "native_readonly_recovery": {
+      "binary_sha256": "a657c7b181558f0be939f35cbbe3d0111bdd3cef12e4582491916f7c826283b5",
+      "harness_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+      "new_pde_solves": 0,
+      "process_exit_code": 0,
+      "qualification": "read-only-recovery-passed"
+    },
+    "pde_solves": {
+      "native": 1,
+      "python": 1,
+      "total": 2
+    },
+    "python": {
+      "process_exit_code": 0,
+      "qualification": "passed",
+      "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473"
+    }
+  },
+  "omitted_large_runtime_artifacts": {
+    "native_and_recovery_binary_copies": "external frozen-runtime manifests identify these artifacts; copies are not committed",
+    "python_extension_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
+    "python_wheel_sha256": "6537738d8a34cbabd5794cf607aa9dfc442d197d92492cfefc0dc1146200868b"
+  },
+  "reference_sha256": {
+    "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+    "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+  },
+  "registered_regression_runs": "separate future closure; never counted as initial candidate retries",
+  "schema": 1,
+  "scope": "Original scientific artifacts, complete small original process/build receipts and producer sources; no metadata projections and no native binary/wheel/environment archive. Host paths in original receipts are historical and are not clone-available runtime dependencies."
+}
