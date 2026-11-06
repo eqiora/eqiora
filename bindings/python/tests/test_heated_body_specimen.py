@@ -284,3 +284,39 @@ def test_transient_import_and_handwritten_law_share_independent_heat_oracle():
         plan = transient_plan(model, geometry)
         result = eqiora.run(plan, state=eqiora.State.initial(plan), steps=3, output_steps=(1, 2, 3))
         check_transient(model, result)
+
+
+@pytest.mark.parametrize("inputs", [
+    (2, 1, 3, 0, 280, 320),
+    (2, 1, 3, 2, 280, 320),
+    (2, 1, 3, 5, 280, 320),
+    (3, 2, 2, 4, 310, 280),
+])
+def test_convective_heat_import_and_handwritten_compile_offline(tmp_path, inputs):
+    project = tmp_path / "project"
+    shutil.copytree(SPECIMEN, project)
+    store = tmp_path / "store"
+    store.mkdir()
+    geometry, bindings = example.convection_geometry_and_bindings(*inputs)
+    lock = eqiora.resolve_local_project(project, store)
+    packaged = eqiora.compile_package(
+        store, lock, entry="ConvectiveHeatedBody", geometry=geometry, bindings=bindings)
+    direct = eqiora.compile(path=project / "src/main.eqi", entry="ConvectiveHeatedBody",
+                            geometry=geometry, bindings=bindings)
+    manual = eqiora.compile(path=project / "handwritten.eqi", entry="ConvectiveHeatedBody",
+                            geometry=geometry, bindings=bindings)
+    assert direct.structural_fingerprint == packaged.structural_fingerprint
+    assert packaged.package_compilation_digest is not None
+    assert manual.package_compilation_digest is None
+    assert not manual.authored_formulations
+    vendor = project / "vendor"
+    vendor.mkdir()
+    assert eqiora.vendor_project(project, store, vendor) == lock
+    shutil.rmtree(store)
+    moved = tmp_path / "moved"
+    project.rename(moved)
+    assert eqiora.open_project(moved, moved / "vendor") == lock
+    offline = eqiora.compile_package(
+        moved / "vendor", lock, entry="ConvectiveHeatedBody", geometry=geometry, bindings=bindings)
+    assert offline.digest == packaged.digest
+    assert offline.package_compilation_digest == packaged.package_compilation_digest

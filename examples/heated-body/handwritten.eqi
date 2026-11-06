@@ -60,7 +60,7 @@ public component ConvectiveHeatedBody(
   support y_upper: boundary(parent = body),
   parameter conductivity: W / (m * K),
   parameter coefficient: W / (m ^ 2 * K),
-  parameter cold_temperature: K,
+  parameter fixed_temperature: K,
   parameter ambient_temperature: K
 ) {
   variable temperature: K on body in smooth;
@@ -68,7 +68,7 @@ public component ConvectiveHeatedBody(
     flux -conductivity * grad(temperature);
     source 0[W/m^3];
   }
-  relation cold on x_lower { trace(temperature) = cold_temperature; }
+  relation fixed on x_lower { trace(temperature) = fixed_temperature; }
   relation convection on x_upper {
     normal(conductivity * grad(temperature)) + coefficient * trace(temperature)
       = coefficient * ambient_temperature;

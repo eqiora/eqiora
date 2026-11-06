@@ -146,7 +146,8 @@ package identity, not by directory.
 - [`Eqiora.Scalar`](Eqiora.Scalar/): 2D Poisson and Laplace laws for a
   dimensionless potential on physical metre coordinates, with fixed-value and
   outward constitutive-gradient boundary data. The coefficient defaults to one.
-  Fixed-SI steady heat, fixed temperature and physical outward heat flux use
+  Fixed-SI steady heat, fixed temperature, physical outward heat flux and
+  convective heat transfer use
   Kelvin temperature, conductivity in W/(m K) and heating in W/m³.
   Constant-capacity transient heat and prescribed conservative scalar
   advection–diffusion use the ordinary Q1/backward-Euler workflow. Constant-capacity

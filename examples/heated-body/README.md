@@ -70,7 +70,7 @@ same automatic formulation. Imports and direct equations share the numerical own
 `ConvectiveHeatedBody` keeps the original all-fixed example intact. It imports
 `SteadyHeat2d`, `FixedTemperature2d`, `OutwardHeatFlux2d` and
 `ConvectiveHeatTransfer2d`; the same component in [handwritten.eqi](handwritten.eqi)
-writes every law directly. The left face is held at `cold_temperature`, the right
+writes every law directly. The left face is held at `fixed_temperature`, the right
 face exchanges heat with `ambient_temperature`, and the horizontal faces are
 insulated. Supply `conductivity` in W/(m K) and `coefficient` in W/(m² K).
 

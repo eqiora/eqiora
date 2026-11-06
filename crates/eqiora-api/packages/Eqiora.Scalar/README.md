@@ -143,7 +143,7 @@ instance convection: scalar.ConvectiveHeatTransfer2d(
 ```
 
 The supported numerical path is steady affine Cartesian 2D Q1 on the serial CPU
-reference provider. TPFA returns a typed unsupported diagnostic. No transient,
+reference provider, with constant coefficient and ambient data. TPFA returns a typed unsupported diagnostic. No transient,
 threaded, MPI or GPU convection execution is claimed. See the imported and
 hand-written `ConvectiveHeatedBody` entries in
 [`examples/heated-body`](../../../../examples/heated-body/README.md).

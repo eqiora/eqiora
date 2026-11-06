@@ -33,7 +33,7 @@ The direct transient Law remains in the hand-written alternative for comparison.
 ## A convecting face
 
 The separate `ConvectiveHeatedBody` entry keeps the all-fixed example above.
-It holds the left face at `cold_temperature`, insulates the horizontal faces,
+It holds the left face at `fixed_temperature`, insulates the horizontal faces,
 and imports `ConvectiveHeatTransfer2d` on the right face:
 
 ```eqiora

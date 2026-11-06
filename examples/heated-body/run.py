@@ -5,9 +5,9 @@ import tempfile
 import eqiora
 
 
-def geometry_and_bindings():
+def geometry_and_bindings(length=1.0, height=1.0):
     graph = eqiora.geometry.GeometryGraph()
-    square = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    square = graph.rectangle(x_bounds=(0.0, length), y_bounds=(0.0, height))
     names = ("x_lower", "x_upper", "y_lower", "y_upper")
     geometry = graph.build(square, named_topology={
         "body": square.region,
@@ -15,6 +15,15 @@ def geometry_and_bindings():
     })
     body = geometry.selection("body")
     bindings = {"body": body, "conductivity": 1.0, "heating": 1.0, **{name: (geometry.selection(name), body) for name in names}}
+    return geometry, bindings
+
+
+def convection_geometry_and_bindings(length=2.0, height=1.0, conductivity=3.0,
+                                     coefficient=2.0, fixed=280.0, ambient=320.0):
+    geometry, bindings = geometry_and_bindings(length, height)
+    bindings.pop("heating")
+    bindings.update(conductivity=conductivity, coefficient=coefficient,
+                    fixed_temperature=fixed, ambient_temperature=ambient)
     return geometry, bindings
 
 
@@ -55,6 +64,13 @@ def main():
         print("Transient temperature coefficients [K]:")
         for state in result.trajectory.states:
             print(state.time_s, state.field(temperature).values("vertex"))
+
+        geometry, bindings = convection_geometry_and_bindings()
+        convection = eqiora.compile_package(
+            store, lock, entry="ConvectiveHeatedBody", geometry=geometry, bindings=bindings)
+        result = eqiora.run(resolve(convection, geometry))
+        print("Steady convective temperature coefficients [K]:")
+        print(result.output(convection.field("definition.temperature")).values("vertex").numpy())
 
 
 if __name__ == "__main__":
