@@ -298,6 +298,9 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
 
 #[test]
 fn live_static_acceptance_retains_original_equations_and_independent_replay() {
+    if !crate::numerical_admission::scalar::live_tests::attribution_child() {
+        return;
+    }
     let geometry = cartesian_interval();
     let model = scalar_box_model(
         &geometry,
