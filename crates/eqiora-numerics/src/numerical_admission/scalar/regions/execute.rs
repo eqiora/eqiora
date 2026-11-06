@@ -396,6 +396,11 @@ where
         request: LinearSolveRequest<'_, S>,
         initial: Option<&BTreeMap<RawId, Vec<P>>>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
+        let _preparation = eqiora_execution::telemetry_span!(backend(
+            "scalar_problem_preparation",
+            "scalar_static"
+        ))
+        .entered();
         // Ordinary execution needs only the canonical solve and recovery map.
         let initial = initial
             .map(|values| {
@@ -407,8 +412,15 @@ where
         if let Some(values) = &initial {
             problem = problem.with_initial_guess(values)?;
         }
+        drop(_preparation);
         let solution = request.solve(&problem)?;
+        let _validation = eqiora_execution::telemetry_span!(backend(
+            "scalar_solution_validation",
+            "scalar_static"
+        ))
+        .entered();
         self.core.validate_solution(&solution)?;
+        drop(_validation);
         let (values, solve_report) = solution.into_parts();
         self.finish(values, solve_report, None)
     }
@@ -419,6 +431,11 @@ where
         solve_report: eqiora_solver::SolveReport,
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
     ) -> Result<CommonLinearRunOutput<P>, Diagnostic> {
+        let _recovery = eqiora_execution::telemetry_span!(backend(
+            "scalar_coordinate_recovery",
+            "scalar_static"
+        ))
+        .entered();
         let fields = self
             .mapping
             .recover_coordinates(&values)?
