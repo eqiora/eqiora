@@ -309,7 +309,7 @@ fn rejects_wrong_cells_orders_embedded_and_inverted_maps() {
     }
     assert!(
         DiscreteSpace::new(
-            Space::continuous_lagrange(std::num::NonZeroU16::new(2).unwrap()),
+            Space::continuous_lagrange(std::num::NonZeroU16::new(3).unwrap()),
             ReferenceCell::simplex(3).unwrap()
         )
         .is_err()

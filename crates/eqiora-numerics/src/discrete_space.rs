@@ -7,6 +7,9 @@ use eqiora_realization::{Space, SpaceFamily};
 mod binding;
 mod compatible;
 mod mapped;
+mod nodal;
+#[cfg(test)]
+mod quadratic_tests;
 mod scalar;
 #[cfg(test)]
 mod tests;
@@ -113,6 +116,16 @@ impl DiscreteSpace {
                 SpaceFamily::ContinuousLagrange { order },
                 ReferenceCellFamily::Simplex | ReferenceCellFamily::Hypercube,
             ) if order.get() == 1 => (reference_vertex_count(cell)?, 0, 1),
+            (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Simplex)
+                if order.get() == 2 && (1..=3).contains(&d) =>
+            {
+                ((d + 1) * (d + 2) / 2, 0, 1)
+            }
+            (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Hypercube)
+                if order.get() == 2 && (1..=3).contains(&d) =>
+            {
+                (3usize.pow(d as u32), 0, 1)
+            }
             (SpaceFamily::SimplexP1Bubble, ReferenceCellFamily::Simplex) => (
                 d.checked_add(2)
                     .ok_or_else(|| invalid_space("simplex bubble coefficient count overflow"))?,
@@ -147,16 +160,21 @@ impl DiscreteSpace {
         } else {
             1.0
         };
-        let local_dofs = (0..count)
-            .map(|ordinal| {
-                let bubble = space.family() == SpaceFamily::SimplexP1Bubble && ordinal == d + 1;
-                LocalDof {
-                    entity_dimension: if bubble { d } else { entity_dimension },
-                    entity_ordinal: if bubble { 0 } else { ordinal },
-                    slot: 0,
-                }
-            })
-            .collect();
+        let local_dofs = if matches!(space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+        {
+            nodal::quadratic_dofs(cell)?
+        } else {
+            (0..count)
+                .map(|ordinal| {
+                    let bubble = space.family() == SpaceFamily::SimplexP1Bubble && ordinal == d + 1;
+                    LocalDof {
+                        entity_dimension: if bubble { d } else { entity_dimension },
+                        entity_ordinal: if bubble { 0 } else { ordinal },
+                        slot: 0,
+                    }
+                })
+                .collect()
+        };
         Ok(Self {
             space,
             cell,
@@ -207,6 +225,7 @@ impl DiscreteSpace {
                 "orientation has incompatible reference vertex arity",
             ));
         }
+        nodal::check_topology_permutation(self.cell, permutation)?;
         if self.vector_element() {
             let topology = ReferenceTopology::new(self.cell)?;
             let dimension = self.local_dofs[0].entity_dimension;
@@ -241,6 +260,10 @@ impl DiscreteSpace {
         }
         if self.space.family() == SpaceFamily::CellConstant {
             return Ok(vec![(0, 1)]);
+        }
+        if matches!(self.space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+        {
+            return nodal::permuted_dofs(self, permutation);
         }
         let mut order = permutation
             .images()
