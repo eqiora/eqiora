@@ -36,7 +36,7 @@ matplotlib = ["matplotlib>=3.10,<3.12"]
 torch = ["torch>=2.15,<2.16"]
 
 [dependency-groups]
-release-tools = ["twine==7.0.0", "uv==0.13.6"]
+release-tools = ["twine==7.0.0", "uv==0.13.7"]
 
 [project.urls]
 Homepage = "https://eqiora.org"
