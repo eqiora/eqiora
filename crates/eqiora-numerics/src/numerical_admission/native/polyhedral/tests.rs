@@ -150,9 +150,9 @@ fn fixture_cells(
             "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n3 1 0 4\n1\n2\n3\n4\n0 0 0\n{extent} 0 0\n0 3 0\n0 0 4\n$EndNodes\n$Elements\n1 1 1 1\n3 1 4 1\n1 {cell}\n$EndElements\n"
         )
     };
-    let policy = eqiora_artifact::GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap();
+    let policy = eqiora_artifact::MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap();
     let owner =
-        AuthenticatedCommonMesh::gmsh_4152(geometry, policy, observation.into_bytes()).unwrap();
+        AuthenticatedCommonMesh::import_msh41(geometry, policy, observation.into_bytes()).unwrap();
     (model, program, owner)
 }
 

@@ -141,7 +141,7 @@ where
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.prepare_numeric_assembly(mesh.mesh(), &input)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 mapping.prepare_numeric_assembly(mesh.mesh(), &input)?
             }

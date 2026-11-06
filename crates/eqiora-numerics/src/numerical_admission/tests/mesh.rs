@@ -1,3 +1,4 @@
+mod external_msh;
 mod model_geometries;
 pub(super) mod polyhedra;
 use super::*;

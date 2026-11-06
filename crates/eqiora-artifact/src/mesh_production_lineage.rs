@@ -17,6 +17,8 @@ const CARTESIAN_IDENTITY: &str = "eqiora.structured-cartesian";
 const CARTESIAN_VERSION: &str = "2";
 const AFFINE_TRIANGLE_IDENTITY: &str = "eqiora.affine-triangle";
 const AFFINE_TRIANGLE_VERSION: &str = "2";
+mod msh_import;
+pub use msh_import::MshImportPolicyV1;
 mod affine_triangles;
 pub use affine_triangles::AffineTriangleMeshPolicy;
 use affine_triangles::WireAffineTrianglePolicy;
@@ -26,6 +28,7 @@ use affine_triangles::WireAffineTrianglePolicy;
 enum MeshProductionProvider {
     /// Adapter for the external Gmsh 4.15.2 command-line tool.
     Gmsh4152,
+    ExternalMsh41,
     /// Deterministic dimension-parametric structured Cartesian producer v2.
     StructuredCartesianV2,
     /// Deterministic source-owned affine-triangle producer with refinement replay.
@@ -38,6 +41,7 @@ impl MeshProductionProvider {
     pub const fn identity(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_IDENTITY,
+            Self::ExternalMsh41 => "eqiora.external-msh",
             Self::StructuredCartesianV2 => CARTESIAN_IDENTITY,
             Self::AffineTriangleV2 => AFFINE_TRIANGLE_IDENTITY,
         }
@@ -48,6 +52,7 @@ impl MeshProductionProvider {
     pub const fn version(self) -> &'static str {
         match self {
             Self::Gmsh4152 => GMSH_VERSION,
+            Self::ExternalMsh41 => "4.1",
             Self::StructuredCartesianV2 => CARTESIAN_VERSION,
             Self::AffineTriangleV2 => AFFINE_TRIANGLE_VERSION,
         }
@@ -423,9 +428,9 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn gmsh_mesh_policy(&self) -> Option<GmshMeshPolicyV1> {
         match self.wire.effective_policy {
             WireEffectivePolicyV1::GmshMesh(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::CartesianCells(_) | WireEffectivePolicyV1::AffineTriangle(_) => {
-                None
-            }
+            WireEffectivePolicyV1::ExternalMsh41(_)
+            | WireEffectivePolicyV1::CartesianCells(_)
+            | WireEffectivePolicyV1::AffineTriangle(_) => None,
         }
     }
 
@@ -434,7 +439,9 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV2> {
         match &self.wire.effective_policy {
             WireEffectivePolicyV1::CartesianCells(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::AffineTriangle(_) => None,
+            WireEffectivePolicyV1::ExternalMsh41(_)
+            | WireEffectivePolicyV1::GmshMesh(_)
+            | WireEffectivePolicyV1::AffineTriangle(_) => None,
         }
     }
 
@@ -443,7 +450,9 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn affine_triangle_policy(&self) -> Option<AffineTriangleMeshPolicy> {
         match &self.wire.effective_policy {
             WireEffectivePolicyV1::AffineTriangle(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::CartesianCells(_) => None,
+            WireEffectivePolicyV1::ExternalMsh41(_)
+            | WireEffectivePolicyV1::GmshMesh(_)
+            | WireEffectivePolicyV1::CartesianCells(_) => None,
         }
     }
 
@@ -479,6 +488,9 @@ impl MeshProductionLineageEnvelopeV1 {
         let compatible = matches!(
             (provider, &self.wire.effective_policy),
             (
+                MeshProductionProvider::ExternalMsh41,
+                WireEffectivePolicyV1::ExternalMsh41(_)
+            ) | (
                 MeshProductionProvider::Gmsh4152,
                 WireEffectivePolicyV1::GmshMesh(_)
             ) | (
@@ -503,6 +515,7 @@ impl MeshProductionLineageEnvelopeV1 {
 
 fn provider_from_wire(wire: &WireProviderV1) -> Result<MeshProductionProvider, Diagnostic> {
     match (wire.identity.as_str(), wire.version.as_str()) {
+        ("eqiora.external-msh", "4.1") => Ok(MeshProductionProvider::ExternalMsh41),
         (GMSH_IDENTITY, GMSH_VERSION) => Ok(MeshProductionProvider::Gmsh4152),
         (CARTESIAN_IDENTITY, CARTESIAN_VERSION) => {
             Ok(MeshProductionProvider::StructuredCartesianV2)
@@ -549,6 +562,7 @@ struct WireGmshMeshPolicyV1 {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum WireEffectivePolicyV1 {
     GmshMesh(WireGmshMeshPolicyV1),
+    ExternalMsh41(MshImportPolicyV1),
     CartesianCells(WireCartesianCellsV2),
     AffineTriangle(WireAffineTrianglePolicy),
 }
@@ -557,6 +571,7 @@ impl WireEffectivePolicyV1 {
     fn validate(&self) -> Result<(), Diagnostic> {
         match self {
             Self::GmshMesh(policy) => (*policy).to_policy().map(|_| ()),
+            Self::ExternalMsh41(policy) => policy.validate(),
             Self::CartesianCells(policy) => policy.to_policy().map(|_| ()),
             Self::AffineTriangle(policy) => policy.to_policy().map(|_| ()),
         }

@@ -39,6 +39,12 @@ impl NativeSpatialPolicy {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum MshSourcePolicy {
+    Gmsh4152(eqiora_artifact::GmshMeshPolicyV1),
+    External(eqiora_artifact::MshImportPolicyV1),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeMeshResources {
     Coordinates(super::coordinate_grid::CoordinateGrid),
@@ -54,9 +60,9 @@ pub(super) enum NativeMeshResources {
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
         production: MeshProductionLineageEnvelopeV1,
     },
-    GmshSimplicial {
+    MshSimplicial {
         geometry: CanonicalGeometryV1,
-        policy: eqiora_artifact::GmshMeshPolicyV1,
+        policy: MshSourcePolicy,
         provider_output: Box<[u8]>,
         mesh: SimplicialMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -162,9 +168,25 @@ impl AuthenticatedCommonMesh {
         })
     }
 
+    /// Import external MSH 4.1 triangles/tetrahedra with explicit units and exact Geometry.
+    /// Retains original cells and source bytes; does not claim generator execution.
+    pub fn import_msh41(
+        geometry: CanonicalGeometryV1,
+        policy: eqiora_artifact::MshImportPolicyV1,
+        source: Vec<u8>,
+    ) -> Result<Self, Diagnostic> {
+        let resources = derive_msh_resources(geometry, MshSourcePolicy::External(policy), source)?;
+        Ok(Self {
+            resources,
+            model_geometries: Vec::new(),
+        })
+    }
+
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
     /// Affine tetrahedra require exact convex-polyhedral Geometry correspondence;
     /// accepting these resources does not admit a numerical space or flow solver.
+    /// The caller asserts the observation's origin; raw bytes alone do not prove
+    /// that an executable was run. External files use [`Self::import_msh41`].
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::GmshMeshPolicyV1,
@@ -202,7 +224,7 @@ impl NativeMeshResources {
             Self::Coordinates(_) => Err(invalid("coordinate-factor grid has no physical Geometry")),
             Self::Cartesian { geometry, .. }
             | Self::AffineTriangleSimplicial { geometry, .. }
-            | Self::GmshSimplicial { geometry, .. } => Ok(geometry),
+            | Self::MshSimplicial { geometry, .. } => Ok(geometry),
         }
     }
 }
@@ -669,7 +691,7 @@ impl NativeNumericalAdmission {
                 "steady-Stokes admission has a non-Stokes spatial policy",
             ));
         };
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        let (NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.resources()
         else {
             return Err(invalid(
@@ -842,7 +864,7 @@ pub(super) use recognition::{
     resource_artifact_digests, resource_digests, select_exact_model,
 };
 pub(super) use resources::{
-    derive_gmsh_resources, validate_cartesian_resources, validate_resources,
+    derive_gmsh_resources, derive_msh_resources, validate_cartesian_resources, validate_resources,
     validate_simplicial_resources,
 };
 

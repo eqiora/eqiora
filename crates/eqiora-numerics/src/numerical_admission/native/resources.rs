@@ -31,7 +31,7 @@ pub(crate) fn validate_resources(
         }
         (
             NativeSpatialPolicy::FiniteElement(request),
-            resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
+            resources @ NativeMeshResources::MshSimplicial { geometry, mesh, .. },
         ) if ((geometry.region().is_some() && mesh.dimension() == 2)
             || (geometry.polyhedral_vertices().is_some() && mesh.dimension() == 3))
             && (request.policies().all(|policy| {
@@ -63,13 +63,13 @@ pub(crate) fn validate_resources(
         }
         (
             NativeSpatialPolicy::StokesMiniP1(_),
-            resources @ (NativeMeshResources::GmshSimplicial { .. }
+            resources @ (NativeMeshResources::MshSimplicial { .. }
             | NativeMeshResources::AffineTriangleSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
         (
             NativeSpatialPolicy::TransientMiniP1(_),
             resources @ (NativeMeshResources::AffineTriangleSimplicial { .. }
-            | NativeMeshResources::GmshSimplicial { .. }),
+            | NativeMeshResources::MshSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
         (
             NativeSpatialPolicy::TransientCellCentered(_),
@@ -145,17 +145,17 @@ pub(crate) fn validate_simplicial_resources(
                 correspondence,
             )?;
         }
-        NativeMeshResources::GmshSimplicial {
+        NativeMeshResources::MshSimplicial {
             geometry,
             policy,
             provider_output,
             ..
         } => {
             let replayed =
-                derive_gmsh_resources(geometry.clone(), *policy, provider_output.to_vec())?;
+                derive_msh_resources(geometry.clone(), *policy, provider_output.to_vec())?;
             if &replayed != resources {
                 return Err(invalid(
-                    "Gmsh common Mesh resources differ from exact provider-output replay",
+                    "MSH common Mesh resources differ from exact source replay",
                 ));
             }
         }
@@ -165,7 +165,7 @@ pub(crate) fn validate_simplicial_resources(
     }
     let mesh = match resources {
         NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-        | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh,
+        | NativeMeshResources::MshSimplicial { mesh, .. } => mesh,
         NativeMeshResources::Coordinates(_) | NativeMeshResources::Cartesian { .. } => {
             unreachable!("rejected above")
         }
@@ -183,7 +183,37 @@ pub(crate) fn derive_gmsh_resources(
     policy: eqiora_artifact::GmshMeshPolicyV1,
     provider_output: Vec<u8>,
 ) -> Result<NativeMeshResources, Diagnostic> {
-    let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
+    derive_msh_resources(geometry, MshSourcePolicy::Gmsh4152(policy), provider_output)
+}
+
+pub(crate) fn derive_msh_resources(
+    geometry: CanonicalGeometryV1,
+    source_policy: MshSourcePolicy,
+    provider_output: Vec<u8>,
+) -> Result<NativeMeshResources, Diagnostic> {
+    let (minimum_mean_ratio, maximum_boundary_facets) = match source_policy {
+        MshSourcePolicy::Gmsh4152(policy) => (
+            policy.minimum_mean_ratio(),
+            policy.maximum_boundary_facets(),
+        ),
+        MshSourcePolicy::External(policy) => {
+            if provider_output.len() > policy.maximum_source_bytes() {
+                return Err(invalid(
+                    "external MSH source exceeds the declared byte limit",
+                ));
+            }
+            if geometry.region().is_none() && geometry.polyhedral_vertices().is_none() {
+                return Err(invalid(
+                    "external MSH import requires planar-region or convex-polyhedral Geometry",
+                ));
+            }
+            (
+                policy.minimum_mean_ratio(),
+                policy.maximum_boundary_facets(),
+            )
+        }
+    };
+    let quality = eqiora_meshing::MeshQualityGate::new(minimum_mean_ratio)?;
     let (mesh, correspondence) = if geometry.polyhedral_vertices().is_some() {
         let imported = import_msh41(
             &provider_output,
@@ -193,7 +223,7 @@ pub(crate) fn derive_gmsh_resources(
         let boundary_facets = (0..imported.entity_count(2).unwrap_or(0))
             .filter(|&index| imported.is_boundary_entity(MeshEntity::new(2, index)) == Some(true))
             .count();
-        if boundary_facets > policy.maximum_boundary_facets() {
+        if boundary_facets > maximum_boundary_facets {
             return Err(invalid(
                 "polyhedral mesh exceeds the declared boundary facet budget",
             ));
@@ -209,6 +239,18 @@ pub(crate) fn derive_gmsh_resources(
             Msh41Policy::mesh(2, quality)?,
             |_, _, _| {},
         )?;
+        if matches!(source_policy, MshSourcePolicy::External(_)) {
+            let boundary_facets = (0..imported.entity_count(1).unwrap_or(0))
+                .filter(|&index| {
+                    imported.is_boundary_entity(MeshEntity::new(1, index)) == Some(true)
+                })
+                .count();
+            if boundary_facets > maximum_boundary_facets {
+                return Err(invalid(
+                    "planar mesh exceeds the declared boundary facet budget",
+                ));
+            }
+        }
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&imported)?;
         let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(&geometry)?;
         let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&definition, &mesh)?;
@@ -216,15 +258,27 @@ pub(crate) fn derive_gmsh_resources(
     } else {
         derive_circular_hole_mesh(&geometry, quality, &provider_output)?
     };
-    let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-        policy,
-        &geometry,
-        &mesh,
-        &correspondence,
-    )?;
-    Ok(NativeMeshResources::GmshSimplicial {
+    let production = match source_policy {
+        MshSourcePolicy::Gmsh4152(policy) => {
+            MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+                policy,
+                &geometry,
+                &mesh,
+                &correspondence,
+            )?
+        }
+        MshSourcePolicy::External(policy) => {
+            MeshProductionLineageEnvelopeV1::from_external_msh41_resources(
+                policy,
+                &geometry,
+                &mesh,
+                &correspondence,
+            )?
+        }
+    };
+    Ok(NativeMeshResources::MshSimplicial {
         geometry,
-        policy,
+        policy: source_policy,
         provider_output: provider_output.into_boxed_slice(),
         mesh,
         correspondence,

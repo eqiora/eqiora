@@ -126,13 +126,13 @@ impl CommonTransientFlowPlan {
                 }
                 (
                     NativeSpatialPolicy::TransientMiniP1(scales),
-                    NativeMeshResources::GmshSimplicial { mesh, .. },
+                    NativeMeshResources::MshSimplicial { mesh, .. },
                 ) => {
                     let RecognizedNativeModel::TransientGeometry(binding) =
                         admission.recognized_model()
                     else {
                         return Err(invalid(
-                            "Gmsh transient Mesh requires Geometry-backed Model meaning",
+                            "MSH transient Mesh requires Geometry-backed Model meaning",
                         ));
                     };
                     let plan = binding.mini_plan(
@@ -278,7 +278,7 @@ impl CommonTransientFlowPlan {
                     mesh.artifact_reference()?.sha256().as_slice(),
                 );
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. } => {
+            NativeMeshResources::MshSimplicial { mesh, .. } => {
                 push_framed(&mut identity_bytes, b"gmsh-simplicial");
                 push_framed(
                     &mut identity_bytes,
@@ -677,7 +677,7 @@ impl CommonTransientFlowPlan {
                 RecognizedNativeModel::Transient(model),
             ) => (mesh, model.as_ref()),
             (
-                NativeMeshResources::GmshSimplicial { mesh, .. },
+                NativeMeshResources::MshSimplicial { mesh, .. },
                 RecognizedNativeModel::TransientGeometry(binding),
             ) => (mesh, binding.model()),
             _ => {
@@ -811,13 +811,13 @@ impl CommonTransientFlowPlan {
             )),
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
-                NativeMeshResources::GmshSimplicial { .. },
+                NativeMeshResources::MshSimplicial { .. },
             ) => {
                 let RecognizedNativeModel::TransientGeometry(binding) =
                     self.admission.recognized_model()
                 else {
                     return Err(invalid(
-                        "Gmsh transient Plan lost Geometry-backed Model meaning",
+                        "MSH transient Plan lost Geometry-backed Model meaning",
                     ));
                 };
                 PreparedCommonTransientMethod::MiniP1(Box::new(

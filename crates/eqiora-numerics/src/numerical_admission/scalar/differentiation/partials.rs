@@ -86,7 +86,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 S::parameter_residual(mapping, mesh.mesh(), differentiated, values)?
             }

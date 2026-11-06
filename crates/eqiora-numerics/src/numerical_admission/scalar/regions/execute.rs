@@ -63,7 +63,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?
             }
@@ -112,7 +112,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 input.operator_properties = operator_properties;
                 Ok((mapping, input))
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                 if spaces.iter().all(|space| {
                     matches!(space.family(),

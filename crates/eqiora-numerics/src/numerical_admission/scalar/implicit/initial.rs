@@ -126,7 +126,7 @@ where
                 self.mapping
                     .prepare_initial_rate_data(mesh.mesh(), &input, partial)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => self
                 .mapping
                 .prepare_initial_rate_data(mesh.mesh(), &input, partial)?,

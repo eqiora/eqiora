@@ -148,7 +148,7 @@ impl CommonSpatialPlan {
                     self.linear().clone(),
                     initial_partial,
                 )?,
-                NativeMeshResources::GmshSimplicial { mesh, .. }
+                NativeMeshResources::MshSimplicial { mesh, .. }
                 | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                     .validate_temporal_state(
                         mesh.mesh(),

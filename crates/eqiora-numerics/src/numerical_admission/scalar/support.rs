@@ -257,7 +257,7 @@ impl CommonSpatialPlan {
         if self.field_space(field)? != Space::continuous_lagrange(std::num::NonZeroU16::MIN) {
             return Err(invalid("point sampling requires a continuous-P1 Field"));
         }
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        let (NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
             return Err(invalid(

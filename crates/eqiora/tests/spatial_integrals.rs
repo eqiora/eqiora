@@ -1,6 +1,6 @@
 //! Independent affine volume and parent-outward boundary integrals on a 3-4-5 triangle.
 use eqiora::api::ModelDocument;
-use eqiora::artifact::{GmshMeshPolicyV1, ModelEnvelope};
+use eqiora::artifact::{ModelEnvelope, MshImportPolicyV1};
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
 use eqiora::solver::{
@@ -81,9 +81,9 @@ fn resolve(
         msh += &format!("{} {} {} {}\n", index + 1, cell[0], cell[1], cell[2]);
     }
     msh += "$EndElements\n";
-    let resources = AuthenticatedCommonMesh::gmsh_4152(
+    let resources = AuthenticatedCommonMesh::import_msh41(
         geometry.clone(),
-        GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         msh.into_bytes(),
     )
     .unwrap();

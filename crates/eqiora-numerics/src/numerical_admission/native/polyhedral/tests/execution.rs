@@ -375,7 +375,7 @@ fn execute<S: Coefficient + Send + Sync>(
         assert_eq!(*actual_space, space);
         assert_eq!(ty.shape().component_count(), Some(3));
         assert_eq!(coefficients.len(), if face { 4 } else { 6 });
-        let NativeMeshResources::GmshSimplicial { mesh, .. } = &owner.resources else {
+        let NativeMeshResources::MshSimplicial { mesh, .. } = &owner.resources else {
             unreachable!()
         };
         // The exact constant solution (2,3,4), times (1+2i) for complex,

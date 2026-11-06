@@ -38,7 +38,7 @@ impl CommonSpatialPlan {
                 request,
                 prepared,
             ),
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                 .solve_nonlinear(
                     current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
@@ -251,7 +251,7 @@ impl CommonSpatialPlan {
                     nonlinear,
                     iterations,
                 )?,
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => validate(mesh.mesh())?,
             _ => return Err(invalid("Newton replay requires its exact affine Mesh")),
         };

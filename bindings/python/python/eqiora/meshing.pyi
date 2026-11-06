@@ -94,6 +94,22 @@ class Mesh:
     def coordinate_factors(model: Model, domain: DomainRef, cells_per_factor: list[int]) -> Mesh: ...
     @staticmethod
     def from_bytes(data: bytes) -> Mesh: ...
+    @staticmethod
+    def import_msh(
+        geometry: Geometry,
+        data: bytes,
+        *,
+        coordinate_unit: str,
+        minimum_mean_ratio: float = 0.01,
+        maximum_boundary_facets: int = 65536,
+        maximum_source_bytes: int = 16777216,
+    ) -> Mesh:
+        """Import MSH 4.1 triangles or tetrahedra bound to the supplied geometry.
+
+        Declare ``coordinate_unit="m"`` explicitly; other units are unsupported.
+        Original cells are retained. Import does not run or identify a generator.
+        """
+        ...
     def to_bytes(self) -> bytes: ...
     def refine(self, marked_cells: Iterable[int], /, *, maximum_cells: int) -> Mesh:
         """Bisect source-cell indices and close neighboring triangles within a cell budget.
