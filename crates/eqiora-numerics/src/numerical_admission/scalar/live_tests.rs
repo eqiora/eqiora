@@ -32,6 +32,8 @@ pub(in crate::numerical_admission) fn check_replay_count(plan: &CommonSpatialPla
     );
 }
 
+const ATTRIBUTION_COMPLETE: &str = "eqiora scalar attribution assertions completed";
+
 // Tracing callsite interests are process-global, so parallel unprofiled tests can
 // interfere with a thread-local capture. Run this fixture alone in a child while
 // the ordinary parallel suite waits for its complete assertions.
@@ -42,18 +44,23 @@ pub(in crate::numerical_admission) fn attribution_child() -> bool {
         return true;
     }
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", FIXTURE])
+        .args(["--exact", FIXTURE, "--nocapture"])
         .env(MARKER, FIXTURE)
         .output()
         .unwrap();
     assert!(
-        output.status.success(),
+        output.status.success()
+            && String::from_utf8_lossy(&output.stdout).contains(ATTRIBUTION_COMPLETE),
         "isolated attribution fixture failed: {}\n{}\n{}",
         output.status,
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
     false
+}
+
+pub(in crate::numerical_admission) fn attribution_complete() {
+    println!("{ATTRIBUTION_COMPLETE}");
 }
 
 // Called with independently specified Poisson fixtures; no production mutation hooks.

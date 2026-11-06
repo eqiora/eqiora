@@ -315,6 +315,7 @@ fn live_static_acceptance_retains_original_equations_and_independent_replay() {
         let plan = resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[4]), spatial);
         crate::numerical_admission::scalar::live_tests::check(&plan);
     }
+    crate::numerical_admission::scalar::live_tests::attribution_complete();
 }
 
 #[test]
