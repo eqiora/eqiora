@@ -235,15 +235,27 @@ mod tests {
         let overlapping = SimplicialMesh::new(
             2,
             vec![
+                vec![0., 0.],
+                vec![1., 0.],
+                vec![1., 1.],
+                vec![0., 1.],
                 vec![0.25, 0.25],
                 vec![0.75, 0.25],
                 vec![0.75, 0.75],
                 vec![0.25, 0.75],
             ],
-            vec![vec![0, 1, 2], vec![0, 2, 3], vec![0, 1, 3], vec![1, 2, 3]],
+            vec![
+                vec![0, 1, 2],
+                vec![0, 2, 3],
+                vec![4, 5, 6],
+                vec![4, 6, 7],
+                vec![4, 5, 7],
+                vec![5, 6, 7],
+            ],
             MeshQualityGate::new(0.01).unwrap(),
         )
         .unwrap();
+        assert_eq!(overlapping.cells().len(), 6);
         assert!(overlapping.validate_signed_boundary_cancellation().is_err());
     }
 }
