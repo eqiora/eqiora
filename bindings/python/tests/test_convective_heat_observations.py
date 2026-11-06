@@ -113,7 +113,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     for name, boundary, authored_boundary, quantity, unit in IDENTITIES:
         selected = model.observable(f"definition.{name}")
         replay_selected = restored_model.observable(selected.id)
-        domain = model.domain(f"definition.{authored_boundary}")
+        domain = model.domain(authored_boundary)
         assert selected.model_digest == replay_selected.model_digest == domain.model_digest == model.digest
         assert replay_selected.id == selected.id
         accepted = result.observe(selected, quadrature_points=2)

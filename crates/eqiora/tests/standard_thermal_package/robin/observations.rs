@@ -221,9 +221,7 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
         let mut bindings = Vec::new();
         for (name, boundary, quantity, unit) in IDENTITIES {
             let observable = aliases[&format!("definition.{name}")].downcast().unwrap();
-            let domain = aliases[&format!("definition.{boundary}")]
-                .downcast()
-                .unwrap();
+            let domain = aliases[boundary].downcast().unwrap();
             let rules = HashMap::from([(
                 domain,
                 eqiora::meshing::QuadratureRule::gauss_legendre(2).unwrap(),

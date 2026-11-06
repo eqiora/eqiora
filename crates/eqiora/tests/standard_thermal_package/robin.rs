@@ -45,6 +45,9 @@ fn imported_convection_compiles_with_exact_caller_supports_and_required_inputs()
         )
         .unwrap();
         assert!(matches!(document, SourceCompilation::Packaged(_)));
+        for boundary in ["body", "left", "right", "bottom", "top"] {
+            assert!(document.model().aliases().contains_key(boundary));
+        }
         for name in [
             "left_heat",
             "right_heat",
