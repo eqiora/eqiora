@@ -81,6 +81,8 @@ def continuous_errors(grid, cells, points):
 
 def check_accuracy(coordinates, values, cells):
     grid = grid_field(coordinates, values, cells)
+    if not np.any(grid):
+        raise ComparisonError("identically zero displacement fails nonzero manufactured reference")
     errors = continuous_errors(grid, cells, 10)
     audit = continuous_errors(grid, cells, 12)
     if not np.isfinite(errors).all() or np.any(np.abs(errors-audit) > 1e-14+1e-10*np.abs(audit)):

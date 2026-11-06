@@ -33,11 +33,13 @@ class AccuracyTests(unittest.TestCase):
         check_convergence(rows)
 
     def test_field_falsifiers(self):
+        for cells in LEVELS:
+            coordinates, values = fixture(cells)
+            for label, corrupt in (('zero', np.zeros_like(values)), ('negated', -values), ('swapped', values[:, ::-1])):
+                with self.subTest(cells=cells, corruption=label):
+                    with self.assertRaises(ComparisonError):
+                        check_accuracy(coordinates, corrupt, cells)
         coordinates, values = fixture(8)
-        for corrupt in (np.zeros_like(values), -values, values[:, ::-1]):
-            with self.subTest(corruption=corrupt):
-                with self.assertRaises(ComparisonError):
-                    check_accuracy(coordinates, corrupt, 8)
         broken = values.copy(); broken[0, 0] = 1e-5
         with self.assertRaises(ComparisonError):
             check_accuracy(coordinates, broken, 8)
