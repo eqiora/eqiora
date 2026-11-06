@@ -53,7 +53,7 @@ b* = h Tinf eR tensor qy.
 A has units W/(m K); b and nodal weak reactions have units W/m per out-of-plane
 thickness. All entries are exact rational numbers. The left three nodes are
 essential; the remaining six are free. The code computes the six-by-six inverse
-A*_FF^-1 exactly and verifies its product with A*_FF is the identity. Its row-sum
+`A*_FF^-1` exactly and verifies its product with `A*_FF` is the identity. Its row-sum
 norm C is an exact rational reference quantity, not a measured solver condition.
 
 The exact left weak reactions, in increasing y order, are
@@ -94,7 +94,7 @@ error bound.** Exact rational comparisons audit
 ||(A* v-b*)_F||_infinity <= tau + deltaA (U+E) + deltab.
 ```
 
-The essential coefficients must equal Tc exactly. To derive E, let e=v-T* on the
+The essential coefficients must equal Tc exactly. To derive E, let `e=v-T*` on the
 free nodes and use the exact inverse to obtain
 ||e|| <= C[tau+deltaA(U+||e||)+deltab]. Rearranging gives the fixed expression
 above. Full physical operator/load audits therefore cannot be replaced by a
@@ -109,8 +109,9 @@ rho = deltaA (U+E) + deltab + R.
 
 As an explicit pre-candidate protocol clarification, every native left reaction
 must first agree with the exact exported physical residual (A v-b) at its node
-within the already-declared R. It must also agree with (A* v-b*) within rho, with its exact individual analytic reaction within SA E+rho, and with the
-analytic reaction sum within 3(SA E+rho). Every check is reported independently.
+within the already-declared R. It must also agree with `(A* v-b*)` within rho,
+with its exact individual analytic reaction within `SA E+rho`, and with the
+analytic reaction sum within `3(SA E+rho)`. Every check is reported independently.
 No comparison uses a candidate-derived scale or tolerance.
 
 ## Strict mathematical input
