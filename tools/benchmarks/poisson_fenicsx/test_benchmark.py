@@ -19,6 +19,12 @@ from test_protocol import analytic_discrete_solution, driver
 
 
 class BenchmarkTests(unittest.TestCase):
+    def setUp(self):
+        metadata = patch.object(campaign.subprocess, 'check_output',
+                                side_effect=lambda command, **kwargs: 'a' * 40 if command[1] == 'rev-parse' else '')
+        metadata.start()
+        self.addCleanup(metadata.stop)
+
     def finish_case(self, output, *, dimension=3, cells=4, tool="eqiora",
                     mode="benchmark", phases=True, corrupt=False, extra_calls=0):
         coordinates, values = analytic_discrete_solution(cells, dimension)
@@ -206,8 +212,10 @@ class BenchmarkTests(unittest.TestCase):
                     self.assertNotIn("cells_per_axis", report)
 
     def driver_arguments(self, output, *, levels=None):
+        wheel = output.parent / "fixture.whl"
+        wheel.write_bytes(b"fixture wheel")
         args = ["run.py", str(output), "--eqiora-python", "/installed/eqiora/python",
-                "--fenicsx-python", "/installed/fenicsx/python", "--eqiora-wheel", "/retained/wheel.whl",
+                "--fenicsx-python", "/installed/fenicsx/python", "--eqiora-wheel", str(wheel),
                 "--eqiora-revision", "a"*40, "--eqiora-build-profile", "synthetic test profile",
                 "--dimension", "3", "--mode", "benchmark", "--cpu", str(min(os.sched_getaffinity(0)))]
         return args if levels is None else args + ["--levels", *map(str, levels)]
