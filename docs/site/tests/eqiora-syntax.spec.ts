@@ -2,6 +2,35 @@ import { expect, test } from '@playwright/test';
 
 import { rejectExternalRequests } from './support';
 
+test('Python API fences retain their language, token colours and inline code', async ({ page }) => {
+  await page.goto('/reference/python/geometry/');
+  const example = page.locator('pre[data-language="python"]').first();
+  await expect(example).toBeVisible();
+  await expect(example).toContainText('from eqiora import geometry as g');
+  await expect(example).toHaveAttribute('aria-label', 'python');
+  const tokenStyles = await example.locator('code span[style]').evaluateAll((tokens) =>
+    new Set(tokens.map((token) => token.getAttribute('style')).filter(Boolean)).size,
+  );
+  expect(tokenStyles).toBeGreaterThan(2);
+  await expect(page.locator('main pre[data-language="plaintext"]')).toHaveCount(0);
+  const inline = page.locator('p code').filter({ hasText: /^body$/ }).first();
+  await expect(inline).toBeVisible();
+  await expect(inline).not.toHaveAttribute('data-language');
+});
+
+test('Rust reference fences retain their declared language and token colours', async ({ page }) => {
+  await page.goto('/reference/rust/');
+  const example = page.locator('pre[data-language="rust"]').first();
+  await expect(example).toBeVisible();
+  await expect(example).toContainText('use eqiora::');
+  await expect(example).toHaveAttribute('aria-label', 'rust');
+  const tokenStyles = await example.locator('code span[style]').evaluateAll((tokens) =>
+    new Set(tokens.map((token) => token.getAttribute('style')).filter(Boolean)).size,
+  );
+  expect(tokenStyles).toBeGreaterThan(2);
+  await expect(page.locator('main pre[data-language="plaintext"]')).toHaveCount(0);
+});
+
 test('Eqiora source blocks use the canonical grammar in light and dark themes', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
