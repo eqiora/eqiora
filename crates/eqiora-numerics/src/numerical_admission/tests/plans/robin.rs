@@ -1,6 +1,8 @@
 //! Ordinary Robin admission and explicit independent-reference producer.
 use super::*;
 mod native;
+mod oracle;
+mod runtime;
 
 // Inputs are the four fixed rational cases in the separately reviewed reference.
 const CASES: [(&str, [u32; 6]); 4] = [

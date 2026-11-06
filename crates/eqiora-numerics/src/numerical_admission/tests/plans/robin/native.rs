@@ -4,30 +4,12 @@ use crate::numerical_admission::tests::artifact_capture::{
     binary64_hex, digest, json_bytes, write,
 };
 use eqiora_meshing::MeshTopology;
-use std::path::PathBuf;
-
-fn output_root() -> PathBuf {
-    let root = PathBuf::from(
-        std::env::var_os("EQIORA_ROBIN_OUTPUT")
-            .expect("explicit home-backed new Robin capture directory required"),
-    );
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap())
-        .canonicalize()
-        .unwrap();
-    assert!(root.is_absolute() && root.starts_with(home));
-    assert!(!root.exists(), "preserve earlier candidate attempts");
-    std::fs::create_dir_all(root.parent().unwrap()).unwrap();
-    std::fs::create_dir(&root).unwrap();
-    root
-}
 
 #[test]
-#[ignore = "explicit four-case scientific producer; source and protocol review required"]
 fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
-    let root = output_root();
-    let source_head =
-        std::env::var("EQIORA_ROBIN_SOURCE_HEAD").expect("record the reviewed producer HEAD");
-    assert_eq!(source_head.len(), 40);
+    let root = super::runtime::output_root();
+    let source_head = super::runtime::source_identity(&root);
+    let oracle = super::oracle::Oracle::preflight(&root);
     let executable_sha = digest(&std::fs::read(std::env::current_exe().unwrap()).unwrap());
     for (name, inputs) in CASES {
         let directory = root.join(name);
@@ -264,9 +246,10 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             &directory.join("producer-receipt.json"),
             &json_bytes(&receipt),
         );
+        oracle.compare(name, &directory, &payload_sha);
     }
     println!(
-        "robin-export: {} (independent scientific comparator still required)",
+        "robin-export: {} (all four independent scientific comparisons accepted)",
         root.display()
     );
 }
