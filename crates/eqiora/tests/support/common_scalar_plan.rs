@@ -144,7 +144,8 @@ pub(crate) fn document_and_plan_with_source(
     let plan = match spatial {
         CommonSpatialPolicy::Q1 => q1,
         CommonSpatialPolicy::CellCenteredTpfa => tpfa,
-        CommonSpatialPolicy::TetrahedralEdge
+        CommonSpatialPolicy::Q2
+        | CommonSpatialPolicy::TetrahedralEdge
         | CommonSpatialPolicy::TetrahedralFace
         | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
