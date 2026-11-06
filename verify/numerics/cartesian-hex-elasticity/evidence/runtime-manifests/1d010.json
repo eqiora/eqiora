@@ -1,0 +1,9 @@
+{
+  "recovery_harness_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+  "source_binary": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "preserved_copy": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-1d010/cartesian_hex_elasticity-8983e3a4f030041d",
+  "sha256": "a657c7b181558f0be939f35cbbe3d0111bdd3cef12e4582491916f7c826283b5",
+  "distinct_inode": true,
+  "recovery_pid": 1445477,
+  "new_pde_solves": 0
+}

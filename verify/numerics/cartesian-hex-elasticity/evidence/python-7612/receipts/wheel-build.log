@@ -1,0 +1,173 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.13 at <ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.11 support
+   Compiling rand_core v0.6.4
+   Compiling num-traits v0.2.19
+   Compiling find-msvc-tools v0.1.9
+   Compiling shlex v2.0.1
+   Compiling aho-corasick v1.1.4
+   Compiling regex-syntax v0.8.11
+   Compiling libloading v0.8.9
+   Compiling winnow v1.0.4
+   Compiling matrixmultiply v0.3.11
+   Compiling target-lexicon v0.13.5
+   Compiling getrandom v0.3.4
+   Compiling ucd-trie v0.1.7
+   Compiling zerocopy v0.8.54
+   Compiling equivalent v1.0.2
+   Compiling hashbrown v0.17.1
+   Compiling rawpointer v0.2.1
+   Compiling glob v0.3.3
+   Compiling pkg-config v0.3.33
+   Compiling libc v0.2.186
+   Compiling parking_lot_core v0.9.12
+   Compiling log v0.4.33
+   Compiling rustix v0.38.44
+   Compiling prettyplease v0.2.37
+   Compiling safe_arch v1.0.0
+   Compiling rand v0.8.7
+   Compiling linux-raw-sys v0.4.15
+   Compiling smallvec v1.15.2
+   Compiling minimal-lexical v0.2.1
+   Compiling lazy_static v1.5.0
+   Compiling byteorder v1.5.0
+   Compiling scopeguard v1.2.0
+   Compiling bindgen v0.68.1
+   Compiling thiserror v2.0.18
+   Compiling either v1.16.0
+   Compiling home v0.5.12
+   Compiling shlex v1.3.0
+   Compiling rustc-hash v1.1.0
+   Compiling cc v1.2.67
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling crossbeam-channel v0.5.17
+   Compiling crossbeam-queue v0.3.13
+   Compiling atomic-wait v1.1.0
+   Compiling lazycell v1.3.0
+   Compiling hdf5-metno-types v0.11.1
+   Compiling peeking_take_while v0.1.2
+   Compiling diffsol-la v0.1.1
+   Compiling foldhash v0.1.5
+   Compiling syn v2.0.119
+   Compiling pest v2.8.7
+   Compiling lock_api v0.4.14
+   Compiling ascii v1.1.0
+   Compiling hdf5-metno v0.15.1
+   Compiling pastey v0.2.3
+   Compiling diffsol v0.16.2
+   Compiling heck v0.5.0
+   Compiling fixedbitset v0.5.7
+   Compiling sharded-slab v0.1.7
+   Compiling thread_local v1.1.10
+   Compiling eqiora-python v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-python)
+   Compiling rustc-hash v2.1.3
+   Compiling private-gemm-x86 v0.1.22
+   Compiling nom v7.1.3
+   Compiling hashbrown v0.15.5
+   Compiling clang-sys v1.8.1
+   Compiling wide v1.5.0
+   Compiling rand_core v0.9.5
+   Compiling parking_lot v0.12.5
+   Compiling crossbeam v0.8.4
+   Compiling indexmap v2.14.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling pyo3-build-config v0.29.3
+   Compiling cmake v0.1.58
+   Compiling num-complex v0.4.6
+   Compiling num-integer v0.1.46
+   Compiling approx v0.5.1
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling petgraph v0.8.3
+   Compiling hdf5-metno-src v0.10.2
+   Compiling num-bigint v0.4.8
+   Compiling num-bigint v0.5.1
+   Compiling pest_meta v2.8.7
+   Compiling pyo3-ffi v0.29.3
+   Compiling pyo3 v0.29.3
+   Compiling numpy v0.29.0
+   Compiling eqiora-core v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-core)
+   Compiling pulp v0.22.3
+   Compiling nano-gemm-c32 v0.2.1
+   Compiling nano-gemm-c64 v0.2.1
+   Compiling ndarray v0.17.2
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling toml_edit v0.25.13+spec-1.1.0
+   Compiling regex-automata v0.4.16
+   Compiling cexpr v0.6.0
+   Compiling which v4.4.2
+   Compiling eqiora-solver v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-solver)
+   Compiling eqiora-device v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-device)
+   Compiling proc-macro-crate v3.5.0
+   Compiling num-rational v0.4.2
+   Compiling eqiora-build v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-build)
+   Compiling eqiora-schema v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-schema)
+   Compiling eqiora-meshing v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-meshing)
+   Compiling eqiora-time v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-time)
+   Compiling eqiora-backend-diffsol v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-diffsol)
+   Compiling eqiora-backend-faer v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-faer)
+   Compiling pest_generator v2.8.7
+   Compiling pyo3-macros-backend v0.29.3
+   Compiling simba v0.10.0
+   Compiling regex v1.13.1
+   Compiling equator-macro v0.4.2
+   Compiling equator-macro v0.2.1
+   Compiling thiserror-impl v2.0.18
+   Compiling nalgebra-macros v0.3.0
+   Compiling hdf5-metno-derive v0.10.1
+   Compiling pest_derive v2.8.7
+   Compiling eqiora-distributed v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-distributed)
+   Compiling eqiora-assembly v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-assembly)
+   Compiling py_literal v0.4.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling hdf5-metno-sys v0.12.4
+   Compiling equator v0.2.2
+   Compiling equator v0.4.2
+   Compiling eqiora-io-gmsh v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-gmsh)
+   Compiling eqiora-io-xml v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-xml)
+   Compiling spindle v0.2.6
+   Compiling rand_chacha v0.9.0
+   Compiling gemm-common v0.19.0
+   Compiling qd v0.8.0
+   Compiling rand v0.9.5
+   Compiling npyz v0.8.4
+   Compiling faer-traits v0.24.0
+   Compiling eqiora-spatial-distribution v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-spatial-distribution)
+   Compiling gemm-f64 v0.19.0
+   Compiling gemm-c32 v0.19.0
+   Compiling gemm-f32 v0.19.0
+   Compiling gemm-c64 v0.19.0
+   Compiling rand_distr v0.5.1
+   Compiling eqiora-ir v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-ir)
+   Compiling eqiora-geometry v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-geometry)
+   Compiling eqiora-graph v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-graph)
+   Compiling eqiora-realization v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-realization)
+   Compiling eqiora-lang v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-lang)
+   Compiling gemm v0.19.0
+   Compiling pyo3-macros v0.29.3
+   Compiling nalgebra v0.35.0
+   Compiling sundials-sys v0.6.2
+   Compiling eqiora-sem v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-sem)
+   Compiling eqiora-compiler v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-compiler)
+   Compiling eqiora-differentiation v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-differentiation)
+   Compiling eqiora-execution v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-execution)
+   Compiling eqiora-backend-sundials v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-sundials)
+   Compiling nano-gemm v0.2.2
+   Compiling faer v0.24.4
+   Compiling eqiora-runtime v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-runtime)
+   Compiling eqiora-artifact v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-artifact)
+   Compiling eqiora-numerics v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-numerics)
+   Compiling diffsol-nl v0.1.1
+   Compiling eqiora-io-hdf5 v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-hdf5)
+   Compiling eqiora-api v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-api)
+   Compiling eqiora v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 49s
+🔗 External shared libraries to be copied into the wheel:
+  <ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/maturin/lib_eqiora.so requires:
+    libsundials_sunmatrixdense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0
+    libsundials_nvecserial.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0
+    libsundials_ida.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0
+    libsundials_sunlinsoldense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0
+    libsundials_core.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0
+💥 maturin failed
+  Caused by: Failed to execute 'patchelf', did you install it? Hint: Try `pip install maturin[patchelf]` (or just `pip install patchelf`)
+  Caused by: No such file or directory (os error 2)

@@ -1,0 +1,25 @@
+{
+  "source_commit": "152cdea207bef3f7ecf99a606f2b066be07911d6",
+  "source_tree": "b1320b442b162ed4bf5ddb1cd2489bcd724d5fd0",
+  "command": [
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin",
+    "build",
+    "--locked",
+    "--interpreter",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python",
+    "--out",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels"
+  ],
+  "started_at": "2026-11-06T13:29:47.189250+00:00",
+  "launcher_pid": 1298005,
+  "environment": {
+    "TMPDIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution",
+    "CARGO_TARGET_DIR": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target",
+    "SUNDIALS_INCLUDE_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include",
+    "SUNDIALS_LIBRARY_DIR": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib",
+    "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
+    "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
+    "LD_LIBRARY_PATH": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+  },
+  "builder_pid": 1298026
+}

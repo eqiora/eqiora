@@ -1,0 +1,69 @@
+{
+  "files_sha256": {
+    "1445477-0/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "1445477-0/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "1445477-0/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "1445477-0/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "1445477-0/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "original-result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "primary.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "protocol-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "protocol-stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-launch.json": "3be5327679618f7f80e24678758f56116c3117215bfc6fddb4f1ca8b31d8f452",
+    "recovery-qualification.json": "36254acad82886ff433b592928bccd46ce5ed3e2cbf2cdece81a80eebf1ce2d2",
+    "replay.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781"
+  },
+  "primary": {
+    "coefficients": 81,
+    "displacement_budget_m": 2.996431266317272e-10,
+    "energy_J": 8.156250000000005,
+    "independent_energy_J": 8.15625,
+    "independent_left_traction_N": [
+      -13.5,
+      -4.5,
+      -2.25
+    ],
+    "left_traction_N": [
+      -13.49999999999998,
+      -4.500000000000031,
+      -2.250000000000004
+    ],
+    "maximum_displacement_error_m": 1.3433698597964394e-14,
+    "maximum_free_residual_N": 9.832958778486387e-15,
+    "protocol_passed": true,
+    "residual_budget_N": 1.0830447649823327e-10
+  },
+  "primary_replay_bytes_equal": true,
+  "recovery_qualification": {
+    "new_pde_solves": 0,
+    "original_attempt_status": "export-failed-after-result-save",
+    "original_completed_pde_solves": 1,
+    "original_result_sha256": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "original_runtime_binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+    "original_source_commit": "6826671d537882b3daded212866e76250b9c036f",
+    "recovery_harness_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+    "result_identity": "b8b77860f58a0131a073dc08fe71f220b0e956b54ca5b2fb6cd03fe175cccbd9",
+    "status": "read-only-recovery-passed"
+  },
+  "replay": {
+    "coefficients": 81,
+    "displacement_budget_m": 2.996431266317272e-10,
+    "energy_J": 8.156250000000005,
+    "independent_energy_J": 8.15625,
+    "independent_left_traction_N": [
+      -13.5,
+      -4.5,
+      -2.25
+    ],
+    "left_traction_N": [
+      -13.49999999999998,
+      -4.500000000000031,
+      -2.250000000000004
+    ],
+    "maximum_displacement_error_m": 1.3433698597964394e-14,
+    "maximum_free_residual_N": 9.832958778486387e-15,
+    "protocol_passed": true,
+    "residual_budget_N": 1.0830447649823327e-10
+  },
+  "scope": "Independent saved-artifact comparison only; zero additional PDE solves. Original native682 producer completed one Run then exporter failed; corrected1d010 harness recovers originalResult read-only. Original attempt remains failed."
+}

@@ -1,0 +1,25 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.13 at <ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.11 support
+   Compiling eqiora-python v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-python)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.68s
+🔗 External shared libraries to be copied into the wheel:
+  <ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/maturin/lib_eqiora.so requires:
+    libsundials_ida.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0
+    libsundials_core.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0
+    libsundials_sunlinsoldense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0
+    libsundials_sunmatrixdense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0
+    libsundials_nvecserial.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0
+🖨  Copied external shared libraries to package eqiora.libs directory:
+    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0
+    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0
+    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0
+    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0
+    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0
+📦 Including files matching "steady-flow-past-cylinder.eqi" from OUT_DIR of "eqiora-python"
+📦 Including files matching "transient-flow-past-cylinder.eqi" from OUT_DIR of "eqiora-python"
+📦 Including files matching "mixed-boundary-elasticity.eqi" from OUT_DIR of "eqiora-python"
+📦 Including files matching "fixed-reference-fsi.eqi" from OUT_DIR of "eqiora-python"
+📦 Including files matching "research_conductivity.py" from OUT_DIR of "eqiora-python"
+📦 Including files matching "conductivity.eqi" from OUT_DIR of "eqiora-python"
+📦 Built wheel for abi3 Python ≥ 3.11 to <ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl

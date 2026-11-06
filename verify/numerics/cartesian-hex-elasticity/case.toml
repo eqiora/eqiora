@@ -1,0 +1,34 @@
+id = "numerics.cartesian-hex-elasticity"
+status = "implemented"
+scope = "ordinary-real-3d-affine-cartesian-hex-q1-isotropic-elasticity-patch"
+reference_kind = "independent-exact-rational-full-field-residual-energy-and-stress-integral"
+capabilities = [
+  "ordinary-cartesian-hex-q1-vector-elasticity",
+  "complete-physical-displacement-and-public-functional-replay",
+  "independent-rational-coefficient-residual-and-energy-checks",
+]
+
+[problem]
+reference = "reference/README.md"
+geometry = "one 2x3x4 metre box, 2x2x2 retained eight-node Hex cells"
+material = "mu=3 Pa; lambda=2 Pa"
+boundary = "affine displacement on x=0; exact stress traction on five other faces"
+method = "ordinary authored Q1 Galerkin; two Gauss points per axis and facet axis"
+
+[claim_boundary]
+execution = "host-serial CPU; archived Rust Run/readonly recovery and installed Python Run"
+registered_execution = "one separately labelled installed-Python regression Run"
+coefficients = "all 81 physical coordinate/component coefficients"
+quantities = "public strain energy and left-face stress integrals; not private weak reactions"
+nonaffine_or_curved = false
+q2 = false
+near_incompressible_robustness = false
+cpu_parallel = false
+mpi = false
+gpu = false
+performance = false
+full_issue_1552 = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"

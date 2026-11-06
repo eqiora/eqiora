@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-11-06T14:14:16.146750+00:00",
+  "pid": 1445477,
+  "command": [
+    "taskset",
+    "-c",
+    "60",
+    "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "recover_original_native_result_without_running",
+    "--ignored",
+    "--exact",
+    "--nocapture"
+  ],
+  "recovery_harness": "1d010282bbca179ddb09183901649476b60c1d53",
+  "original_producer": "6826671d537882b3daded212866e76250b9c036f",
+  "new_pde_solves": 0,
+  "finished_at": "2026-11-06T14:14:59.482429+00:00",
+  "exit_code": 0
+}

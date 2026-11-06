@@ -1,0 +1,11 @@
+{
+  "new_pde_solves": 0,
+  "original_attempt_status": "export-failed-after-result-save",
+  "original_completed_pde_solves": 1,
+  "original_result_sha256": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+  "original_runtime_binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+  "original_source_commit": "6826671d537882b3daded212866e76250b9c036f",
+  "recovery_harness_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+  "result_identity": "b8b77860f58a0131a073dc08fe71f220b0e956b54ca5b2fb6cd03fe175cccbd9",
+  "status": "read-only-recovery-passed"
+}

@@ -1,0 +1,1951 @@
+{
+  "byte_exact_original_files": [
+    "archived-sources/native-producer-682.rs.txt",
+    "archived-sources/native-recovery-1d010.rs.txt",
+    "archived-sources/python-check-7612.py.txt",
+    "archived-sources/python-export-7612.py.txt",
+    "native-682-failed-export/artifacts/export-bindings.json",
+    "native-682-failed-export/artifacts/mesh.json",
+    "native-682-failed-export/artifacts/model.eqi",
+    "native-682-failed-export/artifacts/model.json",
+    "native-682-failed-export/artifacts/plan.json",
+    "native-682-failed-export/artifacts/result.json",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1.log",
+    "native-682-failed-export/run-attempt.json",
+    "native-recovery-1d010/artifacts/export-bindings.json",
+    "native-recovery-1d010/artifacts/mesh.json",
+    "native-recovery-1d010/artifacts/model.eqi",
+    "native-recovery-1d010/artifacts/model.json",
+    "native-recovery-1d010/artifacts/plan.json",
+    "native-recovery-1d010/original-result.json",
+    "native-recovery-1d010/primary.json",
+    "native-recovery-1d010/protocol-stderr.txt",
+    "native-recovery-1d010/protocol-stdout.txt",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1.log",
+    "native-recovery-1d010/receipts/primary-native-recovery-review-1d010.json",
+    "native-recovery-1d010/recovery-qualification.json",
+    "native-recovery-1d010/replay.json",
+    "python-7612/mesh.json",
+    "python-7612/model.eqi",
+    "python-7612/model.json",
+    "python-7612/plan.json",
+    "python-7612/preparation.json",
+    "python-7612/primary.json",
+    "python-7612/qualification.json",
+    "python-7612/receipts/primary-qualification-review-7612.json",
+    "python-7612/receipts/python-qualification-7612-attempt1.log",
+    "python-7612/replay.json",
+    "python-7612/result.json"
+  ],
+  "files_sha256": {
+    "archived-sources/native-producer-682.rs.txt": "9ea32ad363ed8220e549213cad3cacb754496b4ed00043b08fdf489cedc7b6fc",
+    "archived-sources/native-recovery-1d010.rs.txt": "e0abbac4766e84932f18ebe3863b21a772f7398f45aa344db9aa23b5f3cc2973",
+    "archived-sources/python-check-7612.py.txt": "7b011f51cd2e842b15797a3f9c0fa5fb3ff6850e8558fee9745d0944d574522b",
+    "archived-sources/python-export-7612.py.txt": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
+    "native-682-failed-export/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-682-failed-export/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-682-failed-export/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-682-failed-export/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-682-failed-export/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-682-failed-export/artifacts/result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-682-failed-export/launch.json": "95e2168d1224c0bb600944a976b6b35a9dfbed48619b7fca077e8f6cb538a9e9",
+    "native-682-failed-export/preparation.json": "1c01c792ab4bd69fd3f50cc6ac295c6dae3b6191db2eac22a08733a7483fcc59",
+    "native-682-failed-export/receipts/native-producer-build-receipt.accepted.json": "5499a88cabd96d083fdfd9e1767e95b9b364de21f7d48d52760976c97bbbe18b",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-finish.json": "d9ae652b04579d6d6a6da2afcf827f8d685e6311b4e972631c0e4200b67b3dd3",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-start.json": "d725bd68b5dace7a699ecb6787e1be3adfab41f849b35fce4fa47c3848e502d3",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1.log": "a164ad965cfdb89b8a0c698d0a6874ed08a45a18a868815215a9b52860b73e57",
+    "native-682-failed-export/run-attempt.json": "15a4bbe7cd46753114183a25b8cee4723037b9c13a49a9f024052d25285ae430",
+    "native-recovery-1d010/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-recovery-1d010/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-recovery-1d010/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-recovery-1d010/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-recovery-1d010/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-recovery-1d010/original-result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-recovery-1d010/primary.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "native-recovery-1d010/protocol-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/protocol-stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-finish.json": "2770c6e983825acfc7f3c0a029167fe1d813e9ccf010b3526cae85fe2b0aa813",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-start.json": "7d6fc9069bb02960ccaa21803c1542200ac643ec96d2a84476d4e1f5db7be17c",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1.log": "c9018d54a504e38d314a08d51f72608c882ae9367d04474b434dfa6bb225fbeb",
+    "native-recovery-1d010/receipts/native-recovery-build-receipt.accepted.json": "49e653f32b4cb09da55697629522b027019ff30ce6fc16c7521ad595f27cee31",
+    "native-recovery-1d010/receipts/primary-native-recovery-review-1d010.json": "0923a41c521ce2ebb4529de3c3e4eac4c4aa780485d259874c0ca8634440dee3",
+    "native-recovery-1d010/recovery-launch.json": "2d77576f0193ef8dc830468a836842d2de01b9efdd9d1964a6658b2f53fe83a3",
+    "native-recovery-1d010/recovery-qualification.json": "36254acad82886ff433b592928bccd46ce5ed3e2cbf2cdece81a80eebf1ce2d2",
+    "native-recovery-1d010/replay.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "python-7612/launch.json": "a1af5f8df188dc3dbe0139c5afe851df767179785ce0bf19d1f1142ce40efaf5",
+    "python-7612/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "python-7612/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "python-7612/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "python-7612/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "python-7612/preparation.json": "19d3a3a72d35eb6c427df6ed98f17c18a3a07b0408868848be6a7e1f48a5fab7",
+    "python-7612/primary.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/qualification.json": "3cc36f34eab46b78e19bca889ada6f24a48affe4c4b1cb5af0df65da33e400ef",
+    "python-7612/receipts/primary-qualification-review-7612.json": "d7ea46200e2984a85bff2a0a7e5e0c2f79dad3a4ef89d4c86f621f99c306b363",
+    "python-7612/receipts/python-qualification-7612-attempt1-finish.json": "5c47d98c9af508f1a4fa6f3d2d83cc8c1039a35405325ab683c5d2e60c3d6c87",
+    "python-7612/receipts/python-qualification-7612-attempt1-start.json": "73e9a22458bfae14bf5a313b4ada45a0fbd7978dfe2315d434e05f318b66bb6f",
+    "python-7612/receipts/python-qualification-7612-attempt1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "python-7612/receipts/reviewed-build-receipt-7612.json": "78e2b2da9ae07bb94e15e283202f8644db2b37c9b0c1c9f37f44c37e1573e037",
+    "python-7612/receipts/wheel-build-completion.json": "a93aee20e304f161f7a64c7099312abd2c4ce1c3e136003c629adaf6d9bb20d0",
+    "python-7612/receipts/wheel-build-corrected-completion.json": "b0641e893a1cdc496d8a9167529072c02f918419932e1126c0e146d192f44992",
+    "python-7612/receipts/wheel-build-corrected-launch.json": "e99026c4e51236b9aeafc46eb6a8197e8f9e57515874b49c64a3a69183318d9c",
+    "python-7612/receipts/wheel-build-corrected.log": "385cd1bd4d8ad7e7245a0e6ca0bd0dd6308a035be3c7f2c707a82e0d94398b4b",
+    "python-7612/receipts/wheel-build-launch.json": "8c2fe74c7965dc8147b09ccec2ad96057bc8d262972abec78cda7efd3f04788e",
+    "python-7612/receipts/wheel-build.log": "1023d85f5dc5f0273f691c68f1fc4dfbf878328e5305ad15f2706c2bf3f7f034",
+    "python-7612/replay.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/result.json": "8338544d1c1e60adace5d3eefaddb76869fb706bf26a91fd2415efeac8461938",
+    "runtime-manifests/1d010.json": "77a9641b0c540cd21986171c9b115ffeabb0cec2db16bc9ba93d37c0ed639613",
+    "runtime-manifests/682.json": "9eb3f63f581829afcbe9c27363034e0be05bffdc79d36e8a8317a2a873304792",
+    "runtime-manifests/7612.json": "7f591c5a1fb3c98299ca6ea8a15acb1d85ab2dbb58ef4d46f93ae926c96487d7"
+  },
+  "initial_campaign": {
+    "native": {
+      "binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+      "process_exit_code": 101,
+      "qualification": "export-failed-after-accepted-result-save",
+      "source_commit": "6826671d537882b3daded212866e76250b9c036f"
+    },
+    "native_readonly_recovery": {
+      "binary_sha256": "a657c7b181558f0be939f35cbbe3d0111bdd3cef12e4582491916f7c826283b5",
+      "harness_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+      "new_pde_solves": 0,
+      "process_exit_code": 0,
+      "qualification": "read-only-recovery-passed"
+    },
+    "pde_solves": {
+      "native": 1,
+      "python": 1,
+      "total": 2
+    },
+    "python": {
+      "process_exit_code": 0,
+      "qualification": "passed",
+      "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473"
+    }
+  },
+  "metadata_projections": {
+    "native-682-failed-export/launch.json": {
+      "changed_string_fields": {
+        "/binary": {
+          "original_value_sha256": "e5e76600c258b8a70d070c9c8decca809a8d674554e45c03d0d8d84a74438f17",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/review_receipt/binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/review_receipt/ldd_path": {
+          "original_value_sha256": "17d1c6c5736df46e913b4d622d41746ac48791c513743a80c7b747bd97d8e06e",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-ldd.txt"
+        },
+        "/review_receipt/native_producer_path": {
+          "original_value_sha256": "dbec37b4d4318203699bdd127b5e35309cbc62c41e0b07d07b7a86219843c438",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora/tests/cartesian_hex_elasticity.rs"
+        },
+        "/review_receipt/no_solve_log": {
+          "original_value_sha256": "392fe7e8a321785bf33da1023bf80ca715c744a4703c0c5d4aa2cb8bd903e37c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked.log"
+        },
+        "/review_receipt/preparation_artifact_directory": {
+          "original_value_sha256": "82cbc274cf310e889af78e43e8d255ccd4688692876d959101d9ae80f7506ede",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked-artifacts/1426967-0"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/binary": "e5e76600c258b8a70d070c9c8decca809a8d674554e45c03d0d8d84a74438f17",
+        "/binary_sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/cpu": "68fec0473e988a1ef1c13c4f9b9a15cc67de203de8be796ce82ae4fd7b158e64",
+        "/environment/CUDA_VISIBLE_DEVICES": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+        "/environment/LD_LIBRARY_PATH": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/MKL_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OMP_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OPENBLAS_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/RAYON_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/ordinary_run_attempted": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/preparation_manifest": "cf5ff7f38e667fefa64f2fcb2f69cf76804db73a1b71519a1645b7f17dafeec0",
+        "/review_receipt/actual_preparation_pids/0": "d5247214d208a8c010bc7ddcbe2acbe34e62b4e0b991b4b03be250d57418c0c8",
+        "/review_receipt/archived_python_source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/review_receipt/binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/review_receipt/binary_sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/review_receipt/export_bindings/facet_quadrature/0": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/review_receipt/export_bindings/facet_quadrature/1": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/review_receipt/export_bindings/field": "d092ac6ce9cedaeb5ce815a3281e87418c9f71c58c7ab4586edf1306a7896423",
+        "/review_receipt/export_bindings/observables/0": "fbd75f7d03aa51155f8928750a4eb390221cf3997b26dc86b42a6483f717cddb",
+        "/review_receipt/export_bindings/observables/1": "f4e43a4828cdbe7ac0b06c4e0d6effe8643a91ae886345c03f1340f6281c6c3b",
+        "/review_receipt/export_bindings/observables/2": "83093e4bfe0c8a69f2470561c47394a2a056de126b2e3af8a7270f9f84eccef8",
+        "/review_receipt/export_bindings/observables/3": "a99563327582137ba810d7d142c9b71e0b413f27dbd0a8709b03802b18a1080e",
+        "/review_receipt/export_bindings/volume_quadrature/0": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+        "/review_receipt/export_bindings/volume_quadrature/1": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/review_receipt/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1export-bindings.json": "288efa49cc6be14d5824ebaa082d35441eeed38bb12f75c41f8f0bc29124af78",
+        "/review_receipt/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1mesh.json": "1a544ea8209499f1707e38d5bff68641a44cc894c04da81413b0ecfa3a381a9a",
+        "/review_receipt/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1model.eqi": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/review_receipt/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1model.json": "68a267b686a5a31259f0e4d926221e9bed4072f8a8150824af6d552b8391c57e",
+        "/review_receipt/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1plan.json": "eed6943438619ef571264ee746d35f7b59580a2defa930933cdcff031712ff52",
+        "/review_receipt/files_sha256/native-producer-frozen-checked.log": "c8bda5435c1dc7b5a5ec4d9ed7b40584094fa75bb07380c858747c09cee29f49",
+        "/review_receipt/files_sha256/native-producer-frozen-no-solve.log": "98e38e4edce413fa5f128f46d0d09aace48adf3b7183986010dedb0ba946f7b5",
+        "/review_receipt/files_sha256/native-producer-ldd.txt": "3cf032771209d8938a4a343ed1943e75199c8b84cca3ef84a4696ebac806be7e",
+        "/review_receipt/files_sha256/native-producer-review.diff": "4ba90227b2e9be16817885086e1d7196606658ae19cadcd93c048b07a32c9daf",
+        "/review_receipt/frozen_runtime_manifest_sha256": "c3e25583d595b2a73208137a829cc94cbf5f03b1d9dae1d8e45e212f70720517",
+        "/review_receipt/held_scientific_tests": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/review_receipt/ldd_path": "17d1c6c5736df46e913b4d622d41746ac48791c513743a80c7b747bd97d8e06e",
+        "/review_receipt/model_source_sha256": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/review_receipt/native_producer_path": "dbec37b4d4318203699bdd127b5e35309cbc62c41e0b07d07b7a86219843c438",
+        "/review_receipt/native_producer_sha256": "df371eecd21277a63df23b4f6d09d8affa9784e872917194361fc0cd60ceb14d",
+        "/review_receipt/no_solve_log": "392fe7e8a321785bf33da1023bf80ca715c744a4703c0c5d4aa2cb8bd903e37c",
+        "/review_receipt/no_solve_tests_passed": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+        "/review_receipt/pde_solves_by_new_native_producer": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/review_receipt/plan_assembly_quadrature/kind": "bebb2fd364368e5d3e817595c4f3caa0442e8ed51392c37cdddc09937fc69650",
+        "/review_receipt/plan_assembly_quadrature/points_per_axis": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/review_receipt/plan_bytes_match_archived_python": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/review_receipt/plan_identity": "be063f668f67ea9e8cbf7d0685299fa30ab6188904849323ed6b3a6072bc24ed",
+        "/review_receipt/preparation_artifact_directory": "82cbc274cf310e889af78e43e8d255ccd4688692876d959101d9ae80f7506ede",
+        "/review_receipt/primary_review/original_pending_receipt_sha256": "d9f37417fd96c8027577807f3caccd3bbb863fa020dfe36825e21d3b8f011640",
+        "/review_receipt/primary_review/reviewed_source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/review_receipt/primary_review/scope": "e5a930307862886498442cd541ffa2a494320bc8eddeff51ed5f9778a5d8dcc2",
+        "/review_receipt/producer_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/review_receipt/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/review_receipt/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1ld-linux-x86-64.so.2": "0167d4b7b9329fa8d3c89429843512eeedac16e769f86d179cec38c58b261dfe",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libc.so.6": "101b9e6b98c9d0b2579333edc5cc13f780c434e12b2d923e941d557a75487882",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libgcc_s.so.1": "e1b77355b580ccfa4c78c5fcb3ed97f590be040a9c3e54ae43e789ea21e0abdb",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libm.so.6": "f0f91c6f731990f31c976852536812278c26f2b5a5f9dfadfba113f44a465683",
+        "/review_receipt/source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/review_receipt/source_tree": "bf6ccd142b9a0c7e3aa53664d335eb92c67590b91591011ae12196d108ad08bb",
+        "/review_receipt/status": "a8d6f8061c6d6bb34955e45cee9370dfb38d151dea0f2c904ab96b6d11d71783",
+        "/review_receipt/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e"
+      },
+      "original_sha256": "9ef5d4f6d4e3679b5666ce0447ff673ddb3cc3ec465943fa18d3ad235104d8a2",
+      "public_sha256": "95e2168d1224c0bb600944a976b6b35a9dfbed48619b7fca077e8f6cb538a9e9"
+    },
+    "native-682-failed-export/preparation.json": {
+      "changed_string_fields": {
+        "/artifact_directory": {
+          "original_value_sha256": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0"
+        },
+        "/result_path": {
+          "original_value_sha256": "e4fa296cdefd92a60507c6c647553ede02818ef226277095722cb48b0dd5498d",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0/result.json"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/artifact_directory": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+        "/field": "d092ac6ce9cedaeb5ce815a3281e87418c9f71c58c7ab4586edf1306a7896423",
+        "/mesh_digest": "dbb5eae08f97b9827c9b712970f02171d34392e1e673475316b4b376cec13762",
+        "/model_digest": "54b4f0dbcbc84c4937b7851b49111aaf0697129ed3ca9d3f8a4af01fe5238d6f",
+        "/observables/0": "fbd75f7d03aa51155f8928750a4eb390221cf3997b26dc86b42a6483f717cddb",
+        "/observables/1": "f4e43a4828cdbe7ac0b06c4e0d6effe8643a91ae886345c03f1340f6281c6c3b",
+        "/observables/2": "83093e4bfe0c8a69f2470561c47394a2a056de126b2e3af8a7270f9f84eccef8",
+        "/observables/3": "a99563327582137ba810d7d142c9b71e0b413f27dbd0a8709b03802b18a1080e",
+        "/plan_identity": "be063f668f67ea9e8cbf7d0685299fa30ab6188904849323ed6b3a6072bc24ed",
+        "/result_path": "e4fa296cdefd92a60507c6c647553ede02818ef226277095722cb48b0dd5498d",
+        "/status": "b8717516eda2697ed12b988eaaae757898e50ce233a0ee87a3a76215c000f9b9"
+      },
+      "original_sha256": "cb2af824601bbdc0540eacb41372292776ad5b3d9dba1cdd8baca8f2492a77cb",
+      "public_sha256": "1c01c792ab4bd69fd3f50cc6ac295c6dae3b6191db2eac22a08733a7483fcc59"
+    },
+    "native-682-failed-export/receipts/native-producer-build-receipt.accepted.json": {
+      "changed_string_fields": {
+        "/binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/ldd_path": {
+          "original_value_sha256": "17d1c6c5736df46e913b4d622d41746ac48791c513743a80c7b747bd97d8e06e",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-ldd.txt"
+        },
+        "/native_producer_path": {
+          "original_value_sha256": "dbec37b4d4318203699bdd127b5e35309cbc62c41e0b07d07b7a86219843c438",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora/tests/cartesian_hex_elasticity.rs"
+        },
+        "/no_solve_log": {
+          "original_value_sha256": "392fe7e8a321785bf33da1023bf80ca715c744a4703c0c5d4aa2cb8bd903e37c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked.log"
+        },
+        "/preparation_artifact_directory": {
+          "original_value_sha256": "82cbc274cf310e889af78e43e8d255ccd4688692876d959101d9ae80f7506ede",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-producer-frozen-checked-artifacts/1426967-0"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/actual_preparation_pids/0": "d5247214d208a8c010bc7ddcbe2acbe34e62b4e0b991b4b03be250d57418c0c8",
+        "/archived_python_source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/binary_sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/export_bindings/facet_quadrature/0": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/export_bindings/facet_quadrature/1": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/export_bindings/field": "d092ac6ce9cedaeb5ce815a3281e87418c9f71c58c7ab4586edf1306a7896423",
+        "/export_bindings/observables/0": "fbd75f7d03aa51155f8928750a4eb390221cf3997b26dc86b42a6483f717cddb",
+        "/export_bindings/observables/1": "f4e43a4828cdbe7ac0b06c4e0d6effe8643a91ae886345c03f1340f6281c6c3b",
+        "/export_bindings/observables/2": "83093e4bfe0c8a69f2470561c47394a2a056de126b2e3af8a7270f9f84eccef8",
+        "/export_bindings/observables/3": "a99563327582137ba810d7d142c9b71e0b413f27dbd0a8709b03802b18a1080e",
+        "/export_bindings/volume_quadrature/0": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+        "/export_bindings/volume_quadrature/1": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1export-bindings.json": "288efa49cc6be14d5824ebaa082d35441eeed38bb12f75c41f8f0bc29124af78",
+        "/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1mesh.json": "1a544ea8209499f1707e38d5bff68641a44cc894c04da81413b0ecfa3a381a9a",
+        "/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1model.eqi": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1model.json": "68a267b686a5a31259f0e4d926221e9bed4072f8a8150824af6d552b8391c57e",
+        "/files_sha256/native-producer-frozen-checked-artifacts~11426967-0~1plan.json": "eed6943438619ef571264ee746d35f7b59580a2defa930933cdcff031712ff52",
+        "/files_sha256/native-producer-frozen-checked.log": "c8bda5435c1dc7b5a5ec4d9ed7b40584094fa75bb07380c858747c09cee29f49",
+        "/files_sha256/native-producer-frozen-no-solve.log": "98e38e4edce413fa5f128f46d0d09aace48adf3b7183986010dedb0ba946f7b5",
+        "/files_sha256/native-producer-ldd.txt": "3cf032771209d8938a4a343ed1943e75199c8b84cca3ef84a4696ebac806be7e",
+        "/files_sha256/native-producer-review.diff": "4ba90227b2e9be16817885086e1d7196606658ae19cadcd93c048b07a32c9daf",
+        "/frozen_runtime_manifest_sha256": "c3e25583d595b2a73208137a829cc94cbf5f03b1d9dae1d8e45e212f70720517",
+        "/held_scientific_tests": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/ldd_path": "17d1c6c5736df46e913b4d622d41746ac48791c513743a80c7b747bd97d8e06e",
+        "/model_source_sha256": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/native_producer_path": "dbec37b4d4318203699bdd127b5e35309cbc62c41e0b07d07b7a86219843c438",
+        "/native_producer_sha256": "df371eecd21277a63df23b4f6d09d8affa9784e872917194361fc0cd60ceb14d",
+        "/no_solve_log": "392fe7e8a321785bf33da1023bf80ca715c744a4703c0c5d4aa2cb8bd903e37c",
+        "/no_solve_tests_passed": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+        "/pde_solves_by_new_native_producer": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/plan_assembly_quadrature/kind": "bebb2fd364368e5d3e817595c4f3caa0442e8ed51392c37cdddc09937fc69650",
+        "/plan_assembly_quadrature/points_per_axis": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/plan_bytes_match_archived_python": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/plan_identity": "be063f668f67ea9e8cbf7d0685299fa30ab6188904849323ed6b3a6072bc24ed",
+        "/preparation_artifact_directory": "82cbc274cf310e889af78e43e8d255ccd4688692876d959101d9ae80f7506ede",
+        "/primary_review/original_pending_receipt_sha256": "d9f37417fd96c8027577807f3caccd3bbb863fa020dfe36825e21d3b8f011640",
+        "/primary_review/reviewed_source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/primary_review/scope": "e5a930307862886498442cd541ffa2a494320bc8eddeff51ed5f9778a5d8dcc2",
+        "/producer_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1ld-linux-x86-64.so.2": "0167d4b7b9329fa8d3c89429843512eeedac16e769f86d179cec38c58b261dfe",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libc.so.6": "101b9e6b98c9d0b2579333edc5cc13f780c434e12b2d923e941d557a75487882",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libgcc_s.so.1": "e1b77355b580ccfa4c78c5fcb3ed97f590be040a9c3e54ae43e789ea21e0abdb",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libm.so.6": "f0f91c6f731990f31c976852536812278c26f2b5a5f9dfadfba113f44a465683",
+        "/source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/source_tree": "bf6ccd142b9a0c7e3aa53664d335eb92c67590b91591011ae12196d108ad08bb",
+        "/status": "a8d6f8061c6d6bb34955e45cee9370dfb38d151dea0f2c904ab96b6d11d71783",
+        "/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      "original_sha256": "a9eb771c6fd38f16ef49c9fbde1515825c559c9d1e3b5474d15cb5ad2b5dd5b0",
+      "public_sha256": "5499a88cabd96d083fdfd9e1767e95b9b364de21f7d48d52760976c97bbbe18b"
+    },
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-finish.json": {
+      "changed_string_fields": {
+        "/command/3": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/output_directory": {
+          "original_value_sha256": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "a5b0062c13039f13526bd3b7c0e77ef998a8e4439395028a653f9fe0b09ac07b",
+        "/command/1": "542dff0a22abbcc83d69ee1c947ea3e8f95d5df5563752987e8041c84a0ff06a",
+        "/command/2": "68fec0473e988a1ef1c13c4f9b9a15cc67de203de8be796ce82ae4fd7b158e64",
+        "/command/3": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/command/4": "22ee1d548007864bd985132918780d0ef1acd223cd776fb28291c17982e93419",
+        "/command/5": "5af72bc17b0a9a815ad3b15def6d7c05be68bdfa4e52bfaa277d03742261502d",
+        "/command/6": "608b46605da981b8108ec56ed22565f5e21cbcfb1d057b150ba9166f5ff9781d",
+        "/command/7": "06a67076e9dc85d6029265873e2ec0d78be12cee5dfa5bc05e61c8b172a951a8",
+        "/exit_code": "16dc368a89b428b2485484313ba67a3912ca03f2b2b42429174a4f8b3dc84e44",
+        "/finished_at": "6beeb5bf9d2c136fe26f74779b12a0873d14298fe1e3499afe798eaa3a555f32",
+        "/maximum_authorized_candidate_runs": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/output_directory": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+        "/pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/started_at": "b16c8d05b44fad1e8e886ae4efaca05a23443d9a5cf9e7ecf3d6a7aa225a5451"
+      },
+      "original_sha256": "67095599251e4c0d06c3210343da748dba774531a00e0c72a2243d8201c8cf97",
+      "public_sha256": "d9ae652b04579d6d6a6da2afcf827f8d685e6311b4e972631c0e4200b67b3dd3"
+    },
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-start.json": {
+      "changed_string_fields": {
+        "/command/3": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/output_directory": {
+          "original_value_sha256": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "a5b0062c13039f13526bd3b7c0e77ef998a8e4439395028a653f9fe0b09ac07b",
+        "/command/1": "542dff0a22abbcc83d69ee1c947ea3e8f95d5df5563752987e8041c84a0ff06a",
+        "/command/2": "68fec0473e988a1ef1c13c4f9b9a15cc67de203de8be796ce82ae4fd7b158e64",
+        "/command/3": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/command/4": "22ee1d548007864bd985132918780d0ef1acd223cd776fb28291c17982e93419",
+        "/command/5": "5af72bc17b0a9a815ad3b15def6d7c05be68bdfa4e52bfaa277d03742261502d",
+        "/command/6": "608b46605da981b8108ec56ed22565f5e21cbcfb1d057b150ba9166f5ff9781d",
+        "/command/7": "06a67076e9dc85d6029265873e2ec0d78be12cee5dfa5bc05e61c8b172a951a8",
+        "/maximum_authorized_candidate_runs": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/output_directory": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+        "/pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/started_at": "b16c8d05b44fad1e8e886ae4efaca05a23443d9a5cf9e7ecf3d6a7aa225a5451"
+      },
+      "original_sha256": "1a3e6cd8490fb2525c53124941d7ed38bb333697b47c7c6cfbed286e903a0c7c",
+      "public_sha256": "d725bd68b5dace7a699ecb6787e1be3adfab41f849b35fce4fa47c3848e502d3"
+    },
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-finish.json": {
+      "changed_string_fields": {
+        "/command/3": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "a5b0062c13039f13526bd3b7c0e77ef998a8e4439395028a653f9fe0b09ac07b",
+        "/command/1": "542dff0a22abbcc83d69ee1c947ea3e8f95d5df5563752987e8041c84a0ff06a",
+        "/command/2": "68fec0473e988a1ef1c13c4f9b9a15cc67de203de8be796ce82ae4fd7b158e64",
+        "/command/3": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/command/4": "02979ad200efe64ba62398bb0e1d5b2b078ccd9f10af804bcc38d4b2ed4ab2b7",
+        "/command/5": "5af72bc17b0a9a815ad3b15def6d7c05be68bdfa4e52bfaa277d03742261502d",
+        "/command/6": "608b46605da981b8108ec56ed22565f5e21cbcfb1d057b150ba9166f5ff9781d",
+        "/command/7": "06a67076e9dc85d6029265873e2ec0d78be12cee5dfa5bc05e61c8b172a951a8",
+        "/exit_code": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/finished_at": "1fdc59d3a27f7049b3b4a361a9c0ef1dc251d1b1644e0de1892fb860b5f49b79",
+        "/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/original_producer": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/pid": "d4455ba6e7344cfce7e300185541b293b4daefd75a2bf39462c52c4a97154177",
+        "/recovery_harness": "f6ae25491a3d7f51592121b79f017327f12e3a7b637a34dd2239e789f236ad8d",
+        "/started_at": "812e1d82215ec5654c0ac96f94e4709973a41de5439167cd49d6d149bff27df2"
+      },
+      "original_sha256": "491622757eb3f2dd58ac9a23d48ba3a3c722282d6567c4a8000f24a073cace60",
+      "public_sha256": "2770c6e983825acfc7f3c0a029167fe1d813e9ccf010b3526cae85fe2b0aa813"
+    },
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-start.json": {
+      "changed_string_fields": {
+        "/command/3": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "a5b0062c13039f13526bd3b7c0e77ef998a8e4439395028a653f9fe0b09ac07b",
+        "/command/1": "542dff0a22abbcc83d69ee1c947ea3e8f95d5df5563752987e8041c84a0ff06a",
+        "/command/2": "68fec0473e988a1ef1c13c4f9b9a15cc67de203de8be796ce82ae4fd7b158e64",
+        "/command/3": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/command/4": "02979ad200efe64ba62398bb0e1d5b2b078ccd9f10af804bcc38d4b2ed4ab2b7",
+        "/command/5": "5af72bc17b0a9a815ad3b15def6d7c05be68bdfa4e52bfaa277d03742261502d",
+        "/command/6": "608b46605da981b8108ec56ed22565f5e21cbcfb1d057b150ba9166f5ff9781d",
+        "/command/7": "06a67076e9dc85d6029265873e2ec0d78be12cee5dfa5bc05e61c8b172a951a8",
+        "/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/original_producer": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/pid": "d4455ba6e7344cfce7e300185541b293b4daefd75a2bf39462c52c4a97154177",
+        "/recovery_harness": "f6ae25491a3d7f51592121b79f017327f12e3a7b637a34dd2239e789f236ad8d",
+        "/started_at": "812e1d82215ec5654c0ac96f94e4709973a41de5439167cd49d6d149bff27df2"
+      },
+      "original_sha256": "e0929813cc2ee1be58abf5af33d9525ae0cae4cfac6a96125308c37b12125859",
+      "public_sha256": "7d6fc9069bb02960ccaa21803c1542200ac643ec96d2a84476d4e1f5db7be17c"
+    },
+    "native-recovery-1d010/receipts/native-recovery-build-receipt.accepted.json": {
+      "changed_string_fields": {
+        "/ldd_path": {
+          "original_value_sha256": "f17c161c278b5f6f92409c22dbafbb82d3aea89194fccf039c392efcea7168f9",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-recovery-ldd.txt"
+        },
+        "/original_artifact_directory": {
+          "original_value_sha256": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0"
+        },
+        "/original_attempt_directory": {
+          "original_value_sha256": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1"
+        },
+        "/original_runtime_binary_copy": {
+          "original_value_sha256": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/recovery_binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/held_tests": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/ldd_path": "f17c161c278b5f6f92409c22dbafbb82d3aea89194fccf039c392efcea7168f9",
+        "/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/no_solve_tests_passed": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3",
+        "/original_artifact_directory": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+        "/original_attempt_directory": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+        "/original_attempt_exit_code": "16dc368a89b428b2485484313ba67a3912ca03f2b2b42429174a4f8b3dc84e44",
+        "/original_attempt_status": "3ebac6cbeb16656158284dd2fe84db85d249f249a363f7139cab238c7b788b80",
+        "/original_files_sha256/launch.json": "ff5608fe96b611ebc8eb7fdf8da806b2a64fd416dc8e2bbe500ad30c76e08df2",
+        "/original_files_sha256/mesh.json": "1a544ea8209499f1707e38d5bff68641a44cc894c04da81413b0ecfa3a381a9a",
+        "/original_files_sha256/model.eqi": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/original_files_sha256/model.json": "68a267b686a5a31259f0e4d926221e9bed4072f8a8150824af6d552b8391c57e",
+        "/original_files_sha256/plan.json": "eed6943438619ef571264ee746d35f7b59580a2defa930933cdcff031712ff52",
+        "/original_files_sha256/preparation.json": "f88757532d7e563a4cd8bcd9b795f7772d96927e6d401cd75059fc34bfdd18f8",
+        "/original_files_sha256/result.json": "8298d7de1310bca6e8e6672b9b014b279b109cecf0c9c4e3d3090a67cccdcf7a",
+        "/original_files_sha256/run-attempt.json": "7e38597d543fbebb086a353fcb40c246cd9c6bf8c10fcfafc3617d1560cf27fe",
+        "/original_pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/original_runtime_binary_copy": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+        "/original_runtime_binary_sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/original_source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/primary_review/original_pending_receipt_sha256": "212b94a3d705e1bb6dc674b2807b26661f7726b7113c37e5e0eb3bf6d0d0fe17",
+        "/primary_review/scope": "3c95b9fa816d8d92bb43bbdc9ec15baf64e44145a9ff26b5c39bdf920b3825ef",
+        "/recovery_binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/recovery_binary_sha256": "60f7d0a17d2b405d54fa84310d6bcbdcbeb6d05d8decad348e0eba68999b474c",
+        "/recovery_harness_sha256": "7ca32ddc02f5fd2a51a8ecdd261dbfed550e9f4a7619020229b19fb204a6af0b",
+        "/recovery_invocations": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/recovery_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/recovery_source_commit": "f6ae25491a3d7f51592121b79f017327f12e3a7b637a34dd2239e789f236ad8d",
+        "/recovery_source_tree": "a324d8d4a1f06c87d6037226d61a8413f7d5b021896b22b298d0c2be6cb3a60b",
+        "/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1ld-linux-x86-64.so.2": "0167d4b7b9329fa8d3c89429843512eeedac16e769f86d179cec38c58b261dfe",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libc.so.6": "101b9e6b98c9d0b2579333edc5cc13f780c434e12b2d923e941d557a75487882",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libgcc_s.so.1": "e1b77355b580ccfa4c78c5fcb3ed97f590be040a9c3e54ae43e789ea21e0abdb",
+        "/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libm.so.6": "f0f91c6f731990f31c976852536812278c26f2b5a5f9dfadfba113f44a465683",
+        "/review_files_sha256/manifest.json": "ed4c007ff8d217158604d6925e0e926791210959596aadf6b2c080042d999c86",
+        "/review_files_sha256/native-qualification-682-attempt1-finish.json": "17f5e3d2800ab1e684a1217fe5b7297a4c807d51c6c564edde280a3d6e45d9ac",
+        "/review_files_sha256/native-qualification-682-attempt1-start.json": "4c79821063194c24287c369ff1621b728b2cfc075b6b1483a20b7f4209835d32",
+        "/review_files_sha256/native-qualification-682-attempt1.log": "f1fa555749acc38b7fe4a916b5f8f62b5b29b1c44769a014f336bd5c6b243698",
+        "/review_files_sha256/native-recovery-build.log": "924d6ffee61aaed13becb58978befb491de4b8af4e791466d1b7150a6249d01c",
+        "/review_files_sha256/native-recovery-ldd.txt": "a92be7f3ce725ae5438961c99e60d7a199ece4ccb041488285e74583a214cb8a",
+        "/review_files_sha256/native-recovery-no-solve.log": "a8ba2f6d77470fcde8cd457d2b8fe0d0771a472a824ca4051b65af583291834d",
+        "/review_files_sha256/native-recovery-review.diff": "2ba2fdc21b4a55e6ff244da94a266fc9ee420a3c4f712813636c38ac99ce28f1",
+        "/status": "bc81515114e25a9a67419d889c2d7bff66ba7da4cf877fe656b5cbab593a9f89",
+        "/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      "original_sha256": "eb63b09d3652abd7d2fabcedf067934ea393bfc4f53caa4b15df7495da0173c4",
+      "public_sha256": "49e653f32b4cb09da55697629522b027019ff30ce6fc16c7521ad595f27cee31"
+    },
+    "native-recovery-1d010/recovery-launch.json": {
+      "changed_string_fields": {
+        "/recovery_binary": {
+          "original_value_sha256": "e5e76600c258b8a70d070c9c8decca809a8d674554e45c03d0d8d84a74438f17",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/review_receipt/ldd_path": {
+          "original_value_sha256": "f17c161c278b5f6f92409c22dbafbb82d3aea89194fccf039c392efcea7168f9",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-recovery-ldd.txt"
+        },
+        "/review_receipt/original_artifact_directory": {
+          "original_value_sha256": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0"
+        },
+        "/review_receipt/original_attempt_directory": {
+          "original_value_sha256": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1"
+        },
+        "/review_receipt/original_runtime_binary_copy": {
+          "original_value_sha256": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/review_receipt/recovery_binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/original_attempt_status": "e2d17f3ec3a514c45c163a710240cbe4f9c9e0f0d8f8fe09b14cf1335dbd5926",
+        "/recovery_binary": "e5e76600c258b8a70d070c9c8decca809a8d674554e45c03d0d8d84a74438f17",
+        "/recovery_pid": "d4455ba6e7344cfce7e300185541b293b4daefd75a2bf39462c52c4a97154177",
+        "/review_receipt/held_tests": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+        "/review_receipt/ldd_path": "f17c161c278b5f6f92409c22dbafbb82d3aea89194fccf039c392efcea7168f9",
+        "/review_receipt/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/review_receipt/no_solve_tests_passed": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3",
+        "/review_receipt/original_artifact_directory": "c7f86097f7ecb7c9de7453c4863cac40fc07006366f0156ff34a26d73f27a9a3",
+        "/review_receipt/original_attempt_directory": "875c12dc29fd8645d20691ff2b16fa0a7d0db537ab6f2f798d3a596f220a8daa",
+        "/review_receipt/original_attempt_exit_code": "16dc368a89b428b2485484313ba67a3912ca03f2b2b42429174a4f8b3dc84e44",
+        "/review_receipt/original_attempt_status": "3ebac6cbeb16656158284dd2fe84db85d249f249a363f7139cab238c7b788b80",
+        "/review_receipt/original_files_sha256/launch.json": "ff5608fe96b611ebc8eb7fdf8da806b2a64fd416dc8e2bbe500ad30c76e08df2",
+        "/review_receipt/original_files_sha256/mesh.json": "1a544ea8209499f1707e38d5bff68641a44cc894c04da81413b0ecfa3a381a9a",
+        "/review_receipt/original_files_sha256/model.eqi": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/review_receipt/original_files_sha256/model.json": "68a267b686a5a31259f0e4d926221e9bed4072f8a8150824af6d552b8391c57e",
+        "/review_receipt/original_files_sha256/plan.json": "eed6943438619ef571264ee746d35f7b59580a2defa930933cdcff031712ff52",
+        "/review_receipt/original_files_sha256/preparation.json": "f88757532d7e563a4cd8bcd9b795f7772d96927e6d401cd75059fc34bfdd18f8",
+        "/review_receipt/original_files_sha256/result.json": "8298d7de1310bca6e8e6672b9b014b279b109cecf0c9c4e3d3090a67cccdcf7a",
+        "/review_receipt/original_files_sha256/run-attempt.json": "7e38597d543fbebb086a353fcb40c246cd9c6bf8c10fcfafc3617d1560cf27fe",
+        "/review_receipt/original_pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/review_receipt/original_runtime_binary_copy": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+        "/review_receipt/original_runtime_binary_sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/review_receipt/original_source_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/review_receipt/primary_review/original_pending_receipt_sha256": "212b94a3d705e1bb6dc674b2807b26661f7726b7113c37e5e0eb3bf6d0d0fe17",
+        "/review_receipt/primary_review/scope": "3c95b9fa816d8d92bb43bbdc9ec15baf64e44145a9ff26b5c39bdf920b3825ef",
+        "/review_receipt/recovery_binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/review_receipt/recovery_binary_sha256": "60f7d0a17d2b405d54fa84310d6bcbdcbeb6d05d8decad348e0eba68999b474c",
+        "/review_receipt/recovery_harness_sha256": "7ca32ddc02f5fd2a51a8ecdd261dbfed550e9f4a7619020229b19fb204a6af0b",
+        "/review_receipt/recovery_invocations": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/review_receipt/recovery_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/review_receipt/recovery_source_commit": "f6ae25491a3d7f51592121b79f017327f12e3a7b637a34dd2239e789f236ad8d",
+        "/review_receipt/recovery_source_tree": "a324d8d4a1f06c87d6037226d61a8413f7d5b021896b22b298d0c2be6cb3a60b",
+        "/review_receipt/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/review_receipt/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1ld-linux-x86-64.so.2": "0167d4b7b9329fa8d3c89429843512eeedac16e769f86d179cec38c58b261dfe",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libc.so.6": "101b9e6b98c9d0b2579333edc5cc13f780c434e12b2d923e941d557a75487882",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libgcc_s.so.1": "e1b77355b580ccfa4c78c5fcb3ed97f590be040a9c3e54ae43e789ea21e0abdb",
+        "/review_receipt/resolved_library_sha256/~1usr~1lib~1x86_64-linux-gnu~1libm.so.6": "f0f91c6f731990f31c976852536812278c26f2b5a5f9dfadfba113f44a465683",
+        "/review_receipt/review_files_sha256/manifest.json": "ed4c007ff8d217158604d6925e0e926791210959596aadf6b2c080042d999c86",
+        "/review_receipt/review_files_sha256/native-qualification-682-attempt1-finish.json": "17f5e3d2800ab1e684a1217fe5b7297a4c807d51c6c564edde280a3d6e45d9ac",
+        "/review_receipt/review_files_sha256/native-qualification-682-attempt1-start.json": "4c79821063194c24287c369ff1621b728b2cfc075b6b1483a20b7f4209835d32",
+        "/review_receipt/review_files_sha256/native-qualification-682-attempt1.log": "f1fa555749acc38b7fe4a916b5f8f62b5b29b1c44769a014f336bd5c6b243698",
+        "/review_receipt/review_files_sha256/native-recovery-build.log": "924d6ffee61aaed13becb58978befb491de4b8af4e791466d1b7150a6249d01c",
+        "/review_receipt/review_files_sha256/native-recovery-ldd.txt": "a92be7f3ce725ae5438961c99e60d7a199ece4ccb041488285e74583a214cb8a",
+        "/review_receipt/review_files_sha256/native-recovery-no-solve.log": "a8ba2f6d77470fcde8cd457d2b8fe0d0771a472a824ca4051b65af583291834d",
+        "/review_receipt/review_files_sha256/native-recovery-review.diff": "2ba2fdc21b4a55e6ff244da94a266fc9ee420a3c4f712813636c38ac99ce28f1",
+        "/review_receipt/status": "bc81515114e25a9a67419d889c2d7bff66ba7da4cf877fe656b5cbab593a9f89",
+        "/review_receipt/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      "original_sha256": "3be5327679618f7f80e24678758f56116c3117215bfc6fddb4f1ca8b31d8f452",
+      "public_sha256": "2d77576f0193ef8dc830468a836842d2de01b9efdd9d1964a6658b2f53fe83a3"
+    },
+    "python-7612/launch.json": {
+      "changed_string_fields": {
+        "/argv/0": {
+          "original_value_sha256": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py"
+        },
+        "/argv/2": {
+          "original_value_sha256": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/python-qualification-7612-attempt1"
+        },
+        "/argv/4": {
+          "original_value_sha256": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json"
+        },
+        "/extension": {
+          "original_value_sha256": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so"
+        },
+        "/python": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/runtime_build/binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/runtime_build/build_completion/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/runtime_build/build_completion/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/runtime_build/build_completion/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/runtime_build/build_completion/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/runtime_build/build_completion/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/runtime_build/build_completion/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/runtime_build/build_completion/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/runtime_build/build_completion/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/runtime_build/build_completion/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        },
+        "/runtime_build/build_launch/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/runtime_build/build_launch/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/runtime_build/build_launch/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/runtime_build/build_launch/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/runtime_build/build_launch/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/runtime_build/build_launch/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/runtime_build/build_launch/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/runtime_build/build_launch/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/runtime_build/build_launch/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        },
+        "/runtime_build/extension_path": {
+          "original_value_sha256": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so"
+        },
+        "/runtime_build/python": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/runtime_build/wheel_path": {
+          "original_value_sha256": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/argv/0": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+        "/argv/1": "e459aac8e8951f14925efc24feafb3613965dac276e2e99cb805a8fb369242d0",
+        "/argv/2": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+        "/argv/3": "026625e0008557432e3d63da6dbc2ac08d42d363cdc7f2bfdedb561d3ba8ebb9",
+        "/argv/4": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+        "/argv/5": "aef25c7e1457a18d45f07c2090ecac31849feeda74a46baf8e3fb83f9a1f8025",
+        "/build_receipt_sha256": "d82138a18cdac0f6803b2529919c622a11e8b6fda819b7957fe5b2f2c7b55f70",
+        "/cpu_affinity/0": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+        "/environment/CUDA_VISIBLE_DEVICES": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+        "/environment/LD_LIBRARY_PATH": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/MKL_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OMP_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OPENBLAS_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/RAYON_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/eqiora_version": "f63712a18d0f00fca4b6476f06cee09b64ba4c3fe4001b921c64e5d8f787b40c",
+        "/extension": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+        "/extension_sha256": "79bb4da1d5f7bc4db78b7eb2f4dbfa8146c81fbde9d68cd9b41f2f07607b0266",
+        "/files/check.py": "0d6bf015927df938dd25a9eb70c6c525522ce19c6e48cb2146f17e98195da995",
+        "/files/model.eqi": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/files/production.py": "b2234c3c671e0829af206ae0d456aa8e720594345d901474c7836d0f368fca45",
+        "/files/reference~1protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/files/reference~1reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/pid": "946c99af9dc44516a15b5f91b2a71461197f896595525d7b2385d7fcf0f28e2f",
+        "/python": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/python_version": "68a724f8af13c16671ce03650c229417eac5927e3aa99be8bb28917d6dcb7cd4",
+        "/runtime_build/binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/runtime_build/binary_sha256": "9078046863c5adab6f2979f218e040c9251591265474a6c1fe72a25d165b05ee",
+        "/runtime_build/build_completion/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/runtime_build/build_completion/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/runtime_build/build_completion/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/runtime_build/build_completion/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/runtime_build/build_completion/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/runtime_build/build_completion/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/runtime_build/build_completion/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/runtime_build/build_completion/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/runtime_build/build_completion/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/runtime_build/build_completion/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/runtime_build/build_completion/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/runtime_build/build_completion/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/runtime_build/build_completion/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/runtime_build/build_completion/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/runtime_build/build_completion/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/runtime_build/build_completion/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/runtime_build/build_completion/exit_code": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/runtime_build/build_completion/finished_at": "d9a95ee1af66c834cd05c069dbeb5981915bc4dc94f3b65ffb29090b40cd1d3f",
+        "/runtime_build/build_completion/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/runtime_build/build_completion/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/runtime_build/build_completion/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/runtime_build/build_completion/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b",
+        "/runtime_build/build_launch/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/runtime_build/build_launch/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/runtime_build/build_launch/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/runtime_build/build_launch/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/runtime_build/build_launch/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/runtime_build/build_launch/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/runtime_build/build_launch/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/runtime_build/build_launch/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/runtime_build/build_launch/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/runtime_build/build_launch/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/runtime_build/build_launch/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/runtime_build/build_launch/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/runtime_build/build_launch/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/runtime_build/build_launch/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/runtime_build/build_launch/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/runtime_build/build_launch/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/runtime_build/build_launch/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/runtime_build/build_launch/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/runtime_build/build_launch/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/runtime_build/build_launch/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b",
+        "/runtime_build/extension_path": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+        "/runtime_build/extension_sha256": "79bb4da1d5f7bc4db78b7eb2f4dbfa8146c81fbde9d68cd9b41f2f07607b0266",
+        "/runtime_build/inspector_pid": "b7b2534154480b968261858fc07dc9b821c4a87d0597c13ab3ccc449e3cdd857",
+        "/runtime_build/logs_sha256/installed-extension-ldd.txt": "95dd03abc388874b2da5d01a494218e48d8ad7da62d39cf174200426378e01d5",
+        "/runtime_build/logs_sha256/native-aligned-preparation.log": "73e7d16752f5c1f3aeaa9fd24642161d3e7d5075656f787ec6602cbbb436a04b",
+        "/runtime_build/logs_sha256/python-controls.log": "4824cf3a96ea0b0c944b27f160723d94952a6d12b5abc43c2c0a573c6a6cf6e2",
+        "/runtime_build/logs_sha256/python-positive.log": "bd129a76fa469d5adf4acefc9b60bbc4605b59a3f054bf40e33ab8e8d0f311a5",
+        "/runtime_build/model_source_sha256": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/runtime_build/pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/runtime_build/primary_review/checks/0": "97353e6bcebcd7738df1f9fcb4b469c49c7d823c77d3605e2b05454bfd85353f",
+        "/runtime_build/primary_review/checks/1": "b9b6b7099f4fe7dd969637d9cf3951ed79a70c13e21a404274707005037cbff0",
+        "/runtime_build/primary_review/checks/2": "094b14b5b7e14a11482dc5b275ac5a274b842ce2f8120e05ae67897d4d48fae4",
+        "/runtime_build/primary_review/checks/3": "a8b2ee0085349c604eef913ab29abb5f38150aba1bcaee2f1198c0ee87f05ed7",
+        "/runtime_build/primary_review/checks/4": "7b75675f2a10f7c92a5110666607fd3c3cc22e177efcef08f400aa64ff99ff5e",
+        "/runtime_build/primary_review/checks/5": "9a425b93f106712d86a7c1faf55e4fb505bcff3af5f1c856cacb9bebced592e0",
+        "/runtime_build/primary_review/execution_controls/cpu": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+        "/runtime_build/primary_review/execution_controls/gpu_visible": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "/runtime_build/primary_review/execution_controls/ld_overrides": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "/runtime_build/primary_review/execution_controls/threads": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/runtime_build/primary_review/original_build_receipt_sha256": "50402d7d91bc0049292a01316a386695cfc3120c28bd76a1c68be17c14492951",
+        "/runtime_build/primary_review/provenance_audit_sha256": "c163a31baa6154e23994d0eccb1bfdf78bddfbf2851a2b2b9c3ce05b6a466c09",
+        "/runtime_build/primary_review/reviewed_at": "af9dc49b538987565acf1aa34c0547824c62bebd81076123971dae0ce28e6c00",
+        "/runtime_build/primary_review/scope": "fb63c306aacb19abae52ea3f373d84ccc8f8bba7437fc5bb55eb52b6f28375d9",
+        "/runtime_build/primary_review/wheel_build_stdout_sha256": "c055f28cf2044692b400091fa8b3793cf841d8ecba6a3d006030c9db086642c0",
+        "/runtime_build/producer_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/runtime_build/producer_sha256": "b2234c3c671e0829af206ae0d456aa8e720594345d901474c7836d0f368fca45",
+        "/runtime_build/profile_calls": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/runtime_build/python": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/runtime_build/python_version": "68a724f8af13c16671ce03650c229417eac5927e3aa99be8bb28917d6dcb7cd4",
+        "/runtime_build/reference_sha256/README.md": "af129adf147d9c5c15a7eee14dcc7bf9c996ac6d36bd1944be227e8883750254",
+        "/runtime_build/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/runtime_build/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/runtime_build/reference_sha256/test_reference.py": "189a6aa19309004698fce74835f77aa3ba3ff029113d1957664b5742cfd218d3",
+        "/runtime_build/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/runtime_build/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/runtime_build/status": "278e18ba876074381a62308e9d9b3f86801553aaecc4a0e9c90087a9f62635aa",
+        "/runtime_build/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/runtime_build/wheel_bundled_libraries/eqiora.libs~1libsundials_core-b797f02a.so.7": "57eced18e1c1008db88e0497504d917a5f71b91c28704c0a82fe7ede401bea2e",
+        "/runtime_build/wheel_bundled_libraries/eqiora.libs~1libsundials_ida-37c028a5.so.7": "1e13a8a4be8e248a0c6ea9cc5685ae619eb6f7930fcf620ec65a260a79350bbd",
+        "/runtime_build/wheel_bundled_libraries/eqiora.libs~1libsundials_nvecserial-d4fe1a6e.so.7": "22b93d1be058c5088b2d351469e5313189c5895b9441e92df472d6ff1f08b3ec",
+        "/runtime_build/wheel_bundled_libraries/eqiora.libs~1libsundials_sunlinsoldense-89216335.so.5": "1c45b8990a7fb6d834c6e483ae7c72f64946424388595bbc6186d03076e043d9",
+        "/runtime_build/wheel_bundled_libraries/eqiora.libs~1libsundials_sunmatrixdense-ea13cc70.so.5": "1c79d2b0eb000b72985ef27bbb98d4951f31569a6c07e28ad0f8f952055cfd8e",
+        "/runtime_build/wheel_extension_member": "a5519f618857e917befbefc5be58d694cd195109993461b55e7ff8979b69dcc7",
+        "/runtime_build/wheel_extension_member_sha256": "79bb4da1d5f7bc4db78b7eb2f4dbfa8146c81fbde9d68cd9b41f2f07607b0266",
+        "/runtime_build/wheel_path": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+        "/runtime_build/wheel_sha256": "b81856564342971c577d9b4637149d48aae39f9e2b6f308ceb917e50fbdc90df",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/started_at": "113678b2617d9bd2a2db393848520ea61b68f4ec49738cafbe6130f03e857f10"
+      },
+      "original_sha256": "1269c961bac464363ae9380351d80e59dc98a3a4d8d7c758e39f9d8c989cad80",
+      "public_sha256": "a1af5f8df188dc3dbe0139c5afe851df767179785ce0bf19d1f1142ce40efaf5"
+    },
+    "python-7612/receipts/python-qualification-7612-attempt1-finish.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/1": {
+          "original_value_sha256": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py"
+        },
+        "/command/3": {
+          "original_value_sha256": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/python-qualification-7612-attempt1"
+        },
+        "/command/5": {
+          "original_value_sha256": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/1": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+        "/command/2": "e459aac8e8951f14925efc24feafb3613965dac276e2e99cb805a8fb369242d0",
+        "/command/3": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+        "/command/4": "026625e0008557432e3d63da6dbc2ac08d42d363cdc7f2bfdedb561d3ba8ebb9",
+        "/command/5": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+        "/command/6": "aef25c7e1457a18d45f07c2090ecac31849feeda74a46baf8e3fb83f9a1f8025",
+        "/cpu_affinity/0": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+        "/environment/CUDA_VISIBLE_DEVICES": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+        "/environment/LD_LIBRARY_PATH": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/LD_PRELOAD": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/MKL_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OMP_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OPENBLAS_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/RAYON_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/exit_code": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/finished_at": "84c698bd625448c4effec2799dc8207a6b5e2e17734845375b798fd7f9206207",
+        "/launcher_pid": "a5bcde508ede5495f4166d1f1c7406a9b6f9e25dd1c12eee3434db6e74e5ac7d",
+        "/pid": "946c99af9dc44516a15b5f91b2a71461197f896595525d7b2385d7fcf0f28e2f",
+        "/scope": "676934cdcd2e4f0cc73a4e0177dc88b905202740e22b851d7e47fd17dae454e0",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/started_at": "8e12f799ef816373e3d95e7a23aa7a57b1e4ebd1ca400409a4913e8019aadb0f"
+      },
+      "original_sha256": "98722b97f9df925be40b1b818b350596c77b0a1fa56a88efc349d0cf3a650d2a",
+      "public_sha256": "5c47d98c9af508f1a4fa6f3d2d83cc8c1039a35405325ab683c5d2e60c3d6c87"
+    },
+    "python-7612/receipts/python-qualification-7612-attempt1-start.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/1": {
+          "original_value_sha256": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/verify/numerics/cartesian-hex-elasticity/check.py"
+        },
+        "/command/3": {
+          "original_value_sha256": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/python-qualification-7612-attempt1"
+        },
+        "/command/5": {
+          "original_value_sha256": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/reviewed-build-receipt-7612.json"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/command/0": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/1": "71f2844aebc17f3036c6f5e2ad05cf862a3f286fe210488ae379748a894f569f",
+        "/command/2": "e459aac8e8951f14925efc24feafb3613965dac276e2e99cb805a8fb369242d0",
+        "/command/3": "c7267746ec8b8b39b76bbc706e551cd0177c583234337eb00d8f0420ea0c82a4",
+        "/command/4": "026625e0008557432e3d63da6dbc2ac08d42d363cdc7f2bfdedb561d3ba8ebb9",
+        "/command/5": "153ff6de3c49d8bcd514c24526738697f02b5441edf12e8bf24418cd23d5d45b",
+        "/command/6": "aef25c7e1457a18d45f07c2090ecac31849feeda74a46baf8e3fb83f9a1f8025",
+        "/cpu_affinity/0": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+        "/environment/CUDA_VISIBLE_DEVICES": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+        "/environment/LD_LIBRARY_PATH": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/LD_PRELOAD": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "/environment/MKL_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OMP_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/OPENBLAS_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/environment/RAYON_NUM_THREADS": "391552c099c101b131feaf24c5795a6a15bc8ec82015424e0d2b4274a369a0bf",
+        "/launcher_pid": "a5bcde508ede5495f4166d1f1c7406a9b6f9e25dd1c12eee3434db6e74e5ac7d",
+        "/pid": "946c99af9dc44516a15b5f91b2a71461197f896595525d7b2385d7fcf0f28e2f",
+        "/scope": "676934cdcd2e4f0cc73a4e0177dc88b905202740e22b851d7e47fd17dae454e0",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/started_at": "8e12f799ef816373e3d95e7a23aa7a57b1e4ebd1ca400409a4913e8019aadb0f"
+      },
+      "original_sha256": "2806901cb44aa23e4c91a68f490febf51336ad553766aa3c890de81703c34cfe",
+      "public_sha256": "73e9a22458bfae14bf5a313b4ada45a0fbd7978dfe2315d434e05f318b66bb6f"
+    },
+    "python-7612/receipts/reviewed-build-receipt-7612.json": {
+      "changed_string_fields": {
+        "/binary_path": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/build_completion/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/build_completion/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/build_completion/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/build_completion/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/build_completion/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/build_completion/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/build_completion/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/build_completion/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/build_completion/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        },
+        "/build_launch/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/build_launch/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/build_launch/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/build_launch/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/build_launch/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/build_launch/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/build_launch/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/build_launch/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/build_launch/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        },
+        "/extension_path": {
+          "original_value_sha256": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so"
+        },
+        "/python": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/wheel_path": {
+          "original_value_sha256": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/binary_path": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/binary_sha256": "9078046863c5adab6f2979f218e040c9251591265474a6c1fe72a25d165b05ee",
+        "/build_completion/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/build_completion/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/build_completion/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/build_completion/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/build_completion/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/build_completion/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/build_completion/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/build_completion/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/build_completion/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/build_completion/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/build_completion/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/build_completion/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/build_completion/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/build_completion/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/build_completion/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/build_completion/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/build_completion/exit_code": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/build_completion/finished_at": "d9a95ee1af66c834cd05c069dbeb5981915bc4dc94f3b65ffb29090b40cd1d3f",
+        "/build_completion/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/build_completion/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/build_completion/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/build_completion/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b",
+        "/build_launch/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/build_launch/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/build_launch/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/build_launch/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/build_launch/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/build_launch/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/build_launch/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/build_launch/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/build_launch/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/build_launch/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/build_launch/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/build_launch/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/build_launch/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/build_launch/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/build_launch/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/build_launch/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/build_launch/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/build_launch/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/build_launch/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/build_launch/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b",
+        "/extension_path": "529ba1cab56744c104c3b30b355cc9e7779a8bef031dd65540a4f5819aa11edd",
+        "/extension_sha256": "79bb4da1d5f7bc4db78b7eb2f4dbfa8146c81fbde9d68cd9b41f2f07607b0266",
+        "/inspector_pid": "b7b2534154480b968261858fc07dc9b821c4a87d0597c13ab3ccc449e3cdd857",
+        "/logs_sha256/installed-extension-ldd.txt": "95dd03abc388874b2da5d01a494218e48d8ad7da62d39cf174200426378e01d5",
+        "/logs_sha256/native-aligned-preparation.log": "73e7d16752f5c1f3aeaa9fd24642161d3e7d5075656f787ec6602cbbb436a04b",
+        "/logs_sha256/python-controls.log": "4824cf3a96ea0b0c944b27f160723d94952a6d12b5abc43c2c0a573c6a6cf6e2",
+        "/logs_sha256/python-positive.log": "bd129a76fa469d5adf4acefc9b60bbc4605b59a3f054bf40e33ab8e8d0f311a5",
+        "/model_source_sha256": "1a76aeb472823a6539122702004053f7499a709094358d44b823771d5315feac",
+        "/pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/primary_review/checks/0": "97353e6bcebcd7738df1f9fcb4b469c49c7d823c77d3605e2b05454bfd85353f",
+        "/primary_review/checks/1": "b9b6b7099f4fe7dd969637d9cf3951ed79a70c13e21a404274707005037cbff0",
+        "/primary_review/checks/2": "094b14b5b7e14a11482dc5b275ac5a274b842ce2f8120e05ae67897d4d48fae4",
+        "/primary_review/checks/3": "a8b2ee0085349c604eef913ab29abb5f38150aba1bcaee2f1198c0ee87f05ed7",
+        "/primary_review/checks/4": "7b75675f2a10f7c92a5110666607fd3c3cc22e177efcef08f400aa64ff99ff5e",
+        "/primary_review/checks/5": "9a425b93f106712d86a7c1faf55e4fb505bcff3af5f1c856cacb9bebced592e0",
+        "/primary_review/execution_controls/cpu": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+        "/primary_review/execution_controls/gpu_visible": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "/primary_review/execution_controls/ld_overrides": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "/primary_review/execution_controls/threads": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/primary_review/original_build_receipt_sha256": "50402d7d91bc0049292a01316a386695cfc3120c28bd76a1c68be17c14492951",
+        "/primary_review/provenance_audit_sha256": "c163a31baa6154e23994d0eccb1bfdf78bddfbf2851a2b2b9c3ce05b6a466c09",
+        "/primary_review/reviewed_at": "af9dc49b538987565acf1aa34c0547824c62bebd81076123971dae0ce28e6c00",
+        "/primary_review/scope": "fb63c306aacb19abae52ea3f373d84ccc8f8bba7437fc5bb55eb52b6f28375d9",
+        "/primary_review/wheel_build_stdout_sha256": "c055f28cf2044692b400091fa8b3793cf841d8ecba6a3d006030c9db086642c0",
+        "/producer_review": "d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+        "/producer_sha256": "b2234c3c671e0829af206ae0d456aa8e720594345d901474c7836d0f368fca45",
+        "/profile_calls": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/python": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/python_version": "68a724f8af13c16671ce03650c229417eac5927e3aa99be8bb28917d6dcb7cd4",
+        "/reference_sha256/README.md": "af129adf147d9c5c15a7eee14dcc7bf9c996ac6d36bd1944be227e8883750254",
+        "/reference_sha256/protocol.py": "20e08c58f07a6796a6d7075909277cc50ac4fe3aef69202098e27885b3d48168",
+        "/reference_sha256/reference.py": "2b3603602ba445b390e891204637d8c90085c3992228c651273177b57f91556e",
+        "/reference_sha256/test_reference.py": "189a6aa19309004698fce74835f77aa3ba3ff029113d1957664b5742cfd218d3",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/status": "278e18ba876074381a62308e9d9b3f86801553aaecc4a0e9c90087a9f62635aa",
+        "/tracked_clean": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/wheel_bundled_libraries/eqiora.libs~1libsundials_core-b797f02a.so.7": "57eced18e1c1008db88e0497504d917a5f71b91c28704c0a82fe7ede401bea2e",
+        "/wheel_bundled_libraries/eqiora.libs~1libsundials_ida-37c028a5.so.7": "1e13a8a4be8e248a0c6ea9cc5685ae619eb6f7930fcf620ec65a260a79350bbd",
+        "/wheel_bundled_libraries/eqiora.libs~1libsundials_nvecserial-d4fe1a6e.so.7": "22b93d1be058c5088b2d351469e5313189c5895b9441e92df472d6ff1f08b3ec",
+        "/wheel_bundled_libraries/eqiora.libs~1libsundials_sunlinsoldense-89216335.so.5": "1c45b8990a7fb6d834c6e483ae7c72f64946424388595bbc6186d03076e043d9",
+        "/wheel_bundled_libraries/eqiora.libs~1libsundials_sunmatrixdense-ea13cc70.so.5": "1c79d2b0eb000b72985ef27bbb98d4951f31569a6c07e28ad0f8f952055cfd8e",
+        "/wheel_extension_member": "a5519f618857e917befbefc5be58d694cd195109993461b55e7ff8979b69dcc7",
+        "/wheel_extension_member_sha256": "79bb4da1d5f7bc4db78b7eb2f4dbfa8146c81fbde9d68cd9b41f2f07607b0266",
+        "/wheel_path": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+        "/wheel_sha256": "b81856564342971c577d9b4637149d48aae39f9e2b6f308ceb917e50fbdc90df"
+      },
+      "original_sha256": "f7cd2cd068096fc83632a6ad9ce5b82ffd2cb043d0d3232c68381b4988654d3b",
+      "public_sha256": "78e2b2da9ae07bb94e15e283202f8644db2b37c9b0c1c9f37f44c37e1573e037"
+    },
+    "python-7612/receipts/wheel-build-completion.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/6": {
+          "original_value_sha256": "fcc5a9438b55c6dbdfbe60c659e77f10734077103f23c736b11d4c4c764c4b0d",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels"
+        },
+        "/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/builder_pid": "0b17bb9b1ad80eaec2f1e7088dae63ae73492a8fd9109ec344c1b232c628db05",
+        "/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/command/6": "fcc5a9438b55c6dbdfbe60c659e77f10734077103f23c736b11d4c4c764c4b0d",
+        "/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/exit_code": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "/finished_at": "77ce868e99e07135c417d668baadc1019ab38ed0f8020f3ae72d451ac10fa051",
+        "/launcher_pid": "d0a5545c9ef61bd640e30c719122e6229a6735030075a0646af1e9896e61dd67",
+        "/source_commit": "2b95f086ea0b641ed98d28aad703a2ff2d0435096d3b2b06b7072739ec977f19",
+        "/source_tree": "b6861d748b57c94f974747c7b00594283485c0ae36a603f13f5dd164f70ac640",
+        "/started_at": "9cbee98eb0555e8b36148ca2f3873a5c142a40bd102c203de3b779032cb05692"
+      },
+      "original_sha256": "6d3690d7666e2d421551db792cdd82b943c5d064b7fb0103d11a21bde508d6c2",
+      "public_sha256": "a93aee20e304f161f7a64c7099312abd2c4ce1c3e136003c629adaf6d9bb20d0"
+    },
+    "python-7612/receipts/wheel-build-corrected-completion.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/exit_code": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/finished_at": "d9a95ee1af66c834cd05c069dbeb5981915bc4dc94f3b65ffb29090b40cd1d3f",
+        "/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b"
+      },
+      "original_sha256": "dcdc47530558995dcfb2399c55a8f52164c8b56908d6f6d6760497ac2d215023",
+      "public_sha256": "b0641e893a1cdc496d8a9167529072c02f918419932e1126c0e146d192f44992"
+    },
+    "python-7612/receipts/wheel-build-corrected-launch.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/6": {
+          "original_value_sha256": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected"
+        },
+        "/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/PATH": {
+          "original_value_sha256": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.pixi/envs/nodejs/bin:<ARCHIVED-HOST>/.pixi/bin:<ARCHIVED-HOST>/texlive/current/bin/x86_64-linux:<ARCHIVED-HOST>/.atuin/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.codex/packages/standalone/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:<ARCHIVED-HOST>/.config/orca/codex-accounts/b41c7cad-e6e6-4168-9327-a02503eedd2e<ARCHIVED-HOST>/arg0-linux/codex-arg01zSd8u:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.config/orca/cli/bin:<ARCHIVED-HOST>/.local/bin:<ARCHIVED-HOST>/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+        },
+        "/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/builder_pid": "08695b850a5c7715eb7342c053526266db2f6020fc207f4f65a39bdfd20b3136",
+        "/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/command/6": "4f56d3916d14212862bed18204bcff5033a5ef5f76bb288cdc7e378d05fbe7d1",
+        "/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/environment/PATH": "e5c5e8d48baf9211150ec444cecdeb215823642086fca1cbcb32021bb3ea4f0c",
+        "/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/launcher_pid": "184bcaa8c8a076293e0386ae229c1f701b11187fec408849aefdc38e50b2cf93",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365",
+        "/source_tree": "3a33fc2f4b344a620420b8473a2efd983dad85451e4c17b20e0768b6d762ab68",
+        "/started_at": "4c0cc0457154b74c4a508e76e4c1cde7b5f00d2ae77759bc8df4753edde98d5b"
+      },
+      "original_sha256": "52b4d59c466dc5f499e9a19783cb981c1907f3964539c9c64df368cba57d2e17",
+      "public_sha256": "e99026c4e51236b9aeafc46eb6a8197e8f9e57515874b49c64a3a69183318d9c"
+    },
+    "python-7612/receipts/wheel-build-corrected.log": {
+      "changed_lines": {
+        "1": {
+          "original_value_sha256": "0dafbebd45ba5717967d782d525ac9234e65d4c360d0f58684ee036a1919e8bb",
+          "public_value": "\ud83d\udc0d Found CPython 3.13 at <ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python\n"
+        },
+        "10": {
+          "original_value_sha256": "abbe86c660f3d826ede0a4adaa46fb932d92e7b0a9d91b7ebac735a3762bfc2c",
+          "public_value": "    libsundials_sunmatrixdense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0\n"
+        },
+        "11": {
+          "original_value_sha256": "18ccbd1f81b4d18f798fc09241c56ca2e307b20a9da9e257775b03b532e4fefc",
+          "public_value": "    libsundials_nvecserial.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0\n"
+        },
+        "13": {
+          "original_value_sha256": "c0b6fba6134b4d4915046a00e01773e22b0fa1081caa4e1abf6365ec1ce84972",
+          "public_value": "    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0\n"
+        },
+        "14": {
+          "original_value_sha256": "90f837ada71ec44889a41dbe1db361f719e28c3a09cc1d774d84c7ef7c27fffa",
+          "public_value": "    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0\n"
+        },
+        "15": {
+          "original_value_sha256": "02b71ecf4fb090bf378d6ef286d0acbfad8569875c2dfa6db449107ed05f268f",
+          "public_value": "    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0\n"
+        },
+        "16": {
+          "original_value_sha256": "982f693b72f43ff4f7001f0dade8f025f03cc8c0cf30b52a164d149030592738",
+          "public_value": "    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0\n"
+        },
+        "17": {
+          "original_value_sha256": "e38a972ffa9211a6ed089233e553495f78fc993dbf84f2c29d3d1b8dcdc2812a",
+          "public_value": "    <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0\n"
+        },
+        "24": {
+          "original_value_sha256": "9954483d9d368b74ee9eb28060ce81db06d4d8ca42aa70fbb363d05f917f29d4",
+          "public_value": "\ud83d\udce6 Built wheel for abi3 Python \u2265 3.11 to <ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl\n"
+        },
+        "3": {
+          "original_value_sha256": "9fe11969c051816ea20bd7975c27e648fe0908f44b7683c776073feeaadf55ea",
+          "public_value": "   Compiling eqiora-python v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-python)\n"
+        },
+        "6": {
+          "original_value_sha256": "21b7392430b98a170a995ccf40886a3f58208c3e0f32b65dd61a1d1ac783528a",
+          "public_value": "  <ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/maturin/lib_eqiora.so requires:\n"
+        },
+        "7": {
+          "original_value_sha256": "a83a83957f7ef139411c41f1d204bfa6bb89de219d039456e3f033b9658e8a3d",
+          "public_value": "    libsundials_ida.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0\n"
+        },
+        "8": {
+          "original_value_sha256": "ef4e62af6403f2db0f249cd4fbaf123d6fb3c2ba4e75b554ccb1f93409f3bf15",
+          "public_value": "    libsundials_core.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0\n"
+        },
+        "9": {
+          "original_value_sha256": "26cb82597ad3e980b68949d5d4640b0440a539e1260f094b24b2407e6e012358",
+          "public_value": "    libsundials_sunlinsoldense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0\n"
+        }
+      },
+      "format": "text-line-projection",
+      "original_line_sha256": [
+        "5c05c748dd4a6037528a37b2c29848dcbd3850d27d3991a92ecada79a59db58e",
+        "0dafbebd45ba5717967d782d525ac9234e65d4c360d0f58684ee036a1919e8bb",
+        "67ae69f09bb2cc68e415a3881c304a3a449df2ea60a143808ca179dd74eba6c1",
+        "9fe11969c051816ea20bd7975c27e648fe0908f44b7683c776073feeaadf55ea",
+        "b0dca393eca738b09fdd3b8a367bb8363a2eea3ff7ea7acd7f9a6b99abf0517f",
+        "2b3ffa14bfc5a7358ddefebe5414423c07a540ec7165faecf167d927e8605761",
+        "21b7392430b98a170a995ccf40886a3f58208c3e0f32b65dd61a1d1ac783528a",
+        "a83a83957f7ef139411c41f1d204bfa6bb89de219d039456e3f033b9658e8a3d",
+        "ef4e62af6403f2db0f249cd4fbaf123d6fb3c2ba4e75b554ccb1f93409f3bf15",
+        "26cb82597ad3e980b68949d5d4640b0440a539e1260f094b24b2407e6e012358",
+        "abbe86c660f3d826ede0a4adaa46fb932d92e7b0a9d91b7ebac735a3762bfc2c",
+        "18ccbd1f81b4d18f798fc09241c56ca2e307b20a9da9e257775b03b532e4fefc",
+        "3d5fae94ccca7187a1acbbed55de8b1b7547a970d012fd6cfbfd04a8ec626176",
+        "c0b6fba6134b4d4915046a00e01773e22b0fa1081caa4e1abf6365ec1ce84972",
+        "90f837ada71ec44889a41dbe1db361f719e28c3a09cc1d774d84c7ef7c27fffa",
+        "02b71ecf4fb090bf378d6ef286d0acbfad8569875c2dfa6db449107ed05f268f",
+        "982f693b72f43ff4f7001f0dade8f025f03cc8c0cf30b52a164d149030592738",
+        "e38a972ffa9211a6ed089233e553495f78fc993dbf84f2c29d3d1b8dcdc2812a",
+        "ad56c0d8fb2659d8bcd7d0ebd87a84058e29a1e5375135b46779d3accb043e37",
+        "a9fad65b6e80a2538ac83671d490d36abdf4e0751f3add248a22344439657010",
+        "672a1800f7d74a51628b899c0635292ab429b497ea92cdb66a45aa8f20f4e4be",
+        "0c86e70044de344f79bea37711f02942ffb2acd2be50d5ee42858cce503c996c",
+        "c2a8ddd73dc1a73291c7ddafe3df9808b2a8a1ee4878e488105a0abb60274ae6",
+        "3c0512ad9e480ca722f2c3cf918a335e2b1c210eb4bdc78f5e591e8329942ad0",
+        "9954483d9d368b74ee9eb28060ce81db06d4d8ca42aa70fbb363d05f917f29d4"
+      ],
+      "original_sha256": "999c329b06fa87edc4972dff3b314ab08860a653c9d9dc65178c7c8244b05e46",
+      "public_sha256": "385cd1bd4d8ad7e7245a0e6ca0bd0dd6308a035be3c7f2c707a82e0d94398b4b"
+    },
+    "python-7612/receipts/wheel-build-launch.json": {
+      "changed_string_fields": {
+        "/command/0": {
+          "original_value_sha256": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/maturin"
+        },
+        "/command/4": {
+          "original_value_sha256": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python"
+        },
+        "/command/6": {
+          "original_value_sha256": "fcc5a9438b55c6dbdfbe60c659e77f10734077103f23c736b11d4c4c764c4b0d",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels"
+        },
+        "/environment/CARGO_TARGET_DIR": {
+          "original_value_sha256": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target"
+        },
+        "/environment/LD_LIBRARY_PATH": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/SUNDIALS_INCLUDE_DIR": {
+          "original_value_sha256": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/include"
+        },
+        "/environment/SUNDIALS_LIBRARY_DIR": {
+          "original_value_sha256": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+          "public_value": "<ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib"
+        },
+        "/environment/TMPDIR": {
+          "original_value_sha256": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/builder_pid": "0b17bb9b1ad80eaec2f1e7088dae63ae73492a8fd9109ec344c1b232c628db05",
+        "/command/0": "0735e5c4c1fbea25ef30c6e2dd2519173bc9ba6e8960790624cc478fce7693c6",
+        "/command/1": "e99adbe058517220ccf009fde7ac217b5e4d41a23615e5f358aabdda5b696e87",
+        "/command/2": "6f79d500d15e8de8f5b47b3d50bf152b41c540c291db94be103da7c29c390a43",
+        "/command/3": "f287d9dc95fba384c9c669c5b33065bfdd64ae8ff523d41e919cea56ffc19bfc",
+        "/command/4": "d1420338ba6544a4c07e1265311ccd71e68d0d9bf8ddb471c16d9e40d6c24ab2",
+        "/command/5": "caa58e71cbd14589b7ac9b5801ea71a9882593cf47a4ada9b624c430d6156aea",
+        "/command/6": "fcc5a9438b55c6dbdfbe60c659e77f10734077103f23c736b11d4c4c764c4b0d",
+        "/environment/BINDGEN_EXTRA_CLANG_ARGS": "e3deb2c70d22e7a12d68fba026109d316fa4456a14cfedccea683d5d22cb7186",
+        "/environment/CARGO_TARGET_DIR": "e695869c236535675fed8ccb2b963031580a7ef8d047a6696b1ce8ef4a723c9c",
+        "/environment/LD_LIBRARY_PATH": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/LIBCLANG_PATH": "9fd603b8a3c3aa16ab8908c011c45fe14fef5a93589186f0bb16e3c239d18735",
+        "/environment/SUNDIALS_INCLUDE_DIR": "f13b48cd41b81b7575be8756a49990c713d287c6b06d06a1e88036d843b23d49",
+        "/environment/SUNDIALS_LIBRARY_DIR": "bc1d6ba42e1c266c97b51d701226418c2cef7d49e452002f9f1e36fcabfd8f90",
+        "/environment/TMPDIR": "55fa526ec2847f55e778b141519b74a66f5d32518c0fa9dec66a0a22d87676a7",
+        "/launcher_pid": "d0a5545c9ef61bd640e30c719122e6229a6735030075a0646af1e9896e61dd67",
+        "/source_commit": "2b95f086ea0b641ed98d28aad703a2ff2d0435096d3b2b06b7072739ec977f19",
+        "/source_tree": "b6861d748b57c94f974747c7b00594283485c0ae36a603f13f5dd164f70ac640",
+        "/started_at": "9cbee98eb0555e8b36148ca2f3873a5c142a40bd102c203de3b779032cb05692"
+      },
+      "original_sha256": "f027905dbfc51abdddd18d5a90f65e21c1590cc789b349c596aa929b20eda8a8",
+      "public_sha256": "8c2fe74c7965dc8147b09ccec2ad96057bc8d262972abec78cda7efd3f04788e"
+    },
+    "python-7612/receipts/wheel-build.log": {
+      "changed_lines": {
+        "1": {
+          "original_value_sha256": "0dafbebd45ba5717967d782d525ac9234e65d4c360d0f58684ee036a1919e8bb",
+          "public_value": "\ud83d\udc0d Found CPython 3.13 at <ARCHIVED-HOST>/tmp/eqiora-hex-execution/venv/bin/python\n"
+        },
+        "101": {
+          "original_value_sha256": "60582b619ce7579071e8c6128bf9f7fc566870d903a6b87f66665a5df0c8ebae",
+          "public_value": "   Compiling eqiora-build v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-build)\n"
+        },
+        "102": {
+          "original_value_sha256": "d0b43f1114ad544e398c747b84ec8876b5937dd6730873d995cc53b4ee96e869",
+          "public_value": "   Compiling eqiora-schema v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-schema)\n"
+        },
+        "103": {
+          "original_value_sha256": "93cce5715cab2586c0d8807dc32df0e17e0c232aa760fea872f5b3effc6a3735",
+          "public_value": "   Compiling eqiora-meshing v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-meshing)\n"
+        },
+        "104": {
+          "original_value_sha256": "67a5083052178c7bfe8970ab4e1907b7f2ee6b9e127035f3d5bdf4f151b55958",
+          "public_value": "   Compiling eqiora-time v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-time)\n"
+        },
+        "105": {
+          "original_value_sha256": "5fecfa1d73ab3d7d3f5fa90ffc368e92c2ce4af2bb6e3c7d35ad13e023fceacf",
+          "public_value": "   Compiling eqiora-backend-diffsol v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-diffsol)\n"
+        },
+        "106": {
+          "original_value_sha256": "b050f6c52b7f74a1591235b8ce949857f70e7f86bed332c2c49b8a0f560da05d",
+          "public_value": "   Compiling eqiora-backend-faer v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-faer)\n"
+        },
+        "117": {
+          "original_value_sha256": "0724c192c476ea2c18686f046cee7537397466318f0aa492ee74f6d1ba5a86a9",
+          "public_value": "   Compiling eqiora-distributed v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-distributed)\n"
+        },
+        "118": {
+          "original_value_sha256": "af90f528fdca42bd5fc599da98b25b0e3fb0d208ae3c8adad444b7017dcb2205",
+          "public_value": "   Compiling eqiora-assembly v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-assembly)\n"
+        },
+        "124": {
+          "original_value_sha256": "418b32d24457ff45bc283c903b2bcdc37159bee8085f97ebf10a5b875b52fda5",
+          "public_value": "   Compiling eqiora-io-gmsh v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-gmsh)\n"
+        },
+        "125": {
+          "original_value_sha256": "fe382751da75eb37e9ac4d7b85c25201b8e979255dd66a4a6de1fc2f9d617838",
+          "public_value": "   Compiling eqiora-io-xml v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-xml)\n"
+        },
+        "133": {
+          "original_value_sha256": "a6e1ce6a4eeceb51e46e473e8f9207b51575c32b1c190d08ad581fe69d71330d",
+          "public_value": "   Compiling eqiora-spatial-distribution v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-spatial-distribution)\n"
+        },
+        "139": {
+          "original_value_sha256": "14578925551c4c8f8581e0282df212204d5841bb6338ec91517cb850b32eb6f6",
+          "public_value": "   Compiling eqiora-ir v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-ir)\n"
+        },
+        "140": {
+          "original_value_sha256": "badb2770851ea810b1e7b60bb0317c3221096b83f739a14511b3da2a1ca026e1",
+          "public_value": "   Compiling eqiora-geometry v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-geometry)\n"
+        },
+        "141": {
+          "original_value_sha256": "4a15f3b4a0e7c43cee0ea2a649b2f8bca0cb030d0306fd20ad6b72b971f5d80b",
+          "public_value": "   Compiling eqiora-graph v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-graph)\n"
+        },
+        "142": {
+          "original_value_sha256": "c55b5f782698f90558a925696fb3c3d1952942033122bbbf9debaa41098f0dd8",
+          "public_value": "   Compiling eqiora-realization v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-realization)\n"
+        },
+        "143": {
+          "original_value_sha256": "c514f1a33bb43a91e5b0d69fcd4b29fcd69955eb8ede375202daef8f5395dd4f",
+          "public_value": "   Compiling eqiora-lang v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-lang)\n"
+        },
+        "148": {
+          "original_value_sha256": "cf37ac0b6af327afb90ade7343f72d47e0e3c126b861623e093885622f5e9fde",
+          "public_value": "   Compiling eqiora-sem v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-sem)\n"
+        },
+        "149": {
+          "original_value_sha256": "21fed10a7bbc75ed9c5eff31bf19af205c7ba0b237095ec98dea81d3560b6690",
+          "public_value": "   Compiling eqiora-compiler v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-compiler)\n"
+        },
+        "150": {
+          "original_value_sha256": "194dc4c2ced95eb71cfaadb61978a2c8c17a2b156d2897ce70c339e573f15858",
+          "public_value": "   Compiling eqiora-differentiation v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-differentiation)\n"
+        },
+        "151": {
+          "original_value_sha256": "a5c20364bdb46d23ab16600a256624cf4d86e2a68b784f540a3ee2f7f0bc1190",
+          "public_value": "   Compiling eqiora-execution v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-execution)\n"
+        },
+        "152": {
+          "original_value_sha256": "7167071feb29e284f069653d6c9432059e14c04febd4efbd3c84a784278e37b7",
+          "public_value": "   Compiling eqiora-backend-sundials v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-backend-sundials)\n"
+        },
+        "155": {
+          "original_value_sha256": "846948c9593ac96e8b38e9d3200646b9115c5a5e8338e1396df0ceb7e6adc504",
+          "public_value": "   Compiling eqiora-runtime v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-runtime)\n"
+        },
+        "156": {
+          "original_value_sha256": "6a9b2e5438772fb9e22d632249c7509788f1c6bd210580eeaf3a8178a45a190b",
+          "public_value": "   Compiling eqiora-artifact v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-artifact)\n"
+        },
+        "157": {
+          "original_value_sha256": "ad72a8359faa4ebe40a2f54c38d81db8d6861f190f4d6a7a120fe42478233d0f",
+          "public_value": "   Compiling eqiora-numerics v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-numerics)\n"
+        },
+        "159": {
+          "original_value_sha256": "79c4b3b25cea385b2a738429d6e34118a2b79ad69913f8020a037cce55ac7355",
+          "public_value": "   Compiling eqiora-io-hdf5 v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-io-hdf5)\n"
+        },
+        "160": {
+          "original_value_sha256": "60c1f6e165203ca2c17aa7841efc1d864f234e91dd85fdb435645b6acb920360",
+          "public_value": "   Compiling eqiora-api v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-api)\n"
+        },
+        "161": {
+          "original_value_sha256": "aa622ca3e388f5e40ee1e9c5912887a4136f5a7b11073bbdbc98d35433d55eb8",
+          "public_value": "   Compiling eqiora v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora)\n"
+        },
+        "164": {
+          "original_value_sha256": "21b7392430b98a170a995ccf40886a3f58208c3e0f32b65dd61a1d1ac783528a",
+          "public_value": "  <ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/maturin/lib_eqiora.so requires:\n"
+        },
+        "165": {
+          "original_value_sha256": "abbe86c660f3d826ede0a4adaa46fb932d92e7b0a9d91b7ebac735a3762bfc2c",
+          "public_value": "    libsundials_sunmatrixdense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunmatrixdense.so.5.8.0\n"
+        },
+        "166": {
+          "original_value_sha256": "18ccbd1f81b4d18f798fc09241c56ca2e307b20a9da9e257775b03b532e4fefc",
+          "public_value": "    libsundials_nvecserial.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_nvecserial.so.7.8.0\n"
+        },
+        "167": {
+          "original_value_sha256": "a83a83957f7ef139411c41f1d204bfa6bb89de219d039456e3f033b9658e8a3d",
+          "public_value": "    libsundials_ida.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_ida.so.7.8.0\n"
+        },
+        "168": {
+          "original_value_sha256": "26cb82597ad3e980b68949d5d4640b0440a539e1260f094b24b2407e6e012358",
+          "public_value": "    libsundials_sunlinsoldense.so.5 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_sunlinsoldense.so.5.8.0\n"
+        },
+        "169": {
+          "original_value_sha256": "ef4e62af6403f2db0f249cd4fbaf123d6fb3c2ba4e75b554ccb1f93409f3bf15",
+          "public_value": "    libsundials_core.so.7 => <ARCHIVED-HOST>/.cache/eqiora/ida-owned-install/lib/libsundials_core.so.7.8.0\n"
+        },
+        "61": {
+          "original_value_sha256": "9fe11969c051816ea20bd7975c27e648fe0908f44b7683c776073feeaadf55ea",
+          "public_value": "   Compiling eqiora-python v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-python)\n"
+        },
+        "87": {
+          "original_value_sha256": "dc0d4ca1cf2b919677f95b6afbf2b4a6a28ff18b17e1994382222a2a6df5c71d",
+          "public_value": "   Compiling eqiora-core v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-core)\n"
+        },
+        "97": {
+          "original_value_sha256": "8382fc7d28f31aa1a03bfd7ee51a55cd16f681e45de6031d144056de52548a51",
+          "public_value": "   Compiling eqiora-solver v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-solver)\n"
+        },
+        "98": {
+          "original_value_sha256": "b64cf213d25d506d56ffa16ebbdbfa8d553b2c0c60db6194f22b1a47e35ee208",
+          "public_value": "   Compiling eqiora-device v0.1.5 (<ARCHIVED-HOST>/tmp/eqiora-hex-execution/tree/crates/eqiora-device)\n"
+        }
+      },
+      "format": "text-line-projection",
+      "original_line_sha256": [
+        "5c05c748dd4a6037528a37b2c29848dcbd3850d27d3991a92ecada79a59db58e",
+        "0dafbebd45ba5717967d782d525ac9234e65d4c360d0f58684ee036a1919e8bb",
+        "67ae69f09bb2cc68e415a3881c304a3a449df2ea60a143808ca179dd74eba6c1",
+        "3dfda50af4ef39e0853313de9e61e4518a786529f1a326d9bc91c0e1d1b1961c",
+        "8520087ab607ad6fb0f251c63fa7041381852a3cfd7fb6ee28e636ae9928d60b",
+        "f53f6a94fd13c28059eb6361d8aab37275f9e382288717ebf226dc9dadb0f680",
+        "dabc18155d24338d4229e070878cd1258e326068baeaf259c1ec8d929b5675f9",
+        "b5c8f161ea239490098cfa939b59f65c7d6ba7b06cbc75dd2a76981a6ab38116",
+        "44a5dbc59b2135e2e20d7b35e78b0080e9693be830fd91ff9dbb27425bbece1d",
+        "c2755dd3545d8b928d86a224a0dbcca83b98dccf346971e6511ed98ae9721eab",
+        "7a17b264fed4cd37dd0becffb5368e27af144bc8875bd4c7ea2737f0977f7c3f",
+        "e775913b171492d39ecbd97db9aead8310130cb92cf769b2de804e196138978b",
+        "893a05241cf2da604d184ff1c3e72b56ae2fd9326cc53ecee6f3799d98e24186",
+        "3ca0f5882fae2cb359277382cec30a34a03689fd238de433d99a74ed2011f409",
+        "7c7fb38e0054e9141c9436d404aba3fc8ea4fdb5e2d64ab92e542850d6d745d8",
+        "825cf6aadf20ac44422a294c9df3e7594d0513d5ade632ea50d5183b535a08d3",
+        "3db35864dcdd29d30d66fbdab35e7aca443df1db6012905ff013841272615e6e",
+        "f89d158d107827cd3998cdfa7fb80f9209897c0749329d624cbf1503591fda0f",
+        "b8f22f8155d5defc27c2c07a83a63b648656c55d532c86d9df740a4f61610ee2",
+        "9ff43dda2230366ffc3ced0a7c4182e2d7e0baa5f4574e3a5ce7302306165e07",
+        "42a3ebc4f4945a430a948ee511ad1036b3b0f1dd0cd785fc002c693da04d2d41",
+        "3829c653e0e820930b6261fc4b8cae708845e356fc5ba147edc7e9391ec2a183",
+        "67462bd590ad264fbcfd6f84e525cdb925eaf6e226d9832774d54c4627689498",
+        "57ec961d8353c567d7e0c8e689b6c32302f0efbd9dd00c42c8926178d3ecef44",
+        "d68a0d32774adca2d5e1c8b2aa3ffd778bb0861cc2cd594ebeeb2d0b73df8b60",
+        "2eb572756c2e135a8966879366f9b51bfcbcf3dc75d605febc7006c1538acb1a",
+        "dcd1190a8247a59087391f38318a04551876e8aa619b82aad30d4bbab1083179",
+        "5eaa1c706cb9177f5474eabe0e815b93b12190254ea58f288714bd1014929548",
+        "8647b04e59e9a174e243e8d975153846e8ad6917306cdcac651578534d2dbfbc",
+        "471b4a281cd0dee66caf13cbd8d85d1dda536d66129223d7ddad87b650995688",
+        "4e5e9da75f0475332c6ccb0ed5b28a33ff5bfba9f6ddfd67672d0e36f5fae621",
+        "de05c483b7d053a424aa32bcc0c3b44bcef0e25e06afde61361d2e7071b1c856",
+        "d5f8aa07376c761bb48c2c0d1866ca044982869b69c0fe93542e914a45bfe7a9",
+        "43941cbd62df9702f33776f2a7fdc5fc12ed7feeefb8890510bcb32cff6e4b63",
+        "40b5b17498273c4416ad50e2913fe1198594531492b00a79bd207f3e43b39df4",
+        "3c7e59a21ef489e334896430c3b0b241e214256ca74476ed2e129eeb8a1ddc72",
+        "4cb3f25335778f64ec79344e23922472e3162383d8f4e81347b8e8a420a12f7f",
+        "d0d530cf90138d6a772a981ab4ff0f19448471461a4203969b0a3fb7ace37310",
+        "f4f062fc6e36dd6ec7ef1d5c8fe1a861ed9cb2d4550dd06d6169be7385eaf90e",
+        "2536c73b5208b7a9c8eeec497a08ce0fba552ff4160d6633f3e6db2ab3910bfe",
+        "78b180c835dbcad318e7095374dfee0bbb6fcb5fc7a83de0b97e88ff51f00815",
+        "c871fb003a80cc0d30f414d73c599a95e24f055bc5f3be465edcd0017a93794c",
+        "798deb0c85ff8915a41f8ef71eca335cd34f160e285dacccf1acd54f75ce7b30",
+        "60c07fd669fdd31eb7472b2ab4b57ad085ba43da684baa1423f23a52f78b8de1",
+        "9db23698257ff7ae35d21e152c3b5e80cb32553ab1cad26d0512b4391eef4e94",
+        "7db2ae0010f033f23ea8d5a69f61fbd6f20e4ba9af90dc7d2d2accdb597725b8",
+        "793e606c91ef26ba5cd4518cabf5605ac0d46dc610dfb81fc2109004485a0588",
+        "74fdf3f43eeb57877a448f5d51705a941d9d090b736b89f22295fb3a4b5f0715",
+        "1a563e97b89f230c15ecdce015864ddd5192800ab5fe320013118525c804b91b",
+        "3c74c09bd8ca374db797fa5c75b695ee4cbfd821c6c36b6a5aa003d4ed76c33a",
+        "f60c0afff6eb01bbb2384337976319c541bf0b1b83fbd6c2788a0c4a7cbfdbcb",
+        "544fc5d15b916be3a665316d4756f3d294cab38387ef85b568ad31aa1ef037e9",
+        "b4fdb1b28b5f5348a9002108f693589068a0cebd567d4aaf7b68c11e076fe3c6",
+        "56cbc328c24928a53af6c82472ad0672f2aaf1f3b218a385884138800c484db5",
+        "3f47e0faafa529e403808a727d85f11d9fb7d85b4e27c290093ee98ed1a654d3",
+        "117bfd95725f7eeafa566dc3e360e06e1f81cc38fc8a00864a2f5197cd13800e",
+        "77846feb662c9e187dacb3c99abc10743141e8f2bfde67b5e250f0274eb5164d",
+        "a2fff8eeb655062efb670a0729dcdb75430345533801ceb6cedd80564328bba0",
+        "57b2c159b4dad6b2c2afd86c9cfd691290e29cb3ca4ce4815912d02039ab8298",
+        "864771f23f49aa5ace2d3e655a9b38dee63d7d31c843ecad7f927942a9963ec1",
+        "55e0d2b304b2d24eb1108b2b445c3647ce19ad5fac3d907cb9190c57db9adcdb",
+        "9fe11969c051816ea20bd7975c27e648fe0908f44b7683c776073feeaadf55ea",
+        "e4c1b22fb80d6b76eb3704e8f03d60805d7c6f532ff30547d56f18d4dc57a95a",
+        "d6240c0a88dafd708737b3e0acc9bb383a0859cf1bf0e22d9bb430c4087bf2e3",
+        "d6ba53d663f0605425630490cecc4eb9d1f788fdec413f86ea3a2825ccc4b284",
+        "b9e49c416b632def9ec4fe863ac32ae7c94e524d888804f211f8c3bd806c4590",
+        "af026e5ec63677062675902e5edd21c03e402cc494b82b253061ab133b51e7d4",
+        "f3821a8ec000a149743bd942bb41cceaaa4d675046810e2382903a7f128ec678",
+        "26b7abe229071464ba0d0b62904e0864f4be2001d56600ec767057c094fcf207",
+        "dcc024dc7819020ada31b39e75aa1a1d3f9ced1081354dfb626640ec724a009d",
+        "7243ac90a02963547e58da247963d0952f0c94b77be9558bdd937a623bd54d93",
+        "4f9643c3e28b42e9a47f9b9a7128034028af3031573fbb90d163d756ecc57122",
+        "313632120d2f943dea80be9bd2e64fe7999dc427999d74d320ebad4fcc58fefe",
+        "26d252ea072b2709b4627318e55db7d543eca5fa7717853390013a28445a0681",
+        "026bec0321c95b461e5ecff2ffccf04a35d3445086801eaa37e1e2f7746bf302",
+        "c2a0b203029408a193ec8e20432c4817a644fb5c56336e1b85acf1f24359ed1a",
+        "2435f1d63ac193bf0aa7e17ad3addad76ccf3062db21f8cefbb38af75bd99047",
+        "974d0be832a894663e023df85a9bf5062faa60f7f715c193cbe593ceca694f62",
+        "685d287ccabb9d5584f1f75cf136637c8479356e1534c8fd796b2a694487e102",
+        "af965a9d07cd41a9abb8667a72ff1c45c1054b17198ebb528543e77e6001b98e",
+        "f8308f6bd4cd02f3e2ca0c5dc144eb9fe18476f5d9753c883fe0de88267bbea2",
+        "abba7caea97705e28e9434734a76f8fc401efd6f442237ae73acd72e75924bb5",
+        "375c593d09c381dea683e1918fdc78a3f153f7d1ef513fcc0c468335062c7a01",
+        "c5489d3d5f2f200a9b96c6c36bc44102964c0ea105697d54e1c1b54ca3087246",
+        "88a99f4aca448345a0445202055acf6ba5a73c723e23c42730171805964ea932",
+        "203a2d6b1ce054ded3eafb1249d3c25875c9b8e8dd2e141d9246572ad21c46c5",
+        "83f4374834711064864e1e5f7a20741072c2bd64525b00b84722f278fdd53c44",
+        "dc0d4ca1cf2b919677f95b6afbf2b4a6a28ff18b17e1994382222a2a6df5c71d",
+        "b06018f5c6826762af5fd5d425615deab80f86c87424d858b619aae41b7b9236",
+        "43e9aa07b0132ba45ad2981bb8b602ed5fbaab747964a077da694bccbc3ed8fa",
+        "29df9390ff7fbc9064f6cd2c57c1250009f33d15a06a1713f39e1dd4992b2b8a",
+        "4527b4f8f11c142bb93d00da826f76b35d726dc99ed2454758cde693493b45af",
+        "6da06424ec16d0bd73fe7f9b05bbc793092b180198909674ba026172d6f23ce6",
+        "5d234892729d18147b8bcce58b084125a9560b6097823d1263858925c0f05b38",
+        "e2759caa7f1d7ea86bd2fc91da0e8c823b62a53939fe95d589ecb45bcb72c1d5",
+        "296f86d9cbf9ac78f3ac535b3ca8d113c439fe8b91928406e6b79c01eb69c4cb",
+        "7be52bfab8ec7138d0467ea0beaf6ee89fa9c7b7fba69b44f36b9af797b611b9",
+        "8382fc7d28f31aa1a03bfd7ee51a55cd16f681e45de6031d144056de52548a51",
+        "b64cf213d25d506d56ffa16ebbdbfa8d553b2c0c60db6194f22b1a47e35ee208",
+        "58d6c3c3a2954e48592a5a2f23f5498f49d5a4a61da78a5d883473460101eba5",
+        "4ec6f5744916433bdd0e22bc841460b9c76c38d28be06327a3ca40ae4d4ac607",
+        "60582b619ce7579071e8c6128bf9f7fc566870d903a6b87f66665a5df0c8ebae",
+        "d0b43f1114ad544e398c747b84ec8876b5937dd6730873d995cc53b4ee96e869",
+        "93cce5715cab2586c0d8807dc32df0e17e0c232aa760fea872f5b3effc6a3735",
+        "67a5083052178c7bfe8970ab4e1907b7f2ee6b9e127035f3d5bdf4f151b55958",
+        "5fecfa1d73ab3d7d3f5fa90ffc368e92c2ce4af2bb6e3c7d35ad13e023fceacf",
+        "b050f6c52b7f74a1591235b8ce949857f70e7f86bed332c2c49b8a0f560da05d",
+        "fc074bffd1d09cb06ab91e8c690f36baaa3058820f48f873be49ea3af3b7817a",
+        "6a54bfa5c24e1d15f9369c962751ce460cfee526502c77d60a410f80f385795b",
+        "79e36b7f1f3ab051b663fbbee92b03098e2e925eb19c4919d6a1c70c0f100cc2",
+        "998699bffbba9750fa2dfe90c0c329569888c7018a83ff921e83e6eee0f07d63",
+        "10a167d585e693eace6a73cd6c64dcbf3f7a24b981ec713f94ee41617293a617",
+        "25b44bdf46dc99f6d6b6ec7447703aac8c8472852c81de872ee8ab3cff6005cf",
+        "c1744198417eb5f2c90f2bcf5b296fb327808ab68fdeea70a9ea0ff53ecc42e8",
+        "006252becdad4bb9b18491b2488d59f900de9841c5e5aaa3666312edbda5e99e",
+        "74c32103f5efe1640bc96b8d4a2e5e04885c57fd974d10c6321a066125fd42d2",
+        "5c873cb1ec78425f055068bc39549c5c6a03c02c5176a8de0b894cf041cb8e5f",
+        "0724c192c476ea2c18686f046cee7537397466318f0aa492ee74f6d1ba5a86a9",
+        "af90f528fdca42bd5fc599da98b25b0e3fb0d208ae3c8adad444b7017dcb2205",
+        "0ad7fa422f70599435b2daf1fa0c7ac1bd9e2f93a7ff75aaff84afd70c7f40dc",
+        "58fc8ba73beb55b02e766ba8e9f70d0c48dea100402cd20d6aef8dc389efff47",
+        "8a1288d98b42b652527828b30154615c9d4eeb5b058de96e58a3250c65262793",
+        "29761c026dcc5ebd114b04ffc6ecff4617a6e29af0645e0dae74b3c7e226cc22",
+        "26451d220be0fa823dab84afb2c8a39425cb1c86d8796fde55038a18c0410c5c",
+        "418b32d24457ff45bc283c903b2bcdc37159bee8085f97ebf10a5b875b52fda5",
+        "fe382751da75eb37e9ac4d7b85c25201b8e979255dd66a4a6de1fc2f9d617838",
+        "b226a46932c265582bcb970383675a1eb6117d93aba3dad19c066ce670e3a1a8",
+        "ab8c7d46f39c9ea28d8ac210f943c1cb503829f9481620084bf0bc36dfbef10c",
+        "dbc2d9aa610296d73b2c3dc542b4b226f8e69a78a983eac746bbbd1d4b88487e",
+        "b411d3a201ebc8e93d5e4edd5b35abb676ec69fee696495d845691ec94243809",
+        "1f8753213b7e261f6934061c59dce98ba7ac81d7acdf597fc66e203c4cec6837",
+        "a2c5f1af0646bdc3f19938c373500bd977217bb7d636bca4cf185646d6c1d655",
+        "4dc7e2898786e0ebe1c76a93ea752675b8a62609cadeaf048bae4d6362299e7f",
+        "a6e1ce6a4eeceb51e46e473e8f9207b51575c32b1c190d08ad581fe69d71330d",
+        "0b3ddb5da186aae320ec9fa4f79665b52bf3c654f9ade858d59124e5c3711399",
+        "99c20590adfaf19e4e356a577c01b25e3c12d46797f2bc9288fa6c3756375504",
+        "e2dc54473bef0b02b57c0333b53b3b2eae5b018b8c30154706fc6a11e19ab120",
+        "bae3691a44ee7a2093b2e9219bb70f5c5212bd29cc4e183dec2d5bc3d78824b5",
+        "8a88292a86bcfb4bc2bd4f844fbb99da4eb976f363bb80447aa25a7c31ea3ec8",
+        "14578925551c4c8f8581e0282df212204d5841bb6338ec91517cb850b32eb6f6",
+        "badb2770851ea810b1e7b60bb0317c3221096b83f739a14511b3da2a1ca026e1",
+        "4a15f3b4a0e7c43cee0ea2a649b2f8bca0cb030d0306fd20ad6b72b971f5d80b",
+        "c55b5f782698f90558a925696fb3c3d1952942033122bbbf9debaa41098f0dd8",
+        "c514f1a33bb43a91e5b0d69fcd4b29fcd69955eb8ede375202daef8f5395dd4f",
+        "43c8693f8fc34d9dddc294676b93fd1480c73ec6e86ea7868a950f68c95a2d4f",
+        "469c9903629be6358074cb2784841959ae6f67dd53943bd41249eec57bde511f",
+        "f3c1a22994702dfd200d6185cedd902ad0ca2c9fe857170e9ae8cc3bee9c5e6d",
+        "c6ba1209fb09f94738cbf793131f0afecd8a11f5e1acb8d1f96f0e7023c17588",
+        "cf37ac0b6af327afb90ade7343f72d47e0e3c126b861623e093885622f5e9fde",
+        "21fed10a7bbc75ed9c5eff31bf19af205c7ba0b237095ec98dea81d3560b6690",
+        "194dc4c2ced95eb71cfaadb61978a2c8c17a2b156d2897ce70c339e573f15858",
+        "a5c20364bdb46d23ab16600a256624cf4d86e2a68b784f540a3ee2f7f0bc1190",
+        "7167071feb29e284f069653d6c9432059e14c04febd4efbd3c84a784278e37b7",
+        "7ada62a9b8b4ddb6a2e2913cc70da34344c5074795b4930baa474e464dce4ee5",
+        "33a5561546295f4d8e4284a5cb9f0045eadc2b83784db317a9b4634c2ca97183",
+        "846948c9593ac96e8b38e9d3200646b9115c5a5e8338e1396df0ceb7e6adc504",
+        "6a9b2e5438772fb9e22d632249c7509788f1c6bd210580eeaf3a8178a45a190b",
+        "ad72a8359faa4ebe40a2f54c38d81db8d6861f190f4d6a7a120fe42478233d0f",
+        "a0a552120807fa95e921247c4ad252fc9c0bc2b5127c95806fdaab7543d0d5ad",
+        "79c4b3b25cea385b2a738429d6e34118a2b79ad69913f8020a037cce55ac7355",
+        "60c1f6e165203ca2c17aa7841efc1d864f234e91dd85fdb435645b6acb920360",
+        "aa622ca3e388f5e40ee1e9c5912887a4136f5a7b11073bbdbc98d35433d55eb8",
+        "1a53a15dd31cf8955286a9da5303c29f1a9411cbd3836d4a7bc5337c13ca12ca",
+        "2b3ffa14bfc5a7358ddefebe5414423c07a540ec7165faecf167d927e8605761",
+        "21b7392430b98a170a995ccf40886a3f58208c3e0f32b65dd61a1d1ac783528a",
+        "abbe86c660f3d826ede0a4adaa46fb932d92e7b0a9d91b7ebac735a3762bfc2c",
+        "18ccbd1f81b4d18f798fc09241c56ca2e307b20a9da9e257775b03b532e4fefc",
+        "a83a83957f7ef139411c41f1d204bfa6bb89de219d039456e3f033b9658e8a3d",
+        "26cb82597ad3e980b68949d5d4640b0440a539e1260f094b24b2407e6e012358",
+        "ef4e62af6403f2db0f249cd4fbaf123d6fb3c2ba4e75b554ccb1f93409f3bf15",
+        "d93d4f51da21213a066c7de0efb578dd0d3659fcd432b033513ca26cbc87a6c6",
+        "9fb37c72ccd28901cc95d35403a073e2ba79d9dcf6476310ab941923f02bb6d2",
+        "27679354cbb49754c52b401ff69599adc8f35cfb7d9c463d4feac8728658be99"
+      ],
+      "original_sha256": "13e792e11398305150105c6a5ee6978ef66ddf067f093ee3bca7e0931bab41f4",
+      "public_sha256": "1023d85f5dc5f0273f691c68f1fc4dfbf878328e5305ad15f2706c2bf3f7f034"
+    },
+    "runtime-manifests/1d010.json": {
+      "changed_string_fields": {
+        "/preserved_copy": {
+          "original_value_sha256": "dcba1d440edf04a28ae99789c0d3626521b5dc41b082bad902ccb851a0b15429",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-1d010/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/source_binary": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/distinct_inode": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/new_pde_solves": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "/preserved_copy": "dcba1d440edf04a28ae99789c0d3626521b5dc41b082bad902ccb851a0b15429",
+        "/recovery_harness_commit": "f6ae25491a3d7f51592121b79f017327f12e3a7b637a34dd2239e789f236ad8d",
+        "/recovery_pid": "d4455ba6e7344cfce7e300185541b293b4daefd75a2bf39462c52c4a97154177",
+        "/sha256": "60f7d0a17d2b405d54fa84310d6bcbdcbeb6d05d8decad348e0eba68999b474c",
+        "/source_binary": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af"
+      },
+      "original_sha256": "df8c9fde1e630279baeba1262b7bbf4606d5775409c06b240b27ba543c5c3eb4",
+      "public_sha256": "77a9641b0c540cd21986171c9b115ffeabb0cec2db16bc9ba93d37c0ed639613"
+    },
+    "runtime-manifests/682.json": {
+      "changed_string_fields": {
+        "/preserved_copy": {
+          "original_value_sha256": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/source_binary": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/distinct_inode": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/original_attempt": "8bb55b2d37445cf35b12623144078b47f1728836d6a185635cda88a05d94a5a6",
+        "/original_pid": "0edd3e8021848aedca2825c0ec1625dc8a2590222538e2e4c61845bcc170b60b",
+        "/original_producer_commit": "087b1914d4cc2fec4cd782ff313a22c23fbdbe012620cf39d01fdbcdb715c57e",
+        "/preserved_copy": "6383e52e5238560858c0c871e74ea11ed230c11e1518f09348def6d2213e1c1f",
+        "/sha256": "042012316d64f5dd7c2f1b8a3620cfa1249f1e7c4488ff1a7bcd784431044958",
+        "/source_binary": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af"
+      },
+      "original_sha256": "8ebfef67f2963d1d1e6647eb1ae8eafe851628d8b90afc38e8b20bcf50e8f95e",
+      "public_sha256": "9eb3f63f581829afcbe9c27363034e0be05bffdc79d36e8a8317a2a873304792"
+    },
+    "runtime-manifests/7612.json": {
+      "changed_string_fields": {
+        "/copies/0/copy": {
+          "original_value_sha256": "b59a0ae4f2860ae0fafde0dd871d6005a1653281d52194675ad1026c7e5e569f",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-7612/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/copies/0/source": {
+          "original_value_sha256": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d"
+        },
+        "/copies/1/copy": {
+          "original_value_sha256": "a961fca5d36351807f66a5266b4a430ab8938a64dd2d80755b0253c2332b3c52",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-7612/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl"
+        },
+        "/copies/1/source": {
+          "original_value_sha256": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+          "public_value": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl"
+        }
+      },
+      "format": "json-leaf-projection",
+      "original_leaf_sha256": {
+        "/copies/0/copy": "b59a0ae4f2860ae0fafde0dd871d6005a1653281d52194675ad1026c7e5e569f",
+        "/copies/0/distinct_inode": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/copies/0/sha256": "9078046863c5adab6f2979f218e040c9251591265474a6c1fe72a25d165b05ee",
+        "/copies/0/source": "830f6d87fb57050e0f3e23ac7e6b9a25f271d06a341cf67bea8fd6969f7202af",
+        "/copies/1/copy": "a961fca5d36351807f66a5266b4a430ab8938a64dd2d80755b0253c2332b3c52",
+        "/copies/1/distinct_inode": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "/copies/1/sha256": "b81856564342971c577d9b4637149d48aae39f9e2b6f308ceb917e50fbdc90df",
+        "/copies/1/source": "59f7d19ff59e80b2f08d94299792b6b476c31f744877e98cbd2ea95a77f18fdb",
+        "/original_receipts_modified": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "/source_commit": "102e5ae58abf0e5c3583a2bc0427c35d3066b7634af8fcecdc14e1c81bf53365"
+      },
+      "original_sha256": "c9084b89b5d545d6f3740b91f13e1a1e1228529e10c0ed9f3360e251a2dedc70",
+      "public_sha256": "7f591c5a1fb3c98299ca6ea8a15acb1d85ab2dbb58ef4d46f93ae926c96487d7"
+    }
+  },
+  "omitted_large_runtime_artifacts": {
+    "native_and_recovery_binary_copies": "external frozen-runtime manifests identify these artifacts; copies are not committed",
+    "python_extension_sha256": "f28c3ebedcd0fdf0fadb2afe574ff4e235b153e62724a53375d963c3cbf99b13",
+    "python_wheel_sha256": "6537738d8a34cbabd5794cf607aa9dfc442d197d92492cfefc0dc1146200868b"
+  },
+  "original_files_sha256": {
+    "archived-sources/native-producer-682.rs.txt": "9ea32ad363ed8220e549213cad3cacb754496b4ed00043b08fdf489cedc7b6fc",
+    "archived-sources/native-recovery-1d010.rs.txt": "e0abbac4766e84932f18ebe3863b21a772f7398f45aa344db9aa23b5f3cc2973",
+    "archived-sources/python-check-7612.py.txt": "7b011f51cd2e842b15797a3f9c0fa5fb3ff6850e8558fee9745d0944d574522b",
+    "archived-sources/python-export-7612.py.txt": "f67e2d27948efb36885a23a8c7ccb5a50c9279cbb6358c556dae5dfee31636a8",
+    "native-682-failed-export/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-682-failed-export/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-682-failed-export/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-682-failed-export/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-682-failed-export/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-682-failed-export/artifacts/result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-682-failed-export/launch.json": "9ef5d4f6d4e3679b5666ce0447ff673ddb3cc3ec465943fa18d3ad235104d8a2",
+    "native-682-failed-export/preparation.json": "cb2af824601bbdc0540eacb41372292776ad5b3d9dba1cdd8baca8f2492a77cb",
+    "native-682-failed-export/receipts/native-producer-build-receipt.accepted.json": "a9eb771c6fd38f16ef49c9fbde1515825c559c9d1e3b5474d15cb5ad2b5dd5b0",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-finish.json": "67095599251e4c0d06c3210343da748dba774531a00e0c72a2243d8201c8cf97",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1-start.json": "1a3e6cd8490fb2525c53124941d7ed38bb333697b47c7c6cfbed286e903a0c7c",
+    "native-682-failed-export/receipts/native-qualification-682-attempt1.log": "a164ad965cfdb89b8a0c698d0a6874ed08a45a18a868815215a9b52860b73e57",
+    "native-682-failed-export/run-attempt.json": "15a4bbe7cd46753114183a25b8cee4723037b9c13a49a9f024052d25285ae430",
+    "native-recovery-1d010/artifacts/export-bindings.json": "729a3e3678a216fb4766db9b1201104e90192d472fb2fdf90465ed5b45d0b18a",
+    "native-recovery-1d010/artifacts/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "native-recovery-1d010/artifacts/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "native-recovery-1d010/artifacts/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "native-recovery-1d010/artifacts/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "native-recovery-1d010/original-result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+    "native-recovery-1d010/primary.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "native-recovery-1d010/protocol-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/protocol-stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-finish.json": "491622757eb3f2dd58ac9a23d48ba3a3c722282d6567c4a8000f24a073cace60",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1-start.json": "e0929813cc2ee1be58abf5af33d9525ae0cae4cfac6a96125308c37b12125859",
+    "native-recovery-1d010/receipts/native-readonly-recovery-1d010-attempt1.log": "c9018d54a504e38d314a08d51f72608c882ae9367d04474b434dfa6bb225fbeb",
+    "native-recovery-1d010/receipts/native-recovery-build-receipt.accepted.json": "eb63b09d3652abd7d2fabcedf067934ea393bfc4f53caa4b15df7495da0173c4",
+    "native-recovery-1d010/receipts/primary-native-recovery-review-1d010.json": "0923a41c521ce2ebb4529de3c3e4eac4c4aa780485d259874c0ca8634440dee3",
+    "native-recovery-1d010/recovery-launch.json": "3be5327679618f7f80e24678758f56116c3117215bfc6fddb4f1ca8b31d8f452",
+    "native-recovery-1d010/recovery-qualification.json": "36254acad82886ff433b592928bccd46ce5ed3e2cbf2cdece81a80eebf1ce2d2",
+    "native-recovery-1d010/replay.json": "f7812340c5b7bc463a71c4cc5652dbcc7d6ee8f4fc20de49c8057c9c66e84781",
+    "python-7612/launch.json": "1269c961bac464363ae9380351d80e59dc98a3a4d8d7c758e39f9d8c989cad80",
+    "python-7612/mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+    "python-7612/model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+    "python-7612/model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+    "python-7612/plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+    "python-7612/preparation.json": "19d3a3a72d35eb6c427df6ed98f17c18a3a07b0408868848be6a7e1f48a5fab7",
+    "python-7612/primary.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/qualification.json": "3cc36f34eab46b78e19bca889ada6f24a48affe4c4b1cb5af0df65da33e400ef",
+    "python-7612/receipts/primary-qualification-review-7612.json": "d7ea46200e2984a85bff2a0a7e5e0c2f79dad3a4ef89d4c86f621f99c306b363",
+    "python-7612/receipts/python-qualification-7612-attempt1-finish.json": "98722b97f9df925be40b1b818b350596c77b0a1fa56a88efc349d0cf3a650d2a",
+    "python-7612/receipts/python-qualification-7612-attempt1-start.json": "2806901cb44aa23e4c91a68f490febf51336ad553766aa3c890de81703c34cfe",
+    "python-7612/receipts/python-qualification-7612-attempt1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "python-7612/receipts/reviewed-build-receipt-7612.json": "f7cd2cd068096fc83632a6ad9ce5b82ffd2cb043d0d3232c68381b4988654d3b",
+    "python-7612/receipts/wheel-build-completion.json": "6d3690d7666e2d421551db792cdd82b943c5d064b7fb0103d11a21bde508d6c2",
+    "python-7612/receipts/wheel-build-corrected-completion.json": "dcdc47530558995dcfb2399c55a8f52164c8b56908d6f6d6760497ac2d215023",
+    "python-7612/receipts/wheel-build-corrected-launch.json": "52b4d59c466dc5f499e9a19783cb981c1907f3964539c9c64df368cba57d2e17",
+    "python-7612/receipts/wheel-build-corrected.log": "999c329b06fa87edc4972dff3b314ab08860a653c9d9dc65178c7c8244b05e46",
+    "python-7612/receipts/wheel-build-launch.json": "f027905dbfc51abdddd18d5a90f65e21c1590cc789b349c596aa929b20eda8a8",
+    "python-7612/receipts/wheel-build.log": "13e792e11398305150105c6a5ee6978ef66ddf067f093ee3bca7e0931bab41f4",
+    "python-7612/replay.json": "e998e1e3bcdec3001319319db80b1a279923657919afd630280eed8a5dbdf367",
+    "python-7612/result.json": "8338544d1c1e60adace5d3eefaddb76869fb706bf26a91fd2415efeac8461938",
+    "runtime-manifests/1d010.json": "df8c9fde1e630279baeba1262b7bbf4606d5775409c06b240b27ba543c5c3eb4",
+    "runtime-manifests/682.json": "8ebfef67f2963d1d1e6647eb1ae8eafe851628d8b90afc38e8b20bcf50e8f95e",
+    "runtime-manifests/7612.json": "c9084b89b5d545d6f3740b91f13e1a1e1228529e10c0ed9f3360e251a2dedc70"
+  },
+  "projected_metadata_file_count": 22,
+  "reference_sha256": {
+    "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+    "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+  },
+  "registered_regression_runs": "separate future closure; never counted as initial candidate retries",
+  "schema": 1,
+  "scope": "Scientific artifacts and archived source snapshots are byte-exact originals. Path-bearing process/build metadata is explicitly projected to public placeholders; raw originals remain external. Per-file original/public hashes and per-leaf/per-line mappings preserve every non-path value. No binaries, wheels or environments are committed; original process/native reopen is not claimed by clone-only checks."
+}

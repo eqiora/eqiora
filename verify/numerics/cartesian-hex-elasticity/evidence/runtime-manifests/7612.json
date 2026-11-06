@@ -1,0 +1,18 @@
+{
+  "source_commit": "7612bfbab2cef3d3ce10e349e39a95aa43eaf473",
+  "copies": [
+    {
+      "source": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+      "copy": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-7612/cartesian_hex_elasticity-8983e3a4f030041d",
+      "sha256": "23faa18949cac7a7125403a51418ef8d95ea8d1a0dc8e4e18176ad32c1da00ff",
+      "distinct_inode": true
+    },
+    {
+      "source": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/wheels-corrected/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+      "copy": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-7612/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+      "sha256": "6537738d8a34cbabd5794cf607aa9dfc442d197d92492cfefc0dc1146200868b",
+      "distinct_inode": true
+    }
+  ],
+  "original_receipts_modified": false
+}

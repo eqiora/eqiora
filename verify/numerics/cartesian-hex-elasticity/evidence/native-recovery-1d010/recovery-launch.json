@@ -1,0 +1,63 @@
+{
+  "new_pde_solves": 0,
+  "original_attempt_status": "export-failed-after-one-completed-run",
+  "recovery_binary": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+  "recovery_pid": 1445477,
+  "review_receipt": {
+    "held_tests": 2,
+    "ldd_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-recovery-ldd.txt",
+    "new_pde_solves": 0,
+    "no_solve_tests_passed": 8,
+    "original_artifact_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1/1431892-0",
+    "original_attempt_directory": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/native-qualification-682-attempt1",
+    "original_attempt_exit_code": 101,
+    "original_attempt_status": "one-completed-run-followed-by-exporter-assertion-failure",
+    "original_files_sha256": {
+      "launch.json": "9ef5d4f6d4e3679b5666ce0447ff673ddb3cc3ec465943fa18d3ad235104d8a2",
+      "mesh.json": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+      "model.eqi": "56dbb427888af1d89e5bf066075890d64f08c5849d83f846049a3029ec9fce5a",
+      "model.json": "85e5949152d36e794e342e1a1d3adb03c5997d4e88b8497d7d0c9b7173abe4f9",
+      "plan.json": "8069a6fc42f6fb3e387e784da6a67528c7c1e10269e94fc58a0faf0121080b34",
+      "preparation.json": "cb2af824601bbdc0540eacb41372292776ad5b3d9dba1cdd8baca8f2492a77cb",
+      "result.json": "d31edd4e04c651d5a8fc4586d17d1c8e09aa67e2a3a7c82f2e68431373d70517",
+      "run-attempt.json": "15a4bbe7cd46753114183a25b8cee4723037b9c13a49a9f024052d25285ae430"
+    },
+    "original_pid": 1431892,
+    "original_runtime_binary_copy": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/frozen-runtime-682/cartesian_hex_elasticity-8983e3a4f030041d",
+    "original_runtime_binary_sha256": "a4fc848c5540fbbab3637f1f2f86216015b25340100c9fed6198a8e3ad35a986",
+    "original_source_commit": "6826671d537882b3daded212866e76250b9c036f",
+    "primary_review": {
+      "original_pending_receipt_sha256": "837d606cfe0648f08f63f21d7037b670feacb784bbc4f6542c9e5715888bf9db",
+      "scope": "Read-only recovery of original682 result only; zero new PDE solves. Entire recovery code reviewed: no run_result call, exact archived inputs, Plan/Model/Result identities, corrected Cartesian logical shape, native observation/replay, unchanged independent protocol. Original attempt remains failed."
+    },
+    "recovery_binary_path": "<ARCHIVED-HOST>/tmp/eqiora-hex-execution/target/debug/deps/cartesian_hex_elasticity-8983e3a4f030041d",
+    "recovery_binary_sha256": "a657c7b181558f0be939f35cbbe3d0111bdd3cef12e4582491916f7c826283b5",
+    "recovery_harness_sha256": "e0abbac4766e84932f18ebe3863b21a772f7398f45aa344db9aa23b5f3cc2973",
+    "recovery_invocations": 0,
+    "recovery_review": "accepted",
+    "recovery_source_commit": "1d010282bbca179ddb09183901649476b60c1d53",
+    "recovery_source_tree": "4dffd775c237b50943a750d722c1cc26bb155f66",
+    "reference_sha256": {
+      "protocol.py": "6beaa2348c3f1284342f911b77fba06ed80af7b7e584226004588ecb547f5a77",
+      "reference.py": "950b0833d5e8a51171126d36d7406bb899f09f64f4b2f9de7b6e4d493150a70c"
+    },
+    "resolved_library_sha256": {
+      "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "1cd555ac46b7887edeaf3c42aac5408c8135e52f6b37870da2cf82d5fe14e829",
+      "/usr/lib/x86_64-linux-gnu/libc.so.6": "d8db8739a1633c972cec6a4fe0566bdcec6fd088f98723492ab0361f66238f75",
+      "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1": "02f3f192bf5f79b811f1e34a650fea443d407408703448906585232383957f60",
+      "/usr/lib/x86_64-linux-gnu/libm.so.6": "1b87a1a50b496cfead2b0ad134c2ff536705c82608db240c7e8aa48d6c0e4217"
+    },
+    "review_files_sha256": {
+      "manifest.json": "8ebfef67f2963d1d1e6647eb1ae8eafe851628d8b90afc38e8b20bcf50e8f95e",
+      "native-qualification-682-attempt1-finish.json": "67095599251e4c0d06c3210343da748dba774531a00e0c72a2243d8201c8cf97",
+      "native-qualification-682-attempt1-start.json": "1a3e6cd8490fb2525c53124941d7ed38bb333697b47c7c6cfbed286e903a0c7c",
+      "native-qualification-682-attempt1.log": "a164ad965cfdb89b8a0c698d0a6874ed08a45a18a868815215a9b52860b73e57",
+      "native-recovery-build.log": "e0b12074e9d96a35002d6579c56e3c2379a442f77cc33810cf5645ff694180da",
+      "native-recovery-ldd.txt": "1ad066ca26ca7f73e293a5807ef222c2d218aa64fcb266e9ca427ff3083821b5",
+      "native-recovery-no-solve.log": "b32e4470ce42b25a1c0d64b18860c82b2141a4321f1278f19e057436940b900f",
+      "native-recovery-review.diff": "b9b5106cc24b4c8075a85595a1d38100037cca69cd79054d0db3b292d5db17c7"
+    },
+    "status": "read-only-recovery-built-not-invoked",
+    "tracked_clean": true
+  }
+}
