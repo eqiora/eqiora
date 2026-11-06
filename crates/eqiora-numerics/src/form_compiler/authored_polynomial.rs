@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 mod boundary;
 mod coefficients;
+mod components;
 mod finite;
 mod oriented;
 mod pure;
@@ -317,6 +318,22 @@ impl Context<'_> {
                 self.tangential_component(value, &[], depth + 1)?
             }
             E::Curl { .. } => self.oriented_component(value, &[], depth + 1)?,
+            E::Divergence { value } => {
+                if self.physical_shape(value, depth + 1)? != [self.dimensions] {
+                    return None;
+                }
+                self.remaining = self.remaining.checked_sub(self.dimensions)?;
+                let mut sum = Polynomial::constant(ExactRational::integer(0));
+                for axis in 0..self.dimensions {
+                    let gradient = E::Gradient {
+                        value: value.clone(),
+                    };
+                    sum = sum
+                        .checked_add(&self.tensor(&gradient, axis, axis, depth + 1)?)
+                        .ok()?;
+                }
+                sum
+            }
             E::Number { value } => Polynomial::constant(number(*value)?),
             E::Rational { value, .. } => Polynomial::constant(value.clone()),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
@@ -384,42 +401,6 @@ impl Context<'_> {
             }
             _ => return None,
         })
-    }
-    fn tensor(
-        &mut self,
-        value: &E,
-        component: usize,
-        axis: usize,
-        depth: usize,
-    ) -> Option<Polynomial> {
-        self.step(depth)?;
-        match value {
-            E::LinearMap { values, .. } | E::SpatialTensor { values, .. } => {
-                let shape = self.shape(value, depth + 1)?;
-                self.closed_component(&shape, values, &[component, axis])
-            }
-            E::Parameter { ulid } => {
-                self.atom(Atom::Parameter(ulid.clone(), vec![component, axis]))
-            }
-            E::Conjugate { value } => self
-                .tensor(value, component, axis, depth + 1)?
-                .conjugate()
-                .ok(),
-            E::Gradient { value } if component < self.dimensions && axis < self.dimensions => self
-                .atom(match value.as_ref() {
-                    E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![component, axis]),
-                    E::Direction { name, field_ulid }
-                        if name == self.name && field_ulid == self.field =>
-                    {
-                        Atom::TestGradient(vec![component, axis])
-                    }
-                    E::Test { field_ulid } if field_ulid == self.field => {
-                        Atom::TestGradient(vec![component, axis])
-                    }
-                    _ => return None,
-                }),
-            _ => None,
-        }
     }
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;

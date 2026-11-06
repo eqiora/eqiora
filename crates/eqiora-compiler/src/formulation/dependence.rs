@@ -136,6 +136,7 @@ fn classify(
         | E::TangentialTrace { value, .. }
         | E::Divergence { value }
         | E::SymmetricPart { value }
+        | E::IsotropicLift { value }
         | E::Component { value, .. }
         | E::Integrate {
             integrand: value, ..
@@ -409,6 +410,7 @@ fn walk<'a>(
             | E::TangentialTrace { value, .. }
             | E::Divergence { value }
             | E::SymmetricPart { value }
+            | E::IsotropicLift { value }
             | E::Sin { value }
             | E::Conjugate { value }
             | E::Component { value, .. }

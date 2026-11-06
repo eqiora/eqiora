@@ -106,6 +106,17 @@ impl Context<'_> {
                     vec![3]
                 })
             }
+            E::SymmetricPart { value } => {
+                let shape = self.physical_shape(value, depth + 1)?;
+                (shape == [self.dimensions, self.dimensions]).then_some(shape)
+            }
+            E::IsotropicLift { value } => self
+                .physical_shape(value, depth + 1)?
+                .is_empty()
+                .then(|| vec![self.dimensions; 2]),
+            E::Divergence { value } => {
+                (self.physical_shape(value, depth + 1)? == [self.dimensions]).then(Vec::new)
+            }
             E::Curl { .. } | E::Cross { .. } => {
                 let definition = self.oriented_definition(value, depth + 1)?;
                 let rule = definition.result_rule();

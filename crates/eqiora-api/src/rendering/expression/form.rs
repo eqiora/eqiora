@@ -258,6 +258,9 @@ impl Context<'_> {
             Form::Divergence { value } => {
                 Math::Function("div".into(), vec![self.form(value, next)?])
             }
+            Form::IsotropicLift { value } => {
+                Math::Function("isotropic_lift".into(), vec![self.form(value, next)?])
+            }
             Form::SymmetricPart { value } => {
                 Math::Function("symmetric_part".into(), vec![self.form(value, next)?])
             }

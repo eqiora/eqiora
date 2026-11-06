@@ -199,6 +199,15 @@ fn from_dag(
                     wrt: convert(*wrt)?,
                 }
             }
+            ExprNode::SymmetricPart(value) => AuthoredFormExpressionV1::SymmetricPart {
+                value: convert(*value)?,
+            },
+            ExprNode::IsotropicLift(value) => AuthoredFormExpressionV1::IsotropicLift {
+                value: convert(*value)?,
+            },
+            ExprNode::Divergence(value) => AuthoredFormExpressionV1::Divergence {
+                value: convert(*value)?,
+            },
             ExprNode::Gradient(value) => AuthoredFormExpressionV1::Gradient {
                 value: convert(*value)?,
             },
@@ -268,10 +277,17 @@ mod tests {
             AuthoredFormExpressionV1::from_expression(&dag, symmetric).unwrap(),
             Some(AuthoredFormExpressionV1::SymmetricPart { .. })
         ));
+        let projected = AuthoredFormExpressionV1::from_expression(&dag, lift)
+            .unwrap()
+            .unwrap();
         assert!(
-            AuthoredFormExpressionV1::from_expression(&dag, lift)
-                .unwrap()
-                .is_some()
+            matches!(&projected, AuthoredFormExpressionV1::IsotropicLift { value }
+            if matches!(value.as_ref(), AuthoredFormExpressionV1::Divergence { .. }))
+        );
+        let bytes = serde_json::to_vec(&projected).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<AuthoredFormExpressionV1>(&bytes).unwrap(),
+            projected
         );
     }
 }

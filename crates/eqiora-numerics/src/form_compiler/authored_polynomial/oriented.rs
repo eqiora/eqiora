@@ -50,14 +50,18 @@ impl Context<'_> {
             E::Neg { value }
             | E::Conjugate { value }
             | E::Component { value, .. }
-            | E::Gradient { value } => {
+            | E::Gradient { value }
+            | E::SymmetricPart { value }
+            | E::IsotropicLift { value }
+            | E::Divergence { value } => {
                 self.physical_shape(value, depth + 1)?;
             }
             E::Add { left, right }
             | E::Sub { left, right }
             | E::Mul { left, right }
             | E::Dot { left, right }
-            | E::Inner { left, right } => {
+            | E::Inner { left, right }
+            | E::Div { left, right } => {
                 self.physical_shape(left, depth + 1)?;
                 self.physical_shape(right, depth + 1)?;
             }
