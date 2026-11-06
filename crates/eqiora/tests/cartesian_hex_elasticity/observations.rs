@@ -130,7 +130,9 @@ fn native_export(prepared: &Prepared, result: &eqiora_numerics::CommonResult) ->
     assert_eq!(entities.len(), 27);
     let mut records = Vec::new();
     let mut retained = BTreeSet::new();
-    for (entity, values) in entities.into_iter().zip(coefficients.chunks_exact(3)) {
+    let (coefficient_vectors, remainder) = coefficients.as_chunks::<3>();
+    assert!(remainder.is_empty());
+    for (entity, values) in entities.into_iter().zip(coefficient_vectors) {
         assert_eq!(entity.dimension(), 0);
         let closure = prepared.mesh.mesh().entity_vertices(entity).unwrap();
         assert_eq!(closure, [entity]);
