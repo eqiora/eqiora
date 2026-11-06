@@ -237,14 +237,22 @@ def test_reference_profile_times_solve_without_changing_q1_result():
         assert replay.profile is None
     assert plan.to_bytes() == before
     linear, = [phase for phase in profiled.profile.phases
-               if tuple(phase.path) == ("run", "solve", "linear_solve")]
+               if tuple(phase.path) == ("run", "solve", "scalar_linear_request", "linear_solve")]
     assert linear.calls == 1
     assert linear.fields == {"linear_solver": "BiConjugateGradientStabilized",
                              "solver_provider": "eqiora.reference"}
     assert np.isfinite(linear.inclusive_seconds)
     assert 0 <= linear.self_seconds <= linear.inclusive_seconds
-    assert any(tuple(phase.path) == ("run", "solve", "assembly")
-               for phase in profiled.profile.phases)
+    finalization, = [phase for phase in profiled.profile.phases
+                     if tuple(phase.path) == ("run", "solve", "scalar_system_finalization")]
+    assert finalization.calls == 1
+    request, = [phase for phase in profiled.profile.phases
+                if tuple(phase.path) == ("run", "solve", "scalar_linear_request")]
+    assert request.calls == 1
+    assembly, = [phase for phase in profiled.profile.phases
+                 if tuple(phase.path) == ("run", "solve", "scalar_system_finalization", "assembly")]
+    assert assembly.calls == 1
+    assert assembly.fields == {"role": "scalar_region_finalization"}
     assert not any(phase.path.count("linear_solve") > 1
                    for phase in profiled.profile.phases)
 
