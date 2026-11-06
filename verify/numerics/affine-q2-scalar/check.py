@@ -100,6 +100,7 @@ def run(args, directory, state):
                                         "cpu_affinity": sorted(os.sched_getaffinity(0)), "authored_parameters": values,
                                         "reference_table_sha256": sha256((HERE/"reference"/"intervals-gauss4-audit.json").read_bytes()),
                                         "source_sha256": sha256(Path(__file__).read_bytes()), "production_export_sha256": sha256((HERE/"production.py").read_bytes()),
+                                        "shared_quadratic_export_sha256": sha256((HERE.parent/"quadratic_output.py").read_bytes()),
                                         "plan_identity": plan.identity, "result_sha256": sha256(result_bytes), "candidate_sha256": candidate_sha256, "export_identity_sha256": export_identity_sha256,
                                         "pde_solves": 1, "profile_calls": 0, "warmups": 0, "timed_samples": 0,
                                         "plan_reopens": 1, "result_reopens": 1})
@@ -127,6 +128,7 @@ def main():
     write(args.output/"launch.json", {"schema": 1, "command": sys.argv, "started_at": args.started_at, "dimension": args.dimension,
                                      "N": args.cells, "cpu": args.cpu, "source_sha256": sha256(Path(__file__).read_bytes()),
                                      "production_export_sha256": sha256((HERE/"production.py").read_bytes()),
+                                        "shared_quadratic_export_sha256": sha256((HERE.parent/"quadratic_output.py").read_bytes()),
                                      "declared_pde_solves": 1, "profile_calls": 0, "warmups": 0, "timed_samples": 0})
     try:
         run(args, args.output, state)

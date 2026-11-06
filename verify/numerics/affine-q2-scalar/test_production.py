@@ -92,6 +92,10 @@ class ProductionProtocol(unittest.TestCase):
     def test_wrong_bound_stratum_rejected(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: entities.__setitem__(-1, (4, 0)))
 
+    def test_count_preserving_entity_ordinal_substitution_rejected(self):
+        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire:
+                      entities.__setitem__(-1, (entities[-1][0], entities[-1][1]+1)))
+
     def test_effective_rule_cannot_be_self_declared(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: wire['assembly_quadrature'].__setitem__('points_per_axis', 3))
 
