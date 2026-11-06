@@ -19,6 +19,7 @@ impl ResolvedCommonPlan {
         linear_backend: &dyn LinearSolverBackend,
         time_backend: Option<eqiora_time::TimeBackendCapabilities>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let method = method.into();
         if let Some(form) =
@@ -53,6 +54,7 @@ impl ResolvedCommonPlan {
                 linear_backend,
                 None,
                 None,
+                quadrature,
             )?;
             let Self::Spatial(plan) = inner else {
                 return Err(invalid(
@@ -69,13 +71,29 @@ impl ResolvedCommonPlan {
             .map(AuthoredFormulationProjection::equation_test_fields)
             .transpose()?
             .unwrap_or_default();
-        let recognized = RecognizedNativeAdmission::recognize(
+        let mut recognized = RecognizedNativeAdmission::recognize(
             model,
             owner,
             &spatial,
             temporal.as_ref().map(|_| 0.),
             &equation_tests,
         )?;
+        if quadrature.is_some()
+            && !matches!(
+                (&recognized.recognized, &spatial),
+                (
+                    RecognizedNativeModel::Spatial(_) | RecognizedNativeModel::ComplexSpatial(_),
+                    CommonSpatialRequest::Uniform(
+                        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::Q2 | CommonSpatialPolicy::P1
+                    ) | CommonSpatialRequest::Scoped(_)
+                )
+            )
+        {
+            return Err(invalid(
+                "assembly quadrature override requires the admitted scalar finite-element path",
+            ));
+        }
+        recognized.assembly_quadrature = quadrature;
         let effective_form = authored_formulation
             .map(|form| {
                 if form.requests_weak_derivation() {

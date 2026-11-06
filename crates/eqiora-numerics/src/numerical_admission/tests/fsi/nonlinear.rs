@@ -74,6 +74,7 @@ fn nonlinear_fixed_mesh_fsi_uses_shared_residuals_interfaces_and_kinematic_histo
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

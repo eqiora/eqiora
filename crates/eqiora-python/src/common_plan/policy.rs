@@ -3,6 +3,7 @@ mod moments;
 mod ode;
 mod process;
 mod quadratic;
+pub(super) mod quadrature;
 pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
 pub(super) use process::{PyEulerMaruyama, PyPoissonEvents};
 pub(super) use quadratic::PyQ2;

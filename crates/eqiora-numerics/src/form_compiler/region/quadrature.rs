@@ -4,6 +4,21 @@ use eqiora_meshing::ReferenceCellFamily;
 use eqiora_realization::SpaceFamily;
 
 impl<S: Coefficient> BoundRegionForm<S> {
+    /// Retain one admitted rule for volume and authenticated facet preparation.
+    pub(crate) fn with_assembly_points(mut self, points: usize) -> Result<Self, Diagnostic> {
+        if points < self.minimum_gauss_points() {
+            return Err(invalid(
+                "assembly quadrature underintegrates the bound polynomial form",
+            ));
+        }
+        self.assembly_points = Some(points);
+        Ok(self)
+    }
+
+    pub(crate) fn retained_assembly_points(&self) -> Option<usize> {
+        self.assembly_points
+    }
+
     /// Degree of the basis products in the bound weak residual and Jacobian.
     pub(super) fn required_polynomial_exactness(&self) -> usize {
         let maximum_basis = self

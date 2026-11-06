@@ -90,6 +90,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
         };
         // Doubling only the pressure coupling defeats the signed-transpose proof.
@@ -112,6 +113,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
@@ -132,6 +134,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 None,
                 None,
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
                 None,
             )
@@ -194,6 +197,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 None,
                 None,
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
                 None,
             )
@@ -267,6 +271,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap_err();
                 assert!(error.message().contains(diagnostic), "{error:?}");
@@ -298,6 +303,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let exact = replay_plan(exact, &REFERENCE_LINEAR_SOLVER);
@@ -326,6 +332,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 None,
                 None,
                 &REFERENCE_LINEAR_SOLVER,
+                None,
                 None,
                 None,
             )
@@ -419,6 +426,7 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )

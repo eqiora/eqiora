@@ -97,6 +97,7 @@ pub(super) fn source_owned_triangles_execute_the_same_affine_p1_field_after_mesh
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
         };
         let plan = resolve(CommonSpatialPolicy::P1).unwrap();

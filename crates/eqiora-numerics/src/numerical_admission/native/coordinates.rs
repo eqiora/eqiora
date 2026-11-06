@@ -92,6 +92,7 @@ impl RecognizedNativeAdmission {
             } else {
                 properties
             },
+            self.assembly_quadrature,
         )?;
         let prepared = if let Some(fields) = fields
             && equations.q1_diffusion_is_anchored(&mapping, &input, &fields)?
@@ -222,6 +223,7 @@ impl RecognizedNativeAdmission {
             &selected,
             scaling,
             LinearOperatorProperties::General,
+            self.assembly_quadrature,
         )?;
         let coordinates = crate::region_assembly::mapping::RegionRealCoordinates::new(&mapping)?;
         Ok(eqiora_solver::SolverPlanningSize::dense_bound(
@@ -246,7 +248,12 @@ impl RecognizedNativeAdmission {
                 RecognizedNativeModel::ComplexSpatial(equations),
                 NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(None),
             ) => equations
-                .assemble_real_static(&self.resources, &self.discretizations(spatial)?, scaling)?
+                .assemble_real_static(
+                    &self.resources,
+                    &self.discretizations(spatial)?,
+                    scaling,
+                    self.assembly_quadrature,
+                )?
                 .scalar_domain(),
             (RecognizedNativeModel::ComplexSpatial(_), _) => Ok(eqiora_core::ScalarDomain::Complex),
             _ => Ok(eqiora_core::ScalarDomain::Real),

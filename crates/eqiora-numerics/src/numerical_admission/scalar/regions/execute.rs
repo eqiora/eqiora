@@ -13,6 +13,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
         #[cfg(test)]
         super::super::STATIC_FINALIZATIONS.with(|count| count.set(count.get() + 1));
@@ -27,6 +28,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             } else {
                 operator_properties
             },
+            quadrature,
         )?;
         if q1_spd {
             let fields = self
@@ -72,6 +74,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -92,7 +95,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 }) =>
             {
                 let (mapping, mut input) =
-                    self.cartesian_assembly(mesh.mesh(), selected, scaling)?;
+                    self.cartesian_assembly(mesh.mesh(), selected, scaling, quadrature)?;
                 input.operator_properties = operator_properties;
                 Ok((mapping, input))
             }
@@ -110,7 +113,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 }) =>
             {
                 let (mapping, forms, natural) =
-                    self.simplicial_assembly(mesh, selected, scaling)?;
+                    self.simplicial_assembly(mesh, selected, scaling, quadrature)?;
                 let input = crate::region_assembly::mapping::RegionSolveInput {
                     conservative: None,
                     operator_properties,
@@ -133,6 +136,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         mesh: &CartesianMesh,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -145,7 +149,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
             }
             Ok(Some(value))
-        })
+        }, quadrature)
     }
 
     pub(in crate::numerical_admission) fn cartesian_assembly_with_boundary(
@@ -158,6 +162,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
             S,
         ) -> Result<Option<S>, Diagnostic>,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -166,8 +171,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         Diagnostic,
     > {
         let reference = eqiora_meshing::ReferenceCell::hypercube(mesh.topological_dimension())?;
-        let bound = self.bind_spaces(reference, selected, scaling)?;
-        self.cartesian_assembly_bound(mesh, selected, bound, boundary_value)
+        let bound = self.bind_spaces(reference, selected, scaling, quadrature)?;
+        self.cartesian_assembly_bound(mesh, selected, bound, boundary_value, quadrature)
     }
 
     /// Assembly and partial actions retain the same basis bindings and boundary owner.
@@ -181,6 +186,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
             S,
         ) -> Result<Option<S>, Diagnostic>,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -340,7 +346,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         natural.extend(crate::region_assembly::mapping::prepare_interface_facets(
             mesh, &bound, &traces,
         )?);
-        let points = super::quadrature_points(reference, selected, &bound)?;
+        let points = super::quadrature_points(reference, selected, &bound, quadrature)?;
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, points)?;
         let forms = bound
             .into_iter()

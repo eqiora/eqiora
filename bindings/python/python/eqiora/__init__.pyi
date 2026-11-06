@@ -2774,6 +2774,7 @@ def resolve(
     scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None = None,
     enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
+    quadrature: fem.GaussLegendre | fem.SimplexDuffyGaussLegendre | None = None,
 ) -> Plan:
     """Combine a Model with numerical settings to produce a Plan.
 

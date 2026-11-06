@@ -77,6 +77,7 @@ public component Heat(
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let initial = resolved

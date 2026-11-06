@@ -88,6 +88,7 @@ impl CommonSpatialPlan {
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
                     LinearOperatorProperties::Symmetric,
+                    self.admission.assembly_quadrature(),
                 )?;
                 let reference =
                     equations.mean_reference(self.admission.resources(), &system.mapping)?;

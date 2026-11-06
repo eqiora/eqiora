@@ -74,6 +74,7 @@ fn nonlinear_mini_history_preserves_consistent_pressure_through_common_newton() 
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

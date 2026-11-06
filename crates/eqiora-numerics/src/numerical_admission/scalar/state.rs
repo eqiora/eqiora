@@ -86,6 +86,7 @@ impl CommonSpatialPlan {
             &self.admission.discretizations,
             &self.admission.system_scaling,
             self.admission.operator_properties,
+            self.admission.assembly_quadrature(),
         )
     }
 

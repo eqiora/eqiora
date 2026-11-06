@@ -57,6 +57,7 @@ where
             &admission.discretizations,
             &admission.system_scaling,
             admission.operator_properties,
+            admission.assembly_quadrature(),
         )?;
         let seed = self.plan.physical_fields(
             &mapping,

@@ -38,6 +38,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
@@ -158,6 +159,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
         None,
         Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )

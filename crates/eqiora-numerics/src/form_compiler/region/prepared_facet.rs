@@ -27,6 +27,7 @@ struct Sample<S: Coefficient> {
 pub(crate) struct PreparedRegionFacet<S: Coefficient, P: Projection<S> = Native> {
     domain: RawId,
     parent: AffineGeometryMap,
+    assembly_points: Option<usize>,
     fields: Vec<RegionFieldLayout>,
     row: usize,
     columns: Vec<usize>,
@@ -52,22 +53,38 @@ impl<S: Coefficient> BoundRegionForm<S> {
         field: RawId,
         datum_degree: Option<usize>,
     ) -> Result<QuadratureRule, Diagnostic> {
-        let degree = self.natural_trace_degree(field, datum_degree)?;
         let dimension = self.form.dimension - 1;
         if dimension == 0 {
             return Ok(QuadratureRule::point());
         }
-        if self.reference.family() == ReferenceCellFamily::Hypercube {
-            QuadratureRule::tensor_product_gauss_legendre(
-                dimension,
-                2.max((degree + 1).div_ceil(2)),
-            )
-        } else {
-            eqiora_meshing::simplex_duffy_gauss_legendre(
-                dimension,
-                3.max((degree + dimension).div_ceil(2)),
-            )
+        let minimum = self.minimum_natural_gauss_points(field, datum_degree)?;
+        let points = self.assembly_points.unwrap_or(minimum);
+        if points < minimum {
+            return Err(invalid(
+                "assembly quadrature underintegrates the prescribed polynomial facet datum",
+            ));
         }
+        if self.reference.family() == ReferenceCellFamily::Hypercube {
+            QuadratureRule::tensor_product_gauss_legendre(dimension, points)
+        } else {
+            eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)
+        }
+    }
+
+    pub(crate) fn minimum_natural_gauss_points(
+        &self,
+        field: RawId,
+        datum_degree: Option<usize>,
+    ) -> Result<usize, Diagnostic> {
+        let degree = self.natural_trace_degree(field, datum_degree)?;
+        let dimension = self.form.dimension - 1;
+        Ok(
+            if self.reference.family() == ReferenceCellFamily::Hypercube {
+                2.max((degree + 1).div_ceil(2))
+            } else {
+                3.max((degree + dimension).div_ceil(2))
+            },
+        )
     }
 
     pub(super) fn natural_trace_degree(
@@ -154,6 +171,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut prepared = PreparedRegionFacet {
             domain: self.domain(),
             parent: cell.clone(),
+            assembly_points: self.assembly_points,
             fields: self.fields.clone(),
             row,
             columns,
@@ -293,10 +311,13 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionFacet<S, P> {
         form: &BoundRegionForm<S>,
         geometry: &AffineGeometryMap,
     ) -> Result<(), Diagnostic> {
-        if self.domain != form.domain() || self.fields != form.fields() || &self.parent != geometry
+        if self.domain != form.domain()
+            || self.fields != form.fields()
+            || &self.parent != geometry
+            || self.assembly_points != form.assembly_points
         {
             return Err(invalid(
-                "prepared natural facet differs from its exact parent geometry or Field binding",
+                "prepared natural facet differs from its exact parent geometry, Field binding or assembly quadrature",
             ));
         }
         Ok(())
@@ -336,6 +357,7 @@ impl<S: Coefficient> PreparedRegionFacet<S> {
         Ok(PreparedRegionFacet {
             domain: self.domain,
             parent: self.parent,
+            assembly_points: self.assembly_points,
             coordinates: P::ranges(&self.fields)?,
             fields: self.fields,
             row: self.row,

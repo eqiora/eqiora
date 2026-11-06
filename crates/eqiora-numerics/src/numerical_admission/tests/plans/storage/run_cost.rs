@@ -67,6 +67,7 @@ fn try_fixture(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
 }
 

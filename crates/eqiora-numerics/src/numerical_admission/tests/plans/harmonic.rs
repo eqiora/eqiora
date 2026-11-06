@@ -56,6 +56,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         Some(&form),
+        None,
     )
     .unwrap();
     let description = plan.formulation().unwrap();

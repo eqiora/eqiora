@@ -130,3 +130,27 @@ class TetrahedralFace:
     def __repr__(self) -> str: ...
 
 __all__ = ["MiniP1", "P1", "Q1", "Q2", "ScopedSpatialPolicy", "TetrahedralEdge", "TetrahedralFace"]
+
+@final
+class GaussLegendre:
+    """Tensor-product assembly quadrature; insufficient polynomial rules reject.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadrature.rs::PyGaussLegendre``.
+    """
+
+    def __init__(self, points_per_axis: int, /) -> None: ...
+    @property
+    def points_per_axis(self) -> int: ...
+
+@final
+class SimplexDuffyGaussLegendre:
+    """Dimension-explicit simplex assembly quadrature.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadrature.rs::PySimplexDuffyGaussLegendre``.
+    """
+
+    def __init__(self, spatial_dimension: int, points_per_axis: int, /) -> None: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def points_per_axis(self) -> int: ...

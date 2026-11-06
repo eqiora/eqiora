@@ -41,6 +41,7 @@ pub(crate) fn policy_identity(
     temporal: Option<&CommonTemporalPolicy>,
     time_backend: Option<eqiora_time::TimeBackendCapabilities>,
     nonlinear: Option<NonlinearSolvePlan>,
+    quadrature: Option<eqiora_realization::QuadraturePolicy>,
 ) -> Result<String, Diagnostic> {
     let mut bytes = Vec::new();
     push_framed(
@@ -113,6 +114,12 @@ pub(crate) fn policy_identity(
         bytes.extend_from_slice(&nonlinear.maximum_line_search_steps().to_be_bytes());
     }
     push_linear_policy_identity(&mut bytes, linear)?;
+    if let Some(quadrature) = quadrature {
+        let encoded = serde_json::to_vec(&quadrature).map_err(|error| {
+            invalid(format!("cannot encode assembly quadrature policy: {error}"))
+        })?;
+        push_framed(&mut bytes, &encoded);
+    }
     Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
 }
 

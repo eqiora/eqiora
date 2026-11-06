@@ -45,6 +45,26 @@ fn natural_facet_retains_material_domain_when_volume_samples_are_valid() {
                     None,
                 )
                 .unwrap();
+            facet.validate_parent(&bound, &geometry).unwrap();
+            let changed_quadrature = bound.clone().with_assembly_points(4).unwrap();
+            assert!(
+                facet
+                    .validate_parent(&changed_quadrature, &geometry)
+                    .is_err()
+            );
+            let shifted = AffineGeometryMap::new(reference, 1, vec![0.6], vec![0.5]).unwrap();
+            assert!(facet.validate_parent(&bound, &shifted).is_err());
+            let (quadratic_fields, quadratic_rows) = form
+                .si_bindings(|_| {
+                    Ok(Space::continuous_lagrange(
+                        std::num::NonZeroU16::new(2).unwrap(),
+                    ))
+                })
+                .unwrap();
+            let quadratic = form
+                .bind(reference, &quadratic_fields, &quadratic_rows, None)
+                .unwrap();
+            assert!(facet.validate_parent(&quadratic, &geometry).is_err());
             if side == 0 {
                 assert_eq!(facet.residual(&point).unwrap(), [2., 0.]);
                 // Checking the original primal does not request a derivative

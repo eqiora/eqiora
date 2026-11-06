@@ -55,6 +55,7 @@ fn resolve() -> (ResolvedCommonPlan, Vec<Vec<f64>>) {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     (plan, vertices)

@@ -503,6 +503,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         reference: eqiora_meshing::ReferenceCell,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        quadrature: Option<eqiora_realization::QuadraturePolicy>,
     ) -> Result<Vec<crate::form_compiler::region::BoundRegionForm<S>>, Diagnostic> {
         let domains = selected
             .iter()
@@ -520,7 +521,8 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 "selected discretizations must cover exactly the executable Regions",
             ));
         }
-        self.regions
+        let forms = self
+            .regions
             .iter()
             .map(|region| {
                 let binding = selected
@@ -531,6 +533,27 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     .form
                     .bind_field_spaces(reference, binding.field_spaces(), scaling)
             })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut points = quadrature::quadrature_points(reference, selected, &forms, quadrature)?;
+        for (region, form) in self.regions.iter().zip(&forms) {
+            for (&field, laws) in region.form.boundary_laws() {
+                for law in laws.values().filter(|law| {
+                    law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace
+                }) {
+                    let minimum =
+                        form.minimum_natural_gauss_points(field, law.polynomial_degree())?;
+                    if quadrature.is_some() && points < minimum {
+                        return Err(invalid(
+                            "assembly quadrature underintegrates the prescribed polynomial facet datum",
+                        ));
+                    }
+                    points = points.max(minimum);
+                }
+            }
+        }
+        forms
+            .into_iter()
+            .map(|form| form.with_assembly_points(points))
             .collect()
     }
 

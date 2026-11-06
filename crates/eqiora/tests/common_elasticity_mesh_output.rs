@@ -269,6 +269,7 @@ fn try_accepted_source_on_with_traction(
         &REFERENCE_LINEAR_SOLVER,
         None,
         document.authored_formulation_projection().unwrap(),
+        None,
     )?
     .as_spatial()
     .cloned()

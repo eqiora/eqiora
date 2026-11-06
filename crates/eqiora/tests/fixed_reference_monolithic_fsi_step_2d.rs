@@ -468,6 +468,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap()
         .as_spatial()

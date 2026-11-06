@@ -5,6 +5,7 @@ pub(in crate::numerical_admission) fn quadrature_points<S: Coefficient>(
     reference: eqiora_meshing::ReferenceCell,
     selected: &[eqiora_realization::DomainFieldDiscretization],
     forms: &[crate::form_compiler::region::BoundRegionForm<S>],
+    requested: Option<eqiora_realization::QuadraturePolicy>,
 ) -> Result<usize, Diagnostic> {
     let floor = if selected
         .iter()
@@ -17,9 +18,86 @@ pub(in crate::numerical_admission) fn quadrature_points<S: Coefficient>(
     } else {
         2
     };
-    Ok(forms.iter().fold(floor, |points, form| {
-        points.max(form.minimum_gauss_points())
-    }))
+    let minimum = forms.iter().fold(floor, |points, form| {
+        points
+            .max(form.minimum_gauss_points())
+            .max(form.retained_assembly_points().unwrap_or(0))
+    });
+    if let Some(policy) = requested {
+        use eqiora_realization::QuadraturePolicy;
+        let points = match (reference.family(), policy) {
+            (
+                eqiora_meshing::ReferenceCellFamily::Hypercube,
+                QuadraturePolicy::GaussLegendre { points_per_axis },
+            ) => points_per_axis.get(),
+            (
+                eqiora_meshing::ReferenceCellFamily::Simplex,
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension,
+                    points_per_axis,
+                },
+            ) if spatial_dimension.get() == reference.dimension() => points_per_axis.get(),
+            _ => {
+                return Err(invalid(
+                    "assembly quadrature provider or family does not match the admitted reference cell",
+                ));
+            }
+        };
+        if points < minimum {
+            return Err(invalid(
+                "assembly quadrature underintegrates the bound polynomial form",
+            ));
+        }
+        // Let the existing rule owner reject unsupported index/allocation/root controls.
+        eqiora_meshing::QuadratureRule::gauss_legendre(points)?;
+        return Ok(points);
+    }
+    let quadratic_tensor = reference.family() == eqiora_meshing::ReferenceCellFamily::Hypercube
+        && selected.iter().flat_map(|domain| domain.field_spaces()).any(|field| matches!(field.space().family(), eqiora_realization::SpaceFamily::ContinuousLagrange { order } if order.get() == 2));
+    // Four points is an accuracy default, not an exactness guarantee for nonpolynomials.
+    Ok(minimum.max(if quadratic_tensor { 4 } else { 1 }))
+}
+
+impl<S: Coefficient> ExecutableSpatialEquations<S> {
+    pub(in crate::numerical_admission) fn assembly_quadrature_policy(
+        &self,
+        resources: &NativeMeshResources,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+        temporal: Option<&CommonTemporalPolicy>,
+        requested: Option<eqiora_realization::QuadraturePolicy>,
+    ) -> Result<eqiora_realization::QuadraturePolicy, Diagnostic> {
+        let dimension = resources.geometry()?.ambient_dimension();
+        let simplex = matches!(
+            resources,
+            NativeMeshResources::GmshSimplicial { .. }
+                | NativeMeshResources::AffineTriangleSimplicial { .. }
+        );
+        let reference = if simplex {
+            eqiora_meshing::ReferenceCell::simplex(dimension)?
+        } else {
+            eqiora_meshing::ReferenceCell::hypercube(dimension)?
+        };
+        let mut equations = self.clone();
+        if let Some(temporal) = temporal.and_then(CommonTemporalPolicy::as_backward_euler) {
+            for region in &mut equations.regions {
+                region.form = region.form.bind_backward_euler(temporal)?;
+            }
+        }
+        let forms = equations.bind_spaces(reference, selected, scaling, requested)?;
+        let points_per_axis =
+            NonZeroUsize::new(quadrature_points(reference, selected, &forms, requested)?)
+                .expect("positive Gauss point count");
+        Ok(if simplex {
+            eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(dimension)
+                    .expect("positive reference dimension"),
+                points_per_axis,
+            }
+        } else {
+            eqiora_realization::QuadraturePolicy::GaussLegendre { points_per_axis }
+        })
+    }
 }
 
 /// Use the Space owner's minimum while retaining the existing three-point floor.

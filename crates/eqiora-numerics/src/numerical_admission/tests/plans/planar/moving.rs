@@ -181,6 +181,7 @@ fn mapped_plan_at_step(source: &str, step: f64) -> ResolvedCommonPlan {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap()
 }

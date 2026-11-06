@@ -39,6 +39,7 @@ fn storage_plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
         &REFERENCE_LINEAR_SOLVER,
         None,
         Some(&projection),
+        None,
     )
 }
 

@@ -77,6 +77,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let plan = resolved.as_spatial().unwrap();
@@ -454,6 +455,7 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let plan = resolved.as_spatial().unwrap();
@@ -469,6 +471,7 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
                 &admission.discretizations,
                 &admission.system_scaling,
                 admission.operator_properties,
+                None,
             )
             .unwrap();
         let fem = spatial == CommonSpatialPolicy::Q1;

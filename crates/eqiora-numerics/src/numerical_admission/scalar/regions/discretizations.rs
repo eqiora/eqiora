@@ -353,7 +353,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 ));
             }
         }
-        bound.bind_spaces(reference, selected, scaling)?;
+        bound.bind_spaces(reference, selected, scaling, None)?;
         Ok(())
     }
 }

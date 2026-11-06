@@ -2888,7 +2888,7 @@ change the physics. The Plan keeps the Model and Mesh you pass in unchanged
 and `spatial`.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.Q2 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.Q2 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | time.Bdf | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None, quadrature: fem.GaussLegendre | fem.SimplexDuffyGaussLegendre | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>

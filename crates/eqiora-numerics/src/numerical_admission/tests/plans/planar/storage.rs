@@ -60,6 +60,7 @@ public component Heat(
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let time = eqiora_time::TimeBackendCapabilities::new(
@@ -417,6 +418,7 @@ public component Heat(
         None,
         Some(CommonTemporalPolicy::backward_euler(0.25).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )

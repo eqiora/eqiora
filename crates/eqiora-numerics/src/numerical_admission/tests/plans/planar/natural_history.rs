@@ -70,6 +70,7 @@ public component Heat(
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

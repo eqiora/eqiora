@@ -108,6 +108,7 @@ fn resolve_solver(
         backend,
         None,
         None,
+        None,
     )
 }
 fn rules(

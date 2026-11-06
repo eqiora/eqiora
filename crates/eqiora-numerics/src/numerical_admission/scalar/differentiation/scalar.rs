@@ -94,6 +94,7 @@ impl DifferentiationScalar for f64 {
                 &admission.discretizations,
                 &admission.system_scaling,
                 admission.operator_properties,
+                admission.assembly_quadrature(),
             )
             .map(StaticSpatialSystem::Real)
     }
@@ -177,6 +178,7 @@ impl DifferentiationScalar for Complex64 {
             admission.resources(),
             &admission.discretizations,
             &admission.system_scaling,
+            admission.assembly_quadrature(),
         )
     }
     fn solve<P: Coefficient + Send + Sync>(

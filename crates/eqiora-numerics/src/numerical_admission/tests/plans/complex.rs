@@ -31,6 +31,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
     };
     let plan = resolve(CommonSpatialPolicy::Q1, exact.clone()).unwrap();
@@ -235,6 +236,7 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                     None,
                     None,
                     &REFERENCE_LINEAR_SOLVER,
+                    None,
                     None,
                     None,
                 )
