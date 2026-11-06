@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import platform
 import time
-from exact import assemble_patch, infinity_norm, inverse, patch_value
+from exact import assemble_patch, infinity_norm, inverse, mesh, patch_value
 
 
 def generate(d):
@@ -27,7 +27,8 @@ def generate(d):
     residual = [sum(a*v for a,v in zip(row,values))-f-g for row,f,g in zip(K,F,G)]
     if any(residual[i] for i in free): raise ArithmeticError('patch equilibrium failed')
     return {'dimension':d,'N':2,'scales':{'length_m':'1','solution':'1','diffusion':'1'},
-            'nodes_m':nodes,'essential':essential,'free':free,'stiffness':K,
+            'nodes_m':nodes,'vertices_m':mesh(d,n=2)[0],'cells':mesh(d,n=2)[1],
+            'edges':mesh(d,n=2)[2],'cell_dofs':mesh(d,n=2)[4],'essential':essential,'free':free,'stiffness':K,
             'volume_load':F,'natural_load':G,'exact_coefficients':values,
             'exact_constrained_actions':[residual[i] for i in essential],
             'inverse_free':inv,'epsilon':eps,'Cinf':C,'coefficient_allowance':C*eps,

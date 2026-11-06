@@ -18,7 +18,10 @@ def enclosure_sqrt(q):
         x = (Decimal(q.numerator)/Decimal(q.denominator)).sqrt()
         # One final decimal ulp on either side encloses rounded division+sqrt.
         pad = Decimal(10)**(x.adjusted()-context.prec+2) if x else Decimal(0)
-        return Q(max(Decimal(0),x-pad)), Q(x+pad)
+        lower,upper = Q(max(Decimal(0),x-pad)), Q(x+pad)
+        if not lower*lower <= q <= upper*upper:
+            raise ArithmeticError("square-root enclosure failed exact squared check")
+        return lower,upper
 
 
 def assemble(d,n):
@@ -64,23 +67,31 @@ def assemble(d,n):
     return K,M,F,U,essential,determinant(B),metric,cache
 
 
-def certify(d,n):
-    import numpy as np
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.linalg import spsolve
+def certify(d,n, coefficient_hex=None):
     K,M,F,U,essential,detB,metric,cache = assemble(d,n)
     free = [i for i in range(len(K)) if i not in essential]
-    fi = {v:i for i,v in enumerate(free)}
-    rows=[];cols=[];data=[]
-    for i in free:
-        for j,a in K[i].items():
-            if j in fi and a:
-                rows.append(fi[i]);cols.append(fi[j]);data.append(float(a))
-    A = csr_matrix((data,(rows,cols)),shape=(len(free),len(free)))
-    approx = spsolve(A,np.array([float(F[i]) for i in free]))
-    if not np.isfinite(approx).all(): raise ArithmeticError('nonfinite independent approximation')
-    v = [Q(0)]*len(K)
-    for i,x in zip(free,approx): v[i]=Q.from_float(float(x))
+    if coefficient_hex is None:
+        import numpy as np
+        from scipy.sparse import csr_matrix
+        from scipy.sparse.linalg import spsolve
+        fi = {v:i for i,v in enumerate(free)}
+        rows=[];cols=[];data=[]
+        for i in free:
+            for j,a in K[i].items():
+                if j in fi and a:
+                    rows.append(fi[i]);cols.append(fi[j]);data.append(float(a))
+        A = csr_matrix((data,(rows,cols)),shape=(len(free),len(free)))
+        approx = spsolve(A,np.array([float(F[i]) for i in free]))
+        if not np.isfinite(approx).all(): raise ArithmeticError('nonfinite independent approximation')
+        v = [Q(0)]*len(K)
+        for i,x in zip(free,approx): v[i]=Q.from_float(float(x))
+    else:
+        if len(coefficient_hex)!=len(K): raise ValueError('incomplete coefficient inventory')
+        values=[float.fromhex(x) for x in coefficient_hex]
+        if any(x.hex()!=text for x,text in zip(values,coefficient_hex)):
+            raise ValueError('noncanonical binary64 coefficient')
+        v=list(map(Q.from_float,values))
+        if any(v[i] for i in essential): raise ValueError('nonzero essential trace')
     residual = [sum(a*v[j] for j,a in K[i].items())-F[i] for i in free]
     eta2 = sum(r*r for r in residual)
     eta = enclosure_sqrt(eta2)[1]

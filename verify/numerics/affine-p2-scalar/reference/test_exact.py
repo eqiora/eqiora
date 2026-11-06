@@ -53,7 +53,8 @@ class PolynomialTests(unittest.TestCase):
         from exact import add, gradient, mul, scale
         from itertools import combinations
         for d in (2,3):
-            points=[tuple(Q(i==j) for i in range(d)) for j in range(d)]+[(Q(0),)*d]
+            vertices,cells,*_=mesh(d,2)
+            points=[vertices[i] for i in cells[0]]
             _,_,phi,grad,_=local(points)
             bary=[tuple(Q(i==j) for i in range(d+1)) for j in range(d+1)]
             bary += [tuple(Q(int(k in (i,j)),2) for k in range(d+1)) for i,j in combinations(range(d+1),2)]
@@ -81,5 +82,28 @@ class PolynomialTests(unittest.TestCase):
                 return sum(c*__import__('functools').reduce(lambda a,b:a*b,(x**n for x,n in zip(q,alpha)),Q(1)) for alpha,c in p.items())
             bad=[[det/Q(factorial(d))*sum(evaluate(a)*evaluate(b) for a,b in zip(gi,gj)) for gj in grad] for gi in grad]
             self.assertNotEqual(K,bad)
+
+class TraceAndGeometryMutants(unittest.TestCase):
+    def test_complete_facet_closure_and_wrong_gradient(self):
+        from exact import gradient,integrate,mul
+        from itertools import combinations
+        for d in (2,3):
+            vertices,cells,*_=mesh(d,2)
+            points=[vertices[i] for i in cells[0]]
+            K,_,phi,_,det=local(points)
+            pairs=[(i,) for i in range(d+1)]+list(combinations(range(d+1),2))
+            for opposite in range(d+1):
+                for pair,p in zip(pairs,phi):
+                    restricted={a:c for a,c in p.items() if a[opposite]==0}
+                    self.assertEqual(bool(restricted),opposite not in pair)
+            J=[[points[j+1][i]-points[0][i] for j in range(d)] for i in range(d)]
+            inv=inverse(J)
+            # Deliberately use J^-1 instead of J^-T on column gradients.
+            wrong=[tuple(-sum(inv[i][j] for j in range(d)) for i in range(d))]+[tuple(inv[i][j] for i in range(d)) for j in range(d)]
+            grad=[gradient(p,wrong) for p in phi]
+            mutant=[[sum(integrate(mul(a,b),det,d) for a,b in zip(gi,gj)) for gj in grad] for gi in grad]
+            self.assertNotEqual(K,mutant)
+            self.assertTrue(all(K[i][i]>0 for i in range(len(K))))
+            self.assertTrue(all(-K[i][i]<0 for i in range(len(K))))
 
 if __name__ == '__main__': unittest.main()
