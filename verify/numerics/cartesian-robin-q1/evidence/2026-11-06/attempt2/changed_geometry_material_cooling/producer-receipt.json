@@ -1,0 +1,76 @@
+{
+  "captured_live_plan_identity": "75ad16a161aa3fe5541a83c0978a8e7cc6ada0486f4f8fa35ef86681094b947e",
+  "captured_operator_sha256": "63f6a368c8068181f3899d119872a09cb7c71f572a1e19b1d570f0fadefd205f",
+  "coefficient_entities": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      5
+    ],
+    [
+      0,
+      6
+    ],
+    [
+      0,
+      7
+    ],
+    [
+      0,
+      8
+    ]
+  ],
+  "effective_quadrature": {
+    "kind": "gauss-legendre",
+    "points_per_axis": 3
+  },
+  "field_id": "4K6YM9NHA45HZSQ635JN2ZFAJF",
+  "input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "mesh_digest": "f5357505b673b689180abd02cb804f998a145ce38bdc9d476ba4488fd221535f",
+  "mesh_sha256": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+  "model_digest": "3898c1665dc423b73984dc385511eb54969997f7dea099e817834b0ca68fee3c",
+  "model_sha256": "6e5187bb59e69717acf606fb0358029ab9752ab6e7472a5cf66d1ee53da5bfc7",
+  "native_executable_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+  "operator_global_dofs": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "ordinary_public_runs": 1,
+  "ordinary_solves": 1,
+  "physical_outward_left_heat_binary64_hex": "-0x1.12492492491fcp+5",
+  "physical_scales": "identity-checked",
+  "plan_identity": "75ad16a161aa3fe5541a83c0978a8e7cc6ada0486f4f8fa35ef86681094b947e",
+  "plan_sha256": "cb5bbb1f6f9a8ef3516c18bbefd087bb034179d23a662a060bad760b0a2fbbee",
+  "producer_source_sha256": "ab4d8455ce56d0133481444a010e7fd773cd06429b1bb3c59cd5b366732a2dfa",
+  "result_identity": "4fd2095851741e6137b46d6ca9e1ee056f5572918706d2ca8da7cb59bf2136e0",
+  "result_sha256": "6beaf3154b0e2bdd99ff9fd0604ee4023be57ba7b241e7e895292687635db288",
+  "schema": 1,
+  "source_head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "status": "exported-not-yet-compared"
+}

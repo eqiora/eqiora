@@ -1,0 +1,4 @@
+   Compiling serde_json v1.0.154
+   Compiling eqiora-verify v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-verify)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.78s
+     Running `/data/nk523/tmp/eqiora-scalar-convection/target/debug/eqiora-verify --format json run --jobs 1 --case numerics.packaged-convective-heat-2d`

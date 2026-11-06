@@ -432,6 +432,14 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
         if self.boundary_laws.values().any(|laws| !laws.is_empty()) {
             rules.insert(super::vocabulary::MixedFormulationRule::ExplicitBoundaryLaw.id());
         }
+        if self
+            .boundary_laws
+            .values()
+            .flat_map(|laws| laws.values())
+            .any(|law| law.robin_coefficient().is_some())
+        {
+            rules.insert(super::vocabulary::FormulationRule::TraceOrAffineRobin.id());
+        }
         rules
     }
 
@@ -440,7 +448,8 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
     }
 
     /// The paired SI volume form is symmetric; strong traces remove matching
-    /// rows/columns and prescribed natural fluxes contribute only to the load.
+    /// rows/columns, prescribed natural fluxes contribute to the load, and scalar
+    /// Robin laws add a symmetric trace matrix.
     /// Backward-Euler state elimination is included; moving geometry is not.
     pub(crate) fn is_nonlinear(&self) -> bool {
         self.volume.is_nonlinear()

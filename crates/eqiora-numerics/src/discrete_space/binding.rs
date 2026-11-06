@@ -1,8 +1,37 @@
-use eqiora_meshing::{MeshEntity, MeshTopology};
+use eqiora_meshing::{
+    AffineGeometryMap, EntityIncidence, GeometryMap, MeshEntity, MeshGeometry, MeshTopology,
+};
 
 use super::*;
 
 impl DiscreteSpace {
+    /// Physical nodal data points on one authenticated parent facet. The same
+    /// support/basis owner supplies both topology and interpolation locations.
+    pub(crate) fn facet_interpolation_points<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        parent: EntityIncidence,
+    ) -> Result<Vec<(MeshEntity, usize, Vec<f64>)>, Diagnostic> {
+        let bound = self.bind_cell(mesh, parent.entity)?;
+        let map = mesh
+            .geometry_map(parent.entity)
+            .ok_or_else(|| invalid_space("nodal facet has no parent geometry"))?;
+        if map.reference_cell() != self.cell {
+            return Err(invalid_space(
+                "nodal facet interpolation has a different reference cell",
+            ));
+        }
+        self.trace_dofs(parent.local_ordinal)?
+            .into_iter()
+            .map(|local| {
+                let reference = self.interpolation_point(local)?;
+                let mut point = vec![0.0; map.physical_dimension()];
+                map.map_point(&reference, &mut point)?;
+                Ok((bound[local].0, self.local_dofs[local].slot, point))
+            })
+            .collect()
+    }
+
     /// Bind local basis functionals to exact mesh entities. Vector moment signs
     /// are independently reconstructed from vertex closure and checked against
     /// the mesh's orientation code, so a stale code cannot silently reorder DOFs.
@@ -68,7 +97,7 @@ impl DiscreteSpace {
                         "basis incidence has stale local or global identity",
                     ));
                 }
-                if !self.vector_element() {
+                if !self.vector_element() && dof.entity_dimension == 0 {
                     return Ok((entry.entity, 1));
                 }
                 let local = reference
@@ -110,7 +139,20 @@ impl DiscreteSpace {
                         "moment orientation code differs from exact vertex incidence",
                     ));
                 }
-                Ok((entry.entity, permutation.sign()))
+                if self.cell.family() == ReferenceCellFamily::Hypercube {
+                    super::nodal::check_topology_permutation(
+                        ReferenceCell::hypercube(dof.entity_dimension)?,
+                        &permutation,
+                    )?;
+                }
+                Ok((
+                    entry.entity,
+                    if self.vector_element() {
+                        permutation.sign()
+                    } else {
+                        1
+                    },
+                ))
             })
             .collect()
     }

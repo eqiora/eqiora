@@ -360,6 +360,7 @@ fn wave_fixture() -> (Arc<ResolvedCommonPlan>, Parameter) {
         &FaerLinearSolver,
         None,
         original.authored_formulation_projection().unwrap(),
+        None,
     )
     .unwrap();
     (Arc::new(plan), omega)

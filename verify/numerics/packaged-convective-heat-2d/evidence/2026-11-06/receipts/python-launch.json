@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "kind": "python",
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "source_tree": "6fd1c08983340ade596474d49de72ad1f58b4482",
+  "pid": 672358,
+  "started_utc": "2026-11-06T11:59:46.658323+00:00",
+  "command": [
+    "taskset",
+    "-c",
+    "3",
+    "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python",
+    "-I",
+    "-m",
+    "pytest",
+    "-q",
+    "/data/nk523/tmp/eqiora-scalar-convection/wt/bindings/python/tests/test_convective_heat_observations.py",
+    "--maxfail=1",
+    "--basetemp=/data/nk523/tmp/eqiora-scalar-convection/scientific-python-pytest-scratch"
+  ],
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "HIP_VISIBLE_DEVICES": "",
+    "ROCR_VISIBLE_DEVICES": "",
+    "TMPDIR": "/data/nk523/tmp/eqiora-scalar-convection/scratch",
+    "PYTHONNOUSERSITE": "1",
+    "EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1"
+  },
+  "unset_environment": [
+    "PYTHONPATH",
+    "LD_LIBRARY_PATH"
+  ],
+  "evidence_root": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1",
+  "executable_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python",
+  "executable_sha256": "4419b7eee48ee6189e5237dfd885e4bdca5ac41b57a9e6eef1af761db5e2cbff",
+  "build_receipt_sha256": "45164dc292d43bc1b2a58eb72c1164dab47cba2a5da344d2b689c25d5de6e890",
+  "installed_extension": {
+    "python": "3.13.14 (main, Aug  5 2026, 15:44:26) [Clang 22.1.3 ]",
+    "python_executable": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python",
+    "eqiora_version": "0.1.5",
+    "package_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/__init__.py",
+    "native_extension_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+    "native_extension_sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+    "wheel_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheels/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+    "wheel_sha256": "1c7fd883e0240013b375d8b94782e8ae8dbcdc59ea31240237a265b496886f28",
+    "wheel_native_extension_member": "eqiora/_eqiora.abi3.so",
+    "installed_native_extension_matches_wheel": true,
+    "source_shadowing_rejected": true,
+    "native_dependencies": {
+      "eqiora/_eqiora.abi3.so": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+        "sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_core-b797f02a.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_core-b797f02a.so.7",
+        "sha256": "5b6920e5f28db68d08d23765f13756b6f7ee8d567af7c2ff38d1066272c76c49",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_ida-37c028a5.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_ida-37c028a5.so.7",
+        "sha256": "12b94ac4ec6ba8f395b7681d4b5b0d4051e8fdca4e2029fb32ada640a6d3bc16",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7",
+        "sha256": "0f4e3733c35f047207dad22c6ed1be16e4f79b35e46aced580733125f4d7ac77",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_sunlinsoldense-89216335.so.5": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_sunlinsoldense-89216335.so.5",
+        "sha256": "63ad4138b6c54e0c109de8d6a98a15f7219b7282b4e664c1dcbfc7a1f4c606c6",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5",
+        "sha256": "a483e7cab3eca899f1cce6fae13097b0470c3b7695ec424aeedfb2194f4e1bb7",
+        "matches_wheel": true
+      }
+    },
+    "ldd": "\tlinux-vdso.so.1 (0x00007e6bad038000)\n\tlibsundials_core-b797f02a.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_core-b797f02a.so.7 (0x00007e6ba2fc6000)\n\tlibsundials_nvecserial-d4fe1a6e.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7 (0x00007e6ba2fb7000)\n\tlibsundials_sunlinsoldense-89216335.so.5 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_sunlinsoldense-89216335.so.5 (0x00007e6ba2faf000)\n\tlibsundials_sunmatrixdense-ea13cc70.so.5 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5 (0x00007e6ba2fa7000)\n\tlibsundials_ida-37c028a5.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_ida-37c028a5.so.7 (0x00007e6ba2f64000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007e6ba2f28000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007e6ba2e3f000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007e6ba2c00000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007e6bad03a000)\n",
+    "public_getters": {
+      "Result.observe": true,
+      "Result.to_bytes": true,
+      "Result.model_digest": true,
+      "Plan.identity": true,
+      "Model.digest": true,
+      "Model.observable": true
+    }
+  },
+  "exit_code": 0,
+  "finished_utc": "2026-11-06T11:59:50.357709+00:00"
+}

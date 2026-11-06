@@ -1,0 +1,10 @@
+    Finished `test` profile [optimized] target(s) in 0.07s
+     Running unittests src/lib.rs (/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d)
+
+running 3 tests
+test form_compiler::vocabulary::replay::tests::conservative_replay_binds_every_physical_role_and_closed_rule ... ok
+test form_compiler::vocabulary::replay::tests::scalar_robin_replay_retains_all_affine_lineage_and_mixed_flux_obligations ... ok
+test form_compiler::vocabulary::replay::tests::scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1021 filtered out; finished in 0.00s
+

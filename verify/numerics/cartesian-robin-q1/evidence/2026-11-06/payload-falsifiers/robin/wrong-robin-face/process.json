@@ -1,0 +1,24 @@
+{
+  "case": "robin",
+  "defect": "wrong-robin-face",
+  "pid": 515564,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "99fc11ddc4562f84d819ded8adbea7d858a4412d1688268a120fd68636295681",
+  "report_sha256": "eb8fa99b1b1829153e587893dece9d077831b66f269b8e6168191a1536acd9f5",
+  "base_native_input_sha256": "42d2a0a523d9808a9d3254d8009978dc66b47da90b769fbb6d696a87caeb9a49",
+  "accepted": false,
+  "status": "expected-rejection"
+}

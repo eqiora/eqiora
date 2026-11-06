@@ -1,0 +1,18 @@
+[
+  {
+    "test": "robin::observations::canonical_binary64_hex_covers_zero_subnormal_and_exponent_boundaries",
+    "exit_code": 0
+  },
+  {
+    "test": "robin::imported_convection_compiles_with_exact_caller_supports_and_required_inputs",
+    "exit_code": 0
+  },
+  {
+    "test": "robin::convection_rejects_wrong_units_regularity_parent_and_missing_inputs",
+    "exit_code": 0
+  },
+  {
+    "test": "robin::convection_rejects_boundary_from_another_parent",
+    "exit_code": 0
+  }
+]

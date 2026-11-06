@@ -60,6 +60,7 @@ pub use common_ode::{CommonOdePlan, CommonOdePolicy};
 pub use common_result::{
     CommonExecutionEvidence, CommonExecutionTopology, CommonObservableStateTangent,
     CommonObservation, CommonProviderEvidence, CommonResult, CommonSolveEvidence,
+    common_space_name,
 };
 pub use common_trajectory::{
     CommonTrajectory, CommonTrajectoryObservation, FiniteSpectrum, TimeObservationInterpolation,

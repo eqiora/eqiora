@@ -1,0 +1,10 @@
+[package]
+name = "org.example.HeatedBody"
+version = "1.0.0"
+entry = "main"
+
+[dependencies."Eqiora.Scalar"]
+version = "0.5.0"
+
+[[dependencies."Eqiora.Scalar".sources]]
+bundled = true

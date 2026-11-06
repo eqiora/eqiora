@@ -111,6 +111,7 @@ fn resolve_temporal(source: &str, step: Option<f64>) -> Result<ResolvedCommonPla
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .map_err(|error| error.to_string())
 }

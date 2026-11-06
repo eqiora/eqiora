@@ -17,15 +17,23 @@ impl CommonSpatialPlan {
         let scaling = &self.admission.system_scaling;
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => {
-                let (mapping, input) =
-                    equations.cartesian_assembly(mesh.mesh(), selected, scaling)?;
+                let (mapping, input) = equations.cartesian_assembly(
+                    mesh.mesh(),
+                    selected,
+                    scaling,
+                    self.admission.assembly_quadrature(),
+                )?;
                 let fields = self.physical_fields(&mapping, values)?;
                 mapping.recover_reactions(mesh.mesh(), input, &fields)
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
-                let (mapping, forms, natural) =
-                    equations.simplicial_assembly(mesh, selected, scaling)?;
+                let (mapping, forms, natural) = equations.simplicial_assembly(
+                    mesh,
+                    selected,
+                    scaling,
+                    self.admission.assembly_quadrature(),
+                )?;
                 let fields = self.physical_fields(&mapping, values)?;
                 mapping.recover_reactions(
                     mesh.mesh(),

@@ -1,11 +1,12 @@
-# Two-dimensional Poisson comparison protocol
+# Poisson comparison protocol
 
 This protocol is declared before numerical or timing observations. It scopes
 one part of the external comparison in #1739. It establishes no result or
-performance claim yet. Three-dimensional Poisson, elasticity, cylinder flow,
-MPI and GPU comparisons remain outside this slice.
+performance claim yet. The default is the established 2D comparison; the
+3D extension below currently supports correctness-only runs. Elasticity,
+cylinder flow, MPI and GPU comparisons remain outside this slice.
 
-## Same mathematical problem
+## Two-dimensional mathematical problem
 
 On the unit square, with numeric coordinates in metres, solve
 `-Delta(u) = 2*pi^2*sin(pi*x)*sin(pi*y)`, with zero value on the whole boundary.
@@ -193,7 +194,7 @@ field hex files are retained before the accuracy gate, including rejected
 candidates. `summary.json` is written only after both tools pass every requested
 level and convergence. Correctness-only mode publishes no execution timing table.
 
-The six standalone analytic/admission checks need NumPy but neither native tool:
+The standalone analytic/admission checks need NumPy but neither native tool:
 
 ```bash
 TMPDIR="$scratch/tmp" "$scratch/eqiora/bin/python" -m unittest discover \
@@ -299,3 +300,42 @@ TMPDIR="$scratch/tmp" python3 -m unittest discover \
 - [PETSc residual norm selection](https://petsc.org/release/manualpages/KSP/KSPSetNormType/)
 
 - [PETSc BiCGStab (`bcgs`)](https://petsc.org/release/manualpages/KSP/KSPBCGS/)
+
+## Three-dimensional correctness extension
+
+The next comparison uses the unit cube, continuous hexahedral Q1 elements,
+`u = sin(pi*x)*sin(pi*y)*sin(pi*z)`, forcing `3*pi^2*u`, and zero values on
+all six faces. The declared levels are 4, 8 and 16 cells per axis. It reuses
+this harness, solver controls and operation boundaries. The independent
+[3D reference](../../../verify/numerics/cartesian-poisson-3d-fem-fvm/README.md)
+owns the analytic continuous errors and comparison allowance.
+
+Use `--dimension 3 --levels 4 8 16 --mode correctness-only` with the existing
+`run.py` command. New reports and candidate fields retain the dimension
+explicitly. The default `--dimension 2` retains the four existing 2D levels.
+For 3D, the worker requires the ordinary public `GeometryGraph.cuboid` API and
+a development wheel containing it. It uses `poisson_3d.eqi` through the same
+compile, resolve and Run entry points as the 2D worker.
+
+The external worker explicitly creates hexahedra and checks the actual eight
+Basix tensor Gauss points, each with weight `1/8`, using the existing eight-ULP
+quadrature conformance budget. It requires `(N+1)^3` scalar vertex DOFs and
+`(N+1)^3-(N-1)^3` boundary DOFs. Topological vertex/DOF export and the zero
+boundary row/column checks apply in all three axes. Both tools use the same
+BiCGStab/identity, zero-start, one-worker real binary64 policy and existing
+true-residual controls. The dimension-general inherited allowance comes from
+the registered Cartesian reference owner; it is not fitted to either tool.
+The exported primal Q1 field is integrated with eight error points per axis,
+and every consecutive error pair must decrease with order greater than 1.9.
+
+Ordinary public 3D geometry admission, actual quadrature, vertex/DOF export,
+accuracy and convergence must all pass before reporting a complete comparison.
+The separate native reference case also checks global balance; this comparison
+reports its field-error and solver-policy gates. Qualified runtime measurements
+remain pending; no 3D speed claim is made.
+
+The current harness requires matching installed Python APIs for every supplied
+revision. In particular, solver observations now return complete preconditioner
+values and this harness reads their `kind`. Reproduce historical measurements
+with their recorded harness revision and matching wheels. The current harness
+does not adapt older APIs, and recorded measurements are not rewritten.

@@ -1,0 +1,11 @@
+
+running 1 test
+test numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions ... FAILED
+
+failures:
+
+failures:
+    numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1023 filtered out; finished in 0.45s
+

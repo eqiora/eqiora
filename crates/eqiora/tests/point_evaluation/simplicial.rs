@@ -127,6 +127,7 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let observable = document.aliases()["definition.profile"].downcast().unwrap();

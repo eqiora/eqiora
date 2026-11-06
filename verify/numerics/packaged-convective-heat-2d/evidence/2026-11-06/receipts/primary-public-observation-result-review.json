@@ -1,0 +1,65 @@
+{
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "cases": [
+    {
+      "lane": "native",
+      "case": "insulated",
+      "input_sha256": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c",
+      "report_sha256": "792804f51a5e8cbf6898ab021667ea16e4e0fc61cf8a22a6a05b91339858e3df",
+      "checks": 26
+    },
+    {
+      "lane": "native",
+      "case": "robin",
+      "input_sha256": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4",
+      "report_sha256": "2fd54bf4b40d8832c72b1f310b183d12ca14be26a88a8b2794e33abc532677a6",
+      "checks": 26
+    },
+    {
+      "lane": "native",
+      "case": "changed_h",
+      "input_sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+      "report_sha256": "10cd0927405a5137af4517e5530821fd92613aaa84061baec584c8066ee8e318",
+      "checks": 26
+    },
+    {
+      "lane": "native",
+      "case": "changed_geometry_material_cooling",
+      "input_sha256": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e",
+      "report_sha256": "dddb9725d62b075b1aaf824b3ee5437ea618c0b0df7d2be055538d85f391cf21",
+      "checks": 26
+    },
+    {
+      "lane": "python",
+      "case": "insulated",
+      "input_sha256": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2",
+      "report_sha256": "dbf9b6d73ed9c5d459fc3d16e0b674fdbc15c9c3a701246f81d0717309b6c129",
+      "checks": 26
+    },
+    {
+      "lane": "python",
+      "case": "robin",
+      "input_sha256": "e51b2d9f9ee25f3d934197268569c1d228b5c9480859ac178544d50de20ce373",
+      "report_sha256": "59afc33c6a5976a9690c544c65a053693628e0908b26a6a169ab9d7626485f1f",
+      "checks": 26
+    },
+    {
+      "lane": "python",
+      "case": "changed_h",
+      "input_sha256": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048",
+      "report_sha256": "eea8287dee2a6b53d995025c996ba892841f0e2b039853249e7e681cc4e55173",
+      "checks": 26
+    },
+    {
+      "lane": "python",
+      "case": "changed_geometry_material_cooling",
+      "input_sha256": "0d9ef9508a01bae18de82a2ff27756dcbf85932f1d89fd12ce7817c0a449bc85",
+      "report_sha256": "bd0f0096850386174a8094f680c50c68aa823b1ecba4ef6cb7f16473cc33e14d",
+      "checks": 26
+    }
+  ],
+  "artifact_hashes_verified": 48,
+  "new_public_runs": 8,
+  "scope": "public coefficients, six observations and replay only; core private operator/reaction campaign separate",
+  "status": "accepted"
+}

@@ -1,0 +1,29 @@
+import Eqiora.Scalar.scalar as scalar;
+
+public component Main(
+    support body: volume(ambient_dimension = 2),
+    support left: boundary(parent = body),
+    support right: boundary(parent = body),
+    support bottom: boundary(parent = body),
+    support top: boundary(parent = body)
+) {
+
+ variable temperature: K on body in smooth;
+ instance conduction: scalar.SteadyHeat2d(body=body, temperature=temperature,
+   conductivity=2[W/(m*K)], heating=0[W/m^3]);
+ instance fixed: scalar.FixedTemperature2d(body=body, face=left,
+   temperature=temperature, value=310[K]);
+ instance convection: scalar.ConvectiveHeatTransfer2d(body=body, face=right,
+   temperature=temperature, conductivity=2[W/(m*K)],
+   coefficient=4[W/(m^2*K)], ambient=280[K]);
+ instance bottom_flux: scalar.OutwardHeatFlux2d(body=body, face=bottom,
+   temperature=temperature, conductivity=2[W/(m*K)], flux=0[W/m^2]);
+ instance top_flux: scalar.OutwardHeatFlux2d(body=body, face=top,
+   temperature=temperature, conductivity=2[W/(m*K)], flux=0[W/m^2]);
+ observable left_heat: W/m = integral(normal(-2[W/(m*K)]*grad(temperature)),measure(left));
+ observable right_heat: W/m = integral(normal(-2[W/(m*K)]*grad(temperature)),measure(right));
+ observable bottom_heat: W/m = integral(normal(-2[W/(m*K)]*grad(temperature)),measure(bottom));
+ observable top_heat: W/m = integral(normal(-2[W/(m*K)]*grad(temperature)),measure(top));
+ observable right_temperature: K*m = integral(trace(temperature),measure(right));
+ observable right_convective_heat: W/m = integral(4[W/(m^2*K)]*(trace(temperature)-280[K]),measure(right));
+ }

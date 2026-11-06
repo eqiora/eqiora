@@ -1,0 +1,10 @@
+{
+  "authored_source_sha256": "946304a7b1372d8dba6da1b1bcc383e28df292dbd567e7b2f5721d706c8bfde4",
+  "case": "changed_geometry_material_cooling",
+  "native_executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "oracle_sha256": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+  "producer_source_sha256": "78983b1bceaab39292d46d5507519a49199dd14fdfb5b4e0fa4872be87ef105d",
+  "schema": 1,
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "status": "attempt-started"
+}

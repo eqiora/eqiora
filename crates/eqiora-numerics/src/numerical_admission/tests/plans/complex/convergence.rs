@@ -46,6 +46,7 @@ fn quadratic_real_and_complex_fields_refine_with_their_selected_space() {
                     &REFERENCE_LINEAR_SOLVER,
                     None,
                     None,
+                    None,
                 )
                 .unwrap();
                 let result = plan

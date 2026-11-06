@@ -1,0 +1,24 @@
+{
+  "case": "robin",
+  "defect": "missing-endpoint-trace-weights",
+  "pid": 515567,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "a027238f7c1af617129b3c501cf4ba00b653f23cb8022cc05241d64667bda70f",
+  "report_sha256": "c2142b56903c1260ebd9d810534006a0b551847f4bd89c0d67d54c05decae203",
+  "base_native_input_sha256": "42d2a0a523d9808a9d3254d8009978dc66b47da90b769fbb6d696a87caeb9a49",
+  "accepted": false,
+  "status": "expected-rejection"
+}

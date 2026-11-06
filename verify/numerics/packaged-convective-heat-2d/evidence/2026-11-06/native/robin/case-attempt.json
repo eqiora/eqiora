@@ -1,0 +1,10 @@
+{
+  "authored_source_sha256": "b96cf6c2e0153bf5c6988218f0fd2b9d92af254f3071d26ba60757a9851b2fcf",
+  "case": "robin",
+  "native_executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "oracle_sha256": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+  "producer_source_sha256": "78983b1bceaab39292d46d5507519a49199dd14fdfb5b4e0fa4872be87ef105d",
+  "schema": 1,
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "status": "attempt-started"
+}

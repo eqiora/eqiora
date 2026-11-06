@@ -1,0 +1,12 @@
+{
+  "head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "summary_sha256": "5ebc4f7cfc3ee8d9ec293fa6807bb0afa48b4edbd615e175121adbeffe65fb3e",
+  "status": "four-fixed-cases-independent-comparisons-accepted",
+  "case_count": 4,
+  "checks_per_case": 9,
+  "cumulative_actual_runs": 5,
+  "early_operator_payload_identity_checked": true,
+  "artifact_hash_and_plan_result_bindings_checked": true,
+  "scope": "steady real scalar affine Cartesian 2D Q1; no performance, MPI, GPU or transient claim",
+  "remaining": "payload falsifiers, repository archive, registered verification, capability docs, hosted closure and merge"
+}

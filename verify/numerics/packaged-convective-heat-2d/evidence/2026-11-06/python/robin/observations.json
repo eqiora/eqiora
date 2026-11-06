@@ -1,0 +1,186 @@
+{
+  "schema": 1,
+  "kind": "public-observations",
+  "case": "robin",
+  "order": [
+    [
+      "0.0",
+      "0.0"
+    ],
+    [
+      "0.0",
+      "0.5"
+    ],
+    [
+      "0.0",
+      "1.0"
+    ],
+    [
+      "1.0",
+      "0.0"
+    ],
+    [
+      "1.0",
+      "0.5"
+    ],
+    [
+      "1.0",
+      "1.0"
+    ],
+    [
+      "2.0",
+      "0.0"
+    ],
+    [
+      "2.0",
+      "0.5"
+    ],
+    [
+      "2.0",
+      "1.0"
+    ]
+  ],
+  "units": {
+    "coordinates": "m",
+    "coefficients": "K"
+  },
+  "coefficients": [
+    {
+      "coordinates_m": [
+        "0.0",
+        "0.0"
+      ],
+      "value_binary64_hex": "0x1.1800000000000p+8"
+    },
+    {
+      "coordinates_m": [
+        "0.0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.1800000000000p+8"
+    },
+    {
+      "coordinates_m": [
+        "0.0",
+        "1.0"
+      ],
+      "value_binary64_hex": "0x1.1800000000000p+8"
+    },
+    {
+      "coordinates_m": [
+        "1.0",
+        "0.0"
+      ],
+      "value_binary64_hex": "0x1.236db6db6db76p+8"
+    },
+    {
+      "coordinates_m": [
+        "1.0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.236db6db6db75p+8"
+    },
+    {
+      "coordinates_m": [
+        "1.0",
+        "1.0"
+      ],
+      "value_binary64_hex": "0x1.236db6db6db75p+8"
+    },
+    {
+      "coordinates_m": [
+        "2.0",
+        "0.0"
+      ],
+      "value_binary64_hex": "0x1.2edb6db6db6f0p+8"
+    },
+    {
+      "coordinates_m": [
+        "2.0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.2edb6db6db6edp+8"
+    },
+    {
+      "coordinates_m": [
+        "2.0",
+        "1.0"
+      ],
+      "value_binary64_hex": "0x1.2edb6db6db6f0p+8"
+    }
+  ],
+  "observations": [
+    {
+      "name": "left_heat",
+      "boundary": "left",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "0x1.12492492492fep+5",
+      "replay_value_binary64_hex": "0x1.12492492492fep+5"
+    },
+    {
+      "name": "right_heat",
+      "boundary": "right",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "-0x1.1249249249361p+5",
+      "replay_value_binary64_hex": "-0x1.1249249249361p+5"
+    },
+    {
+      "name": "bottom_heat",
+      "boundary": "bottom",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "-0x1.2600000000000p-40",
+      "replay_value_binary64_hex": "-0x1.2600000000000p-40"
+    },
+    {
+      "name": "top_heat",
+      "boundary": "top",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "-0x1.8c00000000000p-41",
+      "replay_value_binary64_hex": "-0x1.8c00000000000p-41"
+    },
+    {
+      "name": "right_temperature",
+      "boundary": "right",
+      "quantity": "temperature_trace",
+      "unit": "K*m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "0x1.2edb6db6db6efp+8",
+      "replay_value_binary64_hex": "0x1.2edb6db6db6efp+8"
+    },
+    {
+      "name": "right_convective_heat",
+      "boundary": "right",
+      "quantity": "outward_convective_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "value_binary64_hex": "-0x1.1249249249110p+5",
+      "replay_value_binary64_hex": "-0x1.1249249249110p+5"
+    }
+  ]
+}

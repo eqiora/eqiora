@@ -1,7 +1,7 @@
 # Prescribed scalar transport
 
 Run `python examples/advection-diffusion/run.py` with an installed development
-build. Published Eqiora 0.1.5 does not include Scalar 0.4.0.
+build. Published Eqiora 0.1.5 does not include Scalar 0.5.0.
 
 The dimensionless concentration obeys the conservative equation
 `∂c/∂t + div(c β - κ grad(c)) = q` on a one-metre square, with

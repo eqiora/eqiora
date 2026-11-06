@@ -1,0 +1,5 @@
+   Compiling eqiora-numerics v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-numerics)
+   Compiling eqiora-api v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-api)
+   Compiling eqiora v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 37s
+  Executable tests/standard_thermal_package.rs (/data/nk523/tmp/eqiora-scalar-convection/target/debug/deps/standard_thermal_package-ff1beb6dda49cefe)

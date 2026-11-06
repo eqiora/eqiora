@@ -82,6 +82,12 @@ impl PrimalGalerkinCorrespondence {
             || self.law.relations.first() != Some(&source.volume_relation)
             || !self
                 .law
+                .boundary_supports
+                .iter()
+                .copied()
+                .eq(source.boundaries.iter().map(|boundary| boundary.domain))
+            || !self
+                .law
                 .relations
                 .iter()
                 .skip(1)
@@ -94,6 +100,10 @@ impl PrimalGalerkinCorrespondence {
             .boundaries
             .iter()
             .any(|b| b.discharge != BoundaryDischarge::ZeroTestTrace);
+        let has_robin = source
+            .boundaries
+            .iter()
+            .any(|b| matches!(b.discharge, BoundaryDischarge::AffineRobin { .. }));
         let has_prescribed = source
             .boundaries
             .iter()
@@ -105,7 +115,9 @@ impl PrimalGalerkinCorrespondence {
                 FormulationRule::TestPairing
             },
             source.diffusion_rule.formulation_rule(),
-            if has_prescribed {
+            if has_robin {
+                FormulationRule::TraceOrAffineRobin
+            } else if has_prescribed {
                 FormulationRule::TraceOrPrescribedFlux
             } else if has_natural {
                 FormulationRule::TraceOrZeroFluxDischarge
@@ -113,6 +125,9 @@ impl PrimalGalerkinCorrespondence {
                 FormulationRule::ZeroTestTraceDischarge
             },
         ];
+        if has_robin && has_prescribed {
+            expected_rules.push(FormulationRule::TraceOrPrescribedFlux);
+        }
         if source.values.iter().any(|term| term.trial_dependent) {
             expected_rules.push(FormulationRule::ValuePairing);
         }
@@ -193,6 +208,66 @@ impl PrimalGalerkinCorrespondence {
                     WeakSign::Negative => WeakSign::Positive,
                 },
             )?;
+            if let BoundaryDischarge::AffineRobin {
+                coefficient,
+                trace,
+                datum,
+                normal_negative,
+            } = boundary.discharge
+            {
+                check_entry(
+                    entries.next(),
+                    "fem.derive.v1.boundary-substitution.robin-normal-orientation",
+                    boundary.relation,
+                    boundary.operator_node,
+                    WeakTermSlot::Boundary {
+                        test: MatrixSlot::Test,
+                    },
+                    if normal_negative {
+                        WeakSign::Negative
+                    } else {
+                        WeakSign::Positive
+                    },
+                )?;
+                for (rule, node) in [
+                    (
+                        "fem.derive.v1.boundary-substitution.robin-coefficient",
+                        coefficient,
+                    ),
+                    (
+                        "fem.derive.v1.boundary-substitution.robin-trial-trace",
+                        trace,
+                    ),
+                ] {
+                    check_entry(
+                        entries.next(),
+                        rule,
+                        boundary.relation,
+                        node,
+                        WeakTermSlot::Bilinear {
+                            test: MatrixSlot::Test,
+                            trial: MatrixSlot::Trial,
+                        },
+                        WeakSign::Positive,
+                    )?;
+                }
+                if let Some((datum, negative)) = datum {
+                    check_entry(
+                        entries.next(),
+                        "fem.derive.v1.boundary-substitution.robin-datum",
+                        boundary.relation,
+                        datum,
+                        WeakTermSlot::Linear {
+                            test: MatrixSlot::Test,
+                        },
+                        if negative {
+                            WeakSign::Negative
+                        } else {
+                            WeakSign::Positive
+                        },
+                    )?;
+                }
+            }
         }
         for term in source.values {
             check_entry(

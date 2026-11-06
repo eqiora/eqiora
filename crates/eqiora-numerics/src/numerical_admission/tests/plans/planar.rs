@@ -145,6 +145,7 @@ public component Affine(
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
         };
         let resolved = resolve(CommonSpatialPolicy::P1).unwrap();

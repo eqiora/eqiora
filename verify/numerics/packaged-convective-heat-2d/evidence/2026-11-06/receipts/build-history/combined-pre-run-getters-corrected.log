@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/data/nk523/tmp/eqiora-scalar-convection/inspect-pre-run-getters.py", line 18, in <module>
+    domain=model.domain(f'definition.{boundary}')
+eqiora._eqiora.ValidationError: EQ0101: Domain selection "definition.x_lower" is not present in this Model

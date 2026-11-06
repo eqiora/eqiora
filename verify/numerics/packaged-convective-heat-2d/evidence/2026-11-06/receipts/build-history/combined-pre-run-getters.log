@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/data/nk523/tmp/eqiora-scalar-convection/inspect-pre-run-getters.py", line 13, in <module>
+    assert model.field('definition.temperature')==restored.field('definition.temperature')
+                                                  ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+eqiora._eqiora.ValidationError: EQ0101: deferred-admission Model field selection requires an exact Field ULID

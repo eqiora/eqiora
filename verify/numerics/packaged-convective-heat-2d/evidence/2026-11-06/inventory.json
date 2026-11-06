@@ -1,0 +1,1363 @@
+{
+  "schema": 1,
+  "status": "primary-audited-eight-public-workflow-witnesses",
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "source_tree": "6fd1c08983340ade596474d49de72ad1f58b4482",
+  "ordinary_public_runs": {
+    "native_initial": 4,
+    "installed_python_initial": 4,
+    "initial_total": 8
+  },
+  "reference_sha256": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+  "accepted_reports": 8,
+  "scope": "public coefficients and six physical observations plus replay; no package full A/b or private weak reactions",
+  "metadata_policy": "Only personal home prefixes in build diagnostics are projected; every original digest is retained. Scientific inputs, artifacts, receipts and comparator values are copied unchanged. Original build logs remain immutable at the recorded home-backed paths. Relocated package README bytes use a .txt suffix so their original relative links are not reinterpreted as archive documentation.",
+  "files": [
+    {
+      "path": "native/changed_geometry_material_cooling/case-attempt.json",
+      "sha256": "2c67b5c7baed68000e8a47564a7879c52052ccca3a736a7bb15144b9bb83f598",
+      "bytes": 533,
+      "original_sha256": "2c67b5c7baed68000e8a47564a7879c52052ccca3a736a7bb15144b9bb83f598",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/comparison.json",
+      "sha256": "dddb9725d62b075b1aaf824b3ee5437ea618c0b0df7d2be055538d85f391cf21",
+      "bytes": 16463,
+      "original_sha256": "dddb9725d62b075b1aaf824b3ee5437ea618c0b0df7d2be055538d85f391cf21",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/mesh.eqmesh",
+      "sha256": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+      "bytes": 2638,
+      "original_sha256": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/model.eqi",
+      "sha256": "946304a7b1372d8dba6da1b1bcc383e28df292dbd567e7b2f5721d706c8bfde4",
+      "bytes": 1583,
+      "original_sha256": "946304a7b1372d8dba6da1b1bcc383e28df292dbd567e7b2f5721d706c8bfde4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/model.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/model.json",
+      "sha256": "e39387ff265a7bb3d6f3479064b7335ad61fac37077e279d78ba476e9a40ab2a",
+      "bytes": 18737,
+      "original_sha256": "e39387ff265a7bb3d6f3479064b7335ad61fac37077e279d78ba476e9a40ab2a",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/observations.json",
+      "sha256": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e",
+      "bytes": 3729,
+      "original_sha256": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/package-compilation.json",
+      "sha256": "498f2192f0a16ca72f37547130632df5be8bdd6796b4a4bbfae5d79ae6d1e96b",
+      "bytes": 1010,
+      "original_sha256": "498f2192f0a16ca72f37547130632df5be8bdd6796b4a4bbfae5d79ae6d1e96b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/package-compilation.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/plan.eqplan",
+      "sha256": "548ff7a9fbc046311300f154c987712b5606b8e0ecd0d5f303c00f543d09ec73",
+      "bytes": 31153,
+      "original_sha256": "548ff7a9fbc046311300f154c987712b5606b8e0ecd0d5f303c00f543d09ec73",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/producer-receipt.json",
+      "sha256": "f75a86ffd38dae143d7597b8a33b561402764da4cfaa525e005cc75e39bc99db",
+      "bytes": 6859,
+      "original_sha256": "f75a86ffd38dae143d7597b8a33b561402764da4cfaa525e005cc75e39bc99db",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/result.eqresult",
+      "sha256": "5e166c3d184b4a7dd83d66ff7034a42f1a4b34e644ce0ca050e961e6c65a9304",
+      "bytes": 1679,
+      "original_sha256": "5e166c3d184b4a7dd83d66ff7034a42f1a4b34e644ce0ca050e961e6c65a9304",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027,
+      "original_sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/scalar-README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219,
+      "original_sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/scalar-package.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_geometry_material_cooling/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364,
+      "original_sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling/scalar.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/case-attempt.json",
+      "sha256": "71a089ee199f36c1e175cd255019e0510b3c2cfe8145cb590578e6a87bc9fcff",
+      "bytes": 509,
+      "original_sha256": "71a089ee199f36c1e175cd255019e0510b3c2cfe8145cb590578e6a87bc9fcff",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/comparison.json",
+      "sha256": "10cd0927405a5137af4517e5530821fd92613aaa84061baec584c8066ee8e318",
+      "bytes": 16354,
+      "original_sha256": "10cd0927405a5137af4517e5530821fd92613aaa84061baec584c8066ee8e318",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/model.eqi",
+      "sha256": "f5bd5519423b3bbab8ad52f74bff26b0f49338a0bb38470786b772462b8ca5fb",
+      "bytes": 1583,
+      "original_sha256": "f5bd5519423b3bbab8ad52f74bff26b0f49338a0bb38470786b772462b8ca5fb",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/model.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/model.json",
+      "sha256": "8371236e2141c5d25a6e43b4297462ff778511bad16e1a4df6f0a898e21a1b45",
+      "bytes": 18737,
+      "original_sha256": "8371236e2141c5d25a6e43b4297462ff778511bad16e1a4df6f0a898e21a1b45",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/observations.json",
+      "sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+      "bytes": 3703,
+      "original_sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/package-compilation.json",
+      "sha256": "15afabdfedc2615918812b35321e39b120c0685b93195febec8e7b379e842ec0",
+      "bytes": 1010,
+      "original_sha256": "15afabdfedc2615918812b35321e39b120c0685b93195febec8e7b379e842ec0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/package-compilation.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/plan.eqplan",
+      "sha256": "d3e8f0f5eb8fd48473e94548148b3b185bb7640dda9c1977a03623961549184b",
+      "bytes": 31153,
+      "original_sha256": "d3e8f0f5eb8fd48473e94548148b3b185bb7640dda9c1977a03623961549184b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/producer-receipt.json",
+      "sha256": "b27249474549c92cef2aadbeef85bfc56040c19c3162d62ac1b4cb0e3efb700c",
+      "bytes": 6859,
+      "original_sha256": "b27249474549c92cef2aadbeef85bfc56040c19c3162d62ac1b4cb0e3efb700c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/result.eqresult",
+      "sha256": "c3cf5cf3bbfca599bd08c2b89fec53096a739a06a899513a716283ab9f8d82e6",
+      "bytes": 1682,
+      "original_sha256": "c3cf5cf3bbfca599bd08c2b89fec53096a739a06a899513a716283ab9f8d82e6",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027,
+      "original_sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/scalar-README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219,
+      "original_sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/scalar-package.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/changed_h/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364,
+      "original_sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h/scalar.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/case-attempt.json",
+      "sha256": "089cf527b46f39834616ed8770e4d79a8a02e8076328cfa7d9841fa83ddef1e5",
+      "bytes": 509,
+      "original_sha256": "089cf527b46f39834616ed8770e4d79a8a02e8076328cfa7d9841fa83ddef1e5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/comparison.json",
+      "sha256": "792804f51a5e8cbf6898ab021667ea16e4e0fc61cf8a22a6a05b91339858e3df",
+      "bytes": 16085,
+      "original_sha256": "792804f51a5e8cbf6898ab021667ea16e4e0fc61cf8a22a6a05b91339858e3df",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/model.eqi",
+      "sha256": "37719ea1e479d2d8ff68e7ad445c9edf8d0a8c9a5dad4ee999fcc88de3de5e9b",
+      "bytes": 1583,
+      "original_sha256": "37719ea1e479d2d8ff68e7ad445c9edf8d0a8c9a5dad4ee999fcc88de3de5e9b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/model.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/model.json",
+      "sha256": "7a0f5c6ec2406272d8129fc4c4fee0845c731eae96448328c237242830b5d242",
+      "bytes": 18671,
+      "original_sha256": "7a0f5c6ec2406272d8129fc4c4fee0845c731eae96448328c237242830b5d242",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/observations.json",
+      "sha256": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c",
+      "bytes": 3685,
+      "original_sha256": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/package-compilation.json",
+      "sha256": "d17b83d3c8724b229b17d32a89775a991a488a1a4f6039471db23516945aa3d9",
+      "bytes": 1010,
+      "original_sha256": "d17b83d3c8724b229b17d32a89775a991a488a1a4f6039471db23516945aa3d9",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/package-compilation.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/plan.eqplan",
+      "sha256": "40f133e9b418f860ec22ca6c0dba37d12a598cd50169d5c36eee7095fdc82949",
+      "bytes": 31065,
+      "original_sha256": "40f133e9b418f860ec22ca6c0dba37d12a598cd50169d5c36eee7095fdc82949",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/producer-receipt.json",
+      "sha256": "d69f0311fb903579a6652207950b1193faaa904283aa81de73e788cad3549958",
+      "bytes": 6859,
+      "original_sha256": "d69f0311fb903579a6652207950b1193faaa904283aa81de73e788cad3549958",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/result.eqresult",
+      "sha256": "436f7919869eadcf28b6306a2db844f424225473f434ad67c5c1ff24379fe9da",
+      "bytes": 1679,
+      "original_sha256": "436f7919869eadcf28b6306a2db844f424225473f434ad67c5c1ff24379fe9da",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027,
+      "original_sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/scalar-README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219,
+      "original_sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/scalar-package.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/insulated/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364,
+      "original_sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated/scalar.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/case-attempt.json",
+      "sha256": "6ebba61e0661ce5c953c1461020b13c807e6850bf9f23cdd0e43697f4f320c7b",
+      "bytes": 505,
+      "original_sha256": "6ebba61e0661ce5c953c1461020b13c807e6850bf9f23cdd0e43697f4f320c7b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/comparison.json",
+      "sha256": "2fd54bf4b40d8832c72b1f310b183d12ca14be26a88a8b2794e33abc532677a6",
+      "bytes": 16378,
+      "original_sha256": "2fd54bf4b40d8832c72b1f310b183d12ca14be26a88a8b2794e33abc532677a6",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/model.eqi",
+      "sha256": "b96cf6c2e0153bf5c6988218f0fd2b9d92af254f3071d26ba60757a9851b2fcf",
+      "bytes": 1583,
+      "original_sha256": "b96cf6c2e0153bf5c6988218f0fd2b9d92af254f3071d26ba60757a9851b2fcf",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/model.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/model.json",
+      "sha256": "454d83a73e37a576464dbc025da664b440794b4b44a53f1ef680d4ea9b9abd8b",
+      "bytes": 18737,
+      "original_sha256": "454d83a73e37a576464dbc025da664b440794b4b44a53f1ef680d4ea9b9abd8b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/observations.json",
+      "sha256": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4",
+      "bytes": 3703,
+      "original_sha256": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/package-compilation.json",
+      "sha256": "27a175793a8cc2304b8e6e69b2c644d432044f5af9afb76f58f401bd33b48ad8",
+      "bytes": 1010,
+      "original_sha256": "27a175793a8cc2304b8e6e69b2c644d432044f5af9afb76f58f401bd33b48ad8",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/package-compilation.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/plan.eqplan",
+      "sha256": "303346030517ec3bdd51cc0d88451bd301582cee56c2dfb54dff86c3d638f812",
+      "bytes": 31153,
+      "original_sha256": "303346030517ec3bdd51cc0d88451bd301582cee56c2dfb54dff86c3d638f812",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/producer-receipt.json",
+      "sha256": "dd01d2b5928028cb7828c126a37cc2e5e01ec308567552dc0824213c77b33c4c",
+      "bytes": 6859,
+      "original_sha256": "dd01d2b5928028cb7828c126a37cc2e5e01ec308567552dc0824213c77b33c4c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/result.eqresult",
+      "sha256": "43cb428c8c69362df1f106ad2894c13e4038929bf3b69627775cc7dc4d78426a",
+      "bytes": 1681,
+      "original_sha256": "43cb428c8c69362df1f106ad2894c13e4038929bf3b69627775cc7dc4d78426a",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027,
+      "original_sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/scalar-README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219,
+      "original_sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/scalar-package.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "native/robin/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364,
+      "original_sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin/scalar.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/Cargo.lock",
+      "sha256": "356670ea5adcf9bd417ca69b64e6c78909215b298689cb6ab9a28d07b1c5697d",
+      "bytes": 92958,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:Cargo.lock",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/bindings/python/tests/test_convective_heat_observations.py",
+      "sha256": "f4d6056845d0f894f7e23bb443ebe8f9d436bedc2cb01e240985ea8b6d2add04",
+      "bytes": 9969,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:bindings/python/tests/test_convective_heat_observations.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/crates/eqiora/tests/standard_thermal_package.rs",
+      "sha256": "eadf3eab51448cd19838b06ac40b584055160b118e9c90f1e9533e43a5b712ab",
+      "bytes": 14348,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:crates/eqiora/tests/standard_thermal_package.rs",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/crates/eqiora/tests/standard_thermal_package/robin.rs",
+      "sha256": "4c9ccab43c5d4417a9188fa0705867513e99591611a78d064c84519c0f3eaab2",
+      "bytes": 5497,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:crates/eqiora/tests/standard_thermal_package/robin.rs",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/crates/eqiora/tests/standard_thermal_package/robin/observations.rs",
+      "sha256": "78983b1bceaab39292d46d5507519a49199dd14fdfb5b4e0fa4872be87ef105d",
+      "bytes": 14094,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:crates/eqiora/tests/standard_thermal_package/robin/observations.rs",
+      "metadata_projection": false
+    },
+    {
+      "path": "producer-sources/examples/heated-body/run.py",
+      "sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "bytes": 3582,
+      "original_git_object": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7:examples/heated-body/run.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/archive-public-protocol.py",
+      "sha256": "7770c9b6b91066f7dc84029dd172e008349dc5c26bb821ac5070d0ca835d5524",
+      "bytes": 3905,
+      "original_sha256": "7770c9b6b91066f7dc84029dd172e008349dc5c26bb821ac5070d0ca835d5524",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/archive-public-protocol.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/inspect-installed.py",
+      "sha256": "801b78fa976678e23d5bcd65b10c7f0921fa8bba06a37a004284b6c834cc2694",
+      "bytes": 2358,
+      "original_sha256": "801b78fa976678e23d5bcd65b10c7f0921fa8bba06a37a004284b6c834cc2694",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/inspect-installed.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/inspect-pre-run-getters.py",
+      "sha256": "30abc4a659a3534e8f3976d019f4437cccacbb0f24f1e9f62968fc48e65b42f2",
+      "bytes": 1555,
+      "original_sha256": "30abc4a659a3534e8f3976d019f4437cccacbb0f24f1e9f62968fc48e65b42f2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/inspect-pre-run-getters.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/launch-approved-protocol.py",
+      "sha256": "f472e97204d1eb45b4a814d02877300db467033a624fc84885718a90aebe7484",
+      "bytes": 3221,
+      "original_sha256": "f472e97204d1eb45b4a814d02877300db467033a624fc84885718a90aebe7484",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/launch-approved-protocol.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/summarize-protocol.py",
+      "sha256": "1ba40c5ae1d929797b740022c380ff6eee6e807c1d016957705541c98d5e0694",
+      "bytes": 2381,
+      "original_sha256": "1ba40c5ae1d929797b740022c380ff6eee6e807c1d016957705541c98d5e0694",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/summarize-protocol.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "protocols-and-tools/write-build-receipt.py",
+      "sha256": "0009e26a53ef8f2020692e25512dbf97ecc3d021ef89217e9f48e09ff9a964c1",
+      "bytes": 6576,
+      "original_sha256": "0009e26a53ef8f2020692e25512dbf97ecc3d021ef89217e9f48e09ff9a964c1",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/write-build-receipt.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/case-attempt.json",
+      "sha256": "98e995416ad25b162be2b6b10184a39db35fceb86194b0764e32307d6fc0ccea",
+      "bytes": 426,
+      "original_sha256": "98e995416ad25b162be2b6b10184a39db35fceb86194b0764e32307d6fc0ccea",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/comparison.json",
+      "sha256": "bd0f0096850386174a8094f680c50c68aa823b1ecba4ef6cb7f16473cc33e14d",
+      "bytes": 16463,
+      "original_sha256": "bd0f0096850386174a8094f680c50c68aa823b1ecba4ef6cb7f16473cc33e14d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/mesh.eqmesh",
+      "sha256": "f0f6eb6bc4b47e1411fe5324f353febec67ae14c93bd82cc5a612d1e95588d07",
+      "bytes": 2650,
+      "original_sha256": "f0f6eb6bc4b47e1411fe5324f353febec67ae14c93bd82cc5a612d1e95588d07",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/model.json",
+      "sha256": "2f812782aba9675ff9e8b12576730653d7247ed120d972f051f2dada8e662ee4",
+      "bytes": 21249,
+      "original_sha256": "2f812782aba9675ff9e8b12576730653d7247ed120d972f051f2dada8e662ee4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/observations.json",
+      "sha256": "0d9ef9508a01bae18de82a2ff27756dcbf85932f1d89fd12ce7817c0a449bc85",
+      "bytes": 3789,
+      "original_sha256": "0d9ef9508a01bae18de82a2ff27756dcbf85932f1d89fd12ce7817c0a449bc85",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/.eqiora-project-write",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/.eqiora-project-write",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/.gitignore",
+      "sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "bytes": 22,
+      "original_sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/.gitignore",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/README.md",
+      "sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "bytes": 5192,
+      "original_sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/eqiora.lock",
+      "sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "bytes": 1154,
+      "original_sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/eqiora.lock",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/eqiora.toml",
+      "sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "bytes": 182,
+      "original_sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/eqiora.toml",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/handwritten.eqi",
+      "sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "bytes": 3962,
+      "original_sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/handwritten.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/run.py",
+      "sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "bytes": 3582,
+      "original_sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/run.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/src/main.eqi",
+      "sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "bytes": 4682,
+      "original_sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/src/main.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "bytes": 17793,
+      "original_sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "bytes": 14545,
+      "original_sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/plan.eqplan",
+      "sha256": "05000fefc47aae15d3cb3aed4158bfc87c1a6713a4741aafe3b7b8c85c72d9db",
+      "bytes": 34517,
+      "original_sha256": "05000fefc47aae15d3cb3aed4158bfc87c1a6713a4741aafe3b7b8c85c72d9db",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/producer-receipt.json",
+      "sha256": "039d13320137bfc7be02decab47aab60fb2e85d80751c00c17de5720bacaebaa",
+      "bytes": 7628,
+      "original_sha256": "039d13320137bfc7be02decab47aab60fb2e85d80751c00c17de5720bacaebaa",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_geometry_material_cooling/result.eqresult",
+      "sha256": "509ff117d526aaeac970d2732251965a384c308d9d71afc4a15c35c746cb1608",
+      "bytes": 1688,
+      "original_sha256": "509ff117d526aaeac970d2732251965a384c308d9d71afc4a15c35c746cb1608",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/case-attempt.json",
+      "sha256": "270b5bdd78ccde9c4190c4714cdda85df67ff6489ea004b8f3f5a0ff35449fb7",
+      "bytes": 402,
+      "original_sha256": "270b5bdd78ccde9c4190c4714cdda85df67ff6489ea004b8f3f5a0ff35449fb7",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/comparison.json",
+      "sha256": "eea8287dee2a6b53d995025c996ba892841f0e2b039853249e7e681cc4e55173",
+      "bytes": 16354,
+      "original_sha256": "eea8287dee2a6b53d995025c996ba892841f0e2b039853249e7e681cc4e55173",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/mesh.eqmesh",
+      "sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "bytes": 2650,
+      "original_sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/model.json",
+      "sha256": "64e97ab011770fb1cafc44c3e6fb4dae0466f9bd6e68f15bc1f64ca64b14b71d",
+      "bytes": 21249,
+      "original_sha256": "64e97ab011770fb1cafc44c3e6fb4dae0466f9bd6e68f15bc1f64ca64b14b71d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/observations.json",
+      "sha256": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048",
+      "bytes": 3763,
+      "original_sha256": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/.eqiora-project-write",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/.eqiora-project-write",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/.gitignore",
+      "sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "bytes": 22,
+      "original_sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/.gitignore",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/README.md",
+      "sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "bytes": 5192,
+      "original_sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/eqiora.lock",
+      "sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "bytes": 1154,
+      "original_sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/eqiora.lock",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/eqiora.toml",
+      "sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "bytes": 182,
+      "original_sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/eqiora.toml",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/handwritten.eqi",
+      "sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "bytes": 3962,
+      "original_sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/handwritten.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/run.py",
+      "sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "bytes": 3582,
+      "original_sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/run.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/src/main.eqi",
+      "sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "bytes": 4682,
+      "original_sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/src/main.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "bytes": 17793,
+      "original_sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "bytes": 14545,
+      "original_sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/plan.eqplan",
+      "sha256": "0b96e1b22df7c9bf5b7f9ec33dd83e9fe6175caec1fd972fd209bd7164af8be2",
+      "bytes": 34517,
+      "original_sha256": "0b96e1b22df7c9bf5b7f9ec33dd83e9fe6175caec1fd972fd209bd7164af8be2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/producer-receipt.json",
+      "sha256": "e93d43d66209250c7064edd3172e7364d20e550b25fcc2e6aa837ce34bd926d9",
+      "bytes": 7604,
+      "original_sha256": "e93d43d66209250c7064edd3172e7364d20e550b25fcc2e6aa837ce34bd926d9",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/changed_h/result.eqresult",
+      "sha256": "d7f85aaeb8e4b0b6cf1f15f1a477507f823fbf5f9aa7f3925f6951a993708d58",
+      "bytes": 1690,
+      "original_sha256": "d7f85aaeb8e4b0b6cf1f15f1a477507f823fbf5f9aa7f3925f6951a993708d58",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/case-attempt.json",
+      "sha256": "4e03c208fc03b7133b96ed86cf82882f0ea04c0d65b8dbd16f7f79380f69733d",
+      "bytes": 402,
+      "original_sha256": "4e03c208fc03b7133b96ed86cf82882f0ea04c0d65b8dbd16f7f79380f69733d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/comparison.json",
+      "sha256": "dbf9b6d73ed9c5d459fc3d16e0b674fdbc15c9c3a701246f81d0717309b6c129",
+      "bytes": 16085,
+      "original_sha256": "dbf9b6d73ed9c5d459fc3d16e0b674fdbc15c9c3a701246f81d0717309b6c129",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/mesh.eqmesh",
+      "sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "bytes": 2650,
+      "original_sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/model.json",
+      "sha256": "01fadbef6a05e7af86101f0a016de59a6ed7e3367c478cadddafb0f0b6170f69",
+      "bytes": 21205,
+      "original_sha256": "01fadbef6a05e7af86101f0a016de59a6ed7e3367c478cadddafb0f0b6170f69",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/observations.json",
+      "sha256": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2",
+      "bytes": 3745,
+      "original_sha256": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/.eqiora-project-write",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/.eqiora-project-write",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/.gitignore",
+      "sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "bytes": 22,
+      "original_sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/.gitignore",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/README.md",
+      "sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "bytes": 5192,
+      "original_sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/eqiora.lock",
+      "sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "bytes": 1154,
+      "original_sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/eqiora.lock",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/eqiora.toml",
+      "sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "bytes": 182,
+      "original_sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/eqiora.toml",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/handwritten.eqi",
+      "sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "bytes": 3962,
+      "original_sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/handwritten.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/run.py",
+      "sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "bytes": 3582,
+      "original_sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/run.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/src/main.eqi",
+      "sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "bytes": 4682,
+      "original_sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/src/main.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "bytes": 17793,
+      "original_sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "bytes": 14545,
+      "original_sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/plan.eqplan",
+      "sha256": "15495e22789276f432b9082675d8567ed94ced2b2a365b75b0e55ee66a2e5c5e",
+      "bytes": 34461,
+      "original_sha256": "15495e22789276f432b9082675d8567ed94ced2b2a365b75b0e55ee66a2e5c5e",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/producer-receipt.json",
+      "sha256": "f2473053bf5160bbfcb220f5ffa67b6f2f6776b7a2c7e1e643da0591b5d895da",
+      "bytes": 7604,
+      "original_sha256": "f2473053bf5160bbfcb220f5ffa67b6f2f6776b7a2c7e1e643da0591b5d895da",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/insulated/result.eqresult",
+      "sha256": "8bab960e61d5e747c17d31ff2e0dc375295bd97c110ef4a89daddcd319304da7",
+      "bytes": 1686,
+      "original_sha256": "8bab960e61d5e747c17d31ff2e0dc375295bd97c110ef4a89daddcd319304da7",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/case-attempt.json",
+      "sha256": "36b3445215f31c8ac19c24c6035cbe93a116b5951d8b270332d28d4f11c0a68f",
+      "bytes": 398,
+      "original_sha256": "36b3445215f31c8ac19c24c6035cbe93a116b5951d8b270332d28d4f11c0a68f",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/case-attempt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/comparison.json",
+      "sha256": "59afc33c6a5976a9690c544c65a053693628e0908b26a6a169ab9d7626485f1f",
+      "bytes": 16378,
+      "original_sha256": "59afc33c6a5976a9690c544c65a053693628e0908b26a6a169ab9d7626485f1f",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/comparison.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/mesh.eqmesh",
+      "sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "bytes": 2650,
+      "original_sha256": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/mesh.eqmesh",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/model.json",
+      "sha256": "dbb7bb5a8e5f50cbdb07324f84d0089d09de480a6b8623400bbd0eefb056112b",
+      "bytes": 21249,
+      "original_sha256": "dbb7bb5a8e5f50cbdb07324f84d0089d09de480a6b8623400bbd0eefb056112b",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/model.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/observations.json",
+      "sha256": "e51b2d9f9ee25f3d934197268569c1d228b5c9480859ac178544d50de20ce373",
+      "bytes": 3763,
+      "original_sha256": "e51b2d9f9ee25f3d934197268569c1d228b5c9480859ac178544d50de20ce373",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/observations.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/.eqiora-project-write",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/.eqiora-project-write",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/.gitignore",
+      "sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "bytes": 22,
+      "original_sha256": "1103abd23f477ac885a7bebbc785ed2dd6a9998ff5d6dd61b676167227fae9a4",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/.gitignore",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/README.md",
+      "sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "bytes": 5192,
+      "original_sha256": "e6e4bdd1c93f1d64681669d5730d95adcf40fe9182cd530cbe0418edae98a4d0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/README.md",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/eqiora.lock",
+      "sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "bytes": 1154,
+      "original_sha256": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/eqiora.lock",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/eqiora.toml",
+      "sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "bytes": 182,
+      "original_sha256": "d9d4654000681a1b38614e8c74daceab2c407c92a37f4bc6425b8bbc20f48729",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/eqiora.toml",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/handwritten.eqi",
+      "sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "bytes": 3962,
+      "original_sha256": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/handwritten.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/run.py",
+      "sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "bytes": 3582,
+      "original_sha256": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/run.py",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/src/main.eqi",
+      "sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "bytes": 4682,
+      "original_sha256": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/src/main.eqi",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "bytes": 17793,
+      "original_sha256": "b1d232bdee13cc532cbe7bd54f2eeb74af1ae3f48b2d022d68740e9809d1bc31",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/vendor/175c22ff32de8953d220729ada4e6d7b4fc5be229635db5535bbbbc80d8c2543.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "bytes": 14545,
+      "original_sha256": "57e301f48cfb6b810df08cca829857b0dcbda968711adeca736aa982af4dafea",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/offline-project/vendor/d6862ea76fa536bd35f7a19ff28f5f335172cfcdafe0ae1bd016d203e801ae19.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/plan.eqplan",
+      "sha256": "bc95dceecd6081d6a0c197cb6980dd75cec615d7bb739e16d9fef04d00592899",
+      "bytes": 34517,
+      "original_sha256": "bc95dceecd6081d6a0c197cb6980dd75cec615d7bb739e16d9fef04d00592899",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/plan.eqplan",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/producer-receipt.json",
+      "sha256": "a221df7e522fb5f5a6affd3f8786f29d65c07b5545d0b571d517b132cf6ac285",
+      "bytes": 7600,
+      "original_sha256": "a221df7e522fb5f5a6affd3f8786f29d65c07b5545d0b571d517b132cf6ac285",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/producer-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "python/robin/result.eqresult",
+      "sha256": "b88c674357ecb10d402ebfbf7b4004b69ba61dd6fcc3b5aca36ebee8b98586f8",
+      "bytes": 1688,
+      "original_sha256": "b88c674357ecb10d402ebfbf7b4004b69ba61dd6fcc3b5aca36ebee8b98586f8",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin/result.eqresult",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-final-docs.log",
+      "sha256": "6fccc2e71abac96060c54806499df20580b671df6f4d566cc0be8d973313462a",
+      "bytes": 47,
+      "original_sha256": "6fccc2e71abac96060c54806499df20580b671df6f4d566cc0be8d973313462a",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-final-docs.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-format.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-native-build.log",
+      "sha256": "138b6832b952740236959f542334d04a8a6ecf1d47016ec6316b09399dcdaef1",
+      "bytes": 511,
+      "original_sha256": "138b6832b952740236959f542334d04a8a6ecf1d47016ec6316b09399dcdaef1",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-native-build.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-oracle-pure.log",
+      "sha256": "ac4f85c1e799f966c39b62761f1a2123366d98604199fde7d204545a16469352",
+      "bytes": 105,
+      "original_sha256": "ac4f85c1e799f966c39b62761f1a2123366d98604199fde7d204545a16469352",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-oracle-pure.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-pre-run-getters-corrected.log",
+      "sha256": "4fb396247635145f44f360e9b6dbdb80423e24b02fe93b22770ff746f6828f9d",
+      "bytes": 291,
+      "original_sha256": "4fb396247635145f44f360e9b6dbdb80423e24b02fe93b22770ff746f6828f9d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-pre-run-getters-corrected.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-pre-run-getters.log",
+      "sha256": "f37df6f9adc4368ca7fa5e5ad8cee97e02742748f2bdef5a4dcd96320cbf027d",
+      "bytes": 426,
+      "original_sha256": "f37df6f9adc4368ca7fa5e5ad8cee97e02742748f2bdef5a4dcd96320cbf027d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-pre-run-getters.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-wheel-build-attempt2.log",
+      "sha256": "54f71ff2d9d57e1d78c4680a41d2c48a90ff4c98176535d2027d17ffe521436c",
+      "bytes": 3087,
+      "original_sha256": "54f71ff2d9d57e1d78c4680a41d2c48a90ff4c98176535d2027d17ffe521436c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build-attempt2.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-wheel-build-known-ida.log",
+      "sha256": "aa86764a45bacc80c4cbeb5711642a80d9146f9b0e51f0c68b293389ff26558e",
+      "bytes": 1824,
+      "original_sha256": "aa86764a45bacc80c4cbeb5711642a80d9146f9b0e51f0c68b293389ff26558e",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build-known-ida.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/combined-wheel-build.log",
+      "sha256": "5f3eaa85ec6fa34617e65184446f6b993f16a940bfe6d64f474564a3192c7ecb",
+      "bytes": 43235,
+      "original_sha256": "7529b3da30b045af6b2658c2baf238a98edf1f3f6083c18a3f6a926e840ae2b7",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build.log",
+      "metadata_projection": true
+    },
+    {
+      "path": "receipts/build-history/combined-wheel-package-final.log",
+      "sha256": "e70382c359a78f2f6c4d5a9e080786bf8265e0212fda63b071f6b2aaa36e1830",
+      "bytes": 2147,
+      "original_sha256": "e70382c359a78f2f6c4d5a9e080786bf8265e0212fda63b071f6b2aaa36e1830",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-package-final.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/final-source-clippy.log",
+      "sha256": "e2adf0a852225e73c80a9c9b11f115c92a9e7c70e3a293483ab50a1642efe94c",
+      "bytes": 159,
+      "original_sha256": "e2adf0a852225e73c80a9c9b11f115c92a9e7c70e3a293483ab50a1642efe94c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/final-source-clippy.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-boundary-source-check.log",
+      "sha256": "8f666e7eaaae273ebfd443046e104b21cea8dce44c0b1567c7f40167199b006e",
+      "bytes": 518,
+      "original_sha256": "8f666e7eaaae273ebfd443046e104b21cea8dce44c0b1567c7f40167199b006e",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-boundary-source-check.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-installed-inspection.log",
+      "sha256": "40fdf88084d580f74b2154d5fc9fcd89b3a4bbc2af02e92717e4b4193b06da47",
+      "bytes": 63,
+      "original_sha256": "40fdf88084d580f74b2154d5fc9fcd89b3a4bbc2af02e92717e4b4193b06da47",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-installed-inspection.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-native-build.log",
+      "sha256": "48f3151c02db6379be98632762b52a5eb578439ac76b765d2e59ae5b0874be03",
+      "bytes": 277,
+      "original_sha256": "48f3151c02db6379be98632762b52a5eb578439ac76b765d2e59ae5b0874be03",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-native-build.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-native-no-pde-controls.log",
+      "sha256": "95ab46505a0f18de492320c80dc17f97b8735ca4b6705347e53f8ede6e868ad3",
+      "bytes": 803,
+      "original_sha256": "95ab46505a0f18de492320c80dc17f97b8735ca4b6705347e53f8ede6e868ad3",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-native-no-pde-controls.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-pre-run-getters.log",
+      "sha256": "8d7905a19034977089f56a97ec275ec920deca5b3b8d2d45ead2e6b08001c467",
+      "bytes": 88,
+      "original_sha256": "8d7905a19034977089f56a97ec275ec920deca5b3b8d2d45ead2e6b08001c467",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-pre-run-getters.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-python-collection.log",
+      "sha256": "b79d60b72093c2bcd2285e766386d1de052679efa5bfc515feb0ea9238ebbad7",
+      "bytes": 2685,
+      "original_sha256": "b79d60b72093c2bcd2285e766386d1de052679efa5bfc515feb0ea9238ebbad7",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-python-collection.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-python-compile-offline.log",
+      "sha256": "471aee96a9693db9ae0388b987e983e7da6ebec43625fc185934c714babb50b5",
+      "bytes": 98,
+      "original_sha256": "471aee96a9693db9ae0388b987e983e7da6ebec43625fc185934c714babb50b5",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-python-compile-offline.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-wheel-fresh-link.log",
+      "sha256": "47e90ee54870ab1d91b3de43335637e423522949e7bee8c497d8ca5b9b3b4932",
+      "bytes": 2249,
+      "original_sha256": "47e90ee54870ab1d91b3de43335637e423522949e7bee8c497d8ca5b9b3b4932",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-fresh-link.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-wheel-install.log",
+      "sha256": "52bebd6ac747b6e141ad5c1d8de0f79cc9ff2284bf15a5f1422d3e78df4b8b88",
+      "bytes": 829,
+      "original_sha256": "52bebd6ac747b6e141ad5c1d8de0f79cc9ff2284bf15a5f1422d3e78df4b8b88",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-install.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/frozen-wheel-package.log",
+      "sha256": "1ce2e20b17053ce97e0d6156344173b823816307807c4ea6e2759f7d9670811f",
+      "bytes": 796,
+      "original_sha256": "1ce2e20b17053ce97e0d6156344173b823816307807c4ea6e2759f7d9670811f",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-package.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/build-history/python-targeted-clean.log",
+      "sha256": "0dcb0eae096f53d85739c8e5151fa02c66355c854ca120ef4166e69f7c483c11",
+      "bytes": 39,
+      "original_sha256": "0dcb0eae096f53d85739c8e5151fa02c66355c854ca120ef4166e69f7c483c11",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/python-targeted-clean.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/combined-build-receipt.json",
+      "sha256": "45164dc292d43bc1b2a58eb72c1164dab47cba2a5da344d2b689c25d5de6e890",
+      "bytes": 16360,
+      "original_sha256": "45164dc292d43bc1b2a58eb72c1164dab47cba2a5da344d2b689c25d5de6e890",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-build-receipt.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/combined-installed-identity.json",
+      "sha256": "2fb25b49657dbce8690d6093fe40c394d4c76b0a9a22c2bd18ca506d7e635b5c",
+      "bytes": 4448,
+      "original_sha256": "2fb25b49657dbce8690d6093fe40c394d4c76b0a9a22c2bd18ca506d7e635b5c",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-installed-identity.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/combined-pre-run-getters.json",
+      "sha256": "d998dccd1e8d96738e1d3564411abbed518a4257d1849a3f14d5a778981d56fc",
+      "bytes": 4395,
+      "original_sha256": "d998dccd1e8d96738e1d3564411abbed518a4257d1849a3f14d5a778981d56fc",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-pre-run-getters.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/frozen-native-no-pde-controls.json",
+      "sha256": "7659118d0382deda44e0f3745a4b07e098ced15dfd4f917d5a05bf6689bf7e38",
+      "bytes": 478,
+      "original_sha256": "7659118d0382deda44e0f3745a4b07e098ced15dfd4f917d5a05bf6689bf7e38",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-native-no-pde-controls.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/native-launch.json",
+      "sha256": "be195ca3e83840bfbe1e49edddf95fd06642a31eb4d69957c5681bdce2980c69",
+      "bytes": 1641,
+      "original_sha256": "be195ca3e83840bfbe1e49edddf95fd06642a31eb4d69957c5681bdce2980c69",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/native-launch.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/native-protocol.log",
+      "sha256": "70e4e89292ce3f91a10a303b64c8af327b6539567d3fc00856ee16312887fb8d",
+      "bytes": 223,
+      "original_sha256": "70e4e89292ce3f91a10a303b64c8af327b6539567d3fc00856ee16312887fb8d",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/native-protocol.log",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/primary-combined-build-review.json",
+      "sha256": "490776142dd6959a5177e4f2840470692a09eccd58d24a0538ed14a49dc1a1e0",
+      "bytes": 698,
+      "original_sha256": "490776142dd6959a5177e4f2840470692a09eccd58d24a0538ed14a49dc1a1e0",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/primary-combined-build-review.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/primary-public-observation-result-review.json",
+      "sha256": "d376bdd2f08754b46f6943d79f9043920c036894fab5c53ae16ed5866770d0ed",
+      "bytes": 2433,
+      "original_sha256": "d376bdd2f08754b46f6943d79f9043920c036894fab5c53ae16ed5866770d0ed",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/primary-public-observation-result-review.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/public-protocol-summary.json",
+      "sha256": "af169579128f8b9baf376e82ccd0ec2e459a5a311c06e2d216ea93d4a83ccfcb",
+      "bytes": 11908,
+      "original_sha256": "af169579128f8b9baf376e82ccd0ec2e459a5a311c06e2d216ea93d4a83ccfcb",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/public-protocol-summary.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/python-launch.json",
+      "sha256": "26692abba86a635d17ab8f7ac6a8938ce4a3f9e0389eedb81562d6bab2e0a4df",
+      "bytes": 6261,
+      "original_sha256": "26692abba86a635d17ab8f7ac6a8938ce4a3f9e0389eedb81562d6bab2e0a4df",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/python-launch.json",
+      "metadata_projection": false
+    },
+    {
+      "path": "receipts/python-protocol.log",
+      "sha256": "99934b3c93ebae378b02afd7aa8b5e6775579625afe20a8ffc16008cd540fe68",
+      "bytes": 98,
+      "original_sha256": "99934b3c93ebae378b02afd7aa8b5e6775579625afe20a8ffc16008cd540fe68",
+      "original_path": "/data/nk523/tmp/eqiora-scalar-convection/python-protocol.log",
+      "metadata_projection": false
+    }
+  ]
+}

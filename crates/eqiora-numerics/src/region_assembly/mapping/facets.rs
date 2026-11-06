@@ -11,6 +11,49 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
     facet: MeshEntity,
     parent: EntityIncidence,
     datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+    datum_degree: Option<usize>,
+) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+    prepare_mesh_affine_facet(
+        mesh,
+        form,
+        field,
+        facet,
+        parent,
+        datum,
+        (datum_degree, None),
+    )
+}
+
+pub(crate) fn prepare_mesh_boundary_facet<'mesh, S: Coefficient>(
+    mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+    form: &BoundRegionForm<S>,
+    field: RawId,
+    facet: MeshEntity,
+    parent: EntityIncidence,
+    law: &crate::form_compiler::region::RegionBoundaryLaw<S>,
+) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+    prepare_mesh_affine_facet(
+        mesh,
+        form,
+        field,
+        facet,
+        parent,
+        |point, normal| law.evaluate(point, normal),
+        (law.facet_datum_degree(form, field), law.robin_coefficient()),
+    )
+}
+
+fn prepare_mesh_affine_facet<'mesh, S: Coefficient>(
+    mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+    form: &BoundRegionForm<S>,
+    field: RawId,
+    facet: MeshEntity,
+    parent: EntityIncidence,
+    datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+    (datum_degree, robin): (
+        Option<usize>,
+        Option<&crate::form_compiler::region::Data<S>>,
+    ),
 ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
     let cell = mesh
         .geometry_map(parent.entity)
@@ -33,12 +76,13 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
                 .ok_or_else(|| invalid("facet vertex is absent from its parent"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    form.prepare_natural_facet(
+    form.prepare_affine_facet(
         field,
         &cell,
         (&geometry, parent, &positions),
-        &form.natural_facet_quadrature(field)?,
+        &form.natural_facet_quadrature(field, datum_degree)?,
         datum,
+        (datum_degree, robin),
     )
 }
 
@@ -73,10 +117,15 @@ pub(crate) fn prepare_interface_facets<'mesh, 'form, S: Coefficient + 'form>(
             }
             for witness in &trace.facets {
                 let parent = witness.sides[side];
-                let facet =
-                    prepare_mesh_facet(mesh, form, field, witness.facet, parent, |_, _| {
-                        Ok(vec![<S as From<f64>>::from(0.); layout.components])
-                    })?;
+                let facet = prepare_mesh_facet(
+                    mesh,
+                    form,
+                    field,
+                    witness.facet,
+                    parent,
+                    |_, _| Ok(vec![<S as From<f64>>::from(0.); layout.components]),
+                    Some(0),
+                )?;
                 result.push((parent.entity.index(), facet));
             }
         }

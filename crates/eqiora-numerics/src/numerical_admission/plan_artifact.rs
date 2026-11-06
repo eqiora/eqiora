@@ -17,6 +17,8 @@ use crate::common_ode::CommonOdePolicy;
 
 use super::*;
 mod eigen;
+mod spatial;
+use spatial::{WireSpatialRequest, spatial_request};
 mod enforcement;
 mod residual_scaling;
 mod scaling;
@@ -35,7 +37,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v27";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v28";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -48,36 +50,6 @@ enum WirePlanFamily {
     Spatial,
     SteadyStokes,
     TransientFlow,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireSpatialPolicy {
-    TetrahedralEdge,
-    TetrahedralFace,
-    Q1,
-    P1,
-    CellCenteredTpfa,
-    MiniP1,
-    CellCentered,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireSpatialRequest {
-    Uniform {
-        policy: WireSpatialPolicy,
-    },
-    Scoped {
-        bindings: Vec<WireScopedSpatialPolicy>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireScopedSpatialPolicy {
-    domain_ulid: String,
-    policy: WireSpatialPolicy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +99,8 @@ struct WireResolvedCommonPlan {
     mesh_base64: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     spatial: Option<WireSpatialRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    assembly_quadrature: Option<eqiora_realization::QuadraturePolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     requested_formulation: Option<WireFormulation>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -425,6 +399,10 @@ impl WireResolvedCommonPlan {
             model_base64: encode(&model),
             mesh_base64: mesh,
             spatial: spatial_request(plan),
+            assembly_quadrature: match plan {
+                ResolvedCommonPlan::Spatial(plan) => plan.admission.assembly_quadrature(),
+                _ => None,
+            },
             requested_formulation: description.as_ref().and_then(|description| {
                 (description.requested() == FormulationSelectionMode::Exact)
                     .then(|| description.effective().into())
@@ -468,6 +446,11 @@ impl WireResolvedCommonPlan {
         if self.schema != SCHEMA || self.encoding != ENCODING {
             return Err(invalid(
                 "resolved common Plan has an unknown schema or encoding",
+            ));
+        }
+        if self.assembly_quadrature.is_some() && self.family != WirePlanFamily::Spatial {
+            return Err(invalid(
+                "assembly quadrature crossed a non-spatial Plan family",
             ));
         }
         if self.family != WirePlanFamily::Algebraic
@@ -769,6 +752,7 @@ impl WireResolvedCommonPlan {
             linear_backend,
             admitted_time_backend,
             authored_formulation.as_ref(),
+            self.assembly_quadrature,
         )
     }
 }
@@ -814,34 +798,6 @@ impl WireSolve {
                     nonlinear.maximum_line_search_steps,
                 )?,
             }),
-        }
-    }
-}
-
-impl From<CommonSpatialPolicy> for WireSpatialPolicy {
-    fn from(value: CommonSpatialPolicy) -> Self {
-        match value {
-            CommonSpatialPolicy::TetrahedralEdge => Self::TetrahedralEdge,
-            CommonSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
-            CommonSpatialPolicy::Q1 => Self::Q1,
-            CommonSpatialPolicy::P1 => Self::P1,
-            CommonSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
-            CommonSpatialPolicy::MiniP1 => Self::MiniP1,
-            CommonSpatialPolicy::CellCentered => Self::CellCentered,
-        }
-    }
-}
-
-impl From<WireSpatialPolicy> for CommonSpatialPolicy {
-    fn from(value: WireSpatialPolicy) -> Self {
-        match value {
-            WireSpatialPolicy::TetrahedralEdge => Self::TetrahedralEdge,
-            WireSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
-            WireSpatialPolicy::Q1 => Self::Q1,
-            WireSpatialPolicy::P1 => Self::P1,
-            WireSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
-            WireSpatialPolicy::MiniP1 => Self::MiniP1,
-            WireSpatialPolicy::CellCentered => Self::CellCentered,
         }
     }
 }
@@ -920,33 +876,6 @@ fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph
         ResolvedCommonPlan::Spatial(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::TransientFlow(plan) => Some(plan.portable_realization()),
-    }
-}
-
-fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
-    let uniform = |policy| WireSpatialRequest::Uniform { policy };
-    match plan {
-        ResolvedCommonPlan::Eigen(_)
-        | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Time(_) => None,
-        ResolvedCommonPlan::Spatial(plan) => Some(match plan.spatial_request() {
-            CommonSpatialRequest::Uniform(policy) => uniform(policy.into()),
-            CommonSpatialRequest::Scoped(bindings) => WireSpatialRequest::Scoped {
-                bindings: bindings
-                    .into_iter()
-                    .map(|binding| WireScopedSpatialPolicy {
-                        domain_ulid: binding.domain().ulid().to_string(),
-                        policy: binding.policy().into(),
-                    })
-                    .collect(),
-            },
-        }),
-        ResolvedCommonPlan::SteadyStokes(_) => Some(uniform(WireSpatialPolicy::MiniP1)),
-        ResolvedCommonPlan::TransientFlow(plan) => Some(uniform(match plan.admission.spatial {
-            NativeSpatialPolicy::TransientMiniP1(_) => WireSpatialPolicy::MiniP1,
-            NativeSpatialPolicy::TransientCellCentered(_) => WireSpatialPolicy::CellCentered,
-            _ => unreachable!("transient Plan retains a transient spatial policy"),
-        })),
     }
 }
 

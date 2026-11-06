@@ -1,0 +1,682 @@
+{
+  "schema": 1,
+  "kind": "public-observations",
+  "preparation_only": true,
+  "case": "insulated",
+  "scope": "public result/observation checks; no measured A/b or private-reaction audit",
+  "units": {
+    "coordinates": "m",
+    "coefficients": "K"
+  },
+  "counts": {
+    "coefficients": 9,
+    "free": 6,
+    "observations": 6,
+    "observation_evaluations": 12
+  },
+  "ceiling_status": "eta=8192 binary64 unit roundoffs is declared, not an operation-count theorem",
+  "coefficient_bounds": {
+    "E": {
+      "numerator": "1561545",
+      "denominator": "36352603190923"
+    },
+    "reference_free_residual": {
+      "numerator": "1023615",
+      "denominator": "72705206381846"
+    }
+  },
+  "coefficient_observations": {
+    "coefficient_inf_error": {
+      "numerator": "83",
+      "denominator": "4398046511104"
+    },
+    "reference_free_residual_inf": {
+      "numerator": "823",
+      "denominator": "70368744177664"
+    }
+  },
+  "observations": [
+    {
+      "name": "left_heat",
+      "boundary": "left",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "-3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "2"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "3",
+          "denominator": "2"
+        },
+        {
+          "numerator": "3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "6",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "537",
+        "denominator": "17592186044416"
+      },
+      "analytic_target": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "34898499067970715",
+        "denominator": "19985054954173379718938624"
+      },
+      "target_allowance": {
+        "numerator": "5185709153454392475",
+        "denominator": "19985054954173379718938624"
+      },
+      "primary": {
+        "value": {
+          "numerator": "17223",
+          "denominator": "562949953421312"
+        },
+        "error_vs_coefficients": {
+          "numerator": "39",
+          "denominator": "562949953421312"
+        },
+        "error_vs_target": {
+          "numerator": "17223",
+          "denominator": "562949953421312"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "17223",
+          "denominator": "562949953421312"
+        },
+        "error_vs_coefficients": {
+          "numerator": "39",
+          "denominator": "562949953421312"
+        },
+        "error_vs_target": {
+          "numerator": "17223",
+          "denominator": "562949953421312"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    },
+    {
+      "name": "right_heat",
+      "boundary": "right",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "3",
+          "denominator": "2"
+        },
+        {
+          "numerator": "3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "4"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "2"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "4"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "6",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "-783",
+        "denominator": "35184372088832"
+      },
+      "analytic_target": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "34898499067970715",
+        "denominator": "19985054954173379718938624"
+      },
+      "target_allowance": {
+        "numerator": "5185709153454392475",
+        "denominator": "19985054954173379718938624"
+      },
+      "primary": {
+        "value": {
+          "numerator": "-12519",
+          "denominator": "562949953421312"
+        },
+        "error_vs_coefficients": {
+          "numerator": "9",
+          "denominator": "562949953421312"
+        },
+        "error_vs_target": {
+          "numerator": "12519",
+          "denominator": "562949953421312"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "-12519",
+          "denominator": "562949953421312"
+        },
+        "error_vs_coefficients": {
+          "numerator": "9",
+          "denominator": "562949953421312"
+        },
+        "error_vs_target": {
+          "numerator": "12519",
+          "denominator": "562949953421312"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    },
+    {
+      "name": "bottom_heat",
+      "boundary": "bottom",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "-3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "-6",
+          "denominator": "1"
+        },
+        {
+          "numerator": "6",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "24",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "-219",
+        "denominator": "17592186044416"
+      },
+      "analytic_target": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "34898499067970715",
+        "denominator": "4996263738543344929734656"
+      },
+      "target_allowance": {
+        "numerator": "5185709153454392475",
+        "denominator": "4996263738543344929734656"
+      },
+      "primary": {
+        "value": {
+          "numerator": "-867",
+          "denominator": "70368744177664"
+        },
+        "error_vs_coefficients": {
+          "numerator": "9",
+          "denominator": "70368744177664"
+        },
+        "error_vs_target": {
+          "numerator": "867",
+          "denominator": "70368744177664"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "-867",
+          "denominator": "70368744177664"
+        },
+        "error_vs_coefficients": {
+          "numerator": "9",
+          "denominator": "70368744177664"
+        },
+        "error_vs_target": {
+          "numerator": "867",
+          "denominator": "70368744177664"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    },
+    {
+      "name": "top_heat",
+      "boundary": "top",
+      "quantity": "outward_conductive_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "6",
+          "denominator": "1"
+        },
+        {
+          "numerator": "-6",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "3",
+          "denominator": "1"
+        },
+        {
+          "numerator": "-3",
+          "denominator": "1"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "24",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "-219",
+        "denominator": "17592186044416"
+      },
+      "analytic_target": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "34898499067970715",
+        "denominator": "4996263738543344929734656"
+      },
+      "target_allowance": {
+        "numerator": "5185709153454392475",
+        "denominator": "4996263738543344929734656"
+      },
+      "primary": {
+        "value": {
+          "numerator": "-1755",
+          "denominator": "140737488355328"
+        },
+        "error_vs_coefficients": {
+          "numerator": "3",
+          "denominator": "140737488355328"
+        },
+        "error_vs_target": {
+          "numerator": "1755",
+          "denominator": "140737488355328"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "-1755",
+          "denominator": "140737488355328"
+        },
+        "error_vs_coefficients": {
+          "numerator": "3",
+          "denominator": "140737488355328"
+        },
+        "error_vs_target": {
+          "numerator": "1755",
+          "denominator": "140737488355328"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    },
+    {
+      "name": "right_temperature",
+      "boundary": "right",
+      "quantity": "temperature_trace",
+      "unit": "K*m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "1",
+          "denominator": "4"
+        },
+        {
+          "numerator": "1",
+          "denominator": "2"
+        },
+        {
+          "numerator": "1",
+          "denominator": "4"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "1",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "9851624184873579",
+        "denominator": "35184372088832"
+      },
+      "analytic_target": {
+        "numerator": "280",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "11632833022656905",
+        "denominator": "39970109908346759437877248"
+      },
+      "target_allowance": {
+        "numerator": "1728569717818130825",
+        "denominator": "39970109908346759437877248"
+      },
+      "primary": {
+        "value": {
+          "numerator": "4925812092436789",
+          "denominator": "17592186044416"
+        },
+        "error_vs_coefficients": {
+          "numerator": "1",
+          "denominator": "35184372088832"
+        },
+        "error_vs_target": {
+          "numerator": "309",
+          "denominator": "17592186044416"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "4925812092436789",
+          "denominator": "17592186044416"
+        },
+        "error_vs_coefficients": {
+          "numerator": "1",
+          "denominator": "35184372088832"
+        },
+        "error_vs_target": {
+          "numerator": "309",
+          "denominator": "17592186044416"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    },
+    {
+      "name": "right_convective_heat",
+      "boundary": "right",
+      "quantity": "outward_convective_heat",
+      "unit": "W/m",
+      "quadrature": {
+        "family": "gauss-legendre",
+        "points_per_segment": 2
+      },
+      "weights": [
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        {
+          "numerator": "0",
+          "denominator": "1"
+        }
+      ],
+      "constant": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "weights_l1": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "value_from_coefficients": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "analytic_target": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "arithmetic_ceiling": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "target_allowance": {
+        "numerator": "0",
+        "denominator": "1"
+      },
+      "primary": {
+        "value": {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        "error_vs_coefficients": {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        "error_vs_target": {
+          "numerator": "0",
+          "denominator": "1"
+        }
+      },
+      "replay": {
+        "value": {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        "error_vs_coefficients": {
+          "numerator": "0",
+          "denominator": "1"
+        },
+        "error_vs_target": {
+          "numerator": "0",
+          "denominator": "1"
+        }
+      },
+      "checks": {
+        "primary_vs_coefficients": true,
+        "primary_vs_analytic_target": true,
+        "replay_vs_coefficients": true,
+        "replay_vs_analytic_target": true
+      }
+    }
+  ],
+  "checks": {
+    "every_coefficient": true,
+    "reference_free_residual": true
+  },
+  "accepted": true,
+  "input_sha256": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2"
+}

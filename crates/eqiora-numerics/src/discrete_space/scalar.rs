@@ -4,6 +4,10 @@ pub(super) fn tabulate(
     space: &DiscreteSpace,
     reference: &[f64],
 ) -> Result<BasisTabulation, Diagnostic> {
+    if matches!(space.space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+    {
+        return quadratic(space, reference);
+    }
     match space.space.family() {
         SpaceFamily::CellConstant => Ok(BasisTabulation {
             value_dimension: 1,
@@ -103,4 +107,78 @@ pub(super) fn tabulate(
             unreachable!("vector basis dispatched separately")
         }
     }
+}
+
+fn quadratic(space: &DiscreteSpace, reference: &[f64]) -> Result<BasisTabulation, Diagnostic> {
+    let dimension = space.cell.dimension();
+    let count = space.local_dofs.len();
+    let mut values = Vec::with_capacity(count);
+    let mut gradients = Vec::with_capacity(count * dimension);
+    if space.cell.family() == ReferenceCellFamily::Simplex {
+        let mut lambda = vec![1.0 - reference.iter().sum::<f64>()];
+        lambda.extend_from_slice(reference);
+        let derivative = |vertex: usize, axis: usize| {
+            if vertex == 0 {
+                -1.0
+            } else if vertex == axis + 1 {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        let topology = ReferenceTopology::new(space.cell)?;
+        for dof in &space.local_dofs {
+            let vertices = topology
+                .entity(dof.entity_dimension, dof.entity_ordinal)
+                .expect("quadratic support")
+                .vertex_ordinals();
+            if vertices.len() == 1 {
+                let vertex = vertices[0];
+                values.push(lambda[vertex] * (2.0 * lambda[vertex] - 1.0));
+                gradients.extend(
+                    (0..dimension)
+                        .map(|axis| (4.0 * lambda[vertex] - 1.0) * derivative(vertex, axis)),
+                );
+            } else {
+                let (a, b) = (vertices[0], vertices[1]);
+                values.push(4.0 * lambda[a] * lambda[b]);
+                gradients.extend((0..dimension).map(|axis| {
+                    4.0 * (lambda[a] * derivative(b, axis) + lambda[b] * derivative(a, axis))
+                }));
+            }
+        }
+    } else {
+        for local in 0..count {
+            let point = space.interpolation_point(local)?;
+            let factors = reference
+                .iter()
+                .zip(point)
+                .map(|(&x, node)| {
+                    if node == -1.0 {
+                        (x * (x - 1.0) / 2.0, x - 0.5)
+                    } else if node == 1.0 {
+                        (x * (x + 1.0) / 2.0, x + 0.5)
+                    } else {
+                        (1.0 - x * x, -2.0 * x)
+                    }
+                })
+                .collect::<Vec<_>>();
+            values.push(factors.iter().map(|factor| factor.0).product());
+            gradients.extend((0..dimension).map(|axis| {
+                factors[axis].1
+                    * factors
+                        .iter()
+                        .enumerate()
+                        .filter(|(other, _)| *other != axis)
+                        .map(|(_, factor)| factor.0)
+                        .product::<f64>()
+            }));
+        }
+    }
+    Ok(BasisTabulation {
+        reference_dimension: dimension,
+        value_dimension: 1,
+        values,
+        reference_gradients: gradients,
+    })
 }

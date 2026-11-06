@@ -1,0 +1,24 @@
+{
+  "case": "changed_h",
+  "defect": "wrong-physical-heat-convention",
+  "pid": 515587,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/rejection.json"
+  ],
+  "exit_code": 2,
+  "required_false": null,
+  "required_true": null,
+  "input_sha256": "171d02afb6be54d89b62d8671f73e3c04629eea9d4a5cda094cf9fc9d95bda7b",
+  "report_sha256": "ab3c26e48778a6c1bf65763b1eeeb88f088424e28d91683170898281e6d23ba9",
+  "base_native_input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "accepted": false,
+  "status": "expected-rejection"
+}

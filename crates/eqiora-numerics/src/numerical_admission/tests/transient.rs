@@ -105,6 +105,7 @@ public component AffineStorage(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();
@@ -155,6 +156,7 @@ public component AffineStorage(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let mismatch = mismatched_plan
@@ -190,6 +192,7 @@ public component AffineStorage(
         None,
         Some(temporal.clone()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )
@@ -359,6 +362,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
             &ResolveOnlyBackend,
             None,
             None,
+            None,
         )
         .unwrap()
         .as_transient_flow()
@@ -408,6 +412,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
         )),
         Some(CommonTemporalPolicy::backward_euler(1e308).unwrap()),
         &overflow_probe,
+        None,
         None,
         None,
     )
@@ -643,6 +648,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
@@ -684,6 +690,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             Some(crate::CommonScalingRequest::Incompressible(scaling)),
             Some(temporal.clone()),
             &PlanningFaerBackend,
+            None,
             None,
             None,
         )
@@ -757,6 +764,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &ResolveOnlyBackend,
         None,
         None,
+        None,
     )
     .unwrap()
     .as_transient_flow()
@@ -782,6 +790,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         )),
         Some(temporal.clone()),
         &ResolveOnlyBackend,
+        None,
         None,
         None,
     )
@@ -845,6 +854,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         Some(crate::CommonScalingRequest::Incompressible(scaling)),
         Some(temporal.clone()),
         &PlanningFaerBackend,
+        None,
         None,
         None,
     )
@@ -1044,6 +1054,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -1060,6 +1071,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -1074,6 +1086,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -1088,6 +1101,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -1105,6 +1119,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -1122,7 +1137,59 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );
+}
+
+#[test]
+fn dedicated_transient_fvm_rejects_assembly_quadrature_override_before_execution() {
+    let geometry = rectangle();
+    let model = transient_model();
+    let resolve = |quadrature| {
+        ResolvedCommonPlan::resolve(
+            &model,
+            cartesian_rectangle_resources(&geometry, [3, 4]),
+            CommonSpatialPolicy::CellCentered,
+            newton_policy(
+                exact_reference_linear(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-10,
+                    1e-12,
+                    NonZeroUsize::new(2000).unwrap(),
+                ),
+                NonlinearSolvePlan::new(1e-9, 1e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap(),
+            ),
+            Some(crate::CommonScalingRequest::Incompressible(
+                IncompressibleScalingRequest2d::from_si(Some(0.41), Some(0.3), Some(0.09)).unwrap(),
+            )),
+            Some(CommonTemporalPolicy::backward_euler(0.0001).unwrap()),
+            &ResolveOnlyBackend,
+            None,
+            None,
+            quadrature,
+        )
+    };
+    assert!(
+        resolve(None).is_ok(),
+        "the existing dedicated path remains admitted"
+    );
+    for quadrature in [
+        eqiora_realization::QuadraturePolicy::GaussLegendre {
+            points_per_axis: NonZeroUsize::new(4).unwrap(),
+        },
+        eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: NonZeroUsize::new(2).unwrap(),
+            points_per_axis: NonZeroUsize::new(4).unwrap(),
+        },
+    ] {
+        let Err(error) = resolve(Some(quadrature)) else {
+            panic!("dedicated FVM cannot silently consume FEM integration controls");
+        };
+        assert!(
+            error.message().contains("assembly quadrature override"),
+            "{error:?}"
+        );
+    }
 }

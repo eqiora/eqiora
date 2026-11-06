@@ -1,0 +1,12 @@
+{
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "source_tree": "6fd1c08983340ade596474d49de72ad1f58b4482",
+  "build_receipt_sha256": "45164dc292d43bc1b2a58eb72c1164dab47cba2a5da344d2b689c25d5de6e890",
+  "source_hashes_verified": 14,
+  "log_hashes_verified": 22,
+  "installed_native_libraries_equal_wheel": 6,
+  "native_executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "wheel_sha256": "1c7fd883e0240013b375d8b94782e8ae8dbcdc59ea31240237a265b496886f28",
+  "ldd_resolves_without_override": true,
+  "approval": "fixed four-case native and installed-Python public observation protocol; separate fresh roots, serial CPU, preserve all failures"
+}

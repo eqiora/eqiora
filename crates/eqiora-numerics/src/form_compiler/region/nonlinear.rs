@@ -129,7 +129,7 @@ impl BoundRegionForm<f64> {
         derivative: bool,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<f64>, Diagnostic>,
     ) -> Result<RegionLinearization, Diagnostic> {
-        self.prepare_natural_facet(field, cell, facet, rule, datum)?
+        self.prepare_natural_facet(field, cell, facet, rule, datum, None)?
             .action(
                 point,
                 derivative.then_some(super::FieldPullback::Uniform {

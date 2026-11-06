@@ -62,6 +62,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
                 .discretizations(Space::continuous_lagrange(std::num::NonZeroU16::MIN), None)
                 .unwrap(),
             &eqiora_realization::SystemScaling::Dimensional,
+            None,
         )
         .unwrap();
     input.operator_properties = LinearOperatorProperties::General;

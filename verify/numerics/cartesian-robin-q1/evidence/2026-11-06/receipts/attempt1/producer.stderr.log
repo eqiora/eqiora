@@ -1,0 +1,6 @@
+
+thread 'numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions' (463291) panicked at crates/eqiora-numerics/src/numerical_admission/tests/plans/robin/native.rs:178:9:
+assertion `left == right` failed
+  left: [3, 3]
+ right: [9]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

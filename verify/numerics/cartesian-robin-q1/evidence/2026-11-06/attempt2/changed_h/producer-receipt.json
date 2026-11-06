@@ -1,0 +1,76 @@
+{
+  "captured_live_plan_identity": "10dfc00fa9b97369e66c3542937b1f7f4ba440a408ea3a1d13542126c130885d",
+  "captured_operator_sha256": "eea1ee6a3f785387a63fe734beb018cbc3c0a734b0c5d8c33f07591a7dc26d57",
+  "coefficient_entities": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      5
+    ],
+    [
+      0,
+      6
+    ],
+    [
+      0,
+      7
+    ],
+    [
+      0,
+      8
+    ]
+  ],
+  "effective_quadrature": {
+    "kind": "gauss-legendre",
+    "points_per_axis": 3
+  },
+  "field_id": "57E1G30FTJBGH7D00DCK1Q53K1",
+  "input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "mesh_digest": "5fee67a3882377cce2b4a5365f3869d6e2e85fe2500109f8137ad5dc4a608aeb",
+  "mesh_sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+  "model_digest": "2d76c058902a95817a6cbc4f477d2e3db601fac8f11d5ddaa9b6b62d9694feb0",
+  "model_sha256": "c22cfd91d677fba45361601926b07cb9b876c1952909ba44abee99d15da6f404",
+  "native_executable_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+  "operator_global_dofs": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "ordinary_public_runs": 1,
+  "ordinary_solves": 1,
+  "physical_outward_left_heat_binary64_hex": "0x1.713b13b13b0f0p+5",
+  "physical_scales": "identity-checked",
+  "plan_identity": "10dfc00fa9b97369e66c3542937b1f7f4ba440a408ea3a1d13542126c130885d",
+  "plan_sha256": "343a6323a8706fbaf53fdd294c30986b30e14939e909452aba89f1b26c5c0086",
+  "producer_source_sha256": "ab4d8455ce56d0133481444a010e7fd773cd06429b1bb3c59cd5b366732a2dfa",
+  "result_identity": "6ff589a6f87c28477a89feb599466e5362c799237dc8e435d7144833e27ab316",
+  "result_sha256": "591bbc51700220e8bb328c711d98567cdb76698fba620bcb2a865eefe9892bf2",
+  "schema": 1,
+  "source_head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "status": "exported-not-yet-compared"
+}

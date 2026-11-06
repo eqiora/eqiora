@@ -201,6 +201,7 @@ fn resolve_source_document(
         document
             .authored_formulation_projection()
             .map_err(|e| format!("form: {e:?}"))?,
+        None,
     )
     .map_err(|e| format!("resolve: {e:?}"))?;
     Ok((document, plan))

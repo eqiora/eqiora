@@ -11,6 +11,7 @@ use crate::discrete_space::DiscreteSpace;
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Integrate physical parent-outward flux into the complete parent-cell map.
     /// The caller owns the authenticated facet-to-cell incidence and Domain binding.
+    #[cfg(test)]
     pub(crate) fn evaluate_natural_facet(
         &self,
         field: RawId,
@@ -18,6 +19,19 @@ impl<S: Coefficient> BoundRegionForm<S> {
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        datum_degree: Option<usize>,
+    ) -> Result<LocalContribution<S>, Diagnostic> {
+        self.evaluate_affine_facet(field, cell, facet, rule, datum, (datum_degree, None))
+    }
+
+    pub(super) fn evaluate_affine_facet(
+        &self,
+        field: RawId,
+        cell: &AffineGeometryMap,
+        facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
+        rule: &QuadratureRule,
+        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        (datum_degree, robin): (Option<usize>, Option<&Data<S>>),
     ) -> Result<LocalContribution<S>, Diagnostic> {
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
@@ -79,12 +93,46 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let entries = count
             .checked_mul(count)
             .ok_or_else(|| invalid("natural flux local matrix size overflow"))?;
+        let mut matrix = vec![<S as From<f64>>::from(0.0); entries];
         let mut rhs = vec![<S as From<f64>>::from(0.0); count];
         let normal = parent_outward_normal(cell, incidence)?;
+        let datum_degree = if robin.is_some() {
+            Some(
+                datum_degree
+                    .unwrap_or(0)
+                    .max(self.field_basis_degree(field)),
+            )
+        } else {
+            datum_degree
+        };
+        if dimension > 1
+            && rule.polynomial_exactness().is_none_or(|degree| {
+                degree
+                    < self
+                        .natural_trace_degree(field, datum_degree)
+                        .expect("validated natural Field")
+            })
+        {
+            return Err(invalid(
+                "natural facet quadrature underintegrates its tested space and authored polynomial datum",
+            ));
+        }
+        if robin.is_some()
+            && (layout.components != 1 || layout.value_type.scalar_domain() != ScalarDomain::Real)
+        {
+            return Err(invalid("Robin facet requires a real scalar Field"));
+        }
+        let trace = space.trace_dofs(incidence.local_ordinal)?;
         for point in rule.points() {
             let mut physical = vec![0.0; dimension];
             facet.map_point(&point.coordinates, &mut physical)?;
-            let test = facet_space.tabulate(&point.coordinates)?;
+            let embedding = facet_space.tabulate(&point.coordinates)?;
+            let reference = crate::affine_fem::facet_reference_point(
+                self.reference,
+                parent_vertices,
+                embedding.values(),
+            )?;
+            let test = space.tabulate(&reference)?;
             let value = datum(&physical, &normal)?;
             if value.len() != layout.components || value.iter().any(|value| !value.is_finite()) {
                 return Err(invalid(
@@ -92,31 +140,27 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 ));
             }
             let weight = point.weight * facet.measure_scale() * self.row_multipliers[row];
-            // P1/Q1 vertex functions restrict to the intrinsic facet basis.
-            // Off-facet vertex functions and the admitted MINI interior bubble
-            // have identically zero trace. No physical inverse or clipping enters.
-            for (node, dof) in space.local_dofs().iter().enumerate() {
-                if dof.entity_dimension() != 0 {
-                    continue;
+            if let Some(alpha) = robin {
+                let alpha = alpha.evaluate(&physical)?;
+                for &a in &trace {
+                    for &b in &trace {
+                        matrix[(layout.range.start + a) * count + layout.range.start + b] += alpha
+                            * <S as From<f64>>::from(
+                                weight * layout.scale * test.values()[a] * test.values()[b],
+                            );
+                    }
                 }
-                let Some(facet_vertex) = parent_vertices
-                    .iter()
-                    .position(|vertex| *vertex == dof.entity_ordinal())
-                else {
-                    continue;
-                };
-                let test = test.values()[facet_vertex];
+            }
+            // Restrict the actual parent test basis via the authenticated affine
+            // facet embedding, including every edge/face interpolation node.
+            for &node in &trace {
+                let test = test.values()[node];
                 for (component, value) in value.iter().enumerate() {
                     rhs[layout.range.start + node * layout.components + component] +=
                         <S as From<f64>>::from(weight * test) * *value;
                 }
             }
         }
-        LocalContribution::new(
-            count,
-            count,
-            vec![<S as From<f64>>::from(0.0); entries],
-            rhs,
-        )
+        LocalContribution::new(count, count, matrix, rhs)
     }
 }

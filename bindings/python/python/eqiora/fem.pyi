@@ -34,6 +34,30 @@ class Q1:
     def __repr__(self) -> str: ...
 
 @final
+class Q2:
+    """Full tensor-product Q2 scalar Galerkin policy on affine quads and hexes.
+
+    The ordinary path supports static linear real or complex scalar Fields in
+    two or three dimensions. Geometry stays affine and linear; interpolation
+    coefficients are stored on vertices, edges, faces where present, and cells.
+    Cell-center coefficients are nodal values, not hierarchical bubbles.
+    Vector, transient and nonlinear Q2 requests are rejected. Point sampling and
+    derived Observable reconstruction remain limited to their admitted spaces;
+    unsupported requests reject instead of selecting only vertex coefficients.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadratic.rs::PyQ2``.
+    """
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
 class MiniP1:
     """Mixed MINI velocity and continuous P1 pressure spatial policy.
 
@@ -105,4 +129,28 @@ class TetrahedralFace:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["MiniP1", "P1", "Q1", "ScopedSpatialPolicy", "TetrahedralEdge", "TetrahedralFace"]
+__all__ = ["MiniP1", "P1", "Q1", "Q2", "ScopedSpatialPolicy", "TetrahedralEdge", "TetrahedralFace"]
+
+@final
+class GaussLegendre:
+    """Tensor-product assembly quadrature; insufficient polynomial rules reject.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadrature.rs::PyGaussLegendre``.
+    """
+
+    def __init__(self, points_per_axis: int, /) -> None: ...
+    @property
+    def points_per_axis(self) -> int: ...
+
+@final
+class SimplexDuffyGaussLegendre:
+    """Dimension-explicit simplex assembly quadrature.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadrature.rs::PySimplexDuffyGaussLegendre``.
+    """
+
+    def __init__(self, spatial_dimension: int, points_per_axis: int, /) -> None: ...
+    @property
+    def spatial_dimension(self) -> int: ...
+    @property
+    def points_per_axis(self) -> int: ...

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "case": "changed_h",
+  "status": "attempt-started",
+  "native_extension_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+  "native_extension_sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+  "producer_source_sha256": "f4d6056845d0f894f7e23bb443ebe8f9d436bedc2cb01e240985ea8b6d2add04"
+}

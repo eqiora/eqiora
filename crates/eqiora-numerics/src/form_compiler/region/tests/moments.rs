@@ -188,6 +188,7 @@ fn moment_facets_reject_before_evaluating_a_nodal_load() {
                 (&facet, incidence, &[0, 1, 2]),
                 &simplex_duffy_gauss_legendre(2, 3).unwrap(),
                 |_, _| panic!("unadmitted moment trace reached a datum callback"),
+                None,
             )
             .unwrap_err();
         assert!(error.message().contains("trace admission"));

@@ -1,0 +1,24 @@
+{
+  "case": "changed_geometry_material_cooling",
+  "defect": "omitted-robin-matrix",
+  "pid": 515600,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "83f15dcadefa855bc163b229545475ed16bb669c5a72f15c17cee254e7d0522f",
+  "report_sha256": "f8bb14abaca94f60d48c3a19852d907e8199f43707b09dd0d706fd3fbb9d97b8",
+  "base_native_input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "accepted": false,
+  "status": "expected-rejection"
+}

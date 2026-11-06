@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "preparation_only": true,
+  "case": "robin",
+  "units": {
+    "coordinates": "m",
+    "A": "W/(m*K)",
+    "b": "W/m",
+    "coefficients": "K",
+    "left_reactions": "W/m",
+    "integrated_heat": "W/m",
+    "pointwise_heat_flux": "W/m^2"
+  },
+  "counts": {
+    "operator_rows": 9,
+    "load": 9,
+    "coefficients": 9,
+    "left_reactions": 3,
+    "free": 6
+  },
+  "ceiling_status": "eta=8192 binary64 unit roundoffs is declared, not an operation-count theorem",
+  "bounds": {
+    "eta": {
+      "numerator": "1",
+      "denominator": "1099511627776"
+    },
+    "sigma": {
+      "numerator": "1",
+      "denominator": "70368744177664"
+    },
+    "C": {
+      "numerator": "15462",
+      "denominator": "11585"
+    },
+    "U": {
+      "numerator": "320",
+      "denominator": "1"
+    },
+    "SA": {
+      "numerator": "24",
+      "denominator": "1"
+    },
+    "b_norm": {
+      "numerator": "320",
+      "denominator": "1"
+    },
+    "Sb": {
+      "numerator": "8000",
+      "denominator": "1"
+    },
+    "deltaA": {
+      "numerator": "3",
+      "denominator": "137438953472"
+    },
+    "deltab": {
+      "numerator": "125",
+      "denominator": "17179869184"
+    },
+    "tau": {
+      "numerator": "125",
+      "denominator": "1099511627776"
+    },
+    "E": {
+      "numerator": "122188455",
+      "denominator": "6368921103706936"
+    },
+    "R": {
+      "numerator": "27247870857312286675262801845",
+      "denominator": "3744918854746992345097629202860998656"
+    },
+    "rho": {
+      "numerator": "20728000318163214706382044150965",
+      "denominator": "962444145669977032690090705135276654592"
+    },
+    "reference_residual": {
+      "numerator": "183100925",
+      "denominator": "12737842207413872"
+    },
+    "individual_reaction": {
+      "numerator": "1804974064759237032965759600565",
+      "denominator": "3744918854746992345097629202860998656"
+    },
+    "total_reaction": {
+      "numerator": "5414922194277711098897278801695",
+      "denominator": "3744918854746992345097629202860998656"
+    }
+  },
+  "observations": {
+    "operator_inf_error": {
+      "numerator": "2251799813685251",
+      "denominator": "2251799813685248"
+    },
+    "load_inf_error": {
+      "numerator": "320",
+      "denominator": "1"
+    },
+    "physical_free_residual_inf": {
+      "numerator": "339549267918277743079307720399",
+      "denominator": "19807040628566084398385987584"
+    },
+    "reference_free_residual_inf": {
+      "numerator": "3",
+      "denominator": "2199023255552"
+    },
+    "coefficient_inf_error": {
+      "numerator": "29",
+      "denominator": "30786325577728"
+    },
+    "native_vs_exported_recovery_inf_error": {
+      "numerator": "792281625142640450606217260473",
+      "denominator": "19807040628566084398385987584"
+    },
+    "native_vs_reference_recovery_inf_error": {
+      "numerator": "1",
+      "denominator": "35184372088832"
+    },
+    "reaction_target_inf_error": {
+      "numerator": "111",
+      "denominator": "246290604621824"
+    },
+    "reaction_total_target_error": {
+      "numerator": "159",
+      "denominator": "246290604621824"
+    }
+  },
+  "heat_convention": "physical_outward_heat=-weak_reaction",
+  "physical_outward_heat": {
+    "left": {
+      "numerator": "1206321328759977",
+      "denominator": "35184372088832"
+    },
+    "right": {
+      "numerator": "-301580332189973",
+      "denominator": "8796093022208"
+    }
+  },
+  "exact_physical_outward_heat": {
+    "left": {
+      "numerator": "240",
+      "denominator": "7"
+    },
+    "right": {
+      "numerator": "-240",
+      "denominator": "7"
+    }
+  },
+  "checks": {
+    "full_operator": false,
+    "full_load": false,
+    "physical_free_residual": false,
+    "every_coefficient": true,
+    "reference_free_residual": true,
+    "every_reaction_vs_exported_physical_operator": false,
+    "every_reaction_vs_reference_full_vector": true,
+    "every_reaction_vs_exact_target": true,
+    "reaction_total": true
+  },
+  "accepted": false,
+  "input_sha256": "99fc11ddc4562f84d819ded8adbea7d858a4412d1688268a120fd68636295681"
+}

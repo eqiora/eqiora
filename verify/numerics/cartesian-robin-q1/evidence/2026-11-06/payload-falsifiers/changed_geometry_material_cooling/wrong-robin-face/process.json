@@ -1,0 +1,24 @@
+{
+  "case": "changed_geometry_material_cooling",
+  "defect": "wrong-robin-face",
+  "pid": 515602,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "3468aad1b75386e83b08b3c72e4db5af095923b4b695a582eb0f4a40a22ee6b8",
+  "report_sha256": "7e5102190245910584e283d870d23f39b80f3b40df2fef8b0e0052d7fb7632b1",
+  "base_native_input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "accepted": false,
+  "status": "expected-rejection"
+}

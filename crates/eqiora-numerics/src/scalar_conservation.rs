@@ -277,6 +277,7 @@ impl ScalarConservationDescriptor {
 
 mod balance;
 mod boundary;
+pub(crate) use boundary::affine_robin_terms;
 pub(crate) mod compiled_interfaces;
 mod descriptor_support;
 pub(crate) mod interface;

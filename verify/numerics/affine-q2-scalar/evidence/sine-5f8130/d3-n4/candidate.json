@@ -1,0 +1,5844 @@
+{
+  "N": 4,
+  "gauss_points": 4,
+  "lengths_m": [
+    2,
+    3,
+    4
+  ],
+  "records": [
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951ap-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.00514c27320c9p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951ap-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.00514c27320ccp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951cp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cbp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951bp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951cp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951bp-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951bp-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cbp-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cbp-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951bp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951cp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951bp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.00514c27320cap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.6a7cdf3c3951cp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c0p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bap-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bbp-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81ep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653fp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81ep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653ep-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81dp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653cp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81dp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653dp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf820p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81dp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653fp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf820p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653dp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf820p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653fp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf81dp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ed20c773653ep-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d981f85baf820p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.884441257a4b8p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c1p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.884441257a4b9p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.884441257a4b9p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bap-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155fd7c8f25c2p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.884441257a4bbp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7530p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e0p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7531p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb79p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc7830ap-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78306p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.883ca674a752ep-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155a7744490dep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7531p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e0p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7534p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e1p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78308p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78309p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78309p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78308p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e0p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7532p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e1p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7531p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e1p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7533p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb77p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc7830ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb78p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb76p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.4ecb8edc78309p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.d978ca7e9cb79p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7531p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.155a7744490e0p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.883ca674a7533p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac39p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d7p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac39p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debbp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac579p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac578p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debcp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac39p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d5p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3bp-3"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.155363585deb9p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac579p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac579p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debap-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3ap-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d7p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d4p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3ap-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debap-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac579p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac579p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debcp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3ap-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d9p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3bp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.155363585deb9p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac57bp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4ec303adac57ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.155363585debcp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3bp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d6p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.d96cb559db4d8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.8832a402fac3cp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef236p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.2c236b6409fd2p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef236p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c75p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc903p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c78p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c78p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc905p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef235p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.2c236b6409fd3p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef235p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c76p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc904p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabcp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.b5556928ff0f6p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabep-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabdp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.b5556928ff0f7p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabep-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c75p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc904p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c75p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c75p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc903p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabep-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.b5556928ff0f8p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabdp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabdp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.b5556928ff0f7p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.353dd8287eabdp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c76p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc902p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef235p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.2c236b6409fd3p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef235p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c75p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc902p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.002f220100c76p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.6a4c8e4ffc906p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.002f220100c77p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "0"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "1"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef234p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "2"
+      ],
+      "value_binary64_hex": "0x1.2c236b6409fd4p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "3"
+      ],
+      "value_binary64_hex": "0x1.a875b13bef235p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "4"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad55209p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520bp-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.2c1bc2e59ae87p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc97804ap-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc978049p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.2c1bc2e59ae8bp-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520cp-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc6p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520bp-4"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd608p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd608p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc97804bp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.b54a4082debecp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.b54a4082debecp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc978049p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd608p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd608p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd609p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd609p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc97804ap-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.b54a4082debeep-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.b54a4082debecp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc978049p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd60ap-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.3535f433cd608p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520dp-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.75",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520bp-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.2c1bc2e59ae8bp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc978049p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.6a434fc97804ap-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.5",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.2c1bc2e59ae8ap-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520dp-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc7p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0028989e22bc8p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.25",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a86adcad5520bp-4"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "3",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7305p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74adp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7300p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74afp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230fp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230cp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aep-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230dp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230ap-1"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74adp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7302p-4"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74abp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aap-2"
+    },
+    {
+      "coordinates_m": [
+        "0.5",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7308p-4"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.2c15f390c2fd4p-3"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d171p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16fp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.2c15f390c2fd5p-3"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16dp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.b541c94f7dd62p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.b541c94f7dd62p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d170p-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16fp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.b541c94f7dd67p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.b541c94f7dd65p-1"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16fp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.2c15f390c2fd6p-3"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16fp-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.6a3c4c6b4d16ep-2"
+    },
+    {
+      "coordinates_m": [
+        "1",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.2c15f390c2fd8p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7308p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74acp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aep-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7301p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74aap-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c292310p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230cp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74adp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74abp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c29230dp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.352ff7c292309p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74afp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d7303p-4"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74acp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.0023a319d74acp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.5",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.a862a545d730cp-4"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "2",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x0.0p+0"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5cf7p-5"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6ap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a64p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5d03p-5"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a67p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b5fbp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b609p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a69p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a67p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b60fp-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b611p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a68p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5cfcp-5"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a69p-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6ap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.25",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5cecp-5"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6ap-3"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b607p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b605p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6cp-3"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b606p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d0a2p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d09fp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b606p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b605p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d09fp-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d0a0p-1"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b606p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6cp-3"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b607p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b608p-2"
+    },
+    {
+      "coordinates_m": [
+        "0.75",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a67p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6bp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b609p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b605p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6cp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b60cp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d0a0p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d09fp-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b605p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b60ap-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d0a0p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.93e20a051d0a0p-1"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b603p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6ap-3"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b604p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b607p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.25",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a67p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5ce5p-5"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a72p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a62p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "0.375",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5d06p-5"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a71p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b602p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b610p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.125",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6bp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a6cp-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b60dp-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.4e966d331b611p-2"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "1.875",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a67p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "0.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5cfdp-5"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "1.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a70p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "2.5"
+      ],
+      "value_binary64_hex": "0x1.152e734806a68p-3"
+    },
+    {
+      "coordinates_m": [
+        "1.75",
+        "2.625",
+        "3.5"
+      ],
+      "value_binary64_hex": "0x1.cb3fcf58a5ce0p-5"
+    }
+  ],
+  "schema": 1
+}

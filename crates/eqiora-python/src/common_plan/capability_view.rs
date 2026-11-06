@@ -1,6 +1,5 @@
 //! Typed capability-specific views projected from one resolved root Plan.
 
-use eqiora::realization::{Space, SpaceFamily};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -10,19 +9,6 @@ use crate::model::PyModelFieldRef;
 
 use super::policy::PyPressureGauge2d;
 use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
-
-pub(crate) fn space_name(space: Space) -> &'static str {
-    match space.family() {
-        SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
-        SpaceFamily::TetrahedralFace => "tetrahedral-face",
-        SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
-        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => "continuous-lagrange-p1",
-        SpaceFamily::CellConstant => "cell-constant",
-        SpaceFamily::ContinuousLagrange { .. } => {
-            unreachable!("common Plan only publishes the admitted P1 continuous space")
-        }
-    }
-}
 
 /// Closed mathematical Formulation families exposed by resolved Plans.
 /// FirstOrderEvolution describes automatic time normalization.

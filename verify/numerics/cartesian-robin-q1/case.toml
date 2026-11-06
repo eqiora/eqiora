@@ -1,0 +1,44 @@
+id = "numerics.cartesian-robin-q1"
+status = "implemented"
+scope = "steady-real-scalar-cartesian-2d-q1-constant-robin-serial-cpu"
+reference_kind = "independent-exact-rational-full-operator-affine-field-and-weak-reactions"
+
+capabilities = [
+  "ordinary-scalar-affine-conormal-robin-law",
+  "same-run-full-physical-operator-capture",
+  "complete-q1-coefficient-and-essential-reaction-association",
+  "independent-physical-residual-and-direct-recovery-bounds",
+  "plan-and-result-replay",
+]
+
+[problem]
+equation = "-div(k grad(T)) = 0"
+boundary = "left T=Tc; right normal(k grad(T))+h trace(T)=h Tinf; top and bottom insulated"
+mesh = "uniform two-by-two Cartesian Q1; nine full nodes and six free coefficients"
+reference = "reference/README.md"
+cases = ["insulated", "robin", "changed_h", "changed_geometry_material_cooling"]
+
+[execution]
+method = "ordinary serial CPU Q1 Galerkin"
+solver = "reference BiConjugateGradientStabilized with identity preconditioner and reproducible reduction"
+quadrature = "three Gauss points per axis"
+relative_tolerance = 1e-14
+absolute_tolerance = 1e-14
+maximum_iterations = 10000
+
+[claim_boundary]
+transient = false
+nonconstant_robin_coefficient = false
+curved_mesh = false
+ordinary_q2_robin = false
+cpu_parallel = false
+mpi = false
+gpu = false
+tpfa = false
+performance = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions"
+table = "evidence/2026-11-06/inventory.json"

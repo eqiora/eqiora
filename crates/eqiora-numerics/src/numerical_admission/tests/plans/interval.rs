@@ -236,6 +236,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
             &ResolveOnlyBackend,
             None,
             projection,
+            None,
         )
     };
     let plan = resolve(LinearSolver::MinimumResidual, Some(&authored)).unwrap();

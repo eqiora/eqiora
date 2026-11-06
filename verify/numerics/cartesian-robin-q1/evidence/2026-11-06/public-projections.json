@@ -1,0 +1,1218 @@
+{
+  "schema": 1,
+  "kind": "explicit-machine-path-only-public-projections",
+  "sealed_raw_inventory_sha256": "bfdf9f381c869e45c9f4ca5d19bdd2229d147ec8120ed497b4d1225e12342ee7",
+  "sealed_raw_file_count": 293,
+  "projection_count": 4,
+  "projection_script_sha256": "64e63be34173bc3595418d5d8f4c224224555579fbd6d84cbfb9d2d9cd8d4ffc",
+  "original_raw_archive_preserved": true,
+  "scientific_Model_Mesh_Plan_Result_operators_reports_falsifiers_scripts_unchanged": true,
+  "projections": [
+    {
+      "path": "receipts/attempt1/build.jsonl",
+      "original_sha256": "f94993184a131bb0097d9a89aafd12415b1330f64e8fd5e88e5625017fff3104",
+      "original_bytes": 61202,
+      "public_sha256": "f0333d373f30b0d0c580b52092f9df89c0358cf5edfa95c9552797328bc64146",
+      "public_bytes": 50882,
+      "omissions": [
+        {
+          "pointer": "/0/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "352c147f9398fccc8e3c7cc2c7989922662e9653172b0c2008dfd299eae8ac79",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/0/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "603b2bc332ddd98ecd3b497745aae386b836c7e9f62268c5d2789bdcb39a9164",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/1/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "04cb51d58755d58e57684f1f7f9b3eabd88bdbb8fdfcd6264de2c21dc2a1a3a4",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/1/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e9cf1ecbddfeb2d515b1e650fdf6c67fbba46d82d16cad2797ae988cf748c41c",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/2/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d3c15afc340d8d26c1ced9671cf531bf3f3af8e92508238cd4129adc3015f3c9",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/2/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a8b7c235fec01436a728b0d08b786120c804ea0e4cccf996cc75406fbd8cf552",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/3/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5d56493652bd247af5cb9f995c4afbd0ec4c5c6b5350d2e7250370aef1195f59",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/3/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "bf83dcfef8471b80bc2f4bde172057c1460c99dfb90352c4a69177a2a36fd692",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/4/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8078e1cbc6bf7d64bf2a351fe4eca691a91e0fcb220b98531bd6f7b19f1268f",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/4/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "647f99dcc0f7563a77bb282d60a2182b7c727ce3ba2f39d0f4a81a75fbcaef3a",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/7/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8f798fbde62d9a5ea7fa5a144e8e9926920c508aa9af50e1b6037fb3f9e5d88d",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/7/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "383717fcfa8d5dcac7c96a86c715ba7531922ed5d2d0217301fc2d75e4b1b2c9",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/8/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "59b09d19954618e38f9fe63d89f13077d8820ee455f6b62abcbe91e30db42c22",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/8/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "46e90a1173b118091506ff4a1f2052ef3e4ac482ce9b0b6c48fa116ca776e069",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/9/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "04cb51d58755d58e57684f1f7f9b3eabd88bdbb8fdfcd6264de2c21dc2a1a3a4",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/9/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d4ac621ffb441d11b3fdff5ab6d89ffcd8a9b664315f392852d39dd9c6d5e14a",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/10/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d3c15afc340d8d26c1ced9671cf531bf3f3af8e92508238cd4129adc3015f3c9",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/10/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "022672efa0c5f118a1a4c958313bc5761ae2feb356b3446a4201757d5faa1d83",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/12/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b66a670462ebb1bdabd1a6c4dafd461bd91d4c1d9a091c1c88b5c3ad248d0565",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/12/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "aa86b55b90225a1f833f93d2531cf5fdfe2271b3519fbba86f66f583ccee58be",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/13/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8078e1cbc6bf7d64bf2a351fe4eca691a91e0fcb220b98531bd6f7b19f1268f",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/13/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "29e4cf503488bcb73a9b48cdfd9509bb2c4e12333258583a47b00823537a5da0",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/14/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1d9a37f7ca17dc94b12d3d24664b4c481cd057ccd5badd42eb59b7ed39f9838",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/14/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "37d4648b7964cd1be75984651d6075604a3d157a24b16b312d03061aad676f03",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/15/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8989786d77823f5f8aa2342610863d558ecc65e3a93b4b3e25a76f2066b452f0",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/15/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e0e84c7b430ed9cc0718911cf4817ce14fa15505d7972c6d15dca1f92e628186",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/16/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "948a0bb568961eed31f3110f5527eacb7185c55cbbe27c75b644ca9b16dc9c28",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/16/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "cb3921d4ea44f726ac0878a95805bdc670792bd08a94b5e8211e2d4940dd638c",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/17/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8f000e70a0c40c9822a51cd83d0bc8fcf511fb45116278fffabb5b17d154a1a9",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/17/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "bf2d0c2a6d2cea26da81f4d2b13bb592c0477564c7db79f74ea129e476230323",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/19/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9595303f179d53bce8f8e54725553a952f74b25c898b81be3b9e609bc93278bd",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/19/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1daf3579946c2d5a25bba464304f97248206d9c10626641a3ca7d1d881963a61",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/20/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c4dd6a12606e320aa531e7e2a357b46d327d718a5d9eccc6c38e9579afbfd5c1",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/20/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5db017d92a567caf6ab0a6da18a4c6bf8f2c4dd1d618d952757ebd92edf3d36d",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/21/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "daafda2389e36def99a866af12b389f87d7a804ad7e581022bbadd729572e181",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/21/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a5f5213776279842722b9be1e41efa290fca19c89e165cd5f15bc1a2f2128c5d",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/23/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1d9a37f7ca17dc94b12d3d24664b4c481cd057ccd5badd42eb59b7ed39f9838",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/23/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f169144669f4419b6a5d4bc9b4c22e5dedb95a567ed4bde271e589398db0d103",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/24/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "94ce951ed6d5a5336a682d0ce4b4a4c6da9a6c6dcb3bd568d39038935fcb443c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/24/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a8d4680cb21881f7da8f3435d710920175d5986fbadfeb22f1bd6753b3dc9d26",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/26/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "ca4e5239cb19ede961d5001ad846200ec9ee12f6aeee73a55260305ebc8f1ac3",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/26/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e99de8610b26b908af0e27d8222af65dbeab7421c0d2b485cfa7a75ffeb7a78e",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/27/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9595303f179d53bce8f8e54725553a952f74b25c898b81be3b9e609bc93278bd",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/27/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0a8230e0147f16a0d52e71d7aa278ad04c970093132560f0b9642764e9c880ad",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/28/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "12621441b0e282166ac3a9c508a68da8016caf3f7eed1fc731776f46922f423d",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/28/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1dd17c5b23165a085bce4e308b8e51c23a13f6f62243a6f77b84ea3f6a15b29f",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/30/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1aa4ee72814d090c224d8d6e2e0accc6a0e96fc420dfac35c63be8a31395429",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/30/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9571c78bc6d0bfc44b38d7bcf47eac90ae3369d60d2eb81cd0c921671d95248a",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/31/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2a6b4d945e6937e84e1fd98e730c6a5c4845c693a7c703a2e9c15464d629254c",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/31/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0495bd0a9983a799dc782331b7fe80412392276b5fb3ee7ae3b3e2b886c09505",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/32/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8ca5e1020af85a04074b216bf432dbc5f16653edc3d35f35f775eb3625d25a0c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/32/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6a91d7072ff126b17154272cb3f86a4f0f97228d54e861496b7da4a57ee76a4e",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/34/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "ca4e5239cb19ede961d5001ad846200ec9ee12f6aeee73a55260305ebc8f1ac3",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/34/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5b50c007624806531819d60b88658c8d85d949533e3feb540341971f97855d58",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/35/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "342c4659de246c4a67eb593ba6201136ee37ebb3b54cd0160dac980fc3c7912c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/35/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1e48b7082cd1a4c301b401aad2166b2b188590da00512bfc0e6b19646ff53fed",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/36/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "78499bdc4d510712a7f1f80e1b601a205e37f5466a090189c20138fe42f23029",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/36/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2f8834143eb64b1d56109ed7c6aa0471c5f7a888336ab67d58e89ed444fc05c4",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/37/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d30cff47141d6cbfd5b39f7308039e73a8cba2e295c880230d6f4de242fc7692",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/37/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "cc42029ef0084f0705b3107d733f501efe84220673ed2896e64f05a9ed0d505d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/38/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "4eed3add6ff4cdca2094c04f72a7946d0e0e1231a76d052b51feaaff57b37f69",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/38/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1e42de900b13a54436fdf24039bfdd09bbbbf405cb443c7b92f85224d0999158",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/39/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "49ef03398036e495f412a4b825dabb05647edbb35f07356526bcf54d06460175",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/39/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9c5394a44f595bd940d04f202f9bed3a8f05f92d19275986ec2008ed93229aac",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/40/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1aa4ee72814d090c224d8d6e2e0accc6a0e96fc420dfac35c63be8a31395429",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/40/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "de2024056a5010d0af01e53fd6b11f080b043893b4bb620d9bec4b889c5f4db9",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/43/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "011c8166c052897690c6934b2655755e1d2991c2d5e75c8a3b0d6770e953dd43",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/43/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "17ac5ad4cb7f925ff894744c5c87cc5ea07df9cf3384b9838a8222bb0f6d2699",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/44/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6f73dd6e875b7122bb0ecfb6013ba01365b024558ca6c35e3d4d207cb77b5cee",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/44/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e78bde6a1f6fe71a3bd91b7f4b24e039651c1a2c26d2d994283d38927bc4627f",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/45/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5dff7d942f5c25215ad0506bc67e44a98fbbf4932bcfe38398358d2b4ccc7735",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/45/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2dd42bff9a56e6c3ce0cdd9a7184b7177822d7ba71f4cd49683b6a926b3dbd4d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/46/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "09ca20ac5a835cc3bd342b370a275a975509bf433a94175df7a654edcfb3af65",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/46/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "568de2b50b063391b70ec417252fd09960dbff00a49ad801e6ce76ddede74069",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/47/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d30cff47141d6cbfd5b39f7308039e73a8cba2e295c880230d6f4de242fc7692",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/47/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8248d253cfbb645aa6c556ca181d7f4e7a86b7581817ba1c78334aa9397957a",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/48/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b91223163c37def9bf52050c541c074db272b6fa418a3dec454c37f52051186e",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/48/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "29321d572bdb7e807e8a6efda2c9711b00403ae03a611f9bacc45769409b3711",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/49/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "4eed3add6ff4cdca2094c04f72a7946d0e0e1231a76d052b51feaaff57b37f69",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/49/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b2fe4e4e85257ae32614bed417713d5fad6ed353dd004bad018227d4295da18a",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/50/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d8fa53362dab7498c681003eb75f32d26882a9517d5e1004e11b4f9cac89b66d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/50/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8d8df09ebe4d24e80dfc38a3a4148df1456a84fb9d5ebc513dc55e264a718d36",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/51/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f0e2a5ac6bdd22c0375d58eb419a8cc81306abd48db8a31d98f7e8b4edef97e3",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/51/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0916d252c9d97493396436c048383e5d2c742ae3d37abf759240ae5dc37ac2cf",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/52/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "57e4d251a5c98bc556a4de0519f50795ec1f31d41eaa5c567a5066ea56e2a199",
+          "original_utf8_bytes": 99
+        },
+        {
+          "pointer": "/52/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e4aa6220b113edb9c2d3a70c6226ffa42f5fce195e4ac958b32cebfa3cf904d2",
+          "original_utf8_bytes": 99
+        },
+        {
+          "pointer": "/54/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "966b56e81b638c53202787b29cd56eb014e0d709345b95af98fa5bdba04f02fa",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/54/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6130182c98cddd1165f1851255bc528e75a72371a52b80e04af433606a45aa93",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/55/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "64a666c069b7d9328c5526c6a7cbbe583fb485f7b842ac2cd149366158ba0909",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/55/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8c4aaf7f5616de5c88edadc03d55a5989a8c4e9321a143f794b99958d0e5ad3",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/57/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0c8d1c47cc0c0828a49bee32c6104c01700ad50d0a4c5ba03c58ad08928d6677",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/57/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b3deee8a908f81178972cc942f2d648631a877bd051aae57ae16ea4550451b0f",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/69/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f09b47e70908d78ea06e8cbd3b6f3512f5e7eb4a5cccce0e7327cbfd7a630be2",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/69/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "fe9ed483ee38d4fd7a1b8e1cb92dffc0b920c6334dc8d91d06e710f2a5af875f",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/77/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a10c21adc5fdda55832c6cecd7e6159a3ba16da5db8e8d3c883fafd14549a5ea",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/77/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2b157f44c37f8255f54dd36a11e90ababf9a64956fa2d54f881270ee3d04c33b",
+          "original_utf8_bytes": 89
+        }
+      ],
+      "audit": "all remaining JSON keys/values/record order or linker text are unchanged; only enumerated machine-local locators omitted"
+    },
+    {
+      "path": "receipts/attempt2/build.jsonl",
+      "original_sha256": "68a69eaee55aff6efb84c5fef8443a881f85359566b2a687fba0065158f36887",
+      "original_bytes": 61202,
+      "public_sha256": "df0aab2fe600f21e421cda149be8bf4548ca994f3971094550c5997703f5ba64",
+      "public_bytes": 50882,
+      "omissions": [
+        {
+          "pointer": "/0/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "352c147f9398fccc8e3c7cc2c7989922662e9653172b0c2008dfd299eae8ac79",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/0/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "603b2bc332ddd98ecd3b497745aae386b836c7e9f62268c5d2789bdcb39a9164",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/1/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "04cb51d58755d58e57684f1f7f9b3eabd88bdbb8fdfcd6264de2c21dc2a1a3a4",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/1/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e9cf1ecbddfeb2d515b1e650fdf6c67fbba46d82d16cad2797ae988cf748c41c",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/3/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d3c15afc340d8d26c1ced9671cf531bf3f3af8e92508238cd4129adc3015f3c9",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/3/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a8b7c235fec01436a728b0d08b786120c804ea0e4cccf996cc75406fbd8cf552",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/4/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5d56493652bd247af5cb9f995c4afbd0ec4c5c6b5350d2e7250370aef1195f59",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/4/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "bf83dcfef8471b80bc2f4bde172057c1460c99dfb90352c4a69177a2a36fd692",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/5/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8078e1cbc6bf7d64bf2a351fe4eca691a91e0fcb220b98531bd6f7b19f1268f",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/5/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "647f99dcc0f7563a77bb282d60a2182b7c727ce3ba2f39d0f4a81a75fbcaef3a",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/6/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "04cb51d58755d58e57684f1f7f9b3eabd88bdbb8fdfcd6264de2c21dc2a1a3a4",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/6/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d4ac621ffb441d11b3fdff5ab6d89ffcd8a9b664315f392852d39dd9c6d5e14a",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/8/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8f798fbde62d9a5ea7fa5a144e8e9926920c508aa9af50e1b6037fb3f9e5d88d",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/8/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "383717fcfa8d5dcac7c96a86c715ba7531922ed5d2d0217301fc2d75e4b1b2c9",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/9/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "59b09d19954618e38f9fe63d89f13077d8820ee455f6b62abcbe91e30db42c22",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/9/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "46e90a1173b118091506ff4a1f2052ef3e4ac482ce9b0b6c48fa116ca776e069",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/10/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d3c15afc340d8d26c1ced9671cf531bf3f3af8e92508238cd4129adc3015f3c9",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/10/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "022672efa0c5f118a1a4c958313bc5761ae2feb356b3446a4201757d5faa1d83",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/12/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b66a670462ebb1bdabd1a6c4dafd461bd91d4c1d9a091c1c88b5c3ad248d0565",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/12/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "aa86b55b90225a1f833f93d2531cf5fdfe2271b3519fbba86f66f583ccee58be",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/13/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1d9a37f7ca17dc94b12d3d24664b4c481cd057ccd5badd42eb59b7ed39f9838",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/13/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "37d4648b7964cd1be75984651d6075604a3d157a24b16b312d03061aad676f03",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/14/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8078e1cbc6bf7d64bf2a351fe4eca691a91e0fcb220b98531bd6f7b19f1268f",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/14/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "29e4cf503488bcb73a9b48cdfd9509bb2c4e12333258583a47b00823537a5da0",
+          "original_utf8_bytes": 91
+        },
+        {
+          "pointer": "/16/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8989786d77823f5f8aa2342610863d558ecc65e3a93b4b3e25a76f2066b452f0",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/16/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e0e84c7b430ed9cc0718911cf4817ce14fa15505d7972c6d15dca1f92e628186",
+          "original_utf8_bytes": 93
+        },
+        {
+          "pointer": "/17/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "948a0bb568961eed31f3110f5527eacb7185c55cbbe27c75b644ca9b16dc9c28",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/17/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "cb3921d4ea44f726ac0878a95805bdc670792bd08a94b5e8211e2d4940dd638c",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/18/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8f000e70a0c40c9822a51cd83d0bc8fcf511fb45116278fffabb5b17d154a1a9",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/18/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "bf2d0c2a6d2cea26da81f4d2b13bb592c0477564c7db79f74ea129e476230323",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/19/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c4dd6a12606e320aa531e7e2a357b46d327d718a5d9eccc6c38e9579afbfd5c1",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/19/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5db017d92a567caf6ab0a6da18a4c6bf8f2c4dd1d618d952757ebd92edf3d36d",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/20/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9595303f179d53bce8f8e54725553a952f74b25c898b81be3b9e609bc93278bd",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/20/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1daf3579946c2d5a25bba464304f97248206d9c10626641a3ca7d1d881963a61",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/21/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "94ce951ed6d5a5336a682d0ce4b4a4c6da9a6c6dcb3bd568d39038935fcb443c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/21/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a8d4680cb21881f7da8f3435d710920175d5986fbadfeb22f1bd6753b3dc9d26",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/22/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "daafda2389e36def99a866af12b389f87d7a804ad7e581022bbadd729572e181",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/22/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a5f5213776279842722b9be1e41efa290fca19c89e165cd5f15bc1a2f2128c5d",
+          "original_utf8_bytes": 86
+        },
+        {
+          "pointer": "/23/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1d9a37f7ca17dc94b12d3d24664b4c481cd057ccd5badd42eb59b7ed39f9838",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/23/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f169144669f4419b6a5d4bc9b4c22e5dedb95a567ed4bde271e589398db0d103",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/25/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "ca4e5239cb19ede961d5001ad846200ec9ee12f6aeee73a55260305ebc8f1ac3",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/25/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e99de8610b26b908af0e27d8222af65dbeab7421c0d2b485cfa7a75ffeb7a78e",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/27/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9595303f179d53bce8f8e54725553a952f74b25c898b81be3b9e609bc93278bd",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/27/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0a8230e0147f16a0d52e71d7aa278ad04c970093132560f0b9642764e9c880ad",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/29/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "12621441b0e282166ac3a9c508a68da8016caf3f7eed1fc731776f46922f423d",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/29/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1dd17c5b23165a085bce4e308b8e51c23a13f6f62243a6f77b84ea3f6a15b29f",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/30/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1aa4ee72814d090c224d8d6e2e0accc6a0e96fc420dfac35c63be8a31395429",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/30/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9571c78bc6d0bfc44b38d7bcf47eac90ae3369d60d2eb81cd0c921671d95248a",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/31/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "ca4e5239cb19ede961d5001ad846200ec9ee12f6aeee73a55260305ebc8f1ac3",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/31/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5b50c007624806531819d60b88658c8d85d949533e3feb540341971f97855d58",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/32/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2a6b4d945e6937e84e1fd98e730c6a5c4845c693a7c703a2e9c15464d629254c",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/32/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0495bd0a9983a799dc782331b7fe80412392276b5fb3ee7ae3b3e2b886c09505",
+          "original_utf8_bytes": 85
+        },
+        {
+          "pointer": "/33/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "342c4659de246c4a67eb593ba6201136ee37ebb3b54cd0160dac980fc3c7912c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/33/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1e48b7082cd1a4c301b401aad2166b2b188590da00512bfc0e6b19646ff53fed",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/35/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8ca5e1020af85a04074b216bf432dbc5f16653edc3d35f35f775eb3625d25a0c",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/35/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6a91d7072ff126b17154272cb3f86a4f0f97228d54e861496b7da4a57ee76a4e",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/36/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "4eed3add6ff4cdca2094c04f72a7946d0e0e1231a76d052b51feaaff57b37f69",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/36/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "1e42de900b13a54436fdf24039bfdd09bbbbf405cb443c7b92f85224d0999158",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/37/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d30cff47141d6cbfd5b39f7308039e73a8cba2e295c880230d6f4de242fc7692",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/37/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "cc42029ef0084f0705b3107d733f501efe84220673ed2896e64f05a9ed0d505d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/38/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "78499bdc4d510712a7f1f80e1b601a205e37f5466a090189c20138fe42f23029",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/38/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2f8834143eb64b1d56109ed7c6aa0471c5f7a888336ab67d58e89ed444fc05c4",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/39/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e1aa4ee72814d090c224d8d6e2e0accc6a0e96fc420dfac35c63be8a31395429",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/39/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "de2024056a5010d0af01e53fd6b11f080b043893b4bb620d9bec4b889c5f4db9",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/42/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "49ef03398036e495f412a4b825dabb05647edbb35f07356526bcf54d06460175",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/42/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "9c5394a44f595bd940d04f202f9bed3a8f05f92d19275986ec2008ed93229aac",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/43/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "011c8166c052897690c6934b2655755e1d2991c2d5e75c8a3b0d6770e953dd43",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/43/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "17ac5ad4cb7f925ff894744c5c87cc5ea07df9cf3384b9838a8222bb0f6d2699",
+          "original_utf8_bytes": 96
+        },
+        {
+          "pointer": "/44/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6f73dd6e875b7122bb0ecfb6013ba01365b024558ca6c35e3d4d207cb77b5cee",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/44/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e78bde6a1f6fe71a3bd91b7f4b24e039651c1a2c26d2d994283d38927bc4627f",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/45/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "09ca20ac5a835cc3bd342b370a275a975509bf433a94175df7a654edcfb3af65",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/45/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "568de2b50b063391b70ec417252fd09960dbff00a49ad801e6ce76ddede74069",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/46/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "5dff7d942f5c25215ad0506bc67e44a98fbbf4932bcfe38398358d2b4ccc7735",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/46/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2dd42bff9a56e6c3ce0cdd9a7184b7177822d7ba71f4cd49683b6a926b3dbd4d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/47/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d8fa53362dab7498c681003eb75f32d26882a9517d5e1004e11b4f9cac89b66d",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/47/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "8d8df09ebe4d24e80dfc38a3a4148df1456a84fb9d5ebc513dc55e264a718d36",
+          "original_utf8_bytes": 87
+        },
+        {
+          "pointer": "/48/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "d30cff47141d6cbfd5b39f7308039e73a8cba2e295c880230d6f4de242fc7692",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/48/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8248d253cfbb645aa6c556ca181d7f4e7a86b7581817ba1c78334aa9397957a",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/49/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b91223163c37def9bf52050c541c074db272b6fa418a3dec454c37f52051186e",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/49/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "29321d572bdb7e807e8a6efda2c9711b00403ae03a611f9bacc45769409b3711",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/50/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "4eed3add6ff4cdca2094c04f72a7946d0e0e1231a76d052b51feaaff57b37f69",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/50/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b2fe4e4e85257ae32614bed417713d5fad6ed353dd004bad018227d4295da18a",
+          "original_utf8_bytes": 94
+        },
+        {
+          "pointer": "/51/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f0e2a5ac6bdd22c0375d58eb419a8cc81306abd48db8a31d98f7e8b4edef97e3",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/51/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0916d252c9d97493396436c048383e5d2c742ae3d37abf759240ae5dc37ac2cf",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/52/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "57e4d251a5c98bc556a4de0519f50795ec1f31d41eaa5c567a5066ea56e2a199",
+          "original_utf8_bytes": 99
+        },
+        {
+          "pointer": "/52/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "e4aa6220b113edb9c2d3a70c6226ffa42f5fce195e4ac958b32cebfa3cf904d2",
+          "original_utf8_bytes": 99
+        },
+        {
+          "pointer": "/53/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "64a666c069b7d9328c5526c6a7cbbe583fb485f7b842ac2cd149366158ba0909",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/53/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "c8c4aaf7f5616de5c88edadc03d55a5989a8c4e9321a143f794b99958d0e5ad3",
+          "original_utf8_bytes": 88
+        },
+        {
+          "pointer": "/55/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "966b56e81b638c53202787b29cd56eb014e0d709345b95af98fa5bdba04f02fa",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/55/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "6130182c98cddd1165f1851255bc528e75a72371a52b80e04af433606a45aa93",
+          "original_utf8_bytes": 95
+        },
+        {
+          "pointer": "/58/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "0c8d1c47cc0c0828a49bee32c6104c01700ad50d0a4c5ba03c58ad08928d6677",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/58/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "b3deee8a908f81178972cc942f2d648631a877bd051aae57ae16ea4550451b0f",
+          "original_utf8_bytes": 90
+        },
+        {
+          "pointer": "/65/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "f09b47e70908d78ea06e8cbd3b6f3512f5e7eb4a5cccce0e7327cbfd7a630be2",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/65/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "fe9ed483ee38d4fd7a1b8e1cb92dffc0b920c6334dc8d91d06e710f2a5af875f",
+          "original_utf8_bytes": 92
+        },
+        {
+          "pointer": "/77/manifest_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "a10c21adc5fdda55832c6cecd7e6159a3ba16da5db8e8d3c883fafd14549a5ea",
+          "original_utf8_bytes": 89
+        },
+        {
+          "pointer": "/77/target/src_path",
+          "kind": "machine-local-filesystem-locator",
+          "original_value_sha256": "2b157f44c37f8255f54dd36a11e90ababf9a64956fa2d54f881270ee3d04c33b",
+          "original_utf8_bytes": 89
+        }
+      ],
+      "audit": "all remaining JSON keys/values/record order or linker text are unchanged; only enumerated machine-local locators omitted"
+    },
+    {
+      "path": "receipts/attempt1/ldd.txt",
+      "original_sha256": "130d8c886651e646e22cc77d24a1818339300c859162cfb4514188865918dd5d",
+      "original_bytes": 314,
+      "public_sha256": "1a7e13d5f65eb487dd2aaa76f1e016c130556cb5b62412b9ae0c8a12a68813aa",
+      "public_bytes": 290,
+      "omissions": [
+        {
+          "line": 5,
+          "start_utf8_column": 18,
+          "kind": "machine-local-resolved-library-path",
+          "original_value_sha256": "07640a7370fcd27f3580a904b5d7809e9c6b1c430d220ed4b347aae6ee93d63d",
+          "original_utf8_bytes": 52
+        }
+      ],
+      "audit": "all remaining JSON keys/values/record order or linker text are unchanged; only enumerated machine-local locators omitted"
+    },
+    {
+      "path": "receipts/attempt2/ldd.txt",
+      "original_sha256": "85248e1ec869cfe5342ee9beec9fdbc0d32851a3bfd7cc11eac89a0b605825de",
+      "original_bytes": 314,
+      "public_sha256": "c7a328ec85f8309970a52b548fc950c7fc035a9bff8b002f0a1af75f3b9765cf",
+      "public_bytes": 290,
+      "omissions": [
+        {
+          "line": 5,
+          "start_utf8_column": 18,
+          "kind": "machine-local-resolved-library-path",
+          "original_value_sha256": "07640a7370fcd27f3580a904b5d7809e9c6b1c430d220ed4b347aae6ee93d63d",
+          "original_utf8_bytes": 52
+        }
+      ],
+      "audit": "all remaining JSON keys/values/record order or linker text are unchanged; only enumerated machine-local locators omitted"
+    }
+  ]
+}

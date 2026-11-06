@@ -2,7 +2,7 @@
 use super::*;
 
 #[pyfunction(name = "_resolve_plan")]
-#[pyo3(signature = (model, /, *, mesh=None, spatial=None, formulation=None, solve=None, scaling=None, temporal=None, enforcement=None))]
+#[pyo3(signature = (model, /, *, mesh=None, spatial=None, formulation=None, solve=None, scaling=None, temporal=None, enforcement=None, quadrature=None))]
 #[expect(
     clippy::too_many_arguments,
     reason = "PyO3 counts its injected Python token beside the seven-field public resolve boundary"
@@ -17,7 +17,17 @@ pub(super) fn resolve_plan(
     scaling: Option<&Bound<'_, PyAny>>,
     temporal: Option<&Bound<'_, PyAny>>,
     enforcement: Option<&Bound<'_, PyAny>>,
+    quadrature: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPlan> {
+    let quadrature = quadrature
+        .filter(|value| !value.is_none())
+        .map(policy::quadrature::request)
+        .transpose()?;
+    if quadrature.is_some() && (mesh.is_none() || spatial.is_none()) {
+        return Err(PyTypeError::new_err(
+            "assembly quadrature requires a spatial finite-element request and Mesh",
+        ));
+    }
     if enforcement.is_some() && (mesh.is_some() || spatial.is_some() || temporal.is_some()) {
         return Err(PyTypeError::new_err(
             "finite enforcement cannot accompany spatial or temporal resolution",
@@ -168,6 +178,11 @@ pub(super) fn resolve_plan(
             CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             SpatialHandle::Uniform(SpatialPolicy::Q1),
         )
+    } else if spatial_value.extract::<PyRef<'_, PyQ2>>().is_ok() {
+        (
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::Q2),
+            SpatialHandle::Uniform(SpatialPolicy::Q2),
+        )
     } else if spatial_value
         .extract::<PyRef<'_, PyTetrahedralEdge>>()
         .is_ok()
@@ -225,6 +240,7 @@ pub(super) fn resolve_plan(
                     PyTypeError::new_err("DomainRef contains an invalid exact Domain ULID")
                 })?;
             let policy = match binding.policy {
+                ScopedSpatialKind::Q2 => CommonSpatialPolicy::Q2,
                 ScopedSpatialKind::MiniP1 => CommonSpatialPolicy::MiniP1,
                 ScopedSpatialKind::P1 => CommonSpatialPolicy::P1,
             };
@@ -333,6 +349,7 @@ pub(super) fn resolve_plan(
         model_ref
             .authored_formulation_projection()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+        quadrature,
     )
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
     if native.mesh_digest() != Some(mesh_ref.exact_mesh_digest()) {

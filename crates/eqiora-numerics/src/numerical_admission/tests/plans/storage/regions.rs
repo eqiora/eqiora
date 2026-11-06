@@ -70,6 +70,7 @@ fn resolve_with_middle(discontinuous: bool, algebraic_middle: bool) -> ResolvedC
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap()
 }

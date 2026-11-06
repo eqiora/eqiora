@@ -2,7 +2,7 @@
 
 The [heated-body package](../../examples/heated-body/README.md) runs from the installed Python
 development build. Its [source](../../examples/heated-body/src/main.eqi) imports
-`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.4.0` for a
+`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.5.0` for a
 unit-square cross-section held at 300 K. The [hand-written alternative](../../examples/heated-body/handwritten.eqi)
 retains the same physical law and an explicit weak form whose tests vanish on the boundary.
 The [Python runner](../../examples/heated-body/run.py)
@@ -29,3 +29,35 @@ The transient model is assembled from the compiled region equations; there is no
 written transient weak form to compare against. Variable capacities, material interfaces,
 three-dimensional heat conduction, and threaded/MPI/GPU thermal-package execution are not covered here.
 The direct transient Law remains in the hand-written alternative for comparison.
+
+## A convecting face
+
+The separate `ConvectiveHeatedBody` entry keeps the all-fixed example above.
+It holds the left face at `fixed_temperature`, insulates the horizontal faces,
+and imports `ConvectiveHeatTransfer2d` on the right face:
+
+```eqiora
+instance convection: scalar.ConvectiveHeatTransfer2d(
+  body = body, face = x_upper, temperature = temperature,
+  conductivity = conductivity, coefficient = coefficient, ambient = ambient_temperature
+);
+```
+
+The corresponding hand-written relation is:
+
+```eqiora
+relation convection on x_upper {
+  normal(conductivity * grad(temperature)) + coefficient * trace(temperature)
+    = coefficient * ambient_temperature;
+}
+```
+
+Here `temperature` is smooth, conductivity has units W/(m K), coefficient has
+units W/(m² K), and ambient temperature has units K. There are no default
+material values. Physical outward heat flux is `h*(T-Tinf)`. On a rectangle
+with left temperature Tc and length L, substitution gives
+`T(x)=Tc+h*(Tinf-Tc)*x/(k+h*L)` without volume heating.
+Both forms are in the maintained heated-body sources. The convection path is
+steady affine Cartesian 2D Q1 with the serial CPU reference provider. TPFA is
+rejected with a typed diagnostic. Transient convection, threaded CPU, MPI and
+GPU execution are not verified by this example.

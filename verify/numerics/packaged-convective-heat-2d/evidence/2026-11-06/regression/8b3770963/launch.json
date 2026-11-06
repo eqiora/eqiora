@@ -1,0 +1,8 @@
+{
+  "created_utc": "2026-11-06T12:09:23.355151+00:00",
+  "kind": "required-registered-case-regression-distinct-from-eight-initial-runs",
+  "source_head": "8b3770963",
+  "processes": [],
+  "GPU_visibility": "hidden",
+  "thread_limits": 1
+}

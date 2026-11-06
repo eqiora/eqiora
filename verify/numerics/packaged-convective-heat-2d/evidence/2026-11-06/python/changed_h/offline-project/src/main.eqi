@@ -1,0 +1,104 @@
+import Eqiora.Scalar.scalar as scalar;
+
+/// Steady heat conduction on a unit square cross-section, per unit depth.
+/// All four exterior faces are held at 300 K; this Component has no time evolution.
+public component HeatedBody(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+  parameter conductivity: W / (m * K),
+  parameter heating: W / m^3
+) {
+  variable temperature: K on body in h1;
+  instance conduction: scalar.SteadyHeat2d(
+    body = body, temperature = temperature,
+    conductivity = conductivity, heating = heating
+  );
+  instance prescribed_x_lower: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_x_upper: scalar.FixedTemperature2d(
+    body = body, face = x_upper, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_lower: scalar.FixedTemperature2d(
+    body = body, face = y_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_upper: scalar.FixedTemperature2d(
+    body = body, face = y_upper, temperature = temperature, value = 300[K]
+  );
+}
+
+/// Heat storage and conduction with complete constant initial and boundary data.
+/// The caller supplies positive volumetric capacity; the reference temperature is 300 K.
+public component TransientHeatedBody(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+  parameter conductivity: W / (m * K),
+  parameter heating: W / m^3,
+  parameter capacity: J / (m^3 * K)
+) {
+  state temperature: K on body in h1;
+  initial { temperature = 300[K]; }
+  instance conduction: scalar.TransientHeat2d(
+    body = body, temperature = temperature,
+    conductivity = conductivity, capacity = capacity, heating = heating
+  );
+  instance prescribed_x_lower: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_x_upper: scalar.FixedTemperature2d(
+    body = body, face = x_upper, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_lower: scalar.FixedTemperature2d(
+    body = body, face = y_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_upper: scalar.FixedTemperature2d(
+    body = body, face = y_upper, temperature = temperature, value = 300[K]
+  );
+}
+
+/// Steady conduction from a prescribed-temperature face to a convecting face.
+/// The horizontal faces are insulated. The geometry and all material data are supplied by the caller.
+public component ConvectiveHeatedBody(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+  parameter conductivity: W / (m * K),
+  parameter coefficient: W / (m ^ 2 * K),
+  parameter fixed_temperature: K,
+  parameter ambient_temperature: K
+) {
+  variable temperature: K on body in smooth;
+  instance conduction: scalar.SteadyHeat2d(
+    body = body, temperature = temperature,
+    conductivity = conductivity, heating = 0[W/m^3]
+  );
+  instance fixed: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = fixed_temperature
+  );
+  instance convection: scalar.ConvectiveHeatTransfer2d(
+    body = body, face = x_upper, temperature = temperature,
+    conductivity = conductivity, coefficient = coefficient, ambient = ambient_temperature
+  );
+  instance insulated_y_lower: scalar.OutwardHeatFlux2d(
+    body = body, face = y_lower, temperature = temperature,
+    conductivity = conductivity, flux = 0[W/m^2]
+  );
+  instance insulated_y_upper: scalar.OutwardHeatFlux2d(
+    body = body, face = y_upper, temperature = temperature,
+    conductivity = conductivity, flux = 0[W/m^2]
+  );
+  observable left_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(x_lower));
+  observable right_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(x_upper));
+  observable bottom_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(y_lower));
+  observable top_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(y_upper));
+  observable right_temperature: K*m = integral(trace(temperature),measure(x_upper));
+  observable right_convective_heat: W/m = integral(coefficient*(trace(temperature)-ambient_temperature),measure(x_upper));
+}

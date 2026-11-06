@@ -33,7 +33,6 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
-pub(crate) use capability_view::space_name;
 mod compatible;
 mod eigen;
 mod enforcement;
@@ -52,8 +51,8 @@ pub(crate) mod solver_request;
 use policy::{
     PyBackwardEuler, PyBdf, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama,
     PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d,
-    PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge, PyTetrahedralFace,
-    PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
+    PyQ1, PyQ2, PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge,
+    PyTetrahedralFace, PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -66,6 +65,7 @@ use resolved_execution::PyResolvedExecution;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
     Q1,
+    Q2,
     TetrahedralEdge,
     TetrahedralFace,
     CellCenteredTpfa,
@@ -482,8 +482,10 @@ impl PyPlan {
                         plan.model_digest().to_owned(),
                         plan.pressure_field_id().to_owned(),
                     ),
-                    velocity_space: space_name(plan.velocity_space()),
-                    pressure_space: space_name(plan.pressure_space()),
+                    velocity_space: eqiora_numerics::common_space_name(plan.velocity_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+                    pressure_space: eqiora_numerics::common_space_name(plan.pressure_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
                     pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(
@@ -507,8 +509,10 @@ impl PyPlan {
                         plan.model_digest().to_owned(),
                         plan.pressure_field_id().to_owned(),
                     ),
-                    velocity_space: space_name(plan.velocity_space()),
-                    pressure_space: space_name(plan.pressure_space()),
+                    velocity_space: eqiora_numerics::common_space_name(plan.velocity_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+                    pressure_space: eqiora_numerics::common_space_name(plan.pressure_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
                     pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(
@@ -625,6 +629,7 @@ impl PyPlan {
                     Py::new(py, PyTetrahedralFace).map(Py::into_any)
                 }
                 SpatialHandle::Uniform(SpatialPolicy::Q1) => Py::new(py, PyQ1).map(Py::into_any),
+                SpatialHandle::Uniform(SpatialPolicy::Q2) => Py::new(py, PyQ2).map(Py::into_any),
                 SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa) => {
                     Py::new(py, PyCellCenteredTpfa).map(Py::into_any)
                 }

@@ -178,6 +178,7 @@ fn pairing_only_request_derives_and_executes_the_shared_cyclic_form() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         Some(&request),
+        None,
     )
     .unwrap();
     let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);

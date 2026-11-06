@@ -101,6 +101,7 @@ pub(super) fn resolve_with_policy(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )?;
     Ok((resolved, fields))
 }

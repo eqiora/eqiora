@@ -1,0 +1,154 @@
+{
+  "authored_source_sha256": "f5bd5519423b3bbab8ad52f74bff26b0f49338a0bb38470786b772462b8ca5fb",
+  "canonical_model_reopen": true,
+  "canonical_plan_reopen": true,
+  "canonical_result_reopen": true,
+  "coefficient_entities": [
+    {
+      "coordinates_m": [
+        0.0,
+        0.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 0
+    },
+    {
+      "coordinates_m": [
+        0.0,
+        0.5
+      ],
+      "entity_dimension": 0,
+      "entity_index": 1
+    },
+    {
+      "coordinates_m": [
+        0.0,
+        1.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 2
+    },
+    {
+      "coordinates_m": [
+        1.0,
+        0.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 3
+    },
+    {
+      "coordinates_m": [
+        1.0,
+        0.5
+      ],
+      "entity_dimension": 0,
+      "entity_index": 4
+    },
+    {
+      "coordinates_m": [
+        1.0,
+        1.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 5
+    },
+    {
+      "coordinates_m": [
+        2.0,
+        0.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 6
+    },
+    {
+      "coordinates_m": [
+        2.0,
+        0.5
+      ],
+      "entity_dimension": 0,
+      "entity_index": 7
+    },
+    {
+      "coordinates_m": [
+        2.0,
+        1.0
+      ],
+      "entity_dimension": 0,
+      "entity_index": 8
+    }
+  ],
+  "field_alias": "definition.temperature",
+  "field_id": "647MJFBX1YCNZ297Z9PHGV7N0A",
+  "input_sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+  "mesh_sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+  "model_sha256": "8371236e2141c5d25a6e43b4297462ff778511bad16e1a4df6f0a898e21a1b45",
+  "native_executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "observables": [
+    {
+      "boundary_domain_id": "04CH8M05RHTTMHF6S9MEKBPA2P",
+      "name": "left_heat",
+      "observable_id": "0AFGY2S3KE3JD34QM8XEX9BYQA",
+      "quadrature": "{Id<Domain>(04CH8M05RHTTMHF6S9MEKBPA2P): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "W/m"
+    },
+    {
+      "boundary_domain_id": "345YCTKW2T03RNQNDCQE7C2ETT",
+      "name": "right_heat",
+      "observable_id": "1RHVZ82BND088J38MJCE68N0M5",
+      "quadrature": "{Id<Domain>(345YCTKW2T03RNQNDCQE7C2ETT): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "W/m"
+    },
+    {
+      "boundary_domain_id": "5FYTVEKFKXRYGPBVHA988PAY3N",
+      "name": "bottom_heat",
+      "observable_id": "7K7MWH7ZE0HR31E9MMJQMGTDJX",
+      "quadrature": "{Id<Domain>(5FYTVEKFKXRYGPBVHA988PAY3N): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "W/m"
+    },
+    {
+      "boundary_domain_id": "36XMQPBJ42MXNMZQ9HHRSZRNC5",
+      "name": "top_heat",
+      "observable_id": "2APZTDNEXXSBZMH47F53QPCQMP",
+      "quadrature": "{Id<Domain>(36XMQPBJ42MXNMZQ9HHRSZRNC5): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "W/m"
+    },
+    {
+      "boundary_domain_id": "345YCTKW2T03RNQNDCQE7C2ETT",
+      "name": "right_temperature",
+      "observable_id": "76F6ETQND29ZY4F4YMMXSDNTSB",
+      "quadrature": "{Id<Domain>(345YCTKW2T03RNQNDCQE7C2ETT): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "K*m"
+    },
+    {
+      "boundary_domain_id": "345YCTKW2T03RNQNDCQE7C2ETT",
+      "name": "right_convective_heat",
+      "observable_id": "7RD3XVBP6P7G1ZD68D4RMSP6WW",
+      "quadrature": "{Id<Domain>(345YCTKW2T03RNQNDCQE7C2ETT): QuadratureRule { reference_cell: ReferenceCell { family: Hypercube, dimension: 1 }, polynomial_exactness: Some(3), points: [QuadraturePoint { coordinates: [-0.5773502691896257], weight: 1.0 }, QuadraturePoint { coordinates: [0.5773502691896257], weight: 1.0 }] }}",
+      "replay_result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+      "unit": "W/m"
+    }
+  ],
+  "oracle_sha256": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+  "ordinary_public_runs": 1,
+  "package_compilation_sha256": "15afabdfedc2615918812b35321e39b120c0685b93195febec8e7b379e842ec0",
+  "plan_identity": "62014ba0782ce9f63cbb85e5655a844f03b6d59eb5b650128bf522404095d5c1",
+  "plan_sha256": "d3e8f0f5eb8fd48473e94548148b3b185bb7640dda9c1977a03623961549184b",
+  "producer_source_sha256": "78983b1bceaab39292d46d5507519a49199dd14fdfb5b4e0fa4872be87ef105d",
+  "replay_coefficients_equal": true,
+  "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436",
+  "result_sha256": "c3cf5cf3bbfca599bd08c2b89fec53096a739a06a899513a716283ab9f8d82e6",
+  "schema": 1,
+  "scope": "public coefficients and observations; no full A/b or private weak reactions",
+  "source_head": "8b3770963b20be98830e39300ce45cfa0512129c"
+}

@@ -1,0 +1,24 @@
+{
+  "case": "changed_h",
+  "defect": "incorrectly-eliminated-right-test-trace",
+  "pid": 515580,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "38536d368494d302d1767ea04ea4795d9883ba71a39fa66ed88e5cc6f5f1b12e",
+  "report_sha256": "f73293e968ef8a6823055ec61f594378d8e54e8d0b410ee2bcaedfe0e78c4600",
+  "base_native_input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "accepted": false,
+  "status": "expected-rejection"
+}

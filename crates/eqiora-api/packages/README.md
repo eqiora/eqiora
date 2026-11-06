@@ -93,14 +93,14 @@ not update the lock or manage shared-store permissions.
 
 ## Bundled packages in Python and the CLI
 
-The Scalar 0.4.0, Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below
+The Scalar 0.5.0, Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below
 are available from development builds.
 The published Eqiora 0.1.5 distribution is unchanged. Current development builds
 write Model and Model Transaction v50 artifacts; use the build that produced an
 older artifact to open it, or regenerate it from source.
 
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
-`Eqiora.Scalar@0.4.0`, `Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
+`Eqiora.Scalar@0.5.0`, `Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
 store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without
@@ -146,7 +146,8 @@ package identity, not by directory.
 - [`Eqiora.Scalar`](Eqiora.Scalar/): 2D Poisson and Laplace laws for a
   dimensionless potential on physical metre coordinates, with fixed-value and
   outward constitutive-gradient boundary data. The coefficient defaults to one.
-  Fixed-SI steady heat, fixed temperature and physical outward heat flux use
+  Fixed-SI steady heat, fixed temperature, physical outward heat flux and
+  convective heat transfer use
   Kelvin temperature, conductivity in W/(m K) and heating in W/m³.
   Constant-capacity transient heat and prescribed conservative scalar
   advection–diffusion use the ordinary Q1/backward-Euler workflow. Constant-capacity

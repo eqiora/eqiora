@@ -1,0 +1,25 @@
+{
+  "candidate_sha256": "62269015ba38087d890ee52313616d97d979bd299bc73286c42f3c9131e4ddce",
+  "decoded_field_selection": "exact sole Field ULID from authenticated originalPlan inventory; decodedModel has no source aliases",
+  "export_identity_sha256": "5c691621d8c5550ccb75ff7e7dc898e29f7e405fa47039549435025206733394",
+  "launch_plan_sha256": "9106d484239f732b11dfe7278240619fa0cb191b812910e5b5e25d3a62a9b3cb",
+  "native_reopen_byteexact": true,
+  "native_source_revision": "5f813078f642e3854a44631a90b20f9eda502caf",
+  "ordinary_solves": 0,
+  "original_files_sha256": {
+    "failure.json": "f1c7643438ec737fcfca149e5e70ad0b5310076cce9a0214711e786eb02ecc3b",
+    "launch.json": "1b29746ff22303ad53b5d1f82c9ff530ea5359c8d06a601b4591e710f25d13f7",
+    "mesh.json": "533f7b0a4b363cbde05538c2f1c00d4d4adb5456f1566e3e3746a6a78a12a55e",
+    "model.eqi": "a4a245d98bb95fae47f2bfd3ad8e8bb98efb005c9656aab4110c43113f4d5b4c",
+    "model.json": "aca815d16b2acc91562e49f9e14ab7a823bd07e5bc676b104a64e05649432c33",
+    "plan.json": "7c63b9ebd8773f9681a96c0a948c775f772d4058147b7cea6c2b5a82e6c98c35",
+    "result.json": "f279927253e47839d17f93f6e682dca48d9df7f701ebe56d584c46f31a71c9ee"
+  },
+  "original_producer_process_sha256": "1e62109cdf85f4f43e225ec616548c9592bcdc105f0de9d1815f08627b171b3a",
+  "original_solve_harness_revision": "7057e711db7ac79b751f873b7904fc62404ed759",
+  "postprocessing_revision": "94f690918b4455b3be678eb8aa7dc03ef7b40d08",
+  "schema": 1,
+  "scope": "read-only export from original completed cold Result, not a new cold solve or replacement of failed producer receipt",
+  "selected_field_id": "5EZNQZAZPQSVYC92MS733T8QX0",
+  "selected_field_model_digest": "ae854d5c7a1126cc7b45e8262c3f22b60b83507961bb9cc1e456b75b3b8245f8"
+}

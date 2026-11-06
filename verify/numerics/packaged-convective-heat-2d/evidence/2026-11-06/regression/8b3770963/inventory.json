@@ -1,0 +1,287 @@
+{
+  "schema": 1,
+  "kind": "required-registered-case-regression",
+  "source_head": "8b3770963",
+  "initial_campaign_reference": "../../inventory.json",
+  "registered_case": "numerics.packaged-convective-heat-2d",
+  "status": "passed",
+  "integration_tests_passed": 14,
+  "additional_public_convection_runs": 4,
+  "files": [
+    {
+      "path": "build.stderr.log",
+      "sha256": "97b57f944749cea8617cab5e0c8a01a21286efddc78b214128adf3e92d73ca84",
+      "bytes": 360
+    },
+    {
+      "path": "launch.json",
+      "sha256": "be777d40eeda3f5733b7f5c1c15d9f7d1b64c238bb34f44a05ac027fc5b51267",
+      "bytes": 239
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/case-attempt.json",
+      "sha256": "f3c9e6f49467ce6a7b25fcad17fe6b1b900008d92e02078b9fcb200abdd7cd05",
+      "bytes": 533
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/comparison.json",
+      "sha256": "dddb9725d62b075b1aaf824b3ee5437ea618c0b0df7d2be055538d85f391cf21",
+      "bytes": 16463
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/mesh.eqmesh",
+      "sha256": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+      "bytes": 2638
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/model.eqi",
+      "sha256": "946304a7b1372d8dba6da1b1bcc383e28df292dbd567e7b2f5721d706c8bfde4",
+      "bytes": 1583
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/model.json",
+      "sha256": "e39387ff265a7bb3d6f3479064b7335ad61fac37077e279d78ba476e9a40ab2a",
+      "bytes": 18737
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/observations.json",
+      "sha256": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e",
+      "bytes": 3729
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/package-compilation.json",
+      "sha256": "498f2192f0a16ca72f37547130632df5be8bdd6796b4a4bbfae5d79ae6d1e96b",
+      "bytes": 1010
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/plan.eqplan",
+      "sha256": "548ff7a9fbc046311300f154c987712b5606b8e0ecd0d5f303c00f543d09ec73",
+      "bytes": 31153
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/producer-receipt.json",
+      "sha256": "29d92b202332e63eb109709789c4fca8ba652b334317b6b20a1fd28f1eacd5c8",
+      "bytes": 6859
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/result.eqresult",
+      "sha256": "5e166c3d184b4a7dd83d66ff7034a42f1a4b34e644ce0ca050e961e6c65a9304",
+      "bytes": 1679
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219
+    },
+    {
+      "path": "producer/changed_geometry_material_cooling/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364
+    },
+    {
+      "path": "producer/changed_h/case-attempt.json",
+      "sha256": "6daae68e8ba14a82ad0988eb3203ebbd41023222aa131e99f94baea8f706c8be",
+      "bytes": 509
+    },
+    {
+      "path": "producer/changed_h/comparison.json",
+      "sha256": "10cd0927405a5137af4517e5530821fd92613aaa84061baec584c8066ee8e318",
+      "bytes": 16354
+    },
+    {
+      "path": "producer/changed_h/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638
+    },
+    {
+      "path": "producer/changed_h/model.eqi",
+      "sha256": "f5bd5519423b3bbab8ad52f74bff26b0f49338a0bb38470786b772462b8ca5fb",
+      "bytes": 1583
+    },
+    {
+      "path": "producer/changed_h/model.json",
+      "sha256": "8371236e2141c5d25a6e43b4297462ff778511bad16e1a4df6f0a898e21a1b45",
+      "bytes": 18737
+    },
+    {
+      "path": "producer/changed_h/observations.json",
+      "sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+      "bytes": 3703
+    },
+    {
+      "path": "producer/changed_h/package-compilation.json",
+      "sha256": "15afabdfedc2615918812b35321e39b120c0685b93195febec8e7b379e842ec0",
+      "bytes": 1010
+    },
+    {
+      "path": "producer/changed_h/plan.eqplan",
+      "sha256": "d3e8f0f5eb8fd48473e94548148b3b185bb7640dda9c1977a03623961549184b",
+      "bytes": 31153
+    },
+    {
+      "path": "producer/changed_h/producer-receipt.json",
+      "sha256": "853381d4db3b19b8d33fb255a6a8d81b4999f2e63209cbb5759e88331679f7d4",
+      "bytes": 6859
+    },
+    {
+      "path": "producer/changed_h/result.eqresult",
+      "sha256": "c3cf5cf3bbfca599bd08c2b89fec53096a739a06a899513a716283ab9f8d82e6",
+      "bytes": 1682
+    },
+    {
+      "path": "producer/changed_h/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027
+    },
+    {
+      "path": "producer/changed_h/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219
+    },
+    {
+      "path": "producer/changed_h/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364
+    },
+    {
+      "path": "producer/insulated/case-attempt.json",
+      "sha256": "8d67826431f564fd485e1267e7c1921de0fe1319d8018b5aec56923fe5e60a60",
+      "bytes": 509
+    },
+    {
+      "path": "producer/insulated/comparison.json",
+      "sha256": "792804f51a5e8cbf6898ab021667ea16e4e0fc61cf8a22a6a05b91339858e3df",
+      "bytes": 16085
+    },
+    {
+      "path": "producer/insulated/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638
+    },
+    {
+      "path": "producer/insulated/model.eqi",
+      "sha256": "37719ea1e479d2d8ff68e7ad445c9edf8d0a8c9a5dad4ee999fcc88de3de5e9b",
+      "bytes": 1583
+    },
+    {
+      "path": "producer/insulated/model.json",
+      "sha256": "7a0f5c6ec2406272d8129fc4c4fee0845c731eae96448328c237242830b5d242",
+      "bytes": 18671
+    },
+    {
+      "path": "producer/insulated/observations.json",
+      "sha256": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c",
+      "bytes": 3685
+    },
+    {
+      "path": "producer/insulated/package-compilation.json",
+      "sha256": "d17b83d3c8724b229b17d32a89775a991a488a1a4f6039471db23516945aa3d9",
+      "bytes": 1010
+    },
+    {
+      "path": "producer/insulated/plan.eqplan",
+      "sha256": "40f133e9b418f860ec22ca6c0dba37d12a598cd50169d5c36eee7095fdc82949",
+      "bytes": 31065
+    },
+    {
+      "path": "producer/insulated/producer-receipt.json",
+      "sha256": "93f79dcd4a4673ea4bf426eb5024d11db7dec22c694a05b1d0159e624f6f1e76",
+      "bytes": 6859
+    },
+    {
+      "path": "producer/insulated/result.eqresult",
+      "sha256": "436f7919869eadcf28b6306a2db844f424225473f434ad67c5c1ff24379fe9da",
+      "bytes": 1679
+    },
+    {
+      "path": "producer/insulated/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027
+    },
+    {
+      "path": "producer/insulated/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219
+    },
+    {
+      "path": "producer/insulated/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364
+    },
+    {
+      "path": "producer/robin/case-attempt.json",
+      "sha256": "ae41f684dc09bea722c005f37767df672e02b3e5233389546c4f8136c8a1e335",
+      "bytes": 505
+    },
+    {
+      "path": "producer/robin/comparison.json",
+      "sha256": "2fd54bf4b40d8832c72b1f310b183d12ca14be26a88a8b2794e33abc532677a6",
+      "bytes": 16378
+    },
+    {
+      "path": "producer/robin/mesh.eqmesh",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638
+    },
+    {
+      "path": "producer/robin/model.eqi",
+      "sha256": "b96cf6c2e0153bf5c6988218f0fd2b9d92af254f3071d26ba60757a9851b2fcf",
+      "bytes": 1583
+    },
+    {
+      "path": "producer/robin/model.json",
+      "sha256": "454d83a73e37a576464dbc025da664b440794b4b44a53f1ef680d4ea9b9abd8b",
+      "bytes": 18737
+    },
+    {
+      "path": "producer/robin/observations.json",
+      "sha256": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4",
+      "bytes": 3703
+    },
+    {
+      "path": "producer/robin/package-compilation.json",
+      "sha256": "27a175793a8cc2304b8e6e69b2c644d432044f5af9afb76f58f401bd33b48ad8",
+      "bytes": 1010
+    },
+    {
+      "path": "producer/robin/plan.eqplan",
+      "sha256": "303346030517ec3bdd51cc0d88451bd301582cee56c2dfb54dff86c3d638f812",
+      "bytes": 31153
+    },
+    {
+      "path": "producer/robin/producer-receipt.json",
+      "sha256": "ed9e870ded5d580f9fa80317c2cfd59a400480b0bb3937fef401817bcf812cd3",
+      "bytes": 6859
+    },
+    {
+      "path": "producer/robin/result.eqresult",
+      "sha256": "43cb428c8c69362df1f106ad2894c13e4038929bf3b69627775cc7dc4d78426a",
+      "bytes": 1681
+    },
+    {
+      "path": "producer/robin/scalar-README.md.txt",
+      "sha256": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+      "bytes": 8027
+    },
+    {
+      "path": "producer/robin/scalar-package.json",
+      "sha256": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+      "bytes": 219
+    },
+    {
+      "path": "producer/robin/scalar.eqi",
+      "sha256": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+      "bytes": 3364
+    },
+    {
+      "path": "report.json",
+      "sha256": "ce67e211530b756b1df66a410fc757cf31c7a23e417c22001d23d4e1c435537c",
+      "bytes": 1885
+    }
+  ]
+}

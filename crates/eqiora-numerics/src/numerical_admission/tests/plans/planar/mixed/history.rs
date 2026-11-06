@@ -56,6 +56,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);

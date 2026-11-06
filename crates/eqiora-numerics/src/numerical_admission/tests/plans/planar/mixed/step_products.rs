@@ -66,6 +66,7 @@ fn mixed_step_products_preserve_certified_operator_properties() {
                 &REFERENCE_LINEAR_SOLVER,
                 None,
                 None,
+                None,
             )
             .unwrap();
             let plan = resolved.as_spatial().unwrap();

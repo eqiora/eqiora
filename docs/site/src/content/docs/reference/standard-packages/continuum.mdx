@@ -23,7 +23,7 @@ the bundled Fluid release is 0.5.0 and Solid.LinearElasticity is 0.7.0. The publ
 
 ## Scalar Poisson and Laplace
 
-Development builds bundle `Eqiora.Scalar@0.4.0`. Import
+Development builds bundle `Eqiora.Scalar@0.5.0`. Import
 `Eqiora.Scalar.scalar as scalar` for a **dimensionless potential** on a
 2D body whose coordinates are measured in metres. The dimensionless
 `coefficient` defaults to one; override it explicitly for another constant.
@@ -46,7 +46,7 @@ for complete imported and handwritten versions of one problem. Save its imported
 source as `inverse-poisson.eqi` and use the lesson runner's complete
 `eqiora.compile` call with its entry, geometry and parameter bindings. The
 ordinary compile path resolves the bundled import. Explicit package
-projects can add `"Eqiora.Scalar"` with `version="0.4.0"` through
+projects can add `"Eqiora.Scalar"` with `version="0.5.0"` through
 `eqiora.add_bundled_dependency` and vendor it for offline reopening.
 
 These Poisson and Laplace components have a dimensionless potential; use the
@@ -54,18 +54,26 @@ separate thermal components below for Kelvin temperature.
 The lesson derives its heat nondimensionalization separately. The
 <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/README.md">package contract</ExactSourceLink>
 and <ExactSourceLink kind="blob" path="verify/numerics/packaged-scalar-elliptic-2d/README.md">verification case</ExactSourceLink>
-describe the existing host reference Q1 checks. The package adds no FVM, MPI,
-GPU, unstructured-mesh, Robin or periodic execution support.
+describe the existing host reference Q1 checks. These dimensionless Poisson/Laplace components add no FVM, MPI, GPU,
+unstructured-mesh, Robin or periodic execution support.
 
 ## Steady heat conduction
 
-The same `Eqiora.Scalar@0.4.0` module also provides fixed-SI thermal components:
+The same `Eqiora.Scalar@0.5.0` module also provides fixed-SI thermal components:
 
 - `SteadyHeat2d`: Fourier flux `-conductivity * grad(temperature)` and volumetric `heating`.
 - `TransientHeat2d`: the same flux/source plus `storage capacity * temperature`
   for a caller-owned temperature State, with capacity in J/(m³ K).
 - `FixedTemperature2d`: prescribed Kelvin temperature expression on a boundary.
 - `OutwardHeatFlux2d`: prescribed physical outward heat flux expression in W/m².
+- `ConvectiveHeatTransfer2d`: physical outward heat flux
+  `coefficient * (temperature - ambient)`, with coefficient in W/(m² K).
+
+Convection takes the same conductivity as the volume and a smooth Kelvin Field.
+The caller supplies all inputs; the ambient temperature is an expression on the
+bound face. The supported path is steady affine Cartesian 2D Q1, serial CPU
+reference provider. TPFA is rejected with a typed diagnostic. Transient convection,
+threaded CPU, MPI and GPU execution are not verified by this example.
 
 Temperature is a Kelvin Field, conductivity is an explicit parameter in W/(m K),
 and heating has units W/m³. Positive heat flux leaves the body; use
@@ -80,8 +88,8 @@ check Cartesian 2D Q1 on CPU, both physical flux signs, unit/support diagnostics
 and Plan/Result replay. The [storage lesson](/learn/heat-transfer/transient-storage/)
 uses imported constant-capacity heat with caller-owned initial data, Q1 and backward
 Euler; it also retains the same transient Law written by hand. Positive capacity
-is a physical-use assumption, not a new package positivity check. This package adds
-no validated threaded, MPI, GPU, convective or coupled-interface thermal workflow.
+is a physical-use assumption, not a new package positivity check. The storage example adds
+no validated transient convection, threaded CPU, MPI, GPU or coupled-interface thermal workflow.
 
 ## Elastic balance and boundaries
 
@@ -217,7 +225,7 @@ this Fluid consolidation does not change its distribution.
 
 ## Transient scalar advection–diffusion
 
-Development Scalar 0.4.0 provides `TransientAdvectionDiffusion2d` for
+Development Scalar 0.5.0 provides `TransientAdvectionDiffusion2d` for
 `∂c/∂t + div(c β − κ grad(c)) = q`. Bind the caller's dimensionless State to
 `scalar`, a constant positive `diffusivity` in `m²/s`, prescribed `velocity_x`
 and `velocity_y` expressions in `m/s`, and `source` in `1/s`. The velocity can

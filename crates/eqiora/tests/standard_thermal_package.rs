@@ -1,4 +1,6 @@
 //! Imported fixed-SI thermal equations through the common Cartesian Q1 lifecycle.
+#[path = "standard_thermal_package/robin.rs"]
+mod robin;
 #[path = "standard_thermal_package/transient.rs"]
 mod transient;
 use std::collections::BTreeMap;
@@ -72,8 +74,17 @@ fn slab(outward: i32) -> String {
 fn fixture(
     source: &str,
 ) -> Result<(SourceCompilation, AuthenticatedCommonMesh), SourceCompilationError> {
+    fixture_rectangle(source, [1.0, 1.0])
+}
+
+fn fixture_rectangle(
+    source: &str,
+    lengths: [f64; 2],
+) -> Result<(SourceCompilation, AuthenticatedCommonMesh), SourceCompilationError> {
     let graph = GeometryGraph::new();
-    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let rectangle = graph
+        .rectangle([0.0, lengths[0]], [0.0, lengths[1]])
+        .unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph
         .build(
@@ -128,6 +139,14 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, String> {
 
 fn resolve_temporal(source: &str, step: Option<f64>) -> Result<ResolvedCommonPlan, String> {
     let (document, owner) = fixture(source).map_err(|error| format!("{error:?}"))?;
+    resolve_fixture(&document, owner, step)
+}
+
+fn resolve_fixture(
+    document: &SourceCompilation,
+    owner: AuthenticatedCommonMesh,
+    step: Option<f64>,
+) -> Result<ResolvedCommonPlan, String> {
     assert!(matches!(document, SourceCompilation::Packaged(_)));
     let model = ModelEnvelope::from_program(document.model().program()).unwrap();
     let linear = CommonLinearRequest::exact(
@@ -152,6 +171,7 @@ fn resolve_temporal(source: &str, step: Option<f64>) -> Result<ResolvedCommonPla
             .transpose()
             .map_err(|error| error.to_string())?,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )

@@ -1,0 +1,40 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.13 at /data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.11 support
+   Compiling bindgen v0.68.1
+   Compiling diffsol-nl v0.1.1
+   Compiling eqiora-artifact v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-artifact)
+   Compiling sundials-sys v0.6.2
+   Compiling eqiora-runtime v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-runtime)
+   Compiling eqiora-backend-faer v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-backend-faer)
+   Compiling eqiora-backend-diffsol v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-backend-diffsol)
+   Compiling eqiora-differentiation v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-differentiation)
+   Compiling eqiora-io-gmsh v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-io-gmsh)
+   Compiling eqiora-io-xml v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-io-xml)
+   Compiling eqiora-numerics v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-numerics)
+   Compiling diffsol v0.16.2
+   Compiling eqiora-io-hdf5 v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-io-hdf5)
+   Compiling pyo3-macros v0.29.3
+   Compiling pyo3-ffi v0.29.3
+   Compiling numpy v0.29.0
+   Compiling pyo3 v0.29.3
+   Compiling eqiora-api v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-api)
+   Compiling eqiora-backend-sundials v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-backend-sundials)
+error[E0080]: evaluation panicked: assertion failed: sys::SUNDIALS_VERSION_MAJOR == 7 && sys::SUNDIALS_VERSION_MINOR == 8 &&
+                  sys::SUNDIALS_VERSION_PATCH == 0
+  --> crates/eqiora-backend-sundials/src/native.rs:15:15
+   |
+15 |   const _: () = assert!(
+   |  _______________^
+16 | |     sys::SUNDIALS_VERSION_MAJOR == 7
+17 | |         && sys::SUNDIALS_VERSION_MINOR == 8
+18 | |         && sys::SUNDIALS_VERSION_PATCH == 0
+19 | | );
+   | |_^ evaluation of `native::_` failed here
+
+For more information about this error, try `rustc --explain E0080`.
+error: could not compile `eqiora-backend-sundials` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+💥 maturin failed
+  Caused by: Failed to build a native library through cargo
+  Caused by: Cargo build finished with "exit status: 101": `env -u CARGO PYO3_BUILD_EXTENSION_MODULE="1" PYO3_CONFIG_FILE="/data/nk523/tmp/eqiora-scalar-convection/target/maturin/pyo3-config-x86_64-unknown-linux-gnu-3.13-abi3.txt" PYO3_ENVIRONMENT_SIGNATURE="cpython-3.13-64bit" PYO3_PYTHON="/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python" PYTHON_SYS_EXECUTABLE="/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python" "cargo" "rustc" "--profile" "dev" "--message-format" "json-render-diagnostics" "--locked" "--manifest-path" "/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-python/Cargo.toml" "--lib" "--crate-type" "cdylib" "--" "-C" "strip=symbols"`
