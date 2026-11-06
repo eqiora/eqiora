@@ -5,7 +5,7 @@ import json
 
 A = [[Q(n, 16) for n in row] for row in ((1, 2, 0), (0, 3, 1), (1, 0, 2))]
 H = (Q(1), Q(3, 2), Q(2))
-CORNERS = list(product(range(2), repeat=3))
+CORNERS = [(i, j, k) for k in range(2) for j in range(2) for i in range(2)]
 NODES = [(Q(i), Q(3*j, 2), Q(2*k)) for k in range(3) for j in range(3) for i in range(3)]
 U = [sum(A[c][d]*x[d] for d in range(3)) for x in NODES for c in range(3)]
 D = [3*n+c for n, x in enumerate(NODES) if x[0] == 0 for c in range(3)]

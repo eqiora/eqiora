@@ -33,7 +33,7 @@ def decode(text):
     keys(obj, ('identity','lineage','coefficients','energy_J','left_traction_N'))
     identity = dict(dimension=3, family='Hex', order='Q1', geometry='affine-cartesian',
                     cells=[2,2,2], quadrature=[2,2,2], units=['m','J','N'])
-    if obj['identity'] != identity:
+    if json.dumps(obj['identity'], sort_keys=True) != json.dumps(identity, sort_keys=True):
         raise ValueError('wrong mathematical identity')
     keys(obj['lineage'],('mesh','model','result'))
     if any(type(v) is not str or not v.strip() for v in obj['lineage'].values()):
