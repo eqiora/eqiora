@@ -173,6 +173,7 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
 
 #[test]
 fn altered_authored_tensor_forms_reject_before_any_result() {
+    prepare_source(SOURCE).expect("positive preparation must pass before mutation controls");
     let (equations, weak) = SOURCE.split_once("  form weak for balance {").unwrap();
     let changed_component = format!(
         "{}{}{}{}",

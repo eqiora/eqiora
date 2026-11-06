@@ -52,7 +52,12 @@ def altered_sources():
 
 @pytest.mark.parametrize('control', tuple(altered_sources()))
 def test_altered_authored_tensor_forms_reject_before_any_result(tmp_path, control):
+    baseline = tmp_path/'baseline'
+    baseline.mkdir()
+    production.prepare(eqiora, baseline)
+    mutated = tmp_path/'mutated'
+    mutated.mkdir()
     with pytest.raises(eqiora.ValidationError) as caught:
-        production.prepare(eqiora, tmp_path, source=altered_sources()[control].encode())
+        production.prepare(eqiora, mutated, source=altered_sources()[control].encode())
     assert 'coefficient alias exceeds the authored expression inventory' not in str(caught.value)
-    assert not (tmp_path/'result.json').exists()
+    assert not (mutated/'result.json').exists()
