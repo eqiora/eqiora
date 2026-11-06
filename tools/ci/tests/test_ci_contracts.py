@@ -1031,7 +1031,7 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertTrue(private.lane("rust").selected)
         self.assertTrue(private.lane("msrv").selected)
         self.assertTrue(private.lane("site").selected)
-        self.assertFalse(private.lane("python").selected)
+        self.assertTrue(private.lane("python").selected)
         self.assertFalse(private.lane("studio").selected)
 
         public = impact_plan(["crates/eqiora/src/lib.rs"])
@@ -1042,6 +1042,27 @@ class ChangeClassificationTests(unittest.TestCase):
                     public.lane(lane).owning_changed_inputs,
                     ("crates/eqiora/src/lib.rs",),
                 )
+
+    def test_numerics_profiling_producer_selects_installed_python(self) -> None:
+        producer = (
+            "crates/eqiora-numerics/src/numerical_admission/scalar/regions/execute.rs"
+        )
+        unrelated = "crates/eqiora-core/src/lib.rs"
+        plan = impact_plan([producer, unrelated])
+        self.assertTrue(plan.lane("python").selected)
+        self.assertEqual(plan.lane("python").owning_changed_inputs, (producer,))
+        self.assertFalse(plan.lane("studio").selected)
+
+        private = impact_plan([unrelated])
+        self.assertTrue(private.lane("rust").selected)
+        self.assertTrue(private.lane("msrv").selected)
+        self.assertFalse(private.lane("python").selected)
+        self.assertFalse(private.lane("studio").selected)
+
+        documentation = impact_plan(["crates/eqiora-numerics/README.md"])
+        for lane in ("rust", "msrv", "python", "studio"):
+            with self.subTest(documentation_lane=lane):
+                self.assertFalse(documentation.lane(lane).selected)
 
     def test_impact_plan_fail_closed_reasons_are_stable(self) -> None:
         unknown = impact_plan(["new-area/file.bin", "docs/architecture.md"])
@@ -1157,11 +1178,11 @@ class ChangeClassificationTests(unittest.TestCase):
             with self.subTest(editor_lane=lane):
                 self.assertFalse(editor.lane(lane).selected)
 
-    def test_numerics_change_selects_rust_and_msrv_only(self) -> None:
+    def test_numerics_change_selects_rust_msrv_and_python(self) -> None:
         selected = classify(["crates/eqiora-numerics/src/lib.rs"])
         self.assertTrue(selected["rust"])
         self.assertTrue(selected["msrv"])
-        self.assertFalse(selected["python"])
+        self.assertTrue(selected["python"])
         self.assertFalse(selected["studio"])
 
     def test_public_facade_selects_installed_clients(self) -> None:
