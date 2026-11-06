@@ -1,7 +1,8 @@
 # Cartesian Hex elasticity: pre-candidate reference
 
-This directory prepares the independent mathematics for issue #445. It does not
-register evidence, execute Eqiora, or establish a supported capability. Two
+This directory prepares independent mathematics for a three-dimensional Cartesian
+Q1 hexahedral elasticity reference. It does not register evidence, execute Eqiora,
+or establish a supported capability. Two
 independent oracle reviews must accept this protocol before candidate execution.
 
 The box is [0,2] × [0,3] × [0,4] m, divided into 2 × 2 × 2 affine Hex cells.
