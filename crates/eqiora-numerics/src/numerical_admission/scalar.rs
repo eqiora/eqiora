@@ -630,7 +630,7 @@ impl CommonSpatialPlan {
                 self.admission.resources()
             else {
                 return Err(invalid(
-                    "bubble coefficients require an authenticated simplicial Mesh",
+                    "simplicial coefficients require an authenticated simplicial Mesh",
                 ));
             };
             return match self.admission.recognized_model() {
@@ -649,7 +649,7 @@ impl CommonSpatialPlan {
                 )
                 .map(|(entities, _)| entities),
                 _ => Err(invalid(
-                    "bubble coefficients require linear Region equations",
+                    "simplicial coefficients require linear Region equations",
                 )),
             };
         }

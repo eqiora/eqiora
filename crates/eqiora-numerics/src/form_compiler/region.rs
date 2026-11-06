@@ -46,7 +46,7 @@ mod error_estimate;
 mod prepared;
 pub(crate) use prepared::PreparedRegionCell;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub(crate) use binding::{
     BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, state_layout,

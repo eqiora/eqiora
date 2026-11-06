@@ -38,3 +38,26 @@ its original producer identities remain unchanged.
 
 No product PDE execution is authorized until the implementation, public
 roundtrip checks, producer and exact artifact/source hashes have been reviewed.
+
+## Quadrature contracts
+
+A standalone RealizationPlan promises to cover products of the selected basis:
+P2 simplex products have degree four, requiring three Duffy points per axis on a
+triangle and four on a tetrahedron. That strict validator remains unchanged in
+purpose. Its portable projection revalidates that standalone plan.
+
+The portable graph records structural closure and solver compatibility. Its
+construction and decoding do not independently establish equation quadrature
+adequacy. Removing the former dimensional-graph basis-product restriction is an
+intentional correction to that acceptance contract, not a numerical invariance
+claim. Moment profiles retain their existing strict checks. An equation-aware
+consumer must authenticate the graph against its actual equations.
+
+The ordinary CommonPlan reconstructs the Model, mesh, bound volume forms and all
+natural facet requirements on both construction and replay. One persisted rule
+covers their maximum requirement and the existing profile accuracy floor. Thus
+affine P2 diffusion with constant source admits three tetrahedral Duffy points;
+a P2 mass term requires four. Higher source or facet degrees raise the same
+persisted rule. A raw graph roundtrip is never sufficient execution admission.
+The existing scalar P1 floor remains three, MINI basis products select four in
+2D and six in 3D, and tetrahedral moment profiles retain three.

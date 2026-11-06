@@ -4,6 +4,8 @@ mod geometry;
 mod geometry_authoring;
 #[path = "tests/moments.rs"]
 mod moments;
+#[path = "tests/quadratic.rs"]
+mod quadratic;
 #[path = "tests/spatial_nonlinear.rs"]
 mod spatial_nonlinear;
 use std::num::{NonZeroU16, NonZeroUsize};

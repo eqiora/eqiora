@@ -415,3 +415,33 @@ fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients
         close(*rhs, 0.0);
     }
 }
+
+// Shared pure bound-form fixture for compiler and actual scalar-selector tests.
+pub(crate) fn bound_selector_fixture(
+    source: &str,
+    dimension: usize,
+    space: Space,
+) -> (
+    BoundRegionForm<f64>,
+    eqiora_realization::DomainFieldDiscretization,
+) {
+    let form = derive_dimension(source, dimension).unwrap();
+    let (fields, rows) = form.si_bindings(|_| Ok(space)).unwrap();
+    let selected = eqiora_realization::DomainFieldDiscretization::new(
+        form.domain().downcast().unwrap(),
+        fields.iter().map(|field| {
+            eqiora_realization::FieldSpaceBinding::new(field.field.downcast().unwrap(), field.space)
+        }),
+        [],
+    )
+    .unwrap();
+    let bound = form
+        .bind(
+            ReferenceCell::simplex(dimension).unwrap(),
+            &fields,
+            &rows,
+            None,
+        )
+        .unwrap();
+    (bound, selected)
+}

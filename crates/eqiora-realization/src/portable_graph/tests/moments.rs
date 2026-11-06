@@ -1,6 +1,6 @@
 use super::*;
 
-fn graph(
+pub(super) fn graph(
     space: Space,
     dimension: usize,
     points: usize,
