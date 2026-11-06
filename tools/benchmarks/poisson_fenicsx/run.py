@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from accuracy import declared_levels
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "BLIS_NUM_THREADS")
@@ -44,10 +46,15 @@ def main():
     parser.add_argument("--eqiora-revision", required=True)
     parser.add_argument("--eqiora-build-profile", required=True)
     parser.add_argument("--mode", choices=("correctness-only", "benchmark"), required=True)
-    parser.add_argument("--levels", type=int, nargs="+", choices=(4, 8, 16, 32), default=[4, 8, 16, 32])
+    parser.add_argument("--dimension", type=int, choices=(2, 3), default=2)
+    parser.add_argument("--levels", type=int, nargs="+", choices=(4, 8, 16, 32))
     parser.add_argument("--cpu", type=int, required=True)
     args = parser.parse_args()
-    levels = sorted(set(args.levels))
+    levels = sorted(set(args.levels if args.levels is not None else declared_levels(args.dimension)))
+    if any(level not in declared_levels(args.dimension) for level in levels):
+        parser.error("mesh level has no declared reference for this dimension")
+    if args.dimension == 3 and args.mode != "correctness-only":
+        parser.error("3D comparison currently supports correctness-only mode")
     if len(levels) < 2:
         parser.error("at least two declared levels are required for convergence")
     if args.cpu not in os.sched_getaffinity(0):
@@ -67,7 +74,7 @@ def main():
             executable = (args.eqiora_python if backend == "eqiora" else args.fenicsx_python).absolute()
             output = directory / "result.json"
             command = [str(executable), "-I", str(HERE / f"{backend}_case.py"),
-                       "--cells", str(cells), "--mode", args.mode, "--output", str(output)]
+                       "--dimension", str(args.dimension), "--cells", str(cells), "--mode", args.mode, "--output", str(output)]
             if backend == "eqiora":
                 command += ["--wheel", str(args.eqiora_wheel.resolve()), "--revision", args.eqiora_revision,
                             "--build-profile", args.eqiora_build_profile]
@@ -94,7 +101,8 @@ def main():
             values.append(order)
         orders[backend] = values
     summary = {"mode": args.mode, "complete_timing_comparison": args.mode == "benchmark",
-               "stable_timing_claim": False, "scope": "2D quadrilateral Q1 unit-square scalar Poisson only",
+               "stable_timing_claim": False, "dimension": args.dimension,
+               "scope": f"{args.dimension}D tensor Q1 unit-box scalar Poisson only",
                "observed_orders": orders, "levels": levels,
                "required_eqiora_phases_available": all(row["profile"]["required_phases_available"] for row in reports if row["tool"] == "eqiora"),
                "driver_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
