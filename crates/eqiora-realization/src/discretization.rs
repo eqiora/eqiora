@@ -381,7 +381,9 @@ impl Discretization {
                     spatial_dimension, ..
                 },
             ) if match space.family() {
-                SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble => true,
+                SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble => {
+                    matches!(spatial_dimension.get(), 2 | 3)
+                }
                 SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace => {
                     spatial_dimension.get() == 3
                 }

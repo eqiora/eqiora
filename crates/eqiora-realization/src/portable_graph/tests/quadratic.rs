@@ -44,3 +44,21 @@ fn p2_standalone_basis_products_remain_strict_while_raw_graph_is_structural() {
         }
     }
 }
+
+#[test]
+fn scaled_generic_order_five_graph_still_rejects_unsupported_simplex_dimension() {
+    let graph = super::Fixture::new(NonZeroU16::new(5).unwrap())
+        .resolve()
+        .portable_graph()
+        .unwrap();
+    let bytes = graph.to_bytes().unwrap();
+    let text = String::from_utf8(bytes).unwrap();
+    let wrong = text.replace("\"spatial_dimension\":2", "\"spatial_dimension\":4");
+    assert_ne!(wrong, text);
+    assert!(
+        PortableRealizationGraph::from_bytes(wrong.as_bytes())
+            .unwrap_err()
+            .message()
+            .contains("matching dimension")
+    );
+}

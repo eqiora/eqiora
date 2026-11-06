@@ -61,3 +61,8 @@ a P2 mass term requires four. Higher source or facet degrees raise the same
 persisted rule. A raw graph roundtrip is never sufficient execution admission.
 The existing scalar P1 floor remains three, MINI basis products select four in
 2D and six in 3D, and tetrahedral moment profiles retain three.
+
+Structural compatibility also preserves existing abstract higher-order field-wise
+graphs. It rejects unsupported simplex dimensions but does not promise an ordinary
+kernel for every abstract order. The ordinary DiscreteSpace binding independently
+rejects orders without implemented kernels; this workflow exposes only P2.
