@@ -35,6 +35,19 @@ def float64_hex(value):
     return [float64_hex(item) for item in value] if isinstance(value, list) else float(value).hex()
 
 
+def associated_field_records(fields, *, hexadecimal):
+    """Retain each adapter-declared association without guessing its topology."""
+    records = {}
+    for name, field in fields.items():
+        if (not isinstance(name, str) or not name
+                or not isinstance(field.get("association"), str) or not field["association"]):
+            raise ComparisonError("associated fields require a name and an explicit association")
+        values = field["values"].tolist()
+        records[name] = {"association": field["association"],
+                         "values_float64_hex" if hexadecimal else "values": float64_hex(values) if hexadecimal else values}
+    return records
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -79,19 +92,22 @@ def finish(args, tool, prepared, execute, extract, profile, *, accuracy, diagnos
     if type(diagnostic_extra_calls) is not int or diagnostic_extra_calls < 0:
         raise ComparisonError("diagnostic extra-call count must be a nonnegative integer")
     report = prepared
-    report.update(tool=tool, dimension=args.dimension, cells_per_axis=args.cells, mode=args.mode,
+    report.update(tool=tool, mode=args.mode,
                   stable_timing_claim=False, measurement_status=("correctness-only smoke; not performance evidence" if args.mode == "correctness-only"
                                       else "unqualified timing collection; no stable reference-environment claim"))
     result, cold = clock(execute)
     report["memory_after_execution_before_accuracy"] = memory()
-    coordinates, values, solve = extract(result)
+    coordinates, values, solve, associated_fields = extract(result)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Preserve the actual candidate even if an accuracy/export gate rejects.
     # Hex strings retain non-finite status as valid JSON and finite values exactly.
-    candidate = {"dimension": args.dimension, "coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
-                 "values_float64_hex": float64_hex(values.tolist()), "solve": solve}
+    candidate = {"coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
+                 "values_float64_hex": float64_hex(values.tolist()), "solve": solve,
+                 "associated_fields": associated_field_records(associated_fields, hexadecimal=True)}
+    if "dimension" in report:
+        candidate["dimension"] = report["dimension"]
     args.output.with_name("candidate-field.json").write_text(json.dumps(candidate, indent=2, allow_nan=False)+"\n")
-    report["accuracy"] = accuracy(coordinates, values, args.cells)
+    report["accuracy"] = accuracy(coordinates, values, associated_fields)
     report["solve"] = solve
     report["profile"] = profile()
     report["diagnostic_execution"] = {
@@ -126,6 +142,7 @@ def finish(args, tool, prepared, execute, extract, profile, *, accuracy, diagnos
     report["environment"]["load_at_end"] = os.getloadavg()
     report["coordinates"] = coordinates.tolist()
     report["values"] = values.tolist()
+    report["associated_fields"] = associated_field_records(associated_fields, hexadecimal=False)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False)+"\n")
 

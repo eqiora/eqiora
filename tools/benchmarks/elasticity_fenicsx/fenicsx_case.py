@@ -140,9 +140,9 @@ def prepare(args):
         cross.destroy(); free_is.destroy(); bc_is.destroy()
         values = function.x.array.copy().reshape(-1, 2)
         matrix.destroy(); rhs.destroy()
-        return coordinates, values, summary
+        return coordinates, values, summary, {}
 
-    report = {'environment': env, 'memory_after_import': baseline, 'memory_after_preparation': memory(),
+    report = {'dimension': args.dimension, 'cells_per_axis': args.cells, 'environment': env, 'memory_after_import': baseline, 'memory_after_preparation': memory(),
               'mesh_measurement': mesh_time, 'preparation_measurement': preparation,
               'dofs': {'total': 2*count, 'free': 2*(args.cells-1)**2, 'stored_algebraic': 2*count},
               'jit': {'cache': 'fresh directory', 'cffi_extra_compile_args': ['-O3']}}
@@ -179,7 +179,7 @@ def prepare(args):
 
 def main(args):
     report, execute, extract, diagnostic = prepare(args)
-    finish(args, 'fenicsx', report, execute, extract, diagnostic, accuracy=check_accuracy, diagnostic_extra_calls=1)
+    finish(args, 'fenicsx', report, execute, extract, diagnostic, accuracy=lambda coordinates, values, associated: check_accuracy(coordinates, values, args.cells), diagnostic_extra_calls=1)
 
 
 if __name__ == '__main__':
