@@ -297,3 +297,68 @@ fn archived_pre_import_v1_v4_encodings_and_planar_gmsh_acceptance_stay_unchanged
         .is_err()
     );
 }
+
+fn exact_rectangle() -> CanonicalGeometryV1 {
+    let graph = eqiora_geometry::GeometryGraph::new();
+    let face = graph.rectangle([0.,1.],[0.,1.]).unwrap();
+    let sides = face.boundaries();
+    graph.build(&face, &BTreeMap::from([
+        ("body".to_owned(),vec![face.region().into()]),
+        ("left".to_owned(),vec![sides[0].into()]),
+        ("right".to_owned(),vec![sides[1].into()]),
+        ("bottom".to_owned(),vec![sides[2].into()]),
+        ("top".to_owned(),vec![sides[3].into()]),
+    ])).unwrap()
+}
+
+#[test]
+fn external_msh_existing_rectangle_keeps_identity_and_all_four_sides() {
+    let geometry = exact_rectangle();
+    assert!(geometry.region().is_none());
+    let owner = AuthenticatedCommonMesh::import_msh41(geometry.clone(),policy(4,4096),SQUARE.to_vec()).unwrap();
+    assert_eq!(owner.geometry(),Some(&geometry));
+    assert_eq!(owner.simplicial_mesh().unwrap().mesh().cells(),[vec![0,1,2],vec![0,2,3]]);
+    let correspondence = owner.correspondence().unwrap();
+    assert_eq!(correspondence.planar_entity_set_entities(&geometry,"body").unwrap().len(),2);
+    for side in ["left","right","bottom","top"] {
+        let entities = correspondence.planar_entity_set_entities(&geometry,side).unwrap();
+        assert_eq!(entities.len(),1);
+        assert_eq!(entities[0].dimension(),1);
+    }
+    let bytes = owner.to_bytes().unwrap();
+    assert_eq!(AuthenticatedCommonMesh::from_bytes(&bytes).unwrap().to_bytes().unwrap(),bytes);
+    assert!(AuthenticatedCommonMesh::gmsh_4152(geometry.clone(),eqiora_artifact::GmshMeshPolicyV1::explicit(1e-12,0.01,8,5.).unwrap(),SQUARE.to_vec()).is_err());
+    let legacy_policy = eqiora_artifact::AffineTriangleMeshPolicy::new([1,1]).unwrap();
+    let (mesh, legacy_correspondence) = GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry,&legacy_policy).unwrap();
+    let wire: serde_json::Value = serde_json::from_slice(&legacy_correspondence.canonical_json().unwrap()).unwrap();
+    assert_eq!(wire["source"],"planar-rectangle-v2-affine-triangle-v1");
+    assert_eq!(mesh.mesh().cells(),[vec![0,2,3],vec![0,3,1]]);
+}
+
+#[test]
+fn external_msh_exact_rectangle_rejects_near_boundary_outside_and_source_substitution() {
+    let geometry = exact_rectangle();
+    let owner = AuthenticatedCommonMesh::import_msh41(geometry.clone(),policy(4,4096),SQUARE.to_vec()).unwrap();
+    let original = String::from_utf8(SQUARE.to_vec()).unwrap();
+    for changed in [original.replace("0 0 0\n1 0 0", "0.00000000000001 0 0\n1 0 0"), original.replace("0 0 0\n1 0 0", "-0.00000000000001 0 0\n1 0 0")] {
+        assert_ne!(changed,original);
+        assert!(AuthenticatedCommonMesh::import_msh41(geometry.clone(),policy(4,4096),changed.clone().into_bytes()).is_err());
+        let bytes = String::from_utf8(owner.to_bytes().unwrap()).unwrap();
+        let changed_wire = bytes.replace(&BASE64_STANDARD.encode(SQUARE),&BASE64_STANDARD.encode(changed));
+        assert_ne!(changed_wire,bytes);
+        assert!(AuthenticatedCommonMesh::from_bytes(changed_wire.as_bytes()).is_err());
+    }
+    let partial = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 3 1 3\n2 1 0 3\n1\n2\n3\n0 0 0\n1 0 0\n0 1 0\n$EndNodes\n$Elements\n1 1 1 1\n2 1 2 1\n1 1 2 3\n$EndElements\n";
+    assert!(AuthenticatedCommonMesh::import_msh41(geometry,policy(4,4096),partial.to_vec()).is_err());
+}
+
+#[test]
+fn external_msh_exact_rectangle_rejects_duplicate_geometric_coverage() {
+    // Two disconnected copies have valid positive/manifold simplex topology,
+    // but duplicate every rectangle-side interval. They cannot cover it once.
+    let duplicate = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 8 1 8\n2 1 0 8\n1\n2\n3\n4\n5\n6\n7\n8\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n$EndNodes\n$Elements\n1 4 1 4\n2 1 2 4\n1 1 2 3\n2 1 3 4\n3 5 6 7\n4 5 7 8\n$EndElements\n";
+    let parsed = eqiora_io_gmsh::import_msh41(duplicate,eqiora_io_gmsh::Msh41Policy::mesh(2,eqiora_meshing::MeshQualityGate::new(0.01).unwrap()).unwrap(),|_,_,_|{}).unwrap();
+    assert_eq!(parsed.cells().len(),4);
+    let failure = AuthenticatedCommonMesh::import_msh41(exact_rectangle(),policy(8,4096),duplicate.to_vec()).unwrap_err();
+    assert!(failure.message().contains("cover"));
+}
