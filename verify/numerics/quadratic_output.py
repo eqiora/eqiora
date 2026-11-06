@@ -3,6 +3,7 @@
 Consumers own mesh authentication, expected entity inventories, and element-specific
 closure checks. This module does not solve or evaluate a reference function.
 """
+from datetime import datetime, timezone
 from decimal import Decimal
 from fractions import Fraction
 import hashlib
@@ -89,3 +90,15 @@ def artifact_identity(plan, result, mesh, plan_raw, retained):
     return {"schema": 1, "plan_sha256": sha256(plan_raw), "result_sha256": sha256(result.to_bytes()),
             "plan_identity": plan.identity, "run_request_key": result.plan_key, "model_digest": plan.model_digest,
             "mesh_sha256": sha256(mesh.to_bytes()), "mesh_digest": mesh.digest, "coefficient_entities": retained}
+
+
+def write_new(path, value):
+    """Retain new artifact bytes; never replace an earlier result or receipt."""
+    raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2, sort_keys=True)+"\n").encode()
+    with path.open("xb") as handle:
+        handle.write(raw)
+    return sha256(raw)
+
+
+def utc():
+    return datetime.now(timezone.utc).isoformat()
