@@ -14,6 +14,7 @@ mod support;
 mod transfer;
 mod transient;
 pub(crate) use regions::ExecutableSpatialEquations;
+pub(super) use regions::RegionAssemblyPolicy;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
@@ -87,8 +88,10 @@ impl CommonSpatialPlan {
                     self.admission.resources(),
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
-                    LinearOperatorProperties::Symmetric,
-                    self.admission.assembly_quadrature(),
+                    RegionAssemblyPolicy {
+                        operator_properties: LinearOperatorProperties::Symmetric,
+                        quadrature: self.admission.assembly_quadrature(),
+                    },
                 )?;
                 let reference =
                     equations.mean_reference(self.admission.resources(), &system.mapping)?;

@@ -80,17 +80,12 @@ impl ResolvedCommonPlan {
         )?;
         if quadrature.is_some()
             && !matches!(
-                (&recognized.recognized, &spatial),
-                (
-                    RecognizedNativeModel::Spatial(_) | RecognizedNativeModel::ComplexSpatial(_),
-                    CommonSpatialRequest::Uniform(
-                        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::Q2 | CommonSpatialPolicy::P1
-                    ) | CommonSpatialRequest::Scoped(_)
-                )
+                recognized.recognized,
+                RecognizedNativeModel::Spatial(_) | RecognizedNativeModel::ComplexSpatial(_)
             )
         {
             return Err(invalid(
-                "assembly quadrature override requires the admitted scalar finite-element path",
+                "assembly quadrature override requires the common finite-element equation path",
             ));
         }
         recognized.assembly_quadrature = quadrature;

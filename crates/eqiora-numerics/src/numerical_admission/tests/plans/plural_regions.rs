@@ -392,8 +392,10 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
-            plan.admission.operator_properties,
-            None,
+            RegionAssemblyPolicy {
+                operator_properties: plan.admission.operator_properties,
+                quadrature: None,
+            },
         )
         .and_then(|system| {
             system.solve(

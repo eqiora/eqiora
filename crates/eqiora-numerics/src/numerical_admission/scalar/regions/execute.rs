@@ -12,9 +12,12 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
-        operator_properties: LinearOperatorProperties,
-        quadrature: Option<eqiora_realization::QuadraturePolicy>,
+        policy: RegionAssemblyPolicy,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
+        let RegionAssemblyPolicy {
+            operator_properties,
+            quadrature,
+        } = policy;
         #[cfg(test)]
         super::super::STATIC_FINALIZATIONS.with(|count| count.set(count.get() + 1));
         let q1_spd = operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite
@@ -23,12 +26,14 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             resources,
             selected,
             scaling,
-            if q1_spd {
-                LinearOperatorProperties::General
-            } else {
-                operator_properties
+            RegionAssemblyPolicy {
+                operator_properties: if q1_spd {
+                    LinearOperatorProperties::General
+                } else {
+                    operator_properties
+                },
+                quadrature,
             },
-            quadrature,
         )?;
         if q1_spd {
             let fields = self
@@ -73,8 +78,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
-        operator_properties: LinearOperatorProperties,
-        quadrature: Option<eqiora_realization::QuadraturePolicy>,
+        policy: RegionAssemblyPolicy,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -82,6 +86,10 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         ),
         Diagnostic,
     > {
+        let RegionAssemblyPolicy {
+            operator_properties,
+            quadrature,
+        } = policy;
         let spaces = selected
             .iter()
             .flat_map(|domain| domain.field_spaces())

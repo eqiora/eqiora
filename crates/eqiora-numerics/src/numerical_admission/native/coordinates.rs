@@ -87,12 +87,14 @@ impl RecognizedNativeAdmission {
             &self.resources,
             &selected,
             scaling,
-            if fields.is_some() {
-                LinearOperatorProperties::General
-            } else {
-                properties
+            RegionAssemblyPolicy {
+                operator_properties: if fields.is_some() {
+                    LinearOperatorProperties::General
+                } else {
+                    properties
+                },
+                quadrature: self.assembly_quadrature,
             },
-            self.assembly_quadrature,
         )?;
         let prepared = if let Some(fields) = fields
             && equations.q1_diffusion_is_anchored(&mapping, &input, &fields)?
@@ -222,8 +224,10 @@ impl RecognizedNativeAdmission {
             &self.resources,
             &selected,
             scaling,
-            LinearOperatorProperties::General,
-            self.assembly_quadrature,
+            RegionAssemblyPolicy {
+                operator_properties: LinearOperatorProperties::General,
+                quadrature: self.assembly_quadrature,
+            },
         )?;
         let coordinates = crate::region_assembly::mapping::RegionRealCoordinates::new(&mapping)?;
         Ok(eqiora_solver::SolverPlanningSize::dense_bound(

@@ -72,8 +72,10 @@ fn execute<S: Coefficient + Send + Sync>(
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
-                LinearOperatorProperties::General,
-                None,
+                RegionAssemblyPolicy {
+                    operator_properties: LinearOperatorProperties::General,
+                    quadrature: None,
+                },
             )
             .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap();
@@ -416,8 +418,10 @@ fn execute<S: Coefficient + Send + Sync>(
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
-                LinearOperatorProperties::General,
-                None,
+                RegionAssemblyPolicy {
+                    operator_properties: LinearOperatorProperties::General,
+                    quadrature: None,
+                },
             )
             .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap_err();
@@ -441,8 +445,10 @@ fn execute<S: Coefficient + Send + Sync>(
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
-                    LinearOperatorProperties::General,
-                    None
+                    RegionAssemblyPolicy {
+                        operator_properties: LinearOperatorProperties::General,
+                        quadrature: None
+                    },
                 )
                 .and_then(
                     |system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None)

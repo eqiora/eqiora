@@ -147,6 +147,13 @@ impl<S: Coefficient> SpatialRegion<S> {
     }
 }
 
+/// Already admitted numerical controls; this is not an additional resolver.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::numerical_admission) struct RegionAssemblyPolicy {
+    pub(in crate::numerical_admission) operator_properties: LinearOperatorProperties,
+    pub(in crate::numerical_admission) quadrature: Option<eqiora_realization::QuadraturePolicy>,
+}
+
 /// One ordered mathematical inventory; Region count never selects an executor.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ExecutableSpatialEquations<S: Coefficient> {

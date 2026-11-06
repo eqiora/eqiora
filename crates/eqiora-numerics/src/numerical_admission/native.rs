@@ -793,8 +793,10 @@ impl NativeNumericalAdmission {
                 self.resources(),
                 &self.discretizations,
                 &self.system_scaling,
-                self.operator_properties,
-                self.assembly_quadrature(),
+                RegionAssemblyPolicy {
+                    operator_properties: self.operator_properties,
+                    quadrature: self.assembly_quadrature(),
+                },
             )?;
             let output = system.solve(solve, initial)?;
             return Ok((output, Some(system)));
@@ -805,8 +807,10 @@ impl NativeNumericalAdmission {
             self.resources(),
             &self.discretizations,
             &self.system_scaling,
-            LinearOperatorProperties::Symmetric,
-            self.assembly_quadrature(),
+            RegionAssemblyPolicy {
+                operator_properties: LinearOperatorProperties::Symmetric,
+                quadrature: self.assembly_quadrature(),
+            },
         )?;
         let reference = lowered.mean_reference(self.resources(), &system.mapping)?;
         system

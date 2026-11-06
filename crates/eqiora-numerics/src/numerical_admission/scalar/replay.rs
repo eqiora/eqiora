@@ -48,8 +48,10 @@ impl CommonSpatialPlan {
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
-                    admission.operator_properties,
-                    admission.assembly_quadrature(),
+                    RegionAssemblyPolicy {
+                        operator_properties: admission.operator_properties,
+                        quadrature: admission.assembly_quadrature(),
+                    },
                 )?;
                 system.validate_coefficients(values)?;
                 system.validate_initial_residual(initial.as_ref(), initial_residual_norm)

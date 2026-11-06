@@ -450,3 +450,71 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
         "{error:?}"
     );
 }
+
+#[test]
+fn generic_mini_effective_quadrature_replays_without_an_authored_policy_whitelist() {
+    let geometry = geometry(true);
+    let body = geometry.entity_set("body").unwrap();
+    let mut supports = vec![("body", body, None)];
+    supports.extend(["left", "right", "bottom", "top"].map(|name| {
+        (
+            name,
+            geometry.entity_set(name).unwrap(),
+            Some(("body", body)),
+        )
+    }));
+    let model = compile_model(
+        "mini-quadrature-replay.eqi",
+        FLOW,
+        &geometry,
+        "Throughflow",
+        &supports,
+        &[],
+    );
+    for points in [None, Some(5)] {
+        let requested =
+            points.map(
+                |points| eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: NonZeroUsize::new(2).unwrap(),
+                    points_per_axis: NonZeroUsize::new(points).unwrap(),
+                },
+            );
+        let plan = ResolvedCommonPlan::resolve(
+            &model,
+            open_resources(&geometry, false),
+            CommonSpatialPolicy::MiniP1,
+            CommonSolvePolicy::Linear(exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(1000).unwrap(),
+            )),
+            None,
+            None,
+            &ResolveOnlyBackend,
+            None,
+            None,
+            requested,
+        )
+        .unwrap();
+        let spatial = plan.as_spatial().expect("generic common FEM owner");
+        assert!(matches!(
+            spatial.admission.spatial,
+            NativeSpatialPolicy::FiniteElement(_)
+        ));
+        let effective = eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: NonZeroUsize::new(2).unwrap(),
+            points_per_axis: NonZeroUsize::new(points.unwrap_or(4)).unwrap(),
+        };
+        assert_eq!(spatial.admission.assembly_quadrature(), Some(effective));
+        let replayed = replay_plan(plan, &ResolveOnlyBackend);
+        assert_eq!(
+            replayed
+                .as_spatial()
+                .unwrap()
+                .admission
+                .assembly_quadrature(),
+            Some(effective)
+        );
+    }
+}

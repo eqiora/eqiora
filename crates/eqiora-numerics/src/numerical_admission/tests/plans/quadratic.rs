@@ -170,8 +170,10 @@ fn natural_polynomial_minimum_raises_one_effective_volume_and_facet_rule() {
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
-            plan.admission.operator_properties,
-            plan.admission.assembly_quadrature(),
+            RegionAssemblyPolicy {
+                operator_properties: plan.admission.operator_properties,
+                quadrature: plan.admission.assembly_quadrature(),
+            },
         )
         .unwrap();
     assert!(

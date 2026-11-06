@@ -33,8 +33,15 @@ impl ExecutableSpatialEquations<C> {
     ) -> Result<RealStaticAssembly, Diagnostic> {
         // A real-linear map makes no complex symmetry or definiteness promise.
         let properties = LinearOperatorProperties::General;
-        let (mapping, input) =
-            self.static_assembly(resources, selected, scaling, properties, quadrature)?;
+        let (mapping, input) = self.static_assembly(
+            resources,
+            selected,
+            scaling,
+            RegionAssemblyPolicy {
+                operator_properties: properties,
+                quadrature,
+            },
+        )?;
         let coordinates = RegionRealCoordinates::new(&mapping)?;
         let (reduced, full, report) = match resources {
             NativeMeshResources::Cartesian { mesh, .. } => {

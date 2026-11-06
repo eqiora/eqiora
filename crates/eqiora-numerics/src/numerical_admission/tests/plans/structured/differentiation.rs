@@ -470,8 +470,10 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
                 admission.resources(),
                 &admission.discretizations,
                 &admission.system_scaling,
-                admission.operator_properties,
-                None,
+                RegionAssemblyPolicy {
+                    operator_properties: admission.operator_properties,
+                    quadrature: None,
+                },
             )
             .unwrap();
         let fem = spatial == CommonSpatialPolicy::Q1;
