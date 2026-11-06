@@ -108,8 +108,7 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let _phase =
-        eqiora_execution::telemetry_span!(assembly("mini_stokes_finalization")).entered();
+    let _phase = eqiora_execution::telemetry_span!(assembly("mini_stokes_finalization")).entered();
     validate_problem(mesh, viscosity, cell_quadrature)?;
     let boundary = boundary.validated_for(mesh)?;
     let named_reaction_vertices = boundary.named_reaction_vertices(mesh);
