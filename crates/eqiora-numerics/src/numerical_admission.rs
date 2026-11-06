@@ -99,6 +99,7 @@ pub enum CommonSpatialPolicy {
     TetrahedralEdge,
     TetrahedralFace,
     Q1,
+    Q2,
     P1,
     CellCenteredTpfa,
     MiniP1,

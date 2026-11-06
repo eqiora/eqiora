@@ -197,13 +197,16 @@ a spatial model bound to this geometry; see [modeling](/guides/modeling/).
 from eqiora import fem
 
 scalar_method = fem.Q1()
+quadratic_scalar_method = fem.Q2()
 flow_method = fem.MiniP1()
 print(scalar_method.space)
 print(flow_method.velocity_space, flow_method.pressure_space)
 ```
 
 `Q1` selects continuous tensor-product elements for Cartesian scalar and
-elasticity problems. `MiniP1` selects the mixed velocity/pressure spaces for
+elasticity problems. `Q2` selects full quadratic elements for static linear
+scalar problems on affine Cartesian quads/hexes. It does not curve the geometry;
+its complete coefficient blocks include nonvertex nodes. `MiniP1` selects the mixed velocity/pressure spaces for
 triangular Stokes problems. Pass the matching policy as `spatial=` to
 `eqiora.resolve`; complete setups are in [modeling](/guides/modeling/).
 ''',

@@ -167,7 +167,7 @@ impl CommonResult {
     }
 }
 
-type BlockLayout = (CommonFieldAssociation, Vec<usize>);
+use super::fields::BlockLayout;
 
 /// Exact coefficient block inventory shared by publication and artifact replay.
 pub(super) fn field_layout(
@@ -176,39 +176,32 @@ pub(super) fn field_layout(
 ) -> Result<(Space, Vec<BlockLayout>), Diagnostic> {
     use eqiora_realization::SpaceFamily;
     let space = plan.field_space(field)?;
+    if space.family() == SpaceFamily::SimplexP1Bubble
+        || matches!(space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+    {
+        let (_, ty) = plan
+            .fields()
+            .find(|(id, _)| *id == field)
+            .ok_or_else(|| invalid("Result Field is outside the Plan"))?;
+        let owner = plan.authenticated_mesh();
+        let dimension = owner
+            .geometry()
+            .ok_or_else(|| invalid("nodal Result requires physical mesh geometry"))?
+            .ambient_dimension();
+        let entities = plan.field_coefficient_entities(field)?;
+        return Ok((
+            space,
+            fields::entity_block_layout(space, dimension, &entities, &fields::value_shape(ty))?,
+        ));
+    }
     let association = match space.family() {
-        SpaceFamily::ContinuousLagrange { .. } => CommonFieldAssociation::Vertex,
+        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => {
+            CommonFieldAssociation::Vertex
+        }
         SpaceFamily::CellConstant => CommonFieldAssociation::Cell,
         SpaceFamily::TetrahedralEdge => CommonFieldAssociation::Edge,
         SpaceFamily::TetrahedralFace => CommonFieldAssociation::Face,
-        SpaceFamily::SimplexP1Bubble => {
-            let (_, ty) = plan
-                .fields()
-                .find(|(id, _)| *id == field)
-                .ok_or_else(|| invalid("linear Result Field is outside the Plan"))?;
-            let entities = plan.field_coefficient_entities(field)?;
-            let vertices = entities
-                .iter()
-                .filter(|entity| entity.dimension() == 0)
-                .count();
-            let cells = entities.len() - vertices;
-            if vertices == 0 || cells == 0 {
-                return Err(invalid(
-                    "bubble Result requires vertex and cell coefficients",
-                ));
-            }
-            let mut vertex_shape = vec![vertices];
-            vertex_shape.extend(fields::value_shape(ty));
-            let mut cell_shape = vec![cells];
-            cell_shape.extend(fields::value_shape(ty));
-            return Ok((
-                space,
-                vec![
-                    (CommonFieldAssociation::Vertex, vertex_shape),
-                    (CommonFieldAssociation::CellBubble, cell_shape),
-                ],
-            ));
-        }
+        _ => return Err(invalid("unsupported Result coefficient Space")),
     };
     Ok((
         space,

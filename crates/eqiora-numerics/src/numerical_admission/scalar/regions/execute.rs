@@ -87,7 +87,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         match resources {
             NativeMeshResources::Cartesian { mesh, .. }
                 if spaces.iter().all(|space| {
-                    *space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    matches!(space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() <= 2)
                         || *space == Space::cell_constant()
                 }) =>
             {

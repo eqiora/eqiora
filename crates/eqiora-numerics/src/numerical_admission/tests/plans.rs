@@ -5,6 +5,7 @@ mod interval;
 mod nonlinear_interfaces;
 mod observables;
 mod planar;
+mod quadratic;
 mod result_replay;
 mod solver_diagonal;
 mod stationary_state;
@@ -445,7 +446,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     assert_eq!(automatic_form.rule_ids().len(), 4);
     assert_eq!(
         automatic_form.selection_reason_codes(),
-        ["eqiora.formulation.auto.primal-galerkin-for-q1/v1"]
+        ["eqiora.formulation.auto.primal-galerkin-admitted/v1"]
     );
     assert!(tpfa.formulation().is_none());
     assert_eq!(q1.realization_digest(), repeat.realization_digest());

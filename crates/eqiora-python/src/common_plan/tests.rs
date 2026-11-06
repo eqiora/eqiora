@@ -745,7 +745,7 @@ assert q1.formulation.rule_ids == [
     "fem.derive.v1.source-pairing",
 ]
 assert q1.formulation.selection_reason_codes == [
-    "eqiora.formulation.auto.primal-galerkin-for-q1/v1",
+    "eqiora.formulation.auto.primal-galerkin-admitted/v1",
 ]
 assert q1_exact.formulation.requested is package.FormulationSelectionMode.Exact
 assert q1_exact.formulation.effective is q1.formulation.effective

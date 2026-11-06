@@ -168,6 +168,11 @@ pub(super) fn resolve_plan(
             CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             SpatialHandle::Uniform(SpatialPolicy::Q1),
         )
+    } else if spatial_value.extract::<PyRef<'_, PyQ2>>().is_ok() {
+        (
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::Q2),
+            SpatialHandle::Uniform(SpatialPolicy::Q2),
+        )
     } else if spatial_value
         .extract::<PyRef<'_, PyTetrahedralEdge>>()
         .is_ok()
@@ -225,6 +230,7 @@ pub(super) fn resolve_plan(
                     PyTypeError::new_err("DomainRef contains an invalid exact Domain ULID")
                 })?;
             let policy = match binding.policy {
+                ScopedSpatialKind::Q2 => CommonSpatialPolicy::Q2,
                 ScopedSpatialKind::MiniP1 => CommonSpatialPolicy::MiniP1,
                 ScopedSpatialKind::P1 => CommonSpatialPolicy::P1,
             };

@@ -252,6 +252,7 @@ pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
 fn spatial_policy_tag(policy: CommonSpatialPolicy) -> &'static [u8] {
     match policy {
         CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 => b"scalar-continuous-lagrange-1",
+        CommonSpatialPolicy::Q2 => b"scalar-continuous-lagrange-2",
         CommonSpatialPolicy::MiniP1 => b"linear-mini-p1-duffy4",
         CommonSpatialPolicy::TetrahedralEdge => b"tetrahedral-edge-moment-duffy3",
         CommonSpatialPolicy::TetrahedralFace => b"tetrahedral-face-moment-duffy3",

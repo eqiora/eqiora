@@ -28,7 +28,7 @@ pub(super) fn describe_primal(
         rule_ids: rule_ids.into(),
         selection_reason_codes: Box::new([match requested {
             FormulationSelectionMode::Automatic => {
-                "eqiora.formulation.auto.primal-galerkin-for-q1/v1"
+                "eqiora.formulation.auto.primal-galerkin-admitted/v1"
             }
             FormulationSelectionMode::Exact => {
                 "eqiora.formulation.exact.primal-galerkin-admitted/v1"
@@ -639,6 +639,32 @@ impl CommonSpatialPlan {
                 .map(|(entities, _)| entities),
                 _ => Err(invalid(
                     "bubble coefficients require linear Region equations",
+                )),
+            };
+        }
+        if matches!(representation.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+        {
+            self.reauthenticate_portable_realization()?;
+            let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+                return Err(invalid(
+                    "quadratic coefficient inspection currently requires the admitted Cartesian mesh",
+                ));
+            };
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Spatial(equations) => support::cartesian_topology(
+                    equations,
+                    mesh.mesh(),
+                    field.erase(),
+                    representation.space(),
+                ),
+                RecognizedNativeModel::ComplexSpatial(equations) => support::cartesian_topology(
+                    equations,
+                    mesh.mesh(),
+                    field.erase(),
+                    representation.space(),
+                ),
+                _ => Err(invalid(
+                    "quadratic coefficients require exact linear Region equations",
                 )),
             };
         }
