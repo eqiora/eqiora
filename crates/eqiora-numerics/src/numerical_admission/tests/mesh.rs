@@ -277,10 +277,13 @@ fn interval_geometry(lower: f64, upper: f64) -> CanonicalGeometryV1 {
             &BTreeMap::from([
                 (
                     "body".to_owned(),
-                    vec![PlanarTopologyHandle::from(operation.region())],
+                    vec![GeometryTopologyHandle::from(operation.region())],
                 ),
-                ("left".to_owned(), vec![PlanarTopologyHandle::from(left)]),
-                ("right".to_owned(), vec![PlanarTopologyHandle::from(right)]),
+                ("left".to_owned(), vec![GeometryTopologyHandle::from(left)]),
+                (
+                    "right".to_owned(),
+                    vec![GeometryTopologyHandle::from(right)],
+                ),
             ]),
         )
         .unwrap()

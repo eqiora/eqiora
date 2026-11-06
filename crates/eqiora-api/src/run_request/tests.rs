@@ -6,7 +6,7 @@ use eqiora_artifact::{
     CartesianMeshCellsV2, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     ModelEnvelope,
 };
-use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPolicy, IncompressibleScalingRequest2d,
 };
@@ -203,19 +203,19 @@ fn transient_plan() -> CommonTransientFlowPlan {
                 ("body".to_owned(), vec![rectangle.region().into()]),
                 (
                     "x_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "x_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "y_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
                 (
                     "y_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[3])],
+                    vec![GeometryTopologyHandle::from(edges[3])],
                 ),
             ]),
         )

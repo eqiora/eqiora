@@ -6,7 +6,7 @@ use eqiora::artifact::{
     CartesianMeshCellsV2, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
     ModelEnvelope,
 };
-use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora::geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPlan, CommonSpatialPolicy,
@@ -92,19 +92,19 @@ pub(crate) fn plan_for_document_with_solver(
                 ("square".to_owned(), vec![rectangle.region().into()]),
                 (
                     "x_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "x_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "y_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
                 (
                     "y_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[3])],
+                    vec![GeometryTopologyHandle::from(edges[3])],
                 ),
             ]),
         )
@@ -168,19 +168,19 @@ fn document_and_plans_with_source(
                 ("square".to_owned(), vec![rectangle.region().into()]),
                 (
                     "x_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "x_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "y_lower".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
                 (
                     "y_upper".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[3])],
+                    vec![GeometryTopologyHandle::from(edges[3])],
                 ),
             ]),
         )
