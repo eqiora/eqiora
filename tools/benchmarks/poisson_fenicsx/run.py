@@ -53,8 +53,6 @@ def main():
     levels = sorted(set(args.levels if args.levels is not None else declared_levels(args.dimension)))
     if any(level not in declared_levels(args.dimension) for level in levels):
         parser.error("mesh level has no declared reference for this dimension")
-    if args.dimension == 3 and args.mode != "correctness-only":
-        parser.error("3D comparison currently supports correctness-only mode")
     if len(levels) < 2:
         parser.error("at least two declared levels are required for convergence")
     if args.cpu not in os.sched_getaffinity(0):

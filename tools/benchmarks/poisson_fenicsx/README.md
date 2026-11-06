@@ -3,7 +3,7 @@
 This protocol is declared before numerical or timing observations. It scopes
 one part of the external comparison in #1739. It establishes no result or
 performance claim yet. The default is the established 2D comparison; the
-3D extension below currently supports correctness-only runs. Elasticity,
+3D extension below uses the same correctness and measurement path. Elasticity,
 cylinder flow, MPI and GPU comparisons remain outside this slice.
 
 ## Two-dimensional mathematical problem
@@ -301,7 +301,7 @@ TMPDIR="$scratch/tmp" python3 -m unittest discover \
 
 - [PETSc BiCGStab (`bcgs`)](https://petsc.org/release/manualpages/KSP/KSPBCGS/)
 
-## Three-dimensional correctness extension
+## Three-dimensional comparison
 
 The next comparison uses the unit cube, continuous hexahedral Q1 elements,
 `u = sin(pi*x)*sin(pi*y)*sin(pi*z)`, forcing `3*pi^2*u`, and zero values on
@@ -310,8 +310,9 @@ this harness, solver controls and operation boundaries. The independent
 [3D reference](../../../verify/numerics/cartesian-poisson-3d-fem-fvm/README.md)
 owns the analytic continuous errors and comparison allowance.
 
-Use `--dimension 3 --levels 4 8 16 --mode correctness-only` with the existing
-`run.py` command. New reports and candidate fields retain the dimension
+Use `--dimension 3 --levels 4 8 16 --mode correctness-only` for a smoke or
+`--mode benchmark` for the declared timing campaign with the existing `run.py`
+command. New reports and candidate fields retain the dimension
 explicitly. The default `--dimension 2` retains the four existing 2D levels.
 For 3D, the worker requires the ordinary public `GeometryGraph.cuboid` API and
 a development wheel containing it. It uses `poisson_3d.eqi` through the same
@@ -336,7 +337,7 @@ remain pending; no 3D speed claim is made.
 
 ## Three-dimensional timing protocol
 
-This follow-up is declared before enabling 3D benchmark mode or observing its
+This protocol was declared before enabling 3D benchmark mode or observing its
 timings. It uses the same mathematical controls, independent reference,
 measurement boundaries and memory scopes above. Only the declared 4, 8 and 16
 levels are supported. The current installed wheel must first pass both tools'
@@ -369,6 +370,30 @@ records. A failed campaign remains an incomplete attempt; do not select a faster
 retry or stop after a favorable sample. Any additional campaign budget must be
 declared before its observations. Shared-host results remain descriptive and
 establish no stable baseline, general solver ranking or #802 performance target.
+
+After the source, installed artifacts and CPU controls have been reviewed, run
+the ordinary driver below under the approved outer monitoring supervisor. Set
+`EQIORA_WHEEL_REVISION` and `EQIORA_BUILD_PROFILE` from the retained producer
+record, even when the harness has a newer revision. The output directory must be
+new; the command does not choose a quiet core or establish reference conditions.
+
+```bash
+TMPDIR="$scratch/tmp" "$EQIORA_PYTHON" \
+  tools/benchmarks/poisson_fenicsx/run.py "$scratch/benchmark-3d" \
+  --eqiora-python "$EQIORA_PYTHON" --fenicsx-python "$FENICSX_PYTHON" \
+  --eqiora-wheel "$EQIORA_WHEEL" --eqiora-revision "$EQIORA_WHEEL_REVISION" \
+  --eqiora-build-profile "$EQIORA_BUILD_PROFILE" \
+  --dimension 3 --levels 4 8 16 --mode benchmark --cpu "$COMPARE_CPU"
+```
+
+The measurement tests use independent analytic fields and synthetic clocks to
+check ordering, sample summaries and rejection before warm sampling. They run
+neither native tool and collect no performance observations:
+
+```bash
+TMPDIR="$scratch/tmp" python3 -m unittest discover \
+  -s tools/benchmarks/poisson_fenicsx -p test_benchmark.py -v
+```
 
 The current harness requires matching installed Python APIs for every supplied
 revision. In particular, solver observations now return complete preconditioner
