@@ -275,28 +275,9 @@ They are neither the cold call nor a partition of the unprofiled median above.
 The tools' phase boundaries differ, so these numbers must not be used for
 cross-tool phase speed ratios.
 
-Mesh and preparation are separately clocked, one-off setup stages in each
-process, outside ordinary execution and outside the additional profile.
-All table values below are wall time in milliseconds, rounded to four significant
-figures. These are the original campaign's observations at every mesh level.
-
-| N | Tool | Mesh | Prep |
-|---:|---|---:|---:|
-| 4 | Eqiora | 0.759 | 14.57 |
-| 4 | FEniCSx | 421.2 | 8474 |
-| 8 | Eqiora | 1.141 | 10.47 |
-| 8 | FEniCSx | 2.732 | 1891 |
-| 16 | Eqiora | 2.462 | 11.88 |
-| 16 | FEniCSx | 2.789 | 1889 |
-| 32 | Eqiora | 7.977 | 16.76 |
-| 32 | FEniCSx | 3.597 | 1634 |
-
-**Mesh** includes Eqiora's geometry construction and mesh generation, or FEniCSx's
-unit-square mesh creation. **Prep** includes Eqiora's model compilation and Plan
-resolution, or FEniCSx's spaces, boundary data, forms and fresh-cache JIT compilation.
-The setup scopes differ between tools; imports are recorded separately.
-
-The additional instrumented executions report assembly and linear-solve time:
+The one-off setup observations are listed under [Mesh and preparation](#mesh-and-preparation).
+The additional instrumented assembly and linear-solve observations follow for every
+mesh level, in milliseconds rounded to four significant figures:
 
 | N | Tool | Asm | Linear |
 |---:|---|---:|---:|
