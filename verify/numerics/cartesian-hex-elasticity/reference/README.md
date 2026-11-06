@@ -38,21 +38,41 @@ reference tests. Neither command imports or runs Eqiora. No candidate values
 have been used. The inverse infinity norm is calculated exactly by rational
 Gauss-Jordan elimination and the emitted C is ||K_FF^-1||∞ in m/N.
 
-Fixed acceptance budgets are coefficient absolute error 1e-8 m, free reference
-residual 1e-10 N, constrained coefficient absolute error 1e-12 m, energy error
-1e-6 J, and each integrated left stress-traction component error 1e-6 N.
-The reference residual means K* u_observed - b*, using the independent K*, b*;
-it does not require exporting a private native matrix. With exact constrained
-data, coefficient error is bounded by C times residual. With constrained error
-δD, add C ||K_FD||∞ δD. These are rigorous algebraic implications, not a
-floating-point operation-count theorem. The coefficient budget also independently
-checks all 81 values. Arithmetic allowance for computing residuals is 1e-12 N;
-for coefficient comparisons 1e-14 m; for functional comparisons 1e-10 in their
-physical units. These fixed small allowances are conservative engineering
-allocations for this 81-variable binary64 calculation, subject to review before
-any candidate is seen; failure requires investigation, never retuning to pass.
-Public functionals must also pass their own budgets; a small nodal error does
-not certify a separately evaluated public functional.
+All essential displacement values must equal their exact dyadic expectations.
+There is no boundary-value tolerance. Define U0=max(1 m, ||u*||∞)=1 m,
+S=||K*||∞ U0+||b*||∞=117.25 N, η=2^-40, and σ=2^-46. The fixed
+aggregate residual ceiling is τ=(η+σ)S (approximately 1.08305e-10 N).
+These dimensionless precision factors declare an engineering accuracy ceiling;
+they are not a floating-point operation-count theorem. No candidate values
+were consulted to select them. Rational evaluation introduces no computational
+roundoff allowance. Every reference residual is evaluated exactly on the
+exported binary64 coefficients, converted to rational values.
+
+Before using an inverse norm, the generator verifies K*_FF times its computed
+rational inverse equals the identity in every entry. The tests verify both
+product orders. Then C=||K*_FF^-1||∞ (approximately 2.76668 m/N) and
+E=Cτ (approximately 2.99644e-10 m). Require every free reference residual
+component ≤τ and every one of the 81 coefficient errors ≤E. Exact essential
+data make the residual-to-coefficient implication rigorous. This observation
+route requires no inaccessible private native matrix or load vector.
+
+Construct three exact rows t_i from Q1 boundary derivatives for integrated
+left-face stress traction. Their 1-norms are (220,96,90) N/m. Put V=U0+E.
+Each exported public traction T_i must satisfy both
+|T_i−t_i·v| ≤ η ||t_i||₁ V and
+|T_i−t_i·u*| ≤ ||t_i||₁ E + η ||t_i||₁ V,
+where v is the complete exported displacement vector. The first test binds the
+public functional to the exported field; the second binds it to the analytic
+solution. These quantities do not measure private weak reaction recovery.
+
+For B=Σij |K*ij|, W(v)=vᵀK*v/2 and
+w=η B V²/2, exported public energy must satisfy both
+|W_native−W(v)| ≤ w and
+|W_native−261/32 J| ≤ ||K*u*||₁ E + B E²/2 + w.
+These follow from the exact quadratic energy perturbation identity. No extra
+allowance is added to any check. Failures require investigation, never tuning
+the thresholds to pass. The same decoder and checks apply independently to
+primary and replay observations, supplied as two separate documents.
 
 The later observation adapter must use a strict JSON schema: complete keysets,
 no extra fields, unique node coordinate/component pairs, all 81 coefficients,
@@ -83,11 +103,12 @@ robustness is claimed. Stop on silent Tet conversion, a universal cell registry,
 a broad public enum without a second consumer, weakened oracle, or an unreviewed
 architecture-ceiling increase.
 
-For coefficient error bounded by e in every component, left-traction error is
-bounded by (248e,120e,108e) N/m using |∂d δu| ≤ 2e/Hd on each adjacent
-cell and the 12 m² face area. Energy perturbation is bounded by
-||K U||₁ e + (Σij |Kij|) e²/2, directly from the quadratic energy identity.
-These bounds describe the independent Q1 functionals. They do not substitute
-for checking that public observations actually use the same recovered field.
-The residual-derived e (including prescribed-value error) is emitted by the
-report, and is substantially smaller than the standalone coefficient cap.
+The traction rows integrate the constitutive law directly on x=0. For each
+adjacent cell, ∫face ∂x N_a=(2a_x−1) H_y H_z/(4H_x),
+∫face ∂y N_a=1[a_x=0](2a_y−1)H_z/2, and
+∫face ∂z N_a=1[a_x=0](2a_z−1)H_y/2. Assemble
+σ_i0=μ(∂x v_i+∂i v_x)+λ δ_i0 div(v) and negate for the outward
+normal. Summing shared-node contributions before taking absolute values gives
+the exact row norms above. Norms from per-cell triangle inequalities would be
+larger and are not used. Pure falsifiers deliberately produce functionals that
+pass analytic-target budgets while failing the exported-field comparison.

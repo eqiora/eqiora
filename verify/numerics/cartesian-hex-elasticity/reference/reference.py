@@ -84,16 +84,69 @@ def inverse(matrix):
     return [row[n:] for row in rows]
 
 
-def report():
+def traction_rows():
+    """Exact rows for integral of sigma(v)(-ex) on x=0."""
+    rows = [[Q(0) for _ in U] for _ in range(3)]
+    for cy,cz in product(range(2),repeat=2):
+        for a in CORNERS:
+            n = (cz+a[2])*9+(cy+a[1])*3+a[0]
+            gradients = [Q(2*a[0]-1)/H[0]*H[1]*H[2]/4,
+                         Q(2*a[1]-1)*H[2]/2 if a[0] == 0 else Q(0),
+                         Q(2*a[2]-1)*H[1]/2 if a[0] == 0 else Q(0)]
+            for i in range(3):
+                rows[i][3*n+i] -= 3*gradients[0]
+                rows[i][3*n] -= 3*gradients[i]
+                if i == 0:
+                    for c in range(3):
+                        rows[i][3*n+c] -= 2*gradients[c]
+    return rows
+
+
+def dot(a,b):
+    return sum(x*y for x,y in zip(a,b))
+
+
+def energy(K,u):
+    return sum(u[i]*dot(row,u) for i,row in enumerate(K))/2
+
+
+def budgets():
     K,b = assemble()
-    inv = inverse([[K[i][j] for j in F] for i in F])
+    free = [[K[i][j] for j in F] for i in F]
+    inv = inverse(free)
+    # Verify every entry before using this inverse as an error certificate.
+    if not all(dot(row,[inv[k][j] for k in range(len(F))]) == Q(i == j)
+               for i,row in enumerate(free) for j in range(len(F))):
+        raise ArithmeticError("exact inverse identity failed")
     c = max(sum(abs(v) for v in row) for row in inv)
-    coupling = max(sum(abs(K[i][j]) for j in D) for i in F)
-    energy = sum(U[i]*K[i][j]*U[j] for i in range(81) for j in range(81))/2
-    return dict(coefficients=[str(x) for x in U], stress=[[str(x) for x in row] for row in stress()],
-                energy_J=str(energy), left_traction_N=[str(-12*stress()[i][0]) for i in range(3)],
-                inverse_inf_m_per_N=str(c), coupling_inf_N_per_m=str(coupling),
-                residual_bound_m=str(c*Q(101,10**12)+c*coupling*Q(1,10**12)))
+    u0 = max(Q(1),max(map(abs,U)))
+    scale = max(sum(map(abs,row)) for row in K)*u0+max(map(abs,b))
+    eta,sigma = Q(1,2**40),Q(1,2**46)
+    tau = (eta+sigma)*scale
+    error = c*tau
+    v = u0+error
+    B = sum(sum(map(abs,row)) for row in K)
+    norms = [sum(map(abs,row)) for row in traction_rows()]
+    energy_native = eta*B*v*v/2
+    return dict(K=K,b=b,C=c,U0=u0,S=scale,eta=eta,sigma=sigma,tau=tau,E=error,
+                V=v,B=B,traction_norms=norms,
+                traction_native=[eta*n*v for n in norms],
+                traction_analytic=[n*error+eta*n*v for n in norms],
+                energy_native=energy_native,
+                energy_analytic=sum(abs(dot(row,U)) for row in K)*error+B*error*error/2+energy_native)
+
+
+def report():
+    values = budgets()
+    values.pop('K')
+    values.pop('b')
+    values.update(coefficients=U,stress=stress(),energy_J=Q(261,32),
+                  left_traction_N=[dot(row,U) for row in traction_rows()])
+    def rational(value):
+        if isinstance(value,list):
+            return [rational(v) for v in value]
+        return str(value)
+    return {k:rational(v) for k,v in values.items()}
 
 if __name__ == '__main__':
     print(json.dumps(report(), indent=2, sort_keys=True))

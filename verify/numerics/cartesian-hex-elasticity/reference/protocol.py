@@ -62,17 +62,23 @@ def decode(text):
     return u,energy,[r.Q(binary64(v)) for v in traction]
 
 
-def check(text):
+def check(text, limits=None):
+    """Check one lane; caller applies unchanged to primary and replay separately."""
     u,energy,traction = decode(text)
-    K,b = r.assemble()
-    if max(abs(a-b) for a,b in zip(u,r.U)) > r.Q(1,10**8)+r.Q(1,10**14):
+    q = r.budgets() if limits is None else limits
+    K,b = q['K'],q['b']
+    if any(u[i] != r.U[i] for i in r.D):
+        raise ValueError('essential displacement must be exact')
+    if max(abs(a-b) for a,b in zip(u,r.U)) > q['E']:
         raise ValueError('displacement budget')
-    if max(abs(u[i]-r.U[i]) for i in r.D) > r.Q(1,10**12)+r.Q(1,10**14):
-        raise ValueError('constrained displacement budget')
-    if max(map(abs,r.residual(K,b,u))) > r.Q(101,10**12):
+    if max(map(abs,r.residual(K,b,u))) > q['tau']:
         raise ValueError('independent residual budget')
-    allowance = r.Q(1,10**6)+r.Q(1,10**10)
-    if abs(energy-r.Q(261,32)) > allowance:
-        raise ValueError('energy budget')
-    if max(abs(traction[i]+12*r.stress()[i][0]) for i in range(3)) > allowance:
-        raise ValueError('traction budget')
+    if abs(energy-r.energy(K,u)) > q['energy_native']:
+        raise ValueError('exported-field energy budget')
+    if abs(energy-r.Q(261,32)) > q['energy_analytic']:
+        raise ValueError('analytic energy budget')
+    for i,row in enumerate(r.traction_rows()):
+        if abs(traction[i]-r.dot(row,u)) > q['traction_native'][i]:
+            raise ValueError('exported-field traction budget')
+        if abs(traction[i]-r.dot(row,r.U)) > q['traction_analytic'][i]:
+            raise ValueError('analytic traction budget')

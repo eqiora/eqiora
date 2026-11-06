@@ -46,10 +46,12 @@ class ReferenceTests(unittest.TestCase):
                     self.assertEqual(sum(r.gradient_product(a,b,p,q) for a in r.CORNERS),0)
         self.assertEqual(sum(self.b[3*n] for n in range(27)),Q(27,2))
 
-if __name__ == '__main__':
-    unittest.main()
 
 class ProtocolTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.limits = r.budgets()
+
     def fixture(self):
         import protocol
         return dict(identity=dict(dimension=3,family='Hex',order='Q1',geometry='affine-cartesian',
@@ -64,7 +66,7 @@ class ProtocolTests(unittest.TestCase):
     def test_positive_and_strict_rejections(self):
         import json
         import protocol
-        protocol.check(json.dumps(self.fixture()))
+        protocol.check(json.dumps(self.fixture()), self.limits)
         for mutation in ('missing','duplicate','nonfinite','negative_zero','unknown','quadrature','wrong_value'):
             obj = self.fixture()
             if mutation == 'missing': obj['coefficients'].pop()
@@ -75,5 +77,50 @@ class ProtocolTests(unittest.TestCase):
             if mutation == 'quadrature': obj['identity']['quadrature'] = [1,1,1]
             if mutation == 'wrong_value': obj['coefficients'][40]['value_m'] = float(1).hex()
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                protocol.check(json.dumps(obj))
+                protocol.check(json.dumps(obj), self.limits)
         with self.assertRaises(ValueError): protocol.decode('{"identity":1,"identity":2}')
+
+    def test_inverse_certificate_and_functional_rows(self):
+        q = self.limits
+        self.assertEqual(q['traction_norms'], [220,96,90])
+        self.assertEqual([r.dot(row,r.U) for row in r.traction_rows()],
+                         [Q(-27,2),Q(-9,2),Q(-9,4)])
+        # Recompute and verify both matrix products; neither assumes symmetry.
+        K = [[q['K'][i][j] for j in r.F] for i in r.F]
+        inv = r.inverse(K)
+        for i in range(54):
+            for j in range(54):
+                self.assertEqual(r.dot(K[i],[inv[k][j] for k in range(54)]),Q(i==j))
+                self.assertEqual(r.dot(inv[i],[K[k][j] for k in range(54)]),Q(i==j))
+
+    def test_analytic_target_alone_is_insufficient(self):
+        import json
+        import protocol
+        q = self.limits
+        for functional in ('energy','traction'):
+            obj = self.fixture()
+            if functional == 'energy':
+                delta = (q['energy_native']+q['energy_analytic'])/2
+                observed = float(Q(261,32)+delta)
+                self.assertLess(abs(Q(observed)-Q(261,32)),q['energy_analytic'])
+                obj['energy_J'] = observed.hex()
+            else:
+                delta = (q['traction_native'][0]+q['traction_analytic'][0])/2
+                observed = float(Q(-27,2)+delta)
+                self.assertLess(abs(Q(observed)+Q(27,2)),q['traction_analytic'][0])
+                obj['left_traction_N'][0] = observed.hex()
+            with self.subTest(functional=functional), self.assertRaisesRegex(ValueError,'exported-field'):
+                protocol.check(json.dumps(obj),q)
+
+    def test_essential_values_are_exact(self):
+        import json
+        import math
+        import protocol
+        obj = self.fixture()
+        index = next(i for i in r.D if r.U[i])
+        obj['coefficients'][index]['value_m'] = math.nextafter(float(r.U[index]),math.inf).hex()
+        with self.assertRaisesRegex(ValueError,'essential'):
+            protocol.check(json.dumps(obj),self.limits)
+
+if __name__ == '__main__':
+    unittest.main()
