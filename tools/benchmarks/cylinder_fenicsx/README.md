@@ -322,3 +322,7 @@ are committed byte-for-byte. The native process summary is explicitly a
 projection omitting one machine-local loader path; its original receipt stays
 externally retained with the original digest. Full external JIT/log inventories
 are retained separately. No projected record is labelled an original raw file.
+
+The [three-mesh follow-up](multimesh/README.md) retains independent references,
+correctness checks and one ordinary execution campaign. The original single-mesh
+observations above remain separate.

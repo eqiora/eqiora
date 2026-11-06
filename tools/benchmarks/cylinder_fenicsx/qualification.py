@@ -57,6 +57,24 @@ def check_cold_pair(report, coordinates, primary, associated):
             raise ComparisonError('retained candidate does not match the process cold associated fields')
 
 
+def check_audit_observations(reference, audit, primary, extra, accuracy):
+    """Recheck stored UFL force, global reaction and flux against frozen gates."""
+    fields = {'velocity_vertex': primary, 'velocity_cell_bubble': extra['velocity_cell_bubble']['values'],
+              'pressure_vertex': extra['pressure_vertex']['values']}
+    compare(reference.data, {'fields': fields, 'force_on_domain': audit['reconstructed_force_on_domain'],
+                                 'force_on_selection': audit['reconstructed_force_on_selection'],
+                                 'scaled_residual_inf': accuracy['scaled_residual_inf']},
+            reference.reference, reference.manifest)
+    allowance = reference.reference['global_reaction_allowance']
+    reaction = np.asarray(audit['reconstructed_global_essential_reaction_on_domain'])
+    if audit['frozen_global_reaction_allowance'] != allowance or reaction.shape != (2,) or not np.isfinite(reaction).all() or np.any(np.abs(reaction) > allowance):
+        raise ComparisonError('qualification audit global reaction fails the unchanged frozen bound')
+    for side in ('inlet', 'outlet'):
+        flux = audit['ufl_boundary_fluxes'][side]
+        if not np.isfinite(flux) or abs(flux-accuracy['analytic_checks'][f'{side}_flux']) > accuracy['analytic_checks']['flux_arithmetic_allowance']:
+            raise ComparisonError('qualification audit flux fails the unchanged input-derived bound')
+
+
 def validate_qualification(path, cases, expected_artifact):
     payload = json.loads(path.read_text())
     if set(payload) != {'cases'} or set(payload['cases']) != set(LEVELS):
@@ -102,20 +120,7 @@ def validate_qualification(path, cases, expected_artifact):
         coordinates, primary, extra = read_candidate(candidate_path, candidate_digest)
         check_cold_pair(reports['eqiora'], coordinates, primary, extra)
         accuracy = case.reference.candidate(coordinates, primary, extra)
-        fields = {'velocity_vertex': primary, 'velocity_cell_bubble': extra['velocity_cell_bubble']['values'],
-                  'pressure_vertex': extra['pressure_vertex']['values']}
-        compare(case.reference.data, {'fields': fields, 'force_on_domain': audit['reconstructed_force_on_domain'],
-                                     'force_on_selection': audit['reconstructed_force_on_selection'],
-                                     'scaled_residual_inf': accuracy['scaled_residual_inf']},
-                case.reference.reference, case.reference.manifest)
-        allowance = case.reference.reference['global_reaction_allowance']
-        reaction = np.asarray(audit['reconstructed_global_essential_reaction_on_domain'])
-        if audit['frozen_global_reaction_allowance'] != allowance or reaction.shape != (2,) or not np.isfinite(reaction).all() or np.any(np.abs(reaction) > allowance):
-            raise ComparisonError('qualification audit global reaction fails the unchanged frozen bound')
-        for side in ('inlet', 'outlet'):
-            flux = audit['ufl_boundary_fluxes'][side]
-            if not np.isfinite(flux) or abs(flux-accuracy['analytic_checks'][f'{side}_flux']) > accuracy['analytic_checks']['flux_arithmetic_allowance']:
-                raise ComparisonError('qualification audit flux fails the unchanged input-derived bound')
+        check_audit_observations(case.reference, audit, primary, extra, accuracy)
         qualified[case.label] = {'reference_manifest_sha256': case.sha256,
                                  'mesh_digest': case.reference.data['mesh_digest'],
                                  'candidate_field_sha256': candidate_digest, 'assembly_audit_sha256': digest(audit_path),

@@ -7,7 +7,9 @@ The original single-mesh result and every original reference/candidate artifact
 remain unchanged. Mesh preparation and the external-only A/B/C calibration on all
 three meshes completed under the declared controls. All three calibration
 processes exited successfully and froze their references before any candidate.
-No multi-mesh candidate or timing campaign has started.
+The six correctness workers, three zero-solve audits and one subsequent
+six-worker ordinary campaign also passed. The [retained result and clone replay](multimesh/README.md)
+record the observations and limitations.
 
 ## Input-declared meshes
 
@@ -69,8 +71,8 @@ shared owner immediately after ordinary field return; final child memory also
 includes diagnostics and reporting. Reference calibration and its retained
 objects never count as a fresh timing campaign.
 
-This protocol and implementation require primary review before any new mesh
-counts, calibration, candidate execution or timing collection is authorised.
+Each stage required primary review before launch. Any additional calibration,
+candidate execution or timing collection needs a separate reviewed campaign.
 
 
 ## Qualification and process receipts

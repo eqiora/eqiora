@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from qualification import check_process, verified_descriptor, validate_qualification, check_report_reference, check_cold_pair
+from qualification import check_process, verified_descriptor, validate_qualification, check_report_reference, check_cold_pair, check_audit_observations
 from topology import ComparisonError
 
 
@@ -44,6 +44,26 @@ class QualificationTests(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaises(ComparisonError):
                     check_cold_pair(bad, report['coordinates'], report['values'], report['associated_fields'])
+
+    def test_stored_audit_uses_unchanged_force_global_and_flux_gates(self):
+        from test_candidate import context
+        reader, coordinates, primary, extra = context()
+        accuracy = reader.candidate(coordinates, primary, extra)
+        reader.reference['global_reaction_allowance'] = 1e-8
+        audit = {'reconstructed_force_on_domain': list(reader.reference['force_on_domain']),
+                 'reconstructed_force_on_selection': reader.reference['force_on_selection'],
+                 'reconstructed_global_essential_reaction_on_domain': [0., 0.],
+                 'frozen_global_reaction_allowance': 1e-8,
+                 'ufl_boundary_fluxes': {side: accuracy['analytic_checks'][side+'_flux'] for side in ('inlet', 'outlet')}}
+        check_audit_observations(reader, audit, primary, extra, accuracy)
+        for mutation in ('force', 'reaction', 'flux', 'allowance'):
+            bad = copy.deepcopy(audit)
+            if mutation == 'force': bad['reconstructed_force_on_domain'][0] *= -1
+            elif mutation == 'reaction': bad['reconstructed_global_essential_reaction_on_domain'][0] = 1.
+            elif mutation == 'flux': bad['ufl_boundary_fluxes']['outlet'] += .01
+            else: bad['frozen_global_reaction_allowance'] = 1.
+            with self.subTest(mutation=mutation):
+                with self.assertRaises(ComparisonError): check_audit_observations(reader, bad, primary, extra, accuracy)
 
     def test_bad_hash_or_incomplete_case_qualification_is_rejected(self):
         scratch = Path.home()/'.cache/eqiora/cylinder-qualification-tests'; scratch.mkdir(parents=True, exist_ok=True)
