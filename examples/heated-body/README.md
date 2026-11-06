@@ -82,5 +82,5 @@ right-face condition `-k*dT/dx = h*(T(L)-Tinf)`. Height does not enter this
 profile. Zero h is insulated; changing the sign of Tinf−Tc reverses heat flow.
 
 The convection path supports steady affine Cartesian 2D Q1 on the serial CPU
-reference provider. TPFA is unsupported and returns a typed diagnostic.
-Transient convection, threaded, MPI and GPU execution remain unverified.
+reference provider. TPFA is rejected with a typed diagnostic.
+Transient convection, threaded CPU, MPI and GPU execution are not verified by this example.

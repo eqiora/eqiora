@@ -62,7 +62,8 @@ The caller must cover the remaining boundaries. The volume and fixed-temperature
 components require `h1`; the heat-flux component requires authored `smooth`
 regularity. The initial imported thermal workflow covers Cartesian 2D Q1 on
 CPU through the common Plan, with Plan and Result replay. It adds no verified
-threaded, MPI or GPU thermal-package path. Convection, radiation, nonlinear
+threaded, MPI or GPU thermal-package path. For steady convective boundaries,
+see [Convective heat transfer](#convective-heat-transfer). Radiation, nonlinear
 materials and coupled thermal interfaces are not supplied by these components.
 
 ## Transient heat conduction
@@ -143,7 +144,8 @@ instance convection: scalar.ConvectiveHeatTransfer2d(
 ```
 
 The supported numerical path is steady affine Cartesian 2D Q1 on the serial CPU
-reference provider, with constant coefficient and ambient data. TPFA returns a typed unsupported diagnostic. No transient,
-threaded, MPI or GPU convection execution is claimed. See the imported and
+reference provider, with constant coefficient and ambient data. TPFA is rejected
+with a typed diagnostic. Transient convection, threaded CPU, MPI and GPU execution
+are not verified by this example. See the imported and
 hand-written `ConvectiveHeatedBody` entries in
 [`examples/heated-body`](../../../../examples/heated-body/README.md).

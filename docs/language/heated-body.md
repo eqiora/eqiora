@@ -58,5 +58,6 @@ material values. Physical outward heat flux is `h*(T-Tinf)`. On a rectangle
 with left temperature Tc and length L, substitution gives
 `T(x)=Tc+h*(Tinf-Tc)*x/(k+h*L)` without volume heating.
 Both forms are in the maintained heated-body sources. The convection path is
-steady affine Cartesian 2D Q1 with the serial CPU reference provider; TPFA,
-transient convection, threaded, MPI and GPU paths are not supported here.
+steady affine Cartesian 2D Q1 with the serial CPU reference provider. TPFA is
+rejected with a typed diagnostic. Transient convection, threaded CPU, MPI and
+GPU execution are not verified by this example.

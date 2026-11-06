@@ -54,8 +54,8 @@ separate thermal components below for Kelvin temperature.
 The lesson derives its heat nondimensionalization separately. The
 <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Scalar/README.md">package contract</ExactSourceLink>
 and <ExactSourceLink kind="blob" path="verify/numerics/packaged-scalar-elliptic-2d/README.md">verification case</ExactSourceLink>
-describe the existing host reference Q1 checks. The package adds no FVM, MPI,
-GPU, unstructured-mesh, Robin or periodic execution support.
+describe the existing host reference Q1 checks. These dimensionless Poisson/Laplace components add no FVM, MPI, GPU,
+unstructured-mesh, Robin or periodic execution support.
 
 ## Steady heat conduction
 
@@ -72,8 +72,8 @@ The same `Eqiora.Scalar@0.5.0` module also provides fixed-SI thermal components:
 Convection takes the same conductivity as the volume and a smooth Kelvin Field.
 The caller supplies all inputs; the ambient temperature is an expression on the
 bound face. The supported path is steady affine Cartesian 2D Q1, serial CPU
-reference provider. TPFA returns a typed unsupported diagnostic. Transient,
-threaded, MPI and GPU convection execution remain unverified.
+reference provider. TPFA is rejected with a typed diagnostic. Transient convection,
+threaded CPU, MPI and GPU execution are not verified by this example.
 
 Temperature is a Kelvin Field, conductivity is an explicit parameter in W/(m K),
 and heating has units W/m³. Positive heat flux leaves the body; use
@@ -88,8 +88,8 @@ check Cartesian 2D Q1 on CPU, both physical flux signs, unit/support diagnostics
 and Plan/Result replay. The [storage lesson](/learn/heat-transfer/transient-storage/)
 uses imported constant-capacity heat with caller-owned initial data, Q1 and backward
 Euler; it also retains the same transient Law written by hand. Positive capacity
-is a physical-use assumption, not a new package positivity check. This package adds
-no validated threaded, MPI, GPU, convective or coupled-interface thermal workflow.
+is a physical-use assumption, not a new package positivity check. The storage example adds
+no validated transient convection, threaded CPU, MPI, GPU or coupled-interface thermal workflow.
 
 ## Elastic balance and boundaries
 
