@@ -85,10 +85,10 @@ def run(args, directory, state):
     state["ordinary_run_completed"] = 1
     result_bytes = result.to_bytes()
     write(directory/"result.json", result_bytes)
-    candidate, identity = extract_candidate(reopened_plan, result, field, lengths, args.cells)
-    candidate_sha256 = write(directory/"candidate.json", candidate)
     reopened_result = eqiora.Result.from_bytes(reopened_plan, result_bytes)
     require(reopened_result.to_bytes() == result_bytes, "Result replay changed canonical bytes")
+    candidate, identity = extract_candidate(reopened_plan, result, field, lengths, args.cells)
+    candidate_sha256 = write(directory/"candidate.json", candidate)
     replayed_candidate, replayed_identity = extract_candidate(reopened_plan, reopened_result, field, lengths, args.cells)
     require(replayed_candidate == candidate and replayed_identity == identity, "Result replay changed a vertex/edge/face/cell coefficient")
     identity["candidate_sha256"] = candidate_sha256

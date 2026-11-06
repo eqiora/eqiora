@@ -57,7 +57,15 @@ def authenticate_plan(plan, lengths, n):
 
 def extract_candidate(plan, result, field, lengths, n):
     plan_raw, mesh, coordinates = authenticate_plan(plan, lengths, n)
-    require(result.plan_key == plan.identity and result.model_digest == plan.model_digest, "Result does not belong to the actual Plan/Model")
+    result_raw = result.to_bytes()
+    try:
+        result_wire = json.loads(result_raw)
+    except (ValueError, TypeError) as error:
+        raise ProductionError("Result is not a canonical JSON artifact") from error
+    require(isinstance(result_wire, dict) and result_wire.get("schema") == "eqiora.common-result/v28", "unsupported Result artifact schema")
+    content = result_wire.get("content")
+    require(isinstance(content, dict) and content.get("plan_identity") == plan.identity
+            and result.model_digest == plan.model_digest, "Result does not belong to the actual Plan/Model")
     dimension = len(lengths)
     output = result.output(field)
     require(output.field == field, "Result selected a different Field")
@@ -97,5 +105,5 @@ def extract_candidate(plan, result, field, lengths, n):
             retained.append({"entity": list(entity), "association": association, "coordinates_m": [decimal_binary64(x) for x in physical]})
     require(len(records) == (2*n+1)**dimension and len({tuple(record["coordinates_m"]) for record in records}) == len(records), "complete Q2 physical node inventory is not bijective")
     candidate = {"schema": 1, "lengths_m": list(lengths), "N": n, "gauss_points": 4, "records": records}
-    identity = {"schema": 1, "plan_sha256": sha256(plan_raw), "result_sha256": sha256(result.to_bytes()), "plan_identity": plan.identity, "model_digest": plan.model_digest, "mesh_sha256": sha256(mesh.to_bytes()), "mesh_digest": mesh.digest, "coefficient_entities": retained}
+    identity = {"schema": 1, "plan_sha256": sha256(plan_raw), "result_sha256": sha256(result.to_bytes()), "plan_identity": plan.identity, "run_request_key": result.plan_key, "model_digest": plan.model_digest, "mesh_sha256": sha256(mesh.to_bytes()), "mesh_digest": mesh.digest, "coefficient_entities": retained}
     return candidate, identity
