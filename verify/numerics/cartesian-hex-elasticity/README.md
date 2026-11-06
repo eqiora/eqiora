@@ -1,8 +1,10 @@
 # Ordinary Cartesian Hex elasticity preparation
 
-Status: producer preparation; no numerical candidate has run and this case does
-not yet establish qualification. The independent accepted mathematics and fixed
-budgets live in [reference/README.md](reference/README.md).
+Status: the archived installed-Python runtime passed one solve and independent
+primary/replay checks. Its [source revision](https://github.com/eqiora/eqiora/commit/7612bfbab2cef3d3ce10e349e39a95aa43eaf473)
+identifies that runtime; this result does not qualify later producer builds.
+Native numerical qualification remains pending producer/build review. The
+independent mathematics and fixed budgets live in [reference/README.md](reference/README.md).
 
 `model.eqi` authors the displacement, isotropic stress, affine essential data,
 five natural tractions, strain energy and three left-face stress integrals.
@@ -48,3 +50,13 @@ identical H1 trial declaration must reject those unsupported classical traces.
 The weak form uses the equivalent bilinear strain/divergence identity, because
 `isotropic_lift` is not currently an authored weak-form operator; this source
 does not extend that authoring capability.
+
+
+The Rust integration test includes a separately held native producer. Its
+scientific test is ignored by ordinary test runs and requires an accepted
+receipt binding its source tree, binary, producer, model and reference bytes.
+It uses public `run_result`, field blocks and `observe`; saves the actual Result
+before observing; then reopens the Result and checks primary and replay exports
+with the unchanged independent protocol. The same CPU and thread restrictions
+apply. Its root preparation manifest identifies the exact subdirectory holding
+the actual Model, Mesh, Plan and Result. No candidate is used as an expectation.

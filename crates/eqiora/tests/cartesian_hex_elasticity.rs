@@ -43,7 +43,15 @@ fn persist(directory: &Option<PathBuf>, name: &str, bytes: &[u8]) {
     }
 }
 
-fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
+struct Prepared {
+    document: ModelDocument,
+    model: eqiora::artifact::ModelEnvelope,
+    mesh: CartesianMeshEnvelopeV1,
+    plan: eqiora_numerics::ResolvedCommonPlan,
+    evidence: Option<PathBuf>,
+}
+
+fn prepare_source(source: &str) -> Result<Prepared, Vec<eqiora::Diagnostic>> {
     let evidence = preparation_evidence(source);
     let graph = GeometryGraph::new();
     let cuboid = graph.cuboid([0., 2.], [0., 3.], [0., 4.]).unwrap();
@@ -194,7 +202,29 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
         description.requested_source_identity()
     );
     assert_physical_hex_corners(mesh.mesh());
-    Ok(())
+    let prepared = Prepared {
+        document,
+        model,
+        mesh,
+        plan: replay,
+        evidence,
+    };
+    let field = selected_field(&prepared);
+    assert_eq!(
+        prepared
+            .plan
+            .as_spatial()
+            .unwrap()
+            .field_coefficient_entities(field)
+            .unwrap()
+            .len(),
+        27
+    );
+    let observables = ["energy", "left_x", "left_y", "left_z"]
+        .map(|name| selected_observable(&prepared, name).ulid().to_string());
+    persist(&prepared.evidence, "export-bindings.json", &serde_json::to_vec_pretty(&serde_json::json!({
+        "field":field.ulid().to_string(),"observables":observables,"volume_quadrature":[3,2],"facet_quadrature":[2,2]})).unwrap());
+    Ok(prepared)
 }
 
 #[test]
@@ -250,7 +280,7 @@ fn unsupported_or_illtyped_authored_forms_reject_before_any_result() {
 fn assert_rejected_controls<const N: usize>(controls: [(&str, String); N]) {
     for (control, source) in controls {
         assert_ne!(source, SOURCE, "{control} did not alter the source");
-        let diagnostics = prepare_source(&source).expect_err(control);
+        let diagnostics = prepare_source(&source).err().expect(control);
         assert!(
             !diagnostics.is_empty(),
             "{control} returned no typed diagnostic"
@@ -274,18 +304,22 @@ fn assert_physical_hex_corners(native: &CartesianMesh) {
             .into_iter()
             .map(|v| native.vertex_coordinates(v).unwrap())
             .collect();
-        let lower: Vec<_> = (0..3)
-            .map(|a| corners.iter().map(|p| p[a]).min_by(f64::total_cmp).unwrap())
-            .collect();
-        for (corner, point) in corners.iter().enumerate() {
-            for axis in 0..3 {
-                assert_eq!(
-                    point[axis],
-                    lower[axis] + [1., 1.5, 2.][axis] * ((corner >> axis) & 1) as f64
-                );
-            }
-        }
+        assert!(physical_corner_mapping_valid(&corners));
     }
+}
+
+fn physical_corner_mapping_valid(points: &[Vec<f64>]) -> bool {
+    if points.len() != 8 || points.iter().any(|point| point.len() != 3) {
+        return false;
+    }
+    let lower = (0..3)
+        .map(|a| points.iter().map(|p| p[a]).min_by(f64::total_cmp).unwrap())
+        .collect::<Vec<_>>();
+    points.iter().enumerate().all(|(corner, point)| {
+        (0..3).all(|axis| {
+            point[axis] == lower[axis] + [1., 1.5, 2.][axis] * ((corner >> axis) & 1) as f64
+        })
+    })
 }
 
 #[test]
@@ -314,4 +348,362 @@ fn invalid_axes_and_real_decoder_budget_reject_before_any_result() {
         CartesianMeshEnvelopeV1::from_json_with_limits(&artifact.canonical_json().unwrap(), limits)
             .is_err()
     );
+}
+
+fn binary64_hex(value: f64) -> String {
+    assert!(value.is_finite(), "nonfinite exported value");
+    assert!(
+        value != 0. || !value.is_sign_negative(),
+        "negative zero exported value"
+    );
+    if value == 0. {
+        return "0x0.0p+0".to_owned();
+    }
+    let bits = value.to_bits();
+    let sign = if value.is_sign_negative() { "-" } else { "" };
+    let exponent = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1_u64 << 52) - 1);
+    if exponent == 0 {
+        format!("{sign}0x0.{fraction:013x}p-1022")
+    } else {
+        format!("{sign}0x1.{fraction:013x}p{:+}", exponent - 1023)
+    }
+}
+
+#[test]
+fn native_binary64_projection_preserves_ieee_components() {
+    for (value, expected) in [
+        (0., "0x0.0p+0"),
+        (1., "0x1.0000000000000p+0"),
+        (1.5, "0x1.8000000000000p+0"),
+        (-2., "-0x1.0000000000000p+1"),
+        (f64::from_bits(1), "0x0.0000000000001p-1022"),
+        (f64::MIN_POSITIVE, "0x1.0000000000000p-1022"),
+    ] {
+        assert_eq!(binary64_hex(value), expected);
+    }
+}
+
+fn selected_field(prepared: &Prepared) -> eqiora::Id<eqiora::entity::kinds::Field> {
+    let selected = prepared
+        .document
+        .aliases()
+        .get("definition.displacement")
+        .or_else(|| prepared.document.aliases().get("displacement"))
+        .unwrap()
+        .downcast()
+        .unwrap();
+    assert!(prepared.document.program().nodes().any(
+        |node| matches!(node, eqiora::kernel::KernelNode::Field(value) if value.id() == selected)
+    ));
+    selected
+}
+
+fn selected_observable(
+    prepared: &Prepared,
+    name: &str,
+) -> eqiora::Id<eqiora::entity::kinds::Observable> {
+    let selected = prepared
+        .document
+        .aliases()
+        .get(&format!("definition.{name}"))
+        .or_else(|| prepared.document.aliases().get(name))
+        .unwrap()
+        .downcast()
+        .unwrap();
+    assert!(prepared.document.program().nodes().any(|node|
+        matches!(node, eqiora::kernel::KernelNode::Observable(value) if value.id() == selected)));
+    selected
+}
+
+fn native_export(prepared: &Prepared, result: &eqiora_numerics::CommonResult) -> serde_json::Value {
+    use eqiora::kernel::KernelNode;
+    use std::collections::{BTreeSet, HashMap};
+    let spatial = prepared.plan.as_spatial().unwrap();
+    assert_eq!(
+        result.plan().to_bytes().unwrap(),
+        prepared.plan.to_bytes().unwrap()
+    );
+    assert_eq!(result.field_count(), 1);
+    let field = selected_field(prepared);
+    let (actual_field, value_type, space) = result.field(0).unwrap();
+    assert_eq!(actual_field, field.ulid().to_string());
+    assert_eq!(space, spatial.field_space(field).unwrap());
+    assert_eq!(value_type.scalar_domain(), eqiora::ScalarDomain::Real);
+    assert_eq!(
+        value_type
+            .shape()
+            .extents()
+            .iter()
+            .map(|v| v.get())
+            .collect::<Vec<_>>(),
+        [3]
+    );
+    assert_eq!(value_type.array_rank(), 0);
+    assert_eq!(value_type.frame(), eqiora::ValueFrame::SpatialCartesian);
+    assert_eq!(
+        value_type.dimension(),
+        eqiora::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()
+    );
+    assert_eq!(result.field_block_count(0), 1);
+    let (association, coefficients, shape) = result.field_block(0, 0).unwrap();
+    assert_eq!(association, "vertex");
+    assert_eq!(shape, [27, 3]);
+    assert_eq!(coefficients.len(), 81);
+    let entities = spatial.field_coefficient_entities(field).unwrap();
+    assert_eq!(entities.len(), 27);
+    let mut records = Vec::new();
+    let mut retained = BTreeSet::new();
+    for (entity, values) in entities.into_iter().zip(coefficients.chunks_exact(3)) {
+        assert_eq!(entity.dimension(), 0);
+        let closure = prepared.mesh.mesh().entity_vertices(entity).unwrap();
+        assert_eq!(closure, [entity]);
+        let point = prepared.mesh.mesh().vertex_coordinates(entity).unwrap();
+        for (component, &value) in ["x", "y", "z"].into_iter().zip(values) {
+            assert!(retained.insert((
+                point.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                component
+            )));
+            records.push(serde_json::json!({"coordinate_m": point.iter().copied().map(binary64_hex).collect::<Vec<_>>(),
+                "component": component, "value_m": binary64_hex(value)}));
+        }
+    }
+    let mut expected = BTreeSet::new();
+    for x in [0_f64, 1., 2.] {
+        for y in [0_f64, 1.5, 3.] {
+            for z in [0_f64, 2., 4.] {
+                for component in ["x", "y", "z"] {
+                    expected.insert((vec![x.to_bits(), y.to_bits(), z.to_bits()], component));
+                }
+            }
+        }
+    }
+    assert_eq!(retained, expected);
+    let mut observed = Vec::new();
+    for (index, name) in ["energy", "left_x", "left_y", "left_z"]
+        .into_iter()
+        .enumerate()
+    {
+        let observable = selected_observable(prepared, name);
+        let domain = prepared
+            .document
+            .program()
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Observable(value) if value.id() == observable => {
+                    value.reduction().domain()
+                }
+                _ => None,
+            })
+            .unwrap();
+        let dimension = if index == 0 { 3 } else { 2 };
+        let rule =
+            eqiora::meshing::QuadratureRule::tensor_product_gauss_legendre(dimension, 2).unwrap();
+        let rules = HashMap::from([(domain, rule)]);
+        let observation = result
+            .observe(&prepared.model, observable, &rules, None)
+            .unwrap();
+        assert_eq!(observation.observable(), observable);
+        assert_eq!(observation.result_identity(), result.identity());
+        assert_eq!(observation.quadratures().len(), 1);
+        let actual = observation.quadratures().get(&domain).unwrap();
+        assert_eq!(actual.reference_cell().dimension(), dimension);
+        assert_eq!(actual.points().len(), 1 << dimension);
+        let value = observation.value();
+        assert!(value.value_type().shape().is_scalar());
+        let units = if index == 0 {
+            [1, 2, -2, 0, 0, 0, 0]
+        } else {
+            [1, 1, -2, 0, 0, 0, 0]
+        };
+        assert_eq!(
+            value.value_type().dimension(),
+            eqiora::DimExponents::from_integers(units).unwrap()
+        );
+        observed.push(binary64_hex(value.real_scalar_value().unwrap().value()));
+    }
+    serde_json::json!({"identity": {"dimension":3,"family":"Hex","order":"Q1","geometry":"affine-cartesian",
+        "cells":[2,2,2],"quadrature":[2,2,2],"units":["m","J","N"]},
+        "lineage":{"mesh":spatial.mesh_digest(),"model":prepared.model.digest().unwrap().to_string(),"result":result.identity()},
+        "coefficients":records,"energy_J":observed[0],"left_traction_N":&observed[1..]})
+}
+
+#[test]
+#[ignore = "one scientific Run requires a reviewed native producer/build receipt"]
+fn native_ordinary_hex_result_observation_and_canonical_replay() {
+    use sha2::{Digest, Sha256};
+    let hash = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|v| format!("{v:02x}"))
+            .collect::<String>()
+    };
+    let receipt_path =
+        std::env::var("EQIORA_HEX_NATIVE_REVIEW_RECEIPT").expect("reviewed receipt required");
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(receipt_path).unwrap()).unwrap();
+    assert_eq!(receipt["producer_review"], "accepted");
+    let binary = std::env::current_exe().unwrap();
+    assert_eq!(
+        receipt["binary_sha256"],
+        hash(&std::fs::read(&binary).unwrap())
+    );
+    assert_eq!(
+        receipt["native_producer_sha256"],
+        hash(include_bytes!("cartesian_hex_elasticity.rs"))
+    );
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        receipt["source_commit"],
+        String::from_utf8(commit.stdout).unwrap().trim()
+    );
+    let tree = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD^{tree}"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        receipt["source_tree"],
+        String::from_utf8(tree.stdout).unwrap().trim()
+    );
+    assert_eq!(receipt["model_source_sha256"], hash(SOURCE.as_bytes()));
+    let reference = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../verify/numerics/cartesian-hex-elasticity/reference");
+    for name in ["reference.py", "protocol.py"] {
+        assert_eq!(
+            receipt["reference_sha256"][name],
+            hash(&std::fs::read(reference.join(name)).unwrap())
+        );
+    }
+    assert!(
+        std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .output()
+            .unwrap()
+            .stdout
+            .is_empty()
+    );
+    assert_eq!(std::env::var("CUDA_VISIBLE_DEVICES").as_deref(), Ok(""));
+    for name in [
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "RAYON_NUM_THREADS",
+    ] {
+        assert_eq!(std::env::var(name).as_deref(), Ok("1"));
+    }
+    assert!(
+        std::env::var("LD_LIBRARY_PATH")
+            .unwrap_or_default()
+            .is_empty()
+    );
+    let cpu = std::env::var("EQIORA_HEX_NATIVE_CPU").expect("declared CPU required");
+    let status = std::fs::read_to_string("/proc/self/status").unwrap();
+    assert_eq!(
+        status
+            .lines()
+            .find_map(|line| line.strip_prefix("Cpus_allowed_list:"))
+            .unwrap()
+            .trim(),
+        cpu
+    );
+    let output =
+        PathBuf::from(std::env::var_os("EQIORA_HEX_NATIVE_OUTPUT").expect("new output required"));
+    assert!(output.is_absolute(), "absolute evidence directory required");
+    assert!(!output.exists(), "preserve earlier attempts");
+    assert_eq!(
+        std::env::var_os("EQIORA_HEX_PREPARATION_DIR").map(PathBuf::from),
+        Some(output.clone())
+    );
+    std::fs::create_dir(&output).unwrap();
+    let root = Some(output.clone());
+    persist(&root, "launch.json", &serde_json::to_vec_pretty(&serde_json::json!({"pid":std::process::id(),
+        "binary":binary,"binary_sha256":receipt["binary_sha256"],"source_commit":receipt["source_commit"],
+        "review_receipt":receipt,"cpu":cpu,"ordinary_run_attempted":0,"pde_solves":0,"preparation_manifest":"preparation.json",
+        "environment":(["CUDA_VISIBLE_DEVICES","OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","RAYON_NUM_THREADS","LD_LIBRARY_PATH"].into_iter()
+            .map(|name| (name, std::env::var(name).ok())).collect::<BTreeMap<_,_>>())})).unwrap());
+    let prepared = prepare_source(SOURCE).unwrap();
+    assert!(prepared.evidence.is_some());
+    let plan_wire: serde_json::Value =
+        serde_json::from_slice(&prepared.plan.to_bytes().unwrap()).unwrap();
+    persist(&root, "preparation.json", &serde_json::to_vec_pretty(&serde_json::json!({
+        "artifact_directory":prepared.evidence,"result_path":prepared.evidence.as_ref().unwrap().join("result.json"),
+        "model_digest":prepared.model.digest().unwrap().to_string(),"mesh_digest":prepared.plan.as_spatial().unwrap().mesh_digest(),
+        "plan_identity":plan_wire["identity"],"field":selected_field(&prepared).ulid().to_string(),
+        "observables":["energy","left_x","left_y","left_z"].map(|name| selected_observable(&prepared,name).ulid().to_string()),
+        "status":"prepared-no-run"})).unwrap());
+    persist(
+        &root,
+        "run-attempt.json",
+        b"{\"ordinary_run_attempted\":1,\"declared_pde_solves\":1}\n",
+    );
+    let result = match prepared
+        .plan
+        .as_spatial()
+        .unwrap()
+        .run_result(None, &eqiora::solver::REFERENCE_LINEAR_SOLVER)
+    {
+        Ok(result) => result,
+        Err(error) => {
+            persist(
+                &root,
+                "failure.json",
+                &serde_json::to_vec_pretty(
+                    &serde_json::json!({"diagnostic":error.to_string(),"ordinary_run_attempted":1}),
+                )
+                .unwrap(),
+            );
+            panic!("native ordinary Run rejected: {error}");
+        }
+    };
+    let result_bytes = result.to_bytes().unwrap();
+    // Retain the actual accepted Result before replay, observations or comparison.
+    persist(&prepared.evidence, "result.json", &result_bytes);
+    let replay = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &prepared.plan).unwrap();
+    assert_eq!(replay.to_bytes().unwrap(), result_bytes);
+    for (name, lane) in [("primary.json", &result), ("replay.json", &replay)] {
+        persist(
+            &root,
+            name,
+            &serde_json::to_vec_pretty(&native_export(&prepared, lane)).unwrap(),
+        );
+    }
+    let protocol_python = std::env::var_os("EQIORA_HEX_PROTOCOL_PYTHON")
+        .expect("independent protocol interpreter required");
+    let checked = std::process::Command::new(protocol_python).current_dir(reference).args(["-c",
+        "import pathlib,protocol,sys; q=protocol.r.budgets(); protocol.check(pathlib.Path(sys.argv[1]).read_text(),q); protocol.check(pathlib.Path(sys.argv[2]).read_text(),q)"])
+        .arg(output.join("primary.json")).arg(output.join("replay.json")).output().unwrap();
+    persist(&root, "protocol-stdout.txt", &checked.stdout);
+    persist(&root, "protocol-stderr.txt", &checked.stderr);
+    assert!(
+        checked.status.success(),
+        "independent primary/replay protocol rejected; inspect retained stderr"
+    );
+    persist(
+        &root,
+        "qualification.json",
+        b"{\"status\":\"passed\",\"pde_solves\":1,\"profile_calls\":0,\"result_reopens\":1}\n",
+    );
+}
+
+#[test]
+fn actual_hex_corner_mapping_rejects_axis_and_local_node_permutations() {
+    let mesh = CartesianMesh::uniform(&[[0., 2.], [0., 3.], [0., 4.]], &[2; 3]).unwrap();
+    let corners = mesh
+        .entity_vertices(MeshEntity::new(3, 0))
+        .unwrap()
+        .into_iter()
+        .map(|vertex| mesh.vertex_coordinates(vertex).unwrap())
+        .collect::<Vec<_>>();
+    assert!(physical_corner_mapping_valid(&corners));
+    let mut wrong_local_nodes = corners.clone();
+    wrong_local_nodes.swap(1, 2);
+    assert!(!physical_corner_mapping_valid(&wrong_local_nodes));
+    let mut wrong_axes = corners;
+    for point in &mut wrong_axes {
+        point.swap(0, 1);
+    }
+    assert!(!physical_corner_mapping_valid(&wrong_axes));
 }
