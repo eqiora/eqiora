@@ -44,6 +44,12 @@ def main():
         if not args.execute:
             return 0
         require(receipt.get('producer_review') == 'accepted', 'producer receipt has not passed explicit review')
+        require(receipt['source_commit'] == source_commit and receipt['source_tree'] == source_tree, 'candidate build source differs from reviewed tree')
+        require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=HERE).strip(), 'candidate source tree is dirty')
+        for name in ('wheel', 'binary'):
+            require(sha256(Path(receipt[name+'_path']).read_bytes()) == receipt[name+'_sha256'], 'reviewed '+name+' bytes differ')
+        for filename, key in (('production.py', 'producer_sha256'), ('model.eqi', 'model_source_sha256')):
+            require(sha256((HERE/filename).read_bytes()) == receipt[key], 'reviewed producer/model bytes differ')
         require(os.environ.get('CUDA_VISIBLE_DEVICES') == '', 'CUDA_VISIBLE_DEVICES must be empty')
         require(len(os.sched_getaffinity(0)) == 1, 'execution requires one pinned CPU')
         require(all(os.environ.get(k) == '1' for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'RAYON_NUM_THREADS')), 'execution requires one thread')
