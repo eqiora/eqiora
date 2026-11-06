@@ -7,7 +7,7 @@ mod kernel;
 pub(super) fn solve<S: KrylovScalar>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     inverse_diagonal: Option<Vec<S>>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     let dimension = problem.operator().columns();
@@ -106,7 +106,7 @@ pub(super) fn solve<S: KrylovScalar>(
     }
     eqiora_solver::LinearSolution::accept(
         problem,
-        plan,
+        plan.clone(),
         provider,
         convergence_reason(iterations),
         iterations,

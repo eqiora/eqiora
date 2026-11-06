@@ -27,7 +27,7 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
             plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )

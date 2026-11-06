@@ -38,7 +38,7 @@ fn availability() -> SolverProviderAvailability {
                     scalar_domain: ScalarDomain::Real,
                     algorithm,
                     operator_properties,
-                    preconditioner,
+                    preconditioner: preconditioner.kind(),
                     reduction,
                     scalar_type: ScalarType::F64,
                 },
@@ -109,7 +109,7 @@ pub(crate) fn declared_mpi_selection_preserves_literal_tuples_and_unknown_costs(
         assert_eq!(choice.selected_candidate_id(), id);
         assert_eq!(
             choice.solver_plan(),
-            SolverPlan::new(algorithm, 2e-9, 3e-12, NonZeroUsize::new(73).unwrap())
+            &SolverPlan::new(algorithm, 2e-9, 3e-12, NonZeroUsize::new(73).unwrap())
                 .unwrap()
                 .with_preconditioner(preconditioner)
                 .with_reduction(reduction)
@@ -259,7 +259,7 @@ pub(crate) fn selected_mpi_provider_snapshot_rejects_replacement_even_if_tuple_s
         scalar_type: ScalarType::F64,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Jacobi,
+        preconditioner: crate::PreconditionerKind::Jacobi,
         reduction: ReductionPolicy::Reproducible,
     }])
     .unwrap();

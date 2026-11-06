@@ -110,7 +110,7 @@ fn e2_compiled_and_existing_paths_match_every_local_csr_and_rhs() {
         &|_: &[f64]| 0.0,
         &quadrature,
         &legacy_backend,
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, resolved.plan().solver()),
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, resolved.plan().solver().clone()),
     )
     .unwrap();
 

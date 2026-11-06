@@ -83,8 +83,8 @@ impl DifferentiableProgramIdentity {
 
     /// Solver policy shared by normal and transposed actions.
     #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
+    pub const fn solver(&self) -> &SolverPlan {
+        &self.solver
     }
 }
 
@@ -234,7 +234,8 @@ impl DifferentiableProgramIdentity {
             scalar_type: ScalarType::F64,
             solver: plan
                 .effective_solver()
-                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
+                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?
+                .clone(),
         })
     }
 }

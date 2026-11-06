@@ -339,7 +339,7 @@ fn solve(
     admitted_device_payload_bytes: Option<usize>,
     system: &CanonicalCsrSystemView,
     initial_guess: Option<&[f64]>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<CudaLinearSolveResult, Diagnostic> {
     let total_started = Instant::now();
     CudaLinearSolver::capabilities().require_problem(
@@ -559,7 +559,7 @@ fn solve(
     let verification_started = Instant::now();
     let solution = eqiora_solver::LinearSolution::accept_with_verifier(
         &problem,
-        plan,
+        plan.clone(),
         CUDA_LINEAR_SOLVER_PROVIDER,
         CUDA_LINEAR_EXECUTION_PROVIDER,
         ExecutionReport::cuda(CUDA_LINEAR_EXECUTION, device_ordinal),
@@ -730,7 +730,7 @@ fn solve_minres(
     spmv: &SpmvPlan,
     blas: &BlasHandle,
     dimension: i32,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     rhs: &CudaSlice<f64>,
     solution: &mut CudaSlice<f64>,
     residual: &mut CudaSlice<f64>,
@@ -955,7 +955,7 @@ fn solve_cg(
     spmv: &SpmvPlan,
     blas: &BlasHandle,
     dimension: i32,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     rhs: &CudaSlice<f64>,
     solution: &mut CudaSlice<f64>,
     residual: &mut CudaSlice<f64>,
@@ -1095,7 +1095,7 @@ fn solve_bicgstab(
     spmv: &SpmvPlan,
     blas: &BlasHandle,
     dimension: i32,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     rhs: &CudaSlice<f64>,
     solution: &mut CudaSlice<f64>,
     residual: &mut CudaSlice<f64>,

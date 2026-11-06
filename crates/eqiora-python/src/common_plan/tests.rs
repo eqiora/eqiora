@@ -8,7 +8,9 @@ mod transient;
 use std::collections::BTreeMap;
 
 use eqiora::api::ModelDocument;
-use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, PlanarTopologyHandle};
+use eqiora::geometry::{
+    CanonicalGeometryV1, GeometryGraph, GeometryTopologyHandle, NamedEntitySet,
+};
 use eqiora::{DimExponents, DynQuantity};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
@@ -101,17 +103,20 @@ fn rectangle_geometry(xmax: f64) -> CanonicalGeometryV1 {
                 ("region".to_owned(), vec![rectangle.region().into()]),
                 (
                     "left".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "right".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "bottom".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
-                ("top".to_owned(), vec![PlanarTopologyHandle::from(edges[3])]),
+                (
+                    "top".to_owned(),
+                    vec![GeometryTopologyHandle::from(edges[3])],
+                ),
             ]),
         )
         .unwrap()
@@ -552,7 +557,7 @@ assert portable_q1.requested_solve == linear
 assert portable_q1.requested_solve.provider == linear.provider
 import copy, json
 plan_payload = json.loads(q1_bytes)
-assert plan_payload["schema"] == "eqiora.resolved-common-plan/v26"
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v27"
 assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
 for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
     payload = copy.deepcopy(plan_payload)
@@ -1034,7 +1039,7 @@ assert plan.solve.backend == "eqiora.faer"
 assert plan.requested_solve is linear
 assert plan.solve.algorithm == "sparse-lu"
 assert plan.solve.operator == "symmetric-indefinite"
-assert plan.solve.preconditioner == "identity"
+assert plan.solve.preconditioner.kind == "identity"
 assert plan.solve.reduction == "fast"
 assert plan.solve.backend == "eqiora.faer"
 result = package.run(plan)
@@ -1042,13 +1047,25 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v27"
+assert wire["schema"] == "eqiora.common-result/v28"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
-    "continuity_residual_norm"
+    "continuity_residual_norm", "gauge_multiplier"
 }
+# Natural outlet traction fixes pressure, so this Plan has no auxiliary gauge.
+assert wire["content"]["payload"]["acceptance"]["acceptance"]["gauge_multiplier"] is None
+assert result.gauge_multiplier is None
 replayed_result = package.Result.from_bytes(plan, result_bytes_before_observation)
+assert replayed_result.gauge_multiplier is None
 assert replayed_result.to_bytes() == result_bytes_before_observation
+unexpected_gauge = json.loads(result_bytes_before_observation)
+unexpected_gauge["content"]["payload"]["acceptance"]["acceptance"]["gauge_multiplier"] = 1.0
+try:
+    package.Result.from_bytes(plan, json.dumps(unexpected_gauge).encode())
+except package.ValidationError as error:
+    assert "gauge multiplier" in str(error).lower(), str(error)
+else:
+    raise AssertionError("gauge multiplier was accepted for a Plan without a pressure gauge")
 old = dict(wire, schema="eqiora.common-result/v19")
 removed = json.loads(result_bytes_before_observation)
 removed["content"]["payload"]["acceptance"]["reactions"] = []
@@ -1506,7 +1523,7 @@ assert plan.requested_solve is linear
 assert plan.solve.algorithm == "conjugate-gradient"
 assert not hasattr(plan.capability, "scaling")
 assert plan.temporal is None
-assert plan.solve.preconditioner == "identity"
+assert plan.solve.preconditioner.kind == "identity"
 assert plan.solve.reduction == "reproducible"
 assert plan.execution.placement == "host-serial" and plan.execution.workers == 1
 
@@ -1514,7 +1531,7 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 import json
 wire = json.loads(result_bytes)
-assert wire["schema"] == "eqiora.common-result/v27"
+assert wire["schema"] == "eqiora.common-result/v28"
 assert "elasticity" not in wire["content"]["payload"]["acceptance"]
 for changed in (
     dict(wire, schema="eqiora.common-result/v19"),
@@ -1574,7 +1591,7 @@ for objective, algorithm, provider, reduction in (
             "cost.shape-unavailable-preference-fallback") in ranked_plan.solve.planning_reasons
     assert manual_plan.solve.objective is None
     assert ranked_plan.solve.algorithm == manual_plan.solve.algorithm
-    assert ranked_plan.solve.preconditioner == manual_plan.solve.preconditioner == "identity"
+    assert ranked_plan.solve.preconditioner.kind == manual_plan.solve.preconditioner.kind == "identity"
     ranked_plan = package.Plan.from_bytes(ranked_plan.to_bytes())
     assert ranked_plan.requested_solve == ranked_request
     ranked_result = package.run(ranked_plan)

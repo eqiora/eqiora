@@ -111,7 +111,7 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
         &accepted,
         &direction,
         LinearOperatorProperties::General,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     assert_eq!(

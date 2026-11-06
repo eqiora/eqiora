@@ -71,7 +71,7 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
 
 /// Lower the exact geometry-backed 2D steady incompressible Stokes subset.
 ///
-/// The supplied exact circular-hole geometry authenticates the Model's
+/// The supplied exact planar primitive bounds authenticates the Model's
 /// `GeometryRegion` digest and supplies only exact bounds and fixed-side
 /// parent-outward normals. Mesh entity membership is deliberately absent from
 /// this method-neutral result and is resolved later through correspondence.
@@ -85,10 +85,10 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     geometry: &CanonicalGeometryV1,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
     let (domain, boundaries) = unique_bound_geometry_domain_2d(program, geometry)?;
-    let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
+    let bounds = geometry.planar_axis_bounds().ok_or_else(|| {
         lowering_error(
             domain,
-            "geometry-backed steady Stokes requires exact circular-hole geometry",
+            "geometry-backed steady Stokes requires exact planar primitive bounds",
         )
     })?;
     lower_steady_incompressible_stokes_2d_on(

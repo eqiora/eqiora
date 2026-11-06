@@ -123,7 +123,7 @@ pub fn cuda_solver_contract() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: eqiora::solver::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         },
@@ -131,7 +131,7 @@ pub fn cuda_solver_contract() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora::solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         },
@@ -139,7 +139,7 @@ pub fn cuda_solver_contract() -> SolverCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora::solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         },
@@ -154,7 +154,7 @@ pub fn exact_capabilities(
     let plan = solver_plan(ReductionPolicy::Fast);
     solver
         .require_problem(
-            plan,
+            &plan,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -164,7 +164,7 @@ pub fn exact_capabilities(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: plan.preconditioner(),
+        preconditioner: plan.preconditioner().kind(),
         reduction: plan.reduction(),
         scalar_type: ScalarType::F64,
     }])

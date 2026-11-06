@@ -23,9 +23,9 @@ use crate::{
     SemanticRevision, invalid_realization,
 };
 
-const SCHEMA: &str = "eqiora.portable-realization-graph/v5";
+const SCHEMA: &str = "eqiora.portable-realization-graph/v6";
 const ENCODING: &str = "eqiora.canonical-json/v1";
-const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v5\0";
+const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v6\0";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NODES_PER_ARENA: usize = 100_000;
 
@@ -156,7 +156,6 @@ impl WireGraph {
             linear_solves: value
                 .linear_solves()
                 .iter()
-                .copied()
                 .map(WireLinearSolve::encode)
                 .collect::<Result<_, _>>()?,
             nonlinear_solves: value
@@ -480,7 +479,7 @@ impl WireGeometryAction {
                 interface_ulids: interfaces.iter().map(|id| id.ulid().to_string()).collect(),
                 duration: WireQuantity::encode(*duration),
                 minimum_mean_ratio: normalize_zero(quality_gate.minimum_mean_ratio()),
-                solver: *solver,
+                solver: solver.clone(),
             }),
         }
     }
@@ -611,10 +610,10 @@ struct WireLinearSolve {
 }
 
 impl WireLinearSolve {
-    fn encode(value: LinearSolveNode) -> Result<Self, Diagnostic> {
+    fn encode(value: &LinearSolveNode) -> Result<Self, Diagnostic> {
         Ok(Self {
             system: encode_index(value.system().index(), "linear system")?,
-            plan: value.plan(),
+            plan: value.plan().clone(),
             placement: encode_index(value.placement().index(), "linear placement")?,
             schedule: WireSchedule::encode(value.schedule()),
         })

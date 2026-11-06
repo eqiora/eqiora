@@ -14,7 +14,7 @@ fn harmonic_policy_canonicalizes_complete_inventories_and_rejects_ambiguity() {
     )
     .unwrap();
     let make = |harmonic: Vec<_>, drivers: Vec<_>, interfaces: Vec<_>| {
-        P1HarmonicMeshMotionPolicy::new(harmonic, drivers, interfaces, quality, solver)
+        P1HarmonicMeshMotionPolicy::new(harmonic, drivers, interfaces, quality, solver.clone())
     };
     let drivers = vec![(domains[2], fields[0]), (domains[3], fields[1])];
     let policy = make(domains[..2].to_vec(), drivers.clone(), interfaces.to_vec()).unwrap();

@@ -170,7 +170,7 @@ pub(crate) fn assess_canonical_with_nullspace(
     constraint: &NullspaceConstraint,
     values: &[f64],
     multiplier: f64,
-    plan: eqiora_solver::SolverPlan,
+    plan: &eqiora_solver::SolverPlan,
 ) -> Result<NullspaceEvidence, Diagnostic> {
     let compatibility_residual = validate_operator_and_load(system, constraint)?;
     if values.len() != system.rows()

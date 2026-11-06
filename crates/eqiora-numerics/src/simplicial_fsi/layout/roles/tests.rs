@@ -67,7 +67,7 @@ fn spatial(
         plan.time_step().clone(),
         plan.scaling().clone(),
         plan.operator_properties(),
-        plan.solver(),
+        plan.solver().clone(),
         plan.target(),
         plan.schedule(),
     )

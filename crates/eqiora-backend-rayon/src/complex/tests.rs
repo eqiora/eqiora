@@ -105,7 +105,7 @@ fn typed_solver_entries_reject_same_id_stale_execution_before_work() {
         LinearProblem::new(&complex_operator, &rhs, LinearOperatorProperties::General).unwrap();
     for error in [
         backend
-            .solve_with_execution(&real, plan, &StaleSerial)
+            .solve_with_execution(&real, plan.clone(), &StaleSerial)
             .unwrap_err(),
         backend
             .solve_with_execution(&complex, plan, &StaleSerial)

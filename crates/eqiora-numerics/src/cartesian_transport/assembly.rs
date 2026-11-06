@@ -271,7 +271,10 @@ pub fn solve_resolved_scalar_transport_fvm_step_2d_with_assembly(
     let (model, finalized) = finalize_resolved_scalar_transport_fvm_step_2d_with_assembly(
         program, resolved, previous, assembly,
     )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    let solved = backend.solve(
+        &finalized.linear_problem()?,
+        finalized.solver_plan().clone(),
+    )?;
     Ok((model, finalized.finish(solved)?))
 }
 

@@ -54,7 +54,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
                     &eqiora_realization::SystemScaling::Dimensional,
                 )
                 .unwrap()
-                .finalize_real(NonZeroUsize::MIN, solver)
+                .finalize_real(NonZeroUsize::MIN, solver.clone())
         };
         let system = finalize();
         assert_eq!(system.core.canonical_csr_system_view().rows(), 12);
@@ -78,7 +78,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
         );
         let output = system
             .solve(
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver),
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver.clone()),
                 None,
             )
             .unwrap();
@@ -128,7 +128,7 @@ fn finalized_real_storage_preserves_complex_channels_and_reaccepts_original_equa
         assert!(system.validate_coefficients(&changed).is_err());
         let resumed = system
             .solve(
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver),
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver.clone()),
                 Some(&candidate),
             )
             .unwrap();

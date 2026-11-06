@@ -35,7 +35,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeBackend, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v26";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v27";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -212,12 +212,12 @@ impl ResolvedCommonPlan {
         if let Self::Spatial(plan) = self
             && let Some(context) = &plan.run_planning
         {
-            return Some(CommonSolvePolicy::Linear(context.request));
+            return Some(CommonSolvePolicy::Linear(context.request.clone()));
         }
         let solver = self.effective_solver()?;
         let linear = match self.solver_planning_objective() {
             None => CommonLinearRequest::exact(
-                solver,
+                solver.clone(),
                 self.linear_solver_provider()
                     .expect("a spatial solver retains its exact provider"),
             ),
@@ -232,6 +232,14 @@ impl ResolvedCommonPlan {
         let policy = self
             .linear_policy()
             .expect("linear Plan retains its execution");
+        let linear = match policy
+            .planning_profile
+            .as_ref()
+            .and_then(|profile| profile.requested_preconditioner())
+        {
+            Some(preconditioner) => linear.with_preconditioner(preconditioner.clone()),
+            None => linear,
+        };
         let linear = linear.with_execution(policy.execution, policy.workers);
         let linear = match self
             .linear_policy()

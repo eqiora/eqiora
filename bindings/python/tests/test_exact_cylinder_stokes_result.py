@@ -175,7 +175,17 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
     wire = json.loads(result.to_bytes())
     observation = wire["content"]["payload"]["acceptance"]
     assert set(observation) == {"family", "acceptance"}
-    assert set(observation["acceptance"]) == {"continuity_residual_norm"}
+    assert set(observation["acceptance"]) == {
+        "continuity_residual_norm", "gauge_multiplier",
+    }
+    # The natural outlet traction fixes pressure, so this Plan has no auxiliary gauge.
+    assert observation["acceptance"]["gauge_multiplier"] is None
+    assert result.gauge_multiplier is None
+    assert replayed.gauge_multiplier is None
+    mutant = copy.deepcopy(wire)
+    mutant["content"]["payload"]["acceptance"]["acceptance"]["gauge_multiplier"] = 1.0
+    with pytest.raises(eqiora.ValidationError, match="gauge multiplier"):
+        eqiora.Result.from_bytes(steady, json.dumps(mutant).encode())
     for name in ("constrained_reaction", "integrated_body_force", "integrated_boundary_traction"):
         mutant = copy.deepcopy(wire)
         mutant["content"]["payload"]["acceptance"]["acceptance"][name] = [0.0, 0.0]

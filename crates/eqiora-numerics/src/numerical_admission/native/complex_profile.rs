@@ -69,7 +69,8 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
             .checked_backend::<f64>(&REFERENCE_LINEAR_SOLVER, None)
             .is_err()
     );
-    let real = NativeLinearPolicy::exact::<f64>(policy.solver, &REFERENCE_LINEAR_SOLVER).unwrap();
+    let real =
+        NativeLinearPolicy::exact::<f64>(policy.solver.clone(), &REFERENCE_LINEAR_SOLVER).unwrap();
     assert!(
         real.checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
             .is_err()
@@ -86,7 +87,7 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
     .unwrap();
     let problem = system.linear_problem().unwrap();
     // Independently: (2+i)(2+i)=3+4i. The exact provider still executes its complex path.
-    let solution = checked.solve(&problem, policy.solver).unwrap();
+    let solution = checked.solve(&problem, policy.solver.clone()).unwrap();
     assert!((solution.values()[0] - C::new(2., 1.)).norm() < 1e-12);
 
     let changed = SolverPlan::new(
@@ -98,7 +99,7 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
     .unwrap();
     assert!(
         checked
-            .solve(&problem, changed)
+            .solve(&problem, changed.clone())
             .unwrap_err()
             .message()
             .contains("changed the admitted exact solver plan")
@@ -117,7 +118,7 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
             .unwrap();
     assert!(
         checked
-            .solve(&unexecuted, policy.solver)
+            .solve(&unexecuted, policy.solver.clone())
             .unwrap_err()
             .message()
             .contains("profile.canonical-csr-mismatch")
@@ -142,7 +143,7 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
             .unwrap();
         assert!(
             checked
-                .solve(&problem, policy.solver)
+                .solve(&problem, policy.solver.clone())
                 .unwrap_err()
                 .message()
                 .contains(expected)
@@ -193,7 +194,7 @@ fn parameter_policy_rebinds_only_after_actual_system_and_capability_checks() {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: real.solver.algorithm(),
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: real.solver.preconditioner(),
+        preconditioner: real.solver.preconditioner().kind(),
         reduction: real.solver.reduction(),
         scalar_type: ScalarType::F64,
     }])
@@ -367,6 +368,7 @@ fn automatic_complex_provenance_survives_parameter_domain_rebinding() {
     )
     .unwrap();
     let wrong_domain =
-        NativeLinearPolicy::exact::<f64>(decision.solver_plan(), &REFERENCE_LINEAR_SOLVER).unwrap();
+        NativeLinearPolicy::exact::<f64>(decision.solver_plan().clone(), &REFERENCE_LINEAR_SOLVER)
+            .unwrap();
     assert!(wrong_domain.with_planning(&decision).is_err());
 }

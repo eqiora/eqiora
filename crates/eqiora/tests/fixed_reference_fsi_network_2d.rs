@@ -119,7 +119,7 @@ fn run_network(
             quantity(4.0, [1, -1, -2, 0, 0, 0, 0]),
         )
         .unwrap(),
-        solver,
+        solver.clone(),
     )
     .expect("plural exact FSI plan");
     let partition = FixedReferenceFsiPartition::<2>::new(
@@ -170,7 +170,7 @@ fn run_network(
         .unwrap(),
     )
     .expect("ordinary host realization admits the plural FSI network");
-    assert_eq!(resolved.plan().solver(), solver);
+    assert_eq!(resolved.plan().solver(), &solver);
     // Continue from each accepted physical State through the same exact policy.
     for _ in 0..2 {
         let accepted = finalize_resolved_fixed_reference_fsi_step_2d(

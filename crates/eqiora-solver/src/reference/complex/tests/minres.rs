@@ -36,7 +36,7 @@ fn plan(limit: usize, absolute: f64) -> SolverPlan {
 }
 fn invoke(
     problem: &LinearProblem<'_, Complex64>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<Complex64>,
 ) -> Result<LinearSolution<Complex64>, Diagnostic> {
     solve_real_coordinates(
@@ -87,11 +87,11 @@ fn hermitian_jacobi_preserves_normal_adjoint_initial_guesses_and_inertia() {
                     .with_initial_guess(&initial)
                     .unwrap();
                 let request = plan(4, 1e-12);
-                let solution = invoke(&problem, request, &SERIAL_LINEAR_EXECUTION).unwrap();
+                let solution = invoke(&problem, &request, &SERIAL_LINEAR_EXECUTION).unwrap();
                 assert_values(solution.values(), &expected);
                 let report = solution.report();
                 assert_eq!(report.orientation(), orientation);
-                assert_eq!(report.solver_plan(), request);
+                assert_eq!(report.solver_plan(), &request);
                 assert_eq!(report.solver_provider(), REFERENCE_SOLVER_PROVIDER);
                 assert!(report.true_residual_norm() <= 1e-12);
                 assert!(report.completed_iterations() <= request.maximum_iterations().get());
@@ -130,9 +130,9 @@ fn typed_global_residual_precedes_physical_acceptance_and_rejection_continues() 
         .linear_problem()
         .unwrap()
         .with_candidate_check(&physical);
-    let error = invoke(&problem, plan(1, 1.), &execution).unwrap_err();
+    let error = invoke(&problem, &plan(1, 1.), &execution).unwrap_err();
     assert!(error.message().contains("plan limit of 1 iterations"));
-    let solution = invoke(&problem, plan(2, 1.), &execution).unwrap();
+    let solution = invoke(&problem, &plan(2, 1.), &execution).unwrap();
     assert_values(solution.values(), &[phase, phase]);
     assert_eq!(solution.report().completed_iterations(), 2);
     assert!(execution.actions.load(Ordering::Relaxed) >= 4);
@@ -142,7 +142,7 @@ fn typed_global_residual_precedes_physical_acceptance_and_rejection_continues() 
         .unwrap()
         .with_candidate_check(&failure);
     assert_eq!(
-        invoke(&problem, plan(2, 1.), &execution)
+        invoke(&problem, &plan(2, 1.), &execution)
             .unwrap_err()
             .message(),
         "complex physical failure"
@@ -163,7 +163,7 @@ fn scaled_complex_norm_does_not_admit_zero_work_and_invalid_diagonals_fail() {
     .unwrap();
     let solution = invoke(
         &source.linear_problem().unwrap(),
-        plan(1, 2f64.powi(-30)),
+        &plan(1, 2f64.powi(-30)),
         &SERIAL_LINEAR_EXECUTION,
     )
     .unwrap();
@@ -182,7 +182,7 @@ fn scaled_complex_norm_does_not_admit_zero_work_and_invalid_diagonals_fail() {
         assert_eq!(
             invoke(
                 &source.linear_problem().unwrap(),
-                plan(2, 1e-12),
+                &plan(2, 1e-12),
                 &SERIAL_LINEAR_EXECUTION
             )
             .unwrap_err()

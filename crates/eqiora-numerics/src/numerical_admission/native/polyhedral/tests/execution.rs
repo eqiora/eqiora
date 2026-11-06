@@ -66,13 +66,15 @@ fn execute<S: Coefficient + Send + Sync>(
         let output = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan(),
+                (LinearSolveRequest::new(backend, policy.clone()))
+                    .plan()
+                    .clone(),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
-            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap();
         let recognized = RecognizedNativeAdmission::recognize(
             &model,
@@ -82,7 +84,7 @@ fn execute<S: Coefficient + Send + Sync>(
             &BTreeMap::new(),
         )
         .unwrap();
-        let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
+        let mut linear = NativeLinearPolicy::exact::<S>(policy.clone(), backend).unwrap();
         linear.planning_profile = Some(
             eqiora_solver::SolverPlanningProfile::general_canonical_csr()
                 .with_structure(equations.algebraic_structure(None).unwrap())
@@ -166,7 +168,8 @@ fn execute<S: Coefficient + Send + Sync>(
                 CommonSpatialPolicy::TetrahedralEdge
             },
             CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+                CommonLinearRequest::exact(policy.clone(), REFERENCE_LINEAR_SOLVER.provider())
+                    .unwrap(),
             ),
             None,
             None,
@@ -237,7 +240,7 @@ fn execute<S: Coefficient + Send + Sync>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v27", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v28", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"
@@ -251,7 +254,7 @@ fn execute<S: Coefficient + Send + Sync>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v26",
+            "eqiora.resolved-common-plan/v27",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
@@ -266,7 +269,8 @@ fn execute<S: Coefficient + Send + Sync>(
             owner.clone(),
             CommonSpatialPolicy::P1,
             CommonSolvePolicy::Linear(
-                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+                CommonLinearRequest::exact(policy.clone(), REFERENCE_LINEAR_SOLVER.provider())
+                    .unwrap(),
             ),
             None,
             None,
@@ -403,13 +407,15 @@ fn execute<S: Coefficient + Send + Sync>(
         let error = equations
             .finalize_static(
                 NonZeroUsize::MIN,
-                (LinearSolveRequest::new(backend, policy)).plan(),
+                (LinearSolveRequest::new(backend, policy.clone()))
+                    .plan()
+                    .clone(),
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
-            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap_err();
         assert!(
             error
@@ -425,13 +431,17 @@ fn execute<S: Coefficient + Send + Sync>(
             equations
                 .finalize_static(
                     NonZeroUsize::MIN,
-                    (LinearSolveRequest::new(backend, policy)).plan(),
+                    (LinearSolveRequest::new(backend, policy.clone()))
+                        .plan()
+                        .clone(),
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
                     LinearOperatorProperties::General
                 )
-                .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
+                .and_then(
+                    |system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None)
+                )
                 .is_err()
         );
     }

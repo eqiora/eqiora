@@ -56,12 +56,7 @@ pub(in crate::numerical_admission) fn bind_model_support(
         }
     }
     let entities = |name: &str| match (&definition, dimension) {
-        (None, _) if geometry.planar_rectangle_bounds().is_some() => {
-            correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
-        }
-        (None, _) => {
-            correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
-        }
+        (None, _) => correspondence.planar_entity_set_entities(geometry, name),
         (Some(definition), 2) => correspondence.region_entity_set_entities(definition, name),
         (Some(definition), _) => correspondence.polyhedral_entity_set_entities(definition, name),
     };

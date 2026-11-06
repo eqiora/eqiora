@@ -320,6 +320,6 @@ fn compatible_bicgstab_projection_policy_reaches_both_operator_classes() {
     .unwrap();
     let request =
         eqiora_solver::LinearSolveRequest::new(&eqiora_solver::REFERENCE_LINEAR_SOLVER, plan);
-    super::integration::require_projection_solver(request)
+    super::integration::require_projection_solver(&request)
         .expect("Reference BiCGSTAB Identity Reproducible implements SPD and symmetric-indefinite");
 }

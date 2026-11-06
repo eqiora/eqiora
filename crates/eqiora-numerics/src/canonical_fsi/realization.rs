@@ -389,7 +389,7 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
     execution: FixedReferenceFsiExecutionProfile,
 ) -> Result<CoupledFieldwiseRealizationPlan, Diagnostic> {
     require_dimension(time_step, TIME, "fixed-reference FSI time step")?;
-    require_solver(solver, execution)?;
+    require_solver(&solver, execution)?;
     let p1 = Space::continuous_lagrange(NonZeroU16::MIN);
     let spatial = CoupledFieldwiseSpatialDiscretization::new(
         scales.length,

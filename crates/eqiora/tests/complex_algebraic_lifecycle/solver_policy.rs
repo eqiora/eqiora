@@ -100,8 +100,11 @@ fn finite_newton_preserves_iterative_controls_for_real_and_nonholomorphic_values
             CommonSolvePolicy::Newton {
                 nonlinear: NonlinearSolvePlan::new(0., 1e-12, NonZeroUsize::new(32).unwrap(), 16)
                     .unwrap(),
-                linear: CommonLinearRequest::exact(linear, REFERENCE_LINEAR_SOLVER.provider())
-                    .unwrap(),
+                linear: CommonLinearRequest::exact(
+                    linear.clone(),
+                    REFERENCE_LINEAR_SOLVER.provider(),
+                )
+                .unwrap(),
             },
             None,
             &[],

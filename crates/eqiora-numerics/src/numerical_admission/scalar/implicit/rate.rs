@@ -126,7 +126,7 @@ where
             .checked_backend(backend, Some(&structure))?;
         action.solve_correction(
             0,
-            LinearSolveRequest::new(&checked, self.plan.linear()),
+            LinearSolveRequest::new(&checked, self.plan.linear().clone()),
             self.plan.admission.linear.workers,
             None,
         )

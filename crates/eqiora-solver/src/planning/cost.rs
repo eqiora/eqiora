@@ -221,7 +221,7 @@ impl SolverCandidateCost {
 pub(super) fn estimate(
     profile: &SolverPlanningProfile,
     candidate: &'static str,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     provider: SolverProvider,
     scalar_domain: ScalarDomain,
     scalar_type: ScalarType,
@@ -286,7 +286,7 @@ pub(super) fn estimate(
 }
 
 fn unmodeled_realification(
-    plan: SolverPlan,
+    plan: &SolverPlan,
     provider: SolverProvider,
     domain: ScalarDomain,
 ) -> bool {
@@ -303,7 +303,7 @@ fn unmodeled_realification(
 // Host transfer/synchronization is zero. Binding and requested output costs outside
 // this typed linear solve are unknown, shared terms and are not a measured optimum.
 fn work_proxy(
-    plan: SolverPlan,
+    plan: &SolverPlan,
     size: SolverPlanningSize,
     request: SolverCostRequest,
 ) -> Option<(u128, u128, u128)> {
@@ -315,10 +315,11 @@ fn work_proxy(
     let iterations = match plan.preconditioner() {
         PreconditionerPolicy::Identity => request.identity_iterations,
         PreconditionerPolicy::Jacobi => request.jacobi_iterations,
+        PreconditionerPolicy::UpperDiagonalSchur(_) => return None,
     }
     .unwrap_or(plan.maximum_iterations())
     .get() as u128;
-    let diagonal = if plan.preconditioner() == PreconditionerPolicy::Jacobi {
+    let diagonal = if plan.preconditioner() == &PreconditionerPolicy::Jacobi {
         n
     } else {
         0
@@ -357,7 +358,7 @@ fn work_proxy(
                 .checked_mul(k.checked_add(1)?)?
                 .checked_mul(4)?;
             let base = actions.checked_add(basis)?;
-            if plan.preconditioner() == PreconditionerPolicy::Jacobi {
+            if plan.preconditioner() == &PreconditionerPolicy::Jacobi {
                 // Versioned scoring units: diagonal validation/sqrt/reciprocal
                 // each n; initial scaling+norm5n; WAW and x recovery4nk.
                 // Candidate j reconstructs a triangular solve (j²) and basis
@@ -384,7 +385,7 @@ fn work_proxy(
     let setup = structure.checked_add(numeric.checked_mul(f)?)?;
     let solve = solve.checked_mul(h)?;
     let acceptance_passes = if plan.algorithm() == LinearSolver::MinimumResidual
-        && plan.preconditioner() == PreconditionerPolicy::Jacobi
+        && plan.preconditioner() == &PreconditionerPolicy::Jacobi
     {
         iterations.min(n)
     } else {
@@ -438,7 +439,7 @@ impl SolverPlanningProfile {
     pub fn estimate_cost(
         &self,
         candidate: &'static str,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         provider: SolverProvider,
         scalar_domain: ScalarDomain,
         scalar_type: ScalarType,
@@ -448,11 +449,14 @@ impl SolverPlanningProfile {
     /// Enforce an explicitly requested numeric payload limit before solver work.
     pub fn require_resources(
         &self,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         provider: SolverProvider,
         scalar_domain: ScalarDomain,
         scalar_type: ScalarType,
     ) -> Result<(), Diagnostic> {
+        if let Some(reason) = fixed_provider_rejection(plan, provider) {
+            return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
+        }
         let estimate = self.estimate_cost("manual", plan, provider, scalar_domain, scalar_type);
         if let Some(reason) = resource_rejection(estimate, self.cost_request.unwrap_or_default()) {
             return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
@@ -463,10 +467,13 @@ impl SolverPlanningProfile {
     /// Decision-time size estimates remain immutable provenance; a new slot count alone is valid.
     pub fn require_problem_resources<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
         &self,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         provider: SolverProvider,
         problem: &LinearProblem<'_, S>,
     ) -> Result<(), Diagnostic> {
+        if let Some(reason) = fixed_provider_rejection(plan, provider) {
+            return Err(Diagnostic::error(codes::INVALID_REALIZATION, reason));
+        }
         if self
             .cost_request
             .unwrap_or_default()
@@ -512,7 +519,7 @@ mod run_forecast_tests {
             SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(10).unwrap()).unwrap();
         profile.estimate_cost(
             "manual",
-            plan,
+            &plan,
             provider,
             ScalarDomain::Real,
             ScalarType::F64,
@@ -591,7 +598,7 @@ mod run_forecast_tests {
 
 pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     objective: SolverPlanningObjective,
-    candidate: SolverCandidate<'_, S>,
+    candidate: &SolverCandidate<'_, S>,
     size: Option<SolverPlanningSize>,
     estimate: Option<SolverCandidateCost>,
 ) -> (u8, u128, u128, &'static str) {
@@ -638,7 +645,7 @@ pub(super) fn rank<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
 pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
     reasons: &mut Vec<(&'static str, &'static str)>,
     profile: &SolverPlanningProfile,
-    candidate: SolverCandidate<'_, S>,
+    candidate: &SolverCandidate<'_, S>,
 ) {
     let id = candidate.id();
     if !profile.is_serial() {
@@ -678,6 +685,7 @@ pub(super) fn append_reasons<S: Scalar + num_complex::ComplexFloat<Real = f64> +
         let forecast = match candidate.plan().preconditioner() {
             PreconditionerPolicy::Identity => request.identity_iterations,
             PreconditionerPolicy::Jacobi => request.jacobi_iterations,
+            PreconditionerPolicy::UpperDiagonalSchur(_) => None,
         };
         reasons.push((
             id,
@@ -734,7 +742,7 @@ mod realification_cost_tests {
             );
             let cost = requested.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Real,
                 ScalarType::F64,
@@ -760,7 +768,7 @@ mod realification_cost_tests {
         );
         let cost = one_iteration.estimate_cost(
             "manual",
-            plan,
+            &plan,
             REFERENCE_PROVIDER,
             ScalarDomain::Real,
             ScalarType::F64,
@@ -792,7 +800,7 @@ mod realification_cost_tests {
             // typed acceptance: those included terms have no modeled bound here.
             let real = profile.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Real,
                 ScalarType::F64,
@@ -800,7 +808,7 @@ mod realification_cost_tests {
             assert_eq!(real.total_work(), Some(real_total));
             let complex = profile.estimate_cost(
                 "manual",
-                plan,
+                &plan,
                 REFERENCE_PROVIDER,
                 ScalarDomain::Complex,
                 ScalarType::F64,
@@ -828,7 +836,7 @@ mod realification_cost_tests {
             profile
                 .estimate_cost(
                     "manual",
-                    plan,
+                    &plan,
                     REFERENCE_PROVIDER,
                     ScalarDomain::Complex,
                     ScalarType::F64

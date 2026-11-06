@@ -258,7 +258,7 @@ def check_complete_field_actions(method) -> None:
     assert vjp.evidence.steps[0].derivative_solve.orientation == "conjugate-transposed"
     expected_algorithm = "bicgstab" if method == eqiora.fem.Q1() else "conjugate-gradient"
     assert jvp.evidence.steps[0].derivative_solve.algorithm == expected_algorithm
-    assert jvp.evidence.steps[0].derivative_solve.preconditioner == "identity"
+    assert jvp.evidence.steps[0].derivative_solve.preconditioner.kind == "identity"
     assert jvp.evidence.steps[0].derivative_solve.reduction == "reproducible"
     assert len(jvp.evidence.steps[0].state_system_fingerprint) == 64
     assert jvp.evidence.steps[0].primal_residual_norm <= jvp.evidence.steps[0].residual_tolerance

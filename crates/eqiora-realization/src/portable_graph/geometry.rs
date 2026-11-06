@@ -139,7 +139,7 @@ impl PortableRealizationGraph {
                 interfaces: motion.interfaces().to_vec(),
                 duration,
                 quality_gate: motion.quality_gate(),
-                solver: motion.solver(),
+                solver: motion.solver().clone(),
             });
         self.systems[0].transformations = (0..self.transformations.len())
             .map(TransformationId::new)

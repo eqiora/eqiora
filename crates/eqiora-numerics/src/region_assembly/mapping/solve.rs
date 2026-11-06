@@ -295,7 +295,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Self: RegionAlgebraicCoordinates<A, S>,
     {
         let (core, assembly_report, _) =
-            self.finalize_linear::<A>(mesh, input, workers, request.plan())?;
+            self.finalize_linear::<A>(mesh, input, workers, request.plan().clone())?;
         let step = kinematic_step(&input.forms)?;
         let recover = |values: &[A]| {
             let values = self.decode_coordinates(values)?;

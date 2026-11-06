@@ -437,7 +437,7 @@ impl CommonSpatialPlan {
             .linear
             .checked_backend(backend, Some(&structure))?;
         let (mapping, input) = self.scalar_step_assembly(equations, state, grid)?;
-        let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
+        let request = LinearSolveRequest::new(&checked, self.admission.linear.solver.clone());
         let (fields, residual, execution) = if self.admission.nonlinear.is_some() {
             let initial = input.previous.clone().expect("transient history");
             let output = self.solve_region_newton(&mapping, &input, &initial, request, prepared)?;
@@ -469,7 +469,7 @@ impl CommonSpatialPlan {
                         assessment_input,
                         fields,
                         &temporal,
-                        self.linear(),
+                        self.linear().clone(),
                         initial_partial,
                     )?,
                     NativeMeshResources::GmshSimplicial { mesh, .. }
@@ -479,7 +479,7 @@ impl CommonSpatialPlan {
                             assessment_input,
                             fields,
                             &temporal,
-                            self.linear(),
+                            self.linear().clone(),
                             initial_partial,
                         )?,
                     _ => return Err(invalid("temporal State requires its exact nodal Mesh")),

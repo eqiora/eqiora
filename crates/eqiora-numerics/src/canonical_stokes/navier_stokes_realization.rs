@@ -774,7 +774,7 @@ pub(super) fn require_exact_transient_plan(
         nonlinear.absolute_tolerance(),
         nonlinear.maximum_iterations(),
         nonlinear.maximum_line_search_steps(),
-        linear_node.plan(),
+        linear_node.plan().clone(),
         resolved.plan().fieldwise().target(),
     )
     .map_err(|error| invalid_realization(error.message()))?;

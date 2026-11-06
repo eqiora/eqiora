@@ -16,7 +16,7 @@ use crate::{
     SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
-const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v11";
+const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v12";
 
 /// Semantic work budgets for the current Realization artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,7 +197,7 @@ impl RealizationEnvelope {
 
     /// Linear controls, including the inner linear solve of a nonlinear root.
     #[must_use]
-    pub fn solver_plan(&self) -> SolverPlan {
+    pub fn solver_plan(&self) -> &SolverPlan {
         self.graph.linear_solves()[0].plan()
     }
 

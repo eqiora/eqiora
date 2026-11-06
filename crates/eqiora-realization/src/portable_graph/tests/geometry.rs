@@ -103,7 +103,7 @@ fn plural_harmonic_and_driven_inventories_round_trip() {
         let bytes = graph.to_bytes().unwrap();
         assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
         let old = String::from_utf8(bytes).unwrap().replace(
-            "portable-realization-graph/v5",
+            "portable-realization-graph/v6",
             "portable-realization-graph/v4",
         );
         assert!(PortableRealizationGraph::from_bytes(old.as_bytes()).is_err());

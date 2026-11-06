@@ -63,7 +63,7 @@ fn verify_shape_gradient(method: DiscretizationMethod) {
         &accepted,
         &direction,
         LinearOperatorProperties::SymmetricPositiveDefinite,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     let step = 1.0e-5;
