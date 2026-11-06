@@ -24,6 +24,12 @@ fn source(k: u32, h: u32, fixed: u32, ambient: u32) -> String {
    temperature=temperature, conductivity={k}[W/(m*K)], flux=0[W/m^2]);
  instance top_flux: scalar.OutwardHeatFlux2d(body=body, face=top,
    temperature=temperature, conductivity={k}[W/(m*K)], flux=0[W/m^2]);
+ observable left_heat: W/m = integral(normal(-{k}[W/(m*K)]*grad(temperature)),measure(left));
+ observable right_heat: W/m = integral(normal(-{k}[W/(m*K)]*grad(temperature)),measure(right));
+ observable bottom_heat: W/m = integral(normal(-{k}[W/(m*K)]*grad(temperature)),measure(bottom));
+ observable top_heat: W/m = integral(normal(-{k}[W/(m*K)]*grad(temperature)),measure(top));
+ observable right_temperature: K*m = integral(trace(temperature),measure(right));
+ observable right_convective_heat: W/m = integral({h}[W/(m^2*K)]*(trace(temperature)-{ambient}[K]),measure(right));
  }}"
     )
 }
@@ -37,6 +43,21 @@ fn imported_convection_compiles_with_exact_caller_supports_and_required_inputs()
         )
         .unwrap();
         assert!(matches!(document, SourceCompilation::Packaged(_)));
+        for name in [
+            "left_heat",
+            "right_heat",
+            "bottom_heat",
+            "top_heat",
+            "right_temperature",
+            "right_convective_heat",
+        ] {
+            assert!(
+                document
+                    .model()
+                    .aliases()
+                    .contains_key(&format!("definition.{name}"))
+            );
+        }
     }
 }
 

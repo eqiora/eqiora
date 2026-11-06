@@ -75,4 +75,10 @@ public component ConvectiveHeatedBody(
   }
   relation insulated_y_lower on y_lower { normal(conductivity * grad(temperature)) = 0[W/m^2]; }
   relation insulated_y_upper on y_upper { normal(conductivity * grad(temperature)) = 0[W/m^2]; }
+  observable left_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(x_lower));
+  observable right_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(x_upper));
+  observable bottom_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(y_lower));
+  observable top_heat: W/m = integral(normal(-conductivity*grad(temperature)),measure(y_upper));
+  observable right_temperature: K*m = integral(trace(temperature),measure(x_upper));
+  observable right_convective_heat: W/m = integral(coefficient*(trace(temperature)-ambient_temperature),measure(x_upper));
 }

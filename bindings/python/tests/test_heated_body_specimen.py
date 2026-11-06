@@ -309,6 +309,10 @@ def test_convective_heat_import_and_handwritten_compile_offline(tmp_path, inputs
     assert packaged.package_compilation_digest is not None
     assert manual.package_compilation_digest is None
     assert not manual.authored_formulations
+    for model in (packaged, direct, manual):
+        for name in ("left_heat", "right_heat", "bottom_heat", "top_heat",
+                     "right_temperature", "right_convective_heat"):
+            model.observable(f"definition.{name}")
     vendor = project / "vendor"
     vendor.mkdir()
     assert eqiora.vendor_project(project, store, vendor) == lock
