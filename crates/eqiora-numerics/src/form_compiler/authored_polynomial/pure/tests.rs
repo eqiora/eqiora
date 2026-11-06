@@ -21,6 +21,7 @@ fn context(dimensions: usize, complex: bool) -> Context<'static> {
         field: "u",
         dimensions,
         remaining: 65536,
+        test_dimension: eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         symbols: BTreeMap::from([("u".into(), ty)]),
         supports: BTreeMap::from([("u".into(), support.clone())]),
         domains: BTreeMap::from([("body".into(), support)]),
@@ -194,6 +195,8 @@ fn native_source_projection_matches_typed_source_components_without_solving() {
             field: &field,
             dimensions,
             remaining: 65536,
+            test_dimension: eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                .unwrap(),
             symbols: symbol_types(&program),
             supports: field_supports(&program),
             domains: domain_supports(&program),
@@ -414,14 +417,83 @@ fn scalar_component_rejects_incompatible_full_values_before_cancellation() {
         (spatial, map(3, &space)),
         (map(3, &space), map(3, &other_space)),
     ] {
-        let invalid = component(E::Add {
+        let invalid_tensor = E::Add {
             left: Box::new(left),
             right: Box::new(right),
-        });
+        };
+        assert!(context.tensor(&invalid_tensor, 0, 0, 0).is_none());
+        let pairing = E::Frobenius {
+            left: Box::new(invalid_tensor.clone()),
+            right: Box::new(invalid_tensor.clone()),
+        };
+        assert!(context.scalar(&pairing, 0).is_none());
+        let invalid = component(invalid_tensor);
         let canceled = E::Sub {
             left: Box::new(invalid.clone()),
             right: Box::new(invalid),
         };
         assert!(context.scalar(&canceled, 0).is_none());
+    }
+}
+
+#[test]
+fn declared_test_units_survive_native_operand_reconstruction() {
+    let mut context = context(3, false);
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+    context.test_dimension = time;
+    let test = E::Test {
+        field_ulid: "u".into(),
+    };
+    let direction = E::Direction {
+        name: "eta".into(),
+        field_ulid: "u".into(),
+    };
+    for argument in [test, direction] {
+        assert_eq!(
+            context.retained_type(&argument, 0).unwrap().dimension(),
+            time
+        );
+        let test_gradient = E::SymmetricPart {
+            value: Box::new(E::Gradient {
+                value: Box::new(argument),
+            }),
+        };
+        assert_eq!(
+            context
+                .retained_type(&test_gradient, 0)
+                .unwrap()
+                .dimension(),
+            time.div(length).unwrap()
+        );
+        let adjusted_trial = E::Mul {
+            left: Box::new(E::Rational {
+                value: ExactRational::integer(1),
+                dimension: time.div(length).unwrap().exponents(),
+            }),
+            right: Box::new(symmetric()),
+        };
+        assert!(
+            context
+                .retained_type(
+                    &E::Add {
+                        left: Box::new(test_gradient.clone()),
+                        right: Box::new(adjusted_trial)
+                    },
+                    0
+                )
+                .is_some()
+        );
+        assert!(
+            context
+                .retained_type(
+                    &E::Add {
+                        left: Box::new(test_gradient),
+                        right: Box::new(symmetric())
+                    },
+                    0
+                )
+                .is_none()
+        );
     }
 }

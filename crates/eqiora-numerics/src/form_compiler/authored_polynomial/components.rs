@@ -10,6 +10,19 @@ impl Context<'_> {
         depth: usize,
     ) -> Option<Polynomial> {
         self.step(depth)?;
+        if matches!(
+            value,
+            E::Add { .. } | E::Sub { .. } | E::Mul { .. } | E::Div { .. }
+        ) {
+            let ty = self.retained_type(value, depth + 1)?;
+            if ty.value_type.array_rank() != 0
+                || ty.shape().rank() != 2
+                || component >= ty.shape().extents()[0].get() as usize
+                || axis >= ty.shape().extents()[1].get() as usize
+            {
+                return None;
+            }
+        }
         match value {
             E::LinearMap { values, .. } | E::SpatialTensor { values, .. } => {
                 let shape = self.shape(value, depth + 1)?;

@@ -12,6 +12,17 @@ use eqiora_schema::kernel::{
 type Ty = ExpressionType<RawId>;
 
 impl Context<'_> {
+    fn test_type(&self, field: &str) -> Option<Ty> {
+        Some(Ty::new(
+            self.symbols
+                .get(field)?
+                .clone()
+                .with_dimension(self.test_dimension)
+                .ok()?,
+            self.supports.get(field).cloned(),
+        ))
+    }
+
     pub(super) fn component_type(
         &mut self,
         value: &E,
@@ -49,19 +60,9 @@ impl Context<'_> {
                     Some(ty)
                 }
             }
-            E::Test { field_ulid } if field_ulid == self.field => unary(
-                self,
-                &E::Field {
-                    ulid: field_ulid.clone(),
-                },
-            ),
+            E::Test { field_ulid } if field_ulid == self.field => self.test_type(field_ulid),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
-                unary(
-                    self,
-                    &E::Field {
-                        ulid: field_ulid.clone(),
-                    },
-                )
+                self.test_type(field_ulid)
             }
             E::Time => Some(Ty::scalar(
                 DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])?,

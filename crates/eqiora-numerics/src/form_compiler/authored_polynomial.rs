@@ -88,7 +88,7 @@ fn compare_weak_row(
     right: &E,
     checked_variation: bool,
 ) -> bool {
-    let Some((name, field, _, _, _)) = projection
+    let Some((name, field, _, test_units, _)) = projection
         .test_restrictions()
         .iter()
         .find(|(_, field, _, _, _)| field == association.1)
@@ -102,7 +102,11 @@ fn compare_weak_row(
     else {
         return false;
     };
+    let Some(test_dimension) = eqiora_core::DimExponents::from_rationals(*test_units) else {
+        return false;
+    };
     let mut context = Context {
+        test_dimension,
         name,
         field,
         dimensions,
@@ -149,7 +153,7 @@ pub(super) fn matches_elastic_variation(
     load: eqiora_schema::kernel::ExprId,
     tractions: &[ElasticTractionTerm],
 ) -> bool {
-    let [(name, field, _, _, _)] = projection.test_restrictions() else {
+    let [(name, field, _, test_units, _)] = projection.test_restrictions() else {
         return false;
     };
     let Some(domain) = projection.domain_ulid() else {
@@ -158,7 +162,11 @@ pub(super) fn matches_elastic_variation(
     let [(_, left, right)] = projection.equations() else {
         return false;
     };
+    let Some(test_dimension) = eqiora_core::DimExponents::from_rationals(*test_units) else {
+        return false;
+    };
     let mut context = Context {
+        test_dimension,
         name,
         field,
         dimensions: 2,
@@ -221,6 +229,7 @@ struct Context<'a> {
     integration_domain: Option<String>,
     name: &'a str,
     field: &'a str,
+    test_dimension: eqiora_core::DimExponents,
     dimensions: usize,
     remaining: usize,
     symbols: BTreeMap<String, ValueType>,
