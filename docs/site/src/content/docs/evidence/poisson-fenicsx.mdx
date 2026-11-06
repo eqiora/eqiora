@@ -104,14 +104,19 @@ original campaign below remains unchanged as a historical measurement.
 
 ## What was compared
 
-Both tools solve the same dimensionless potential on the unit square, with
-coordinates measured in metres:
+Both tools solve the same dimensionless potential on a square of side
+$L=1\,\mathrm{m}$. With physical coordinates $x,y$, let $X=x/L$ and $Y=y/L$:
 
 $$
--\Delta u=2\pi^2\sin(\pi x)\sin(\pi y),\qquad
+-\Delta u=\frac{2\pi^2}{L^2}\sin(\pi X)\sin(\pi Y),\qquad
 u=0\text{ on the boundary},\qquad
-u_{\mathrm{exact}}=\sin(\pi x)\sin(\pi y).
+u_{\mathrm{exact}}=\sin(\pi X)\sin(\pi Y).
 $$
+
+The sine arguments are dimensionless and the forcing has units
+$\mathrm{m}^{-2}$. The shipped model declares wave number in $\mathrm{m}^{-1}$
+and source scale in $\mathrm{m}^{-2}$; the driver binds them to
+$\pi/L$ and $2\pi^2/L^2$.
 
 Both use uniform quadrilateral Q1 elements, real binary64 arithmetic and the
 same two-point tensor Gauss stiffness/load rule. The driver checks the actual
@@ -270,18 +275,46 @@ They are neither the cold call nor a partition of the unprofiled median above.
 The tools' phase boundaries differ, so these numbers must not be used for
 cross-tool phase speed ratios.
 
-At 32 cells per axis, the diagnostic observations were:
+Mesh and preparation are separately clocked, one-off setup stages in each
+process, outside ordinary execution and outside the additional profile.
+All table values below are wall time in milliseconds, rounded to four significant
+figures. These are the original campaign's observations at every mesh level.
 
-Times below are milliseconds. `Asm` means assembly and `Self` is exclusive
-solve time. The full scope descriptions follow the table.
+| N | Tool | Mesh | Prep |
+|---:|---|---:|---:|
+| 4 | Eqiora | 0.759 | 14.57 |
+| 4 | FEniCSx | 421.2 | 8474 |
+| 8 | Eqiora | 1.141 | 10.47 |
+| 8 | FEniCSx | 2.732 | 1891 |
+| 16 | Eqiora | 2.462 | 11.88 |
+| 16 | FEniCSx | 2.789 | 1889 |
+| 32 | Eqiora | 7.977 | 16.76 |
+| 32 | FEniCSx | 3.597 | 1634 |
 
-| Tool | Phase | ms |
-|---|---|---:|
-| Eqiora | Asm | 38.04 |
-| Eqiora | Self | 39.52 |
-| Eqiora | Linear | 0.0806 |
-| FEniCSx | Asm | 0.9279 |
-| FEniCSx | Linear | 0.0893 |
+**Mesh** includes Eqiora's geometry construction and mesh generation, or FEniCSx's
+unit-square mesh creation. **Prep** includes Eqiora's model compilation and Plan
+resolution, or FEniCSx's spaces, boundary data, forms and fresh-cache JIT compilation.
+The setup scopes differ between tools; imports are recorded separately.
+
+The additional instrumented executions report assembly and linear-solve time:
+
+| N | Tool | Asm | Linear |
+|---:|---|---:|---:|
+| 4 | Eqiora | 0.7862 | 0.01335 |
+| 4 | FEniCSx | 0.2627 | 0.05473 |
+| 8 | Eqiora | 2.518 | 0.01207 |
+| 8 | FEniCSx | 0.3259 | 0.06494 |
+| 16 | Eqiora | 9.402 | 0.02682 |
+| 16 | FEniCSx | 0.389 | 0.05453 |
+| 32 | Eqiora | 38.04 | 0.08062 |
+| 32 | FEniCSx | 0.9279 | 0.08926 |
+
+**Asm** is assembly. Every Eqiora Asm entry is the inclusive total of **two**
+scalar-region finalization calls; the values are not divided by the call count.
+Eqiora's exclusive solve self time, outside assembly and linear-solve children,
+was **4.086 ms at N=4**, **5.169 ms at N=8**, **11.92 ms at N=16**, **39.52 ms at N=32**.
+These profile values do not partition the ordinary execution medians or the
+separately measured setup stages.
 
 - **Eqiora assembly:** two scalar-region finalization calls, including numeric
   preparation, representability checks and canonical system construction.
