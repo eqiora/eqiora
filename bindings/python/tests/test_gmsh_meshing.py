@@ -39,8 +39,7 @@ def provider(**changes: float | int | None) -> eqiora.meshing.GmshMesher:
     return eqiora.meshing.GmshMesher(**values)
 
 
-def test_gmsh_plan_publishes_complete_source_owned_mesh(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("EQIORA_GMSH", "gmsh")
+def test_gmsh_plan_publishes_complete_source_owned_mesh() -> None:
     source = geometry()
     policy = provider()
     plan = eqiora.meshing.resolve(source, policy)
@@ -94,8 +93,7 @@ def test_gmsh_resolve_is_planning_only(monkeypatch: pytest.MonkeyPatch) -> None:
         eqiora.meshing.generate(plan)
 
 
-def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("EQIORA_GMSH", "gmsh")
+def test_gmsh_plan_replay_and_crosswire_are_fail_closed() -> None:
     source = geometry()
     plan = eqiora.meshing.resolve(source, provider())
     first = eqiora.meshing.generate(plan)
@@ -145,10 +143,7 @@ def test_gmsh_plan_replay_and_crosswire_are_fail_closed(monkeypatch: pytest.Monk
         first.selection_entity_count(foreign.selection("cylinder"))
 
 
-def test_explicit_target_size_is_replayable_and_strictly_denser(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("EQIORA_GMSH", "gmsh")
+def test_explicit_target_size_is_replayable_and_strictly_denser() -> None:
     source = geometry()
     automatic_provider = provider()
     explicit_provider = provider(maximum_target_size=0.05)
