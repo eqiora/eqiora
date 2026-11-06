@@ -47,9 +47,7 @@ def prepare(eqiora, directory):
     write(directory, 'model.eqi', source)
     write(directory, 'mesh.json', mesh.to_bytes())
     model = eqiora.compile(source=source.decode(), filename='cartesian-hex-elasticity.eqi', entry='CartesianHexElasticity', geometry=geometry,
-        bindings={'body': geometry.selection('body'), **{side: (geometry.selection(side), geometry.selection('body')) for side in SIDES}, 'mu': 3., 'lambda': 2.,
-            'a0': [1., 0., 1.], 'a1': [2., 3., 0.], 'a2': [0., 1., 2.],
-            'tx': [1.125, .375, .1875], 'ty': [.375, 1.875, .1875], 'tz': [.1875, .1875, 1.5]})
+        bindings={'body': geometry.selection('body'), **{side: (geometry.selection(side), geometry.selection('body')) for side in SIDES}, 'mu': 3., 'lambda': 2.})
     write(directory, 'model.json', model.to_bytes())
     field = model.field('definition.displacement')
     observables = tuple(model.observable('definition.'+name) for name in ('energy', 'left_x', 'left_y', 'left_z'))
@@ -76,6 +74,9 @@ def authenticate_plan(plan, model, field):
     require(wire.get('spatial') == {'kind': 'uniform', 'policy': 'q1'}, 'effective discrete space differs')
     require(plan.model_digest == model.digest and plan.mesh_digest == plan.mesh.digest, 'Plan lineage differs')
     require(plan.fields == (field,), 'Plan field inventory differs')
+    import eqiora
+    require(plan.formulation.requested == eqiora.FormulationSelectionMode.Authored, 'authored weak form was dropped')
+    require(len(model.authored_formulations) == 1 and plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity, 'selected authored weak form identity differs')
     require(plan.execution.workers == 1 and plan.execution.placement == 'host-serial', 'unexpected execution placement')
     mesh = plan.mesh
     require(mesh.dimension == 3, 'Mesh dimension differs')

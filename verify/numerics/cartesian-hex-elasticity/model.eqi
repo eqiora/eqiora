@@ -8,14 +8,14 @@ public component CartesianHexElasticity(
   support z_lower: boundary(parent=body),
   support z_upper: boundary(parent=body),
   parameter mu: Pa,
-  parameter lambda: Pa,
-  parameter a0: vector<1,3>,
-  parameter a1: vector<1,3>,
-  parameter a2: vector<1,3>,
-  parameter tx: vector<Pa,3>,
-  parameter ty: vector<Pa,3>,
-  parameter tz: vector<Pa,3>
+  parameter lambda: Pa
 ) {
+  parameter a0: vector<1,3> = tensor_value(frame=body,components=[1,0,1]);
+  parameter a1: vector<1,3> = tensor_value(frame=body,components=[2,3,0]);
+  parameter a2: vector<1,3> = tensor_value(frame=body,components=[0,1,2]);
+  parameter tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.375,0.1875]);
+  parameter ty: vector<Pa,3> = tensor_value(frame=body,components=[0.375,1.875,0.1875]);
+  parameter tz: vector<Pa,3> = tensor_value(frame=body,components=[0.1875,0.1875,1.5]);
   variable displacement: vector<m,3> on body in h1;
   relation balance on body { -div((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=0; }
   relation fixed on x_lower {

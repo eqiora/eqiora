@@ -28,21 +28,7 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
         );
     }
     let geometry = graph.build(&cuboid, &names).unwrap();
-    let dimensionless = eqiora::DimExponents::from_integers([0; 7]).unwrap();
     let pressure = eqiora::DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
-    let vector = |dimension, values: [f64; 3]| {
-        eqiora::ValueLiteral::new(
-            eqiora::ValueType::shaped(
-                eqiora::ScalarDomain::Real,
-                dimension,
-                eqiora::ValueShape::new([3]).unwrap(),
-                eqiora::ValueFrame::SpatialCartesian,
-            )
-            .unwrap(),
-            values.map(|v| (v, 0.)),
-        )
-        .unwrap()
-    };
     let values = [
         (
             "mu",
@@ -60,12 +46,6 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
             )
             .unwrap(),
         ),
-        ("a0", vector(dimensionless, [1., 0., 1.])),
-        ("a1", vector(dimensionless, [2., 3., 0.])),
-        ("a2", vector(dimensionless, [0., 1., 2.])),
-        ("tx", vector(pressure, [1.125, 0.375, 0.1875])),
-        ("ty", vector(pressure, [0.375, 1.875, 0.1875])),
-        ("tz", vector(pressure, [0.1875, 0.1875, 1.5])),
     ];
     let mut bindings = vec![(
         "body",
@@ -159,6 +139,21 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
         }),
     )
     .unwrap();
+    let description = plan.formulation().unwrap();
+    assert_eq!(
+        description.requested(),
+        eqiora_numerics::FormulationSelectionMode::Authored
+    );
+    assert_eq!(
+        description.requested_source_identity(),
+        Some(
+            document
+                .authored_formulation_projection()
+                .unwrap()
+                .unwrap()
+                .source_identity()
+        )
+    );
     let bytes = plan.to_bytes().unwrap();
     let replay = eqiora_numerics::ResolvedCommonPlan::from_bytes(
         &bytes,
