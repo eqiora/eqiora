@@ -209,3 +209,27 @@ fn natural_polynomial_minimum_raises_one_effective_volume_and_facet_rule() {
         Some(gauss(4))
     );
 }
+
+#[test]
+fn quadrature_request_preserves_tpfa_centroid_owner_and_rejects_override() {
+    let plan = quadrature_plan(POISSON_BOX, CommonSpatialPolicy::CellCenteredTpfa, None).unwrap();
+    let spatial = plan.as_spatial().unwrap();
+    assert_eq!(spatial.admission.assembly_quadrature(), None);
+    assert!(
+        spatial
+            .portable_realization()
+            .domains()
+            .iter()
+            .all(|domain| domain.discretization().quadrature()
+                == eqiora_realization::QuadraturePolicy::CellCentroid)
+    );
+    assert!(
+        quadrature_plan(
+            POISSON_BOX,
+            CommonSpatialPolicy::CellCenteredTpfa,
+            Some(gauss(4))
+        )
+        .is_err()
+    );
+    replay_plan(plan, &ResolveOnlyBackend);
+}

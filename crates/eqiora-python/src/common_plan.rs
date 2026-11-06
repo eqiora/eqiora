@@ -33,7 +33,6 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
-pub(crate) use capability_view::space_name;
 mod compatible;
 mod eigen;
 mod enforcement;
@@ -483,8 +482,10 @@ impl PyPlan {
                         plan.model_digest().to_owned(),
                         plan.pressure_field_id().to_owned(),
                     ),
-                    velocity_space: space_name(plan.velocity_space()),
-                    pressure_space: space_name(plan.pressure_space()),
+                    velocity_space: eqiora_numerics::common_space_name(plan.velocity_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+                    pressure_space: eqiora_numerics::common_space_name(plan.pressure_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
                     pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(
@@ -508,8 +509,10 @@ impl PyPlan {
                         plan.model_digest().to_owned(),
                         plan.pressure_field_id().to_owned(),
                     ),
-                    velocity_space: space_name(plan.velocity_space()),
-                    pressure_space: space_name(plan.pressure_space()),
+                    velocity_space: eqiora_numerics::common_space_name(plan.velocity_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+                    pressure_space: eqiora_numerics::common_space_name(plan.pressure_space())
+                        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
                     pressure_gauge: Some(plan.gauge().into()),
                     scaling: Py::new(py, PyIncompressibleScales::from_native(plan.scales()))?,
                     scaling_receipt: Py::new(

@@ -61,8 +61,12 @@ impl PyDifferentiableValueSignature {
     }
 
     #[getter]
-    fn space(&self) -> Option<&'static str> {
-        self.value.space().map(crate::common_plan::space_name)
+    fn space(&self, py: Python<'_>) -> PyResult<Option<&'static str>> {
+        self.value
+            .space()
+            .map(eqiora_numerics::common_space_name)
+            .transpose()
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))
     }
 
     /// Exact (topological dimension, entity index) associations in coefficient order.

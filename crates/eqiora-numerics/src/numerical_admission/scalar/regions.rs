@@ -534,6 +534,14 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     .bind_field_spaces(reference, binding.field_spaces(), scaling)
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
+        // TPFA owns conservative face integration, not nodal natural-facet forms.
+        if selected
+            .iter()
+            .flat_map(|binding| binding.field_spaces())
+            .all(|field| field.space() == Space::cell_constant())
+        {
+            return Ok(forms);
+        }
         let mut points = quadrature::quadrature_points(reference, selected, &forms, quadrature)?;
         for (region, form) in self.regions.iter().zip(&forms) {
             for (&field, laws) in region.form.boundary_laws() {

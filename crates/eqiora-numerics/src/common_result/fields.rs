@@ -114,7 +114,7 @@ impl CommonResultField {
         space: Space,
         blocks: Vec<CommonResultFieldBlock>,
     ) -> Result<Self, Diagnostic> {
-        space_name(space)?;
+        common_space_name(space)?;
         space
             .coefficient_dimension(value_type.dimension())
             .ok_or_else(|| invalid("Result coefficient dimension overflows"))?;
@@ -158,12 +158,15 @@ impl CommonResultField {
     }
     #[must_use]
     pub fn space(&self) -> &str {
-        space_name(self.space).expect("validated Result Space")
+        common_space_name(self.space).expect("validated Result Space")
     }
 }
 
 /// Canonical codec/presentation spelling; numerical meaning stays in Space.
-pub(super) fn space_name(space: Space) -> Result<&'static str, Diagnostic> {
+///
+/// # Errors
+/// Returns a typed diagnostic for a Space without an admitted canonical codec.
+pub fn common_space_name(space: Space) -> Result<&'static str, Diagnostic> {
     match space.family() {
         SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
             Ok("continuous-lagrange-p1")
@@ -282,6 +285,9 @@ mod quadratic_tests {
             bad.push(entities[0]);
             assert!(entity_block_layout(space, dimension, &bad, &[]).is_err());
         }
-        assert_eq!(space_from_name(space_name(space).unwrap()).unwrap(), space);
+        assert_eq!(
+            space_from_name(common_space_name(space).unwrap()).unwrap(),
+            space
+        );
     }
 }
