@@ -91,9 +91,12 @@ weak-dual coordinates. The upper sum is +4 in 2D and +64/3 m in 3D. These scalar
 weak actions are not mechanical forces.
 
 The independent [rational patch oracle](reference/POLYNOMIAL.md) owns the frozen
-residual, coefficient and reaction budgets. The native producer is implemented but
-has only been compiled with `--no-run`; it must be reviewed before its first solve.
-It uses solver relative and absolute tolerances 1e-14, retains every actual field
+residual, coefficient and reaction budgets. The first native attempt failed typed
+model compilation before any Plan or solve: an array literal was not a spatial
+tensor. It executed zero ordinary solves. Equivalent scalar face fluxes now
+compile and resolve in both dimensions with a backend that cannot solve. A new
+native solve attempt still requires source/build review. The producer uses
+solver relative and absolute tolerances 1e-14, retains every actual field
 coordinate and upper constrained reaction coordinate, and binds its mathematical
 input to separate Model/Plan/Result/mesh producer receipts and the actual test
 executable SHA. The producer prints its fresh artifact path before any solve and

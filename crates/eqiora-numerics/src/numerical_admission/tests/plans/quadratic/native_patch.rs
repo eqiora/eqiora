@@ -74,16 +74,6 @@ fn source(dimension: usize) -> String {
         .map(|i| format!("2/{}[m^2]*{}", lengths[i] * lengths[i], product_except(i)))
         .collect::<Vec<_>>()
         .join("+");
-    let gradient = (0..dimension)
-        .map(|i| {
-            format!(
-                "2*coordinate({i})/{}[m^2]*{}",
-                lengths[i] * lengths[i],
-                product_except(i)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",");
     let supports = names[..2 * dimension]
         .iter()
         .map(|name| format!("support {name}: boundary(parent=body)"))
@@ -91,12 +81,20 @@ fn source(dimension: usize) -> String {
         .join(",");
     let boundaries = names[..2 * dimension]
         .iter()
-        .map(|name| {
+        .enumerate()
+        .map(|(ordinal, name)| {
             if *name == "x_upper" {
                 format!("relation essential on {name} {{ trace(u)={exact}; }}")
+            } else if ordinal % 2 == 0 {
+                // The exact derivative vanishes at a lower Cartesian face.
+                format!("relation flux_{name} on {name} {{ normal(grad(u))=0[1/m]; }}")
             } else {
+                let axis = ordinal / 2;
+                // The upper outward normal is +e_i, and x_i=L_i.
                 format!(
-                    "relation flux_{name} on {name} {{ normal(grad(u))=normal([{gradient}]); }}"
+                    "relation flux_{name} on {name} {{ normal(grad(u))=2/{}[m]*{}; }}",
+                    lengths[axis],
+                    product_except(axis)
                 )
             }
         })
@@ -155,6 +153,78 @@ fn output_root() -> PathBuf {
     root
 }
 
+fn compile_and_resolve(
+    dimension: usize,
+    authored: &str,
+    backend: &dyn LinearSolverBackend,
+) -> (ModelEnvelope, ResolvedCommonPlan) {
+    let geometry = geometry(dimension);
+    let names = [
+        "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
+    ];
+    let body = geometry.entity_set("body").unwrap();
+    let mut supports = vec![("body", body, None)];
+    supports.extend(names[..2 * dimension].iter().map(|name| {
+        (
+            *name,
+            geometry.entity_set(name).unwrap(),
+            Some(("body", body)),
+        )
+    }));
+    let model = compile_model(
+        "quadratic-patch.eqi",
+        authored,
+        &geometry,
+        "QuadraticPatch",
+        &supports,
+        &[],
+    );
+    let owner = cartesian_box_resources(&geometry, &vec![2; dimension]);
+    let gauss = eqiora_realization::QuadraturePolicy::GaussLegendre {
+        points_per_axis: NonZeroUsize::new(4).unwrap(),
+    };
+    let original = ResolvedCommonPlan::resolve(
+        &model,
+        owner,
+        CommonSpatialPolicy::Q2,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-14,
+            1e-14,
+            NonZeroUsize::new(100000).unwrap(),
+        )),
+        None,
+        None,
+        backend,
+        None,
+        None,
+        Some(gauss),
+    )
+    .unwrap();
+    (model, original)
+}
+
+#[test]
+fn polynomial_source_compiles_and_resolves_both_dimensions_without_solves() {
+    for dimension in [2, 3] {
+        let (_, plan) = compile_and_resolve(dimension, &source(dimension), &ResolveOnlyBackend);
+        let reopened = replay_plan(plan, &ResolveOnlyBackend);
+        let spatial = reopened.as_spatial().unwrap();
+        assert_eq!(spatial.fields().len(), 1);
+        let field = spatial.fields().next().unwrap().0;
+        assert_eq!(
+            spatial.field_coefficient_entities(field).unwrap().len(),
+            5usize.pow(dimension as u32)
+        );
+        assert_eq!(
+            spatial.admission.assembly_quadrature(),
+            Some(eqiora_realization::QuadraturePolicy::GaussLegendre {
+                points_per_axis: NonZeroUsize::new(4).unwrap()
+            })
+        );
+    }
+}
+
 #[test]
 fn ordinary_quadratic_polynomial_producer_retains_all_nodes_and_physical_reactions() {
     let root = output_root();
@@ -167,50 +237,12 @@ fn ordinary_quadratic_polynomial_producer_retains_all_nodes_and_physical_reactio
     for dimension in [2, 3] {
         let directory = root.join(format!("d{dimension}"));
         std::fs::create_dir(&directory).unwrap();
-        let geometry = geometry(dimension);
         let authored = source(dimension);
-        let names = [
-            "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
-        ];
-        let body = geometry.entity_set("body").unwrap();
-        let mut supports = vec![("body", body, None)];
-        supports.extend(names[..2 * dimension].iter().map(|name| {
-            (
-                *name,
-                geometry.entity_set(name).unwrap(),
-                Some(("body", body)),
-            )
-        }));
-        let model = compile_model(
-            "quadratic-patch.eqi",
-            &authored,
-            &geometry,
-            "QuadraticPatch",
-            &supports,
-            &[],
-        );
-        let owner = cartesian_box_resources(&geometry, &vec![2; dimension]);
+        write(&directory.join("model.eqi"), authored.as_bytes());
+        let (model, original) = compile_and_resolve(dimension, &authored, &REFERENCE_LINEAR_SOLVER);
         let gauss = eqiora_realization::QuadraturePolicy::GaussLegendre {
             points_per_axis: NonZeroUsize::new(4).unwrap(),
         };
-        let original = ResolvedCommonPlan::resolve(
-            &model,
-            owner,
-            CommonSpatialPolicy::Q2,
-            CommonSolvePolicy::Linear(exact_reference_linear(
-                LinearSolver::BiConjugateGradientStabilized,
-                1e-14,
-                1e-14,
-                NonZeroUsize::new(100000).unwrap(),
-            )),
-            None,
-            None,
-            &REFERENCE_LINEAR_SOLVER,
-            None,
-            None,
-            Some(gauss),
-        )
-        .unwrap();
         let plan_bytes = original.to_bytes().unwrap();
         let plan = replay_plan(original, &REFERENCE_LINEAR_SOLVER);
         assert_eq!(plan.to_bytes().unwrap(), plan_bytes);
@@ -264,7 +296,6 @@ fn ordinary_quadratic_polynomial_producer_retains_all_nodes_and_physical_reactio
         }
         let mesh_bytes = spatial.admission.authenticated_mesh().to_bytes().unwrap();
         let model_bytes = model.canonical_json().unwrap();
-        write(&directory.join("model.eqi"), authored.as_bytes());
         write(&directory.join("model.json"), &model_bytes);
         write(&directory.join("plan.json"), &plan_bytes);
         write(&directory.join("mesh.json"), &mesh_bytes);
