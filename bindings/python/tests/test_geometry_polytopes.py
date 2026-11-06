@@ -46,7 +46,7 @@ def test_convex_polyhedron_bounds_names_and_foreign_handles():
     assert geometry.selection_dimension("boundary_0") == 2
     assert "bounds=" in repr(geometry)
     from eqiora._eqiora import _compose_view
-    with pytest.raises(eqiora.ValidationError, match="render projection"):
+    with pytest.raises(eqiora.CapabilityError, match="render projection"):
         _compose_view((geometry,))
     foreign = eqiora.geometry.GeometryGraph()
     with pytest.raises(eqiora.ValidationError):
