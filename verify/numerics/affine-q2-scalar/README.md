@@ -1,9 +1,14 @@
 # Ordinary affine Q2 scalar diffusion
 
 This case connects full Q2 quadrilateral/hexahedral fields to the ordinary Plan,
-region compiler, assembly map, solver and Result codec. The implementation and
-protocol are under review. No new Q2 manufactured solve has run yet. Reference
-and pure protocol tests are not candidate scientific results.
+region compiler, assembly map, solver and Result codec. The installed-Python
+N=2,4,8 sine witnesses pass the independent complete-field and finite-level
+gates in both dimensions. The native polynomial witnesses separately pass the
+unchanged rational coefficient, residual and physical reaction gates.
+
+The [original evidence](evidence/sine-5f8130/inventory.json) distinguishes the
+frozen native producer, original first-solve harness, corrected postprocessor
+and remaining five solves. These are correctness results, not timing results.
 
 The initial ordinary scope is static linear scalar diffusion, with real or complex
 coefficients, on affine Cartesian quads/hexes in 2D/3D. P2 triangle/tetrahedron
@@ -81,7 +86,7 @@ script contains no private residual, norm or acceptance implementation.
 
 ## Polynomial patch and boundary reaction
 
-A separate N=2 witness will use the same physical boxes and
+A separate accepted N=2 witness uses the same physical boxes and
 `u=product_i(1+(x_i/L_i)²)`. Its source is
 `f=-sum_i(2/L_i²)*product_j!=i(1+(x_j/L_j)²)`, with units 1/m². The upper first-axis
 face has essential data; all other faces have the analytic normal derivative.
@@ -94,8 +99,10 @@ The independent [rational patch oracle](reference/POLYNOMIAL.md) owns the frozen
 residual, coefficient and reaction budgets. The first native attempt failed typed
 model compilation before any Plan or solve: an array literal was not a spatial
 tensor. It executed zero ordinary solves. Equivalent scalar face fluxes now
-compile and resolve in both dimensions with a backend that cannot solve. A new
-native solve attempt still requires source/build review. The producer uses
+passed compile/resolve-only preflight in both dimensions, then one reviewed
+second attempt completed both ordinary solves and both independent comparisons.
+The [original patch artifacts](evidence/polynomial-5f8130/README.md) are retained.
+The producer uses
 solver relative and absolute tolerances 1e-14, retains every actual field
 coordinate and upper constrained reaction coordinate, and binds its mathematical
 input to separate Model/Plan/Result/mesh producer receipts and the actual test
@@ -128,4 +135,62 @@ command exercises the independent reference/comparator, including arbitrary
 non-sine fields and controlled full-vector perturbations. Core tests separately
 cover quadratic monomials/gradients, parent traces, topology-preserving cube
 permutations, quadrature minima, effective-policy replay and stale prepared facet
-geometry/order/quadrature. These checks do not establish an installed Q2 solve.
+geometry/order/quadrature. These pure checks are separate from the installed
+scientific evidence above.
+
+
+## Saved results and reproduction
+
+![Complete-field relative errors on the declared meshes](figures/sine-errors.svg)
+
+The plot shows physical L2 error divided by the exact physical L2 norm, and H1
+seminorm error divided by the exact gradient norm. Both ratios are dimensionless.
+The exact norms use `||u||²=product(L_i)/2^d` and
+`||grad u||²=pi² sum(L_i^-2) ||u||²`. The plotted values are midpoints of the
+independently enclosed errors; their interval widths are smaller than the markers.
+The script rechecks the committed fields before plotting. It adds no acceptance
+threshold or fitted reference curve.
+
+| Dimension | Full coefficients at N=2,4,8 | L2 finite rates | H1 seminorm finite rates |
+| --- | --- | --- | --- |
+| 2D | 25, 81, 289 | 2.891648, 2.978002 | 1.986303, 1.997961 |
+| 3D | 125, 729, 4913 | 2.847143, 2.971611 | 2.007289, 2.005275 |
+
+The original first sine worker completed its 2D N=2 solve but its exporter
+incorrectly compared a run-request key with the Plan artifact identity. The
+original failure remains retained. A reviewed read-only recovery reopened its
+original Result byte-exactly and exported all 25 original coefficients; it did
+not run another PDE. Five subsequent ordinary workers and every independent
+comparison passed. The total is one original plus five new solves. An earlier
+no-solve source-name lookup failure, a taskset spelling error, a read-only audit
+property typo and a recovery helper path-type error also remain in the external
+attempt logs. They did not change the numerical budgets or trigger another first
+solve. A decoded Model selects its exact Field ULID; the live compiled producer
+uses the canonical source alias `definition.u`.
+
+The archive includes original scientific bytes and five explicitly labelled
+execution metadata projections. Each projection omits only `native_module` and
+`python`, which were machine-local paths; the inventory retains original and
+public digests. Machine-local process/build receipts remain external and are
+identified by their original digests. They are not represented as clone-available
+original receipts. No JIT binary, native wheel or local environment is embedded.
+
+From this directory, run:
+
+```sh
+python3 -B recheck_saved.py
+```
+
+This checks committed original digests, binds every exported binary64 value to
+the complete original Result blocks and export coordinates, and repeats both
+polynomial gates, all six full-vector sine gates and both finite-level gates
+with the unchanged reference owners. It imports no Eqiora and performs no PDE
+solve. It does not claim to rerun native artifact decoding or original process
+receipts. `plot_evidence.py --output "$scratch"` repeats that check before
+regenerating the figure with NumPy/Matplotlib.
+
+The registered case uses the existing installed-wheel gate. Its isolated Python
+test calls the same `check.run` producer and independent comparator for all six
+sine cases, retaining fresh home-backed outputs and stopping on failure. The
+native polynomial archive is complementary evidence; it is not misrepresented
+as an execution of that registered installed-wheel target.
