@@ -1,0 +1,11 @@
+{
+  "utc": "2026-11-06T10:22:31.888818+00:00",
+  "start_utc": "2026-11-06T10:22:31.428682+00:00",
+  "pid": 463290,
+  "exit_code": 101,
+  "elapsed_seconds": 0.4601447656750679,
+  "stdout_sha256": "1461f6315d7332a17b22aec4117d659cbfcf09f40b22004d9551414b714d91f0",
+  "stderr_sha256": "981a454b20e46edbfe8027c8936c8503efb630e955fee5bd21aa40b9f3bb42a3",
+  "native_root": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1",
+  "status": "failed-no-retry"
+}

@@ -1,0 +1,109 @@
+[
+  {
+    "name": "fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 9.802404297981411,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-fmt.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "-p",
+      "eqiora-numerics",
+      "--tests",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 21.315730362199247,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-clippy.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "robin-pure",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "eqiora-numerics",
+      "--lib",
+      "robin",
+      "--",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 119.98872802266851,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-robin-pure.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "orientation",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "eqiora-numerics",
+      "--lib",
+      "physical_outward_boundary_values_convert_to_diffusion_conormal_once"
+    ],
+    "exit_code": 0,
+    "seconds": 0.13895300403237343,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-orientation.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "scalar-baseline",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "eqiora-numerics",
+      "--lib",
+      "form_compiler::scalar::"
+    ],
+    "exit_code": 0,
+    "seconds": 0.19959345180541277,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-scalar-baseline.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "proof-baseline",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "eqiora-numerics",
+      "--lib",
+      "form_compiler::vocabulary::replay::tests::"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12276490312069654,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-proof-baseline.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  },
+  {
+    "name": "capture-cleanup",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "eqiora-numerics",
+      "--lib",
+      "capture_scope_disarms_on_drop_and_unwind_without_a_solve"
+    ],
+    "exit_code": 0,
+    "seconds": 0.14165944792330265,
+    "log": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-capture-cleanup.log",
+    "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c"
+  }
+]

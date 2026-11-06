@@ -1,0 +1,16 @@
+{
+  "authored_source_sha256": "f23e84a267fb968820fa3f1682c7e8a0a6422e42837ecfa8ec65b4eabab2fef1",
+  "case": "robin",
+  "inputs": [
+    2,
+    1,
+    3,
+    2,
+    280,
+    320
+  ],
+  "native_executable_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+  "schema": 1,
+  "source_head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "status": "attempt-started"
+}

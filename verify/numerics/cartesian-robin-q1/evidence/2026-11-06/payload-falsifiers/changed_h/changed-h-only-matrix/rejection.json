@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "preparation_only": true,
+  "case": "changed_h",
+  "units": {
+    "coordinates": "m",
+    "A": "W/(m*K)",
+    "b": "W/m",
+    "coefficients": "K",
+    "left_reactions": "W/m",
+    "integrated_heat": "W/m",
+    "pointwise_heat_flux": "W/m^2"
+  },
+  "counts": {
+    "operator_rows": 9,
+    "load": 9,
+    "coefficients": 9,
+    "left_reactions": 3,
+    "free": 6
+  },
+  "ceiling_status": "eta=8192 binary64 unit roundoffs is declared, not an operation-count theorem",
+  "bounds": {
+    "eta": {
+      "numerator": "1",
+      "denominator": "1099511627776"
+    },
+    "sigma": {
+      "numerator": "1",
+      "denominator": "70368744177664"
+    },
+    "C": {
+      "numerator": "2826",
+      "denominator": "3263"
+    },
+    "U": {
+      "numerator": "320",
+      "denominator": "1"
+    },
+    "SA": {
+      "numerator": "24",
+      "denominator": "1"
+    },
+    "b_norm": {
+      "numerator": "800",
+      "denominator": "1"
+    },
+    "Sb": {
+      "numerator": "8480",
+      "denominator": "1"
+    },
+    "deltaA": {
+      "numerator": "3",
+      "denominator": "137438953472"
+    },
+    "deltab": {
+      "numerator": "265",
+      "denominator": "34359738368"
+    },
+    "tau": {
+      "numerator": "265",
+      "denominator": "2199023255552"
+    },
+    "E": {
+      "numerator": "46042605",
+      "denominator": "3587706441365264"
+    },
+    "R": {
+      "numerator": "4181408446446759729372899386375",
+      "denominator": "542158868770523288561947478568686583808"
+    },
+    "rho": {
+      "numerator": "12149752844241115543341116761095",
+      "denominator": "542158868770523288561947478568686583808"
+    },
+    "reference_residual": {
+      "numerator": "106324855",
+      "denominator": "7175412882730528"
+    },
+    "individual_reaction": {
+      "numerator": "179136034804693985480758474646535",
+      "denominator": "542158868770523288561947478568686583808"
+    },
+    "total_reaction": {
+      "numerator": "537408104414081956442275423939605",
+      "denominator": "542158868770523288561947478568686583808"
+    }
+  },
+  "observations": {
+    "operator_inf_error": {
+      "numerator": "3377699720527873",
+      "denominator": "2251799813685248"
+    },
+    "load_inf_error": {
+      "numerator": "1",
+      "denominator": "8796093022208"
+    },
+    "physical_free_residual_inf": {
+      "numerator": "9233128169931592561213454007901",
+      "denominator": "19807040628566084398385987584"
+    },
+    "reference_free_residual_inf": {
+      "numerator": "53",
+      "denominator": "52776558133248"
+    },
+    "coefficient_inf_error": {
+      "numerator": "1",
+      "denominator": "3573412790272"
+    },
+    "native_vs_exported_recovery_inf_error": {
+      "numerator": "990575398808657",
+      "denominator": "19807040628566084398385987584"
+    },
+    "native_vs_reference_recovery_inf_error": {
+      "numerator": "1",
+      "denominator": "17592186044416"
+    },
+    "reaction_target_inf_error": {
+      "numerator": "25",
+      "denominator": "57174604644352"
+    },
+    "reaction_total_target_error": {
+      "numerator": "61",
+      "denominator": "114349209288704"
+    }
+  },
+  "heat_convention": "physical_outward_heat=-weak_reaction",
+  "physical_outward_heat": {
+    "left": {
+      "numerator": "405973524101903",
+      "denominator": "8796093022208"
+    },
+    "right": {
+      "numerator": "-3247788192815335",
+      "denominator": "70368744177664"
+    }
+  },
+  "exact_physical_outward_heat": {
+    "left": {
+      "numerator": "600",
+      "denominator": "13"
+    },
+    "right": {
+      "numerator": "-600",
+      "denominator": "13"
+    }
+  },
+  "checks": {
+    "full_operator": false,
+    "full_load": true,
+    "physical_free_residual": false,
+    "every_coefficient": true,
+    "reference_free_residual": true,
+    "every_reaction_vs_exported_physical_operator": true,
+    "every_reaction_vs_reference_full_vector": true,
+    "every_reaction_vs_exact_target": true,
+    "reaction_total": true
+  },
+  "accepted": false,
+  "input_sha256": "187e09496cb2a6a3cb9ed5d4818db485f01e9d2c947f5ff4b8cf2522a0b2d4e0"
+}

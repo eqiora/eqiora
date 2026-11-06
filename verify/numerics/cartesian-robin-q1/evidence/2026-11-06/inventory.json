@@ -1,0 +1,1807 @@
+{
+  "schema": 1,
+  "status": "sealed-independent-four-case-witnesses-and-payload-falsifiers",
+  "scientific_producer": {
+    "head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+    "tree": "00a14fdd63b4b123a47bd36bc544ceecb55850f9",
+    "binary_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+    "compiled_binary_archived": false
+  },
+  "independent_reference": {
+    "head": "023c3786e2a4af4582a3e66170fc1983bb5b46b9",
+    "robin_py_sha256": "4855a307d70a52c76086c1d8bc877697c6c297ad739e5db8b32c14d9ea2b3d3c"
+  },
+  "ordinary_runs": {
+    "attempt1": 1,
+    "attempt2": 4,
+    "campaign_total": 5,
+    "payload_falsifiers": 0
+  },
+  "accepted_case_count": 4,
+  "accepted_checks_per_case": 9,
+  "payload_falsifiers_rejected": 34,
+  "performance_claim": false,
+  "attempt1_status": "harness-failed-after-first-Run-no-scientific-comparison-no-full-operator-file",
+  "reference_preparation_only_marker": "preserved original mathematical-reference metadata; actual native-input comparisons ran and accepted all nine checks",
+  "files": [
+    {
+      "path": "attempt1/insulated/case-attempt.json",
+      "sha256": "00756fb915e0bdab3793b52e3f3b5e25720e0b4f95470feedbd6fde79aaeb2e9",
+      "bytes": 390,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/case-attempt.json"
+    },
+    {
+      "path": "attempt1/insulated/mesh.json",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/mesh.json"
+    },
+    {
+      "path": "attempt1/insulated/model.eqi",
+      "sha256": "e67a2b6458482c785a506e641733e8478c93c17b462b173e8880b5add41104b3",
+      "bytes": 783,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/model.eqi"
+    },
+    {
+      "path": "attempt1/insulated/model.json",
+      "sha256": "37ca5b908b11b15e2b754b139f94162097651ec27b1b72fa922234708d28d8db",
+      "bytes": 10206,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/model.json"
+    },
+    {
+      "path": "attempt1/insulated/plan.json",
+      "sha256": "faeae75c7ca2c62ecde5078e4e739659a04528e1edb34722ad511204be29dd6d",
+      "bytes": 19778,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/plan.json"
+    },
+    {
+      "path": "attempt1/insulated/result.json",
+      "sha256": "7ecee8b0f447cda0737dbc5aa7b4a54f96ff5b016522844edc036340507bc296",
+      "bytes": 1660,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1/insulated/result.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/captured-operator.json",
+      "sha256": "63f6a368c8068181f3899d119872a09cb7c71f572a1e19b1d570f0fadefd205f",
+      "bytes": 4235,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/captured-operator.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/case-attempt.json",
+      "sha256": "66d78e26463e599e6f8553694c23f8cc1c46afe76b632813235dc6976dda0986",
+      "bytes": 414,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/case-attempt.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/comparison-process.json",
+      "sha256": "a55fa3a5bb5dc8a093e0c6f3ef22c4ae431e10c75df83d9d1ebab942975ac0f7",
+      "bytes": 1201,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_geometry_material_cooling-process.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/comparison.json",
+      "sha256": "98fe2da37929f43824108b602e4d9936e0c2a54daae11592a84feef9b79b7af2",
+      "bytes": 4082,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_geometry_material_cooling.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/mesh.json",
+      "sha256": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+      "bytes": 2638,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/mesh.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/model.eqi",
+      "sha256": "c0c547519bbba290c233a9143f38d19efc4db49e6802a49639dc3fe552df7907",
+      "bytes": 783,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/model.eqi"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/model.json",
+      "sha256": "6e5187bb59e69717acf606fb0358029ab9752ab6e7472a5cf66d1ee53da5bfc7",
+      "bytes": 10250,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/model.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/plan.json",
+      "sha256": "cb5bbb1f6f9a8ef3516c18bbefd087bb034179d23a662a060bad760b0a2fbbee",
+      "bytes": 19838,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/plan.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/producer-receipt.json",
+      "sha256": "e4741a1aa609dd33d99696ecb38b01973a609f86dafade1ec5b09c0a3e6faa96",
+      "bytes": 1981,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/producer-receipt.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/result.json",
+      "sha256": "6beaf3154b0e2bdd99ff9fd0604ee4023be57ba7b241e7e895292687635db288",
+      "bytes": 1681,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/result.json"
+    },
+    {
+      "path": "attempt2/changed_geometry_material_cooling/robin-input.json",
+      "sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+      "bytes": 4598,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/robin-input.json"
+    },
+    {
+      "path": "attempt2/changed_h/captured-operator.json",
+      "sha256": "eea1ee6a3f785387a63fe734beb018cbc3c0a734b0c5d8c33f07591a7dc26d57",
+      "bytes": 4210,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/captured-operator.json"
+    },
+    {
+      "path": "attempt2/changed_h/case-attempt.json",
+      "sha256": "f59500b41e580d365fd120a8cdbb78903723a605570d8940e93018312247a6c2",
+      "bytes": 390,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/case-attempt.json"
+    },
+    {
+      "path": "attempt2/changed_h/comparison-process.json",
+      "sha256": "9806684d1da05fdce01c10542724e05c9e43c28cc474058e474c0c7587902bc2",
+      "bytes": 1104,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_h-process.json"
+    },
+    {
+      "path": "attempt2/changed_h/comparison.json",
+      "sha256": "fd781c27673d381a4974ec9845ea045d036d3438fe6f22e75897479a6e4c6e3a",
+      "bytes": 4018,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_h.json"
+    },
+    {
+      "path": "attempt2/changed_h/mesh.json",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/mesh.json"
+    },
+    {
+      "path": "attempt2/changed_h/model.eqi",
+      "sha256": "b4e9bcab7a5701a25263b62e8ca311c44e02c41246fb7f7deb586363076ff50f",
+      "bytes": 783,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/model.eqi"
+    },
+    {
+      "path": "attempt2/changed_h/model.json",
+      "sha256": "c22cfd91d677fba45361601926b07cb9b876c1952909ba44abee99d15da6f404",
+      "bytes": 10250,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/model.json"
+    },
+    {
+      "path": "attempt2/changed_h/plan.json",
+      "sha256": "343a6323a8706fbaf53fdd294c30986b30e14939e909452aba89f1b26c5c0086",
+      "bytes": 19838,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/plan.json"
+    },
+    {
+      "path": "attempt2/changed_h/producer-receipt.json",
+      "sha256": "f13bbae372797c58dad4ba7fda7ae4b567fbbba74a6c8a95abc34e2b602b0011",
+      "bytes": 1980,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/producer-receipt.json"
+    },
+    {
+      "path": "attempt2/changed_h/result.json",
+      "sha256": "591bbc51700220e8bb328c711d98567cdb76698fba620bcb2a865eefe9892bf2",
+      "bytes": 1687,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/result.json"
+    },
+    {
+      "path": "attempt2/changed_h/robin-input.json",
+      "sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+      "bytes": 4578,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_h/robin-input.json"
+    },
+    {
+      "path": "attempt2/insulated/captured-operator.json",
+      "sha256": "364f5fc7a476c7959137586df4331790748d5e67245f9f5a953cadc4d4d7ea2b",
+      "bytes": 4174,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/captured-operator.json"
+    },
+    {
+      "path": "attempt2/insulated/case-attempt.json",
+      "sha256": "f11b8ed019419c375b7145691b3ff5787ba37502099d59927814a5a0d0c1cea6",
+      "bytes": 390,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/case-attempt.json"
+    },
+    {
+      "path": "attempt2/insulated/comparison-process.json",
+      "sha256": "cdb62edede0a22b397da13056f5a34116f11e78eeeec853c24733497bc3aa952",
+      "bytes": 1105,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/insulated-process.json"
+    },
+    {
+      "path": "attempt2/insulated/comparison.json",
+      "sha256": "b3d062b4a64514db2aa4308579d91ced09a06abca310b4c29d2837ba97e3404a",
+      "bytes": 3925,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/insulated.json"
+    },
+    {
+      "path": "attempt2/insulated/mesh.json",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/mesh.json"
+    },
+    {
+      "path": "attempt2/insulated/model.eqi",
+      "sha256": "e67a2b6458482c785a506e641733e8478c93c17b462b173e8880b5add41104b3",
+      "bytes": 783,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/model.eqi"
+    },
+    {
+      "path": "attempt2/insulated/model.json",
+      "sha256": "37ca5b908b11b15e2b754b139f94162097651ec27b1b72fa922234708d28d8db",
+      "bytes": 10206,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/model.json"
+    },
+    {
+      "path": "attempt2/insulated/plan.json",
+      "sha256": "faeae75c7ca2c62ecde5078e4e739659a04528e1edb34722ad511204be29dd6d",
+      "bytes": 19778,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/plan.json"
+    },
+    {
+      "path": "attempt2/insulated/producer-receipt.json",
+      "sha256": "4b7bbca67a19e9e0f484b07899eabcf9e5d57c8e8cbde9a0ab6bf2d2b046d976",
+      "bytes": 1982,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/producer-receipt.json"
+    },
+    {
+      "path": "attempt2/insulated/result.json",
+      "sha256": "7ecee8b0f447cda0737dbc5aa7b4a54f96ff5b016522844edc036340507bc296",
+      "bytes": 1660,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/result.json"
+    },
+    {
+      "path": "attempt2/insulated/robin-input.json",
+      "sha256": "0c085cbfd8ccb1901cffc5c893f303eb0a7bc00d0b874f0a8c7af8a914563efd",
+      "bytes": 4544,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/robin-input.json"
+    },
+    {
+      "path": "attempt2/robin/captured-operator.json",
+      "sha256": "6cf7c3576b0fb243781cf47890338d6180d30995bac315bafa541dfeb08b4e46",
+      "bytes": 4206,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/captured-operator.json"
+    },
+    {
+      "path": "attempt2/robin/case-attempt.json",
+      "sha256": "9767b4c4ac307ad80ec6dd70853087f816c0b260e650012851fb834533bfe988",
+      "bytes": 386,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/case-attempt.json"
+    },
+    {
+      "path": "attempt2/robin/comparison-process.json",
+      "sha256": "06c86c1d3f22c52c6d206047a2ca79570679d4d8e4ec7ac0ce68bab2b04a1ac0",
+      "bytes": 1089,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/robin-process.json"
+    },
+    {
+      "path": "attempt2/robin/comparison.json",
+      "sha256": "1df3c406e3075c4538b338dd420724dde15273b52cfc5df64aefdc756bb22eb6",
+      "bytes": 4006,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/robin.json"
+    },
+    {
+      "path": "attempt2/robin/mesh.json",
+      "sha256": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+      "bytes": 2638,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/mesh.json"
+    },
+    {
+      "path": "attempt2/robin/model.eqi",
+      "sha256": "f23e84a267fb968820fa3f1682c7e8a0a6422e42837ecfa8ec65b4eabab2fef1",
+      "bytes": 783,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/model.eqi"
+    },
+    {
+      "path": "attempt2/robin/model.json",
+      "sha256": "d11d94a210236a950f2dbf54ed76f9c5abd735bd8dfb6a30b16b14aca64005f7",
+      "bytes": 10250,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/model.json"
+    },
+    {
+      "path": "attempt2/robin/plan.json",
+      "sha256": "a3ef4a1da52c44cd67476e67ba3cc566e3e629b704d438f03aeb3434150a5112",
+      "bytes": 19838,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/plan.json"
+    },
+    {
+      "path": "attempt2/robin/producer-receipt.json",
+      "sha256": "364aaddc31b3f0f06b81e7dbcce5e81a5b2b07e757902597fa376a1dbb0d45bd",
+      "bytes": 1980,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/producer-receipt.json"
+    },
+    {
+      "path": "attempt2/robin/result.json",
+      "sha256": "5a499df7bcb0d5ea652e644cd65c43f17ac84f03855528d866af07028a84ea65",
+      "bytes": 1681,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/result.json"
+    },
+    {
+      "path": "attempt2/robin/robin-input.json",
+      "sha256": "42d2a0a523d9808a9d3254d8009978dc66b47da90b769fbb6d696a87caeb9a49",
+      "bytes": 4574,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/robin/robin-input.json"
+    },
+    {
+      "path": "build/Cargo.lock",
+      "sha256": "356670ea5adcf9bd417ca69b64e6c78909215b298689cb6ab9a28d07b1c5697d",
+      "bytes": 92958,
+      "original_path": "/data/nk523/.cache/eqiora/worktrees/scalar-robin-boundary/Cargo.lock"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/mutant.json",
+      "sha256": "916a85b16b789c245eb23dc696a2f6f0a53a2d3d66e2c22fb2aece2126e29d6b",
+      "bytes": 4599,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/process.json",
+      "sha256": "9ac97799455f0beb4efa0837b46b262728e956b3f506cca71db41ac9d8e409a6",
+      "bytes": 1070,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/rejection.json",
+      "sha256": "6b4f669cf25b910e4513319b061b3d6ebe0203df416f29ce6302ae25456ebcd9",
+      "bytes": 4144,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-interior-coefficient/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/mutant.json",
+      "sha256": "edf95d76f7258e9e65d09d9087594d773387bab31665b68b017ec99ca757a4bb",
+      "bytes": 4599,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/process.json",
+      "sha256": "33b3315405a6969f8534d2132c6d9ef2aa966d1abe6b55932b9d6d7dbd725b73",
+      "bytes": 1062,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/rejection.json",
+      "sha256": "21a80560600d9e7245d144afb8ed7af738e3b9ff512fe12997eaa2d544f7b7ce",
+      "bytes": 4125,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/changed-left-reaction/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/mutant.json",
+      "sha256": "64aef10c5d5bc65acb25814bc0280423748a8710b51be79b04a81545d4d1441a",
+      "bytes": 4599,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/process.json",
+      "sha256": "4664adc30ce5583f8c176c7145b7ffde5e4ee6c5de86554d3b6ca4f8723bdc2a",
+      "bytes": 1170,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/rejection.json",
+      "sha256": "2cb9cc3c574d2534fb534913b5c980236086890c5ea06ed737e62aa2977a2030",
+      "bytes": 4094,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/direct-recovery-defect-inside-looser-rho/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/mutant.json",
+      "sha256": "73868953185bb8d0855d97402260cf9e9e9ec8252998f1e44e56591b99811b51",
+      "bytes": 4370,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/process.json",
+      "sha256": "687cf49fe0f15042633db53d8429c4283d0850d5f47da10a428a11b0404979de",
+      "bytes": 1099,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/rejection.json",
+      "sha256": "51a72d639b9e628e48a8758320d97386b8681e6db564f48eee5ccc8c95840ca5",
+      "bytes": 4101,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/mutant.json",
+      "sha256": "cfc550f748b55f41c32413493b416f756b804d63cc701b5f85dc90b7087f2ca5",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/process.json",
+      "sha256": "581170e0d613267a192130662ccab31da28c53b3aeaa1ffe88fd210f1ded7cc9",
+      "bytes": 1072,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/rejection.json",
+      "sha256": "88b7740aa619a008442529912eb9eed9b703096d04504a314238762719b776bb",
+      "bytes": 4111,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/missing-endpoint-trace-weights/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/mutant.json",
+      "sha256": "83f15dcadefa855bc163b229545475ed16bb669c5a72f15c17cee254e7d0522f",
+      "bytes": 4599,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/process.json",
+      "sha256": "3de5a3de425fc5625b7e3801401c5e9481028a2a2adc809c4c1521399964cd9e",
+      "bytes": 1042,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/rejection.json",
+      "sha256": "f8bb14abaca94f60d48c3a19852d907e8199f43707b09dd0d706fd3fbb9d97b8",
+      "bytes": 4114,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/omitted-robin-matrix/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/mutant.json",
+      "sha256": "c2a892af6e983b556c726dd86b51a07704de1c4dcfb0a9db22b4b9966c3efd27",
+      "bytes": 4602,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/process.json",
+      "sha256": "c77efb069229f09e25e39dbe8de72c7a78ba780f008baec498ffcebffd02c070",
+      "bytes": 1066,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/rejection.json",
+      "sha256": "796c3de08c437502dae8036dd698cbd915690bcae11c5ec0bdf3a447e386c5d4",
+      "bytes": 4110,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/mutant.json",
+      "sha256": "595a06a85970a7b790a3f1d32d0bff4713048b7fcd59402b7f82242c8ed9a213",
+      "bytes": 4602,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/process.json",
+      "sha256": "9aa2753a1d242d7197f16f1a70685ae258f5b0ead7f079b7ebc936df6f64f2aa",
+      "bytes": 1080,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/rejection.json",
+      "sha256": "a65b164a6513656c8f9efdcd1cfe674b8e0fe9cd7339485b830ffb12e9400a00",
+      "bytes": 4144,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-weak-reaction-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/mutant.json",
+      "sha256": "88cf6896b1fc26c83ecd19caea12657d38c3b7a1db2979998b21a98271f95a76",
+      "bytes": 4598,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/process.json",
+      "sha256": "29d20a27334f1427ca169de874551d5043a2b176c392e813758d78aec9c0e737",
+      "bytes": 1061,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/rejection.json",
+      "sha256": "8053bc50d0e19f9333cbab3bd5fd1aba0586cae407826efe73f519f777b63576",
+      "bytes": 193,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-physical-heat-convention/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/mutant.json",
+      "sha256": "3468aad1b75386e83b08b3c72e4db5af095923b4b695a582eb0f4a40a22ee6b8",
+      "bytes": 4612,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/process.json",
+      "sha256": "36d2d2843de732fadddfa4d5e636404a11055a57b3b08cff6982d7ee8ab7db5b",
+      "bytes": 1030,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/rejection.json",
+      "sha256": "7e5102190245910584e283d870d23f39b80f3b40df2fef8b0e0052d7fb7632b1",
+      "bytes": 4124,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/wrong-robin-face/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-load/mutant.json",
+      "sha256": "b1da84fc0dbca862f846cc3971f575d08780f1a6471e9317e046bb4ca667100d",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-load/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-load/process.json",
+      "sha256": "889df915ac49f4456492f26d9879576a87e01b04ba2d1a0533f6a585422f67ea",
+      "bytes": 963,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-load/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-load/rejection.json",
+      "sha256": "f6d6716f294d45940f6d1f818e8533e214d6bb093eda793c04579a53da0fc2b3",
+      "bytes": 4051,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-load/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-load/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-load/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-load/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-load/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-matrix/mutant.json",
+      "sha256": "187e09496cb2a6a3cb9ed5d4818db485f01e9d2c947f5ff4b8cf2522a0b2d4e0",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-matrix/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-matrix/process.json",
+      "sha256": "fef3ebf082f76b8dd229a79f846d95c32367d1909a54c98fec23bc94a2b5d041",
+      "bytes": 973,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-matrix/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-matrix/rejection.json",
+      "sha256": "ce0f819c2624c6ae9a0039d3e1f63e7e81aa6065f77e0fddf40ecc3c07017030",
+      "bytes": 4051,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-matrix/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-matrix/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-matrix/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-h-only-matrix/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-h-only-matrix/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-interior-coefficient/mutant.json",
+      "sha256": "4c0550d43d6b49955efec53102d14ff2bef55583780b87d483ed607dbb42fd68",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-interior-coefficient/process.json",
+      "sha256": "bf24f7841a8e38b7b0cf67269d019efbc02771eb9cca780720e2dc2de71a0baa",
+      "bytes": 998,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-interior-coefficient/rejection.json",
+      "sha256": "0b7fd0f8e6ed2b78e3efd1e8d7132d9005a6e151ae367a41d01d83ece5cd3b11",
+      "bytes": 4052,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-interior-coefficient/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-interior-coefficient/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-left-reaction/mutant.json",
+      "sha256": "e98aca5f3005f867f343fabbdf2c123d8da138e9c0c664aef4fa16801312b0ae",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-left-reaction/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-left-reaction/process.json",
+      "sha256": "d480fb3086b22f1722523bf817519d3f040ef4d04407fff168613efbe531b54a",
+      "bytes": 990,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-left-reaction/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-left-reaction/rejection.json",
+      "sha256": "5606537e91370d3d13da703c1bcb13306181c6cc29955ad1725950cec5a9e73f",
+      "bytes": 4063,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-left-reaction/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-left-reaction/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-left-reaction/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/changed-left-reaction/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-left-reaction/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/mutant.json",
+      "sha256": "51fe19083dec62fa7a119023f376a56b3d5d454a4f1299f9ca338775311edb67",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/process.json",
+      "sha256": "9f0e8a6be2d72fee1bda071a9e9474a19da9b7e70f41394728977954847f6e53",
+      "bytes": 1098,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/rejection.json",
+      "sha256": "4127b10ada4674571fa8a157b0c5d659f44f7d77409085088346834f53193247",
+      "bytes": 4050,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/mutant.json",
+      "sha256": "38536d368494d302d1767ea04ea4795d9883ba71a39fa66ed88e5cc6f5f1b12e",
+      "bytes": 4351,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/process.json",
+      "sha256": "8067be9ce7cec914efd7b68e45b33b691ea6d920f54c79bfa8219446a289148e",
+      "bytes": 1027,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/rejection.json",
+      "sha256": "f73293e968ef8a6823055ec61f594378d8e54e8d0b410ee2bcaedfe0e78c4600",
+      "bytes": 4038,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/incorrectly-eliminated-right-test-trace/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/missing-endpoint-trace-weights/mutant.json",
+      "sha256": "bd820bb30c7521ad72edb7714ce21f727ec7fe91e5eed0b631025ffe7635e492",
+      "bytes": 4555,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/missing-endpoint-trace-weights/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/missing-endpoint-trace-weights/process.json",
+      "sha256": "ad6ed850490bd797e9ff9a43f292aef1b5f39db29296973960dee669d27ddb78",
+      "bytes": 1000,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/missing-endpoint-trace-weights/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/missing-endpoint-trace-weights/rejection.json",
+      "sha256": "0dc41c74260c3952c71372d74ec98984914c36cf6731344843d63440c87a0a6f",
+      "bytes": 4041,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/missing-endpoint-trace-weights/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/missing-endpoint-trace-weights/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/missing-endpoint-trace-weights/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/missing-endpoint-trace-weights/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/missing-endpoint-trace-weights/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/omitted-robin-matrix/mutant.json",
+      "sha256": "603505443463c3496bee19e6baeea0d94afc09a14935f5cd8a571da6ba1b43c9",
+      "bytes": 4579,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/omitted-robin-matrix/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/omitted-robin-matrix/process.json",
+      "sha256": "e48bc94817c2e78149f0c9f6c7fc80aded322123e0b94733f9890ec6521277e0",
+      "bytes": 970,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/omitted-robin-matrix/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/omitted-robin-matrix/rejection.json",
+      "sha256": "a555887ff8f564edc6b4fa54b37b484784b9792d1dbd6031aa388498813d68d7",
+      "bytes": 4052,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/omitted-robin-matrix/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/omitted-robin-matrix/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/omitted-robin-matrix/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/omitted-robin-matrix/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/omitted-robin-matrix/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-robin-boundary-sign/mutant.json",
+      "sha256": "82e12d655ea7f32e69c7e37ffcc2e2f3567a2f48f24e74a2b7ddbac08d81f382",
+      "bytes": 4582,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-robin-boundary-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-robin-boundary-sign/process.json",
+      "sha256": "8867de43058bc67682164e25e896a87efeb0c09cce8a34b141b01830a5b0fff8",
+      "bytes": 994,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-robin-boundary-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-robin-boundary-sign/rejection.json",
+      "sha256": "1e494945b57f99ca3e878b1157159ab229d86daad43cfc77d65a2f66659d3fc4",
+      "bytes": 4068,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-robin-boundary-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-robin-boundary-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-robin-boundary-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-robin-boundary-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-robin-boundary-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-weak-reaction-sign/mutant.json",
+      "sha256": "cbae9517709c9e7d86f06cdb75a7767fe687a16a88a81d2cac16af4b77a95bc9",
+      "bytes": 4576,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-weak-reaction-sign/process.json",
+      "sha256": "1328c3e0e3508e3a8ab657a0617d897c7f64ba30aafb9d66983e62f1651d5bce",
+      "bytes": 1008,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-weak-reaction-sign/rejection.json",
+      "sha256": "93196fe435da2bab67c3bb7b30abc59fe19609a91d6af93bfad9cce3f3531af8",
+      "bytes": 4082,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-weak-reaction-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/reversed-weak-reaction-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-physical-heat-convention/mutant.json",
+      "sha256": "171d02afb6be54d89b62d8671f73e3c04629eea9d4a5cda094cf9fc9d95bda7b",
+      "bytes": 4578,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-physical-heat-convention/process.json",
+      "sha256": "10af93457ac68dea684eac82d205a46f63ac01105dbe95b2fd3bf233eafbeb95",
+      "bytes": 989,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-physical-heat-convention/rejection.json",
+      "sha256": "ab3c26e48778a6c1bf65763b1eeeb88f088424e28d91683170898281e6d23ba9",
+      "bytes": 193,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-physical-heat-convention/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-physical-heat-convention/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-physical-heat-convention/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-robin-face/mutant.json",
+      "sha256": "066596133e2030d9b8a06d545298727b3741ac46e8f82143e4dd165608d30b65",
+      "bytes": 4618,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-robin-face/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-robin-face/process.json",
+      "sha256": "bddf529f36e56ffbc271a10073be0332d117974b6ac65088f1381068549ca00f",
+      "bytes": 958,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-robin-face/process.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-robin-face/rejection.json",
+      "sha256": "918479a3d5d20a410d10628cebd9d278c9f0b3ef4588ed223e09428122f76725",
+      "bytes": 4059,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-robin-face/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-robin-face/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-robin-face/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/changed_h/wrong-robin-face/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/wrong-robin-face/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/primary-review.json",
+      "sha256": "61235d4010b90af38ea0e738cee925065ab213fd563af3c16a6253f807accb20",
+      "bytes": 179,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/primary-review.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-load/mutant.json",
+      "sha256": "be8071b6293af6a95774c14d7eb68458f538a21d0e3af38c4eca71b80699cc99",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-load/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-load/process.json",
+      "sha256": "f795e85867d5de01b0269b3e32e714983c0d6b646b16f4aebf60176547a70daa",
+      "bytes": 951,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-load/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-load/rejection.json",
+      "sha256": "bf0398c9024dd30df28700a46983dd0c606e815785e3aa18cf1c5a4785d82439",
+      "bytes": 4039,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-load/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-load/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-load/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-load/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-load/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-matrix/mutant.json",
+      "sha256": "121f0eceeb7dc02ff64696f5e8eb60351ef3569a22c0c3053082ca8a1a7a7b56",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-matrix/process.json",
+      "sha256": "c172d02b5e9a6b2683d370088a0c8770bf35005b744c46d077298297699e4eba",
+      "bytes": 961,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-matrix/rejection.json",
+      "sha256": "2a6cef9c98b2a0a745c85daedb1d2b6ef7d2d18a2779238b1de93f6925c5b44b",
+      "bytes": 4041,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-matrix/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-h-only-matrix/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-interior-coefficient/mutant.json",
+      "sha256": "c09dec750314401f502d6aa42eb8e5ebb11b2dc413b8632734c8ac871b4a2e46",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-interior-coefficient/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-interior-coefficient/process.json",
+      "sha256": "40bcce6bb5dbd20781202885e712f0610a3fa00f1fd687266b9ac9fd45894ae9",
+      "bytes": 986,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-interior-coefficient/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-interior-coefficient/rejection.json",
+      "sha256": "b9bfa6042a72498d74a9dd76a0f37358a9e00db152114a7655b2061f94c34083",
+      "bytes": 4064,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-interior-coefficient/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-interior-coefficient/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-interior-coefficient/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-interior-coefficient/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-interior-coefficient/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-left-reaction/mutant.json",
+      "sha256": "0c3600c967694a4362475a6d37060bcbf8f026ac4aa5852a280881c6b80a0cf5",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-left-reaction/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-left-reaction/process.json",
+      "sha256": "57f087b941192ccf4082c4d3ec990cac8f1b79260747fc9240cd72e237bc672c",
+      "bytes": 978,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-left-reaction/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-left-reaction/rejection.json",
+      "sha256": "c72283c69e1136fcb2695e9b026b1a3c87a32d4bc205e25bbb1725b96e05c3ea",
+      "bytes": 4050,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-left-reaction/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-left-reaction/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-left-reaction/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/changed-left-reaction/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-left-reaction/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/mutant.json",
+      "sha256": "8e6a8e48f7c3656b5d41e9826e750f6c88492c05309561f9a76dcabe01361d7f",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/process.json",
+      "sha256": "6b5f4fd5f4e0c2eccad9d71dbe7d2212c70400f28d64cdfb28a9bb2d01085a2d",
+      "bytes": 1086,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/rejection.json",
+      "sha256": "f5f1bb57891e588acff7748aa7a7150e9f08b69efb39470e992fcc08ad9ccfb7",
+      "bytes": 4036,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/direct-recovery-defect-inside-looser-rho/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/mutant.json",
+      "sha256": "68d49bdaa495d69ad4fd71fa6d51cd1f5f53557e5becd94c7c1ae21629cef245",
+      "bytes": 4347,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/process.json",
+      "sha256": "62de567346097231cbc23ab04f711bb1163ddc481b8432781e28f552109af7f8",
+      "bytes": 1015,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/rejection.json",
+      "sha256": "40281324aac16885d4ac8594eea893b1f7b98b86f23c09617ac70a043e154765",
+      "bytes": 4027,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/incorrectly-eliminated-right-test-trace/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/missing-endpoint-trace-weights/mutant.json",
+      "sha256": "a027238f7c1af617129b3c501cf4ba00b653f23cb8022cc05241d64667bda70f",
+      "bytes": 4551,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/missing-endpoint-trace-weights/process.json",
+      "sha256": "25ead585bcdf83546f50829736dea0091bab75b7b49db1179d19a17d19847cbf",
+      "bytes": 988,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/missing-endpoint-trace-weights/rejection.json",
+      "sha256": "c2142b56903c1260ebd9d810534006a0b551847f4bd89c0d67d54c05decae203",
+      "bytes": 4030,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/missing-endpoint-trace-weights/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/missing-endpoint-trace-weights/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/missing-endpoint-trace-weights/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/omitted-robin-matrix/mutant.json",
+      "sha256": "704ee44da16c01cc9739af36b243b18757835de76a288987738b357e4389633e",
+      "bytes": 4575,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/omitted-robin-matrix/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/omitted-robin-matrix/process.json",
+      "sha256": "0d7e0416c35ad4dbfb05140e3275cfba101c555b3cf2e4fd5b29572bc66c25d6",
+      "bytes": 958,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/omitted-robin-matrix/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/omitted-robin-matrix/rejection.json",
+      "sha256": "7125862e7faaba39f7e8e8f57e562dc7ffb413f4d91f8e67aa3750fa9f90b272",
+      "bytes": 4041,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/omitted-robin-matrix/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/omitted-robin-matrix/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/omitted-robin-matrix/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/omitted-robin-matrix/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/omitted-robin-matrix/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-robin-boundary-sign/mutant.json",
+      "sha256": "65239543e9614b993692e0fc11f1b325288846c204e098dc067d4d6c5b4b5ee0",
+      "bytes": 4578,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-robin-boundary-sign/process.json",
+      "sha256": "8f482481ddc1e129e5b3cac1747e7ee7d1f48ff910fc91c6fa9349bc91616155",
+      "bytes": 982,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-robin-boundary-sign/rejection.json",
+      "sha256": "995e3041e8d25e39cb2556635df637d97d320fdca41cfa532006cce4f2800c70",
+      "bytes": 4027,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-robin-boundary-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-robin-boundary-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-weak-reaction-sign/mutant.json",
+      "sha256": "87005929440016c1a4188f267a989d342705ee26d49cb64cd2ed96b6a788b33e",
+      "bytes": 4572,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-weak-reaction-sign/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-weak-reaction-sign/process.json",
+      "sha256": "d14609a94f2917e4a43037ab0819df669c59e9184871664e283335f0cabba186",
+      "bytes": 996,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-weak-reaction-sign/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-weak-reaction-sign/rejection.json",
+      "sha256": "2eaad2224685554f23b1940b5506463d6503a19e6dee45e17646876888aca14b",
+      "bytes": 4069,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-weak-reaction-sign/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-weak-reaction-sign/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-weak-reaction-sign/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/reversed-weak-reaction-sign/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-weak-reaction-sign/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-physical-heat-convention/mutant.json",
+      "sha256": "cc64f63415cfdb1d0f2888ccfcfc9da31a4890c6a161370e1bfec2d71600d598",
+      "bytes": 4574,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-physical-heat-convention/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-physical-heat-convention/process.json",
+      "sha256": "a61bf46b7e1ed616642b3973f05e4f53f3a5497c834fed66b8198ff583b8d82f",
+      "bytes": 977,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-physical-heat-convention/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-physical-heat-convention/rejection.json",
+      "sha256": "7efcc2779b0244bafbed3e03e7d41b6e0d178468f23f87d3a5cd56b307064a1c",
+      "bytes": 193,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-physical-heat-convention/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-physical-heat-convention/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-physical-heat-convention/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-physical-heat-convention/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-physical-heat-convention/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-robin-face/mutant.json",
+      "sha256": "99fc11ddc4562f84d819ded8adbea7d858a4412d1688268a120fd68636295681",
+      "bytes": 4614,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/mutant.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-robin-face/process.json",
+      "sha256": "5cdee804f6b7a29dbf327e0d1a27b3461720462d7a356372a4ec331640e306b7",
+      "bytes": 946,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/process.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-robin-face/rejection.json",
+      "sha256": "eb8fa99b1b1829153e587893dece9d077831b66f269b8e6168191a1536acd9f5",
+      "bytes": 4046,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/rejection.json"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-robin-face/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/stderr.log"
+    },
+    {
+      "path": "payload-falsifiers/robin/wrong-robin-face/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/wrong-robin-face/stdout.log"
+    },
+    {
+      "path": "payload-falsifiers/summary.json",
+      "sha256": "a2713cdf3f8fbd9721f3b2db8b483ecdf3622190d1c7043a2f79a3d0d0ffdeb1",
+      "bytes": 38496,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/summary.json"
+    },
+    {
+      "path": "producer-sources/attempt1/numerical_admission/scalar/live_tests/capture.rs",
+      "sha256": "6170f1eea54b5c7fa7da8e4fccbab79c901252fb527e20169d5f914dadaddc1c",
+      "bytes": 3458,
+      "original_git_object": "5e5ab85a33b8453ac98ac17676fde971495fb35c:crates/eqiora-numerics/src/numerical_admission/scalar/live_tests/capture.rs"
+    },
+    {
+      "path": "producer-sources/attempt1/numerical_admission/tests/artifact_capture.rs",
+      "sha256": "8d6a9be63fa6c4813aeec86e3082759849d0bf35ab6b55fdc26e743e1e65b994",
+      "bytes": 1629,
+      "original_git_object": "5e5ab85a33b8453ac98ac17676fde971495fb35c:crates/eqiora-numerics/src/numerical_admission/tests/artifact_capture.rs"
+    },
+    {
+      "path": "producer-sources/attempt1/numerical_admission/tests/plans/robin.rs",
+      "sha256": "2bdfa2c0c7cccbfa560b625667bc394f46c9f949ebfcdb3cd376151963306da2",
+      "bytes": 4429,
+      "original_git_object": "5e5ab85a33b8453ac98ac17676fde971495fb35c:crates/eqiora-numerics/src/numerical_admission/tests/plans/robin.rs"
+    },
+    {
+      "path": "producer-sources/attempt1/numerical_admission/tests/plans/robin/native.rs",
+      "sha256": "451edca0fd63bf50b41bba8d36f12bfcb5b94f7a31908fc1a2ad4eaa885a3a40",
+      "bytes": 11703,
+      "original_git_object": "5e5ab85a33b8453ac98ac17676fde971495fb35c:crates/eqiora-numerics/src/numerical_admission/tests/plans/robin/native.rs"
+    },
+    {
+      "path": "producer-sources/attempt2/numerical_admission/scalar/live_tests/capture.rs",
+      "sha256": "6170f1eea54b5c7fa7da8e4fccbab79c901252fb527e20169d5f914dadaddc1c",
+      "bytes": 3458,
+      "original_git_object": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2:crates/eqiora-numerics/src/numerical_admission/scalar/live_tests/capture.rs"
+    },
+    {
+      "path": "producer-sources/attempt2/numerical_admission/tests/artifact_capture.rs",
+      "sha256": "8d6a9be63fa6c4813aeec86e3082759849d0bf35ab6b55fdc26e743e1e65b994",
+      "bytes": 1629,
+      "original_git_object": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2:crates/eqiora-numerics/src/numerical_admission/tests/artifact_capture.rs"
+    },
+    {
+      "path": "producer-sources/attempt2/numerical_admission/tests/plans/robin.rs",
+      "sha256": "fc3a600a36bf0edb22743ecb9bd9c244265616b82705cd25a1bceb4512391e1f",
+      "bytes": 4506,
+      "original_git_object": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2:crates/eqiora-numerics/src/numerical_admission/tests/plans/robin.rs"
+    },
+    {
+      "path": "producer-sources/attempt2/numerical_admission/tests/plans/robin/native.rs",
+      "sha256": "ab4d8455ce56d0133481444a010e7fd773cd06429b1bb3c59cd5b366732a2dfa",
+      "bytes": 13180,
+      "original_git_object": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2:crates/eqiora-numerics/src/numerical_admission/tests/plans/robin/native.rs"
+    },
+    {
+      "path": "protocols-and-tools/archive_science.py",
+      "sha256": "bd94334fa0da45edd5c37ccd83c33ea02de650da166519c76e87fd48c052ff40",
+      "bytes": 6694,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/archive_science.py"
+    },
+    {
+      "path": "protocols-and-tools/audit_attempt1_metadata.py",
+      "sha256": "8ed9e3391e0a81a9afe273f369f79c470e88a99236d60bc11a3c89fc5def72b7",
+      "bytes": 6211,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/audit_attempt1_metadata.py"
+    },
+    {
+      "path": "protocols-and-tools/compare_verified619.py",
+      "sha256": "f245263ab18f32b3e66f1ba57d0db1b70c709dec7d12baeef639d5c04725b2d8",
+      "bytes": 3330,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/compare_verified619.py"
+    },
+    {
+      "path": "protocols-and-tools/focused_checks.py",
+      "sha256": "0740877791500392262b6e89332ceae0011adbf106840adedb717e9d722f0e84",
+      "bytes": 1566,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/focused_checks.py"
+    },
+    {
+      "path": "protocols-and-tools/focused_checks619.py",
+      "sha256": "d4a677c2dce582bc7874592bb45936bbf2d08d7e03cad685415337738cd6167c",
+      "bytes": 1566,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/focused_checks619.py"
+    },
+    {
+      "path": "protocols-and-tools/launch_verified.py",
+      "sha256": "983a9074c49021298187f33fe90eaf4aac7d06f393b439a29f72b1f7da4e4867",
+      "bytes": 3501,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/launch_verified.py"
+    },
+    {
+      "path": "protocols-and-tools/launch_verified619.py",
+      "sha256": "5a39f09237ac0d32810ad95cc33a935843a14064092f139357c8f6dbd35fd5c4",
+      "bytes": 3501,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/launch_verified619.py"
+    },
+    {
+      "path": "protocols-and-tools/payload_falsifiers619.py",
+      "sha256": "e5b07a91555512a2c87ecc143e62277ce719f6a61c6ef2b861bbedc0dee6b566",
+      "bytes": 6426,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/payload_falsifiers619.py"
+    },
+    {
+      "path": "protocols-and-tools/prepare_build.py",
+      "sha256": "9699610fc16eb2c55402b32008619dc04241132dab5361e344ad1a695d55be8f",
+      "bytes": 5388,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/prepare_build.py"
+    },
+    {
+      "path": "protocols-and-tools/prepare_build619.py",
+      "sha256": "c806cb29ff536b119898c2bb0872fada262f58d97247a4b2c704ae5a3bf3f4be",
+      "bytes": 5923,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/prepare_build619.py"
+    },
+    {
+      "path": "protocols-and-tools/producer-protocol-attempt2.md",
+      "sha256": "3e52aa2f4cd6c93d4c422a35f1be5b0371b5555b54eb6249e559e8ced90d00ac",
+      "bytes": 6637,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/producer-protocol-attempt2.md"
+    },
+    {
+      "path": "protocols-and-tools/producer-protocol.md",
+      "sha256": "f24aa902cbdee5a998b95bf5ed1f86844e5736c5ca3037cd35d93fdff415ec0b",
+      "bytes": 4700,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/producer-protocol.md"
+    },
+    {
+      "path": "public-projections.json",
+      "sha256": "49ec363ca7d4668f9d5a8642f1245a2362d7b2cce8be9dc241dedb6de6f18267",
+      "bytes": 52216,
+      "representation": "projection-control-manifest"
+    },
+    {
+      "path": "receipts/attempt1/build-exit.json",
+      "sha256": "25dc4988022b9980123c766b47c3593aa6bc6b5280612c1707b4e07fc36e25d6",
+      "bytes": 210,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/build-exit.json"
+    },
+    {
+      "path": "receipts/attempt1/build-receipt.json",
+      "sha256": "085039878887260452af3b7f0256390b6458f285d750ce38add6878cd2f2405a",
+      "bytes": 2824,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/build-receipt.json"
+    },
+    {
+      "path": "receipts/attempt1/build.jsonl",
+      "sha256": "f0333d373f30b0d0c580b52092f9df89c0358cf5edfa95c9552797328bc64146",
+      "bytes": 50882,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/build.jsonl",
+      "original_sha256": "f94993184a131bb0097d9a89aafd12415b1330f64e8fd5e88e5625017fff3104",
+      "original_bytes": 61202,
+      "representation": "explicit-public-projection-see-public-projections.json"
+    },
+    {
+      "path": "receipts/attempt1/build.stderr.log",
+      "sha256": "36906be52f9f6c547767d4090149b07ea1fdbcbf12e965a35d01af951197e743",
+      "bytes": 59,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/build.stderr.log"
+    },
+    {
+      "path": "receipts/attempt1/cargo.txt",
+      "sha256": "2106ad2f6d2494210f01796652ddf5c620d7955ad5e1a4ef2b55500aee9ceab0",
+      "bytes": 335,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/cargo.txt"
+    },
+    {
+      "path": "receipts/attempt1/cpu63-conflict-check.json",
+      "sha256": "c4586d49f79fe704f24a889af741f4710c66bef7e792ce1449b749ea98434cb7",
+      "bytes": 1935,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/execution/cpu63-conflict-check.json"
+    },
+    {
+      "path": "receipts/attempt1/launch-plan.json",
+      "sha256": "78b914cee2d70191cff14b97630cba8155032642f919c62bbf70f3ef8b99744d",
+      "bytes": 2779,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/launch-plan.json"
+    },
+    {
+      "path": "receipts/attempt1/ldd.txt",
+      "sha256": "1a7e13d5f65eb487dd2aaa76f1e016c130556cb5b62412b9ae0c8a12a68813aa",
+      "bytes": 290,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/ldd.txt",
+      "original_sha256": "130d8c886651e646e22cc77d24a1818339300c859162cfb4514188865918dd5d",
+      "original_bytes": 314,
+      "representation": "explicit-public-projection-see-public-projections.json"
+    },
+    {
+      "path": "receipts/attempt1/metadata-audit/audit-receipt.json",
+      "sha256": "5c9bbfb7d61a04d181aa00fcbd79b8654e25a1e88b62901baf2c19b492483d38",
+      "bytes": 4748,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/attempt1-metadata-audit/audit-receipt.json"
+    },
+    {
+      "path": "receipts/attempt1/metadata-audit/binary64-pure.log",
+      "sha256": "7aca20979969f9e5be55b3f603a24d67fde7c2ab06b2b972f6ea363074ff9001",
+      "bytes": 214,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/attempt1-metadata-audit/binary64-pure.log"
+    },
+    {
+      "path": "receipts/attempt1/primary-build-review.json",
+      "sha256": "b8a3313a29c0b7bc6b96f66e93f763647ef230fed0dbecac007585a22eabc2a5",
+      "bytes": 530,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/primary-build-review.json"
+    },
+    {
+      "path": "receipts/attempt1/producer-finish.json",
+      "sha256": "6c5e76e09b49595d46bdfacf6a640c2a58de5778eeedf668177bc1d93259f284",
+      "bytes": 469,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/execution/producer-finish.json"
+    },
+    {
+      "path": "receipts/attempt1/producer-start.json",
+      "sha256": "1d24811336c88e247ec82d3bed61a443c906175c260303067442566ed5f71497",
+      "bytes": 1298,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/execution/producer-start.json"
+    },
+    {
+      "path": "receipts/attempt1/producer.stderr.log",
+      "sha256": "981a454b20e46edbfe8027c8936c8503efb630e955fee5bd21aa40b9f3bb42a3",
+      "bytes": 374,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/execution/producer.stderr.log"
+    },
+    {
+      "path": "receipts/attempt1/producer.stdout.log",
+      "sha256": "1461f6315d7332a17b22aec4117d659cbfcf09f40b22004d9551414b714d91f0",
+      "bytes": 407,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/execution/producer.stdout.log"
+    },
+    {
+      "path": "receipts/attempt1/rustc.txt",
+      "sha256": "b569b0c98ea3133c7252b4b8ea6b39b7b353813df0dd5f5c412c355691424112",
+      "bytes": 196,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/rustc.txt"
+    },
+    {
+      "path": "receipts/attempt2/build-exit.json",
+      "sha256": "25dc4988022b9980123c766b47c3593aa6bc6b5280612c1707b4e07fc36e25d6",
+      "bytes": 210,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/build-exit.json"
+    },
+    {
+      "path": "receipts/attempt2/build-receipt.json",
+      "sha256": "e01cec06a4e65fa79a4b0914de04ce431afe4dce462d8d93e4f22c4a018f1198",
+      "bytes": 3030,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/build-receipt.json"
+    },
+    {
+      "path": "receipts/attempt2/build.jsonl",
+      "sha256": "df0aab2fe600f21e421cda149be8bf4548ca994f3971094550c5997703f5ba64",
+      "bytes": 50882,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/build.jsonl",
+      "original_sha256": "68a69eaee55aff6efb84c5fef8443a881f85359566b2a687fba0065158f36887",
+      "original_bytes": 61202,
+      "representation": "explicit-public-projection-see-public-projections.json"
+    },
+    {
+      "path": "receipts/attempt2/build.stderr.log",
+      "sha256": "fd484bbf51a50be238f55cfd856f8e4855a15faf6e56f4756b885d0abbbc2032",
+      "bytes": 59,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/build.stderr.log"
+    },
+    {
+      "path": "receipts/attempt2/cargo.txt",
+      "sha256": "2106ad2f6d2494210f01796652ddf5c620d7955ad5e1a4ef2b55500aee9ceab0",
+      "bytes": 335,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/cargo.txt"
+    },
+    {
+      "path": "receipts/attempt2/comparison-summary.json",
+      "sha256": "5ebc4f7cfc3ee8d9ec293fa6807bb0afa48b4edbd615e175121adbeffe65fb3e",
+      "bytes": 5470,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/summary.json"
+    },
+    {
+      "path": "receipts/attempt2/cpu63-conflict-check.json",
+      "sha256": "de59d52d143a903cd67b9360ad228d5549b92a176326f2bac857efc3b34d1c2f",
+      "bytes": 5371,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/cpu63-conflict-check.json"
+    },
+    {
+      "path": "receipts/attempt2/falsifiers.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/falsifiers.stderr.log"
+    },
+    {
+      "path": "receipts/attempt2/falsifiers.stdout.log",
+      "sha256": "a4c4b0751663d208287f7e0113463ebdfba3723dd2aed4cf021f80f5bdd478f3",
+      "bytes": 183,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/falsifiers.stdout.log"
+    },
+    {
+      "path": "receipts/attempt2/launch-plan.json",
+      "sha256": "eb723d565136c4bac996dd1535bcb75ea28c64e849a965085c76f88f5d9f5156",
+      "bytes": 3090,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/launch-plan.json"
+    },
+    {
+      "path": "receipts/attempt2/ldd.txt",
+      "sha256": "c7a328ec85f8309970a52b548fc950c7fc035a9bff8b002f0a1af75f3b9765cf",
+      "bytes": 290,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/ldd.txt",
+      "original_sha256": "85248e1ec869cfe5342ee9beec9fdbc0d32851a3bfd7cc11eac89a0b605825de",
+      "original_bytes": 314,
+      "representation": "explicit-public-projection-see-public-projections.json"
+    },
+    {
+      "path": "receipts/attempt2/primary-build-review.json",
+      "sha256": "34d2b8404caec0cc598cf8a542b501ecd16e89ae0608fa08677621f49d188bca",
+      "bytes": 321,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/primary-build-review.json"
+    },
+    {
+      "path": "receipts/attempt2/primary-scientific-review.json",
+      "sha256": "7a405c1c46561c0137fbbf92a8a2fa927fce6094677cfff76b655a6eba53dfe4",
+      "bytes": 619,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/primary-scientific-review.json"
+    },
+    {
+      "path": "receipts/attempt2/producer-finish.json",
+      "sha256": "f61de5b7df26e79099bf0409dba1a19d93fc712d1039c526d1b46b0998097cca",
+      "bytes": 488,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/producer-finish.json"
+    },
+    {
+      "path": "receipts/attempt2/producer-start.json",
+      "sha256": "34db644b4db020330a896598526b58c13652e970564ca3f8ac1972b53c32aee7",
+      "bytes": 1273,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/producer-start.json"
+    },
+    {
+      "path": "receipts/attempt2/producer.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/producer.stderr.log"
+    },
+    {
+      "path": "receipts/attempt2/producer.stdout.log",
+      "sha256": "67153922bfa86f2d3a039fcdc6c05d63d0ddb60545d05d6c4c9077e318fd1dab",
+      "bytes": 382,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/producer.stdout.log"
+    },
+    {
+      "path": "receipts/attempt2/rustc.txt",
+      "sha256": "b569b0c98ea3133c7252b4b8ea6b39b7b353813df0dd5f5c412c355691424112",
+      "bytes": 196,
+      "original_path": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/rustc.txt"
+    },
+    {
+      "path": "receipts/head5e5/capture-cleanup.log",
+      "sha256": "c9d04c76e28ddd76512ec43552753e3e64f9becde7eb5a56f46f83e57211a39f",
+      "bytes": 429,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-capture-cleanup.log"
+    },
+    {
+      "path": "receipts/head5e5/clippy.log",
+      "sha256": "5fba9ed69fae5d517b28611f19c616a438c61b026979d413c48cf7093860471d",
+      "bytes": 178,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-clippy.log"
+    },
+    {
+      "path": "receipts/head5e5/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-fmt.log"
+    },
+    {
+      "path": "receipts/head5e5/focused-receipt.json",
+      "sha256": "072f43730ceccae5ce4c01b1dd4480e376ed291b181762e67af21452199111d6",
+      "bytes": 2569,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-focused-receipt.json"
+    },
+    {
+      "path": "receipts/head5e5/orientation.log",
+      "sha256": "9f2c0fbba5b4756001f0090934521a331af95b8abda35195731adea25afe1253",
+      "bytes": 428,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-orientation.log"
+    },
+    {
+      "path": "receipts/head5e5/proof-baseline.log",
+      "sha256": "3183e999ca117a809226956dad9c601c56c2d878149ec5c54e8bd7a36a9e0dbb",
+      "bytes": 679,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-proof-baseline.log"
+    },
+    {
+      "path": "receipts/head5e5/robin-pure.log",
+      "sha256": "0b30117265b3a5c468705300ed5454034b76ef55660a5573c9d0ce782505045d",
+      "bytes": 1656,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-robin-pure.log"
+    },
+    {
+      "path": "receipts/head5e5/scalar-baseline.log",
+      "sha256": "066288d8a2f2aaa77510749e2dc8571cf2601252002ac3439e0dad3ddf9e8846",
+      "bytes": 1972,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head5e5-scalar-baseline.log"
+    },
+    {
+      "path": "receipts/head619/capture-cleanup.log",
+      "sha256": "c9d04c76e28ddd76512ec43552753e3e64f9becde7eb5a56f46f83e57211a39f",
+      "bytes": 429,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-capture-cleanup.log"
+    },
+    {
+      "path": "receipts/head619/clippy.log",
+      "sha256": "ee72f72b9995a4ef400aad031192a41b8c5e43cabc5f6a6a786f8b659d03ee67",
+      "bytes": 178,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-clippy.log"
+    },
+    {
+      "path": "receipts/head619/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-fmt.log"
+    },
+    {
+      "path": "receipts/head619/focused-receipt.json",
+      "sha256": "dace74ae806be7f67bdf421d474799472331a7f6b1f636ca3aa67b541f0e20c9",
+      "bytes": 2565,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-focused-receipt.json"
+    },
+    {
+      "path": "receipts/head619/orientation.log",
+      "sha256": "e064117ef29824ff3e7ac3608059500c816f4874dbf59274226b59d43a10dcb7",
+      "bytes": 428,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-orientation.log"
+    },
+    {
+      "path": "receipts/head619/proof-baseline.log",
+      "sha256": "0bfd600ed39e77dda4d9b780ef7951edbc20839de29ea3f025ae7bf7f79930a3",
+      "bytes": 679,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-proof-baseline.log"
+    },
+    {
+      "path": "receipts/head619/robin-pure.log",
+      "sha256": "1828e9ce4ce9901d2507be90951a327563b5fa091d43aeb235938b4d47c46113",
+      "bytes": 1656,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-robin-pure.log"
+    },
+    {
+      "path": "receipts/head619/scalar-baseline.log",
+      "sha256": "936341f6062ec06b5ccd1ec4eb20ae08134458cd77c3a1cb7f09dad68271526d",
+      "bytes": 1972,
+      "original_path": "/data/nk523/.cache/eqiora/tmp/robin/head619-scalar-baseline.log"
+    }
+  ],
+  "publication": "Public index: four explicitly labelled build/link metadata projections; all scientific data bytes unchanged.",
+  "sealed_raw_inventory_sha256": "bfdf9f381c869e45c9f4ca5d19bdd2229d147ec8120ed497b4d1225e12342ee7",
+  "public_projection_manifest": "public-projections.json"
+}

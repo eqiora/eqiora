@@ -1,0 +1,16 @@
+{
+  "authored_source_sha256": "e67a2b6458482c785a506e641733e8478c93c17b462b173e8880b5add41104b3",
+  "case": "insulated",
+  "inputs": [
+    2,
+    1,
+    3,
+    0,
+    280,
+    320
+  ],
+  "native_executable_sha256": "e0672eeef171c5ea4e16b49112d809747c0343058f0cfe242cbf8342ca211049",
+  "schema": 1,
+  "source_head": "5e5ab85a33b8453ac98ac17676fde971495fb35c",
+  "status": "attempt-started"
+}
