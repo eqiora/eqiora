@@ -3674,7 +3674,7 @@ var sr = /*@__PURE__*/ new q(), cr = /*@__PURE__*/ new K(), lr = 0, ur = class e
 	}
 	raycast(e, t) {
 		let n = this.geometry, r = this.material, i = this.matrixWorld;
-		r !== void 0 && (n.boundingSphere === null && n.computeBoundingSphere(), Br.copy(n.boundingSphere), Br.applyMatrix4(i), zr.copy(e.ray).recast(e.near), !(Br.containsPoint(zr.origin) === !1 && (zr.intersectSphere(Br, Vr) === null || zr.origin.distanceToSquared(Vr) > (e.far - e.near) ** 2)) && (Rr.copy(i).invert(), zr.copy(e.ray).applyMatrix4(Rr), (n.boundingBox === null || zr.intersectsBox(n.boundingBox) !== !1) && this._computeIntersections(e, t, zr)));
+		r !== void 0 && (n.boundingSphere === null && n.computeBoundingSphere(), Br.copy(n.boundingSphere), Br.applyMatrix4(i), zr.copy(e.ray).recast(e.near), Br.containsPoint(zr.origin) === !1 && (zr.intersectSphere(Br, Vr) === null || zr.origin.distanceToSquared(Vr) > (e.far - e.near) ** 2) || (Rr.copy(i).invert(), zr.copy(e.ray).applyMatrix4(Rr), (n.boundingBox === null || zr.intersectsBox(n.boundingBox) !== !1) && this._computeIntersections(e, t, zr)));
 	}
 	_computeIntersections(e, t, n) {
 		let r, i = this.geometry, a = this.material, o = i.index, s = i.attributes.position, c = i.attributes.uv, l = i.attributes.uv1, u = i.attributes.normal, d = i.groups, f = i.drawRange;
@@ -11397,7 +11397,7 @@ var Gc = class {
 	}
 };
 function nl(e) {
-	this.enabled !== !1 && (this._pointers.length === 0 && (this.domElement.setPointerCapture(e.pointerId), this.domElement.ownerDocument.addEventListener("pointermove", this._onPointerMove), this.domElement.ownerDocument.addEventListener("pointerup", this._onPointerUp)), !this._isTrackingPointer(e) && (this._addPointer(e), e.pointerType === "touch" ? this._onTouchStart(e) : this._onMouseDown(e), this._cursorStyle === "grab" && (this.domElement.style.cursor = "grabbing")));
+	this.enabled !== !1 && (this._pointers.length === 0 && (this.domElement.setPointerCapture(e.pointerId), this.domElement.ownerDocument.addEventListener("pointermove", this._onPointerMove), this.domElement.ownerDocument.addEventListener("pointerup", this._onPointerUp)), this._isTrackingPointer(e) || (this._addPointer(e), e.pointerType === "touch" ? this._onTouchStart(e) : this._onMouseDown(e), this._cursorStyle === "grab" && (this.domElement.style.cursor = "grabbing")));
 }
 function rl(e) {
 	this.enabled !== !1 && (e.pointerType === "touch" ? this._onTouchMove(e) : this._onMouseMove(e));
