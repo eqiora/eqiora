@@ -1,7 +1,7 @@
 # Steady heated body at a prescribed surface temperature
 
 Run `python examples/heated-body/run.py` with a development build from this checkout.
-The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.3.0`.
+The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.4.0`.
 The script resolves the local `org.example.HeatedBody` package and its bundled
 Scalar dependency, binds the geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
 solver explicitly, and runs the standard Plan lifecycle. No registry, download,

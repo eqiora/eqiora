@@ -1,6 +1,6 @@
 # Eqiora.Scalar
 
-The development package `Eqiora.Scalar@0.3.0` supplies two-dimensional scalar
+The development package `Eqiora.Scalar@0.4.0` supplies two-dimensional scalar
 Poisson and Laplace equations for a dimensionless potential, and steady and
 constant-capacity transient heat conduction for a temperature in kelvins. Coordinates are measured in metres.
 Each component declares its physical units explicitly.
@@ -94,3 +94,32 @@ The four-cell warming example is a spatial approximation, not a continuum-exact
 square temperature profile. State-dependent capacity,
 material interfaces, threaded/MPI/GPU package execution and transient
 sensitivities are outside this package evidence.
+
+## Conservative transient advection–diffusion
+
+`TransientAdvectionDiffusion2d` borrows a dimensionless caller-owned `scalar`
+State on a two-dimensional body. It supplies
+`∂scalar/∂t + div(scalar * velocity - diffusivity * grad(scalar)) = source`.
+The two prescribed expressions `velocity_x` and `velocity_y` have units `m/s`;
+`source` has units `1/s`, and constant positive `diffusivity` has units `m²/s`.
+Velocity may vary in space and time, including nonzero curl and divergence.
+It must be closed with respect to the solved State. For divergent velocity,
+this conservative equation includes `scalar * div(velocity)`.
+
+```eqiora
+state concentration: 1 on body in h1;
+initial { concentration = 0; }
+instance transport: scalar.TransientAdvectionDiffusion2d(
+  body = body, scalar = concentration, diffusivity = 1[m^2/s],
+  velocity_x = 1[m/s], velocity_y = 2[m/s], source = 1[1/s]
+);
+```
+
+Supply complete essential boundary data with `FixedValue2d`, binding its
+`potential` to the same State. The maintained example is
+[`examples/advection-diffusion`](../../../../examples/advection-diffusion/README.md).
+The checked path is serial CPU, Cartesian 2D Q1 Galerkin and backward Euler,
+with caller-owned initial data and Plan/State/Result replay and restart.
+No stabilization, positivity guarantee, outflow/natural or periodic boundary
+workflow, finite-volume local-conservation claim, MPI or GPU package evidence
+is supplied. Advection-dominated problems may need a stabilized method.
