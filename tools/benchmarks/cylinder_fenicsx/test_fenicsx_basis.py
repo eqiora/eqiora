@@ -89,6 +89,21 @@ class NativeBasisTests(unittest.TestCase):
                                        rtol=0, atol=256*np.finfo(float).eps)
             self.assertAlmostEqual(linear_observed['inlet_flux'], flux['inlet'], places=14)
             self.assertAlmostEqual(linear_observed['outlet_flux'], flux['outlet'], places=14)
+            # Nonzero strain, pressure gradient and bubbles exercise all terms,
+            # independently comparing rank-one and rank-zero UFL observation routes.
+            x, y = prepared.coordinates.T
+            varied = {'velocity_vertex': np.column_stack((.1+2*x-3*y, .2-x+.5*y)),
+                      'velocity_cell_bubble': np.column_stack((np.arange(nc)+.1, -np.arange(nc)-.2)),
+                      'pressure_vertex': .2+x+3*y}
+            from common_basis import canonical_fields
+            varied_canonical = canonical_fields(varied)
+            varied_function = recover_mixed(system, varied_canonical)
+            scalar = observations(system, varied_function, varied, varied_canonical, jit_options=jit)
+            linear_force = []
+            for name in ('force_x', 'force_y'):
+                vector = petsc.assemble_vector(fem.form(observation_linear_forms(prepared)[name], jit_options=jit))
+                linear_force.append(float(np.dot(vector.array, varied_function.x.array))); vector.destroy()
+            np.testing.assert_allclose(linear_force, scalar['force_on_domain'], rtol=0, atol=256*np.finfo(float).eps)
             for item in (system.matrix, system.rhs, system.transformation, system.raw_nodal_matrix): item.destroy()
 
     def test_repeated_assembly_retains_no_system_state(self):

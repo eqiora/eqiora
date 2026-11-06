@@ -4,7 +4,8 @@ This follow-up retains the same finite-channel linear Stokes problem, MINI
 velocity/P1 pressure, full-stress traction outlet, force/flux definitions and
 external-only engineering-budget algorithm in [the comparison](README.md).
 The original single-mesh result and every original reference/candidate artifact
-remain unchanged. No additional solves or measurements have started.
+remain unchanged. Mesh-only preparation has completed under the declared controls. No additional
+Stokes solves or measurements have started.
 
 ## Input-declared meshes
 
@@ -68,3 +69,42 @@ objects never count as a fresh timing campaign.
 
 This protocol and implementation require primary review before any new mesh
 counts, calibration, candidate execution or timing collection is authorised.
+
+
+## Qualification and process receipts
+
+The staged order is all three mesh preparations, independently frozen A/B/C
+references, six correctness-only workers, three zero-solve native-field
+reconstruction audits and primary review, then a separate six-worker benchmark
+campaign. No correctness pass is selected from timed executions.
+
+The shared collector owns genuine `process-receipt.json` files: actual command,
+source revision/dirty state, producer/wheel identity, start/finish and subprocess
+return code, plus result digest. The audit consumes that actual receipt; it does
+not infer success or invent a PID. Benchmark mode requires a problem-owned
+qualification descriptor referencing both correctness receipts and the native
+assembly-only audit for every level, with explicit file hashes. It rejects
+failed/dirty runs, mismatched mesh/reference/candidate/producer, missing required
+phases and a changed complete Python/shared harness before any timing child
+starts. Existing frozen field/residual/force/trace/flux/global checks are rerun;
+no new shared ledger or launch loop is introduced.
+
+Each qualification case has three descriptors named `eqiora_process_receipt`,
+`fenicsx_process_receipt` and `assembly_audit`, each containing `path` and
+`sha256`. The references descriptor likewise has a `cases` object with exactly
+coarse/standard/fine; each contains `reference_manifest` and `sha256`. Relative
+paths are resolved from the descriptor's directory.
+
+The external calibration still uses exactly A=MUMPS/Duffy9,
+B=SuperLU/Duffy9, C=MUMPS/Basix degree-six. The factor/recovery split adds a
+physical/scaled residual summary, not a new calibration allowance. Every fresh
+ordinary solve also checks its own scaled free residual against the already
+frozen reference ceiling; extraction checks the original external CSR operator.
+
+FEniCSx matrices/RHS are destroyed inside ordinary execution after field
+recovery; the returned field is fresh. KSP and solve-vector cleanup belongs to
+its linear-solve bracket. Native internal lifetimes are those of ordinary
+`run(plan)`; no assertion of identical cross-tool phase work is made. Functional
+vector assembly/dots, output inspection and scientific acceptance remain outside
+the ordinary clocks for both adapters. The cold public product artifacts are
+written only once; warmups/samples cannot overwrite the compared cold result.

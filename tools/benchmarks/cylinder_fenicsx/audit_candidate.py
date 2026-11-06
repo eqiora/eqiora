@@ -34,7 +34,7 @@ def main():
     if digest(args.candidate_worker_receipt) != args.candidate_worker_receipt_sha256:
         raise ComparisonError('candidate worker/source/artifact receipt hash mismatch')
     receipt = json.loads(args.candidate_worker_receipt.read_text())
-    if receipt['terminal_exit_code'] != 0:
+    if receipt['terminal_exit_code'] != 0 or receipt.get('harness_dirty') is not False:
         raise ComparisonError('candidate worker did not pass; no completed-comparison audit claim')
     reference = load_reference(args.reference_manifest, args.reference_sha256)
     coordinates, primary, associated = read_candidate(args.candidate_field, args.candidate_sha256)

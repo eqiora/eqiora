@@ -6,12 +6,14 @@ import os
 from pathlib import Path
 import re
 import sys
+import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 from mesh_levels import LEVELS, mesh_level
 from reference_reader import load_reference
-from shared_measurement import ComparisonError
+from shared_measurement import ROOT, ComparisonError, digest
+from qualification import validate_qualification
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ def validate_reports(reports, cases, mode):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--references', type=Path, required=True)
+    parser.add_argument('--qualification', type=Path, help='required successful correctness receipts before benchmark mode')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--eqiora-python', type=Path, required=True)
     parser.add_argument('--fenicsx-python', type=Path, required=True)
@@ -93,14 +96,24 @@ def main():
         raise ComparisonError('declare the actual full optimized producer source')
     for path in (args.references, args.eqiora_python, args.fenicsx_python, args.eqiora_wheel):
         if not path.is_file(): raise ComparisonError(f'required artifact/interpreter is missing: {path}')
+    if args.mode == 'benchmark' and (args.qualification is None or not args.qualification.is_file()):
+        raise ComparisonError('benchmark requires reviewed correctness/process/assembly-audit qualification for all cases')
+    try:
+        dirty = subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()
+    except subprocess.CalledProcessError as error:
+        raise ComparisonError('campaign requires a clean committed source checkout') from error
+    if dirty: raise ComparisonError('freeze the committed harness before a scientific campaign')
     cases = load_cases(args.references)
+    qualification = (validate_qualification(args.qualification, cases, {
+        'sha256': digest(args.eqiora_wheel), 'source_revision': args.eqiora_revision,
+        'build_profile': args.eqiora_build_profile}) if args.mode == 'benchmark' else None)
     # The primary owns this general process interface; no private launch loop.
     from shared_campaign import ComparisonCase, collect_reports
     reports = collect_reports(args, [ComparisonCase(case.label, case.worker_arguments()) for case in cases],
                               problem_root=Path(__file__).resolve().parent)
     if reports is None: raise ComparisonError('worker failed; original logs retained, no completed comparison')
     summary = {'mode': args.mode, 'stable_timing_claim': False, 'continuum_convergence_claim': False,
-               'cases': validate_reports(reports, cases, args.mode)}
+               'qualification': qualification, 'cases': validate_reports(reports, cases, args.mode)}
     (args.output/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False)+'\n')
     print('PASS three declared cylinder meshes; all frozen correctness and ordinary-lifecycle gates')
 
