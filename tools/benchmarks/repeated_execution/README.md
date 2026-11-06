@@ -33,7 +33,8 @@ field acceptance gate**. Its decay workload separately checks the independent
 [reported field differences](../../../docs/performance/2026-10-24-repeated-runs.md)
 defines an allowable cross-version tolerance.
 
-Comparisons using the same current semantics can attribute performance changes.
+With matched builds, environments and measurement controls, comparisons using
+the same current semantics can support attribution of performance changes.
 They cannot fulfill the frozen a7 target of a twofold improvement with unchanged
 mathematics. Do not remove the authored outlet term or relax controls to obtain that
 claim.
@@ -44,5 +45,7 @@ Compare all ten outputs offline: vertex velocities, MINI bubble coefficients,
 absolute pressures and the complete Run controls. Independently scale and
 evaluate the omitted outlet defect against the unchanged method-owned residual
 allowances. Keep this separate from timing and from each version's own accepted
-residual. That comparison and defect gate is not implemented by this harness;
-no perturbation bound or new tolerance is asserted here.
+residual. These comparison and defect checks are not implemented by this harness.
+They are necessary falsification checks, not a sufficient equivalence contract:
+passing them would not resolve the a7 target. No perturbation bound or new
+tolerance is asserted here.
