@@ -30,6 +30,14 @@ fn write(path: &Path, bytes: &[u8]) -> String {
 }
 fn hex(value: f64) -> String {
     assert!(value.is_finite());
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0x0.0p+0"
+        } else {
+            "0x0.0p+0"
+        }
+        .to_owned();
+    }
     let bits = value.to_bits();
     let sign = if bits >> 63 == 0 { "" } else { "-" };
     let exponent = (bits >> 52) & 0x7ff;
@@ -38,6 +46,24 @@ fn hex(value: f64) -> String {
         format!("{sign}0x0.{fraction:013x}p-1022")
     } else {
         format!("{sign}0x1.{fraction:013x}p{:+}", exponent as i32 - 1023)
+    }
+}
+
+#[test]
+fn canonical_binary64_hex_covers_zero_subnormal_and_exponent_boundaries() {
+    // Canonical strings follow Python float.hex(), the reference input contract.
+    for (value, expected) in [
+        (0.0, "0x0.0p+0"),
+        (-0.0, "-0x0.0p+0"),
+        (1.0, "0x1.0000000000000p+0"),
+        (-1.5, "-0x1.8000000000000p+0"),
+        (0.5, "0x1.0000000000000p-1"),
+        (f64::MIN_POSITIVE, "0x1.0000000000000p-1022"),
+        (f64::from_bits(1), "0x0.0000000000001p-1022"),
+        (f64::from_bits((1_u64 << 52) - 1), "0x0.fffffffffffffp-1022"),
+        (f64::MAX, "0x1.fffffffffffffp+1023"),
+    ] {
+        assert_eq!(hex(value), expected);
     }
 }
 
@@ -125,6 +151,17 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
         std::fs::create_dir(&directory).unwrap();
         let authored = source(k, h, fixed, ambient);
         let source_hash = write(&directory.join("model.eqi"), authored.as_bytes());
+        write(
+            &directory.join("case-attempt.json"),
+            &serde_json::to_vec_pretty(&json!({
+                "schema":1,"case":case,"status":"attempt-started",
+                "source_head":String::from_utf8(head.stdout.clone()).unwrap().trim(),
+                "authored_source_sha256":source_hash,"native_executable_sha256":executable,
+                "producer_source_sha256":digest(include_bytes!("observations.rs")),
+                "oracle_sha256":digest(&std::fs::read(&oracle).unwrap())
+            }))
+            .unwrap(),
+        );
         let (document, owner) =
             fixture_rectangle(&authored, [f64::from(length), f64::from(height)]).unwrap();
         let SourceCompilation::Packaged(packaged) = &document else {
@@ -149,6 +186,7 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
         }
         let model = ModelEnvelope::from_program(document.model().program()).unwrap();
         let model_bytes = model.canonical_json().unwrap();
+        let model_hash = write(&directory.join("model.json"), &model_bytes);
         let restored_model = ModelEnvelope::from_json(
             &model_bytes,
             eqiora::artifact::ModelDecoderLimits::default(),
@@ -159,6 +197,9 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
         let plan = resolve_fixture(&document, owner, None).unwrap();
         assert_eq!(plan.model_artifact(), &model);
         let plan_bytes = plan.to_bytes().unwrap();
+        let plan_hash = write(&directory.join("plan.eqplan"), &plan_bytes);
+        let mesh_bytes = plan.authenticated_mesh().unwrap().to_bytes().unwrap();
+        let mesh_hash = write(&directory.join("mesh.eqmesh"), &mesh_bytes);
         let reopened =
             ResolvedCommonPlan::from_bytes(&plan_bytes, &REFERENCE_LINEAR_SOLVER, &[]).unwrap();
         assert_eq!(reopened.to_bytes().unwrap(), plan_bytes);
@@ -169,6 +210,7 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
             .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let result_bytes = result.to_bytes().unwrap();
+        let result_hash = write(&directory.join("result.eqresult"), &result_bytes);
         let replay = CommonResult::from_bytes(&result_bytes, &reopened).unwrap();
         assert_eq!(replay.to_bytes().unwrap(), result_bytes);
         let aliases = document.model().aliases();
@@ -229,13 +271,8 @@ fn imported_convection_public_observations_and_artifact_replay_match_reference()
             &directory.join("observations.json"),
             &serde_json::to_vec_pretty(&input).unwrap(),
         );
-        let mesh_bytes = reopened.authenticated_mesh().unwrap().to_bytes().unwrap();
-        let mesh_hash = write(&directory.join("mesh.eqmesh"), &mesh_bytes);
         let package_hash =
             digest(&std::fs::read(directory.join("package-compilation.json")).unwrap());
-        let model_hash = write(&directory.join("model.json"), &model_bytes);
-        let plan_hash = write(&directory.join("plan.eqplan"), &plan_bytes);
-        let result_hash = write(&directory.join("result.eqresult"), &result_bytes);
         let receipt = json!({"schema":1,"source_head":String::from_utf8(head.stdout.clone()).unwrap().trim(),
             "producer_source_sha256":digest(include_bytes!("observations.rs")),"native_executable_sha256":executable,
             "authored_source_sha256":source_hash,"model_sha256":model_hash,"plan_sha256":plan_hash,"result_sha256":result_hash,

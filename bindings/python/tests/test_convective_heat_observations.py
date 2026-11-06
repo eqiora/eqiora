@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import pytest
 import eqiora as q
+import eqiora._eqiora as native_extension
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 SPECIMEN = REPOSITORY / "examples/heated-body"
@@ -51,6 +52,13 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     assert root.is_absolute() and not root.is_relative_to("/tmp")
     directory = root / case
     directory.mkdir(parents=True)
+    native_path = Path(native_extension.__file__).resolve(strict=True)
+    native_sha = digest(native_path.read_bytes())
+    attempt = {"schema": 1, "case": case, "status": "attempt-started",
+               "native_extension_path": str(native_path), "native_extension_sha256": native_sha,
+               "producer_source_sha256": digest(Path(__file__).read_bytes())}
+    (directory / "case-attempt.json").write_text(json.dumps(attempt, indent=2) + "\n")
+    hashes = {}
     project = directory / "project"
     shutil.copytree(SPECIMEN, project)
     store = directory / "store"
@@ -61,6 +69,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
                               geometry=geometry, bindings=bindings)
     assert model.package_compilation_digest is not None
     model_bytes = model.to_bytes()
+    hashes["model.json"] = persist(directory / "model.json", model_bytes)
     restored_model = q.Model.from_bytes(model_bytes)
     assert restored_model.to_bytes() == model_bytes
     assert restored_model.digest == model.digest
@@ -68,16 +77,19 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     assert field.model_digest == model.digest
     mesh = q.meshing.generate(q.meshing.resolve(
         geometry, q.meshing.CartesianMesher(cells=(2, 2))))
+    hashes["mesh.eqmesh"] = persist(directory / "mesh.eqmesh", mesh.to_bytes())
     coordinates = np.asarray(mesh.coordinates)
     assert coordinates.shape == (9, 2) and np.isfinite(coordinates).all()
     assert len(set(map(tuple, coordinates))) == 9
     plan = example.resolve(model, geometry, mesh=mesh)
     plan_bytes = plan.to_bytes()
+    hashes["plan.eqplan"] = persist(directory / "plan.eqplan", plan_bytes)
     replay_plan = q.Plan.from_bytes(plan_bytes)
     assert replay_plan.to_bytes() == plan_bytes
     assert replay_plan.identity == plan.identity
     result = q.run(replay_plan)
     result_bytes = result.to_bytes()
+    hashes["result.eqresult"] = persist(directory / "result.eqresult", result_bytes)
     replay = q.Result.from_bytes(replay_plan, result_bytes)
     assert replay.to_bytes() == result_bytes
     primary_output = result.output(field)
@@ -119,10 +131,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
             "order": [record["coordinates_m"] for record in records],
             "units": {"coordinates": "m", "coefficients": "K"},
             "coefficients": records, "observations": observations}
-    hashes = {name: persist(directory / name, data) for name, data in (
-        ("model.json", model_bytes), ("plan.eqplan", plan_bytes), ("result.eqresult", result_bytes),
-        ("mesh.eqmesh", mesh.to_bytes()),
-        ("observations.json", json.dumps(data, indent=2).encode()))}
+    hashes["observations.json"] = persist(directory / "observations.json", json.dumps(data, indent=2).encode())
     vendor = project / "vendor"
     vendor.mkdir()
     assert q.vendor_project(project, store, vendor) == lock
@@ -137,7 +146,8 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     receipt = {"schema": 1, "case": case, "source_head": subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=REPOSITORY, text=True).strip(),
         "producer_source_sha256": digest(Path(__file__).read_bytes()), "oracle_sha256": ORACLE_SHA,
-        "python_executable_sha256": digest(Path(sys.executable).read_bytes()), "artifact_sha256": hashes,
+        "python_executable_sha256": digest(Path(sys.executable).read_bytes()),
+        "native_extension_path": str(native_path), "native_extension_sha256": native_sha, "artifact_sha256": hashes,
         "package_compilation_digest": model.package_compilation_digest, "model_digest": model.digest,
         "plan_identity": plan.identity, "result_identity": result.identity, "field_id": field.id,
         "coefficient_entities": [{"entity_dimension": 0, "entity_index": index,
