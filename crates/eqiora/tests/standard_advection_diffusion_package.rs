@@ -207,10 +207,14 @@ fn prescribed_divergent_rotational_velocity_matches_q1_exact_manufactured_soluti
             // Pre-run budget: one interior DOF, A=M/dt+K+C = 59/18;
             // 1e-10 absolute assembled residual implies error <= 18e-10/59.
             // History amplification is 8/59. For these polynomials, all local
-            // integrand magnitudes <= 512, <=4096 arithmetic operations
-            // give gamma_4096*512 < 2.4e-10 in binary64 per assembly.
+            // integrand magnitudes <= 512. A conservative declared allowance
+            // of 32768 operations gives gamma_32768*512 < 1.9e-9.
+            // Review corrected the earlier 4096 operation undercount; no
+            // expected value or acceptance threshold changed. This fixture
+            // allowance is not a guarantee for every compiler path; the
+            // independent residual gate above is decisive.
             // Include boundary/history arithmetic with a factor of 8:
-            // (1e-10+8*2.4e-10)*(18/59)/(1-8/59) < 1e-8.
+            // (1e-10+8*1.9e-9)*(18/59)/(1-8/59) < 1e-8.
             assert!(
                 (value - expected).abs() <= 1e-8,
                 "{point:?}: {value} vs {expected}"
