@@ -35,7 +35,7 @@ defines an allowable cross-version tolerance.
 
 Comparisons using the same current semantics can attribute performance changes.
 They cannot fulfill the frozen a7 target of a twofold improvement with unchanged
-mathematics. Do not restore the omitted term or relax controls to obtain that
+mathematics. Do not remove the authored outlet term or relax controls to obtain that
 claim.
 
 ## Minimum evidence still needed
