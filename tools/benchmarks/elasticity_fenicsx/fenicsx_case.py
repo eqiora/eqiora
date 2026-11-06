@@ -81,7 +81,7 @@ def prepare(args):
         bindings.append((vertex, dof.tolist(), domain.geometry.x[geometry_index[0, 0], :2]))
     coordinates = q1_vertex_dof_coordinates(bindings, count)
     env['coordinate_export'] = 'exact Geometry vertices through topological Q1 vertex/block-DOF correspondence'
-    boundary_scalar = (2*boundary[:, None]+np.arange(2)).reshape(-1)
+    boundary_scalar = (2*boundary[:, None]+np.arange(2, dtype=PETSc.IntType)).reshape(-1).astype(PETSc.IntType)
     free = np.setdiff1d(np.arange(2*count, dtype=PETSc.IntType), boundary_scalar)
 
     def assemble(rhs_form):
