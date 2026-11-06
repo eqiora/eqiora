@@ -1,0 +1,58 @@
+{
+  "actual_terminal_exit_code": 0,
+  "actual_validation_source_revision": "425e78ddd24f6e055c27da68e6565b18bd6f4efb",
+  "additional_reference_levels": 0,
+  "command": [
+    "taskset",
+    "-c",
+    "56",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "verify/numerics/affine-p2-scalar/reference",
+    "-p",
+    "test_*.py"
+  ],
+  "cpu_affinity": [
+    56
+  ],
+  "cuda_visible_devices": "",
+  "eqiora_calls": 0,
+  "log_sha256": "323a60879c559d8f179e158dd66cb50a3078da66ca0ae1df476531dd01fb8d1e",
+  "new_checks": [
+    "Both dimensions: exact wrong-natural-flux problem solved with retained KFF inverse, unchanged true-problem gate rejects.",
+    "Both dimensions: positive complete compare_levels with retained vectors, exact delta0, certified norm enclosures and finite-rate gates; assembly forbidden by guard."
+  ],
+  "packet_manifest_sha256": "9c6894b4d72003c5cf9131bddf2097c5b0a25c1d1306c832f4fdacbdeef7c0b0",
+  "previous_full_packet_replay_receipt_sha256": "1799ca4627b0d7165556d5374d49c15bf81b34c1e647a13e2c2ed41722a502d3",
+  "schema": 1,
+  "scientific_packet_bytes_changed": false,
+  "scope": "Supplemental validation source is distinct from the original scientific producers and previous full saved-vector replay. No earlier receipt is relabelled.",
+  "source_sha256": {
+    "compare.py": "1f12d46747353d12e9c7d1dd7db96f008a1fa114632bc423c105f6177b2cdc93",
+    "exact.py": "2ee41265bd887a5d11e76c6b148c3b42b52e165a3fd04be3359c65c2f116ce76",
+    "generate_patch.py": "b92420f27484e7680e59a492a1912f22598c64db48e03138538e2d7a9d722794",
+    "generate_refinement.py": "2e92a8e30edce2b7f71db0b12c62416efe107aa3e315c6668ccebf10132b5f93",
+    "patch_gate.py": "ac8dfb8dceda520d6e7ae10021632d26a134a53f534ed386a0e8b49e43fa2a74",
+    "plot_reference.py": "fbc20919f356361cda429976cd8cb09cd27afe3b640c40df5e012fb8393dc605",
+    "recheck.py": "e4460234f6a3933fa637fbe3ba2d43507340995736cd58a684a62a82cdb5517e",
+    "recheck_patch.py": "15355ea17e351c454ee451d8765ab348f21daec7201a76be3a22539d76b02235",
+    "refinement.py": "9fb941c2fe561ed4a2ff0347ec78507ef8ebc895df1c8f4880a467f2f58c7cae",
+    "test_exact.py": "fabe7eedd8a9e47a7eb62f77808771d39937f556251ce342524f96a3515e87b6",
+    "test_packet_orchestration.py": "5423c14ff9be5853bd5073a97c56bae0a4ad5c026314cf9acd744f9c0b2b3c64",
+    "test_patch_gate.py": "5f362264a42494a93eef2723c1fd23e4e2f993a88d59408b44bb8ca7ec7333ac",
+    "test_quadrature.py": "ebf23a24d7fa39623bf00f7a04f1db0d9d371044f476cc94b07458cc14fa2e54",
+    "test_refinement.py": "e2a7c26c75324470b133f959998b3a5b74bf3a1c02a8d27e24e997daef9a3cbf"
+  },
+  "tests_passed": 21,
+  "thread_controls": {
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1"
+  },
+  "tracked_source_clean_at_record": true
+}

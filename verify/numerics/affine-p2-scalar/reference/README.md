@@ -1,0 +1,420 @@
+# Proposed independent affine-simplex P2 scalar reference
+
+The mathematical specification was independently reviewed before the reference
+implementation below. Its computed packet still requires independent review
+before any product candidate. There is no Eqiora execution, candidate output or
+capability claim. Both triangles and tetrahedra are required. An exact quadratic patch is
+not a convergence study; the separate refinement witness below remains required.
+
+The reference will use rational arithmetic and polynomial integration. It will
+import no Eqiora code, consume no Eqiora output as an expectation, and share no
+product assembly implementation. Inspection of the existing kernel establishes
+only the intended producer interface. The approved proposal is preserved in this file's history. All reference constants and finite-level intervals must be frozen before any
+product candidate is examined.
+
+## Space and exact integration
+
+Use continuous scalar P2: vertex values and one value at every edge midpoint,
+with local functions
+
+```
+N_i = lambda_i (2 lambda_i - 1)
+N_ij = 4 lambda_i lambda_j, i < j.
+```
+
+There are six local coefficients on a triangle and ten on a tetrahedron. There
+are no face, cell-center or hierarchical bubble coefficients. The element is the
+[degree-two simplex Lagrange element](https://defelement.org/elements/lagrange.html).
+With one midpoint per edge, reversing an edge introduces neither a sign nor a
+within-edge permutation; compare the
+[Basix degree-two orientation example](https://docs.fenicsproject.org/basix/v0.10.0.post0/python/demo/demo_dof_transformations.py.html#degree-2-lagrange-element).
+A cell permutation still relabels its vertices and edge pairs.
+
+For an affine physical simplex x=v_0+J xi, use grad_x N=J^(-T) grad_xi N.
+Derive every integral by expanding barycentric monomials and using
+
+```
+integral_T product_(i=0..d) lambda_i^alpha_i dx
+  = abs(det J) product_i(alpha_i!) / (d + sum_i alpha_i)!.
+```
+
+This identity follows by iterated integer beta integrals. The reference has no
+numerical volume or facet quadrature. Affine constant-diffusion stiffness entries
+have polynomial degree two; mass entries have degree four. Trace functions are
+the parent functions restricted to lambda_opposite=0, including all facet-closure
+vertices and edges and excluding every off-facet coefficient.
+
+## Fixed physical domains and multicell topology
+
+Let q lie in [0,1]^d, and x=b+B q. Entries of b and B below are physical metres.
+They are dyadic rationals, so the declared vertices and edge midpoints at the
+proposed levels are exactly representable in binary64. Both B matrices are
+skew, nonsingular and non-axis-aligned, not rotations of axis-aligned cells.
+
+```
+2D:
+  b = (1/4, -1/2) m
+  B = [[9/8, -21/16],
+       [3/2,    9/2]] m
+  det B = 225/32 m^2
+
+3D:
+  b = (1/4, -1/2, 3/4) m
+  B = [[15/16, -3/32,  11/64],
+       [  5/4,     3, -51/32],
+       [    0,   5/2,   15/4]] m
+  det B = 15625/1024 m^3.
+```
+
+Divide each logical axis into N equal intervals. For every grid anchor a and
+permutation pi of the d coordinate axes, create the Freudenthal simplex with
+logical vertices
+
+```
+a/N,
+(a+e_pi[0])/N,
+(a+e_pi[0]+e_pi[1])/N,
+...,
+(a+ones)/N.
+```
+
+There are 2 N^2 triangles or 6 N^3 tetrahedra. Before orientation normalization,
+the signed determinant is sign(pi) det(B)/N^d. For an odd permutation, exchange
+the last two local vertices to make the canonical cell determinant positive.
+Cell volume is det(B)/(d! N^d). Global edges are unique unordered vertex pairs
+from the actual simplex connectivity; each owns one midpoint and one nodal slot.
+They are not inferred from coordinate strata of a tensor-product element.
+
+The patch uses N=2: eight triangles with 9 vertex + 16 edge coefficients, or
+48 tetrahedra with 27 vertex + 98 edge coefficients. On these meshes the complete
+P2 node coordinates happen to form the same half-grid as Q2, but all nonvertex
+coefficients belong to edges. A tetrahedral body-diagonal midpoint is an edge
+coefficient, never a cell coefficient. Identical coordinate counts do not make
+P2 and Q2 interchangeable.
+
+The later producer must authenticate this exact physical mesh, complete edge
+inventory and effective integration policy through its public Model/Plan/Result
+interfaces. A missing public route is a product gap to report, not permission to
+substitute an axis-aligned mesh or a vertex-only field.
+
+## Manufactured quadratic patch and units
+
+Set kappa=1 dimensionless and solve
+
+```
+-div(kappa grad u) = f.
+```
+
+The solution u is dimensionless. Coordinates and fixed reference lengths
+L=(2,4) m or (2,4,8) m carry length units. Define X_i=x_i/L_i and
+
+```
+u = 1 + sum_i X_i + sum_i X_i^2 + sum_(i<j) X_i X_j
+f = -2 sum_i 1/L_i^2.
+```
+
+Thus f=-5/8 m^(-2) in 2D and f=-21/32 m^(-2) in 3D. The mixed terms exercise
+physical gradient transformations; this is a total-degree-two P2 polynomial,
+not the tensor polynomial used by the Q2 reference. Its Hessian in X is
+I+ones, which is positive definite. Its global minimum is (d+2)/(2(d+1))>0,
+so every vertex and midpoint coefficient is nonzero. Its nodal values are dyadic
+rationals; the eventual source must use an arithmetic expression whose bounded
+dyadic intermediate values preserve these essential data exactly.
+
+Apply u itself on the entire logical upper face q_0=1, including every boundary
+midpoint. Apply g=kappa grad(u).n on all other boundary facets. The physical
+outward flux g has units m^(-1); lower-face fluxes are generally nonzero here.
+The constant outward unit normals on logical upper faces are
+
+```
+2D: n_0=(24,7)/25, n_1=(-4,3)/5
+3D: n_0=(624,32,-15)/625,
+    n_1=(-96,72,35)/125, n_2=(16,-12,15)/25.
+```
+
+Lower-face normals have the opposite sign. The reference will independently
+verify the unit lengths, outward signs, face incidence and determinants.
+Integrate all natural loads, including contributions to constrained coefficients
+at essential/natural intersections. Do not remove those contributions before
+forming the uneliminated physical residual.
+
+Using the global P2 functions, assemble exactly
+
+```
+K_ij = integral_Omega kappa grad(N_i).grad(N_j) dx
+F_i  = integral_Omega f N_i dx
+G_i  = integral_GammaN g N_i ds
+r(v) = K v - F - G.
+```
+
+Facet loads can use oriented area vectors, so no square-root approximation enters
+the rational reference. The specified boundary face normals also have rational
+components. For analytic nodal coefficients, every free residual is exactly zero.
+K and weak dual loads have units m^(d-2). These are not mechanical forces.
+
+The sum of essential reactions has the independent surface-integral expression
+
+```
+x_D = b + B e_0 + (1/2) sum_(j>0) B e_j
+A_D = det(B) B^(-T) e_0
+R_D = grad(u)(x_D).A_D.
+```
+
+The integrand is affine, so its face average is its centroid value. This gives
+R_D=27339/4096 in 2D and R_D=24991425/1048576 m in 3D. There are 5 or 25
+constrained nodal actions. This optional native-reaction witness must use an
+existing physical weak-action interface; the reference does not define a new
+public scalar force/flux API.
+
+## Proposed fixed patch accuracy allocation
+
+Use fixed reference scales ell_star=1 m, u_star=1 and kappa_star=1. In particular,
+
+```
+Kbar = K / (kappa_star ell_star^(d-2))
+Fbar = F / (kappa_star u_star ell_star^(d-2))
+Gbar = G / (kappa_star u_star ell_star^(d-2))
+vbar = v/u_star
+rbar = Kbar vbar - Fbar - Gbar.
+```
+
+Every barred quantity is dimensionless. These scales do not depend on candidate
+values, mesh observations, solver convergence or the measured residual.
+
+Propose epsilon=2^(-40), with squared comparison sum_F rbar_i^2<=epsilon^2,
+and exact equality of every essential coefficient to its analytic dyadic value.
+This epsilon is a declared accuracy allocation, not a theorem bounding floating
+point assembly/solving errors. Proposed solver controls are rtol=atol=1e-14;
+those settings do not replace the independent residual test.
+
+Before any candidate, compute and freeze the exact rational constant
+Cinf=||Kbar_FF^(-1)||_infinity for each of the two N=2 meshes. The free operator
+is positive definite: a continuous P2 function with zero gradient is constant,
+and its zero trace on a nonempty face makes that constant zero. Verify the exact
+factorization/inverse identities. Require every coefficient error to be at most
+Bu=Cinf epsilon. The independent implication is
+
+```
+||vbar-u_exact||_infinity
+ <= ||Kbar_FF^(-1)||_infinity ||rbar_F||_infinity
+ <= Cinf epsilon.
+```
+
+Both coefficient and residual gates must pass. Essential equality removes any
+unbudgeted boundary lift error. No Cinf or budget is estimated from Eqiora data.
+For native reactions, normalize both the native constrained actions and the
+analytic total by the same physical weak-action scale before any comparison:
+
+```
+actionbar_i = action_i / (kappa_star u_star ell_star^(d-2))
+Rbar_D = R_D / (kappa_star u_star ell_star^(d-2)).
+```
+
+Both are dimensionless, including in 3D where the unscaled R_D has units m.
+Propose the separate dimensionless allowance
+
+```
+Umax = max of analytic u at domain vertices
+rho = epsilon max(1, ||Kbar||_infinity Umax + ||Fbar+Gbar||_infinity).
+```
+
+This is a fixed accuracy ceiling (8192 binary64 unit roundoffs), not a universal
+roundoff theorem. Check each actionbar_i against rational rbar_i of the actual
+complete coefficient vector within rho. Also check the sum of actionbar_i against
+the analytic Rbar_D with allowance m ||Kbar||_infinity Bu + m rho. Here m=5 or 25.
+The full reaction vector cannot be replaced by a summed quantity alone.
+
+## Predeclared falsifiers and integration checks
+
+The independent tests must reject missing/duplicated shared edges, an edge value
+mislabelled as a face/cell/bubble, skipped essential midpoints, skipped natural
+midpoint loads, wrong flux sign, using J^(-1) instead of J^(-T), and incorrect
+signed-volume integration. Test all 3! triangle and 4! tetrahedron vertex
+permutations with corresponding vertex/edge relabelling. Correct scalar P2
+permutations preserve the operator and introduce no nodal signs; inconsistent
+labels or spurious edge signs are mutants, not legitimate alternative methods.
+
+For the patch, declare three-point-per-axis simplex Duffy Gauss in both dimensions
+as the eventual effective production control. The mathematical volume minimum is
+two points in 2D and three in 3D for stiffness/constant load; natural-facet minima
+are two for segments and three for triangles. A polynomial of total degree p
+under a d-dimensional Duffy map has first-axis degree at most p+d-1, so
+n>=ceil((p+d)/2) is sufficient. Mass degree four needs three points per axis in 2D and four in 3D. The reference remains an exact polynomial integral.
+
+Underintegration tests compare exact local operator entries with the deficient
+rule, not only a patch solution that might accidentally survive an alias. For
+example, two-point Gauss on [0,1] gives 7/36 for integral t^4 instead of 1/5.
+An actual candidate must separately authenticate the persisted effective rule;
+a field file declaring a rule is not proof of the Plan's rule.
+
+## Separate genuine convergence reference: proposal
+
+Use the same two affine domains and nested simplex meshes N=2,4,8, now with
+homogeneous essential data on every face and
+
+```
+p_i=q_i(1-q_i), u=product_i p_i
+Gmetric=B^(-1) B^(-T)
+f = 2 sum_i Gmetric_ii product_(j!=i) p_j
+    -2 sum_(i<j) Gmetric_ij p_i' p_j' product_(k!=i,j) p_k.
+```
+
+Here q=B^(-1)(x-b), u is dimensionless, and f has units m^(-2). Degrees are
+four in 2D and six in 3D, so P2 does not reproduce this field. Off-diagonal metric
+terms must not be discarded. Source/test degrees require at least three Duffy
+points per axis in 2D and five in 3D for exact polynomial loads. Exact continuous
+norms provide additional audits:
+
+```
+||u||_L2^2 = det(B)/30^d
+|u|_H1^2 = det(B) trace(Gmetric)/(3 * 30^(d-1)).
+```
+
+Subsequent reference implementation must freeze finite-level L2/H1-seminorm
+error intervals before any candidate. It can use independently computed sparse
+approximate Galerkin solutions, checked by exact rational residuals, rather than
+inverting a large rational matrix. With barred coordinates, a conservative
+physical Poincare lower bound is lambda=9d/||Bbar||_F^2. An exact local P2 mass
+matrix gives mref=1/||Mref^(-1)||_infinity>0; then
+mu=mref min_T abs(det Jbar_T) bounds the global nodal mass matrix below. Hence a
+eta is the Euclidean norm of the complete free residual of the exact rational
+Galerkin system, using the same barred scales defined above. It bounds
+reference solution uncertainty by
+
+```
+L2: eta/(lambda sqrt(mu)); H1 seminorm: eta/sqrt(lambda mu).
+```
+
+Evaluate full candidate/reference field error squared by exact polynomial
+integration, then outward-enclose square roots. Propose reference uncertainty
+<=1e-4 of each strictly positive certified reference error lower bound. The
+triangle-summed reference, candidate and norm uncertainties must be <=1e-3
+relative separately to the strictly positive certified L2 error lower bound and
+the strictly positive certified H1-seminorm error lower bound. If these cannot
+be certified, the level is inconclusive; no
+candidate is launched and no allowance is enlarged from its output.
+
+Expected asymptotic orders are H1 seminorm two and L2 three for this smooth field
+on shape-regular affine refinements. They are not finite-level thresholds.
+Finite-level acceptance and rates must use the independently frozen intervals,
+with all actual vertex and edge coefficients, not a vertex subset, tensor
+amplitude projection or an exact-patch rate argument. The construction and numeric allocation were reviewed before implementation;
+the computed constants, intervals and falsifiers require a separate review.
+
+## Implemented independent reference
+
+The mathematical specification above was reviewed before implementation. This
+reference does not establish an ordinary Eqiora P2 capability. Both dimensions
+remain mandatory in the later product verification.
+
+`exact.py` constructs physical meshes and complete vertex/edge topology, expands
+the barycentric basis, and integrates rational polynomials. `generate_patch.py`
+retains both full operators, volume and natural loads, constrained/free indices,
+exact coefficients, constrained actions and exact free inverses. Every inverse
+is checked by rational multiplication. No approximate inverse or measured product
+residual determines a patch allowance.
+
+`refinement.py` assembles independent exact stiffness, mass and load entries.
+SciPy SuperLU proposes reference coefficients only. Their binary64 values are
+then interpreted as exact rationals. The complete free residual, both full-field
+polynomial error norms, and the Poincare/mass uncertainty bounds are rationally
+checked. Square-root endpoints are verified by exact squared comparisons.
+`recheck.py` takes the retained coefficient bytes through that same owner without
+calling a linear solver. Original generation identities remain in the retained
+receipt; a later replay does not change their provenance.
+
+`compare.py` compares every coefficient at its physical interpolation point.
+It computes the exact L2 and H1-seminorm distance between a future complete
+candidate vector and the retained independent reference vector. For each norm
+separately, its outward-enclosed distance plus the certified reference uncertainty
+must be at most 1e-3 times the strictly positive frozen error lower bound. The
+square-root enclosure is included in that sum. Missing, duplicate and unknown
+points or a nonzero essential trace fail before comparison. A future ordinary
+producer must additionally authenticate actual Plan/mesh/association inventories
+and the effective quadrature. This mathematical checker does not parse product
+artifacts or accept a self-declared quadrature count as evidence.
+
+For a frozen error interval [a_N,b_N], set t_N=1e-3 a_N. The corresponding
+finite-level candidate-error interval is [a_N-t_N,b_N+t_N]. For consecutive
+levels N and 2N, the rate interval is
+
+```
+[ log2((a_N-t_N)/(b_2N+t_2N)),
+  log2((b_N+t_N)/(a_2N-t_2N)) ].
+```
+
+Both norms use their own intervals. All endpoints are positive. A later rate
+comparison must use these intervals, not a fixed asymptotic threshold or a rate
+fitted to product outputs. Full-vector comparison is required at all three
+levels; a favorable rate cannot rescue a rejected coefficient vector.
+
+## Retained packet and replay
+
+The committed `data/manifest.json` identifies original scientific bytes and their
+actual generation source. The gzip file is lossless compression of the original
+patch JSON; its decompressed digest is recorded separately. The six refinement
+files and original generation receipt are unchanged. No product result or
+machine-local runtime library is included.
+
+Run from this directory with Python 3.12 or newer:
+
+```
+python3 -B -m unittest discover -p 'test_*.py'
+python3 -B recheck_patch.py
+python3 -B recheck.py data/refinement
+```
+
+The pure geometry/patch checker and saved-coefficient replay need only Python's
+standard library. The unit tests that propose small independent reference vectors
+also require NumPy and SciPy; they never import Eqiora. The retained generation
+receipt records the actual Python, NumPy and SciPy versions. The final command
+performs six exact residual/full-field checks with zero linear solves. Expect the
+3D N=8 rational assembly to take longer than the smaller levels.
+
+The patch producer's exact inverse constants are approximately 9.1726457359 in
+2D and 19.1729604235 in 3D. The authoritative values and fixed allowances are
+rational numbers in the compressed packet, not these rounded displays.
+
+| Dimension | N | L2 error lower bound | H1-seminorm error lower bound |
+|---|---:|---:|---:|
+| 2D | 2 | 0.0065734129790 | 0.041920160524 |
+| 2D | 4 | 0.00077845258795 | 0.011503780184 |
+| 2D | 8 | 0.000089391515284 | 0.0029863991322 |
+| 3D | 2 | 0.0031372016021 | 0.025454901745 |
+| 3D | 4 | 0.00039939072878 | 0.0074529187927 |
+| 3D | 8 | 0.000046782219496 | 0.0019849841904 |
+
+These are rounded displays of certified intervals, not additional thresholds.
+The physical L2/H1-seminorm units are m/dimensionless in 2D and m^(3/2)/m^(1/2)
+in 3D. The largest relative reference uncertainty is below 2.51e-9 in L2 and
+5.24e-11 in H1 seminorm, below the fixed 1e-4 reference allocation.
+
+![Independent affine P2 reference error intervals](reference-errors.png)
+
+The plot normalizes physical norms by u_star ell_star^(d/2) for L2 and by
+u_star ell_star^(d/2-1) for H1 seminorm. Its points are independent reference
+error intervals, not Eqiora outputs or a product convergence claim.
+
+The patch coefficient, essential-trace and free-residual gates do not require a
+native constrained-action export. `patch_gate.check` reports whether the optional
+action vector was supplied and checked. When supplied, the complete vector and
+its sum must pass the unchanged normalized reaction budgets. A future producer
+must separately record whether it obtained this vector from an existing native
+API. Reference-assembled actions are never a substitute for a native witness;
+the rational actions in this packet establish the mathematical expectation only.
+
+The distinct natural-flux-sign falsifier uses the retained exact free inverse:
+with the essential values unchanged, set v_wrong,F=v_exact,F-2 K_FF^(-1) G_F.
+Both dimensions verify K v_wrong-F+G=0 on every free row by rational arithmetic,
+then require the unchanged true-problem patch gate to reject that vector.
+Negating constrained actions is tested separately and does not stand in for
+this wrong-boundary-data problem.
+
+The positive complete-level orchestration test supplies all retained reference
+coefficients at every physical node for both dimensions. When the entire vector
+is identical, its distance to the certified reference is exactly zero. The
+comparator reuses the saved norm enclosures, passes them through the same norm
+and finite-rate gates, and does not assemble six new systems. The saved
+certificates were separately replayed from exact residuals and full-field norms;
+the later producer remains responsible for binding the reference to those frozen
+bytes. A test guard rejects any attempted assembly in this orchestration check.

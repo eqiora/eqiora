@@ -1,0 +1,6 @@
+PASS dimension=2 N=2 exact-residual-and-full-field-norms
+PASS dimension=2 N=4 exact-residual-and-full-field-norms
+PASS dimension=2 N=8 exact-residual-and-full-field-norms
+PASS dimension=3 N=2 exact-residual-and-full-field-norms
+PASS dimension=3 N=4 exact-residual-and-full-field-norms
+PASS dimension=3 N=8 exact-residual-and-full-field-norms

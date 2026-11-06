@@ -1,0 +1,41 @@
+{
+  "declared_future_effective_duffy_points_per_axis": {
+    "patch": {
+      "2D": 3,
+      "3D": 3
+    },
+    "scope": "Control required of a future producer; exact reference integration does not use a Gauss rule.",
+    "smooth_refinement": {
+      "2D": 3,
+      "3D": 5
+    }
+  },
+  "files": {
+    "finite-rate-bounds.json": "c5f4007f659c6697c806b35fd65b79b59a863c61f0907ff2ec4ad4df3059791e",
+    "patch-operators.json.gz": "540ce261ff18c17ba1a81b9800a179b7339b2a272efb8ea4d3a8f368d77448a0",
+    "refinement/d2-n2.json": "6aa84b4cbecb5314d9ef52baab93a3a9e56913b0645014b87ead277c1692d0bb",
+    "refinement/d2-n4.json": "8105441f331b07639ed0e36dff8301069b36712ab275aa0c23c574ff4d2cbe3d",
+    "refinement/d2-n8.json": "b83fe791fcec4541ab202dcc7c7865b003a185b1b4061e02dc25ad6820c8bd94",
+    "refinement/d3-n2.json": "e82c55b7d53593acd24c168733b19969a34c519eb56647c40e94ab8ac3056b9d",
+    "refinement/d3-n4.json": "86768f8cd7afc9c12df50082883a4dcfd5d3594192bcb28d4504e80f7262b86c",
+    "refinement/d3-n8.json": "5795a98356a51cbdf2dd454d39bbe1351bed8cdd8fbef731ba691070be30d802",
+    "refinement/receipt.json": "11c62aa931bfa32366b39f7dd42c9735351c7571e58c57aceeda422342570e69"
+  },
+  "patch": {
+    "actual_terminal_exit_code": 0,
+    "compression": "gzip, mtime zero; decompression recovers exact original JSON bytes",
+    "cpu": 56,
+    "file": "patch-operators.json.gz",
+    "producer_source_revision": "ffe0ad567dd71b86e4f050aa81fd19db40093c30",
+    "threads": 1,
+    "uncompressed_sha256": "d3b959cbb685ed5541a98279d5d4bb9d47b16bf7e40dc7d9ad030ce3150bd3b4"
+  },
+  "refinement": {
+    "actual_terminal_exit_code": 0,
+    "approximate_reference_linear_solves": 6,
+    "ordinary_eqiora_calls": 0,
+    "producer_source_revision": "64784a1953ba050f238ed3de3cd1f62dea25d14c",
+    "receipt": "refinement/receipt.json"
+  },
+  "schema": 1
+}
