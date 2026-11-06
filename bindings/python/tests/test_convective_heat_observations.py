@@ -90,8 +90,15 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
     result = q.run(replay_plan)
     result_bytes = result.to_bytes()
     hashes["result.eqresult"] = persist(directory / "result.eqresult", result_bytes)
+    result_wire = json.loads(result_bytes)
+    result_identity = result_wire["identity"]
+    assert result_wire["content"]["plan_identity"] == replay_plan.identity
     replay = q.Result.from_bytes(replay_plan, result_bytes)
-    assert replay.to_bytes() == result_bytes
+    replay_bytes = replay.to_bytes()
+    assert replay_bytes == result_bytes
+    replay_identity = json.loads(replay_bytes)["identity"]
+    assert replay_identity == result_identity
+    assert result.model_digest == replay.model_digest == model.digest
     primary_output = result.output(field)
     assert primary_output.value_type == q.ValueType.real(q.Dimension(temperature=1))
     primary = primary_output.values("vertex").numpy().reshape(-1)
@@ -113,9 +120,9 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
         reopened = replay.observe(replay_selected, quadrature_points=2)
         expected_type = (q.ValueType.real(q.Dimension(temperature=1, length=1)) if unit == "K*m"
                          else q.ValueType.real(q.Dimension(mass=1, length=1, time=-3)))
-        for sample, owner in ((accepted, result), (reopened, replay)):
+        for sample, owner_identity in ((accepted, result_identity), (reopened, replay_identity)):
             assert sample.observable_id == selected.id
-            assert sample.result_identity == owner.identity
+            assert sample.result_identity == owner_identity
             assert sample.value_type == expected_type
             assert sample.quadratures == {domain.id: ("GaussLegendre", 1, 2)}
             assert np.isfinite(sample.value)
@@ -149,7 +156,7 @@ def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, in
         "python_executable_sha256": digest(Path(sys.executable).read_bytes()),
         "native_extension_path": str(native_path), "native_extension_sha256": native_sha, "artifact_sha256": hashes,
         "package_compilation_digest": model.package_compilation_digest, "model_digest": model.digest,
-        "plan_identity": plan.identity, "result_identity": result.identity, "field_id": field.id,
+        "plan_identity": plan.identity, "result_identity": result_identity, "field_id": field.id,
         "coefficient_entities": [{"entity_dimension": 0, "entity_index": index,
                                    "coordinates_m": coordinates[index].tolist()} for index in ordered],
         "observables": origin, "ordinary_public_runs": 1,
