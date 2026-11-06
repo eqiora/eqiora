@@ -144,11 +144,11 @@ class ReleaseIdentity:
 
 
 DIRECT_PINS = {
-    "astro": "7.4.4",
-    "@astrojs/starlight": "0.41.7",
-    "@astrojs/mdx": "7.0.6",
-    "@astrojs/markdown-satteri": "0.3.6",
-    "satteri": "0.9.5",
+    "astro": "7.4.7",
+    "@astrojs/starlight": "0.42.9",
+    "@astrojs/mdx": "8.1.3",
+    "@astrojs/markdown-satteri": "0.4.7",
+    "satteri": "0.11.6",
     "katex": "0.18.4",
     "@playwright/test": "1.64.1",
     "@axe-core/playwright": "4.13.0",

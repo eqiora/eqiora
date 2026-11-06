@@ -105,7 +105,7 @@ export default defineConfig({
   trailingSlash: 'always',
   markdown: {
     processor: satteri({
-      features: { math: true },
+      features: { math: true, rawHtml: true },
       mdastPlugins: [katexMathPlugin, canonicalGuideLinks],
     }),
   },
