@@ -5,9 +5,12 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import eqiora
 import numpy as np
-from common import ROOT, ComparisonError, clock, digest, environment, finish, memory, worker_arguments
+from shared_measurement import ROOT, ComparisonError, clock, digest, environment, finish, memory
+from worker_arguments import worker_arguments
+from accuracy import check_accuracy
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
 
@@ -16,7 +19,7 @@ def main(args):
         raise ComparisonError("Eqiora requires wheel path, declared build revision and build profile")
     if Path(eqiora.__file__).resolve().is_relative_to(ROOT):
         raise ComparisonError("use an installed wheel, not repository Python source")
-    env = environment("eqiora", IMPORT_SECONDS)
+    env = environment("eqiora", IMPORT_SECONDS, protocol_root=Path(__file__).parent)
     env.update(wheel_sha256=digest(args.wheel), source_revision_declared=args.revision,
                rust_build_profile_declared=args.build_profile, module_path=eqiora.__file__,
                blas=np.show_config(mode="dicts"))
@@ -98,7 +101,8 @@ def main(args):
               "model_sha256": digest(source), "plan_sha256": digest_bytes(plan.to_bytes()),
               "package_compilation_digest": model.package_compilation_digest,
               "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells-1)**dimension}}
-    finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile)
+    finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile,
+           accuracy=lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, args.dimension))
 
 
 def digest_bytes(value):

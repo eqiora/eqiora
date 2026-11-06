@@ -10,31 +10,13 @@ from pathlib import Path
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_measurement import THREAD_KEYS, child_environment
 from accuracy import declared_levels
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "BLIS_NUM_THREADS")
 
-
-def child_environment(backend: str, executable: Path, output: Path) -> dict:
-    env = dict(os.environ)
-    for key in ("PYTHONPATH", "PYTHONHOME", "LD_PRELOAD"):
-        env.pop(key, None)
-    if backend == "fenicsx":
-        # Never load the Eqiora build/test environment's OpenMPI or other
-        # foreign libraries ahead of the isolated MPICH conda-forge RPATH.
-        for key in ("LD_LIBRARY_PATH", "MPICC", "MPICXX", "PETSC_OPTIONS", "PETSC_OPTIONS_YAML", "SLEPC_OPTIONS",
-                    "CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
-                    "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"):
-            env.pop(key, None)
-        for key in list(env):
-            if key.startswith(("OMPI_", "PMI_", "PMIX_", "I_MPI_", "MPICH_", "MPIEXEC_")):
-                env.pop(key)
-    env["PATH"] = str(executable.parent) + os.pathsep + env.get("PATH", "")
-    env.update({key: "1" for key in THREAD_KEYS})
-    env.update(CUDA_VISIBLE_DEVICES="", TMPDIR=str(output), XDG_CACHE_HOME=str(output / "cache"))
-    return env
 
 
 def main():

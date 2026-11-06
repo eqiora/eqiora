@@ -15,7 +15,8 @@ import subprocess
 import sys
 import time
 
-from run import HERE, ROOT, THREAD_KEYS, child_environment
+from run import HERE, ROOT
+from shared_measurement import THREAD_KEYS, child_environment, shared_sources
 
 LEVELS = [4, 8, 16, 32]
 PAIRS = 8
@@ -314,7 +315,7 @@ def main(argv=None):
     try:
         initial_controls = controls(args.cpu)
         save(args.output / "controls-initial.json", initial_controls)
-        inputs = {str(path): digest(path) for path in [*HERE.glob("*.py"), HERE / "README.md", HERE / "pixi.lock",
+        inputs = {str(path): digest(path) for path in [*HERE.glob("*.py"), *shared_sources(), HERE / "README.md", HERE / "pixi.lock",
                    ROOT / "examples/inverse-poisson.eqi", ROOT / "verify/numerics/cartesian-poisson-fem-fvm/expected/convergence.csv",
                    *(spec[key] for spec in specs.values() for key in ("wheel", "build_record"))]}
         save(args.output / "plan.json", {"schedule": schedule(), "levels": LEVELS, "cpu": args.cpu,

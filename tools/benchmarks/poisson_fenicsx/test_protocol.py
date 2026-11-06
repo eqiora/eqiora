@@ -9,11 +9,13 @@ import unittest
 from unittest.mock import patch
 from contextlib import redirect_stderr
 
-from common import worker_arguments
+from worker_arguments import worker_arguments
 
 import numpy as np
 
-from accuracy import ComparisonError, LEVELS, check_accuracy, check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
+from accuracy import LEVELS, check_accuracy
+from shared_measurement import ComparisonError
+from shared_accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
 
 spec = importlib.util.spec_from_file_location("comparison_driver", Path(__file__).with_name("run.py"))
 driver = importlib.util.module_from_spec(spec)
