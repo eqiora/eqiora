@@ -1050,10 +1050,22 @@ wire = json.loads(result_bytes_before_observation)
 assert wire["schema"] == "eqiora.common-result/v28"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
-    "continuity_residual_norm"
+    "continuity_residual_norm", "gauge_multiplier"
 }
+# Natural outlet traction fixes pressure, so this Plan has no auxiliary gauge.
+assert wire["content"]["payload"]["acceptance"]["acceptance"]["gauge_multiplier"] is None
+assert result.gauge_multiplier is None
 replayed_result = package.Result.from_bytes(plan, result_bytes_before_observation)
+assert replayed_result.gauge_multiplier is None
 assert replayed_result.to_bytes() == result_bytes_before_observation
+unexpected_gauge = json.loads(result_bytes_before_observation)
+unexpected_gauge["content"]["payload"]["acceptance"]["acceptance"]["gauge_multiplier"] = 1.0
+try:
+    package.Result.from_bytes(plan, json.dumps(unexpected_gauge).encode())
+except package.ValidationError as error:
+    assert "gauge multiplier" in str(error).lower(), str(error)
+else:
+    raise AssertionError("gauge multiplier was accepted for a Plan without a pressure gauge")
 old = dict(wire, schema="eqiora.common-result/v19")
 removed = json.loads(result_bytes_before_observation)
 removed["content"]["payload"]["acceptance"]["reactions"] = []
