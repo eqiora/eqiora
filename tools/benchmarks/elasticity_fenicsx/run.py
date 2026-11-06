@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared_campaign import collect_reports
+from shared_campaign import ComparisonCase, collect_reports
 from shared_measurement import ComparisonError
 from accuracy import LEVELS
 from validate import validate_reports
@@ -34,7 +34,9 @@ def main():
     for path in (args.eqiora_python, args.fenicsx_python, args.eqiora_wheel):
         if not path.is_file():
             raise ComparisonError(f'required installed artifact/interpreter is missing: {path}')
-    reports = collect_reports(args, LEVELS, problem_root=Path(__file__).resolve().parent)
+    cases = [ComparisonCase(f"n{cells}", ("--dimension", str(args.dimension), "--cells", str(cells)))
+             for cells in LEVELS]
+    reports = collect_reports(args, cases, problem_root=Path(__file__).resolve().parent)
     if reports is None:
         raise ComparisonError('worker failed; retained logs are authoritative, not a completed comparison')
     summary = {'mode': args.mode, 'dimension': 2, 'levels': list(LEVELS),

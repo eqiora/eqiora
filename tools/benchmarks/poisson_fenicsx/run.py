@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared_campaign import collect_reports
+from shared_campaign import ComparisonCase, collect_reports
 from accuracy import declared_levels
 
 HERE = Path(__file__).resolve().parent
@@ -40,7 +40,9 @@ def main():
         parser.error("requested CPU is outside the caller's affinity")
     if args.output.exists():
         parser.error("output directory must not already exist; preserve earlier receipts")
-    reports = collect_reports(args, levels, problem_root=HERE)
+    cases = [ComparisonCase(f"n{cells}", ("--dimension", str(args.dimension), "--cells", str(cells)))
+             for cells in levels]
+    reports = collect_reports(args, cases, problem_root=HERE)
     if reports is None:
         return 2
     orders = {}
