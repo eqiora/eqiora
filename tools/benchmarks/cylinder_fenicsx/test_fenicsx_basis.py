@@ -52,6 +52,36 @@ class NativeBasisTests(unittest.TestCase):
             hierarchical = values[prepared.cell_centroid_dofs]-values[prepared.vertex_velocity_dofs][cells].mean(axis=1)
             np.testing.assert_array_equal(hierarchical, np.zeros_like(hierarchical))
 
+    def test_volume_pressure_force_and_facet_flux_without_solving(self):
+        from dolfinx import fem
+        from fenicsx_adapter import prepare, boundary_flux_forms
+        from reference_system import build_system, observations
+        data = fixture(); prepared = prepare(data)
+        scratch = Path.home()/'.cache/eqiora/cylinder-observer-tests'; scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            jit = {'cache_dir': directory}
+            system = build_system(prepared, data, rule='duffy-3', jit_options=jit)
+            nv, nc = len(prepared.coordinates), len(prepared.cells)
+            # A constant physical field tests observations only, not a PDE solve.
+            fields = {'velocity_vertex': np.tile([.1, 0.], (nv, 1)),
+                      'velocity_cell_bubble': np.zeros((nc, 2)), 'pressure_vertex': np.full(nv, .2)}
+            canonical = np.concatenate((fields['velocity_vertex'].reshape(-1),
+                                        fields['velocity_cell_bubble'].reshape(-1), fields['pressure_vertex']))
+            source = system.transformation.createVecRight(); source.array[:] = canonical
+            nodal = system.transformation.createVecLeft(); system.transformation.mult(source, nodal)
+            function = fem.Function(prepared.mixed_space); function.x.array[:] = nodal.array
+            row = observations(system, function, fields, canonical, jit_options=jit)
+            # For this toy rectangle's bottom-edge indicator, uniform pressure
+            # gives upward p*width; x contributions on the two sides cancel.
+            np.testing.assert_allclose(row['force_on_domain'], [0., .2*2.2], rtol=0, atol=256*np.finfo(float).eps)
+            np.testing.assert_allclose(row['matrix_virtual_work_on_domain'], row['force_on_domain'],
+                                       rtol=0, atol=256*np.finfo(float).eps)
+            flux = {name: fem.assemble_scalar(fem.form(expression, jit_options=jit))
+                    for name, expression in boundary_flux_forms(prepared, function.sub(0)).items()}
+            self.assertAlmostEqual(flux['inlet'], -.1*.41, places=14)
+            self.assertAlmostEqual(flux['outlet'], .1*.41, places=14)
+            for item in (source, nodal, system.matrix, system.rhs, system.transformation, system.raw_nodal_matrix): item.destroy()
+
     def test_custom_quadrature_assembly_and_rigid_rotation(self):
         from reference_system import build_system
         from fenicsx_adapter import prepare

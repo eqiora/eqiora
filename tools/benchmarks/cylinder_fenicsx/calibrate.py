@@ -18,7 +18,8 @@ from accuracy import MU, U, H, physical_norms, discrete_inlet_flux, boundary_flu
 from budget import check_falsifiers, freeze_budget, residual_ceiling
 from fenicsx_adapter import prepare
 from external_residual import residual_inf, validate_operator
-from reference_system import (build_system, canonical_fields, observations, quadrature,
+from common_basis import canonical_fields
+from reference_system import (build_system, observations, quadrature,
                               scaled_operator, solve)
 from shared_measurement import ComparisonError, digest, environment
 from topology import cylinder_geometry_report

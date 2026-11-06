@@ -227,5 +227,37 @@ It records each reference observation, original mesh identities, quadrature,
 source and installed environment, common-operator files and their hashes.
 Only a completely accepted batch writes `reference-manifest.json`; failure
 retains attempts but produces no frozen candidate budget. Candidate collection
-must verify this manifest and cannot recalibrate it. The command has not been
-run: explicit primary authorisation is still required.
+must verify this manifest and cannot recalibrate it. The initial external-only batch has completed successfully under its original
+frozen harness. Its immutable manifest and artifacts are read and hash-checked
+by the candidate consumer; the candidate does not recalibrate them.
+
+
+## Candidate and independent reconstruction
+
+`eqiora_case.py` reopens the exact public Mesh artifact and reauthors its
+unchanged GeometryGraph, checks both identities and original topology, imports
+the shipped standard package and resolves ordinary MINI/SparseLU/Faer with the
+example's original controls (relative 1e-6, absolute 1e-13, at most 10000
+iterations, identity preconditioner, fast reduction, no scaling). Those native
+solver settings do not replace the frozen external residual/accuracy gates.
+
+The shared correctness-only lifecycle performs one cold Eqiora call and one
+separate profile call, with no warmups or timing samples. Only the cold field
+is the candidate. Shared serialization retains velocity vertices, every cell
+bubble, pressure vertices, both cylinder-force signs and public inlet/outlet
+flux before accuracy checks. Public Plan/Result bytes are retained separately.
+The reader validates the manifest, original mesh artifact, all reference and
+operator file hashes, A/B/C policy, free basis, scales and gauge absence before
+running. It enforces force action–reaction, input-derived trace/flux controls,
+the frozen external CSR residual and all four physical metrics.
+
+The unchanged public geometry has no runtime selection union for all essential
+vertices. Do not sum separately named native reactions and double-count their
+corners. `audit_candidate.py` instead performs a separate FEniCSx assembly-only
+reconstruction from the retained cold MINI coefficients, using the verified
+basis correspondence. It performs zero PDE solves. It evaluates UFL cylinder
+virtual work against the unchanged frozen force allowances and sums the global
+essential-vertex union once against the unchanged conservation allowance.
+This is an independent reconstruction, not a native Eqiora union-force export.
+The receipt binds candidate bytes, worker source/artifact identity and the
+frozen reference hash; its process/memory are separate from the native worker.

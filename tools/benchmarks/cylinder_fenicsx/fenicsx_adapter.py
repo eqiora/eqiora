@@ -154,3 +154,10 @@ def cylinder_virtual_work(prepared, velocity, pressure, *, quadrature_metadata):
         result.append((2*.001*ufl.inner(ufl.sym(ufl.grad(velocity)), ufl.sym(ufl.grad(indicator)))
                        -pressure*ufl.div(indicator))*dx)
     return result
+
+
+def boundary_flux_forms(prepared, velocity):
+    normal = ufl.FacetNormal(prepared.domain)
+    measure = ufl.Measure('ds', domain=prepared.domain, subdomain_data=prepared.facets,
+                          metadata={'quadrature_degree': 3, 'quadrature_rule': 'gauss_jacobi'})
+    return {name: ufl.dot(velocity, normal)*measure(BOUNDARY_TAGS[name]) for name in ('inlet', 'outlet')}

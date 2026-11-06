@@ -5,7 +5,8 @@ from dolfinx import fem
 from dolfinx.fem import petsc
 import numpy as np
 from petsc4py import PETSc
-from accuracy import H, MU, U, P, check_rule, duffy_rule
+from accuracy import MU, U, check_rule, duffy_rule
+from common_basis import layout
 from fenicsx_adapter import weak_forms, cylinder_virtual_work, export_fields
 from shared_measurement import ComparisonError
 
@@ -36,12 +37,6 @@ def quadrature(name):
     return {'quadrature_rule': 'custom', 'quadrature_points': points, 'quadrature_weights': weights}
 
 
-def canonical_fields(fields):
-    return np.concatenate((np.asarray(fields['velocity_vertex']).reshape(-1),
-                           np.asarray(fields['velocity_cell_bubble']).reshape(-1),
-                           np.asarray(fields['pressure_vertex']).reshape(-1)))
-
-
 def basis_transformation(prepared):
     nv, nc = len(prepared.coordinates), len(prepared.cells)
     count = 3*nv+2*nc
@@ -69,29 +64,16 @@ def build_system(prepared, data, *, rule, jit_options):
     raw_nodal_matrix = petsc.assemble_matrix(form); raw_nodal_matrix.assemble()
     transformation = basis_transformation(prepared)
     full = raw_nodal_matrix.PtAP(transformation)
-    nv, nc = len(prepared.coordinates), len(prepared.cells)
-    count = 3*nv+2*nc
-    essential_vertices = np.unique(np.concatenate([np.asarray(data['boundaries'][name]).reshape(-1)
-                                                   for name in ('inlet', 'walls', 'cylinder')]))
-    constrained = (2*essential_vertices[:, None]+np.arange(2)).reshape(-1).astype(PETSc.IntType)
-    free = np.setdiff1d(np.arange(count, dtype=PETSc.IntType), constrained)
-    if len(free) != count-2*len(essential_vertices):
-        raise ComparisonError('free MINI inventory differs from full count minus distinct essential vertices')
-    prescribed = np.zeros(count)
-    inlet_vertices = np.unique(np.asarray(data['boundaries']['inlet']).reshape(-1))
-    y = prepared.coordinates[inlet_vertices, 1]
-    prescribed[2*inlet_vertices] = 4*U*y*(H-y)/(H*H)
-    # Wall/cylinder values take precedence at shared inlet corners.
-    zero_vertices = np.unique(np.concatenate([np.asarray(data['boundaries'][name]).reshape(-1)
-                                              for name in ('walls', 'cylinder')]))
-    prescribed[2*zero_vertices] = 0.
+    common = layout(data)
+    free = common['free'].astype(PETSc.IntType)
+    prescribed = common['prescribed']
     original = full.createVecRight(); original.array[:] = prescribed
     lifted = full.createVecLeft(); full.mult(original, lifted); lifted.scale(-1.)
     free_is = PETSc.IS().createGeneral(free, comm=prepared.domain.comm)
     matrix = full.createSubMatrix(free_is, free_is)
     rhs = matrix.createVecRight()
     sub = lifted.getSubVector(free_is); rhs.array[:] = sub.array; lifted.restoreSubVector(free_is, sub)
-    scales = np.concatenate((np.full(2*(nv+nc), U), np.full(nv, P)))[free]
+    scales = common['scales']
     for item in (full, original, lifted, free_is):
         item.destroy()
     return System(matrix, rhs, transformation, free, scales, prescribed, raw_nodal_matrix, prepared)
