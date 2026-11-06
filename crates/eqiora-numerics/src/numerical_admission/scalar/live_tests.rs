@@ -144,6 +144,10 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
         }
     }
     impl Subscriber for Recorder {
+        fn register_callsite(&self, _: &'static Metadata<'static>) -> tracing::subscriber::Interest {
+            // Other tests execute these callsites without this thread-local recorder.
+            tracing::subscriber::Interest::sometimes()
+        }
         fn enabled(&self, _: &Metadata<'_>) -> bool {
             true
         }
