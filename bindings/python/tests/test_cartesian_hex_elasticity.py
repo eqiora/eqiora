@@ -74,3 +74,15 @@ def reject_altered_source(tmp_path, control):
         production.prepare(eqiora, mutated, source=source.encode())
     assert 'coefficient alias exceeds the authored expression inventory' not in str(caught.value)
     assert not (mutated/'result.json').exists()
+
+
+def test_registered_hex_complete_field_and_functionals():
+    import os
+    import subprocess
+    import sys
+    environment = dict(os.environ)
+    environment.pop('LD_LIBRARY_PATH',None)
+    environment.pop('LD_PRELOAD',None)
+    completed = subprocess.run([sys.executable,'-I',str(CASE/'registered.py')],cwd=ROOT,
+        env=environment,capture_output=True,text=True)
+    assert completed.returncode == 0, completed.stdout+completed.stderr
