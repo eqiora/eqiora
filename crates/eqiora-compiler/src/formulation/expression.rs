@@ -247,3 +247,31 @@ fn literal(
         dimension: dimension.exponents(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_schema::kernel::ExprDagBuilder;
+
+    #[test]
+    fn dedicated_spatial_calculus_nodes_project_without_pure_application_wrappers() {
+        let mut builder = ExprDagBuilder::new();
+        let field = builder
+            .push(ExprNode::Symbol(SymbolRef::Field(Id::new())))
+            .unwrap();
+        let gradient = builder.push(ExprNode::Gradient(field)).unwrap();
+        let symmetric = builder.push(ExprNode::SymmetricPart(gradient)).unwrap();
+        let divergence = builder.push(ExprNode::Divergence(field)).unwrap();
+        let lift = builder.push(ExprNode::IsotropicLift(divergence)).unwrap();
+        let dag = builder.finish([symmetric, lift]).unwrap();
+        assert!(matches!(
+            AuthoredFormExpressionV1::from_expression(&dag, symmetric).unwrap(),
+            Some(AuthoredFormExpressionV1::SymmetricPart { .. })
+        ));
+        assert!(
+            AuthoredFormExpressionV1::from_expression(&dag, lift)
+                .unwrap()
+                .is_some()
+        );
+    }
+}
