@@ -44,8 +44,10 @@ saved its accepted Result, then its exporter failed on tensor-block shape
 interpretation. That original attempt remains failed. A separately reviewed
 harness reopened the original Result and recovered all native field and
 functional evidence without another solve. Primary and replay checks passed.
-A later installed-wheel regression passed as one separately counted new Run;
-it is not an initial-candidate retry or a relabelled runtime.
+Two later invocations passed separately: a focused repaired-wheel regression
+and the actual registry target's source-build gate. Each added one regression
+Run. The initial count stays two; these are not initial-candidate retries or
+relabelled runtimes.
 
 All scientific and archived source bytes remain original. Path-bearing receipts
 and logs use explicit metadata projections with original/public file hashes
@@ -68,6 +70,12 @@ and independent protocol, saves the actual Result immediately, and labels each
 fresh regression separately. It retains home-backed failure artifacts and
 never retries automatically. The archived Rust execution is complementary
 evidence; the installed-wheel target does not execute a Rust test binary.
+
+The standard source-build gate may resolve shared libraries from its configured
+host environment. The regression preserves that loader setup and records the
+actual library paths and hashes. This is source-build coverage, not a claim
+that its wheel is self-contained. The archived initial repaired-wheel proof
+retains its own runtime and dependency identity unchanged.
 
 From the repository root, run the normal selected verification workflow:
 
