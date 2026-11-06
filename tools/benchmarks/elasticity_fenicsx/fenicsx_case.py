@@ -16,7 +16,7 @@ import numpy as np
 from petsc4py import PETSc
 import ufl
 from shared_measurement import clock, environment, finish, memory
-from shared_accuracy import check_identity_row, q1_vertex_dof_coordinates
+from shared_accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
 from accuracy import ComparisonError, check_accuracy, check_equilibrium
 from worker import arguments
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
@@ -38,10 +38,7 @@ def prepare(args):
     domain, mesh_time = clock(lambda: mesh.create_unit_square(
         MPI.COMM_SELF, args.cells, args.cells, cell_type=mesh.CellType.quadrilateral))
     points, weights = basix.make_quadrature(basix.CellType.quadrilateral, 3, rule=basix.QuadratureType.gauss_jacobi)
-    one_d = (1+np.array((-1., 1.))/np.sqrt(3))/2
-    np.testing.assert_array_max_ulp(np.array(sorted(map(tuple, points))),
-                                   np.array(sorted((s, t) for s in one_d for t in one_d)), maxulp=8)
-    np.testing.assert_array_max_ulp(weights, np.full(4, .25), maxulp=8)
+    check_tensor_gauss(points, weights, 2)
     env['solve_quadrature'] = {'points': points.tolist(), 'weights': weights.tolist(), 'degree': 3, 'rule': 'gauss_jacobi'}
     cache = args.output.parent/'fresh-jit-cache'
     if cache.exists():
@@ -175,7 +172,7 @@ def prepare(args):
             return {'required_phases_available': True, 'phase_inventory': ['assembly', 'linear_solve']}
         return {'required_phases_available': True, 'assembly': assembly_time, 'linear_solve': solve_time,
                 'assembly_scope': 'matrix/vector allocation and assembly, lifting, ghost accumulation, essential BC',
-                'linear_solve_scope': 'KSP allocation/configuration, zero start, solve, true residual and summary',
+                'linear_solve_scope': 'KSP allocation/configuration, zero start, solve, true residual, summary and KSP/residual cleanup',
                 'execution_extra': 'field recovery included; protocol diagnostics and destruction excluded'}
     return report, execute, extract, diagnostic
 

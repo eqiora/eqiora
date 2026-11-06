@@ -84,6 +84,18 @@ subtractions from ordinary timings. No stable performance claim follows from
 correctness-only smoke or a busy host. Actual optimized wheel producer identity
 must be retained independently of any later tree-identical signed commit.
 
+The FEniCSx assembly diagnostic includes fresh matrix/vector allocation and
+assembly, lifting, ghost accumulation and essential boundary application. Its
+linear-solve diagnostic includes KSP allocation/configuration, the zero start,
+solve, independently recomputed true residual, summary getters and KSP/residual
+cleanup. Function allocation, field recovery, scatter and solution-vector
+cleanup occur inside the ordinary execution after those brackets. Essential
+row/column checks, output inspection and retained matrix/RHS destruction occur
+outside ordinary execution. Eqiora records its ordinary public `run` call and
+separate native profile as supplied by the core. Internal phase scopes and
+object lifetimes are not asserted to be identical between tools; phase tables
+cannot be subtracted from ordinary call times or treated as equivalent work.
+
 ## Running correctness checks
 
 Run the pure analytic tests with a NumPy environment:
