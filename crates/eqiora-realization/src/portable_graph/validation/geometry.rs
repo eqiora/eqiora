@@ -67,7 +67,7 @@ pub(in super::super) fn validate_geometry_actions(
                 .map(|field| (graph.domains[field.domain.index()].domain, field.field)),
             interfaces.iter().copied(),
             *quality_gate,
-            *solver,
+            solver.clone(),
         )?;
         let driven = driver_fields
             .iter()

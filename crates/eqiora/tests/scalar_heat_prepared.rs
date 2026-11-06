@@ -312,7 +312,7 @@ fn stale_provider_candidate(
     let (values, report) = solution.into_parts();
     eqiora::solver::LinearSolution::accept(
         problem,
-        report.solver_plan(),
+        report.solver_plan().clone(),
         SolverProvider::new(
             FAER_SOLVER_PROVIDER.id(),
             "stale",

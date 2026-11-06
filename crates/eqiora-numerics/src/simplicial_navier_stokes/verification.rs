@@ -155,8 +155,8 @@ mod tests {
     use eqiora_realization::Target;
     use eqiora_solver::{
         BackendId, LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver,
-        LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution,
-        SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+        LinearSolverBackend, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
+        SolverCapability, SolverPlan, SolverProvider,
     };
 
     use super::*;
@@ -322,7 +322,7 @@ mod tests {
             plan.nonlinear_absolute_tolerance(),
             plan.maximum_newton_iterations(),
             plan.maximum_line_search_steps(),
-            linear,
+            linear.clone(),
             plan.target(),
         )
         .unwrap();
@@ -353,7 +353,7 @@ mod tests {
                 report.solver_provider(),
                 eqiora_solver::REFERENCE_LINEAR_SOLVER.provider()
             );
-            assert_eq!(report.solver_plan(), linear);
+            assert_eq!(report.solver_plan(), &linear);
             assert!(report.true_residual_norm() <= report.residual_target());
         }
         let final_state = trajectory.states().last().unwrap();
@@ -404,7 +404,7 @@ mod tests {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: eqiora_core::ScalarType::F64,
             }])

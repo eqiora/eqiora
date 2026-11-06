@@ -80,7 +80,7 @@ fn physical_row_criterion_prevents_alpha_only_global_convergence() {
         assert_eq!(solved.report().true_residual_norm(), residual);
         assert_eq!(
             solved.report().solver_plan(),
-            plan(algorithm, limit, relative)
+            &plan(algorithm, limit, relative)
         );
         assert_eq!(solved.report().solver_provider(), FAER_SOLVER_PROVIDER);
     }

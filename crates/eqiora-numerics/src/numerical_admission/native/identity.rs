@@ -112,7 +112,7 @@ pub(crate) fn policy_identity(
         bytes.extend_from_slice(&nonlinear.maximum_iterations().get().to_be_bytes());
         bytes.extend_from_slice(&nonlinear.maximum_line_search_steps().to_be_bytes());
     }
-    push_linear_policy_identity(&mut bytes, linear);
+    push_linear_policy_identity(&mut bytes, linear)?;
     Ok(domain_separated_identity(POLICY_DOMAIN, &bytes))
 }
 
@@ -120,12 +120,9 @@ pub(crate) fn policy_identity(
 pub(in crate::numerical_admission) fn push_linear_policy_identity(
     bytes: &mut Vec<u8>,
     linear: &NativeLinearPolicy,
-) {
+) -> Result<(), Diagnostic> {
     push_framed(bytes, linear_solver_identity(linear.solver.algorithm()));
-    push_framed(
-        bytes,
-        preconditioner_identity(linear.solver.preconditioner()),
-    );
+    push_framed(bytes, &linear.solver.preconditioner().identity_bytes()?);
     push_framed(bytes, reduction_identity(linear.solver.reduction()));
     bytes.extend_from_slice(&linear.solver.relative_tolerance().to_bits().to_be_bytes());
     bytes.extend_from_slice(&linear.solver.absolute_tolerance().to_bits().to_be_bytes());
@@ -170,6 +167,7 @@ pub(in crate::numerical_admission) fn push_linear_policy_identity(
         push_framed(bytes, library.version().as_bytes());
     }
     bytes.extend_from_slice(&linear.workers.get().to_be_bytes());
+    Ok(())
 }
 
 pub(crate) const fn linear_solver_identity(value: LinearSolver) -> &'static [u8] {
@@ -178,13 +176,6 @@ pub(crate) const fn linear_solver_identity(value: LinearSolver) -> &'static [u8]
         LinearSolver::MinimumResidual => b"minimum-residual",
         LinearSolver::BiConjugateGradientStabilized => b"bicgstab",
         LinearSolver::SparseLu => b"sparse-lu",
-    }
-}
-
-pub(crate) const fn preconditioner_identity(value: PreconditionerPolicy) -> &'static [u8] {
-    match value {
-        PreconditionerPolicy::Identity => b"identity",
-        PreconditionerPolicy::Jacobi => b"jacobi",
     }
 }
 
@@ -299,8 +290,8 @@ mod execution_identity_tests {
         }
         let mut first_bytes = Vec::new();
         let mut second_bytes = Vec::new();
-        push_linear_policy_identity(&mut first_bytes, &first);
-        push_linear_policy_identity(&mut second_bytes, &second);
+        push_linear_policy_identity(&mut first_bytes, &first).unwrap();
+        push_linear_policy_identity(&mut second_bytes, &second).unwrap();
         assert_ne!(first_bytes, second_bytes);
     }
 }

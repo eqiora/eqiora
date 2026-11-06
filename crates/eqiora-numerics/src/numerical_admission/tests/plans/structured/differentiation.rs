@@ -464,7 +464,7 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
         let system = equations
             .finalize_static(
                 admission.linear.workers,
-                admission.linear.solver,
+                admission.linear.solver.clone(),
                 admission.resources(),
                 &admission.discretizations,
                 &admission.system_scaling,

@@ -47,7 +47,7 @@ fn initial_and_zero_rhs_paths_keep_the_first_accepted_point_and_original_budget(
                     let request = SolverPlan::new(algorithm, 0., 1e-13, 1.try_into().unwrap())
                         .unwrap()
                         .with_reduction(ReductionPolicy::Fast);
-                    let solution = invoke(&problem, request).unwrap();
+                    let solution = invoke(&problem, request.clone()).unwrap();
                     assert_eq!(solution.report().completed_iterations(), iterations);
                     assert!(iterations <= request.maximum_iterations().get());
                     assert_eq!(

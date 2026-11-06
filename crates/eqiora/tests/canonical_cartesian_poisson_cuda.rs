@@ -34,7 +34,7 @@ fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
     let reproducible = canonical::solver_plan(ReductionPolicy::Reproducible);
     let unsupported = CudaLinearSolver::capabilities()
         .require(
-            reproducible,
+            &reproducible,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
         )
@@ -101,7 +101,7 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
                 method,
                 device_ordinal,
                 revision,
-                selection.selection().unwrap().solver_plan(),
+                selection.selection().unwrap().solver_plan().clone(),
             )
             .unwrap(),
             canonical::requirements(),
@@ -249,7 +249,7 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
         );
         assert_eq!(
             selection.selection().unwrap().solver_plan(),
-            canonical::solver_plan(ReductionPolicy::Fast)
+            &canonical::solver_plan(ReductionPolicy::Fast)
         );
         let resolved = resolve(
             &canonical::request_with_solver(
@@ -257,7 +257,7 @@ fn canonical_plane_poisson_selects_before_realization_without_runtime_work() {
                 method,
                 0,
                 revision,
-                selection.selection().unwrap().solver_plan(),
+                selection.selection().unwrap().solver_plan().clone(),
             )
             .unwrap(),
             canonical::requirements(),

@@ -45,7 +45,7 @@ fn invoke(problem: &LinearProblem<'_>, plan: SolverPlan) -> Result<LinearSolutio
     solve(
         REFERENCE_SOLVER_PROVIDER,
         problem,
-        plan,
+        &plan,
         &SERIAL_LINEAR_EXECUTION,
     )
 }
@@ -88,13 +88,13 @@ fn jacobi_uses_symmetric_congruence_and_original_reports_for_spd_and_indefinite(
             .with_initial_guess(&initial)
             .unwrap();
         let request = plan(2, 1e-12, 1e-12);
-        let solution = invoke(&problem, request).unwrap();
+        let solution = invoke(&problem, request.clone()).unwrap();
         assert_values(solution.values(), &expected);
         let report = solution.report();
         // W^-1*(x-x0) is [1.5,1.5] (SPD) or [1.5,-1.5]
         // (indefinite), each an eigenvector of its symmetric congruence.
         assert_eq!(report.completed_iterations(), 1);
-        assert_eq!(report.solver_plan(), request);
+        assert_eq!(report.solver_plan(), &request);
         assert_eq!(report.solver_provider(), REFERENCE_SOLVER_PROVIDER);
         assert_eq!(
             report.reason(),

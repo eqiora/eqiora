@@ -68,8 +68,8 @@ impl FieldwiseRealizationPlan {
 
     /// Sole linear solver plan.
     #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
+    pub const fn solver(&self) -> &SolverPlan {
+        &self.solver
     }
 
     /// Deployment target.

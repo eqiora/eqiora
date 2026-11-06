@@ -286,7 +286,7 @@ fn require_composed_profile(
         eqiora_solver::SolverPlan::new(LinearSolver::MinimumResidual, relative, absolute, maximum)?
             .with_preconditioner(PreconditionerPolicy::Identity)
             .with_reduction(ReductionPolicy::Reproducible);
-    profile.require_plan(plan)
+    profile.require_plan(&plan)
 }
 
 fn require_composed_selection(selection: &SolverSelection) -> Result<(), Diagnostic> {
@@ -294,7 +294,7 @@ fn require_composed_selection(selection: &SolverSelection) -> Result<(), Diagnos
     if selection.scalar_domain() != eqiora_core::ScalarDomain::Real
         || selection.scalar_type() != eqiora_core::ScalarType::F64
         || plan.algorithm() != LinearSolver::MinimumResidual
-        || plan.preconditioner() != PreconditionerPolicy::Identity
+        || plan.preconditioner() != &PreconditionerPolicy::Identity
         || plan.reduction() != ReductionPolicy::Reproducible
         || selection.solver_provider() != eqiora_backend_mpi::MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER
     {

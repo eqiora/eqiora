@@ -34,7 +34,7 @@ impl CommonAlgebraicPlan {
             let solution = problem.solve_at_point(
                 initial.values(),
                 nonlinear,
-                LinearSolveRequest::new(&checked, self.linear.solver),
+                LinearSolveRequest::new(&checked, self.linear.solver.clone()),
             )?;
             (
                 solution.values,
@@ -49,7 +49,7 @@ impl CommonAlgebraicPlan {
             let (point, report) = match prepared.system.as_ref().expect("affine point system") {
                 PointSystem::Complex(system) => {
                     let checked = linear.checked_complex_backend(backend, None)?;
-                    let solution = LinearSolveRequest::new(&checked, linear.solver)
+                    let solution = LinearSolveRequest::new(&checked, linear.solver.clone())
                         .solve(&system.linear_problem()?)?;
                     (
                         solution
@@ -62,7 +62,7 @@ impl CommonAlgebraicPlan {
                 }
                 PointSystem::Real(system) => {
                     let checked = linear.checked_backend(backend, None)?;
-                    LinearSolveRequest::new(&checked, linear.solver)
+                    LinearSolveRequest::new(&checked, linear.solver.clone())
                         .solve(&system.linear_problem()?)?
                         .into_parts()
                 }
@@ -250,7 +250,7 @@ impl PreparedPoint {
             }
             None => (
                 None,
-                problem.validate_values(&point, plan.linear.solver, 0)?,
+                problem.validate_values(&point, plan.linear.solver.clone(), 0)?,
             ),
         };
         let (actions, jacobian) = problem.equality_jacobian(&point, selected)?;

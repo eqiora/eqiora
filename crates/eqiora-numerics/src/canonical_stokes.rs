@@ -73,6 +73,7 @@ pub use navier_stokes_realization::{
 pub use physical::{
     FinalizedSteadyStokesMini2dProblem, SteadyStokesMiniSolution2d, SteadyStokesPressureReference2d,
 };
+pub(crate) use realization::steady_stokes_algebraic_structure;
 pub use realization::{
     IncompressibleFlowScaleProfile2d, finalize_resolved_steady_stokes_mini_2d,
     solve_resolved_steady_stokes_mini_2d, steady_stokes_fieldwise_requirements_2d,

@@ -5,8 +5,16 @@ use crate::binding::invalid;
 
 pub(super) fn minimum_device_payload_bytes(
     system: &CanonicalCsrSystemView,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<usize, Diagnostic> {
+    if matches!(
+        plan.preconditioner(),
+        PreconditionerPolicy::UpperDiagonalSchur(_)
+    ) {
+        return Err(invalid(
+            "device payload estimation does not implement upper diagonal-Schur preconditioning",
+        ));
+    }
     let vector_count = match plan.algorithm() {
         LinearSolver::ConjugateGradient => 3usize,
         LinearSolver::BiConjugateGradientStabilized => 7,
@@ -17,7 +25,7 @@ pub(super) fn minimum_device_payload_bytes(
             ));
         }
     };
-    let diagonal_count = usize::from(plan.preconditioner() == PreconditionerPolicy::Jacobi);
+    let diagonal_count = usize::from(plan.preconditioner() == &PreconditionerPolicy::Jacobi);
     let dimension = system.columns();
     let index_elements = system
         .row_offsets()
@@ -95,7 +103,7 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Fast);
-        let error = minimum_device_payload_bytes(&system, plan).unwrap_err();
+        let error = minimum_device_payload_bytes(&system, &plan).unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert_eq!(

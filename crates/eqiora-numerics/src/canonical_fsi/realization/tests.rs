@@ -207,7 +207,7 @@ fn cuda_plan_changes_only_the_exact_execution_tuple() {
     assert_eq!(cuda.solver().algorithm(), LinearSolver::MinimumResidual);
     assert_eq!(
         cuda.solver().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert_eq!(cuda.solver().reduction(), ReductionPolicy::Fast);
 
@@ -314,7 +314,7 @@ fn device_profiles_retain_the_existing_minres_implementation_boundary() {
             mesh_reference(),
             DynQuantity::new(0.1, TIME),
             scales(),
-            solver.with_reduction(ReductionPolicy::Fast),
+            solver.clone().with_reduction(ReductionPolicy::Fast),
             0,
         )
         .unwrap_err(),
@@ -368,8 +368,8 @@ fn bicgstab_plan_preserves_the_exact_fsi_operator_and_acceptance() {
         reference_solver().maximum_iterations(),
     )
     .unwrap();
-    let candidate = make(solver);
-    assert_eq!(candidate.solver_plan(), solver);
+    let candidate = make(solver.clone());
+    assert_eq!(candidate.solver_plan(), &solver);
     assert_eq!(
         candidate.linear_system().agreement_fingerprint(),
         reference.linear_system().agreement_fingerprint()
@@ -454,7 +454,7 @@ fn finalization_replays_quadrature_and_mesh_identity_exactly() {
         plan.time_step().clone(),
         plan.scaling().clone(),
         plan.operator_properties(),
-        plan.solver(),
+        plan.solver().clone(),
         plan.target(),
         plan.schedule(),
     )
@@ -1086,7 +1086,7 @@ fn fsi_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction,
         scalar_type: ScalarType::F64,
     }])

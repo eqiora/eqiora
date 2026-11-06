@@ -247,7 +247,7 @@ pub(super) fn branch_system(
 pub(super) fn validate_values(
     problem: &FiniteConstraintProblem,
     values: &[f64],
-    plan: SolverPlan,
+    plan: &SolverPlan,
     mask: u32,
 ) -> Result<ConstraintAssessment, Diagnostic> {
     if mask >= (1u32 << problem.complementarity_count) {

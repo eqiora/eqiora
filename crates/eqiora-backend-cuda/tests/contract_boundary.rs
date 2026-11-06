@@ -125,7 +125,7 @@ mod cuda_runtime {
             .with_reduction(ReductionPolicy::Fast);
         CudaLinearSolver::capabilities()
             .require_problem(
-                supported,
+                &supported,
                 eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
@@ -174,7 +174,7 @@ mod cuda_runtime {
         ] {
             let error = CudaLinearSolver::capabilities()
                 .require_problem(
-                    plan,
+                    &plan,
                     eqiora_core::ScalarDomain::Real,
                     ScalarType::F64,
                     properties,

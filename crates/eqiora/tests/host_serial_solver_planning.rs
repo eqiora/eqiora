@@ -16,7 +16,7 @@ use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v11.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v12.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const REFERENCE_IDENTITY_ID: &str = "eqiora.reference.bicgstab-general-identity-reproducible-f64";
@@ -170,7 +170,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v11.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v12.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -187,7 +187,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.solver-planning/v11"
+        "eqiora.solver-planning/v12"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -261,7 +261,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             .unwrap();
         assert_eq!(evidence_case, expected["evidence_case"].as_str().unwrap());
         assert_solver_provider(provider, &expected["solver_provider"]);
-        assert_plan(candidate_id, plan, expected);
+        assert_plan(candidate_id, plan.clone(), expected);
         let backend: &dyn LinearSolverBackend = if provider == REFERENCE_LINEAR_SOLVER.provider() {
             &REFERENCE_LINEAR_SOLVER
         } else {
@@ -322,7 +322,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
         assert_plan(
             decision.selected_candidate_id(),
-            decision.solver_plan(),
+            decision.solver_plan().clone(),
             selected_expected,
         );
 
@@ -498,7 +498,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                     ReductionPolicy::Reproducible
                 },
             );
-            assert_eq!(decision.solver_plan(), expected_plan);
+            assert_eq!(decision.solver_plan(), &expected_plan);
             assert_eq!(decision.solver_provider(), backend.provider());
             assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
             assert!(decision.solve(&problem, None, backend).is_err());
@@ -586,7 +586,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
             SolverPlanningObjective::LowMemory => (FAER_IDENTITY_ID, faer_identity_plan(), &faer),
         };
         assert_eq!(decision.selected_candidate_id(), id);
-        assert_eq!(decision.solver_plan(), plan);
+        assert_eq!(decision.solver_plan(), &plan);
         assert_eq!(decision.solver_provider(), backend.provider());
         let solution = decision.solve(&problem, None, backend).unwrap();
         let manual = LinearSolveRequest::new(backend, plan)

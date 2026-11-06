@@ -22,7 +22,8 @@ fn check_products(
     )
     .unwrap();
     let properties = relation.state_jacobian().properties();
-    let forward = forward_output_sensitivity(&accepted, &[1.], properties, request).unwrap();
+    let forward =
+        forward_output_sensitivity(&accepted, &[1.], properties, request.clone()).unwrap();
     assert_eq!(forward.output_tangent().len(), expected.len());
     for (actual, expected) in forward.output_tangent().iter().zip(expected) {
         assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
@@ -101,7 +102,7 @@ fn step_request_products_need_no_previously_solved_canonical_step() {
         assert!((value - 1.5).abs() < 1e-11);
     }
     assert_eq!(backend.0.load(std::sync::atomic::Ordering::Relaxed), 1);
-    check_products(point.linearization(), spatial.linear(), &[0.5; 3]);
+    check_products(point.linearization(), spatial.linear().clone(), &[0.5; 3]);
     let restored = spatial
         .validate_differentiated_step_values(
             &request,
@@ -196,7 +197,11 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         // Fixed-history interior derivative is t*(4-1/6)/(4+1/3)=23*t/26.
         // At step two the preceding boundary and interior sensitivities stay zero.
         let time = (index + 1) as f64;
-        check_products(&product, spatial.linear(), &[time, 23. * time / 26., time]);
+        check_products(
+            &product,
+            spatial.linear().clone(),
+            &[time, 23. * time / 26., time],
+        );
         let changed = spatial
             .differentiate_step(
                 &step_request,
@@ -209,7 +214,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             .unwrap();
         check_products(
             changed.linearization(),
-            spatial.linear(),
+            spatial.linear().clone(),
             &[time, 23. * time / 26., time],
         );
         let reopened = spatial
@@ -222,7 +227,11 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
                 changed.linearization().relation().accepted_unknowns(),
             )
             .unwrap();
-        check_products(&reopened, spatial.linear(), &[time, 23. * time / 26., time]);
+        check_products(
+            &reopened,
+            spatial.linear().clone(),
+            &[time, 23. * time / 26., time],
+        );
         // Independent mass/stiffness recurrence with the p=2 predecessor held:
         // y_1=23*3/26; y_2=((1/3)*(23/13)+(1/6)*2+(23/6)*6)/(13/3).
         let expected = [
@@ -320,7 +329,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             &[&[0.; 3], &terminal],
             &[0.],
             products[0].relation().state_jacobian().properties(),
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear()),
+            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear().clone()),
         )
         .unwrap();
         assert!((derivative.parameter_gradient()[0] - expected).abs() < 1e-10);
@@ -335,14 +344,14 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         assert_eq!(derivative.step_adjoints().len(), 2);
     }
     let properties = products[0].relation().state_jacobian().properties();
-    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear());
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear().clone());
     let tangent = eqiora::differentiation::discrete_trajectory_sensitivity(
         &accepted,
         &[],
         &[0.; 3],
         &[1.],
         properties,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     for (step, expected) in tangent
@@ -364,7 +373,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         &[&[0., 3., 0.], &[0., -2., 0.]],
         &[0.5],
         properties,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     assert!(
@@ -384,7 +393,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
         &[1., 2., -1.],
         &[0.],
         properties,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     for (step, expected) in seeded.iter().zip([2. / 13., 2. / 169.]) {
@@ -399,7 +408,7 @@ fn accepted_step_products_include_current_boundary_lifts_without_history_feedbac
             &[&[0.; 3]],
             &[0.],
             properties,
-            solver,
+            solver.clone(),
         )
         .is_err()
     );
@@ -458,7 +467,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     for value in product.output_values() {
         assert!((value - 1.).abs() < 1e-10);
     }
-    check_products(&product, spatial.linear(), &[0.25; 3]);
+    check_products(&product, spatial.linear().clone(), &[0.25; 3]);
     let before = steps[0].1.state().to_bytes().unwrap();
     let parameter = document.parameter_ref("p").unwrap().id();
     let field = document.field_ref("h").unwrap().id().erase();
@@ -476,7 +485,11 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
     for value in changed.linearization().output_values() {
         assert!((value - 2.).abs() < 1e-10);
     }
-    check_products(changed.linearization(), spatial.linear(), &[1. / 13.; 3]);
+    check_products(
+        changed.linearization(),
+        spatial.linear().clone(),
+        &[1. / 13.; 3],
+    );
     let reopened = spatial
         .validate_differentiated_step_values(
             &request,
@@ -487,7 +500,7 @@ fn nonlinear_accepted_step_products_use_the_original_residual_jacobian() {
             changed.linearization().relation().accepted_unknowns(),
         )
         .unwrap();
-    check_products(&reopened, spatial.linear(), &[1. / 13.; 3]);
+    check_products(&reopened, spatial.linear().clone(), &[1. / 13.; 3]);
     reopened
         .validate_nonlinear_update_count(changed.nonlinear_iterations().unwrap())
         .unwrap();
@@ -643,14 +656,14 @@ fn changed_parameter_trajectory_owns_history_and_actual_nonlinear_solves() {
         .relation()
         .state_jacobian()
         .properties();
-    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear());
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear().clone());
     let tangent = eqiora::differentiation::discrete_trajectory_sensitivity(
         &accepted,
         &[],
         &[0.; 3],
         &[1.],
         properties,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     // d1=1/13, d2=(d1+33/5)/49=62/455, independently of Newton updates.
@@ -739,14 +752,14 @@ fn trajectory_selected_outputs_keep_unobserved_history_and_direct_boundary_terms
         .relation()
         .state_jacobian()
         .properties();
-    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear());
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, spatial.linear().clone());
     let forward = eqiora::differentiation::discrete_trajectory_sensitivity(
         &accepted,
         &[],
         &vec![0.; states],
         &[1.],
         properties,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     // Only h is selected. Its boundary terms are direct Parameter output
@@ -815,7 +828,7 @@ fn trajectory_observables_share_endpoint_time_quadrature_and_direct_partials() {
         }
         check_products(
             point.linearization(),
-            spatial.linear(),
+            spatial.linear().clone(),
             &[1.5 * time, 0.5, 0.5, 0.5],
         );
     }

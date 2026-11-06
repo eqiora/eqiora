@@ -84,7 +84,7 @@ impl CudaLinearSolver {
             None,
             system,
             initial_guess,
-            plan,
+            &plan,
         )
     }
 }

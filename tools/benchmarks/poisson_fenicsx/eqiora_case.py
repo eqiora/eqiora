@@ -58,9 +58,10 @@ def main(args):
 
     def extract(result):
         summary = result.solve
-        fields = ("algorithm", "preconditioner", "completed_iterations", "initial_residual_norm",
+        fields = ("algorithm", "completed_iterations", "initial_residual_norm",
                   "reported_residual_norm", "true_residual_norm", "residual_target")
         solve = {name: getattr(summary, name) for name in fields}
+        solve["preconditioner"] = summary.preconditioner.kind
         for name in ("backend", "adapter", "verification_adapter", "reduction",
                      "relative_tolerance", "absolute_tolerance", "maximum_iterations"):
             solve[name] = getattr(summary, name)

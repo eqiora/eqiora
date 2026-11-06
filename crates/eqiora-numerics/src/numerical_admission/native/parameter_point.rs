@@ -20,17 +20,17 @@ impl NativeLinearPolicy {
             ));
         }
         self.capabilities.require_problem(
-            self.solver,
+            &self.solver,
             S::DOMAIN,
             ScalarType::F64,
             system.properties(),
         )?;
         if let Some(profile) = &self.planning_profile {
-            profile.require_plan(self.solver)?;
+            profile.require_plan(&self.solver)?;
             profile.require_structure(structure)?;
             profile.require_problem(&system.linear_problem()?)?;
             profile.require_problem_resources(
-                self.solver,
+                &self.solver,
                 self.provider,
                 &system.linear_problem()?,
             )?;

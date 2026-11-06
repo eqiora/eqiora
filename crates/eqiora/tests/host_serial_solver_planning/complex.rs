@@ -106,7 +106,7 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
             backend
                 .capabilities()
                 .require_problem(
-                    manual,
+                    &manual,
                     eqiora::ScalarDomain::Complex,
                     eqiora::ScalarType::F64,
                     properties,
@@ -156,7 +156,7 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
                         candidate["id"].as_str() == Some(decision.selected_candidate_id())
                     })
                     .unwrap();
-                assert_eq!(decision.solver_plan(), tuple(&candidate["tuple"]));
+                assert_eq!(decision.solver_plan(), &tuple(&candidate["tuple"]));
                 assert_solver_provider(decision.solver_provider(), &candidate["solver_provider"]);
                 assert_eq!(
                     decision.selected_evidence_case(),
@@ -177,7 +177,7 @@ fn complex_catalogs_execute_normal_and_adjoint_with_exact_provider_and_objective
                     };
                 let solved = decision.solve(&problem, None, backend).unwrap();
                 assert_values(solved.values(), &fixture["solution"]);
-                let manual = LinearSolveRequest::new(backend, decision.solver_plan())
+                let manual = LinearSolveRequest::new(backend, decision.solver_plan().clone())
                     .solve(&problem)
                     .unwrap();
                 assert_eq!(solved, manual);
@@ -301,8 +301,12 @@ fn reference_complex_choices_preserve_exact_normal_and_adjoint_equations() {
                 continue;
             }
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
-                let selected = plan(algorithm, preconditioner, ReductionPolicy::Reproducible);
-                let request = LinearSolveRequest::new(backend, selected);
+                let selected = plan(
+                    algorithm,
+                    preconditioner.clone(),
+                    ReductionPolicy::Reproducible,
+                );
+                let request = LinearSolveRequest::new(backend, selected.clone());
                 for (orientation, right_hand_side, expected) in [
                     (
                         LinearOperatorOrientation::Normal,
@@ -322,7 +326,7 @@ fn reference_complex_choices_preserve_exact_normal_and_adjoint_equations() {
                         solution.report().true_residual_norm()
                             <= solution.report().residual_target()
                     );
-                    assert_eq!(solution.report().solver_plan(), selected);
+                    assert_eq!(solution.report().solver_plan(), &selected);
                     assert_eq!(solution.report().solver_provider(), backend.provider());
                     assert_eq!(solution.report().orientation(), orientation);
                 }
@@ -350,16 +354,18 @@ fn complex_jacobi_distinguishes_stored_zero_from_unproved_diagonal() {
         PreconditionerPolicy::Identity,
         ReductionPolicy::Reproducible,
     );
-    let jacobi = identity.with_preconditioner(PreconditionerPolicy::Jacobi);
+    let jacobi = identity
+        .clone()
+        .with_preconditioner(PreconditionerPolicy::Jacobi);
     let known =
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, Some(true), None);
     known.require_problem(&problem).unwrap();
-    known.require_plan(jacobi).unwrap();
+    known.require_plan(&jacobi).unwrap();
     let unknown =
         SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None);
     assert!(
         unknown
-            .require_plan(jacobi)
+            .require_plan(&jacobi)
             .unwrap_err()
             .message()
             .contains("profile.complete-diagonal-required")

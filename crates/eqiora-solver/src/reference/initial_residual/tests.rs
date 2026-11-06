@@ -65,7 +65,9 @@ fn zero_iteration_reports_keep_exact_solution_policy_and_providers() {
                 }
                 let plan =
                     SolverPlan::new(algorithm, relative, absolute, NonZeroUsize::MIN).unwrap();
-                let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+                let solution = REFERENCE_LINEAR_SOLVER
+                    .solve(&problem, plan.clone())
+                    .unwrap();
                 assert_eq!(solution.values(), &initial.unwrap_or([0.0]));
                 let report = solution.report();
                 assert_eq!(report.completed_iterations(), 0);
@@ -74,7 +76,7 @@ fn zero_iteration_reports_keep_exact_solution_policy_and_providers() {
                 assert_eq!(report.reported_residual_norm(), residual);
                 assert_eq!(report.true_residual_norm(), residual);
                 assert_eq!(report.residual_target(), target);
-                assert_eq!(report.solver_plan(), plan);
+                assert_eq!(report.solver_plan(), &plan);
                 assert_eq!(report.orientation(), orientation);
                 assert_eq!(report.solver_provider(), REFERENCE_SOLVER_PROVIDER);
                 assert_eq!(report.execution_provider(), SERIAL_EXECUTION_PROVIDER);

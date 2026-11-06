@@ -82,7 +82,7 @@ pub(crate) fn solve_collocated_step_2d(
             LinearOperatorProperties::General,
         )?
         .with_initial_guess(&zero)?;
-        let solution = backend.solve(&problem, linear_plan)?;
+        let solution = backend.solve(&problem, linear_plan.clone())?;
         reports.push(solution.report().clone());
         let point_values = point.packed();
         let previous_norm = norm(&residual.values)?;

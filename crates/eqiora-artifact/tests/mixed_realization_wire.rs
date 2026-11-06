@@ -69,7 +69,7 @@ fn fieldwise_round_trips_minres_and_exact_mixed_identity() {
     );
 
     let text = String::from_utf8(bytes).unwrap();
-    assert!(text.contains("eqiora.realization-envelope/v11"));
+    assert!(text.contains("eqiora.realization-envelope/v12"));
     assert!(text.contains("minimum-residual"));
     assert!(text.contains("symmetric-indefinite"));
     assert!(text.contains("simplex-p1-bubble"));

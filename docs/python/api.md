@@ -1361,7 +1361,7 @@ class LinearSolveSummary:
     @property
     def algorithm(self) -> str: ...
     @property
-    def preconditioner(self) -> str: ...
+    def preconditioner(self) -> solve.Preconditioner: ...
     @property
     def reduction(self) -> str: ...
     @property
@@ -3285,6 +3285,7 @@ class GeometryGraph:
     def __init__(self) -> None: ...
     def interval(self, *, bounds: tuple[float, float]) -> GeometryOperation: ...
     def rectangle(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float]) -> GeometryOperation: ...
+    def cuboid(self, *, x_bounds: tuple[float, float], y_bounds: tuple[float, float], z_bounds: tuple[float, float]) -> GeometryOperation: ...
     def circle(self, *, center: tuple[float, float], radius: float) -> GeometryOperation: ...
     def subtract(self, rectangle: GeometryOperation, circle: GeometryOperation) -> GeometryOperation: ...
     def partition(self, left: GeometryOperation, right: GeometryOperation, /, *, interface: tuple[GeometryBoundaryHandle, GeometryBoundaryHandle]) -> GeometryOperation: ...
@@ -3308,6 +3309,7 @@ Immutable result of a primitive or Boolean geometry operation.
 `boundaries` are listed in construction order: an interval returns
 `(lower, upper)`, a rectangle returns
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
+a cuboid returns `(x_lower, x_upper, y_lower, y_upper, z_lower, z_upper)`,
 and subtract returns the four outer boundaries followed by the created cut.
 
 ```python
@@ -5415,7 +5417,7 @@ LowMemory: Final[SolverPlanningObjective]
 
 Linear solve settings for the Model operator.
 
-Either give an `objective` and let the planner choose, or give all of
+Give an `objective` with an optional explicit `preconditioner`, or give all of
 `algorithm`, `preconditioner`, `reduction`, and `provider`. Partial
 or mixed settings are rejected before resolution.
 
@@ -5635,13 +5637,82 @@ class LinearSolver:
 
 ### `eqiora.solve.Preconditioner`
 
-Preconditioner.
+Complete immutable preconditioner policy shared with the solver core.
 
 ```python
 @final
 class Preconditioner:
     Identity: ClassVar[Preconditioner]
     Jacobi: ClassVar[Preconditioner]
+    @staticmethod
+    def upper_diagonal_schur(*, groups: tuple[Sequence[AlgebraicBlock], Sequence[AlgebraicBlock]], a_factorization: FixedFactorization, schur_factorization: FixedFactorization, maximum_entries: int, maximum_products: int) -> Preconditioner: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def upper_diagonal_schur_config(self) -> UpperDiagonalSchurConfig | None: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-AlgebraicBlock"></a>
+
+### `eqiora.solve.AlgebraicBlock`
+
+Exact semantic Field or explicit constraint multiplier block.
+
+```python
+@final
+class AlgebraicBlock:
+    @staticmethod
+    def field(field: FieldRef) -> AlgebraicBlock: ...
+    @staticmethod
+    def constraint_multiplier(field: FieldRef) -> AlgebraicBlock: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def field_id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-FixedFactorization"></a>
+
+### `eqiora.solve.FixedFactorization`
+
+Fixed sparse LU with an explicit compiled provider.
+
+```python
+@final
+class FixedFactorization:
+    def __new__(cls, *, provider: SolverProvider, algorithm: LinearSolver=LinearSolver.SparseLu) -> FixedFactorization: ...
+    @property
+    def algorithm(self) -> LinearSolver: ...
+    @property
+    def provider(self) -> SolverProvider: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-UpperDiagonalSchurConfig"></a>
+
+### `eqiora.solve.UpperDiagonalSchurConfig`
+
+Complete construction settings. Limits cover Schur entries and scalar
+product contributions, excluding factor memory and process RSS.
+
+```python
+@final
+class UpperDiagonalSchurConfig:
+    @property
+    def groups(self) -> tuple[list[AlgebraicBlock], list[AlgebraicBlock]]: ...
+    @property
+    def a_factorization(self) -> FixedFactorization: ...
+    @property
+    def schur_factorization(self) -> FixedFactorization: ...
+    @property
+    def maximum_entries(self) -> int: ...
+    @property
+    def maximum_products(self) -> int: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
@@ -5727,7 +5798,7 @@ class ResolvedLinear:
     @property
     def algorithm(self) -> str: ...
     @property
-    def preconditioner(self) -> str: ...
+    def preconditioner(self) -> Preconditioner: ...
     @property
     def reduction(self) -> str: ...
     @property

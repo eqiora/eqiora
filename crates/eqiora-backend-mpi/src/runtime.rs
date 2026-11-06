@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{
-    DistributedAdmissionFingerprintV1, DistributedLinearProblem, DistributedLinearSystem,
+    DistributedAdmissionFingerprintV2, DistributedLinearProblem, DistributedLinearSystem,
     LocalCsrShard, LocalLinearSolution, Partition, PartitionId,
 };
 use eqiora_execution::{
@@ -30,7 +30,7 @@ use crate::protocol::ProviderSummarySubstitution;
 use crate::{
     AdmissionRecordV1, CollectivePhaseV1, CollectiveStepV1, DistributedProtocolFailureV1,
     MPI_ADAPTER_VERSION, MPI_RS_VERSION, MpiCollectiveTraceV1, OwnedGatherPlanV1, PhaseStatusV1,
-    ProducerReportSummaryV2, evaluate_admission, evaluate_phase_statuses,
+    ProducerReportSummaryV3, evaluate_admission, evaluate_phase_statuses,
 };
 
 mod group;
@@ -361,7 +361,7 @@ impl MpiExecutionGroup {
         complete: &'model CanonicalCsrSystemView,
         plan: SolverPlan,
     ) -> Result<AdmittedDistributedRun<'group, 'model>, Diagnostic> {
-        let prepared = PreparedRun::new(self, system, complete, plan);
+        let prepared = PreparedRun::new(self, system, complete, &plan);
         let failure = prepared
             .as_ref()
             .err()
@@ -579,7 +579,7 @@ impl MpiExecutionGroup {
                 distributed,
                 expected_admission,
                 admitted.system(),
-                admitted.solver_plan(),
+                admitted.solver_plan().clone(),
             ))
         })();
         self.agree_local_result(&preflight, CollectivePhaseV1::Admission)?;
@@ -597,7 +597,7 @@ impl MpiExecutionGroup {
             )
         })?;
         let result = self
-            .admit(distributed, complete, plan)?
+            .admit(distributed, complete, plan.clone())?
             .solve_and_replicate_with_trace_using(action)?;
         let accepted = (|| {
             if result.trace().admission_fingerprint() != expected_admission {
@@ -612,7 +612,7 @@ impl MpiExecutionGroup {
                 process_group,
                 partitions,
                 workers_per_partition,
-                plan,
+                &plan,
             )?;
             let (solution, _) = result.into_parts();
             admitted.accept_distributed(solution, trace)
@@ -683,7 +683,7 @@ fn normalize_execution_trace(
     process_group: eqiora_execution::ProcessGroupSlot,
     partitions: NonZeroUsize,
     workers_per_partition: NonZeroUsize,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<DistributedLinearExecutionTrace, Diagnostic> {
     let mut steps = Vec::new();
     steps
@@ -744,7 +744,7 @@ pub struct AdmittedDistributedRun<'group, 'model> {
     problem: DistributedLinearProblem<'model>,
     complete_problem: eqiora_solver::LinearProblem<'model>,
     plan: SolverPlan,
-    fingerprint: DistributedAdmissionFingerprintV1,
+    fingerprint: DistributedAdmissionFingerprintV2,
     gather_plan: OwnedGatherPlanV1,
     buffers: RunBuffers,
 }
@@ -797,13 +797,13 @@ impl AdmittedDistributedRun<'_, '_> {
 
     /// The sole solver plan sealed by collective admission.
     #[must_use]
-    pub const fn plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Exact system/layout/plan identity agreed by every rank.
     #[must_use]
-    pub const fn admission_fingerprint(&self) -> DistributedAdmissionFingerprintV1 {
+    pub const fn admission_fingerprint(&self) -> DistributedAdmissionFingerprintV2 {
         self.fingerprint
     }
 
@@ -864,7 +864,7 @@ impl AdmittedDistributedRun<'_, '_> {
         }
         let accepted = self.buffers.acceptance.accept_with_verifier(
             &self.complete_problem,
-            self.plan,
+            self.plan.clone(),
             report.solver_provider(),
             report.execution_provider(),
             report.execution(),
@@ -1535,7 +1535,7 @@ impl AdmittedDistributedRun<'_, '_> {
             MPI_EXECUTION_PROVIDER,
             ExecutionReport::distributed(MPI_EXECUTION, self.group.partitions),
             LinearOperatorOrientation::Normal,
-            self.plan,
+            self.plan.clone(),
             reason,
             completed_iterations,
             initial_residual_norm,
@@ -1564,7 +1564,7 @@ impl AdmittedDistributedRun<'_, '_> {
                 || report.execution() != expected_execution
                 || report.verification() != expected_execution
                 || report.orientation() != LinearOperatorOrientation::Normal
-                || report.solver_plan() != self.plan
+                || report.solver_plan() != &self.plan
             {
                 return Err(invalid_realization(
                     "local MPI report contradicts the admitted execution",
@@ -1572,12 +1572,12 @@ impl AdmittedDistributedRun<'_, '_> {
             }
             #[cfg(feature = "mpi-test-hooks")]
             if let Some(substitution) = provider_substitution {
-                return ProducerReportSummaryV2::from_report_with_substitution(
+                return ProducerReportSummaryV3::from_report_with_substitution(
                     report,
                     substitution,
                 );
             }
-            ProducerReportSummaryV2::from_report(report)
+            ProducerReportSummaryV3::from_report(report)
         })();
         let summary = self.synchronize(
             CollectivePhaseV1::ProducerReport,
@@ -1597,7 +1597,7 @@ impl AdmittedDistributedRun<'_, '_> {
         let agreement = if self
             .buffers
             .summary_bytes
-            .as_chunks::<{ ProducerReportSummaryV2::ENCODED_LEN }>()
+            .as_chunks::<{ ProducerReportSummaryV3::ENCODED_LEN }>()
             .0
             .iter()
             .all(|candidate| candidate.as_slice() == expected)
@@ -1766,7 +1766,7 @@ impl fmt::Debug for AdmittedDistributedRun<'_, '_> {
 struct PreparedRun<'model> {
     problem: DistributedLinearProblem<'model>,
     complete_problem: eqiora_solver::LinearProblem<'model>,
-    fingerprint: DistributedAdmissionFingerprintV1,
+    fingerprint: DistributedAdmissionFingerprintV2,
     gather_plan: OwnedGatherPlanV1,
     buffers: RunBuffers,
 }
@@ -1776,7 +1776,7 @@ impl<'model> PreparedRun<'model> {
         group: &MpiExecutionGroup,
         system: &'model DistributedLinearSystem,
         complete: &'model CanonicalCsrSystemView,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         require_partition(group, system.partition())?;
         if !system.matches_complete(complete) {
@@ -1836,7 +1836,7 @@ impl RunBuffers {
         complete: &CanonicalCsrSystemView,
         problem: &DistributedLinearProblem<'_>,
         complete_problem: &eqiora_solver::LinearProblem<'_>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let ranks = group.partitions.get();
         let local_dimension = problem.right_hand_side().len();
@@ -1864,7 +1864,7 @@ impl RunBuffers {
         )?;
         let summary_bytes = zeroed(
             checked_extent(
-                ProducerReportSummaryV2::ENCODED_LEN,
+                ProducerReportSummaryV3::ENCODED_LEN,
                 ranks,
                 "report summaries",
             )?,
@@ -1988,7 +1988,7 @@ fn accepted_solution_summary(solution: &LinearSolution) -> Result<[u8; 32], Diag
     for value in solution.values() {
         hash.update(value.to_bits().to_be_bytes());
     }
-    hash.update(ProducerReportSummaryV2::from_report(solution.report())?.as_bytes());
+    hash.update(ProducerReportSummaryV3::from_report(solution.report())?.as_bytes());
     Ok(hash.finalize().into())
 }
 
@@ -2022,7 +2022,7 @@ fn execution_receipt_summary(
     hash.update(workers.to_be_bytes());
     hash.update(trace_capacity.to_be_bytes());
     hash.update(step_count.to_be_bytes());
-    hash.update(ProducerReportSummaryV2::from_report(receipt.report())?.as_bytes());
+    hash.update(ProducerReportSummaryV3::from_report(receipt.report())?.as_bytes());
     for step in trace.steps() {
         let iteration = u64::try_from(step.iteration())
             .map_err(|_| invalid_realization("MPI receipt iteration exceeds portable u64"))?;

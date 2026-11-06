@@ -150,7 +150,7 @@ fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible);
-    let plan = steady_stokes_mini_plan_2d(&lowered, mesh_reference, profile_a(), solver)
+    let plan = steady_stokes_mini_plan_2d(&lowered, mesh_reference, profile_a(), solver.clone())
         .expect("mathematically compatible Reference BiCGStab policy");
     let capabilities = RealizationCapabilities::cartesian_product(
         [DiscretizationMethod::ContinuousGalerkin],
@@ -167,7 +167,7 @@ fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
         &lowered,
         mesh_reference,
         profile_a(),
-        solver.with_reduction(ReductionPolicy::Fast),
+        solver.clone().with_reduction(ReductionPolicy::Fast),
     )
     .unwrap();
     assert!(
@@ -204,7 +204,7 @@ fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
     let bytes = realization.canonical_json().unwrap();
     let replay = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(replay.canonical_json().unwrap(), bytes);
-    assert_eq!(replay.solver_plan(), solver);
+    assert_eq!(replay.solver_plan(), &solver);
     replay.validate_model_artifact(&model).unwrap();
     replay.validate_mesh_artifact(&model, &mesh).unwrap();
     let (model, solution) = eqiora_numerics::fluid::solve_resolved_steady_stokes_mini_2d(
@@ -217,7 +217,7 @@ fn exact_reference_bicgstab_reaches_the_physical_stokes_problem() {
     .unwrap();
     assert_physical_solution(&solution, &model);
     let report = solution.dimensionless_solution().solve_report();
-    assert_eq!(report.solver_plan(), solver);
+    assert_eq!(report.solver_plan(), &solver);
     assert_eq!(report.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
     assert!(report.true_residual_norm() <= report.residual_target());
 }
@@ -320,7 +320,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
             spatial,
             scaling,
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )
@@ -522,7 +522,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
         spatial.clone(),
         plan.scaling().clone(),
         LinearOperatorProperties::General,
-        plan.solver(),
+        plan.solver().clone(),
         plan.target(),
         plan.schedule(),
     )
@@ -532,6 +532,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
         plan.scaling().clone(),
         plan.operator_properties(),
         plan.solver()
+            .clone()
             .with_preconditioner(eqiora::solver::PreconditionerPolicy::Jacobi),
         plan.target(),
         plan.schedule(),

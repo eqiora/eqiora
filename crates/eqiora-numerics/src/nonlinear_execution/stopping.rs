@@ -46,7 +46,7 @@ impl<'a> NewtonOptions<'a> {
     /// original linear equation residual for structurally affine admission.
     pub(crate) fn time_stage(
         nonlinear: Option<NonlinearSolvePlan>,
-        linear: eqiora_solver::SolverPlan,
+        linear: &eqiora_solver::SolverPlan,
         relative: f64,
         absolute: &'a [f64],
     ) -> Self {

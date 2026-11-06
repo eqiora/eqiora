@@ -541,7 +541,7 @@ fn fixture() -> Fixture {
         &crate::simplicial_fsi::test_model::adjacent_rectangles(),
         &mesh,
         seed.fixed_reference_config().clone(),
-        seed.linear_solver(),
+        seed.linear_solver().clone(),
         true,
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
@@ -591,7 +591,7 @@ fn fixture_3d() -> Fixture3d {
         &geometry,
         &mesh,
         seed.fixed_reference_config().clone(),
-        seed.linear_solver(),
+        seed.linear_solver().clone(),
         true,
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
