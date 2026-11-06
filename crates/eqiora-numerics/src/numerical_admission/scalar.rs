@@ -756,7 +756,14 @@ impl<'a> LiveStaticExecution<'a> {
         initial: Option<&'a CommonState>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        plan.reauthenticate_portable_realization()?;
+        {
+            let _reauthentication = eqiora_execution::telemetry_span!(backend(
+                "scalar_plan_reauthentication",
+                "scalar_static"
+            ))
+            .entered();
+            plan.reauthenticate_portable_realization()?;
+        }
         let fields = initial
             .map(|state| plan.static_initial_fields(state))
             .transpose()?;
@@ -792,6 +799,9 @@ impl<'a> LiveStaticExecution<'a> {
         execution: &CommonSpatialExecution,
         nullspace: Option<&crate::nullspace::NullspaceEvidence>,
     ) -> Result<Option<(f64, f64)>, Diagnostic> {
+        let _validation =
+            eqiora_execution::telemetry_span!(backend("scalar_live_validation", "scalar_static"))
+                .entered();
         let Some(system) = &self.system else {
             return self
                 .plan
