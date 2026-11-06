@@ -254,7 +254,7 @@ class BenchmarkTests(unittest.TestCase):
                 self.assertEqual(driver.main(), 2)
             self.assertFalse((output / "summary.json").exists())
             failure = json.loads((output / "failure.json").read_text())
-            self.assertEqual((failure["backend"], failure["cells"], failure["exit_code"]), ("eqiora", 4, 2))
+            self.assertEqual((failure["backend"], failure["case"], failure["exit_code"]), ("eqiora", "n4", 2))
             self.assertIn("required_reference_linear_solve_phase_unavailable", Path(failure["log"]).read_text())
 
 
