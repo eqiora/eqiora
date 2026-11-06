@@ -19,6 +19,9 @@ The optimized Eqiora development wheel used here is distinct from the published
 release. The actual wheel producer, campaign harness and external-reference
 harness have separate identities in the linked record. No GPU was used.
 
+Tables below scroll horizontally on narrow screens. Focus a table region and
+use the arrow keys to reach every column.
+
 ## Problem and accuracy
 
 The finite channel is 2.2 m long and 0.41 m high, with a radius-0.05 m hole
@@ -50,11 +53,15 @@ from the channel midline.
   <figcaption>Every benchmark cold field passed the unchanged gate. Ratios are dimensionless; this is discrete agreement, not a continuum error estimate.</figcaption>
 </figure>
 
+<div class="cylinder-comparison-table" role="region" aria-label="Mesh inventory and cylinder forces; scroll horizontally" tabindex="0">
+
 | Mesh | Vertices / cells | Free unknowns | Cylinder x force, N/m | Cylinder y force, N/m |
 | --- | ---: | ---: | ---: | ---: |
 | coarse | 657 / 1,183 | 4,091 | 0.00652703755 | 0.0000723958468 |
 | standard | 2,386 / 4,512 | 15,694 | 0.00635130522 | 0.0000622655347 |
 | fine | 8,967 / 17,416 | 60,761 | 0.00630127200 | 0.0000606714754 |
+
+</div>
 
 Forces above are designated-A forces on the cylinder per unit out-of-plane
 depth. Their change across meshes is a sensitivity observation, not an
@@ -62,11 +69,15 @@ extrapolated value or a measured convergence order.
 
 ## Ordinary execution and memory
 
+<div class="cylinder-comparison-table" role="region" aria-label="Ordinary execution medians and ranges; scroll horizontally" tabindex="0">
+
 | Mesh | Eqiora median [range], s | FEniCSx median [range], s |
 | --- | ---: | ---: |
 | coarse | 0.1202 [0.1192–0.1987] | 0.03442 [0.03403–0.03603] |
 | standard | 1.1936 [0.9863–1.3388] | 0.18721 [0.13184–0.19410] |
 | fine | 8.7206 [7.7323–11.8410] | 0.62006 [0.60208–0.62806] |
+
+</div>
 
 <figure>
   <picture>
@@ -98,6 +109,8 @@ median. Mesh setup reopens/checks the fixed mesh in Eqiora and constructs the
 DOLFINx mesh, MINI space, boundaries and basis maps in FEniCSx; it does not time
 Gmsh generation.
 
+<div class="cylinder-comparison-table" role="region" aria-label="Mesh setup and separate profile phases; scroll horizontally" tabindex="0">
+
 | Mesh / tool | Mesh setup, s | Preparation, s | Profile assembly, s | Profile linear, s |
 | --- | ---: | ---: | ---: | ---: |
 | coarse Eqiora | 0.02061 | 0.07370 | 0.05216 | 0.04130 |
@@ -106,6 +119,8 @@ Gmsh generation.
 | standard FEniCSx | 0.26547 | 1.28916 | 0.05189 | 0.13672 |
 | fine Eqiora | 2.56660 | 4.52252 | 5.29280 | 0.91605 |
 | fine FEniCSx | 1.23825 | 1.87598 | 0.14507 | 0.46295 |
+
+</div>
 
 Preparation means model compilation/resolution in Eqiora and form/JIT compilation
 in FEniCSx. Eqiora assembly is native MINI system finalization; linear includes
@@ -138,3 +153,10 @@ omitted; original digests remain recorded, and genuine worker receipts retain
 the original result digests. Manifest-bound reference launches are original and
 strictly verified. No original-source qualification is claimed for a later
 changed reader.
+
+<style>{`
+.cylinder-comparison-table { max-width: 100%; overflow-x: auto; margin-block: 1.5rem; }
+.cylinder-comparison-table > table { display: table; min-width: 42rem; overflow: visible; }
+.cylinder-comparison-table :is(th, td) { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+.cylinder-comparison-table:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+`}</style>
