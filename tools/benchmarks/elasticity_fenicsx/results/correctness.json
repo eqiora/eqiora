@@ -1151,5 +1151,21 @@
       },
       "raw_report": "n8/fenicsx/result.json"
     }
+  ],
+  "retained_adapter_failures": [
+    {
+      "log": "/data/nk523/.cache/eqiora/elasticity-fenicsx-correctness/attempt-1/eqiora-4/worker.log",
+      "harness_revision": "9d234b88af0f8e0f1709c2f25020119e16f53097",
+      "sha256": "b687eeca5c6d58186deb6dadde20a068173d1c8cd4d32cf35f1cb7b8029c5bea",
+      "failure": "typed public preconditioner policy was compared to the old string representation before analytic validation",
+      "complete_comparison": false
+    },
+    {
+      "log": "/data/nk523/.cache/eqiora/elasticity-fenicsx-correctness/attempt-2/fenicsx-4/worker.log",
+      "harness_revision": "992ccf8d24fb37893803582022b6f3083a28f189",
+      "sha256": "5ac3b709f7f3baf62dcbbe0ccfa65d846f3ec9cd27944dc11928166f4fba5e17",
+      "failure": "NumPy vector block index expansion promoted int32 PETSc indices to int64; essential-column inspection rejected the array",
+      "complete_comparison": false
+    }
   ]
 }
