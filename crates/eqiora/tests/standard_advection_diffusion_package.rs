@@ -190,10 +190,20 @@ fn prescribed_divergent_rotational_velocity_matches_q1_exact_manufactured_soluti
     else {
         panic!("three steps")
     };
+    let mut previous_error = 0.;
     for (step, (_, output)) in outputs.iter().enumerate() {
         for (point, value) in values(&plan, output.state()) {
             let (x, y) = (point[0], point[1]);
             let expected = 1. + (step + 1) as f64 * 0.25 * (1. + x + 2. * y + x * y);
+            if point == [0.5, 0.5] {
+                let error = value - expected;
+                let residual = (59. / 18.) * error - (4. / 9.) * previous_error;
+                assert!(
+                    residual.abs() <= 1e-10,
+                    "independent centre residual {residual}"
+                );
+                previous_error = error;
+            }
             // Pre-run budget: one interior DOF, A=M/dt+K+C = 59/18;
             // 1e-10 absolute assembled residual implies error <= 18e-10/59.
             // History amplification is 8/59. For these polynomials, all local
