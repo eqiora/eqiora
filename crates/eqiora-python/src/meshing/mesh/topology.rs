@@ -39,10 +39,15 @@ impl PyMesh {
                 geometry,
                 correspondence,
                 ..
-            } => correspondence
-                .planar_entity_set_entities(geometry, name)
-                .and_then(|entities| validated_entities(entities, expected_dimension))
-                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
+            } => (if geometry.polyhedral_vertices().is_some() {
+                eqiora::artifact::GeometryDefinitionV1::from_canonical(geometry).and_then(
+                    |definition| correspondence.polyhedral_entity_set_entities(&definition, name),
+                )
+            } else {
+                correspondence.planar_entity_set_entities(geometry, name)
+            })
+            .and_then(|entities| validated_entities(entities, expected_dimension))
+            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::SourceOwnedCartesian {
                 geometry,
                 correspondence,

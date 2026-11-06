@@ -311,7 +311,7 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         resources,
         NativeMeshResources::AffineTriangleSimplicial { .. }
     ) || resources.geometry()?.polyhedral_vertices().is_some()
-        || matches!(resources, NativeMeshResources::MshSimplicial { geometry, .. } if geometry.region().is_some())
+        || matches!(resources, NativeMeshResources::MshSimplicial { geometry, policy, .. } if geometry.region().is_some() || (matches!(policy, MshSourcePolicy::External(_)) && geometry.planar_rectangle_bounds().is_some()))
     {
         return ExecutableSpatialEquations::simplicial(
             program,

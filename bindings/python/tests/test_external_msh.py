@@ -34,7 +34,7 @@ def geometry() -> eqiora.geometry.Geometry:
     graph = eqiora.geometry.GeometryGraph()
     face = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     return graph.build(
-        face, named_topology={"body": face.region, "outer": face.boundaries}
+        face, named_topology={"body": face.region, "left": face.boundaries[0], "right": face.boundaries[1], "bottom": face.boundaries[2], "top": face.boundaries[3]}
     )
 
 
@@ -46,7 +46,9 @@ def test_external_msh_retains_original_cells_units_binding_and_replay() -> None:
     assert mesh.cells.tolist() == [[0, 1, 2], [0, 2, 3]]
     assert mesh.coordinates.tolist() == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
     assert mesh.selection_entity_count("body") == 2
-    assert mesh.selection_entity_count("outer") == 4
+    for side in ("left", "right", "bottom", "top"):
+        assert mesh.selection_entity_count(side) == 1
+        assert mesh.selection_entity_count(source.selection(side)) == 1
     lineage = json.loads(mesh.production_lineage_bytes)
     assert lineage["provider"] == {"identity": "eqiora.external-msh", "version": "4.1"}
     assert lineage["effective_policy"]["coordinate_unit"] == "m"

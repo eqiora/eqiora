@@ -44,25 +44,29 @@ mod tests {
     use crate::geometry::PyGeometry;
     use eqiora::geometry::NamedEntitySet;
 
+    fn tetrahedron(body_name: &str) -> CanonicalGeometryV1 {
+        CanonicalGeometryV1::from_convex_polyhedra(
+            vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+            vec![vec![
+                vec![0, 2, 1],
+                vec![0, 1, 3],
+                vec![0, 3, 2],
+                vec![1, 2, 3],
+            ]],
+            vec![
+                NamedEntitySet::new(body_name, 3, vec![0]),
+                NamedEntitySet::new("outer", 2, vec![0, 1, 2, 3]),
+            ],
+            1e-12,
+        )
+        .unwrap()
+    }
+
     #[test]
     fn python_import_projection_keeps_tetrahedron_and_replays_native_resources() {
         Python::initialize();
         Python::attach(|py| {
-            let geometry = CanonicalGeometryV1::from_convex_polyhedra(
-                vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
-                vec![vec![
-                    vec![0, 2, 1],
-                    vec![0, 1, 3],
-                    vec![0, 3, 2],
-                    vec![1, 2, 3],
-                ]],
-                vec![
-                    NamedEntitySet::new("body", 3, vec![0]),
-                    NamedEntitySet::new("outer", 2, vec![0, 1, 2, 3]),
-                ],
-                1e-12,
-            )
-            .unwrap();
+            let geometry = tetrahedron("body");
             let source = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n3 1 0 4\n1\n2\n3\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n$EndNodes\n$Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
             let expected = AuthenticatedCommonMesh::import_msh41(
                 geometry.clone(),
@@ -79,6 +83,43 @@ mod tests {
                 owner.simplicial_mesh().unwrap().mesh().cells(),
                 [vec![0, 1, 2, 3]]
             );
+            let body = pyo3::types::PyString::new(py, "body");
+            let outer = pyo3::types::PyString::new(py, "outer");
+            assert_eq!(
+                published.selected_entities(py, body.as_any()).unwrap(),
+                [MeshEntity::new(3, 0)]
+            );
+            let facets = published.selected_entities(py, outer.as_any()).unwrap();
+            assert_eq!(facets.len(), 4);
+            assert!(facets.iter().all(|entity| entity.dimension() == 2));
+            let typed_geometry = Py::new(py, geometry.clone()).unwrap();
+            let typed_body = typed_geometry
+                .bind(py)
+                .call_method1("selection", ("body",))
+                .unwrap();
+            assert_eq!(
+                published.selected_entities(py, &typed_body).unwrap(),
+                [MeshEntity::new(3, 0)]
+            );
+            let typed_outer = typed_geometry
+                .bind(py)
+                .call_method1("selection", ("outer",))
+                .unwrap();
+            assert_eq!(
+                published.selected_entities(py, &typed_outer).unwrap(),
+                facets
+            );
+            let foreign = Py::new(
+                py,
+                PyGeometry::from_geometry(tetrahedron("different_body_name")),
+            )
+            .unwrap();
+            let foreign_outer = foreign
+                .bind(py)
+                .call_method1("selection", ("outer",))
+                .unwrap();
+            let error = published.selected_entities(py, &foreign_outer).unwrap_err();
+            assert!(error.to_string().contains("foreign or stale"));
             let replayed = PyMesh::from_authenticated(
                 py,
                 AuthenticatedCommonMesh::from_bytes(&owner.to_bytes().unwrap()).unwrap(),
