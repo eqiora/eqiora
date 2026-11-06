@@ -30,8 +30,12 @@ fn source(k: u32, h: u32, fixed: u32, ambient: u32) -> String {
 
 #[test]
 fn imported_convection_compiles_with_exact_caller_supports_and_required_inputs() {
-    for (_, _, k, h, fixed, ambient) in CASES {
-        let (document, _) = fixture(&source(k, h, fixed, ambient)).unwrap();
+    for (length, height, k, h, fixed, ambient) in CASES {
+        let (document, _) = fixture_rectangle(
+            &source(k, h, fixed, ambient),
+            [f64::from(length), f64::from(height)],
+        )
+        .unwrap();
         assert!(matches!(document, SourceCompilation::Packaged(_)));
     }
 }

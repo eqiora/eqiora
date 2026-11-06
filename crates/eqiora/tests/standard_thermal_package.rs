@@ -74,8 +74,17 @@ fn slab(outward: i32) -> String {
 fn fixture(
     source: &str,
 ) -> Result<(SourceCompilation, AuthenticatedCommonMesh), SourceCompilationError> {
+    fixture_rectangle(source, [1.0, 1.0])
+}
+
+fn fixture_rectangle(
+    source: &str,
+    lengths: [f64; 2],
+) -> Result<(SourceCompilation, AuthenticatedCommonMesh), SourceCompilationError> {
     let graph = GeometryGraph::new();
-    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    let rectangle = graph
+        .rectangle([0.0, lengths[0]], [0.0, lengths[1]])
+        .unwrap();
     let edges = rectangle.boundaries();
     let geometry = graph
         .build(

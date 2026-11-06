@@ -1,0 +1,40 @@
+id = "numerics.packaged-convective-heat-2d"
+status = "specified"
+scope = "bundled-fixed-si-steady-convective-heat-cartesian-2d-serial-reference-q1"
+reference_kind = "canonical-exact-rational-robin-reference"
+
+capabilities = [
+  "ordinary-source-bundled-thermal-import",
+  "dimension-checked-convective-boundary-inputs",
+  "exact-parent-boundary-bindings",
+]
+
+[problem]
+package = "Eqiora.Scalar@0.5.0"
+field = "smooth Kelvin temperature"
+geometry = "four fixed canonical Robin cases, each on its actual rectangle with 2x2 Q1 cells"
+volume = "-div(k grad(T)) = 0"
+boundaries = "fixed left temperature; right -k grad(T).n = h(T-Tinf); insulated horizontal faces"
+
+[reference]
+owner = "verify/numerics/cartesian-robin-q1/reference/robin.py"
+policy = "reuse exact rational targets and predeclared bounds unchanged; no Eqiora expectations"
+
+[execution]
+method = "continuous Q1 Galerkin"
+scalar = "f64"
+solver = "reference BiConjugateGradientStabilized"
+target = "one host CPU thread"
+
+[claim_boundary]
+same_run_full_operator_audit = false
+same_run_direct_reaction_recovery_gate = false
+transient_convection = false
+threaded_cpu = false
+mpi = false
+gpu = false
+performance = false
+
+[evidence]
+package = "eqiora"
+test = "standard_thermal_package"
