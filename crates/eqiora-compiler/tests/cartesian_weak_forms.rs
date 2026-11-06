@@ -35,6 +35,28 @@ fn one_vector_trial_keeps_exact_cartesian_support_and_form_replay() {
 }
 
 #[test]
+fn explicitly_framed_vector_coefficient_keeps_weak_form_and_replay() {
+    let text = source(3)
+        .replace(
+            "variable u:vector<1,3>",
+            "parameter forcing:vector<1,3> = tensor_value(frame=body,components=[1,2,3]); variable u:vector<1,3>",
+        )
+        .replace("u*0[1/m^2]", "forcing*1[1/m^2]")
+        .replace(
+            "dot(v,u)*1[1/m^2])=0;",
+            "dot(v,u)*1[1/m^2])=integrate(body,dot(v,forcing)*1[1/m^2]);",
+        );
+    let compiled = CompiledModel::compile_selected("vector-coefficient.eqi", &text, "M", &[])
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let form = compiled.authored_formulations().next().unwrap();
+    assert!(form.domain().is_some());
+    assert_eq!(
+        &AuthoredFormulationProjection::decode(form.projection().canonical_bytes()).unwrap(),
+        form.projection()
+    );
+}
+
+#[test]
 fn cartesian_form_rejects_foreign_parent_and_channel_trials() {
     for invalid in [
         source(3).replace(
