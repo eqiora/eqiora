@@ -40,6 +40,10 @@ pub(in crate::numerical_admission) fn bind_model_support(
     };
     let dimension = mesh.dimension();
     let definition = match resources {
+        NativeMeshResources::MshSimplicial {
+            policy: MshSourcePolicy::External(_),
+            ..
+        } if geometry.planar_rectangle_bounds().is_some() => None,
         NativeMeshResources::MshSimplicial { .. } => Some(
             eqiora_artifact::GeometryDefinitionV1::from_canonical(geometry)?,
         ),

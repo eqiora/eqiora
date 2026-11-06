@@ -299,8 +299,12 @@ fn archived_pre_import_v1_v4_encodings_and_planar_gmsh_acceptance_stay_unchanged
 }
 
 fn exact_rectangle() -> CanonicalGeometryV1 {
+    exact_rectangle_width(1.)
+}
+
+fn exact_rectangle_width(width: f64) -> CanonicalGeometryV1 {
     let graph = eqiora_geometry::GeometryGraph::new();
-    let face = graph.rectangle([0., 1.], [0., 1.]).unwrap();
+    let face = graph.rectangle([0., width], [0., 1.]).unwrap();
     let sides = face.boundaries();
     graph
         .build(
@@ -477,6 +481,34 @@ public component Affine(support body:volume(ambient_dimension=2), support left:b
     let source = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 5 1 5\n2 1 0 5\n1\n2\n3\n4\n5\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0.5 0.5 0\n$EndNodes\n$Elements\n1 4 1 4\n2 1 2 4\n1 1 2 5\n2 2 3 5\n3 3 4 5\n4 4 1 5\n$EndElements\n";
     let owner =
         AuthenticatedCommonMesh::import_msh41(geometry, policy(4, 4096), source.to_vec()).unwrap();
+    let foreign_source = String::from_utf8(source.to_vec())
+        .unwrap()
+        .replace("1 0 0\n1 1 0", "2 0 0\n2 1 0")
+        .replace("0.5 0.5 0", "1 0.5 0");
+    let foreign = AuthenticatedCommonMesh::import_msh41(
+        exact_rectangle_width(2.),
+        policy(4, 4096),
+        foreign_source.into_bytes(),
+    )
+    .unwrap();
+    let rejected = ResolvedCommonPlan::resolve(
+        &model,
+        foreign,
+        CommonSpatialPolicy::P1,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(1000).unwrap(),
+        )),
+        None,
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+        None,
+    )
+    .unwrap_err();
+    assert!(rejected.message().contains("foreign Geometry"));
     for mesh in [
         owner.clone(),
         AuthenticatedCommonMesh::from_bytes(&owner.to_bytes().unwrap()).unwrap(),
