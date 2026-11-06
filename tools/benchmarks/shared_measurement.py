@@ -1,4 +1,8 @@
-"""Shared execution and measurement bookkeeping for external comparisons."""
+"""Shared execution and measurement bookkeeping for external comparisons.
+
+Problem adapters own geometry, field associations and scientific acceptance.
+The common runner owns clocks, candidate retention and execution counts.
+"""
 from __future__ import annotations
 
 import hashlib
