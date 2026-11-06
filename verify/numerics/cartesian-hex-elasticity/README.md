@@ -3,8 +3,11 @@
 Status: the archived installed-Python runtime passed one solve and independent
 primary/replay checks. Its [source revision](https://github.com/eqiora/eqiora/commit/7612bfbab2cef3d3ce10e349e39a95aa43eaf473)
 identifies that runtime; this result does not qualify later producer builds.
-Native numerical qualification remains pending producer/build review. The
-independent mathematics and fixed budgets live in [reference/README.md](reference/README.md).
+The first native Run saved its accepted Result, then its exporter failed on
+Cartesian tensor-block shape interpretation. That attempt remains failed. A
+separate reviewed recovery harness will decode and observe the saved Result
+without another solve; native qualification is still pending recovery review.
+The independent mathematics and fixed budgets live in [reference/README.md](reference/README.md).
 
 `model.eqi` authors the displacement, isotropic stress, affine essential data,
 five natural tractions, strain energy and three left-face stress integrals.
@@ -60,3 +63,12 @@ before observing; then reopens the Result and checks primary and replay exports
 with the unchanged independent protocol. The same CPU and thread restrictions
 apply. Its root preparation manifest identifies the exact subdirectory holding
 the actual Model, Mesh, Plan and Result. No candidate is used as an expectation.
+
+
+Native coefficient blocks retain one extent per Cartesian axis followed by the
+Field component extents. The exporter derives this shape from the actual Mesh
+and Field type before flattening all coefficients through the Plan entity map.
+The read-only recovery entry verifies the original runtime, source and artifact
+hashes, opens the original Plan and Result, and records its own harness identity
+separately. It cannot call `run_result`. Recovery never changes the original
+failed attempt or uses the Python observations as native expectations.
