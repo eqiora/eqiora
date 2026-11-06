@@ -86,8 +86,11 @@ instance heat: scalar.TransientHeat2d(
 Supply positive capacity for physical heat storage. The component checks units
 and the declared State role. Numerical methods retain their existing storage
 acceptance rules; no new sign policy is introduced. Spatial and time methods
-remain Plan choices. The maintained example uses serial CPU Q1 and backward Euler, with
-independent mass/stiffness/load checks, initial data, restart and artifact replay.
-This is not a continuum-exact temperature claim. State-dependent capacity,
+remain Plan choices. The maintained example uses serial CPU Q1 and backward Euler,
+with independent mass/stiffness/load checks, initial data, restart and artifact replay.
+Product tests also cover a temperature profile affine in space and linear in time,
+with time-varying prescribed temperature and both signs of physical outward flux.
+The four-cell warming example is a spatial approximation, not a continuum-exact
+square temperature profile. State-dependent capacity,
 material interfaces, threaded/MPI/GPU package execution and transient
 sensitivities are outside this package evidence.
