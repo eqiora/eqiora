@@ -32,17 +32,17 @@ def fixture(dimension=3, n=2):
     wire = {'schema': 'eqiora.resolved-common-plan/v28', 'spatial': {'kind': 'uniform', 'policy': 'q2'},
             'assembly_quadrature': {'kind': 'gauss-legendre', 'points_per_axis': 4}}
     entities = sorted(closures)
-    plan = SimpleNamespace(mesh=mesh, to_bytes=lambda: json.dumps(wire).encode(),
+    plan = SimpleNamespace(identity="actual-plan", model_digest="actual-model", mesh=mesh, to_bytes=lambda: json.dumps(wire).encode(),
                            field_coefficient_entities=lambda field: tuple(entities))
     associations = ['vertex', 'edge']+(['face'] if dimension == 3 else [])+['cell']
     blocks = {association: [float(i+1) for i in range(math.comb(dimension, k)*n**k*(n+1)**(dimension-k))] for k, association in enumerate(associations)}
-    output = SimpleNamespace(mesh=mesh, space='continuous-lagrange-p2',
+    output = SimpleNamespace(field="u", mesh=mesh, space='continuous-lagrange-p2',
                              value_type=SimpleNamespace(scalar_domain='real', shape=[]),
                              coefficient_dimension=(0,)*7, associations=associations,
                              coefficient_count=lambda association: len(blocks[association]),
                              logical_shape=lambda association: (len(blocks[association]),),
                              values=lambda association: blocks[association])
-    result = SimpleNamespace(output=lambda field: output)
+    result = SimpleNamespace(plan_key="actual-plan", model_digest="actual-model", output=lambda field: output, to_bytes=lambda: b"actual Result bytes")
     return plan, result, output, lengths, blocks, entities, wire
 
 
@@ -62,6 +62,12 @@ class ProductionProtocol(unittest.TestCase):
         mutate(*state)
         with self.assertRaises(p.ProductionError):
             p.extract_candidate(state[0], state[1], 'u', state[3], 2)
+
+    def test_result_from_another_plan_rejected(self):
+        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: setattr(result, 'plan_key', 'different-plan'))
+
+    def test_wrong_selected_field_rejected(self):
+        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: setattr(output, 'field', 'another-field'))
 
     def test_missing_cell_coefficient_rejected(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: blocks['cell'].pop())
