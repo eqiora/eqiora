@@ -38,3 +38,13 @@ they do not establish validity checks for trilinearly distorted geometry. That
 work remains with #1552. Altered authored-form controls separately change one
 traction component, reverse its sign, omit a contraction axis or change a
 physical unit, while leaving the source balance equations in place.
+
+The manufactured continuum displacement is affine and extends smoothly past
+the box, so its authored trial regularity is `smooth`. This supports the
+classical stress traces in the equations and public face observables. It does
+not assert smooth gradients for general discrete Q1 fields. The discrete space
+remains Q1; the weak test remains H1 with zero trace only on x=0. An otherwise
+identical H1 trial declaration must reject those unsupported classical traces.
+The weak form uses the equivalent bilinear strain/divergence identity, because
+`isotropic_lift` is not currently an authored weak-form operator; this source
+does not extend that authoring capability.

@@ -16,7 +16,7 @@ public component CartesianHexElasticity(
   parameter tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.375,0.1875]);
   parameter ty: vector<Pa,3> = tensor_value(frame=body,components=[0.375,1.875,0.1875]);
   parameter tz: vector<Pa,3> = tensor_value(frame=body,components=[0.1875,0.1875,1.5]);
-  variable displacement: vector<m,3> on body in h1;
+  variable displacement: vector<m,3> on body in smooth;
   relation balance on body { -div((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=0; }
   relation fixed on x_lower {
     trace(displacement)=(a0*coordinate(0)+a1*coordinate(1)+a2*coordinate(2))/16;

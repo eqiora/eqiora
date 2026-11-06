@@ -204,13 +204,19 @@ fn unsupported_or_illtyped_authored_forms_reject_before_any_result() {
         weak.replacen("2*mu*frobenius(symmetric_part(grad(w)),symmetric_part(grad(displacement))) + lambda*div(w)*div(displacement)", "2*mu*contract(symmetric_part(grad(w)),symmetric_part(grad(displacement)),axes=((0,0),)) + lambda*div(w)*div(displacement)", 1)
     );
     let wrong_unit = SOURCE.replacen("parameter tx: vector<Pa,3>", "parameter tx: vector<N,3>", 1);
+    let insufficient_regularity = SOURCE.replacen(
+        "variable displacement: vector<m,3> on body in smooth;",
+        "variable displacement: vector<m,3> on body in h1;",
+        1,
+    );
     assert_rejected_controls([
         ("partial contraction", incomplete_contraction),
         ("wrong unit", wrong_unit),
+        ("insufficient trial regularity", insufficient_regularity),
     ]);
 }
 
-fn assert_rejected_controls(controls: [(&str, String); 2]) {
+fn assert_rejected_controls<const N: usize>(controls: [(&str, String); N]) {
     for (control, source) in controls {
         assert_ne!(source, SOURCE, "{control} did not alter the source");
         let diagnostics = prepare_source(&source).expect_err(control);

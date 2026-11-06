@@ -48,6 +48,7 @@ def altered_sources():
         'reversed-traction': equations + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),-tx)', 1),
         'partial-contraction': equations + '  form weak for balance {' + weak.replace('2*mu*frobenius(symmetric_part(grad(w)),symmetric_part(grad(displacement))) + lambda*div(w)*div(displacement)', '2*mu*contract(symmetric_part(grad(w)),symmetric_part(grad(displacement)),axes=((0,0),)) + lambda*div(w)*div(displacement)', 1),
         'wrong-unit': source.replace('parameter tx: vector<Pa,3>', 'parameter tx: vector<N,3>', 1),
+        'insufficient-trial-regularity': source.replace('variable displacement: vector<m,3> on body in smooth;', 'variable displacement: vector<m,3> on body in h1;', 1),
     }
 
 
@@ -56,7 +57,7 @@ def test_physical_authored_traction_mismatches_reject_before_any_result(tmp_path
     reject_altered_source(tmp_path, control)
 
 
-@pytest.mark.parametrize('control', ('partial-contraction', 'wrong-unit'))
+@pytest.mark.parametrize('control', ('partial-contraction', 'wrong-unit', 'insufficient-trial-regularity'))
 def test_unsupported_or_illtyped_authored_forms_reject_before_any_result(tmp_path, control):
     reject_altered_source(tmp_path, control)
 
