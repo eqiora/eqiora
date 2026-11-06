@@ -6,6 +6,7 @@ from accuracy import LEVELS
 
 def arguments():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--dimension', type=int, choices=(2,), default=2)
     parser.add_argument('--cells', type=int, choices=LEVELS, required=True)
     parser.add_argument('--mode', choices=('correctness-only', 'benchmark'), required=True)
     parser.add_argument('--output', type=Path, required=True)

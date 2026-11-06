@@ -109,7 +109,7 @@ def prepare(args):
 
 def main(args):
     report, execute, extract, diagnostic = prepare(args)
-    finish(args, 'eqiora', report, execute, extract, diagnostic, accuracy=check_accuracy)
+    finish(args, 'eqiora', report, execute, extract, diagnostic, accuracy=check_accuracy, diagnostic_extra_calls=1)
 
 
 if __name__ == '__main__':

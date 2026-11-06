@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import math
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_measurement import ComparisonError
 import numpy as np
 
 LEVELS = (4, 8, 16, 32)
 MU, LAMBDA, Q0, K = 3.0, 2.0, 1.0, math.pi
 A = Q0 / (2 * K * (LAMBDA + 2 * MU))
-
-
-class ComparisonError(ValueError):
-    """A candidate does not meet the predeclared comparison protocol."""
 
 
 def exact(coordinates):
