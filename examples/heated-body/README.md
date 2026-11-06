@@ -1,12 +1,12 @@
 # Steady heated body at a prescribed surface temperature
 
 Run `python examples/heated-body/run.py` with a development build from this checkout.
-The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.2.0`.
+The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.3.0`.
 The script resolves the local `org.example.HeatedBody` package and its bundled
 Scalar dependency, binds the geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
 solver explicitly, and runs the standard Plan lifecycle. No registry, download,
 or provider installation is needed. The [model source](src/main.eqi) imports
-`SteadyHeat2d` and `FixedTemperature2d`.
+`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d`.
 The same equations with an authored weak form remain in
 [handwritten.eqi](handwritten.eqi); compile it directly to compare both paths.
 
@@ -39,7 +39,9 @@ coupled thermal interfaces are not part of this example. The steady package exec
 
 ## Heat storage and initial conditions
 
-The same package also exposes `TransientHeatedBody`. Supply the same Geometry
+The same local package also exposes `TransientHeatedBody`, importing the standard
+`TransientHeat2d` storage law and fixed-temperature boundaries. The caller keeps
+the temperature State and initial data. Supply the same Geometry
 bindings and positive `capacity` in J/(m³ K). Its temperature State starts at
 300 K, and all four boundary traces remain 300 K. Resolve with Q1 and
 `eqiora.time.BackwardEuler(step_s=1/24)`, initialize with `eqiora.State.initial(plan)`,
@@ -60,5 +62,6 @@ The transient model has one scalar Q1 field with constant capacity on one
 Cartesian Region. It does not give the exact continuum temperature profile,
 recover the physical boundary flux, or support nonlinear or state-dependent
 capacity, interfaces, transient sensitivities, or a certificate linking the
-authored transient law to its weak form. The hand-written steady alternative
-keeps its own authored-form coverage; the imported steady model uses automatic formulation.
+authored transient law to its weak form. The [hand-written alternative](handwritten.eqi) retains both complete components.
+Its steady entry supplies an authored weak form; both transient entries use the
+same automatic formulation. Imports and direct equations share the numerical owner.
