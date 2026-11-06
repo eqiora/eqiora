@@ -5,7 +5,7 @@ use eqiora_artifact::{
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
 };
 use eqiora_core::{DimExponents, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, NamedEntitySet, PlanarTopologyHandle};
+use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph, GeometryTopologyHandle, NamedEntitySet};
 use eqiora_meshing::CartesianMesh;
 use eqiora_solver::{
     BackendId, LinearProblem, LinearSolution, ProviderLibrary, REFERENCE_LINEAR_SOLVER,
@@ -222,7 +222,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -230,7 +230,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -238,7 +238,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -246,7 +246,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -282,7 +282,7 @@ impl LinearSolverBackend for PlanningFaerBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: eqiora_solver::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -290,7 +290,7 @@ impl LinearSolverBackend for PlanningFaerBackend {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -341,17 +341,20 @@ fn rectangle() -> CanonicalGeometryV1 {
                 ("region".to_owned(), vec![rectangle.region().into()]),
                 (
                     "left".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[0])],
+                    vec![GeometryTopologyHandle::from(edges[0])],
                 ),
                 (
                     "right".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[1])],
+                    vec![GeometryTopologyHandle::from(edges[1])],
                 ),
                 (
                     "bottom".to_owned(),
-                    vec![PlanarTopologyHandle::from(edges[2])],
+                    vec![GeometryTopologyHandle::from(edges[2])],
                 ),
-                ("top".to_owned(), vec![PlanarTopologyHandle::from(edges[3])]),
+                (
+                    "top".to_owned(),
+                    vec![GeometryTopologyHandle::from(edges[3])],
+                ),
             ]),
         )
         .unwrap()

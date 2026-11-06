@@ -14,7 +14,7 @@ mod partition;
 mod system;
 
 pub use agreement::{
-    DistributedAdmissionFingerprintV1, DistributedLayoutAgreementIdentityV1,
+    DistributedAdmissionFingerprintV2, DistributedLayoutAgreementIdentityV1,
     PartitionAgreementIdentityV1,
 };
 pub use csr::{

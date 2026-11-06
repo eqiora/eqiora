@@ -193,7 +193,8 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
         CommonAlgebraicPlan::resolve(
             base.model_artifact(),
             CommonSolvePolicy::Newton {
-                linear: CommonLinearRequest::exact(base.linear(), base.solver_provider()).unwrap(),
+                linear: CommonLinearRequest::exact(base.linear().clone(), base.solver_provider())
+                    .unwrap(),
                 nonlinear: base.nonlinear().unwrap(),
             },
             None,
@@ -260,7 +261,7 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
         result
     );
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v26");
+    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v27");
     wire["residual_scales"][0]["value"] = serde_json::json!(0.);
     assert!(replay(&serde_json::to_vec(&wire).unwrap()).is_err());
 }
@@ -281,7 +282,8 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
         let scaled = CommonAlgebraicPlan::resolve(
             base.model_artifact(),
             CommonSolvePolicy::Newton {
-                linear: CommonLinearRequest::exact(base.linear(), base.solver_provider()).unwrap(),
+                linear: CommonLinearRequest::exact(base.linear().clone(), base.solver_provider())
+                    .unwrap(),
                 nonlinear: base.nonlinear().unwrap(),
             },
             None,
@@ -411,7 +413,7 @@ fn complex_newton_rejects_singular_zero_residual_and_exhausted_updates() {
         "model M(){variable z:complex<1>;relation r{z+0.25*math.abs2(z)*z=math.complex(2.25,4.5);}}",
     );
     let solve = CommonSolvePolicy::Newton {
-        linear: CommonLinearRequest::exact(base.linear(), base.solver_provider()).unwrap(),
+        linear: CommonLinearRequest::exact(base.linear().clone(), base.solver_provider()).unwrap(),
         nonlinear: NonlinearSolvePlan::new(0., 1e-12, NonZeroUsize::new(1).unwrap(), 0).unwrap(),
     };
     let limited = CommonAlgebraicPlan::resolve(
@@ -463,7 +465,7 @@ fn complex_log_newton_solves_off_cut_and_rejects_undefined_initial_differentials
 #[test]
 fn complex_only_linear_provider_cannot_replace_the_real_newton_differential() {
     use eqiora::solver::{
-        BackendId, LinearOperatorProperties, LinearProblem, LinearSolution, PreconditionerPolicy,
+        BackendId, LinearOperatorProperties, LinearProblem, LinearSolution,
         ReplicatedLinearExecution, SolverCapabilities, SolverProvider,
     };
     use eqiora_core::ScalarType;
@@ -477,7 +479,7 @@ fn complex_only_linear_provider_cannot_replace_the_real_newton_differential() {
             SolverCapabilities::new(
                 [LinearSolver::SparseLu],
                 [LinearOperatorProperties::General],
-                [PreconditionerPolicy::Identity],
+                [eqiora::solver::PreconditionerKind::Identity],
                 [ReductionPolicy::Fast],
                 eqiora::ScalarDomain::Complex,
                 [ScalarType::F64],
@@ -498,7 +500,7 @@ fn complex_only_linear_provider_cannot_replace_the_real_newton_differential() {
     );
     let backend = ComplexOnly;
     let solve = CommonSolvePolicy::Newton {
-        linear: CommonLinearRequest::exact(base.linear(), backend.provider()).unwrap(),
+        linear: CommonLinearRequest::exact(base.linear().clone(), backend.provider()).unwrap(),
         nonlinear: base.nonlinear().unwrap(),
     };
     let error =

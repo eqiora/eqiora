@@ -1,0 +1,87 @@
+id = "numerics.structured-upper-diagonal-schur"
+status = "implemented"
+scope = "ordinary-packaged-manufactured-stokes-fixed-upper-diagonal-schur-pilot"
+reference_kind = "analytic-manufactured-convergence-gauge-and-balance"
+capabilities = [
+  "ordinary-fluid-package-model-plan-run",
+  "fixed-upper-diagonal-schur-semantic-field-groups",
+  "explicit-faer-direct-manual-structured-and-ranked-structured-comparison",
+  "physical-similarity-unit-and-geometry-sweep",
+]
+
+[authority]
+analytic_reference_case = "fluid.simplicial-mini-stokes-2d"
+quantitative_contract = "predeclared analytic budgets; no expectations derived from Eqiora output"
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) - p I) = f; div(u) = 0"
+domain = "(0,L) x (0,L) metres"
+length_m = [1.0, 2.0]
+viscosity_pa_s = [0.5, 1.0, 2.0]
+velocity_scale_m_s = 1.0
+pressure_scale_pa = "P = mu U / L"
+exact_velocity = "u = U ((x/L)^2, -2 (x/L)(y/L))"
+exact_pressure = "p = P (x/L - 1/2)"
+force_potential = "q = -P (x/L - 1/2); f = grad(q) = (-P/L,0)"
+essential_boundary = "complete exact vector trace, nodally interpolated in P1"
+pressure_normalization = "explicit zero-integral pressure gauge"
+
+[mesh]
+family = "existing source-owned affine-triangle rectangle policy; fixed ll-to-ur diagonal"
+refinements = [2, 4, 8]
+connected_components = 1
+
+[quadrature]
+assembly_total_degree = 4
+error_total_degree = 6
+
+[solve]
+scalar_type = "f64"
+reduction = "fast"
+provider = "eqiora.faer"
+comparisons = ["explicit SparseLU", "manual BiCGSTAB upper-diagonal-Schur", "ranked explicit structured composition"]
+relative_tolerance = 1e-11
+absolute_tolerance = 1e-13
+maximum_iterations = 10000
+maximum_schur_entries = 100000
+maximum_schur_products = 10000000
+resource_scope = "construction entries/products only; not factor fill or process RSS"
+
+[convergence]
+minimum_velocity_l2_order = 1.75
+minimum_velocity_h1_seminorm_order = 0.85
+minimum_pressure_l2_order = 0.85
+minimum_divergence_l2_order = 0.85
+
+[gauge]
+maximum_normalized_absolute_pressure_mean = 2e-10
+maximum_normalized_absolute_multiplier = 2e-10
+
+[equilibrium]
+maximum_normalized_absolute_boundary_reaction_plus_body_force = 2e-9
+
+[claim_boundary]
+similarity_sweep_only = true
+independent_conditioning_or_viscosity_robustness = false
+standalone_private_provider_falsifiers = false
+cpu_serial_only = true
+mpi_or_gpu = false
+wall_time_or_rss_performance_claim = false
+
+[evidence]
+package = "eqiora"
+test = "structured_upper_diagonal_schur"
+
+[pilot]
+ordinary_similarity_runs = 54
+independent_analytic_checks = ["velocity L2", "velocity H1 seminorm", "pressure L2", "divergence L2", "pressure mean", "live gauge multiplier", "equilibrium", "independent true residual"]
+
+[controls]
+equivalent_grouped_and_signed_velocity_laws = "admit while preserving one maximal datum subtree"
+duplicate_velocity_trace = "reject"
+non_normal_tangential_traction = "preserve generic mixed admission"
+
+[artifact]
+plan = "canonical complete composition and provider-intent round trip"
+result = "canonical field and gauge metadata retention"
+independent_numerical_stokes_gauge_reauthentication_on_replay = false

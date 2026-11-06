@@ -186,7 +186,7 @@ fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
         accepted.relation(),
         &[2.],
         LinearOperatorProperties::General,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     for (coordinate, value) in residual.unknown_coordinates().iter().zip(forward.values()) {

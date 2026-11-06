@@ -226,7 +226,7 @@ fn reference_minres_solves_the_hadamard_conditioned_indefinite_witness() {
     assert_eq!(solution.report().algorithm(), LinearSolver::MinimumResidual);
     assert_eq!(
         solution.report().preconditioner(),
-        PreconditionerPolicy::Identity
+        &PreconditionerPolicy::Identity
     );
     assert_eq!(solution.report().reduction(), ReductionPolicy::Reproducible);
     assert_eq!(solution.report().backend().as_str(), "eqiora.reference");

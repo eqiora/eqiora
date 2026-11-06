@@ -306,7 +306,7 @@ fn fixture() -> Fixture {
         &crate::simplicial_fsi::test_model::adjacent_rectangles(),
         &mesh,
         seed.fixed_reference_config().clone(),
-        seed.linear_solver(),
+        seed.linear_solver().clone(),
         true,
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
@@ -363,7 +363,7 @@ fn fixture_3d() -> Fixture3d {
         &geometry,
         &mesh,
         seed.fixed_reference_config().clone(),
-        seed.linear_solver(),
+        seed.linear_solver().clone(),
         true,
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
@@ -454,7 +454,7 @@ impl LinearSolverBackend for DenseGeneralSolver {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         }])
@@ -468,7 +468,7 @@ impl LinearSolverBackend for DenseGeneralSolver {
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
         self.capabilities().require_problem(
-            plan,
+            &plan,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             problem.properties(),

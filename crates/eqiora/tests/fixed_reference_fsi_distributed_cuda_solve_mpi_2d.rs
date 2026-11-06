@@ -354,7 +354,7 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
     );
     assert_solve_report(
         executed.accepted().solution().report(),
-        prepared.solver_plan(),
+        prepared.solver_plan().clone(),
         partitions,
     );
 
@@ -405,7 +405,7 @@ fn resolve_distributed_cuda(
             plan_field_scale(host_plan, pressure),
         )
         .expect("the host Realization owns coherent FSI scales"),
-        selection.solver_plan(),
+        selection.solver_plan().clone(),
         0,
     )
     .expect("the exact distributed CUDA FSI plan is valid");
@@ -429,14 +429,19 @@ fn distributed_cuda_capabilities(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
     solver
         .require_problem(
-            eqiora::solver::SolverPlan::new(selected.algorithm, 1.0e-8, 1.0e-12, NonZeroUsize::MIN)
-                .expect("the admission probe is valid"),
+            &eqiora::solver::SolverPlan::new(
+                selected.algorithm,
+                1.0e-8,
+                1.0e-12,
+                NonZeroUsize::MIN,
+            )
+            .expect("the admission probe is valid"),
             eqiora_core::ScalarDomain::Real,
             selected.scalar_type,
             selected.operator_properties,
@@ -603,7 +608,7 @@ fn assert_composite_evidence(
 fn assert_execution_receipt(
     world: &impl CommunicatorCollectives,
     receipt: &ExecutionReceipt,
-    admission: eqiora::distributed::DistributedAdmissionFingerprintV1,
+    admission: eqiora::distributed::DistributedAdmissionFingerprintV2,
     assembly: [u8; 32],
     reduced: [u8; 32],
     full: [u8; 32],
@@ -665,9 +670,9 @@ fn assert_solve_report(
     );
     assert_eq!(report.verification(), ExecutionReport::host_serial());
     assert_eq!(report.orientation(), LinearOperatorOrientation::Normal);
-    assert_eq!(report.solver_plan(), plan);
+    assert_eq!(report.solver_plan(), &plan);
     assert_eq!(report.algorithm(), LinearSolver::MinimumResidual);
-    assert_eq!(report.preconditioner(), PreconditionerPolicy::Identity);
+    assert_eq!(report.preconditioner(), &PreconditionerPolicy::Identity);
     assert_eq!(report.reduction(), ReductionPolicy::Reproducible);
 }
 

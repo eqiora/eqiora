@@ -1,15 +1,11 @@
 //! Exact wire conversions for common Result artifacts.
 
 use eqiora_core::Diagnostic;
-use eqiora_solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy,
-};
+use eqiora_solver::{ConvergenceReason, LinearOperatorOrientation, LinearSolver, ReductionPolicy};
 
 use super::{
     CommonFieldAssociation, CommonResultFamily, WireAlgorithm, WireAssociation,
-    WireConvergenceReason, WireOrientation, WirePreconditioner, WireReduction, WireResultFamily,
-    invalid,
+    WireConvergenceReason, WireOrientation, WireReduction, WireResultFamily, invalid,
 };
 
 pub(super) fn encode_shape(shape: &[usize]) -> Result<Vec<u64>, Diagnostic> {
@@ -127,22 +123,6 @@ impl From<WireAlgorithm> for LinearSolver {
             WireAlgorithm::MinimumResidual => Self::MinimumResidual,
             WireAlgorithm::Bicgstab => Self::BiConjugateGradientStabilized,
             WireAlgorithm::SparseLu => Self::SparseLu,
-        }
-    }
-}
-impl From<PreconditionerPolicy> for WirePreconditioner {
-    fn from(value: PreconditionerPolicy) -> Self {
-        match value {
-            PreconditionerPolicy::Identity => Self::Identity,
-            PreconditionerPolicy::Jacobi => Self::Jacobi,
-        }
-    }
-}
-impl From<WirePreconditioner> for PreconditionerPolicy {
-    fn from(value: WirePreconditioner) -> Self {
-        match value {
-            WirePreconditioner::Identity => Self::Identity,
-            WirePreconditioner::Jacobi => Self::Jacobi,
         }
     }
 }

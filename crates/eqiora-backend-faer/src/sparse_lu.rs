@@ -13,7 +13,7 @@ use crate::sparse_lu_factor::{
 
 pub(super) fn solve_sparse_lu<S: SparseLuScalar>(
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     let system = problem.canonical_csr_system().ok_or_else(|| {
         if problem.operator().orientation() != LinearOperatorOrientation::Normal {
@@ -43,7 +43,7 @@ pub(super) fn solve_sparse_lu<S: SparseLuScalar>(
 
 pub(super) fn accepted_initial<S: SparseLuScalar>(
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<Option<LinearSolution<S>>, Diagnostic> {
     let initial = problem.initial_guess().map_or_else(
         || vec![S::zero(); problem.operator().columns()],
@@ -62,7 +62,7 @@ pub(super) fn accepted_initial<S: SparseLuScalar>(
     }
     eqiora_solver::LinearSolution::accept(
         problem,
-        plan,
+        plan.clone(),
         FAER_SOLVER_PROVIDER,
         ConvergenceReason::InitialResidualSatisfied,
         0,
@@ -76,7 +76,7 @@ pub(super) fn accepted_initial<S: SparseLuScalar>(
 /// Acceptance always replays the requested action, including its orientation.
 pub(super) fn solve_factored<S: SparseLuScalar>(
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     symbolic: &SparseLuSymbolicFactor,
     numeric: &SparseLuNumericFactor<S>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
@@ -129,7 +129,7 @@ pub(super) fn solve_factored<S: SparseLuScalar>(
     }
     eqiora_solver::LinearSolution::accept(
         problem,
-        plan,
+        plan.clone(),
         FAER_SOLVER_PROVIDER,
         ConvergenceReason::ResidualToleranceSatisfied,
         iterations,

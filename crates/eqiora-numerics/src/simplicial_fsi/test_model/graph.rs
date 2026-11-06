@@ -48,7 +48,7 @@ pub(crate) fn realization_graph(
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: plan.solver().algorithm(),
             operator_properties: plan.operator_properties(),
-            preconditioner: plan.solver().preconditioner(),
+            preconditioner: plan.solver().preconditioner().kind(),
             reduction: plan.solver().reduction(),
             scalar_type: eqiora_core::ScalarType::F64,
         }])

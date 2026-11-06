@@ -256,7 +256,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             quadrature,
             assembly,
             solver,
-            prepared_linear: solver.prepare_linear(plan.linear_solver())?,
+            prepared_linear: solver.prepare_linear(plan.linear_solver().clone())?,
             #[cfg(test)]
             phases,
         })
@@ -419,7 +419,7 @@ pub(super) fn solve_one_step<const D: usize>(
         graph,
     )?;
     let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
-    let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
+    let mut prepared_linear = solver.prepare_linear(plan.linear_solver().clone())?;
     if let Some(linear) = &mut prepared_linear {
         linear.begin_action()?;
     }
@@ -502,7 +502,7 @@ fn solve_one_step_prepared<const D: usize>(
                 })?;
                     prepared_linear.solve(identity, &linear_problem)?
                 } else {
-                    solver.solve(&linear_problem, plan.linear_solver())?
+                    solver.solve(&linear_problem, plan.linear_solver().clone())?
                 };
             let (proposed, report) = solution.into_parts();
             if proposed.len() != point.len() {

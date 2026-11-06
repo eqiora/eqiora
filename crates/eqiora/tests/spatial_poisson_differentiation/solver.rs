@@ -192,7 +192,7 @@ fn tpfa_cg_jacobi_retains_forward_and_adjoint_diagonals_and_provenance() {
             REFERENCE_LINEAR_SOLVER.provider().id().as_str()
         );
         assert_eq!(evidence.algorithm(), LinearSolver::ConjugateGradient);
-        assert_eq!(evidence.preconditioner(), PreconditionerPolicy::Jacobi);
+        assert_eq!(evidence.preconditioner(), &PreconditionerPolicy::Jacobi);
         assert_eq!(evidence.orientation(), orientation);
         assert!(evidence.true_residual_norm() <= evidence.residual_target());
     }

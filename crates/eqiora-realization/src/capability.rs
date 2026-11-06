@@ -3,8 +3,8 @@ use std::num::{NonZeroU64, NonZeroUsize};
 
 use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use crate::{
@@ -529,7 +529,7 @@ impl RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -537,7 +537,7 @@ impl RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: eqiora_solver::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -582,7 +582,7 @@ impl RealizationCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Jacobi,
+            preconditioner: eqiora_solver::PreconditionerKind::Jacobi,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         }])
@@ -613,7 +613,7 @@ impl RealizationCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         }])
@@ -644,7 +644,7 @@ impl RealizationCapabilities {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         }])
@@ -713,7 +713,7 @@ impl RealizationCapabilities {
         &self,
         requirements: RealizationRequirements,
         base: &CoupledFieldwiseRealizationPlan,
-        solver: SolverPlan,
+        solver: &SolverPlan,
         operator_properties: LinearOperatorProperties,
     ) -> Result<(), Diagnostic> {
         self.supports_components(
@@ -733,7 +733,7 @@ impl RealizationCapabilities {
         requirements: RealizationRequirements,
         method: DiscretizationMethod,
         mesh_kind: MeshKind,
-        solver: SolverPlan,
+        solver: &SolverPlan,
         operator_properties: Option<LinearOperatorProperties>,
         target: Target,
         schedule: ExecutionSchedule,
@@ -766,7 +766,7 @@ impl RealizationCapabilities {
         requirements: RealizationRequirements,
         method: DiscretizationMethod,
         mesh_kind: MeshKind,
-        solver: SolverPlan,
+        solver: &SolverPlan,
         target: Target,
         schedule: ExecutionSchedule,
     ) -> Result<BTreeSet<LinearOperatorProperties>, Diagnostic> {
@@ -793,7 +793,7 @@ impl RealizationCapabilities {
                         .supports(requirements.spatial_dimension)
                     && capability.context.vector_layout == requirements.vector_layout
                     && capability.solver.algorithm == solver.algorithm()
-                    && capability.solver.preconditioner == solver.preconditioner()
+                    && capability.solver.preconditioner == solver.preconditioner().kind()
                     && capability.solver.reduction == solver.reduction()
                     && capability.solver.scalar_type == requirements.scalar_type
                     && capability.context.target.supports(target)

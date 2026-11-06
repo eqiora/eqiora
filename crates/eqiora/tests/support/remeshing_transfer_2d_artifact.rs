@@ -232,7 +232,7 @@ pub(super) fn assert_artifact_vertical_slice(
         )
         .unwrap();
 
-    let projections = projection_artifacts(projection, &overlap, transfer_plan);
+    let projections = projection_artifacts(projection, &overlap, transfer_plan.clone());
     let numerical = projection.evidence();
     assert_projection_acceptance_limits(projection, &projections);
     for projection in &projections {
@@ -1184,14 +1184,14 @@ fn projection_artifacts(
         RemeshProjectionEvidenceEnvelopeV1::prescribed_exactly(
             RemeshProjectionActionV1::AbsoluteDisplacement,
             overlap,
-            plan,
+            plan.clone(),
         )
         .unwrap()
     } else {
         RemeshProjectionEvidenceEnvelopeV1::solved(
             RemeshProjectionActionV1::AbsoluteDisplacement,
             overlap,
-            plan,
+            plan.clone(),
             evidence
                 .dimensionless_displacement_right_hand_side_norms()
                 .iter()
@@ -1205,7 +1205,7 @@ fn projection_artifacts(
     let velocity = RemeshProjectionEvidenceEnvelopeV1::solved(
         RemeshProjectionActionV1::CoupledVelocity,
         overlap,
-        plan,
+        plan.clone(),
         [(
             evidence.dimensionless_velocity_right_hand_side_norm(),
             evidence.velocity_solve_report(),

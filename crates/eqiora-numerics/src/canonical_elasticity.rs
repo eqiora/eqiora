@@ -286,7 +286,10 @@ pub fn solve_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
     let (model, finalized) = finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
         program, resolved, assembly,
     )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    let solved = backend.solve(
+        &finalized.linear_problem()?,
+        finalized.solver_plan().clone(),
+    )?;
     Ok((model, finalized.finish(solved)?))
 }
 
@@ -414,7 +417,7 @@ fn require_two_dimensional_exact_bounds(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ResolvedCartesianElasticityQ1Plan {
     cells: usize,
     points_per_axis: usize,
@@ -495,7 +498,7 @@ fn require_resolved_cartesian_elasticity_q1_plan_2d(
     Ok(ResolvedCartesianElasticityQ1Plan {
         cells,
         points_per_axis: points_per_axis.get(),
-        solver: plan.solver(),
+        solver: plan.solver().clone(),
         vector_layout: requirements.vector_layout(),
         target: plan.target(),
     })

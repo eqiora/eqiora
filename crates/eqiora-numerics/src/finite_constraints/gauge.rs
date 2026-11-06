@@ -36,7 +36,7 @@ impl FiniteGauge {
             &self.reference,
             values,
             multiplier,
-            plan,
+            &plan,
         )
     }
 }

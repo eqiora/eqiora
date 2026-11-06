@@ -290,7 +290,7 @@ fn imported_and_handwritten_cubic_solutions_rebind_and_differentiate_without_car
                 let solved = REFERENCE_LINEAR_SOLVER
                     .solve(
                         &finalized.linear_problem().unwrap(),
-                        finalized.solver_plan(),
+                        finalized.solver_plan().clone(),
                     )
                     .unwrap();
                 let accepted = finalized.finish(solved).unwrap();

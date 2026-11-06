@@ -56,12 +56,18 @@ pub(super) fn additive_prescribed_velocity_parts(
     velocity: RawId,
     relation: RawId,
 ) -> Result<Option<(ExprId, f64)>, Diagnostic> {
-    let view = AdditiveResidualView::derive(expression, root, relation)?;
+    // Preserve authored datum grouping and its arithmetic domain. Only the
+    // additive path containing the trace may be projected into signed leaves.
+    let view = AdditiveResidualView::derive_preserving(expression, root, relation, &|id| {
+        !contains_velocity_or_port_trace(expression, id, velocity)
+    })?;
     let [first, second] = view.leaves() else {
         return Ok(None);
     };
     for (trace, datum) in [(first, second), (second, first)] {
-        if is_velocity_or_port_trace(expression, trace.value(), velocity) {
+        if is_velocity_or_port_trace(expression, trace.value(), velocity)
+            && !contains_velocity_or_port_trace(expression, datum.value(), velocity)
+        {
             return Ok(Some((
                 datum.value(),
                 if trace.sign() == datum.sign() {
@@ -73,6 +79,26 @@ pub(super) fn additive_prescribed_velocity_parts(
         }
     }
     Ok(None)
+}
+
+fn contains_velocity_or_port_trace(expression: &ExprDag, root: ExprId, velocity: RawId) -> bool {
+    let mut pending = vec![root];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.index()) {
+            continue;
+        }
+        if is_velocity_or_port_trace(expression, id, velocity) {
+            return true;
+        }
+        if let Some(node) = expression.node(id) {
+            let _: Result<(), std::convert::Infallible> = node.try_for_each_operand(|operand| {
+                pending.push(operand);
+                Ok(())
+            });
+        }
+    }
+    false
 }
 
 fn is_velocity_or_port_trace(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {

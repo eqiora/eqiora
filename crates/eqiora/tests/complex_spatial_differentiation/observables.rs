@@ -95,7 +95,7 @@ fn check_spatial_observables(
         CommonSpatialPolicy::Q1,
         CommonSpatialPolicy::CellCenteredTpfa,
     ] {
-        let (document, plan) = fixture_source(method, &source, backend, solver);
+        let (document, plan) = fixture_source(method, &source, backend, solver.clone());
         let inputs = ["a", "p", "q"].map(|name| document.parameter_ref(name).unwrap());
         let selected = inputs.each_ref().map(|input| input.id());
         let field = document.field_ref("definition.u").unwrap().id().erase();
@@ -161,7 +161,7 @@ fn check_spatial_observables(
                     &accepted,
                     &tangent,
                     properties,
-                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap()),
+                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap().clone()),
                 )
                 .unwrap();
                 near(forward.output_tangent(), &derivative);
@@ -172,7 +172,7 @@ fn check_spatial_observables(
                     &accepted,
                     &weights,
                     properties,
-                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap()),
+                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap().clone()),
                 )
                 .unwrap();
                 let gradient = (0..10)

@@ -26,7 +26,7 @@ fn fixture(
     } else {
         newton(64)
     };
-    let base = resolve_source(&source, 1. / 16., solve).unwrap();
+    let base = resolve_source(&source, 1. / 16., solve.clone()).unwrap();
     let (field, ty) = base.as_spatial().unwrap().fields().next().unwrap();
     let temporal = CommonOdePolicy::new(
         TimeMethod::Tsitouras45,

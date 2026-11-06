@@ -4,7 +4,9 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 
+mod preconditioner;
 mod wire;
+pub use preconditioner::{FixedFactorizationChoice, PreconditionerKind, UpperDiagonalSchurConfig};
 
 /// Linear algorithm selected independently from model meaning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -21,13 +23,15 @@ pub enum LinearSolver {
 }
 
 /// Preconditioner policy selected independently from the linear algorithm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub enum PreconditionerPolicy {
     /// No transformation of the residual.
     Identity,
     /// Inverse of the operator diagonal.
     Jacobi,
+    /// Fixed upper triangular diagonal-Schur composition over exact semantic groups.
+    UpperDiagonalSchur(Box<UpperDiagonalSchurConfig>),
 }
 
 /// Floating-point reduction policy.
@@ -44,7 +48,7 @@ pub enum ReductionPolicy {
 ///
 /// This is the only solver-control type. Numerical realization crates consume
 /// it directly; they do not translate it into method-specific configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "wire::WireSolverPlan", into = "wire::WireSolverPlan")]
 pub struct SolverPlan {
     algorithm: LinearSolver,
@@ -89,7 +93,7 @@ impl SolverPlan {
 
     /// Select a preconditioner without changing the other controls.
     #[must_use]
-    pub const fn with_preconditioner(mut self, preconditioner: PreconditionerPolicy) -> Self {
+    pub fn with_preconditioner(mut self, preconditioner: PreconditionerPolicy) -> Self {
         self.preconditioner = preconditioner;
         self
     }
@@ -103,31 +107,31 @@ impl SolverPlan {
 
     /// Solver algorithm.
     #[must_use]
-    pub const fn algorithm(self) -> LinearSolver {
+    pub const fn algorithm(&self) -> LinearSolver {
         self.algorithm
     }
 
     /// Preconditioner policy.
     #[must_use]
-    pub const fn preconditioner(self) -> PreconditionerPolicy {
-        self.preconditioner
+    pub const fn preconditioner(&self) -> &PreconditionerPolicy {
+        &self.preconditioner
     }
 
     /// Floating-point reduction policy.
     #[must_use]
-    pub const fn reduction(self) -> ReductionPolicy {
+    pub const fn reduction(&self) -> ReductionPolicy {
         self.reduction
     }
 
     /// Relative convergence tolerance.
     #[must_use]
-    pub const fn relative_tolerance(self) -> f64 {
+    pub const fn relative_tolerance(&self) -> f64 {
         self.relative_tolerance
     }
 
     /// Absolute convergence tolerance.
     #[must_use]
-    pub const fn absolute_tolerance(self) -> f64 {
+    pub const fn absolute_tolerance(&self) -> f64 {
         self.absolute_tolerance
     }
 
@@ -144,7 +148,7 @@ impl SolverPlan {
     /// count all attempted backsolves, including a discarded trial; an accepted initial guess
     /// reports zero. The bound does not control factorization work.
     #[must_use]
-    pub const fn maximum_iterations(self) -> NonZeroUsize {
+    pub const fn maximum_iterations(&self) -> NonZeroUsize {
         self.maximum_iterations
     }
 
@@ -153,7 +157,7 @@ impl SolverPlan {
     /// # Errors
     /// Returns `EQ0802` if the norm is negative/non-finite or the target
     /// overflows.
-    pub fn residual_target(self, right_hand_side_norm: f64) -> Result<f64, Diagnostic> {
+    pub fn residual_target(&self, right_hand_side_norm: f64) -> Result<f64, Diagnostic> {
         if !right_hand_side_norm.is_finite() || right_hand_side_norm < 0.0 {
             return Err(solve_failed(
                 "right-hand-side norm must be finite and non-negative",
@@ -223,7 +227,7 @@ mod tests {
             plan.algorithm(),
             LinearSolver::BiConjugateGradientStabilized
         );
-        assert_eq!(plan.preconditioner(), PreconditionerPolicy::Jacobi);
+        assert_eq!(plan.preconditioner(), &PreconditionerPolicy::Jacobi);
         assert_eq!(plan.reduction(), ReductionPolicy::Fast);
         assert_eq!(plan.maximum_iterations().get(), 300);
     }

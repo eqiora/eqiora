@@ -277,10 +277,13 @@ fn interval_geometry(lower: f64, upper: f64) -> CanonicalGeometryV1 {
             &BTreeMap::from([
                 (
                     "body".to_owned(),
-                    vec![PlanarTopologyHandle::from(operation.region())],
+                    vec![GeometryTopologyHandle::from(operation.region())],
                 ),
-                ("left".to_owned(), vec![PlanarTopologyHandle::from(left)]),
-                ("right".to_owned(), vec![PlanarTopologyHandle::from(right)]),
+                ("left".to_owned(), vec![GeometryTopologyHandle::from(left)]),
+                (
+                    "right".to_owned(),
+                    vec![GeometryTopologyHandle::from(right)],
+                ),
             ]),
         )
         .unwrap()
@@ -321,13 +324,19 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         ),
     )
     .unwrap();
+    let stokes = NativeSpatialPolicy::StokesMiniP1(stokes_scales);
+    validate_resources(&stokes, &exact_owner.resources)
+        .expect("MINI Stokes accepts authenticated two-dimensional affine-triangle resources");
+    let cartesian_owner = resources(&geometry);
+    let incompatible = validate_resources(&stokes, &cartesian_owner.resources).unwrap_err();
+    assert_eq!(
+        incompatible.code(),
+        eqiora_core::diagnostic::codes::INVALID_REALIZATION
+    );
     assert!(
-        validate_resources(
-            &NativeSpatialPolicy::StokesMiniP1(stokes_scales),
-            &exact_owner.resources,
-        )
-        .is_err(),
-        "#574 publishes physics-independent Mesh resources but does not admit Stokes"
+        incompatible
+            .message()
+            .contains("Mesh kind are incompatible")
     );
 
     let alternate_policy = AffineTriangleMeshPolicy::new([3, 2]).unwrap();

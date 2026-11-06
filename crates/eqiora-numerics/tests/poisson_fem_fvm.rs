@@ -92,7 +92,7 @@ fn one_poisson_revision_executes_through_two_realization_plans() {
             },
             QuadraturePolicy::CellCentroid,
         ),
-        default_plan.solver(),
+        default_plan.solver().clone(),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },

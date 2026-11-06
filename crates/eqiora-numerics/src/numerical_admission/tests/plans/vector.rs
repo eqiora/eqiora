@@ -330,7 +330,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             mesh.mesh(),
             &input,
             NonZeroUsize::MIN,
-            eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
+            eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy.clone()),
             None,
         )
         .unwrap();

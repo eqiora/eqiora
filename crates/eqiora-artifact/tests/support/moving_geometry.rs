@@ -29,8 +29,8 @@ use eqiora_realization::{
     resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 pub struct Resources {
@@ -453,7 +453,7 @@ fn capabilities() -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -461,7 +461,7 @@ fn capabilities() -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },

@@ -33,6 +33,7 @@ impl LinearSolverBackend<Complex64> for FaerLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
+        let plan = &plan;
         let algorithm = format!("{:?}", plan.algorithm());
         let _linear = eqiora_execution::telemetry_span!(linear_solve(
             &algorithm,
@@ -127,7 +128,7 @@ mod tests {
             // These RHS values are the listed diagonal times [1+2i,-2+i].
             let source = CanonicalCsrSystemView::new(&Diagonal(values), &rhs, properties).unwrap();
             let solution = FaerLinearSolver
-                .solve(&source.linear_problem().unwrap(), plan)
+                .solve(&source.linear_problem().unwrap(), plan.clone())
                 .unwrap();
             for algorithm in [
                 LinearSolver::ConjugateGradient,
@@ -147,7 +148,7 @@ mod tests {
                         .with_reduction(ReductionPolicy::Fast)
                         .with_preconditioner(preconditioner);
                     let iterative = FaerLinearSolver
-                        .solve(&source.linear_problem().unwrap(), request)
+                        .solve(&source.linear_problem().unwrap(), request.clone())
                         .unwrap();
                     for (actual, expected) in iterative
                         .values()
@@ -156,7 +157,7 @@ mod tests {
                     {
                         assert!((*actual - expected).norm() <= 1e-11);
                     }
-                    assert_eq!(iterative.report().solver_plan(), request);
+                    assert_eq!(iterative.report().solver_plan(), &request);
                 }
             }
             for (actual, expected) in solution
@@ -186,7 +187,7 @@ mod tests {
             FaerLinearSolver
                 .capabilities()
                 .require_problem(
-                    unsupported,
+                    &unsupported,
                     eqiora_core::ScalarDomain::Complex,
                     eqiora_core::ScalarType::F64,
                     Properties::Hermitian,

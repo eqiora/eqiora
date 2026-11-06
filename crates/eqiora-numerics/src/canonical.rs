@@ -2,10 +2,9 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
-use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, GraphPath, RawId, ScalarType};
+use eqiora_core::{Diagnostic, GraphPath, Id, RawId, ScalarType};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
     LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
@@ -119,7 +118,7 @@ impl FinalizedScalarEllipticParameterPoint {
 
     /// Sole solver policy selected by the Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.problem.solver_plan()
     }
 
@@ -549,7 +548,7 @@ impl ScalarEllipticModel1d {
 }
 
 /// Explicit policy for the built-in default interval realization.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DefaultScalarElliptic1dConfig {
     /// Equal affine cells in the generated line mesh.
     pub cells: usize,
@@ -1017,7 +1016,8 @@ pub fn solve_resolved_scalar_elliptic_cartesian_with_assembly(
         resolved.plan().target(),
         assembly,
     )?;
-    let solution = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    let solver = finalized.solver_plan().clone();
+    let solution = backend.solve(&finalized.linear_problem()?, solver)?;
     Ok((model, finalized.finish(solution)?))
 }
 

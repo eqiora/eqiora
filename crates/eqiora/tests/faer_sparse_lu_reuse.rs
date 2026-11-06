@@ -75,7 +75,10 @@ fn prepared_provider_preserves_independent_solutions_and_reports() {
         .iter()
         .zip([0.25, 0.5, 0.2])
         .map(|(system, expected)| {
-            let mut prepared = FaerLinearSolver.prepare_linear(plan).unwrap().unwrap();
+            let mut prepared = FaerLinearSolver
+                .prepare_linear(plan.clone())
+                .unwrap()
+                .unwrap();
             prepared.begin_action().unwrap();
             let solution = prepared
                 .solve(&structure, &system.linear_problem().unwrap())

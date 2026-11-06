@@ -129,7 +129,7 @@ fn finalized_mini_handoff_reaccepts_the_exact_captured_system() {
         &quadrature,
         &simplex_centroid_rule(1).unwrap(),
         &REFERENCE_ASSEMBLY_BACKEND,
-        request.plan(),
+        request.plan().clone(),
         VectorLayoutKind::Replicated,
         Target::HostCpu {
             threads: NonZeroUsize::MIN,

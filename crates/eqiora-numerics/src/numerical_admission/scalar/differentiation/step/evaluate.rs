@@ -67,7 +67,7 @@ where
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let request = LinearSolveRequest::new(&checked, self.plan.admission.linear.solver);
+        let request = LinearSolveRequest::new(&checked, self.plan.admission.linear.solver.clone());
         let (linearization, primal) = if self.plan.admission.nonlinear.is_some() {
             let seed = input.previous.as_ref().expect("validated physical history");
             let solved = self

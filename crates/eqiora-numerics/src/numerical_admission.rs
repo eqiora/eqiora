@@ -92,7 +92,7 @@ const TRANSIENT_REALIZATION_REVISION: u64 = 166;
 const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
 const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
-const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v2\0";
+const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v3\0";
 /// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {
@@ -211,7 +211,7 @@ pub enum CommonScalingRequest {
 }
 
 /// Explicit linear-solver intent admitted by the common resolver.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CommonLinearRequest {
     relative_tolerance: f64,
     absolute_tolerance: f64,
@@ -222,13 +222,16 @@ pub struct CommonLinearRequest {
     workers: NonZeroUsize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum CommonLinearSelection {
     Exact {
         plan: SolverPlan,
         provider: SolverProvider,
     },
-    ProgramControlled(SolverPlanningObjective),
+    ProgramControlled {
+        objective: SolverPlanningObjective,
+        preconditioner: Option<eqiora_solver::PreconditionerPolicy>,
+    },
 }
 
 impl CommonLinearRequest {
@@ -244,6 +247,36 @@ impl CommonLinearRequest {
         )
     }
 
+    /// Select one explicit preconditioner for both exact and ranked requests.
+    /// Ranking never changes its groups, factor providers or work limits.
+    #[must_use]
+    pub fn with_preconditioner(mut self, policy: eqiora_solver::PreconditionerPolicy) -> Self {
+        self.selection = match self.selection {
+            CommonLinearSelection::Exact { plan, provider } => CommonLinearSelection::Exact {
+                plan: plan.with_preconditioner(policy),
+                provider,
+            },
+            CommonLinearSelection::ProgramControlled { objective, .. } => {
+                CommonLinearSelection::ProgramControlled {
+                    objective,
+                    preconditioner: Some(policy),
+                }
+            }
+        };
+        self
+    }
+
+    /// Explicit preconditioner intent; absent only for unrestricted ranked requests.
+    #[must_use]
+    pub fn requested_preconditioner(&self) -> Option<&eqiora_solver::PreconditionerPolicy> {
+        match &self.selection {
+            CommonLinearSelection::Exact { plan, .. } => Some(plan.preconditioner()),
+            CommonLinearSelection::ProgramControlled { preconditioner, .. } => {
+                preconditioner.as_ref()
+            }
+        }
+    }
+
     /// Request ranking by the versioned host-serial policy after hard admission.
     pub fn program_controlled(
         relative_tolerance: f64,
@@ -255,7 +288,10 @@ impl CommonLinearRequest {
             relative_tolerance,
             absolute_tolerance,
             maximum_iterations,
-            CommonLinearSelection::ProgramControlled(objective),
+            CommonLinearSelection::ProgramControlled {
+                objective,
+                preconditioner: None,
+            },
         )
     }
 
@@ -303,7 +339,7 @@ impl CommonLinearRequest {
 
     /// Exact requested host execution, independent of the mathematical solver.
     #[must_use]
-    pub const fn execution(self) -> (ExecutionProvider, NonZeroUsize) {
+    pub const fn execution(&self) -> (ExecutionProvider, NonZeroUsize) {
         (self.execution, self.workers)
     }
 
@@ -317,49 +353,49 @@ impl CommonLinearRequest {
 
     /// Explicit cost assumptions; absent means an assumed one-shot solve.
     #[must_use]
-    pub const fn cost(self) -> Option<eqiora_solver::SolverCostRequest> {
+    pub const fn cost(&self) -> Option<eqiora_solver::SolverCostRequest> {
         self.cost
     }
 
     /// Requested relative residual tolerance.
     #[must_use]
-    pub const fn relative_tolerance(self) -> f64 {
+    pub const fn relative_tolerance(&self) -> f64 {
         self.relative_tolerance
     }
 
     /// Requested absolute residual tolerance.
     #[must_use]
-    pub const fn absolute_tolerance(self) -> f64 {
+    pub const fn absolute_tolerance(&self) -> f64 {
         self.absolute_tolerance
     }
 
     /// Requested iteration ceiling.
     #[must_use]
-    pub const fn maximum_iterations(self) -> NonZeroUsize {
+    pub const fn maximum_iterations(&self) -> NonZeroUsize {
         self.maximum_iterations
     }
 
     /// Explicit ranked objective; exact manual requests have no objective.
     #[must_use]
-    pub const fn objective(self) -> Option<SolverPlanningObjective> {
-        match self.selection {
-            CommonLinearSelection::ProgramControlled(objective) => Some(objective),
+    pub const fn objective(&self) -> Option<SolverPlanningObjective> {
+        match &self.selection {
+            CommonLinearSelection::ProgramControlled { objective, .. } => Some(*objective),
             CommonLinearSelection::Exact { .. } => None,
         }
     }
 
     /// Exact caller-owned plan and provider, absent for ranked requests.
     #[must_use]
-    pub const fn exact_request(self) -> Option<(SolverPlan, SolverProvider)> {
-        match self.selection {
-            CommonLinearSelection::Exact { plan, provider } => Some((plan, provider)),
-            CommonLinearSelection::ProgramControlled(_) => None,
+    pub const fn exact_request(&self) -> Option<(&SolverPlan, SolverProvider)> {
+        match &self.selection {
+            CommonLinearSelection::Exact { plan, provider } => Some((plan, *provider)),
+            CommonLinearSelection::ProgramControlled { .. } => None,
         }
     }
 }
 
 /// Closed linear or Newton/linear hierarchy with explicit solver intent.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CommonSolvePolicy {
     /// One linear solve for a steady linearized problem.
     Linear(CommonLinearRequest),
@@ -372,7 +408,7 @@ pub enum CommonSolvePolicy {
     },
 }
 
-/// Pressure representative retained by an admitted transient Plan.
+/// Pressure representative retained by an admitted incompressible-flow Plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonPressureGauge2d {
     /// Pressure is represented by one zero-integral constraint.
