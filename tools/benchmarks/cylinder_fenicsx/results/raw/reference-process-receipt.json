@@ -1,0 +1,35 @@
+{
+  "actual_harness_revision": "d37e282dda3d4ff33633570896fb897008c7dda6",
+  "source_clean_before_launch": true,
+  "command": [
+    "taskset",
+    "-c",
+    "12",
+    "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+    "-I",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-worktree/tools/benchmarks/cylinder_fenicsx/calibrate.py",
+    "--mesh",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-prep/selected-mesh.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1"
+  ],
+  "environment_controls": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "LD_LIBRARY_PATH": null,
+    "PETSC_OPTIONS": null,
+    "PETSC_OPTIONS_YAML": null,
+    "SLEPC_OPTIONS": null,
+    "TMPDIR": "/data/nk523/.cache/eqiora/cylinder-fenicsx-prep/reference-launch-tmp",
+    "XDG_CACHE_HOME": "/data/nk523/.cache/eqiora/cylinder-fenicsx-prep/reference-launch-tmp/cache"
+  },
+  "started_utc": "2026-11-06T01:44:49.085169+00:00",
+  "scope": "external-only reference correctness calibration; no Eqiora candidate or performance evidence",
+  "pid": 3662245,
+  "terminal_exit_code": 0,
+  "finished_utc": "2026-11-06T01:44:59.541621+00:00"
+}

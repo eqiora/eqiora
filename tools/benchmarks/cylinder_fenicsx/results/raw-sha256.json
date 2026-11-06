@@ -1,0 +1,129 @@
+{
+  "reference-process-receipt.json": {
+    "sha256": "3080503e857595817627d8528011ff004e9f4aaee1f1a4a2cb3e2f481112e745",
+    "bytes": 1325,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1.launch.json",
+    "committed_original_bytes": true
+  },
+  "native-process-receipt.json": {
+    "sha256": "44fb06bfd5b956654ff4b7d33628a49cca83c488c4f9728f17a254a5ae430c98",
+    "bytes": 2592,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1.launch.json",
+    "committed_original_bytes": false
+  },
+  "audit-process-receipt.json": {
+    "sha256": "54b075693c934a3d027192c5027c390df9e56cce5b1cb0bf3058e1f52f052786",
+    "bytes": 1999,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1.audit-launch.json",
+    "committed_original_bytes": true
+  },
+  "native-process-summary.json": {
+    "sha256": "7a1cea9b15e8d040588472ecfc929bf87843311307103376070ad6f76667f317",
+    "bytes": 2823,
+    "committed_original_bytes": false,
+    "committed_projection": true,
+    "original_receipt_sha256": "44fb06bfd5b956654ff4b7d33628a49cca83c488c4f9728f17a254a5ae430c98"
+  },
+  "reference/reference-manifest.json": {
+    "sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+    "bytes": 3819,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-manifest.json",
+    "committed_original_bytes": true
+  },
+  "reference/public-mesh.json": {
+    "sha256": "6862d62092d6a7790d87c1331e3fe5833f437238eb24c1c444fc5b7ca3402fbd",
+    "bytes": 371143,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/public-mesh.json",
+    "committed_original_bytes": true
+  },
+  "reference/reference-launch.json": {
+    "sha256": "3e978d2bf303f19cd7a47fd4ebc796302821ee751198b0032c942a067da86072",
+    "bytes": 8596,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-launch.json",
+    "committed_original_bytes": true
+  },
+  "reference/A/observation.json": {
+    "sha256": "e49fd74a06be7da54d50f533d22d98a1161f79d8b8972dde8d20e3b02d5254a5",
+    "bytes": 599470,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/A/observation.json",
+    "committed_original_bytes": true
+  },
+  "reference/B/observation.json": {
+    "sha256": "36c6c651673d6fe1ce2f8e620f2aa687fe502738bd38d1f0b33e7fcde6d867ef",
+    "bytes": 599496,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/B/observation.json",
+    "committed_original_bytes": true
+  },
+  "reference/C/observation.json": {
+    "sha256": "b7030f5e7c347eeb29d2a1604bd36c812793275f5d41d814c5f712f643e346ce",
+    "bytes": 599439,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/C/observation.json",
+    "committed_original_bytes": true
+  },
+  "candidate/candidate-field.json": {
+    "sha256": "9c7e5807eb2899b1e9f789cb4468e3c54ecfb8d1aa476de8e93897ed8f7ecb59",
+    "bytes": 826220,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/candidate-field.json",
+    "committed_original_bytes": true
+  },
+  "candidate/result.json": {
+    "sha256": "3f7e619d48218ed4e27ab22b24eaea592f95d0be97412bf1a47fba6209968d44",
+    "bytes": 1048833,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/result.json",
+    "committed_original_bytes": true
+  },
+  "candidate/independent-audit.json": {
+    "sha256": "7d9ff0faba57d9514b1e3ab63f72b2723a12625c3d57c65b875b0db2a399e64f",
+    "bytes": 3786,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/independent-audit.json",
+    "committed_original_bytes": true
+  },
+  "reference/reference-scaled-rhs.petsc.info": {
+    "sha256": "f273eddab27ba2594ea931f0b9ab08bdd8e0f5c2cd8cc380fe6c2e1fc47680d3",
+    "bytes": 22,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-scaled-rhs.petsc.info",
+    "committed_original_bytes": true
+  },
+  "reference/reference-scaled-rhs.petsc": {
+    "sha256": "6f1d34b211a8d883a9541921047fc2b6ea8ece36a9cb00c05037afe858bfeca3",
+    "bytes": 125560,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-scaled-rhs.petsc",
+    "committed_original_bytes": true
+  },
+  "reference/selected-mesh.mesh.bin": {
+    "sha256": "d79bd0f66f3c6ae7a26da995c4f61447d0ce038f5bca8ea1d44f4f0ebbd0eb4a",
+    "bytes": 517394,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/selected-mesh.mesh.bin",
+    "committed_original_bytes": true
+  },
+  "reference/reference-system.npz": {
+    "sha256": "b263f1a05efc5ae48ae3a380d12b27ce1e3310ecb05bc6ef8b01d07d4a8810a0",
+    "bytes": 4079922,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-system.npz",
+    "committed_original_bytes": true
+  },
+  "reference/reference-scaled-matrix.petsc": {
+    "sha256": "b8c6179e99245a4b6c2c25db004811d6418558606369210e9187eea12fda5351",
+    "bytes": 3764576,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-scaled-matrix.petsc",
+    "committed_original_bytes": true
+  },
+  "reference/reference-scaled-matrix.petsc.info": {
+    "sha256": "4cd4780ed7ae8700144423e4afcc90af317a05dc0f83b98c46be71666e958290",
+    "bytes": 22,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-scaled-matrix.petsc.info",
+    "committed_original_bytes": true
+  },
+  "candidate/candidate-plan.bin": {
+    "sha256": "49570f0950fbb45b105766a7d5d78968353d79ea096d30030a606adef400d3d1",
+    "bytes": 735164,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/candidate-plan.bin",
+    "committed_original_bytes": true
+  },
+  "candidate/candidate-result.bin": {
+    "sha256": "5876b137785a3366d8e5efbb81bfd6c11c71eb07f7fbd943c70ed0a90db5ae56",
+    "bytes": 348658,
+    "original_retained_path": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/candidate-result.bin",
+    "committed_original_bytes": true
+  }
+}
