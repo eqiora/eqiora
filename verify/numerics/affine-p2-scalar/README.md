@@ -69,9 +69,10 @@ rejects orders without implemented kernels; this workflow exposes only P2.
 
 ## Initial installed-Python launcher
 
-`check.py` is deliberately limited to the reviewed 2D N=2 quadratic patch. It
+`check.py` is deliberately limited to one reviewed 2D or 3D N=2 quadratic patch. It
 accepts either a zero-run preflight or one ordinary run; there are no level,
-profile, repetition, warmup or timing switches. The CPU affinity is a resource
+profile, repetition, warmup or timing switches. The only case choice is dimension
+2 or 3; candidate metadata must match that frozen reference packet. The CPU affinity is a resource
 envelope of at most four CPUs. The actual Plan remains host-serial with one
 worker, and threaded libraries are fixed to one thread. GPUs and multiple ranks
 are excluded from this witness.
@@ -88,7 +89,7 @@ is claimed by this Python launcher.
 Use a fresh home-backed output directory and reviewed values for the placeholders:
 
 ```
-python -I -B check.py --mode preflight --output <fresh-directory> \
+python -I -B check.py --mode preflight --dimension 2 --output <fresh-directory> \
   --expected-harness-revision <reviewed-harness-commit> \
   --native-receipt <reviewed-build-receipt> \
   --expected-native-source <actual-native-producer-commit> \

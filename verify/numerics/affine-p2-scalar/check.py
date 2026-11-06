@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""One reviewed 2D N2 patch candidate, or its zero-run preflight.
+"""One reviewed 2D or 3D N2 patch candidate, or its zero-run preflight.
 
 No retries, warmups, samples, private artifact construction or alternate solver
-path. This initial launcher deliberately has no dimension/level/profile switch.
+path. Only dimensions 2/3 are selectable; levels and profiles remain fixed.
 """
 import argparse
 import gzip
@@ -24,7 +24,8 @@ from quadratic_output import write_new,utc
 THREADS=('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','RAYON_NUM_THREADS','NUMEXPR_NUM_THREADS')
 
 
-def reference(expected):
+def reference(expected,dimension):
+    require(dimension in (2,3),'undeclared patch dimension')
     root=HERE/'reference';data=root/'data'
     raw=(data/'manifest.json').read_bytes()
     require(sha256(raw)==expected,'frozen reference manifest digest differs')
@@ -34,7 +35,8 @@ def reference(expected):
         require(sha256((data/name).read_bytes())==digest,'frozen reference file digest differs')
     raw=gzip.decompress((data/manifest['patch']['file']).read_bytes())
     require(sha256(raw)==manifest['patch']['uncompressed_sha256'],'original rational operator bytes differ')
-    packet=next(p for p in json.loads(raw)['patches'] if p['dimension']==2)
+    packet=next(p for p in json.loads(raw)['patches'] if p['dimension']==dimension)
+    require(packet['N']==2,'frozen patch level differs')
     proof=json.loads((root/'checks'/'supplemental-receipt.json').read_text())
     require(proof['packet_manifest_sha256']==expected,'reference source receipt binds a different packet')
     require(sha256((root/'patch_gate.py').read_bytes())==proof['source_sha256']['patch_gate.py'],'frozen reference gate source differs')
@@ -46,6 +48,9 @@ def reference(expected):
 
 def compare_patch(candidate,packet,gate):
     from fractions import Fraction
+    require(candidate.get('schema')==1 and candidate.get('dimension')==packet['dimension']
+            and candidate.get('N')==packet['N']==2 and candidate.get('profile')=='patch'
+            and candidate.get('gauss_points')==3,'candidate metadata differs from frozen patch')
     records=candidate['records']
     values={tuple(map(Fraction,r['coordinates_m'])):float.fromhex(r['value_binary64_hex']) for r in records}
     nodes=[tuple(map(Fraction,x)) for x in packet['nodes_m']]
@@ -68,6 +73,7 @@ def native_receipt_matches(receipt,source,digest):
 def parser():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode',choices=('preflight','solve'),required=True)
+    p.add_argument('--dimension',type=int,choices=(2,3),required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--expected-harness-revision',required=True)
     p.add_argument('--native-receipt',type=Path,required=True)
@@ -93,13 +99,13 @@ def main():
     if actual_revision!=args.expected_harness_revision:p.error('actual harness revision differs')
     if subprocess.check_output(['git','diff','HEAD','--name-only'],cwd=HERE,text=True).strip():p.error('tracked source differs from the frozen harness')
     try:
-        packet,gate=reference(args.expected_reference_sha256)
+        packet,gate=reference(args.expected_reference_sha256,args.dimension)
         native_receipt_raw=args.native_receipt.read_bytes();native_receipt=json.loads(native_receipt_raw)
         native_receipt_matches(native_receipt,args.expected_native_source,args.expected_native_sha256)
     except (ValueError,KeyError,OSError) as error:p.error(str(error))
     args.output.mkdir(parents=True)
     closure=[HERE/name for name in ('check.py','simplex_plan.py','source_model.py','fixtures.py','simplex_production.py')]+[HERE.parent/'quadratic_output.py',HERE/'reference'/'exact.py',HERE/'reference'/'patch_gate.py']
-    launch={'schema':1,'case':{'profile':'patch','dimension':2,'N':2},'mode':args.mode,'python_command':list(sys.orig_argv),'process_cwd':os.getcwd(),
+    launch={'schema':1,'case':{'profile':'patch','dimension':args.dimension,'N':2},'mode':args.mode,'python_command':list(sys.orig_argv),'process_cwd':os.getcwd(),
             'actual_harness_revision':actual_revision,'source_closure_sha256':{str(path.relative_to(HERE.parent)):sha256(path.read_bytes()) for path in closure},
             'native_receipt_sha256':sha256(native_receipt_raw),'reviewed_native_source_revision':args.expected_native_source,'expected_native_sha256':args.expected_native_sha256,
             'frozen_reference_manifest_sha256':args.expected_reference_sha256,'cpu_affinity_resource_envelope':affinity,
@@ -114,7 +120,7 @@ def main():
         require(sha256(native_path.read_bytes())==args.expected_native_sha256,'actual imported native bytes differ from reviewed artifact')
         state.update(native_module=str(native_path),native_module_sha256=sha256(native_path.read_bytes()),eqiora_version=importlib.metadata.version('eqiora'))
         state['phase']='plan-preparation'
-        plan,field,preflight=prepare(eqiora,2,2,'patch',args.output)
+        plan,field,preflight=prepare(eqiora,args.dimension,2,'patch',args.output)
         state.update(plan_identity=plan.identity,actual_plan_workers=preflight['actual_plan_workers'],actual_plan_placement=preflight['actual_plan_placement'])
         if args.mode=='preflight':state['status']='preflight-passed-no-run'
         else:
@@ -127,8 +133,8 @@ def main():
             state['phase']='result-replay-and-export'
             reopened=eqiora.Result.from_bytes(plan,raw)
             require(reopened.to_bytes()==raw,'Result replay changed canonical bytes')
-            candidate,identity=extract_candidate(plan,result,field,2,2,'patch')
-            replay_candidate,replay_identity=extract_candidate(plan,reopened,field,2,2,'patch')
+            candidate,identity=extract_candidate(plan,result,field,args.dimension,2,'patch')
+            replay_candidate,replay_identity=extract_candidate(plan,reopened,field,args.dimension,2,'patch')
             require(replay_candidate==candidate and replay_identity==identity,'Result replay changed a vertex or edge coefficient')
             state['candidate_sha256']=write_new(args.output/'candidate.json',candidate)
             identity['candidate_sha256']=state['candidate_sha256']
