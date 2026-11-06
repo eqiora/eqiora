@@ -1,6 +1,23 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
+    /// Pressure representative established by the retained mixed realization.
+    #[must_use]
+    pub fn gauge(&self) -> CommonPressureGauge2d {
+        if self
+            .resolved
+            .plan()
+            .spatial()
+            .constraints()
+            .iter()
+            .any(|constraint| constraint.field().ulid().to_string() == self.pressure_field_id)
+        {
+            CommonPressureGauge2d::ZeroIntegral
+        } else {
+            CommonPressureGauge2d::BoundaryTraction
+        }
+    }
+
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
@@ -191,9 +208,11 @@ impl CommonSteadyStokesPlan {
         self.admission
             .resources()
             .geometry()?
-            .circular_hole_bounds()
+            .planar_axis_bounds()
             .copied()
-            .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))
+            .ok_or_else(|| {
+                invalid("steady-Stokes observation requires exact planar Geometry bounds")
+            })
     }
 
     /// Execute directly into the common producer-independent Result authority.
@@ -279,7 +298,7 @@ impl CommonSteadyStokesPlan {
         self.scaling.scales()
     }
     #[must_use]
-    pub const fn linear(&self) -> SolverPlan {
-        self.admission.linear.solver
+    pub const fn linear(&self) -> &SolverPlan {
+        &self.admission.linear.solver
     }
 }

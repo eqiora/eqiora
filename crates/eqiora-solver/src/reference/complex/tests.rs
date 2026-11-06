@@ -119,7 +119,7 @@ fn complex_reference_rejects_unadmitted_execution_before_any_numerical_operation
     let error = ReferenceLinearSolver
         .solve_with_execution(
             &source.linear_problem().unwrap(),
-            plan,
+            plan.clone(),
             &UnadmittedExecution,
         )
         .unwrap_err();
@@ -306,7 +306,7 @@ fn typed_coordinate_solves_preserve_complex_forward_and_adjoint_producers() {
     let backend = TypedCoordinatesOnly {
         foreign_identity: false,
     };
-    let request = LinearSolveRequest::new(&backend, plan);
+    let request = LinearSolveRequest::new(&backend, plan.clone());
     // Independently expanded A*x and A^H*x for x=(1+2i,-2+i).
     for (orientation, rhs) in [
         (LinearOperatorOrientation::Normal, [-5., 5., -13., 9.]),
@@ -461,7 +461,7 @@ fn real_coordinate_lowering_requires_the_same_execution_before_numerical_work() 
         ),
     ] {
         let error = ReferenceLinearSolver
-            .solve_with_execution(&source.linear_problem().unwrap(), plan, &execution)
+            .solve_with_execution(&source.linear_problem().unwrap(), plan.clone(), &execution)
             .unwrap_err();
         assert!(error.message().contains(message), "{error}");
     }

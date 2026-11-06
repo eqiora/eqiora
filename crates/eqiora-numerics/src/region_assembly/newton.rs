@@ -71,7 +71,7 @@ impl<S: Coefficient + Send + Sync, P: Projection<S, Scalar = f64>> PreparedRegio
             |_, point| {
                 point.assembly.solve_correction(
                     index,
-                    linear,
+                    linear.clone(),
                     workers,
                     prepared_linear.as_mut().map(|prepared| {
                         &mut **prepared as &mut dyn eqiora_solver::PreparedLinearSolver
@@ -123,7 +123,7 @@ impl RegionAssemblyLinearization {
         workers: NonZeroUsize,
         prepared: Option<&mut dyn eqiora_solver::PreparedLinearSolver>,
     ) -> Result<(Vec<f64>, eqiora_solver::SolveReport), Diagnostic> {
-        let core = self.correction_core(index, linear.plan(), workers)?;
+        let core = self.correction_core(index, linear.plan().clone(), workers)?;
         let problem = core.linear_problem()?;
         let solution = match prepared {
             Some(prepared) => prepared.solve(

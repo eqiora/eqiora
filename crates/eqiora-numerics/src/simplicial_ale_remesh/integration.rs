@@ -146,7 +146,7 @@ fn capture_dense(
     CanonicalCsrSystemView::new(&storage, right_hand_side, properties)
 }
 
-pub(super) fn require_projection_solver(solver: LinearSolveRequest<'_>) -> Result<(), Diagnostic> {
+pub(super) fn require_projection_solver(solver: &LinearSolveRequest<'_>) -> Result<(), Diagnostic> {
     eqiora_realization::AleFsiRemeshTransferPlan2d::require_solver_policy(solver.plan())?;
     for properties in [
         LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -166,7 +166,7 @@ pub(super) fn solve_dense(
     values: Vec<f64>,
     right_hand_side: &[f64],
     properties: LinearOperatorProperties,
-    solver: LinearSolveRequest<'_>,
+    solver: &LinearSolveRequest<'_>,
 ) -> Result<(Vec<f64>, SolveReport, f64), Diagnostic> {
     let operator = capture_dense(&values, right_hand_side, properties)?;
     solver.backend().capabilities().require_problem(

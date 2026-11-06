@@ -254,7 +254,7 @@ fn contradictory_and_unsupported_explicit_plans_never_fall_back() {
                 points_per_axis: NonZeroUsize::MIN,
             },
         ),
-        solver,
+        solver.clone(),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },
@@ -266,7 +266,7 @@ fn contradictory_and_unsupported_explicit_plans_never_fall_back() {
     let cuda = RealizationPlan::new(
         default_plan_v0().unwrap().space(),
         default_plan_v0().unwrap().discretization(),
-        solver,
+        solver.clone(),
         Target::CudaGpu { device: 0 },
         ExecutionSchedule::Offline,
     )
@@ -372,7 +372,7 @@ fn reference_capability_is_exact_about_verified_dimensions_scalar_layout_and_thr
     let plan = RealizationPlan::new(
         default.space(),
         default.discretization(),
-        default.solver(),
+        default.solver().clone(),
         Target::HostCpu {
             threads: NonZeroUsize::new(2).unwrap(),
         },

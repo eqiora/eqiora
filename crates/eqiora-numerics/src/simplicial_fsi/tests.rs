@@ -193,7 +193,7 @@ fn fixture() -> Fixture {
         &super::test_model::adjacent_rectangles(),
         &mesh,
         provisional_config(scale),
-        reference_solver().plan(),
+        reference_solver().plan().clone(),
         false,
     );
     let plan = authored.plan;
@@ -399,5 +399,5 @@ fn reference_solver() -> LinearSolveRequest<'static> {
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible);
-    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone())
 }

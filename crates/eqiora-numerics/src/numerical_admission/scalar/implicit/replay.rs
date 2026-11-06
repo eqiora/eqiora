@@ -389,7 +389,7 @@ where
                 let base = linearize(point)?;
                 let correction = base.assembly.correction_core(
                     0,
-                    self.plan.linear(),
+                    self.plan.linear().clone(),
                     self.plan.admission.linear.workers,
                 )?;
                 let (_, target) = correction.validate_coefficients(direction)?;
@@ -406,7 +406,7 @@ where
                     direction: direction.clone(),
                     accepted: evidence.unknown.clone(),
                     system: correction.shared_canonical_system(),
-                    solve: self.plan.linear(),
+                    solve: self.plan.linear().clone(),
                     relative: request
                         .plan()
                         .ode_temporal()

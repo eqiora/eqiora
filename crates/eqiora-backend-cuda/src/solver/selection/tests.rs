@@ -90,7 +90,7 @@ fn explicit_cuda_selection_covers_only_the_three_delivered_real_fast_tuples() {
             let selection = selected.selection().unwrap();
             let plan = selection.solver_plan();
             assert_eq!(plan.algorithm(), algorithm);
-            assert_eq!(plan.preconditioner(), preconditioner);
+            assert_eq!(plan.preconditioner(), &preconditioner);
             assert_eq!(plan.reduction(), ReductionPolicy::Fast);
             assert_eq!(plan.relative_tolerance(), 1e-12);
             assert_eq!(plan.absolute_tolerance(), 1e-14);
@@ -163,7 +163,7 @@ fn cuda_selection_rejects_unproved_math_resources_and_deployment_substitution_wi
         .iter()
         .find(|entry| entry.algorithm == LinearSolver::ConjugateGradient)
         .unwrap();
-    invented.preconditioner = PreconditionerPolicy::Identity;
+    invented.preconditioner = eqiora_solver::PreconditionerKind::Identity;
     let invented = CudaExecutorDescriptor::new(
         CUDA_LINEAR_SOLVER_PROVIDER,
         CUDA_LINEAR_EXECUTION_PROVIDER,
@@ -264,7 +264,9 @@ fn cuda_owner_selection_is_single_use_and_cannot_bypass_retained_binding() {
     let plan = selected.selection().unwrap().solver_plan();
     // A wrong-size guess makes this probe safe even if the state guard regresses:
     // the asserted diagnostic must still come from retained-selection ownership.
-    let error = selected.solve(&system, Some(&[0., 0.]), plan).unwrap_err();
+    let error = selected
+        .solve(&system, Some(&[0., 0.]), plan.clone())
+        .unwrap_err();
     assert!(error.message().contains("retained decision binding"));
     assert_eq!(selected.selection().unwrap().solver_plan(), plan);
 }

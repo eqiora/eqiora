@@ -153,7 +153,7 @@ fn material_q1_cg_identity_and_jacobi_preserve_run_fields_observables_and_produc
                 PreconditionerPolicy::Jacobi,
             ),
         ] {
-            let plan = resolve(&document, cells, algorithm, preconditioner).unwrap();
+            let plan = resolve(&document, cells, algorithm, preconditioner.clone()).unwrap();
             assert_eq!(
                 plan.operator_properties(),
                 Some(LinearOperatorProperties::SymmetricPositiveDefinite)
@@ -245,7 +245,7 @@ fn material_q1_cg_identity_and_jacobi_preserve_run_fields_observables_and_produc
             ]) {
                 assert_eq!(evidence.orientation(), orientation);
                 assert_eq!(evidence.algorithm(), algorithm);
-                assert_eq!(evidence.preconditioner(), preconditioner);
+                assert_eq!(evidence.preconditioner(), &preconditioner);
                 assert!(evidence.true_residual_norm() <= evidence.residual_target());
             }
             let record = point.record().unwrap();
@@ -642,8 +642,11 @@ fn stronger_spd_admission_preserves_existing_faer_bicgstab_products_and_replay()
     use eqiora_backend_faer::FaerLinearSolver;
     let document = ModelDocument::compile("faer-materials.eqi", SOURCE).unwrap();
     for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
-        let solver = solver(LinearSolver::BiConjugateGradientStabilized, preconditioner)
-            .with_reduction(ReductionPolicy::Fast);
+        let solver = solver(
+            LinearSolver::BiConjugateGradientStabilized,
+            preconditioner.clone(),
+        )
+        .with_reduction(ReductionPolicy::Fast);
         let plan = resolve_solver(&document, 4, solver, &FaerLinearSolver).unwrap();
         assert_eq!(
             plan.operator_properties(),
@@ -713,7 +716,7 @@ fn stronger_spd_admission_preserves_existing_faer_bicgstab_products_and_replay()
                 evidence.algorithm(),
                 LinearSolver::BiConjugateGradientStabilized
             );
-            assert_eq!(evidence.preconditioner(), preconditioner);
+            assert_eq!(evidence.preconditioner(), &preconditioner);
             assert_eq!(evidence.reduction(), ReductionPolicy::Fast);
             assert!(evidence.true_residual_norm() <= evidence.residual_target());
         }

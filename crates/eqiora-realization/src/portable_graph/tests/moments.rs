@@ -103,7 +103,7 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
         }
         for old in ["v1", "v2"] {
             let stale = text.replace(
-                "portable-realization-graph/v5",
+                "portable-realization-graph/v6",
                 &format!("portable-realization-graph/{old}"),
             );
             assert!(PortableRealizationGraph::from_bytes(stale.as_bytes()).is_err());

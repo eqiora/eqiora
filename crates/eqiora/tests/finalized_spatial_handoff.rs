@@ -36,14 +36,14 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
         &program,
         DiscretizationMethod::ContinuousGalerkin,
         4,
-        solver,
+        solver.clone(),
         1,
     );
     let fvm = resolve_plan(
         &program,
         DiscretizationMethod::CellCenteredFiniteVolume,
         3,
-        solver,
+        solver.clone(),
         2,
     );
 
@@ -79,18 +79,18 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
         fem_problem.operator_properties(),
         LinearOperatorProperties::SymmetricPositiveDefinite
     );
-    assert_eq!(fem_problem.solver_plan(), solver);
-    assert_eq!(fvm_problem.solver_plan(), solver);
+    assert_eq!(fem_problem.solver_plan(), &solver);
+    assert_eq!(fvm_problem.solver_plan(), &solver);
     assert_eq!(fem_problem.vector_layout(), VectorLayoutKind::Replicated);
     assert_eq!(fvm_problem.vector_layout(), VectorLayoutKind::Replicated);
     assert_eq!(fem_problem.assembly_report().target_count(), 2);
     assert_eq!(fvm_problem.assembly_report().target_count(), 1);
 
     let fem_linear = REFERENCE_LINEAR_SOLVER
-        .solve(&fem_problem.linear_problem().unwrap(), solver)
+        .solve(&fem_problem.linear_problem().unwrap(), solver.clone())
         .unwrap();
     let fvm_linear = REFERENCE_LINEAR_SOLVER
-        .solve(&fvm_problem.linear_problem().unwrap(), solver)
+        .solve(&fvm_problem.linear_problem().unwrap(), solver.clone())
         .unwrap();
 
     assert_eq!(
@@ -119,7 +119,7 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
 
     let cuda_claim = eqiora_solver::LinearSolution::accept_with_verifier(
         &fem_problem.linear_problem().unwrap(),
-        solver,
+        solver.clone(),
         test_solver_provider(BackendId::new("eqiora.test.cross-wire")),
         test_execution_provider(ExecutionId::new("eqiora.cuda.test")),
         ExecutionReport::cuda(ExecutionId::new("eqiora.cuda.test"), 0),
@@ -197,7 +197,7 @@ fn distributed_finalized_handoff_uses_one_canonical_view_and_exact_topology() {
         &program,
         DiscretizationMethod::ContinuousGalerkin,
         4,
-        solver,
+        solver.clone(),
         11,
         VectorLayoutKind::Distributed,
         Target::HostCpu {
@@ -208,7 +208,7 @@ fn distributed_finalized_handoff_uses_one_canonical_view_and_exact_topology() {
         &program,
         DiscretizationMethod::CellCenteredFiniteVolume,
         3,
-        solver,
+        solver.clone(),
         12,
         VectorLayoutKind::Distributed,
         Target::HostCpu {
@@ -294,7 +294,7 @@ fn distributed_finalization_rejects_unadmitted_placement_combinations() {
         &program,
         DiscretizationMethod::ContinuousGalerkin,
         4,
-        solver,
+        solver.clone(),
         21,
         VectorLayoutKind::Distributed,
         Target::HostCpu {
@@ -356,7 +356,10 @@ fn portable_graph_replay_uses_the_same_scalar_finalizer_and_checks_semantic_iden
             solve_resolved_scalar_elliptic_cartesian(&program, &authored, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
         let solution = REFERENCE_LINEAR_SOLVER
-            .solve(&problem.linear_problem().unwrap(), problem.solver_plan())
+            .solve(
+                &problem.linear_problem().unwrap(),
+                problem.solver_plan().clone(),
+            )
             .unwrap();
         assert_eq!(problem.portable_realization(), &decoded);
         assert_eq!(problem.finish(solution).unwrap(), expected);
@@ -426,11 +429,11 @@ fn distributed_candidate(
 ) -> LinearSolution {
     let plan = problem.solver_plan();
     let host = REFERENCE_LINEAR_SOLVER
-        .solve(&problem.linear_problem().unwrap(), plan)
+        .solve(&problem.linear_problem().unwrap(), plan.clone())
         .unwrap();
     eqiora_solver::LinearSolution::accept_with_verifier(
         &problem.linear_problem().unwrap(),
-        plan,
+        plan.clone(),
         test_solver_provider(BackendId::new("eqiora.test.distributed-loopback")),
         test_execution_provider(ExecutionId::new("eqiora.distributed.loopback")),
         ExecutionReport::distributed(
@@ -546,7 +549,7 @@ fn resolve_plan_with_placement(
             },
             quadrature,
         ),
-        solver,
+        solver.clone(),
         target,
         ExecutionSchedule::Offline,
     )
@@ -559,7 +562,7 @@ fn resolve_plan_with_placement(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: solver.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: solver.preconditioner(),
+        preconditioner: solver.preconditioner().kind(),
         reduction: solver.reduction(),
         scalar_type: ScalarType::F64,
     }])

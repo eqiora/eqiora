@@ -7,7 +7,7 @@ use faer::matrix_free::conjugate_gradient::{
 pub(super) fn solve<S: KrylovScalar>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     inverse_diagonal: Option<Vec<S>>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     if problem.has_candidate_check() {
@@ -25,7 +25,7 @@ pub(super) fn solve<S: KrylovScalar>(
     if initial_residual <= target {
         return eqiora_solver::LinearSolution::accept(
             problem,
-            plan,
+            plan.clone(),
             provider,
             ConvergenceReason::InitialResidualSatisfied,
             0,
@@ -65,7 +65,7 @@ pub(super) fn solve<S: KrylovScalar>(
     let iterations = info.iter_count.max(1);
     eqiora_solver::LinearSolution::accept(
         problem,
-        plan,
+        plan.clone(),
         provider,
         convergence_reason(iterations),
         iterations,
@@ -77,7 +77,7 @@ pub(super) fn solve<S: KrylovScalar>(
 fn solve_with_candidate_check<S: KrylovScalar>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     inverse_diagonal: Option<Vec<S>>,
 ) -> Result<LinearSolution<S>, Diagnostic> {
     use crate::candidate::{CandidateAcceptance, ZERO_ONLY_TOLERANCE, residual_norm};

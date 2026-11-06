@@ -5,7 +5,7 @@ use eqiora::diagnostic::codes;
 use eqiora::meshing::MeshEntity;
 use pyo3::prelude::*;
 
-use super::{AcceptedMeshSource, PyMesh, SourceOwnedProviderObservation};
+use super::{AcceptedMeshSource, PyMesh};
 
 impl PyMesh {
     pub(crate) fn viewer_coordinates(&self, py: Python<'_>) -> PyResult<(Vec<f64>, [usize; 2])> {
@@ -41,25 +41,13 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
-                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
                 ..
-            } => {
-                if geometry.planar_rectangle_bounds().is_some() {
-                    correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
-                } else {
-                    correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
-                }
-            }
-            AcceptedMeshSource::SourceOwned {
-                geometry,
-                correspondence,
-                ..
-            } => correspondence.planar_circular_hole_v2_entity_set_entities(geometry, name),
+            } => correspondence.planar_entity_set_entities(geometry, name),
             AcceptedMeshSource::SourceOwnedCartesian {
                 geometry,
                 correspondence,
                 ..
-            } => correspondence.planar_rectangle_v2_entity_set_entities(geometry, name),
+            } => correspondence.planar_entity_set_entities(geometry, name),
         }
     }
 }

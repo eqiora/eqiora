@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use eqiora_geometry::{
-    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryGraph, PlanarTopologyHandle,
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryGraph, GeometryTopologyHandle,
 };
 
 fn named(
-    entries: impl IntoIterator<Item = (&'static str, Vec<PlanarTopologyHandle>)>,
-) -> BTreeMap<String, Vec<PlanarTopologyHandle>> {
+    entries: impl IntoIterator<Item = (&'static str, Vec<GeometryTopologyHandle>)>,
+) -> BTreeMap<String, Vec<GeometryTopologyHandle>> {
     entries
         .into_iter()
         .map(|(name, handles)| (name.to_owned(), handles))

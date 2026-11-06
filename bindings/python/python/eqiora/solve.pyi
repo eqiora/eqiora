@@ -4,6 +4,7 @@ Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
 from . import ConstraintRef, Dimension, FieldRef, ValueType
 from typing import Any, ClassVar, Final, Self, final
+from collections.abc import Sequence
 
 @final
 class HermitianEigen:
@@ -66,13 +67,70 @@ class LinearSolver:
     def __hash__(self) -> int: ...
 
 @final
-class Preconditioner:
-    """Preconditioner.
+class AlgebraicBlock:
+    """Exact semantic Field or explicit constraint multiplier block.
 
-    Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyPreconditioner``.
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyAlgebraicBlock``.
+    """
+    @staticmethod
+    def field(field: FieldRef) -> AlgebraicBlock: ...
+    @staticmethod
+    def constraint_multiplier(field: FieldRef) -> AlgebraicBlock: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def field_id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class FixedFactorization:
+    """Fixed sparse LU with an explicit compiled provider.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyFixedFactorization``.
+    """
+    def __new__(cls, *, provider: SolverProvider, algorithm: LinearSolver = LinearSolver.SparseLu) -> FixedFactorization: ...
+    @property
+    def algorithm(self) -> LinearSolver: ...
+    @property
+    def provider(self) -> SolverProvider: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class UpperDiagonalSchurConfig:
+    """Complete construction settings. Limits cover Schur entries and scalar
+    product contributions, excluding factor memory and process RSS.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyUpperDiagonalSchurConfig``.
+    """
+    @property
+    def groups(self) -> tuple[list[AlgebraicBlock], list[AlgebraicBlock]]: ...
+    @property
+    def a_factorization(self) -> FixedFactorization: ...
+    @property
+    def schur_factorization(self) -> FixedFactorization: ...
+    @property
+    def maximum_entries(self) -> int: ...
+    @property
+    def maximum_products(self) -> int: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class Preconditioner:
+    """Complete immutable preconditioner policy shared with the solver core.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request/structured.rs::PyPreconditioner``.
     """
     Identity: ClassVar[Preconditioner]
     Jacobi: ClassVar[Preconditioner]
+    @staticmethod
+    def upper_diagonal_schur(*, groups: tuple[Sequence[AlgebraicBlock], Sequence[AlgebraicBlock]], a_factorization: FixedFactorization, schur_factorization: FixedFactorization, maximum_entries: int, maximum_products: int) -> Preconditioner: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def upper_diagonal_schur_config(self) -> UpperDiagonalSchurConfig | None: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -163,7 +221,7 @@ class SolverCandidateCost:
 class Linear:
     """Linear solve settings for the Model operator.
 
-    Either give an ``objective`` and let the planner choose, or give all of
+    Give an ``objective`` with an optional explicit ``preconditioner``, or give all of
     ``algorithm``, ``preconditioner``, ``reduction``, and ``provider``. Partial
     or mixed settings are rejected before resolution.
 
@@ -247,7 +305,7 @@ class ResolvedLinear:
     @property
     def algorithm(self) -> str: ...
     @property
-    def preconditioner(self) -> str: ...
+    def preconditioner(self) -> Preconditioner: ...
     @property
     def reduction(self) -> str: ...
     @property
@@ -322,6 +380,9 @@ __all__ = [
     "AlgebraicPlanView",
     "LinearSolver",
     "Preconditioner",
+    "AlgebraicBlock",
+    "FixedFactorization",
+    "UpperDiagonalSchurConfig",
     "Reduction",
     "SolverProvider",
     "Newton",

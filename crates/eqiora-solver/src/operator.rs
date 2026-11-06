@@ -180,6 +180,7 @@ pub struct LinearProblem<'a, S = f64> {
     properties: LinearOperatorProperties,
     canonical_csr_system: Option<&'a CanonicalCsrSystemView<S>>,
     candidate_check: Option<CandidateCheck<'a, S>>,
+    algebraic_structure: Option<&'a crate::AlgebraicStructure>,
 }
 
 struct CandidateCheck<'a, S>(&'a (dyn Fn(&[S]) -> Result<bool, Diagnostic> + Sync));
@@ -231,6 +232,7 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
             properties,
             canonical_csr_system: None,
             candidate_check: None,
+            algebraic_structure: None,
         })
     }
 
@@ -255,6 +257,31 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         let mut problem = Self::new(operator, right_hand_side, system.properties())?;
         problem.canonical_csr_system = Some(system);
         Ok(problem)
+    }
+
+    /// Attach exact method-owned membership in the original operator coordinates.
+    ///
+    /// # Errors
+    /// Rejects unestablished or differently sized membership and repeated binding.
+    pub fn with_algebraic_structure(
+        mut self,
+        structure: &'a crate::AlgebraicStructure,
+    ) -> Result<Self, Diagnostic> {
+        if structure.coordinate_count() != Some(self.operator.rows())
+            || self.algebraic_structure.is_some()
+        {
+            return Err(solve_failed(
+                "linear problem ownership must match its original operator coordinates",
+            ));
+        }
+        self.algebraic_structure = Some(structure);
+        Ok(self)
+    }
+
+    /// Exact method-owned membership, absent when it has not been established.
+    #[must_use]
+    pub const fn algebraic_structure(&self) -> Option<&'a crate::AlgebraicStructure> {
+        self.algebraic_structure
     }
 
     /// Attach an explicit initial guess.
@@ -454,5 +481,46 @@ mod tests {
         let mut output = [0.0; 3];
         transposed.apply(&[5.0, 7.0], &mut output).unwrap();
         assert_eq!(output, [5.0, 31.0, 28.0]);
+    }
+    #[test]
+    fn ownership_binding_rejects_unestablished_wrong_size_and_rebinding() {
+        use crate::{AlgebraicBlock, AlgebraicStructure};
+        #[derive(Debug)]
+        struct Identity;
+        impl LinearOperator for Identity {
+            type Scalar = f64;
+            fn rows(&self) -> usize {
+                2
+            }
+            fn columns(&self) -> usize {
+                2
+            }
+            fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+                if input.len() != 2 || output.len() != 2 {
+                    return Err(solve_failed("test action shape mismatch"));
+                }
+                output.copy_from_slice(input);
+                Ok(())
+            }
+        }
+        let field = eqiora_core::Id::new();
+        let inventory = AlgebraicStructure::new([field], []).unwrap();
+        let exact = inventory
+            .clone()
+            .with_coordinates(2, vec![(AlgebraicBlock::Field(field), vec![1, 0])])
+            .unwrap();
+        let wrong = inventory
+            .clone()
+            .with_coordinates(1, vec![(AlgebraicBlock::Field(field), vec![0])])
+            .unwrap();
+        let make = || {
+            LinearProblem::new(&Identity, &[0.0, 0.0], LinearOperatorProperties::General).unwrap()
+        };
+        assert!(make().algebraic_structure().is_none());
+        assert!(make().with_algebraic_structure(&inventory).is_err());
+        assert!(make().with_algebraic_structure(&wrong).is_err());
+        let bound = make().with_algebraic_structure(&exact).unwrap();
+        assert!(std::ptr::eq(bound.algebraic_structure().unwrap(), &exact));
+        assert!(bound.with_algebraic_structure(&exact).is_err());
     }
 }

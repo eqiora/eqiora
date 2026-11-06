@@ -44,7 +44,7 @@ impl<S: KrylovScalar> CandidateAcceptance<S> {
     pub(super) fn finish(
         self,
         problem: &LinearProblem<'_, S>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
         provider: SolverProvider,
         iterations: usize,
     ) -> Result<LinearSolution<S>, Diagnostic> {
@@ -55,7 +55,7 @@ impl<S: KrylovScalar> CandidateAcceptance<S> {
         })?;
         eqiora_solver::LinearSolution::accept(
             problem,
-            plan,
+            plan.clone(),
             provider,
             convergence_reason(iterations),
             iterations,

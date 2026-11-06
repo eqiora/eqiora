@@ -95,7 +95,7 @@ impl CommonSpatialPlan {
                 .spatial_values()
                 .ok_or_else(|| invalid("Newton seed requires physical spatial Fields"))?,
         )?;
-        let mut prepared = checked.prepare_linear(self.admission.linear.solver)?;
+        let mut prepared = checked.prepare_linear(self.admission.linear.solver.clone())?;
         if let Some(linear) = &mut prepared {
             linear.begin_action()?;
         }
@@ -104,7 +104,7 @@ impl CommonSpatialPlan {
                 &mapping,
                 &input,
                 &seed,
-                LinearSolveRequest::new(&checked, self.admission.linear.solver),
+                LinearSolveRequest::new(&checked, self.admission.linear.solver.clone()),
                 prepared
                     .as_mut()
                     .map(|linear| linear.as_mut() as &mut dyn eqiora_solver::PreparedLinearSolver),

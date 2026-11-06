@@ -142,7 +142,7 @@ impl CommonSpatialPlan {
                     input,
                     &history,
                     &temporal,
-                    self.linear(),
+                    self.linear().clone(),
                     initial_partial,
                 )?,
                 NativeMeshResources::GmshSimplicial { mesh, .. }
@@ -152,7 +152,7 @@ impl CommonSpatialPlan {
                         input,
                         &history,
                         &temporal,
-                        self.linear(),
+                        self.linear().clone(),
                         initial_partial,
                     )?,
                 _ => return Err(invalid("temporal State requires its exact nodal Mesh")),

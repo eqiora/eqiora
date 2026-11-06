@@ -485,7 +485,7 @@ mod tests {
             let accept = |value| {
                 crate::LinearSolution::accept(
                     &problem,
-                    plan,
+                    plan.clone(),
                     REFERENCE_SOLVER_PROVIDER,
                     ConvergenceReason::ResidualToleranceSatisfied,
                     1,

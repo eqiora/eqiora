@@ -5,7 +5,7 @@ fn solver(algorithm: LinearSolver, properties: LinearOperatorProperties) -> Solv
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm,
         operator_properties: properties,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }
@@ -142,7 +142,7 @@ fn exact_admission_tuples_reject_recombined_axes() {
                 ),
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshKind::GeneratedCartesian,
-                plan(LinearSolver::ConjugateGradient),
+                &plan(LinearSolver::ConjugateGradient),
                 Some(LinearOperatorProperties::SymmetricPositiveDefinite),
                 Target::HostCpu {
                     threads: NonZeroUsize::MIN,
@@ -161,7 +161,7 @@ fn exact_admission_tuples_reject_recombined_axes() {
                 ),
                 DiscretizationMethod::CellCenteredFiniteVolume,
                 MeshKind::GeneratedCartesian,
-                plan(LinearSolver::BiConjugateGradientStabilized),
+                &plan(LinearSolver::BiConjugateGradientStabilized),
                 Some(LinearOperatorProperties::General),
                 Target::CudaGpu { device: 3 },
                 ExecutionSchedule::Offline,
@@ -173,7 +173,7 @@ fn exact_admission_tuples_reject_recombined_axes() {
         RealizationRequirements::new(dimension, ScalarType::F64, VectorLayoutKind::Replicated),
         DiscretizationMethod::CellCenteredFiniteVolume,
         MeshKind::GeneratedCartesian,
-        plan(LinearSolver::BiConjugateGradientStabilized),
+        &plan(LinearSolver::BiConjugateGradientStabilized),
         Some(LinearOperatorProperties::General),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,

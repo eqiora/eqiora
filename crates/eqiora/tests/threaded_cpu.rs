@@ -106,8 +106,10 @@ fn canonical_minres_jacobi_preserves_independent_values_and_rayon_provenance() {
             ] {
                 let operator = Oriented::new(&system, orientation).unwrap();
                 let problem = LinearProblem::new(&operator, &rhs, properties).unwrap();
-                let serial = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
-                let solution = threaded.solve(&problem, plan).unwrap();
+                let serial = REFERENCE_LINEAR_SOLVER
+                    .solve(&problem, plan.clone())
+                    .unwrap();
+                let solution = threaded.solve(&problem, plan.clone()).unwrap();
                 for (actual, expected) in solution.values().iter().zip(expected) {
                     assert!((actual - expected).abs() <= 2_f64.powi(-39));
                 }
@@ -128,7 +130,7 @@ fn canonical_minres_jacobi_preserves_independent_values_and_rayon_provenance() {
                     ExecutionReport::host(RAYON_EXECUTION, workers)
                 );
                 assert_eq!(report.orientation(), orientation);
-                assert_eq!(report.solver_plan(), plan);
+                assert_eq!(report.solver_plan(), &plan);
                 assert!(report.completed_iterations() > 0);
                 assert!(report.completed_iterations() <= plan.maximum_iterations().get());
                 assert!(report.true_residual_norm() <= tolerance);
@@ -166,7 +168,7 @@ fn rayon_minres_jacobi_rejects_zero_and_negative_diagonals_even_at_zero_rhs() {
         )
         .unwrap();
         let error = threaded
-            .solve(&system.linear_problem().unwrap(), plan)
+            .solve(&system.linear_problem().unwrap(), plan.clone())
             .unwrap_err();
         assert_eq!(
             error.code(),
@@ -193,7 +195,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
@@ -201,7 +203,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Jacobi,
+        preconditioner: eqiora::solver::PreconditionerKind::Jacobi,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     };
@@ -239,9 +241,10 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         resolve_fieldwise(&fem, requirements.clone(), &capabilities).is_ok(),
         "the explicitly admitted FEM path must resolve"
     );
+    let fvm_resolution = resolve_fieldwise(&fvm, requirements.clone(), &capabilities);
     assert!(
-        resolve_fieldwise(&fvm, requirements.clone(), &capabilities).is_ok(),
-        "the explicitly admitted FVM path must resolve"
+        fvm_resolution.is_ok(),
+        "the explicitly admitted FVM path must resolve: {fvm_resolution:?}"
     );
 
     let recombined = fieldwise_request(domain, field, FieldwisePath::Fem, fvm_solver);
@@ -269,7 +272,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
             NonZeroUsize::new(32).unwrap(),
         )
         .unwrap()
-        .with_preconditioner(fvm_solver.preconditioner),
+        .with_preconditioner(PreconditionerPolicy::Jacobi),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },
@@ -313,7 +316,7 @@ fn reference_spd_solver_capabilities() -> SolverCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora::solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])
@@ -388,7 +391,13 @@ fn fieldwise_request(
             NonZeroUsize::new(500).unwrap(),
         )
         .unwrap()
-        .with_preconditioner(solver.preconditioner)
+        .with_preconditioner(match solver.preconditioner {
+            eqiora::solver::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
+            eqiora::solver::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
+            eqiora::solver::PreconditionerKind::UpperDiagonalSchur => {
+                panic!("fieldwise test fixture requires an explicitly configured structured policy")
+            }
+        })
         .with_reduction(solver.reduction),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
@@ -439,7 +448,7 @@ fn canonical_poisson_has_worker_independent_reproducible_cpu_evidence() {
     let threaded_plan = RealizationPlan::new(
         base.space(),
         base.discretization(),
-        base.solver(),
+        base.solver().clone(),
         Target::HostCpu { threads: workers },
         ExecutionSchedule::Offline,
     )
@@ -580,7 +589,7 @@ fn canonical_poisson_has_worker_independent_reproducible_cpu_evidence() {
     let unsupported_plan = RealizationPlan::new(
         base.space(),
         base.discretization(),
-        base.solver(),
+        base.solver().clone(),
         Target::HostCpu {
             threads: unsupported_workers,
         },

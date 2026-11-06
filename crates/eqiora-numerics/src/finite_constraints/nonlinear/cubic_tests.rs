@@ -123,7 +123,7 @@ fn real_and_complex_cubic_roots_share_newton_without_ordered_constraints() {
                 .solve_at_point(
                     &seed,
                     controls,
-                    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear),
+                    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear.clone()),
                 )
                 .unwrap();
             for (actual, exact) in solved.values.iter().zip(&root) {

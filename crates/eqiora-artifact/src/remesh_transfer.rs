@@ -257,7 +257,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` if the stored closed policy is invalid.
     pub fn plan(&self) -> Result<AleFsiRemeshTransferPlan2d, Diagnostic> {
-        self.wire.plan.decode()
+        self.wire.plan.clone().decode()
     }
 
     /// Independently replayed dimensionless algebraic residual and its limit.
@@ -293,7 +293,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
             ));
         }
         ArtifactDigest::from_hex(self.wire.overlap_sha256.clone())?;
-        let plan = self.wire.plan.decode()?;
+        let plan = self.wire.plan.clone().decode()?;
         self.wire.algebraic_replay.validate()?;
         let expected_solves = match (self.action(), self.execution_mode()) {
             (
@@ -1568,7 +1568,7 @@ impl WireProjectionExecutionV1 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireRemeshTransferPlanV1 {
     quadrature: QuadraturePolicy,
@@ -1581,7 +1581,7 @@ impl WireRemeshTransferPlanV1 {
         Self {
             quadrature: value.quadrature(),
             scales: WireRemeshScaleProfileV1::encode(value.scales()),
-            solver: value.solver(),
+            solver: value.solver().clone(),
         }
     }
 
@@ -1647,7 +1647,7 @@ impl WireSolveReportV1 {
             execution: WireExecutionReportV1::encode(value.execution())?,
             verification: WireExecutionReportV1::encode(value.verification())?,
             orientation: WireOperatorOrientationV1::encode(value.orientation()),
-            plan: value.solver_plan(),
+            plan: value.solver_plan().clone(),
             reason: WireConvergenceReasonV1::encode(value.reason()),
             completed_iterations: u64::try_from(value.completed_iterations())
                 .map_err(|_| invalid_artifact("solve-report iteration count exceeds u64"))?,
@@ -1660,14 +1660,14 @@ impl WireSolveReportV1 {
 
     fn validate(
         &self,
-        common_plan: SolverPlan,
+        common_plan: &SolverPlan,
         right_hand_side_norm: f64,
     ) -> Result<(), Diagnostic> {
         require_execution_identity(&self.backend, "solver backend")?;
         self.execution.validate()?;
         self.verification.validate()?;
         if self.orientation != WireOperatorOrientationV1::Normal
-            || self.plan != common_plan
+            || &self.plan != common_plan
             || !right_hand_side_norm.is_finite()
             || right_hand_side_norm < 0.0
             || is_negative_zero(right_hand_side_norm)

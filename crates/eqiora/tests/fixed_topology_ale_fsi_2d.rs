@@ -219,11 +219,11 @@ fn public_finalization_retains_requested_bicgstab_harmonic_policy() {
                 fixture.mesh_reference,
                 time_step,
                 nonlinear_solver_plan(),
-                motion_solver,
+                motion_solver.clone(),
             ),
         ),
         fixed_topology_ale_fsi_requirements(&fixture.canonical),
-        &capabilities_with_motion_solver(motion_solver),
+        &capabilities_with_motion_solver(motion_solver.clone()),
     )
     .unwrap();
     let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -251,12 +251,12 @@ fn public_finalization_retains_requested_bicgstab_harmonic_policy() {
     assert_eq!(*solver, motion_solver);
     assert_eq!(duration.value(), time_step);
     let motion = finalized.motion();
-    assert_eq!(motion.policy().solver(), motion_solver);
+    assert_eq!(motion.policy().solver(), &motion_solver);
     motion
         .validate_reference(&fixture.mesh, &fixture.partition)
         .unwrap();
     for report in motion.influence_solve_reports() {
-        assert_eq!(report.solver_plan(), motion_solver);
+        assert_eq!(report.solver_plan(), &motion_solver);
         assert_eq!(report.solver_provider(), FaerLinearSolver.provider());
         assert_eq!(
             report.execution(),
@@ -347,7 +347,13 @@ fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
             NonZeroUsize::new(100).unwrap(),
         )
         .unwrap()
-        .with_preconditioner(tuple.preconditioner)
+        .with_preconditioner(match tuple.preconditioner {
+            eqiora::solver::PreconditionerKind::Identity => PreconditionerPolicy::Identity,
+            eqiora::solver::PreconditionerKind::Jacobi => PreconditionerPolicy::Jacobi,
+            eqiora::solver::PreconditionerKind::UpperDiagonalSchur => {
+                panic!("harmonic motion requires an explicitly configured structured policy")
+            }
+        })
         .with_reduction(tuple.reduction);
         let policy = P1HarmonicMeshMotionPolicy::new(
             [fluid_domain(&fixture.canonical)],
@@ -357,14 +363,14 @@ fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
             )],
             [connection(&fixture.canonical)],
             AleGeometryQualityGate::new(0.3).unwrap(),
-            solver,
+            solver.clone(),
         )
         .unwrap();
         let action = P1HarmonicMeshMotionAction::new(
             &fixture.mesh,
             &fixture.partition,
             policy,
-            eqiora::solver::LinearSolveRequest::new(&FaerLinearSolver, solver),
+            eqiora::solver::LinearSolveRequest::new(&FaerLinearSolver, solver.clone()),
         )
         .unwrap();
         let actual = action
@@ -383,7 +389,7 @@ fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
                 .unwrap()
         );
         for report in action.influence_solve_reports() {
-            assert_eq!(report.solver_plan(), solver);
+            assert_eq!(report.solver_plan(), &solver);
             assert_eq!(report.solver_provider(), FaerLinearSolver.provider());
             assert!(report.true_residual_norm() <= report.residual_target());
             assert!(report.completed_iterations() <= solver.maximum_iterations().get());
@@ -395,21 +401,24 @@ fn harmonic_action_honors_every_available_faer_real_spd_tuple() {
         vec![
             (
                 LinearSolver::ConjugateGradient,
-                PreconditionerPolicy::Identity
+                eqiora::solver::PreconditionerKind::Identity
             ),
             (
                 LinearSolver::ConjugateGradient,
-                PreconditionerPolicy::Jacobi
+                eqiora::solver::PreconditionerKind::Jacobi
             ),
             (
                 LinearSolver::BiConjugateGradientStabilized,
-                PreconditionerPolicy::Identity
+                eqiora::solver::PreconditionerKind::Identity
             ),
             (
                 LinearSolver::BiConjugateGradientStabilized,
-                PreconditionerPolicy::Jacobi
+                eqiora::solver::PreconditionerKind::Jacobi
             ),
-            (LinearSolver::SparseLu, PreconditionerPolicy::Identity),
+            (
+                LinearSolver::SparseLu,
+                eqiora::solver::PreconditionerKind::Identity
+            ),
         ]
     );
 }
@@ -1253,7 +1262,7 @@ fn capabilities_with_motion_solver(motion_solver: SolverPlan) -> RealizationCapa
     FaerLinearSolver
         .capabilities()
         .require_problem(
-            motion_solver,
+            &motion_solver,
             eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
@@ -1271,7 +1280,7 @@ fn capabilities_with_motion_solver(motion_solver: SolverPlan) -> RealizationCapa
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora::solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -1279,7 +1288,7 @@ fn capabilities_with_motion_solver(motion_solver: SolverPlan) -> RealizationCapa
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora::solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -1287,7 +1296,7 @@ fn capabilities_with_motion_solver(motion_solver: SolverPlan) -> RealizationCapa
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: motion_solver.algorithm(),
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: motion_solver.preconditioner(),
+                preconditioner: motion_solver.preconditioner().kind(),
                 reduction: motion_solver.reduction(),
                 scalar_type: ScalarType::F64,
             },

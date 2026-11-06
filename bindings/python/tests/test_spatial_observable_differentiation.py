@@ -221,7 +221,7 @@ def test_interval_diffusion_retains_observations_products_and_offline_primal(alg
         assert report.backend == "eqiora.reference"
         expected_algorithm = "conjugate-gradient" if algorithm == q.solve.LinearSolver.ConjugateGradient else "minimum-residual"
         assert report.algorithm == expected_algorithm
-        assert report.preconditioner == expected_preconditioner
+        assert report.preconditioner.kind == expected_preconditioner
         assert report.reduction == "reproducible"
         assert report.orientation == orientation
         assert report.true_residual_norm <= report.residual_target

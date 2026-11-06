@@ -53,6 +53,7 @@ use fields::{CommonResultField, CommonResultFieldBlock};
 #[serde(deny_unknown_fields)]
 struct SteadyStokesAcceptedEvidence {
     continuity_residual_norm: f64,
+    gauge_multiplier: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -280,6 +281,7 @@ impl CommonResult {
         );
         let acceptance = SteadyStokesAcceptedEvidence {
             continuity_residual_norm: solution.dimensionless_solution().continuity_residual_norm(),
+            gauge_multiplier: solution.dimensionless_solution().gauge_multiplier(),
         };
         Self::finish_static(
             plan,

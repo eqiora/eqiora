@@ -488,7 +488,7 @@ def test_observations_retain_exact_topology_fields_and_physical_work() -> None:
         with pytest.raises(AttributeError):
             observation.volume_terms[0].previous = 0.
         assert observation.solve.algorithm == "minimum-residual"
-        assert observation.solve.preconditioner == "identity"
+        assert observation.solve.preconditioner.kind == "identity"
         assert observation.solve.reduction == "reproducible"
         assert observation.solve.true_residual_norm <= observation.solve.residual_target
         assert all(count > 0 for count in observation.assembly_counts)

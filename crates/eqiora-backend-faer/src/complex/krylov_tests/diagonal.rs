@@ -24,12 +24,12 @@ fn complex_jacobi_is_the_typed_inverse_and_conjugates_for_faer() {
             [C::new(4., 3.), C::new(-7., 1.)]
         };
         let problem = LinearProblem::new(&op, &b, LinearOperatorProperties::General).unwrap();
-        let solution = invoke(&problem, request).unwrap();
+        let solution = invoke(&problem, request.clone()).unwrap();
         assert_values(solution.values(), &X);
         assert_eq!(solution.report().completed_iterations(), 1);
     }
     let problem = LinearProblem::new(&source, &rhs, LinearOperatorProperties::General).unwrap();
-    let inverse = inverse_diagonal(&problem, request).unwrap().unwrap();
+    let inverse = inverse_diagonal(&problem, &request).unwrap().unwrap();
     assert_values(&inverse, &[C::new(0.4, -0.2), C::new(0.3, 0.1)]);
     let adapter = FaerPreconditioner::new(2, Some(inverse));
     let input = Mat::from_fn(2, 1, |i, _| rhs[i]);
@@ -65,7 +65,7 @@ fn jacobi_rejects_unavailable_or_invalid_typed_diagonals_and_keeps_scaled_recipr
             LinearOperatorProperties::HermitianPositiveDefinite,
         )
         .unwrap();
-        assert!(inverse_diagonal(&problem, request).is_err());
+        assert!(inverse_diagonal(&problem, &request).is_err());
     }
     let source = Matrix([
         [C::new(1e200, 1e200), C::new(0., 0.)],
@@ -75,7 +75,7 @@ fn jacobi_rejects_unavailable_or_invalid_typed_diagonals_and_keeps_scaled_recipr
     let problem = LinearProblem::new(&source, &rhs, LinearOperatorProperties::General).unwrap();
     let inverse = inverse_diagonal(
         &problem,
-        plan(
+        &plan(
             LinearSolver::BiConjugateGradientStabilized,
             PreconditionerPolicy::Jacobi,
         ),
@@ -107,7 +107,7 @@ fn jacobi_rejects_unavailable_or_invalid_typed_diagonals_and_keeps_scaled_recipr
     )
     .unwrap();
     assert_eq!(
-        inverse_diagonal(&problem, request).unwrap_err().code(),
+        inverse_diagonal(&problem, &request).unwrap_err().code(),
         codes::INVALID_REALIZATION
     );
 }

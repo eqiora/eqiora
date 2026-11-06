@@ -472,8 +472,7 @@ mod tests {
     use eqiora_core::ScalarType;
     use eqiora_core::diagnostic::codes;
     use eqiora_solver::{
-        LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
-        SolverPlan,
+        LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
     };
 
     use crate::{
@@ -758,7 +757,7 @@ mod tests {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Fast,
             scalar_type: ScalarType::F64,
         }])

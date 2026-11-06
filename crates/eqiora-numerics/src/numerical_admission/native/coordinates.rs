@@ -75,7 +75,9 @@ impl RecognizedNativeAdmission {
         }
         let selected = self.discretizations(spatial)?;
         let fields = equations.q1_diffusion_fields(&self.resources, &selected, scaling)?;
-        let diagonal = request.is_some_and(super::super::solver_planning::requests_diagonal);
+        let diagonal = request
+            .as_ref()
+            .is_some_and(super::super::solver_planning::requests_diagonal);
         if fields.is_none() && !diagonal {
             return Ok((properties, None, None));
         }
@@ -118,6 +120,7 @@ impl RecognizedNativeAdmission {
                 .preserves_q1_diffusion_energy(&prepared.plan, reduced.matrix())?;
             if !proved
                 && request
+                    .as_ref()
                     .and_then(|request| request.exact_request())
                     .is_some_and(|(plan, _)| {
                         plan.algorithm() == eqiora_solver::LinearSolver::ConjugateGradient

@@ -162,7 +162,7 @@ def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay
     }""")
     plan, result = run(model, solve=solve)
     assert plan.solve.backend == provider.id
-    assert plan.solve.preconditioner == preconditioner
+    assert plan.solve.preconditioner.kind == preconditioner
     assert plan.solve.maximum_iterations == 8
     assert plan.solve.relative_tolerance == 1e-13
     assert plan.solve.absolute_tolerance == 1e-15
@@ -246,7 +246,7 @@ def test_complex_automatic_objectives_keep_exact_selection_through_replay(
         maximum_iterations=100, objective=objective,
     ))
     assert plan.solve.objective is objective
-    assert plan.solve.planning_policy_id == "eqiora.solver-planning/v11"
+    assert plan.solve.planning_policy_id == "eqiora.solver-planning/v12"
     assert plan.solve.selected_candidate_id == candidate
     assert plan.solve.backend == provider
     assert plan.solve.algorithm == algorithm
