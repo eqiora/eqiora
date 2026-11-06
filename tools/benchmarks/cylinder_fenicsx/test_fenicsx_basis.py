@@ -54,8 +54,8 @@ class NativeBasisTests(unittest.TestCase):
 
     def test_volume_pressure_force_and_facet_flux_without_solving(self):
         from dolfinx import fem
-        from fenicsx_adapter import prepare, boundary_flux_forms
-        from reference_system import build_system, observations
+        from fenicsx_adapter import prepare, boundary_flux_forms, observation_linear_forms
+        from reference_system import build_system, observations, recover_mixed
         data = fixture(); prepared = prepare(data)
         scratch = Path.home()/'.cache/eqiora/cylinder-observer-tests'; scratch.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=scratch) as directory:
@@ -67,9 +67,7 @@ class NativeBasisTests(unittest.TestCase):
                       'velocity_cell_bubble': np.zeros((nc, 2)), 'pressure_vertex': np.full(nv, .2)}
             canonical = np.concatenate((fields['velocity_vertex'].reshape(-1),
                                         fields['velocity_cell_bubble'].reshape(-1), fields['pressure_vertex']))
-            source = system.transformation.createVecRight(); source.array[:] = canonical
-            nodal = system.transformation.createVecLeft(); system.transformation.mult(source, nodal)
-            function = fem.Function(prepared.mixed_space); function.x.array[:] = nodal.array
+            function = recover_mixed(system, canonical)
             row = observations(system, function, fields, canonical, jit_options=jit)
             # For this toy rectangle's bottom-edge indicator, uniform pressure
             # gives upward p*width; x contributions on the two sides cancel.
@@ -80,7 +78,53 @@ class NativeBasisTests(unittest.TestCase):
                     for name, expression in boundary_flux_forms(prepared, function.sub(0)).items()}
             self.assertAlmostEqual(flux['inlet'], -.1*.41, places=14)
             self.assertAlmostEqual(flux['outlet'], .1*.41, places=14)
-            for item in (source, nodal, system.matrix, system.rhs, system.transformation, system.raw_nodal_matrix): item.destroy()
+            from dolfinx.fem import petsc
+            from petsc4py import PETSc
+            linear_observed = {}
+            for name, expression in observation_linear_forms(prepared).items():
+                vector = petsc.assemble_vector(fem.form(expression, jit_options=jit))
+                vector.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES, mode=PETSc.ScatterMode.REVERSE)
+                linear_observed[name] = float(np.dot(vector.array, function.x.array)); vector.destroy()
+            np.testing.assert_allclose([linear_observed['force_x'], linear_observed['force_y']], row['force_on_domain'],
+                                       rtol=0, atol=256*np.finfo(float).eps)
+            self.assertAlmostEqual(linear_observed['inlet_flux'], flux['inlet'], places=14)
+            self.assertAlmostEqual(linear_observed['outlet_flux'], flux['outlet'], places=14)
+            # Nonzero strain, pressure gradient and bubbles exercise all terms,
+            # independently comparing rank-one and rank-zero UFL observation routes.
+            x, y = prepared.coordinates.T
+            varied = {'velocity_vertex': np.column_stack((.1+2*x-3*y, .2-x+.5*y)),
+                      'velocity_cell_bubble': np.column_stack((np.arange(nc)+.1, -np.arange(nc)-.2)),
+                      'pressure_vertex': .2+x+3*y}
+            from common_basis import canonical_fields
+            varied_canonical = canonical_fields(varied)
+            varied_function = recover_mixed(system, varied_canonical)
+            scalar = observations(system, varied_function, varied, varied_canonical, jit_options=jit)
+            linear_force = []
+            for name in ('force_x', 'force_y'):
+                vector = petsc.assemble_vector(fem.form(observation_linear_forms(prepared)[name], jit_options=jit))
+                linear_force.append(float(np.dot(vector.array, varied_function.x.array))); vector.destroy()
+            np.testing.assert_allclose(linear_force, scalar['force_on_domain'], rtol=0, atol=256*np.finfo(float).eps)
+            for item in (system.matrix, system.rhs, system.transformation, system.raw_nodal_matrix): item.destroy()
+
+    def test_repeated_assembly_retains_no_system_state(self):
+        from fenicsx_adapter import prepare
+        from reference_system import prepare_forms, assemble_system, destroy_system
+        prepared = prepare(fixture())
+        scratch = Path.home()/'.cache/eqiora/cylinder-fresh-tests'; scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            forms = prepare_forms(prepared, fixture(), rule='duffy-3', jit_options={'cache_dir': directory})
+            first, second = assemble_system(forms), assemble_system(forms)
+            self.assertNotEqual(first.matrix.handle, second.matrix.handle)
+            self.assertNotEqual(first.raw_nodal_matrix.handle, second.raw_nodal_matrix.handle)
+            self.assertNotEqual(first.rhs.handle, second.rhs.handle)
+            before = second.matrix.getValuesCSR()[2].copy()
+            first.matrix.scale(2.)
+            np.testing.assert_array_equal(second.matrix.getValuesCSR()[2], before)
+            third = assemble_system(forms)
+            np.testing.assert_array_equal(third.matrix.getValuesCSR()[2], before)
+            for system in (first, second, third): destroy_system(system)
+            self.assertNotEqual(forms.transformation.handle, 0)
+            forms.transformation.destroy()
 
     def test_custom_quadrature_assembly_and_rigid_rotation(self):
         from reference_system import build_system

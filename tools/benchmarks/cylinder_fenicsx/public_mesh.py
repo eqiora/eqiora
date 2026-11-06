@@ -1,6 +1,7 @@
 """Prepare and export the shipped cylinder example through public Eqiora APIs."""
 from importlib.resources import files
 import numpy as np
+from mesh_levels import mesh_level
 
 BOUNDARIES = ('inlet', 'outlet', 'walls', 'cylinder')
 
@@ -17,12 +18,10 @@ def author_geometry(eqiora):
     return geometry
 
 
-def geometry_and_mesh(eqiora):
+def geometry_and_mesh(eqiora, *, level='standard'):
     geometry = author_geometry(eqiora)
-    # These are the shipped example's existing controls, not a new refinement protocol.
-    mesh = eqiora.meshing.generate(geometry, eqiora.meshing.GmshMesher(
-        maximum_boundary_error=1e-4, maximum_target_size=.025,
-        minimum_mean_ratio=1e-5, maximum_boundary_facets=50))
+    controls = mesh_level(level).controls()
+    mesh = eqiora.meshing.generate(geometry, eqiora.meshing.GmshMesher(**controls))
     return geometry, mesh
 
 

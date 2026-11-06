@@ -1,0 +1,21 @@
+{
+  "archive_sha256": "c2f8fb64154f43cef3835c5ad3f36c0ebc195ae50f7b368d14e085e3e7cb3042",
+  "campaign_harness_revision": "04c4dc86e50b365cb60b7bdc6d9148ce22a1badb",
+  "reference_harness_revision": "346b130e3c1bc8bc94542ec28b7c76fc0c02d800",
+  "producer": {
+    "sha256": "5691ea07506a4c3939989606d2faba0feaa6d3b87f7499df429be978b77ca5c3",
+    "source_revision": "2f161e79425223f1325ebe5547e9b02ba91ea141",
+    "build_profile": "release"
+  },
+  "reference_manifests": {
+    "coarse": "f3f555e30b50609f82a084bd233d0056514ebb9ca875ddbd6224be56f3b69321",
+    "standard": "fdb37bcc2cf9f19cb8a2d171d205ce60e1c043a9f4368a2b9fdaca3f051e110a",
+    "fine": "81daa7caa99463272548bc4bc2f406f819fd117bfff89be1c5ec37a2e9cb7135"
+  },
+  "qualification_original_sha256": "6973f1267d098826f543591872de3a5b4aa8b801dab15a9d0ba3fa582feed060",
+  "publication_scope": "Original scientific/field/operator/reference bytes. Explicit metadata projections omit only vendor MPI build configuration and inherited executable search paths; original hashes retained. JIT binaries/caches excluded. No continuum convergence, idle-system or stable baseline claim.",
+  "publication_reader_sha256": "df466d7d8b6a244fae06d14d9611615419bd091f2cdbb439ba6fa9cd6939bec6",
+  "stored_audit_helper_source_sha256": "d3993db08083e54fda797b233173a80c1b2eeb381c8ce7fd25d42de952c552de",
+  "plot_source_sha256": "de2c6afd8dcfb59fc5b3ac878003f5540f82bae8db44861bfcf2423b8720c804",
+  "excluded_artifacts": "JIT binaries/caches/object files and compiled foreign shared libraries. Original external hash inventories retained; original machine-path metadata remains external."
+}
