@@ -172,6 +172,7 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
     }
     let capture = Arc::new(Mutex::new(Capture::default()));
     let profiled = tracing::subscriber::with_default(Recorder(capture.clone()), || {
+        let _solve = eqiora_execution::telemetry_span!(solve(0_u64)).entered();
         plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap()
     });
     assert_eq!(profiled.field_count(), plain.field_count());
@@ -203,7 +204,9 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
         );
         matches[0]
     };
+    let (solve, _) = find("solve");
     let (acceptance, _) = find("scalar_live_acceptance");
+    assert_eq!(find("scalar_live_acceptance").1.1, Some(solve as u64 + 1));
     for child in [
         "scalar_result_packing",
         "scalar_live_validation",
@@ -219,6 +222,7 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
         "scalar_plan_reauthentication",
         "scalar_structure_preflight",
         "scalar_problem_preparation",
+        "scalar_linear_request",
         "scalar_solution_validation",
         "scalar_coordinate_recovery",
     ] {
@@ -228,5 +232,7 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
             "{phase} precedes acceptance"
         );
     }
+    let (request, _) = find("scalar_linear_request");
+    assert_eq!(find("linear_solve").1.1, Some(request as u64 + 1));
     assert!(capture.stack.is_empty(), "all scopes close after execution");
 }

@@ -413,7 +413,14 @@ where
             problem = problem.with_initial_guess(values)?;
         }
         drop(_preparation);
-        let solution = request.solve(&problem)?;
+        let solution = {
+            let _request = eqiora_execution::telemetry_span!(backend(
+                "scalar_linear_request",
+                "scalar_static"
+            ))
+            .entered();
+            request.solve(&problem)?
+        };
         let _validation = eqiora_execution::telemetry_span!(backend(
             "scalar_solution_validation",
             "scalar_static"
