@@ -176,7 +176,7 @@ def test_transient_heat_storage_runs_and_replays_offline(tmp_path):
             eqiora.run(plan, state=initial, steps=3, output_steps=outputs)
 
 
-@pytest.mark.parametrize("mutation", ["missing-capacity", "zero-capacity", "missing-storage", "missing-initial", "changed-initial", "missing-boundary", "changed-boundary"])
+@pytest.mark.parametrize("mutation", ["missing-capacity", "zero-capacity", "missing-storage", "missing-initial", "changed-initial", "missing-boundary", "changed-boundary", "algebraic-temperature"])
 def test_transient_heat_rejects_incomplete_or_incompatible_data(mutation):
     source = (SPECIMEN / "src/main.eqi").read_text()
     geometry, bindings = example.geometry_and_bindings()
@@ -184,15 +184,21 @@ def test_transient_heat_rejects_incomplete_or_incompatible_data(mutation):
     if mutation == "missing-capacity":
         del bindings["capacity"]
     elif mutation == "missing-storage":
-        source = source.replace("storage capacity * temperature;", "")
+        source = source.replace("scalar.TransientHeat2d", "scalar.SteadyHeat2d").replace(", capacity = capacity", "")
     elif mutation == "missing-initial":
         source = source.replace("initial { temperature = 300[K]; }", "")
     elif mutation == "changed-initial":
         source = source.replace("initial { temperature = 300[K]; }", "initial { temperature = 299[K]; }")
-    elif mutation == "missing-boundary":
-        source = source.replace("relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }", "")
-    elif mutation == "changed-boundary":
-        source = source.replace("relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }", "relation prescribed_x_lower on x_lower { trace(temperature) = 301[K]; }")
+    elif mutation in ("missing-boundary", "changed-boundary"):
+        boundary = """  instance prescribed_x_lower: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = 300[K]
+  );"""
+        assert boundary in source
+        source = source.replace(boundary, "" if mutation == "missing-boundary" else boundary.replace("300[K]", "301[K]"))
+    elif mutation == "algebraic-temperature":
+        source = source.replace("state temperature", "variable temperature").replace("initial { temperature = 300[K]; }", "")
+    if mutation not in ("missing-capacity", "zero-capacity"):
+        assert source != (SPECIMEN / "src/main.eqi").read_text(), "mutation must change its actual source consumer"
     with pytest.raises(eqiora.ValidationError):
         model = eqiora.compile(source=source, entry="TransientHeatedBody", geometry=geometry, bindings=bindings)
         eqiora.State.initial(transient_plan(model, geometry))
@@ -266,3 +272,15 @@ def test_handwritten_heated_body_retains_authored_form_and_balance():
     assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
     assert model.package_compilation_digest is None
     check_heat(model, eqiora.run(plan))
+
+
+def test_transient_import_and_handwritten_law_share_independent_heat_oracle():
+    geometry, bindings = example.geometry_and_bindings()
+    bindings["capacity"] = 1.0
+    for filename in ["src/main.eqi", "handwritten.eqi"]:
+        model = eqiora.compile(path=SPECIMEN / filename, entry="TransientHeatedBody",
+                               geometry=geometry, bindings=bindings)
+        assert (model.package_compilation_digest is not None) == (filename == "src/main.eqi")
+        plan = transient_plan(model, geometry)
+        result = eqiora.run(plan, state=eqiora.State.initial(plan), steps=3, output_steps=(1, 2, 3))
+        check_transient(model, result)

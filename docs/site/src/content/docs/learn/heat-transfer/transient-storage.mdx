@@ -6,6 +6,8 @@ sidebar:
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import { Code } from '@astrojs/starlight/components';
+import handwrittenSource from '../../../../../../../examples/heated-body/handwritten.eqi?raw';
 
 ## Switching on the heater
 
@@ -153,7 +155,8 @@ The `TransientHeatedBody` entry makes four changes to the physical declaration:
 - `state temperature` marks a quantity with evolution;
 - `initial` assigns its starting temperature;
 - the parameter `capacity` has units J/(m³ K); and
-- `storage capacity * temperature` contributes its rate to the balance.
+- `scalar.TransientHeat2d` contributes `storage capacity * temperature` and the
+  Fourier flux/source Law from the standard package.
 
 The runner binds `capacity` to `1.0`, selects
 `eqiora.time.BackwardEuler(step_s=1/24)`, creates the initial State, and requests
@@ -168,6 +171,19 @@ exterior coefficients remain 300 K. The center approaches the steady value
 from below. The
 <ExactSourceLink path="examples/heated-body/run.py" kind="blob">runner's transient block</ExactSourceLink>
 shows how the same local package supplies the transient entry.
+
+## Write the storage Law directly
+
+The same transient problem is retained without an import. Both paths use the
+same State, initial temperature, fixed boundaries and numerical Plan:
+
+<Code code={handwrittenSource.slice(handwrittenSource.indexOf('/// Heat storage'))} lang="eqiora" title="examples/heated-body/handwritten.eqi" />
+
+Compile `handwritten.eqi` with entry `TransientHeatedBody` and the same geometry
+and bindings, then initialize and run the same backward-Euler Plan. The expected
+three center temperatures remain those derived above. You may also mix standard
+components with a custom Law or boundary relation; units and supports are checked
+through the same compiler.
 
 ## Separate two experiments
 

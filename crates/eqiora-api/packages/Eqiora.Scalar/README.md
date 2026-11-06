@@ -1,8 +1,8 @@
 # Eqiora.Scalar
 
-The development package `Eqiora.Scalar@0.2.0` supplies two-dimensional scalar
-Poisson and Laplace equations for a dimensionless potential, and steady heat
-conduction for a temperature in kelvins. Coordinates are measured in metres.
+The development package `Eqiora.Scalar@0.3.0` supplies two-dimensional scalar
+Poisson and Laplace equations for a dimensionless potential, and steady and
+constant-capacity transient heat conduction for a temperature in kelvins. Coordinates are measured in metres.
 Each component declares its physical units explicitly.
 
 Import `Eqiora.Scalar.scalar as scalar`. `Poisson2d` adds
@@ -62,6 +62,35 @@ The caller must cover the remaining boundaries. The volume and fixed-temperature
 components require `h1`; the heat-flux component requires authored `smooth`
 regularity. The initial imported thermal workflow covers Cartesian 2D Q1 on
 CPU through the common Plan, with Plan and Result replay. It adds no verified
-threaded, MPI or GPU thermal-package path. Transient storage, convection,
-radiation, nonlinear materials and coupled thermal interfaces are not supplied
-by these components.
+threaded, MPI or GPU thermal-package path. Convection, radiation, nonlinear
+materials and coupled thermal interfaces are not supplied by these components.
+
+## Transient heat conduction
+
+`TransientHeat2d` borrows a caller-owned temperature **State**, rather than an
+algebraic Field. It adds `storage capacity * temperature` to the same Fourier
+flux and volumetric source as `SteadyHeat2d`. The constant volumetric `capacity`
+parameter has units `J / (m^3 * K)`; conductivity and heating retain their units
+above. The caller supplies the initial temperature and complete boundary data,
+using `FixedTemperature2d` or `OutwardHeatFlux2d` with the same conductivity.
+
+```eqiora
+state temperature: K on body in h1;
+initial { temperature = 300[K]; }
+instance heat: scalar.TransientHeat2d(
+  body = body, temperature = temperature,
+  conductivity = 1[W/(m*K)], capacity = 1[J/(m^3*K)], heating = 1[W/m^3]
+);
+```
+
+Supply positive capacity for physical heat storage. The component checks units
+and the declared State role. Numerical methods retain their existing storage
+acceptance rules; no new sign policy is introduced. Spatial and time methods
+remain Plan choices. The maintained example uses serial CPU Q1 and backward Euler,
+with independent mass/stiffness/load checks, initial data, restart and artifact replay.
+Product tests also cover a temperature profile affine in space and linear in time,
+with time-varying prescribed temperature and both signs of physical outward flux.
+The four-cell warming example is a spatial approximation, not a continuum-exact
+square temperature profile. State-dependent capacity,
+material interfaces, threaded/MPI/GPU package execution and transient
+sensitivities are outside this package evidence.
