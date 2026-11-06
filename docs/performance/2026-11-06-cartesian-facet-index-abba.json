@@ -1,0 +1,1004 @@
+{
+  "scope": "One fixed bluejay 3D Poisson N16 baseline/candidate/candidate/baseline comparison; retain the experiment and do not adopt the candidate implementation.",
+  "interpretation": {
+    "candidate_observed_slightly_slower_in_both_order_pairs": true,
+    "demonstrated_N16_improvement": false,
+    "optimization_accepted": false,
+    "stable_timing_claim": false,
+    "general_speedup_claim": false,
+    "general_regression_claim": false,
+    "further_campaign_authorized": false
+  },
+  "provenance": {
+    "implementation_test_source": "4fbdc3285b14c0ea105092c46f081170f2f664d1",
+    "candidate_history_archive": "archive/cartesian-facet-index-07a72bff3",
+    "archived_head": "07a72bff3a46a3d60a08a80e351977ce50eed21e",
+    "harness_source": "2f161e79425223f1325ebe5547e9b02ba91ea141",
+    "harness_source_tree": "d0b2c8e6bc6495bb3c5083fca7875193a2713268",
+    "harness_binding": "verified explicit subset manifest and Gitarchive/blob identities, not a full Git checkout",
+    "installations": {
+      "baseline": {
+        "source": "2f161e79425223f1325ebe5547e9b02ba91ea141",
+        "source_tree": "d0b2c8e6bc6495bb3c5083fca7875193a2713268",
+        "wheel_sha256": "5691ea07506a4c3939989606d2faba0feaa6d3b87f7499df429be978b77ca5c3",
+        "build_profile": "Rust 1.89.0; Cargo release fat LTO and declared package size overrides; maturin 1.15.0 strip=true; Zig 0.17.1 manylinux_2_17; rebuilt from retained sdist"
+      },
+      "candidate": {
+        "source": "af6ddca08d4c71094639ff922f65dc3bcd426640",
+        "source_tree": "663f5a8f3b0a89928d8448eef4f528c3134307c5",
+        "wheel_sha256": "c3245461118ac3d0e1125c5d3c44861846b8ef5af14e7999a68c33b368cc0764",
+        "build_profile": "Rust 1.89.0; Cargo release fat LTO and declared package size overrides; maturin 1.15.0 strip=true; Zig 0.17.1 manylinux_2_17; rebuilt from retained sdist"
+      }
+    },
+    "harness_files_sha256": {
+      "tools/benchmarks/poisson_fenicsx/README.md": "2fbc82c56af9fad0e94b7a19cdaa0ea177a03276031b843df2c0826a6981ba0f",
+      "tools/benchmarks/poisson_fenicsx/accuracy.py": "49fafaa51e19e2fef5c577be5e5a4bf2e2c15320f22cbc52357c35bdcde8fa6b",
+      "tools/benchmarks/poisson_fenicsx/eqiora_case.py": "87f3cb0c9d039b8200f4d1dca508460f8a33d69d01925470dc08e8db6b9732dd",
+      "tools/benchmarks/poisson_fenicsx/fenicsx_case.py": "fd5840b24dcf258158f47ee989d6d24588bf3a4a57eb7809d40862d2e9ec660b",
+      "tools/benchmarks/poisson_fenicsx/pixi.lock": "bcd20d4a16e067b7775b5602daf9e0733d4316d218d7b1a928e0909cc32cb3f4",
+      "tools/benchmarks/poisson_fenicsx/pixi.toml": "6fc2f7731b505e71f6fe04b2a50e99fdaf247cb0e068b2049cc48e55216633a7",
+      "tools/benchmarks/poisson_fenicsx/plot_accuracy.py": "9f834963a25ece683173bf48bf94d56a61e50a78eda4c2eec7ea4e2a9783f41b",
+      "tools/benchmarks/poisson_fenicsx/poisson_3d.eqi": "8b90386f57e0563b892c982ed3c7cf94d21ebb4dfe3f79efe7cf9d98e3b62012",
+      "tools/benchmarks/poisson_fenicsx/run.py": "746f2a64c8a23b5559b8932c069bd6175513789e12e134ef9b9885bd92947005",
+      "tools/benchmarks/poisson_fenicsx/run_matched.py": "2441d63ababefaf353cbd500f897fbc2a573da6bd6a7efa18e0cfd3d78e74bef",
+      "tools/benchmarks/poisson_fenicsx/test_benchmark.py": "1a120e017ace48f2459e140deca2fe5ff9a1883e4721238ac695fffe1406d515",
+      "tools/benchmarks/poisson_fenicsx/test_matched.py": "bc0a6912f1ede2214ad7efbac86a9f4635f165ec01e06d53361dde100be4f1e7",
+      "tools/benchmarks/poisson_fenicsx/test_protocol.py": "9a3b551d8990263ecf0264aa0bbec47bd8c2643d322ab7190f26567479240c79",
+      "tools/benchmarks/poisson_fenicsx/worker_arguments.py": "2fee77f62b4def7aa183290d3e233d1e4f0b169fa32675ba7a59ab53bcf081fb",
+      "tools/benchmarks/shared_measurement.py": "274c8c888bd4e6f2547deae6e5753ac27c33406941e90222c9add0d026286213",
+      "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+      "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5",
+      "examples/inverse-poisson.eqi": "b375ae4a19546f6016222ddd7254b61d1d8b6a5f603597dab4659b7882817453",
+      "verify/numerics/cartesian-poisson-fem-fvm/expected/convergence.csv": "0f41483c45e409fcb44a5d825f684f6ff9fb8d6cfa14ab3470faea1b54477c59",
+      "verify/numerics/cartesian-poisson-3d-fem-fvm/expected/convergence.csv": "2b2d4593514a09310de09fad2772f0d5351a9ebab6d06e739d893271590dae15",
+      "verify/numerics/cartesian-poisson-fem-fvm/references/README.md": "ad5c259b380695df8089a931dbd5ae7a7f1f93f2b0323fa13e0b365c0659cd9d",
+      "verify/numerics/cartesian-poisson-3d-fem-fvm/README.md": "0c4685df4097bd708477f97ea1263e81887ecf3c581fa2b526ba7be38fb3e529",
+      "crates/eqiora-numerics/tests/support/cartesian_poisson.rs": "6d6841fe110666cef311c084f5ae46f5176d291d447c8566e49f26936200b4b3"
+    },
+    "production_files_sha256": {
+      "baseline": {
+        "crates/eqiora-numerics/src/numerical_admission/scalar/regions/execute.rs": "01b42e982d8be8db42b431da9a043d866f11ee542966141ddd9713a5576ff776"
+      },
+      "candidate": {
+        "crates/eqiora-numerics/src/numerical_admission/scalar/regions/execute.rs": "3992293947b88b88d1cda46e1f3598011b97908193ea79e6d9f51d28810fc137",
+        "crates/eqiora-numerics/src/numerical_admission/scalar/regions/execute/cartesian_facets.rs": "754a97175e99b04de12b547d111deede94fce234be9ffe9dc58c1253182d648c"
+      }
+    },
+    "runtime": "CPython 3.13.18 / Clang 23.1.3; NumPy 2.5.4; both isolated noneditable environments have matching non-Eqiora dependency versions and NumPy configuration. These wheels were transferred without rebuilding; each installation matched all 99 wheel payload members.",
+    "identity_note": "Measured artifact producers and harness are frozen experimental sources; this evidence-only commit does not relabel them or adopt their production change."
+  },
+  "frozen_execution_inputs_sha256": {
+    "proposal/worker.py": "1355b344eaf6792f22ca507fa42690eab021d339e2018da20e69c0d721e5ff5d",
+    "transport/records/baseline-optimized-artifact-receipt.json": "e7fbad59bc55153d6f9ddc4adc60a5cbdc7095a714df8854ed262dd4da795c98",
+    "transport/records/candidate-optimized-artifact-receipt.json": "b8053b8e7d03c8c629354a8f86f51668f3b4a91fe9632e28c4794f9302c99895",
+    "proposal/supervise.py": "23a674df22818d741d86be1e342074f5a4cbef7ffe2881f9c1228cecac350165",
+    "proposal/test_supervise.py": "57b7d521503a2af3d66c75318f7a32ea2c3b393ab2081c654b0f15cf83203a3e"
+  },
+  "sealed_evidence": {
+    "artifact": "facet-index-bluejay-fixed-abba-1",
+    "approved_plan_sha256": "8eb2e00313d2fefcf493084185b670513a1b0a427af76695354183af5a183a3f",
+    "files_sha256": {
+      "audit.json": "ad509c66f5263812d4dac1733c4d4a8a6c18c39694af87eff73476cf84c5f0c4",
+      "seal.json": "2ac759999ba25d2a78c942bf0a48031251d2f9c44d0b7a8874cd53719a3472c9",
+      "report.md": "9b81f53b08907900b1d0e789a3fcd4f028991634bb98b7d150c2cbe24a3b8e67",
+      "scientific-comparison.json": "271c83386407bd3dfd796af739af0075e811b47092b0085f93da5ca755655711",
+      "complete-report-differences.json": "8e13631550dc73c832c14daeaaba2170c06834aafc00b50770fee3f194d4a5e6"
+    },
+    "raw_files_sha256": {
+      "01-baseline/call-audit.json": "d4e424fbd51401da61ea314dbd3ba8d7bf31ee675de75438dc744b3501837141",
+      "01-baseline/candidate-field.json": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "01-baseline/command.json": "adf8d91790cffe49840ce08f29ca831a9b27308757e23b8b6acc8af3b7c110f9",
+      "01-baseline/controls-after.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "01-baseline/controls-before.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "01-baseline/cpu-frequency-monitor.json": "7b53c9946bcc71425c0ad54eb6c8d79b8e4a3079f2a987f54e04331ec1c1ddcd",
+      "01-baseline/preflight-cpu-frequency.json": "360b03ed1b056c8f39a3bc011875f28044d775eb1f945d456a8f18010ccc95e9",
+      "01-baseline/preflight-qualification.json": "b26f7099d439684fd1da6ed47cdafcc0de6809d13d9849036218a844cff9d14c",
+      "01-baseline/result.json": "5c0ee95b9c122b2158c205fcb161fb84ab5b1b61fa475feb35efd30602d627d3",
+      "01-baseline/started.json": "ccfbf7a91db07d2feabfcd64fdebec7a957382cb8aa96ee4835439d02a188526",
+      "01-baseline/worker.log": "b303f8b7b75f1361f5de3af57bdce76028e26c8125cdb7df4a6339dec3b518dd",
+      "02-candidate/call-audit.json": "d4e424fbd51401da61ea314dbd3ba8d7bf31ee675de75438dc744b3501837141",
+      "02-candidate/candidate-field.json": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "02-candidate/command.json": "5db0321924ccd1ba2b393594f127ddd97cf3205add4c55357c6cbfd5b803a1c5",
+      "02-candidate/controls-after.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "02-candidate/controls-before.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "02-candidate/cpu-frequency-monitor.json": "7b76d1055824af4aa9ceffcbce9b7217b223e19395b1ee871cc255f8830dea30",
+      "02-candidate/preflight-cpu-frequency.json": "547b87d564542f3d09685672c0b6b0673fa2ca9fb84a29722c07026877230ebd",
+      "02-candidate/preflight-qualification.json": "6a00add127acd9e3d2e395f62d1852c0ffe7b62c904f2098160fd1490a72f2dc",
+      "02-candidate/result.json": "345317f7c2bcb755b18f193b697a38d99d83a70aa01108e9e70cb9d1a81450ea",
+      "02-candidate/started.json": "aea46e5eab9fba6bb22395bbd9760f928dcb7f9b87ba5ee5735ab17da124cb88",
+      "02-candidate/worker.log": "1c15396f4492615164411f781e6aa123c111f17efe1d00459e60f4baba5be21f",
+      "03-candidate/call-audit.json": "d4e424fbd51401da61ea314dbd3ba8d7bf31ee675de75438dc744b3501837141",
+      "03-candidate/candidate-field.json": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "03-candidate/command.json": "8a7b718ca0375072c03027149221d6b157e36649e5e50929d9a425b5f868c45b",
+      "03-candidate/controls-after.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "03-candidate/controls-before.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "03-candidate/cpu-frequency-monitor.json": "0550ba06fa6f244fea712203aa127a54741eee00430d39935ab9b2ea96e886a2",
+      "03-candidate/preflight-cpu-frequency.json": "18dfea88a860619f4c5d688b2f8d39eecb81d25f043f45541341f9d2ae130ceb",
+      "03-candidate/preflight-qualification.json": "77cf8cc3d092b07d2ff3f4ec8e660e60a19549fbde230cdb1fbc90063ac3d045",
+      "03-candidate/result.json": "92c1973dc70173587603a1412d2d778d89dc74592e8f9dca0b59292b1c53adfa",
+      "03-candidate/started.json": "be1eb75086f73a4ed44c3badd7575470e79a1fb290529ba9c4d43b4ece748ae9",
+      "03-candidate/worker.log": "9b7d30c954f7e803c15455ea557c8513576f28c5302a77bdf09276b0230684c0",
+      "04-baseline/call-audit.json": "d4e424fbd51401da61ea314dbd3ba8d7bf31ee675de75438dc744b3501837141",
+      "04-baseline/candidate-field.json": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "04-baseline/command.json": "8a0cbd3e76acac32dba54d106ddd73c79c29d743f2fd1e85f92f1ae5602a821c",
+      "04-baseline/controls-after.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "04-baseline/controls-before.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "04-baseline/cpu-frequency-monitor.json": "cb863484b6806ad81cc9cfad504856f8df12786288dc2d4f2a140c8ec1b748f9",
+      "04-baseline/preflight-cpu-frequency.json": "ae5883948bf64e7749fa00814ac3790fad794bb8eff782cd0084dbcc7c25f9fd",
+      "04-baseline/preflight-qualification.json": "b6cd9a946e696ee76c6950cbb83c90f80d912b3d371cdf52a42ebfa7fb90f039",
+      "04-baseline/result.json": "ec0c380881ebc0c8b97dc6ec6a4eb147796d76c91e6a55edee0b17c6f5ce4f20",
+      "04-baseline/started.json": "e93a32e9c73e39d4ac6c155282ce80d8ebdd1011043b592a290e933774fde08a",
+      "04-baseline/worker.log": "4c077f7a737b72e856d3f0d712a9a3e22604e8426d7d4e7ef9695710973d601c",
+      "audit-command.json": "3a16e26f1b5a641fbf017b1e7703f150e0614148e3075acbeef26bcaf7bce7f3",
+      "audit.json": "ad509c66f5263812d4dac1733c4d4a8a6c18c39694af87eff73476cf84c5f0c4",
+      "baseline-probe.json": "da558f0f35b9ae963edbf40a9b02ed5cda6872383b769202a28ab7a34b2cbdd1",
+      "candidate-probe.json": "bdb21cebb2f2a03c69d0d619d70fa4e93e2f142c772871839f6aacac9b8c6697",
+      "complete-report-differences.json": "8e13631550dc73c832c14daeaaba2170c06834aafc00b50770fee3f194d4a5e6",
+      "completed-stages.json": "7554a7e124a760eac418114fef202c606e60e764617f4fe73803e1c9bc60a5ec",
+      "completed.json": "b22e26910b113846667393b8c50697ca524a406a522b3825bb4ef12132ae77ef",
+      "controls-initial.json": "141cddccbde9582bc35b8b62a39f36266f04db5f2b669eda7c88f1fcf05cea80",
+      "frequency-support.json": "022359ace4216dcb3e8d0761995dc2be51b7f9221f433a3d200695fb33849fed",
+      "report.md": "9b81f53b08907900b1d0e789a3fcd4f028991634bb98b7d150c2cbe24a3b8e67",
+      "scientific-comparison.json": "271c83386407bd3dfd796af739af0075e811b47092b0085f93da5ca755655711"
+    },
+    "controller_files_sha256": {
+      "draft-abba-plan.json": "8eb2e00313d2fefcf493084185b670513a1b0a427af76695354183af5a183a3f",
+      "execution-launch.json": "0a56e61c8eeecdd0494618b2246c4a02aee1f529341f0665d185d186574eaf74",
+      "execution-manager-start.json": "51341e8b9843722d89057b386f210854cdf1e91aa8c38afcb94d1be89e94505f",
+      "execution-manager.py": "93cbac18eb6d9b1e22b0aacf85e9d38a384692a56cadbcfef1635e5de6bef9e3",
+      "execution-manager.log": "d74c52fbf147b5b2008c1c2da690b1d06c6ed5d111f8c6282487ec84cc5f005b",
+      "execution-supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "analysis/audit.py": "6a7aebabc7e3dc148fdaf4eef06b77184a647a657b032eb5d9f42e076bf5791b"
+    },
+    "record_names_are_relative_to_retained_observation_bundle": true,
+    "original_nvidia7_record": "2026-11-06-cartesian-facet-index-aba.json",
+    "original_nvidia7_record_sha256": "764a4be536d81a01941989baf2ae5e51127a6299fa79ee67875815fea447c1ff",
+    "original_nvidia7_unfavorable_observations_retained_unchanged": true
+  },
+  "protocol": {
+    "dimension": 3,
+    "cells_per_axis": 16,
+    "process_order": [
+      "01-baseline",
+      "02-candidate",
+      "03-candidate",
+      "04-baseline"
+    ],
+    "processes": 4,
+    "calls_per_process": {
+      "ordinary_cold": 1,
+      "separate_profile": 1,
+      "ordinary_warmups": 2,
+      "ordinary_samples": 7
+    },
+    "total_ordinary_calls": 40,
+    "total_profile_calls": 4,
+    "total_calls": 44,
+    "raw_sample_count": 28,
+    "fenics_calls": 0,
+    "retries": 0,
+    "actual_supervisor_exit": 0,
+    "timing_scope": "Complete ordinary eqiora.run call, including unchanged count guard; extraction/hash comparison outside clocks. Profiles are separate instrumented calls, not partitions of ordinary medians.",
+    "failure_rule": "Predeclared control, source, installation, count or science failure stops the attempt; retain every result and failure, with no retry, threshold change or sample rejection."
+  },
+  "physical_checks": {
+    "model_sha256": "8b90386f57e0563b892c982ed3c7cf94d21ebb4dfe3f79efe7cf9d98e3b62012",
+    "dofs": {
+      "total": 4913,
+      "free": 3375,
+      "stored_algebraic": 3375
+    },
+    "execution": {
+      "scalar_type": "f64",
+      "provider": "eqiora.host.serial",
+      "provider_version": "0.1.5",
+      "placement": "host-serial",
+      "workers": 1
+    },
+    "solve": {
+      "algorithm": "bicgstab",
+      "completed_iterations": 1,
+      "initial_residual_norm": 0.1619981967551136,
+      "reported_residual_norm": 7.458354808370067e-16,
+      "true_residual_norm": 7.26936107736496e-16,
+      "residual_target": 1.619981967551136e-13,
+      "preconditioner": "identity",
+      "backend": "eqiora.reference",
+      "adapter": "eqiora.host.serial",
+      "verification_adapter": "eqiora.host.serial",
+      "reduction": "reproducible",
+      "relative_tolerance": 1e-12,
+      "absolute_tolerance": 1e-14,
+      "maximum_iterations": 10000,
+      "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+    },
+    "accuracy": {
+      "continuous_l2": 0.0014366736862281306,
+      "analytic_discrete_l2": 0.0014366736862284964,
+      "comparison_allowance": 1.7220678425618651e-09,
+      "reference": "verify/numerics/cartesian-poisson-3d-fem-fvm/expected/convergence.csv",
+      "reference_sha256": "2b2d4593514a09310de09fad2772f0d5351a9ebab6d06e739d893271590dae15"
+    },
+    "independent_analytic_oracle_recomputed_and_matched_report_in_all_four_processes": true,
+    "all_40_ordinary_solve_records_pass_unchanged_residual_policy": true,
+    "cold_coordinates_and_values_bytes_sha256": {
+      "coordinates_bytes_sha256": "0f363f71e11a615ede5c29e93189322106e2853e81f3ad01764591cb0b67e0fb",
+      "values_bytes_sha256": "64d71f7de4944068576e389e70b49fc67b8a04c2ee87eaf9c63ffc9589ff092f"
+    },
+    "cold_candidate_json_equal_without_exclusions": true,
+    "comparison_rules": {
+      "cold_candidate_json": "entire field hex/coordinate/solve/association/dimension snapshot, zero exclusions",
+      "result_scientific_paths_compared_without_pruning": [
+        "dimension",
+        "cells_per_axis",
+        "dofs",
+        "coordinates",
+        "values",
+        "associated_fields",
+        "solve",
+        "accuracy",
+        "model_sha256",
+        "environment.resolved_execution",
+        "environment.linear_provider"
+      ],
+      "enumerated_derived_identity_exclusions": [
+        "plan_sha256",
+        "package_compilation_digest"
+      ],
+      "elapsed_exclusions_within_scientific_paths": [],
+      "full_report_differences_retained_without_pruning": true,
+      "reference_not_eqiora_output_derived": true
+    },
+    "comparisons": [
+      {
+        "left": "01-baseline",
+        "right": "02-candidate",
+        "cold_candidate_differences": [],
+        "scientific_subtree_differences": [],
+        "enumerated_derived_identity_differences": [],
+        "complete_report_difference_count": 79
+      },
+      {
+        "left": "01-baseline",
+        "right": "03-candidate",
+        "cold_candidate_differences": [],
+        "scientific_subtree_differences": [],
+        "enumerated_derived_identity_differences": [],
+        "complete_report_difference_count": 79
+      },
+      {
+        "left": "01-baseline",
+        "right": "04-baseline",
+        "cold_candidate_differences": [],
+        "scientific_subtree_differences": [],
+        "enumerated_derived_identity_differences": [],
+        "complete_report_difference_count": 75
+      }
+    ],
+    "parity_note": "Cross-revision equality supplements the unchanged independent analytic oracle; it does not replace it."
+  },
+  "controls": {
+    "host": "bluejay",
+    "worker_cpu": 20,
+    "worker_sibling": 44,
+    "supervisor_cpu": 21,
+    "supervisor_sibling": 45,
+    "monitored_cpus": [
+      20,
+      21,
+      44,
+      45
+    ],
+    "threads_per_worker": 1,
+    "gpu_hidden": true,
+    "preflight_window_seconds": 10,
+    "preflight_worker_and_sibling_each_strictly_below_busy_percent": 2,
+    "whole_stage_worker_sibling_mean_at_most_busy_percent": 5,
+    "all_four_stages_qualified": true,
+    "source_payload_runtime_and_settings_before_after_checks_passed": true,
+    "settings": {
+      "physical_cores": {
+        "20": {
+          "siblings": "20,44",
+          "boost": null,
+          "intel_no_turbo": "0",
+          "cpu20_governor": "ondemand",
+          "cpu44_governor": "ondemand"
+        },
+        "21": {
+          "siblings": "21,45",
+          "boost": null,
+          "intel_no_turbo": "0",
+          "cpu21_governor": "ondemand",
+          "cpu45_governor": "ondemand"
+        }
+      },
+      "cpufreq": {
+        "20": {
+          "scaling_driver": "intel_cpufreq",
+          "scaling_governor": "ondemand",
+          "scaling_min_freq": "1000000",
+          "scaling_max_freq": "3200000"
+        },
+        "21": {
+          "scaling_driver": "intel_cpufreq",
+          "scaling_governor": "ondemand",
+          "scaling_min_freq": "1000000",
+          "scaling_max_freq": "3200000"
+        },
+        "44": {
+          "scaling_driver": "intel_cpufreq",
+          "scaling_governor": "ondemand",
+          "scaling_min_freq": "1000000",
+          "scaling_max_freq": "3200000"
+        },
+        "45": {
+          "scaling_driver": "intel_cpufreq",
+          "scaling_governor": "ondemand",
+          "scaling_min_freq": "1000000",
+          "scaling_max_freq": "3200000"
+        }
+      }
+    },
+    "frequency_telemetry": {
+      "recorded_each_stage": true,
+      "cadence_seconds": 1,
+      "endpoints_included": true,
+      "path_kind": "scaling_cur_freq",
+      "cpuinfo_cur_freq": "unsupported on selected CPUs",
+      "semantics": "sysfs driver-reported frequency kHz; not calibrated cycles",
+      "all_raw_samples_retained_in_hashed_monitor_files": true
+    }
+  },
+  "stages": [
+    {
+      "name": "01-baseline",
+      "label": "baseline",
+      "actual_exit": 0,
+      "ordinary_calls": 10,
+      "profile_calls": 1,
+      "wall_seconds": {
+        "median": 0.767293446,
+        "min": 0.762742611,
+        "max": 0.802003093,
+        "mad": 0.0032143000000000033
+      },
+      "process_cpu_seconds": {
+        "median": 0.76696921,
+        "min": 0.762339054,
+        "max": 0.801556508,
+        "mad": 0.003188013000000045
+      },
+      "median_cpu_over_wall": 0.9995774289462651,
+      "raw_samples": [
+        {
+          "wall_seconds": 0.766424948,
+          "process_cpu_seconds": 0.766027937
+        },
+        {
+          "wall_seconds": 0.770507746,
+          "process_cpu_seconds": 0.770157223
+        },
+        {
+          "wall_seconds": 0.802003093,
+          "process_cpu_seconds": 0.801556508
+        },
+        {
+          "wall_seconds": 0.768866777,
+          "process_cpu_seconds": 0.76852935
+        },
+        {
+          "wall_seconds": 0.762742611,
+          "process_cpu_seconds": 0.762339054
+        },
+        {
+          "wall_seconds": 0.767293446,
+          "process_cpu_seconds": 0.76696921
+        },
+        {
+          "wall_seconds": 0.76299408,
+          "process_cpu_seconds": 0.762671156
+        }
+      ],
+      "cold_execution": {
+        "wall_seconds": 0.807264442,
+        "process_cpu_seconds": 0.80696872
+      },
+      "mesh_measurement": {
+        "wall_seconds": 0.072001581,
+        "process_cpu_seconds": 0.071963519
+      },
+      "preparation_measurement": {
+        "wall_seconds": 0.06846573,
+        "process_cpu_seconds": 0.068441279
+      },
+      "imports_wall_seconds": 0.147654774,
+      "memory_snapshots": {
+        "memory_after_import": {
+          "current_rss_kib": 44108,
+          "process_peak_rss_kib": 98164,
+          "largest_completed_child_peak_rss_kib": 42460,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_preparation": {
+          "current_rss_kib": 85096,
+          "process_peak_rss_kib": 98164,
+          "largest_completed_child_peak_rss_kib": 42460,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_execution_before_accuracy": {
+          "current_rss_kib": 142232,
+          "process_peak_rss_kib": 142232,
+          "largest_completed_child_peak_rss_kib": 42460,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_at_end": {
+          "current_rss_kib": 161060,
+          "process_peak_rss_kib": 161068,
+          "largest_completed_child_peak_rss_kib": 42460,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        }
+      },
+      "preflight_qualification": {
+        "seconds": 10.08140379190445,
+        "worker_busy_percent": 0.3972194637537239,
+        "sibling_busy_percent": 0.8946322067594433,
+        "required_strictly_below_percent": 2,
+        "retry_allowed": false
+      },
+      "report_sha256": "5c0ee95b9c122b2158c205fcb161fb84ab5b1b61fa475feb35efd30602d627d3",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "whole_process_monitor": {
+        "samples": 11,
+        "seconds": 9.817575238645077,
+        "cpu_busy_percent": {
+          "20": 99.08069458631256,
+          "21": 1.639344262295082,
+          "44": 0.5112474437627812,
+          "45": 0.7150153217568948
+        },
+        "load_start": [
+          0.2,
+          0.36,
+          0.42
+        ],
+        "load_end": [
+          0.72,
+          0.47,
+          0.45
+        ]
+      },
+      "frequency_khz": {
+        "20": {
+          "samples": 11,
+          "minimum_khz": 1000029,
+          "median_khz": 3145239,
+          "maximum_khz": 3191533
+        },
+        "21": {
+          "samples": 11,
+          "minimum_khz": 1000058,
+          "median_khz": 1019156,
+          "maximum_khz": 2195216
+        },
+        "44": {
+          "samples": 11,
+          "minimum_khz": 1000027,
+          "median_khz": 3170085,
+          "maximum_khz": 3200031
+        },
+        "45": {
+          "samples": 11,
+          "minimum_khz": 1000073,
+          "median_khz": 1002701,
+          "maximum_khz": 1093389
+        }
+      },
+      "separate_profile_seconds": {
+        "finalization_inclusive_seconds": 0.606767386,
+        "finalization_native_self_seconds": 0.163306407,
+        "assembly_child_seconds": 0.443460979,
+        "unassigned_solve_native_self_seconds": 0.001519302
+      },
+      "profile_direct_parent_child_arithmetic_passed": true
+    },
+    {
+      "name": "02-candidate",
+      "label": "candidate",
+      "actual_exit": 0,
+      "ordinary_calls": 10,
+      "profile_calls": 1,
+      "wall_seconds": {
+        "median": 0.772806874,
+        "min": 0.769565939,
+        "max": 0.778642418,
+        "mad": 0.003104480000000076
+      },
+      "process_cpu_seconds": {
+        "median": 0.772450873,
+        "min": 0.769218406,
+        "max": 0.778297312,
+        "mad": 0.0031446769999999846
+      },
+      "median_cpu_over_wall": 0.9995393402776591,
+      "raw_samples": [
+        {
+          "wall_seconds": 0.778642418,
+          "process_cpu_seconds": 0.778297312
+        },
+        {
+          "wall_seconds": 0.770631373,
+          "process_cpu_seconds": 0.770301516
+        },
+        {
+          "wall_seconds": 0.769702394,
+          "process_cpu_seconds": 0.769306196
+        },
+        {
+          "wall_seconds": 0.769565939,
+          "process_cpu_seconds": 0.769218406
+        },
+        {
+          "wall_seconds": 0.775444967,
+          "process_cpu_seconds": 0.775066265
+        },
+        {
+          "wall_seconds": 0.776641107,
+          "process_cpu_seconds": 0.776320617
+        },
+        {
+          "wall_seconds": 0.772806874,
+          "process_cpu_seconds": 0.772450873
+        }
+      ],
+      "cold_execution": {
+        "wall_seconds": 0.819736811,
+        "process_cpu_seconds": 0.819442332
+      },
+      "mesh_measurement": {
+        "wall_seconds": 0.074315903,
+        "process_cpu_seconds": 0.07427684
+      },
+      "preparation_measurement": {
+        "wall_seconds": 0.069475295,
+        "process_cpu_seconds": 0.069449455
+      },
+      "imports_wall_seconds": 0.144220263,
+      "memory_snapshots": {
+        "memory_after_import": {
+          "current_rss_kib": 44148,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 42640,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_preparation": {
+          "current_rss_kib": 86660,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 42640,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_execution_before_accuracy": {
+          "current_rss_kib": 143944,
+          "process_peak_rss_kib": 143944,
+          "largest_completed_child_peak_rss_kib": 42640,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_at_end": {
+          "current_rss_kib": 162000,
+          "process_peak_rss_kib": 162108,
+          "largest_completed_child_peak_rss_kib": 42640,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        }
+      },
+      "preflight_qualification": {
+        "seconds": 10.079363480210304,
+        "worker_busy_percent": 0.6951340615690169,
+        "sibling_busy_percent": 1.1988011988011988,
+        "required_strictly_below_percent": 2,
+        "retry_allowed": false
+      },
+      "report_sha256": "345317f7c2bcb755b18f193b697a38d99d83a70aa01108e9e70cb9d1a81450ea",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "whole_process_monitor": {
+        "samples": 11,
+        "seconds": 9.870520077645779,
+        "cpu_busy_percent": {
+          "20": 99.18864097363083,
+          "21": 0.509683995922528,
+          "44": 0.6097560975609756,
+          "45": 1.1190233977619533
+        },
+        "load_start": [
+          0.69,
+          0.47,
+          0.45
+        ],
+        "load_end": [
+          0.74,
+          0.49,
+          0.46
+        ]
+      },
+      "frequency_khz": {
+        "20": {
+          "samples": 11,
+          "minimum_khz": 1000044,
+          "median_khz": 3125062,
+          "maximum_khz": 3167344
+        },
+        "21": {
+          "samples": 11,
+          "minimum_khz": 1000109,
+          "median_khz": 1002390,
+          "maximum_khz": 1077794
+        },
+        "44": {
+          "samples": 11,
+          "minimum_khz": 1000040,
+          "median_khz": 3161923,
+          "maximum_khz": 3200056
+        },
+        "45": {
+          "samples": 11,
+          "minimum_khz": 1000090,
+          "median_khz": 1000766,
+          "maximum_khz": 1011371
+        }
+      },
+      "separate_profile_seconds": {
+        "finalization_inclusive_seconds": 0.616870858,
+        "finalization_native_self_seconds": 0.163445117,
+        "assembly_child_seconds": 0.453425741,
+        "unassigned_solve_native_self_seconds": 0.00149295
+      },
+      "profile_direct_parent_child_arithmetic_passed": true
+    },
+    {
+      "name": "03-candidate",
+      "label": "candidate",
+      "actual_exit": 0,
+      "ordinary_calls": 10,
+      "profile_calls": 1,
+      "wall_seconds": {
+        "median": 0.773792225,
+        "min": 0.771397595,
+        "max": 0.779015339,
+        "mad": 0.0010049469999999783
+      },
+      "process_cpu_seconds": {
+        "median": 0.773412386,
+        "min": 0.77106573,
+        "max": 0.778723048,
+        "mad": 0.0010122669999999
+      },
+      "median_cpu_over_wall": 0.999509120164654,
+      "raw_samples": [
+        {
+          "wall_seconds": 0.774502185,
+          "process_cpu_seconds": 0.774203693
+        },
+        {
+          "wall_seconds": 0.772787278,
+          "process_cpu_seconds": 0.772400119
+        },
+        {
+          "wall_seconds": 0.771397595,
+          "process_cpu_seconds": 0.77106573
+        },
+        {
+          "wall_seconds": 0.773699464,
+          "process_cpu_seconds": 0.773363185
+        },
+        {
+          "wall_seconds": 0.773792225,
+          "process_cpu_seconds": 0.773412386
+        },
+        {
+          "wall_seconds": 0.779015339,
+          "process_cpu_seconds": 0.778723048
+        },
+        {
+          "wall_seconds": 0.778019544,
+          "process_cpu_seconds": 0.77771292
+        }
+      ],
+      "cold_execution": {
+        "wall_seconds": 0.821516238,
+        "process_cpu_seconds": 0.821236914
+      },
+      "mesh_measurement": {
+        "wall_seconds": 0.07458648,
+        "process_cpu_seconds": 0.074551992
+      },
+      "preparation_measurement": {
+        "wall_seconds": 0.071230578,
+        "process_cpu_seconds": 0.071199877
+      },
+      "imports_wall_seconds": 0.15982565,
+      "memory_snapshots": {
+        "memory_after_import": {
+          "current_rss_kib": 44532,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 43016,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_preparation": {
+          "current_rss_kib": 84320,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 43016,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_execution_before_accuracy": {
+          "current_rss_kib": 144712,
+          "process_peak_rss_kib": 144712,
+          "largest_completed_child_peak_rss_kib": 43016,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_at_end": {
+          "current_rss_kib": 158052,
+          "process_peak_rss_kib": 158160,
+          "largest_completed_child_peak_rss_kib": 43016,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        }
+      },
+      "preflight_qualification": {
+        "seconds": 10.079889632761478,
+        "worker_busy_percent": 0.1988071570576541,
+        "sibling_busy_percent": 0.796812749003984,
+        "required_strictly_below_percent": 2,
+        "retry_allowed": false
+      },
+      "report_sha256": "92c1973dc70173587603a1412d2d778d89dc74592e8f9dca0b59292b1c53adfa",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "whole_process_monitor": {
+        "samples": 11,
+        "seconds": 9.920684561133385,
+        "cpu_busy_percent": {
+          "20": 98.99193548387096,
+          "21": 0.8121827411167513,
+          "44": 0.6054490413723511,
+          "45": 0.7092198581560284
+        },
+        "load_start": [
+          0.63,
+          0.47,
+          0.45
+        ],
+        "load_end": [
+          0.69,
+          0.49,
+          0.46
+        ]
+      },
+      "frequency_khz": {
+        "20": {
+          "samples": 11,
+          "minimum_khz": 1000040,
+          "median_khz": 3117650,
+          "maximum_khz": 3151067
+        },
+        "21": {
+          "samples": 11,
+          "minimum_khz": 1000034,
+          "median_khz": 1020556,
+          "maximum_khz": 1306571
+        },
+        "44": {
+          "samples": 11,
+          "minimum_khz": 1000917,
+          "median_khz": 3169891,
+          "maximum_khz": 3200378
+        },
+        "45": {
+          "samples": 11,
+          "minimum_khz": 1000045,
+          "median_khz": 1001164,
+          "maximum_khz": 1085140
+        }
+      },
+      "separate_profile_seconds": {
+        "finalization_inclusive_seconds": 0.62538919,
+        "finalization_native_self_seconds": 0.167629162,
+        "assembly_child_seconds": 0.457760028,
+        "unassigned_solve_native_self_seconds": 0.001568021
+      },
+      "profile_direct_parent_child_arithmetic_passed": true
+    },
+    {
+      "name": "04-baseline",
+      "label": "baseline",
+      "actual_exit": 0,
+      "ordinary_calls": 10,
+      "profile_calls": 1,
+      "wall_seconds": {
+        "median": 0.765156706,
+        "min": 0.762448342,
+        "max": 0.797049088,
+        "mad": 0.0023676639999999916
+      },
+      "process_cpu_seconds": {
+        "median": 0.764785837,
+        "min": 0.762145741,
+        "max": 0.79666326,
+        "mad": 0.0023210759999999775
+      },
+      "median_cpu_over_wall": 0.9995153032090136,
+      "raw_samples": [
+        {
+          "wall_seconds": 0.774399218,
+          "process_cpu_seconds": 0.774017483
+        },
+        {
+          "wall_seconds": 0.764427508,
+          "process_cpu_seconds": 0.764073062
+        },
+        {
+          "wall_seconds": 0.762789042,
+          "process_cpu_seconds": 0.762464761
+        },
+        {
+          "wall_seconds": 0.762448342,
+          "process_cpu_seconds": 0.762145741
+        },
+        {
+          "wall_seconds": 0.76529342,
+          "process_cpu_seconds": 0.764973869
+        },
+        {
+          "wall_seconds": 0.797049088,
+          "process_cpu_seconds": 0.79666326
+        },
+        {
+          "wall_seconds": 0.765156706,
+          "process_cpu_seconds": 0.764785837
+        }
+      ],
+      "cold_execution": {
+        "wall_seconds": 0.82199553,
+        "process_cpu_seconds": 0.821708986
+      },
+      "mesh_measurement": {
+        "wall_seconds": 0.073188132,
+        "process_cpu_seconds": 0.073161847
+      },
+      "preparation_measurement": {
+        "wall_seconds": 0.070770323,
+        "process_cpu_seconds": 0.070731673
+      },
+      "imports_wall_seconds": 0.132753625,
+      "memory_snapshots": {
+        "memory_after_import": {
+          "current_rss_kib": 44364,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 42712,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_preparation": {
+          "current_rss_kib": 85292,
+          "process_peak_rss_kib": 113932,
+          "largest_completed_child_peak_rss_kib": 42712,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_after_execution_before_accuracy": {
+          "current_rss_kib": 142336,
+          "process_peak_rss_kib": 142336,
+          "largest_completed_child_peak_rss_kib": 42712,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        },
+        "memory_at_end": {
+          "current_rss_kib": 158272,
+          "process_peak_rss_kib": 158280,
+          "largest_completed_child_peak_rss_kib": 42712,
+          "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"
+        }
+      },
+      "preflight_qualification": {
+        "seconds": 10.079356424510479,
+        "worker_busy_percent": 0.09930486593843098,
+        "sibling_busy_percent": 0.8982035928143712,
+        "required_strictly_below_percent": 2,
+        "retry_allowed": false
+      },
+      "report_sha256": "ec0c380881ebc0c8b97dc6ec6a4eb147796d76c91e6a55edee0b17c6f5ce4f20",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "whole_process_monitor": {
+        "samples": 11,
+        "seconds": 9.873521320521832,
+        "cpu_busy_percent": {
+          "20": 99.08906882591093,
+          "21": 0.6103763987792472,
+          "44": 0.4069175991861648,
+          "45": 0.6091370558375635
+        },
+        "load_start": [
+          0.68,
+          0.5,
+          0.46
+        ],
+        "load_end": [
+          0.73,
+          0.51,
+          0.47
+        ]
+      },
+      "frequency_khz": {
+        "20": {
+          "samples": 11,
+          "minimum_khz": 1001077,
+          "median_khz": 3111784,
+          "maximum_khz": 3183166
+        },
+        "21": {
+          "samples": 11,
+          "minimum_khz": 1000108,
+          "median_khz": 1022504,
+          "maximum_khz": 1191729
+        },
+        "44": {
+          "samples": 11,
+          "minimum_khz": 1000034,
+          "median_khz": 3068886,
+          "maximum_khz": 3200003
+        },
+        "45": {
+          "samples": 11,
+          "minimum_khz": 1000060,
+          "median_khz": 1002645,
+          "maximum_khz": 1027428
+        }
+      },
+      "separate_profile_seconds": {
+        "finalization_inclusive_seconds": 0.622537537,
+        "finalization_native_self_seconds": 0.168815204,
+        "assembly_child_seconds": 0.453722333,
+        "unassigned_solve_native_self_seconds": 0.001512804
+      },
+      "profile_direct_parent_child_arithmetic_passed": true
+    }
+  ],
+  "ratios_of_process_medians": {
+    "pairs": [
+      {
+        "baseline": "01-baseline",
+        "candidate": "02-candidate",
+        "order": "AB",
+        "candidate_over_baseline_wall": 1.0071855533612886,
+        "candidate_over_baseline_cpu": 1.0071471747868472
+      },
+      {
+        "baseline": "04-baseline",
+        "candidate": "03-candidate",
+        "order": "BA",
+        "candidate_over_baseline_wall": 1.0112859482669163,
+        "candidate_over_baseline_cpu": 1.0112796924088434
+      }
+    ],
+    "paired_wall_ratio": {
+      "median": 1.0092357508141023,
+      "range": [
+        1.0071855533612886,
+        1.0112859482669163
+      ]
+    },
+    "paired_cpu_ratio": {
+      "median": 1.0092134335978453,
+      "range": [
+        1.0071471747868472,
+        1.0112796924088434
+      ]
+    },
+    "baseline_after_over_before_wall": 0.9972152244866169,
+    "candidate_second_over_first_wall": 1.0012750287725831,
+    "baseline_after_over_before_cpu": 0.9971532455650991,
+    "candidate_second_over_first_cpu": 1.0012447561827016
+  },
+  "limitations": [
+    "Two process order pairs only; seven inner calls per process are not independent process replications.",
+    "Both candidate process medians were slightly slower; the approximately 1% differences do not establish a general regression or causal algorithm effect.",
+    "Frequency samples are driver-reported whole-process observations, not calibrated cycles or per-kernel frequencies. Stable policy settings do not imply a fixed clock.",
+    "Separate instrumented profiles do not partition ordinary-call medians; unassigned native self time does not identify a function.",
+    "Memory values are process high-water marks at named boundaries; child peaks are separate, not aggregate simultaneous process-tree memory.",
+    "The original busy-host nvidia7 result remains unfavorable and unchanged; this record neither discards nor supersedes it.",
+    "No general speed target, stable baseline, cylinder speedup or release qualification is established."
+  ]
+}

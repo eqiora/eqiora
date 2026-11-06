@@ -2,10 +2,7 @@ use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::region_assembly::mapping::RegionAlgebraicCoordinates;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topology};
-use eqiora_meshing::{CartesianMesh, MeshTopology};
-
-mod cartesian_facets;
-use cartesian_facets::CartesianFacetIndex;
+use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 
 impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn finalize_static(
@@ -260,7 +257,6 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         };
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
-        let mut boundary_facets = None;
         for (region, form) in self.regions.iter().zip(&bound) {
             if conservative.is_some() {
                 break;
@@ -272,9 +268,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                         continue;
                     };
                     let coordinate = support.bounds[axis][usize::from(side == BoundarySide::Upper)];
-                    let facets =
-                        boundary_facets.get_or_insert_with(|| CartesianFacetIndex::new(mesh));
-                    for &facet in facets.on_plane(axis, coordinate) {
+                    for index in 0..mesh.entity_count(dimension - 1).expect("facets") {
+                        let facet = MeshEntity::new(dimension - 1, index);
                         let vertices = mesh.entity_vertices(facet).expect("facet vertices");
                         if !vertices.iter().all(|vertex| {
                             let point = mesh.vertex_coordinates(*vertex).expect("vertex");
