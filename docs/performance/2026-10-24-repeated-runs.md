@@ -11,6 +11,9 @@ candidate against a more recent reference, with exact cylinder field equality
 and the remaining measured performance gap. It does not replace this historical
 a7 comparison.
 
+See the [comparison boundary](../../tools/benchmarks/repeated_execution/README.md)
+before using these observations for the frozen target.
+
 ## Environment and boundary
 
 Both installations ran on `dide1` (`didelx01`), Linux 6.8.0-94/glibc 2.35,
