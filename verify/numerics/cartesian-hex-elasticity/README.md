@@ -30,3 +30,11 @@ The full distorted/general-cell work in #1552 remains open. This slice excludes
 all geometry, physics, backend and robustness extensions listed in the frozen
 reference protocol. Typed geometry and resource-budget rejections precede any
 accepted Result; a test must not create an artificial physics whitelist.
+
+The current Cartesian Mesh stores one ordered coordinate list per physical
+axis. Its public representation cannot express a warped or non-affine Hex.
+The invalid-axis and resource-limit controls exercise actual rejection paths;
+they do not establish validity checks for trilinearly distorted geometry. That
+work remains with #1552. Altered authored-form controls separately change one
+traction component, reverse its sign, omit a contraction axis or change a
+physical unit, while leaving the source balance equations in place.
