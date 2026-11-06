@@ -36,7 +36,23 @@ impl Context<'_> {
     // admits operands on the trial's exact volume, before any cancellation.
     pub(super) fn physical_shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
-        let shape = self.shape(value, depth + 1)?;
+        let ty = self.retained_type(value, depth + 1)?;
+        if ty.value_type.array_rank() != 0 {
+            return None;
+        }
+        if let Some(support) = &ty.support {
+            if !matches!(support, eqiora_schema::kernel::typing::SpatialSupport::Volume { dimensions, .. } if *dimensions == self.dimensions)
+                || Some(support) != self.supports.get(self.field)
+            {
+                return None;
+            }
+        }
+        let shape = ty
+            .shape()
+            .extents()
+            .iter()
+            .map(|extent| extent.get() as usize)
+            .collect::<Vec<_>>();
         match value {
             E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
                 self.physical_field(ulid, &shape)?;

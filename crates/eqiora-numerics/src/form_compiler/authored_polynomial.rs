@@ -12,6 +12,7 @@ mod components;
 mod finite;
 mod oriented;
 mod pure;
+mod retained_type;
 mod source;
 mod typing;
 pub(super) mod weak;
@@ -322,6 +323,12 @@ impl Context<'_> {
                 if self.physical_shape(value, depth + 1)? != [self.dimensions] {
                     return None;
                 }
+                if !matches!(
+                    value.as_ref(),
+                    E::Field { .. } | E::Test { .. } | E::Direction { .. }
+                ) {
+                    return None;
+                }
                 self.remaining = self.remaining.checked_sub(self.dimensions)?;
                 let mut sum = Polynomial::constant(ExactRational::integer(0));
                 for axis in 0..self.dimensions {
@@ -383,15 +390,19 @@ impl Context<'_> {
                 .scalar(base, depth + 1)?
                 .checked_pow(u32::try_from(*exponent).ok()?)
                 .ok()?,
-            E::Component { value, indices } if indices.len() == 1 => {
-                self.vector(value, usize::try_from(indices[0]).ok()?, depth + 1)?
+            E::Component { value, indices } => {
+                self.component_type(value, indices, depth + 1)?;
+                match indices.as_slice() {
+                    [axis] => self.vector(value, usize::try_from(*axis).ok()?, depth + 1)?,
+                    [row, column] => self.tensor(
+                        value,
+                        usize::try_from(*row).ok()?,
+                        usize::try_from(*column).ok()?,
+                        depth + 1,
+                    )?,
+                    _ => return None,
+                }
             }
-            E::Component { value, indices } if indices.len() == 2 => self.tensor(
-                value,
-                usize::try_from(indices[0]).ok()?,
-                usize::try_from(indices[1]).ok()?,
-                depth + 1,
-            )?,
             E::Inner { left, right } => self.contract(left, right, true, depth + 1)?,
             E::Dot { left, right } if self.shape(left, depth + 1)?.len() == 1 => {
                 self.contract(left, right, false, depth + 1)?

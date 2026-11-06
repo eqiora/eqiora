@@ -250,3 +250,178 @@ fn structure_calculus_rejects_foreign_support_and_exhausted_budgets() {
     context.remaining = 65536;
     assert!(context.tensor(&symmetric(), 0, 0, 129).is_none());
 }
+
+#[test]
+fn native_operator_volume_support_is_required_even_for_zero_components() {
+    let mut context = context(3, false);
+    for scalar in [
+        E::Number { value: 0.0 },
+        E::Rational {
+            value: ExactRational::integer(0),
+            dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
+        },
+    ] {
+        let unsupported = E::IsotropicLift {
+            value: Box::new(scalar),
+        };
+        assert!(context.tensor(&unsupported, 0, 1, 0).is_none());
+    }
+    context.symbols.insert(
+        "uniform_tensor".into(),
+        ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([3, 3]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap(),
+    );
+    assert!(
+        context
+            .tensor(
+                &E::SymmetricPart {
+                    value: Box::new(E::Parameter {
+                        ulid: "uniform_tensor".into()
+                    })
+                },
+                0,
+                0,
+                0
+            )
+            .is_none()
+    );
+    let closed = E::SpatialTensor {
+        complex: false,
+        dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
+        shape: vec![3, 3],
+        values: vec![(0.0, 0.0); 9],
+    };
+    assert!(
+        context
+            .tensor(
+                &E::SymmetricPart {
+                    value: Box::new(closed)
+                },
+                0,
+                0,
+                0
+            )
+            .is_none()
+    );
+    context.symbols.insert(
+        "constant".into(),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+    );
+    assert!(
+        context
+            .tensor(
+                &E::IsotropicLift {
+                    value: Box::new(E::Parameter {
+                        ulid: "constant".into()
+                    })
+                },
+                0,
+                1,
+                0
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn scalar_component_rejects_incompatible_full_values_before_cancellation() {
+    let mut context = context(3, false);
+    let space = eqiora_core::Id::<eqiora_core::entity::kinds::FiniteSpace>::new()
+        .ulid()
+        .to_string();
+    let other_space = eqiora_core::Id::<eqiora_core::entity::kinds::FiniteSpace>::new()
+        .ulid()
+        .to_string();
+    let map = |n, basis: &str| E::LinearMap {
+        source_basis: vec![(basis.into(), n, false)],
+        target_basis: vec![(basis.into(), n, false)],
+        complex: false,
+        dimension: DimExponents::DIMENSIONLESS.exponents(),
+        values: vec![(0.0, 0.0); (n * n) as usize],
+    };
+    let spatial = E::SpatialTensor {
+        complex: false,
+        dimension: DimExponents::DIMENSIONLESS.exponents(),
+        shape: vec![3, 3],
+        values: vec![(0.0, 0.0); 9],
+    };
+    let component = |value| E::Component {
+        value: Box::new(value),
+        indices: vec![0, 0],
+    };
+    assert!(context.scalar(&component(map(3, &space)), 0).is_some());
+    assert!(
+        context
+            .scalar(
+                &component(E::Mul {
+                    left: Box::new(E::Time),
+                    right: Box::new(map(3, &space))
+                }),
+                0
+            )
+            .is_some()
+    );
+    let domain = match context.supports["u"].clone() {
+        SpatialSupport::Volume { domain, .. } => domain,
+        _ => unreachable!(),
+    };
+    context.domains.insert(
+        "face".into(),
+        SpatialSupport::Boundary {
+            domain: eqiora_core::Id::<eqiora_core::entity::kinds::Domain>::new().erase(),
+            parent: domain,
+            dimensions: 3,
+        },
+    );
+    context.integration_domain = Some("face".into());
+    assert!(
+        context
+            .scalar(
+                &E::Component {
+                    value: Box::new(E::Trace {
+                        value: Box::new(field()),
+                        on_ulid: "face".into()
+                    }),
+                    indices: vec![0]
+                },
+                0
+            )
+            .is_some()
+    );
+    assert!(
+        context
+            .scalar(
+                &E::Component {
+                    value: Box::new(E::TangentialTrace {
+                        value: Box::new(field()),
+                        on_ulid: "face".into()
+                    }),
+                    indices: vec![0]
+                },
+                0
+            )
+            .is_some()
+    );
+    context.integration_domain = None;
+
+    for (left, right) in [
+        (spatial.clone(), map(2, &space)),
+        (spatial, map(3, &space)),
+        (map(3, &space), map(3, &other_space)),
+    ] {
+        let invalid = component(E::Add {
+            left: Box::new(left),
+            right: Box::new(right),
+        });
+        let canceled = E::Sub {
+            left: Box::new(invalid.clone()),
+            right: Box::new(invalid),
+        };
+        assert!(context.scalar(&canceled, 0).is_none());
+    }
+}
