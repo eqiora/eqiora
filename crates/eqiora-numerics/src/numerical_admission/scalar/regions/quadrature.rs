@@ -70,7 +70,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         let dimension = resources.geometry()?.ambient_dimension();
         let simplex = matches!(
             resources,
-            NativeMeshResources::GmshSimplicial { .. }
+            NativeMeshResources::MshSimplicial { .. }
                 | NativeMeshResources::AffineTriangleSimplicial { .. }
         );
         let reference = if simplex {
