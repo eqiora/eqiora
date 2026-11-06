@@ -8,21 +8,37 @@ const SQUARE: &[u8] = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n2
 const TETRAHEDRON: &[u8] = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n3 1 0 4\n1\n2\n3\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n$EndNodes\n$Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
 
 fn square(width: f64) -> CanonicalGeometryV1 {
-    CanonicalGeometryV1::from_region(&PlanarRegion::new(
-        vec![[0., 0.], [width, 0.], [width, 1.], [0., 1.]],
-        vec![PlanarFace::new(vec![0, 1, 2, 3], vec![])],
-        vec![NamedEntitySet::new("body", 2, vec![0]), NamedEntitySet::new("outer", 1, vec![0, 1, 2, 3])],
-        1e-12,
-    ).unwrap()).unwrap()
+    CanonicalGeometryV1::from_region(
+        &PlanarRegion::new(
+            vec![[0., 0.], [width, 0.], [width, 1.], [0., 1.]],
+            vec![PlanarFace::new(vec![0, 1, 2, 3], vec![])],
+            vec![
+                NamedEntitySet::new("body", 2, vec![0]),
+                NamedEntitySet::new("outer", 1, vec![0, 1, 2, 3]),
+            ],
+            1e-12,
+        )
+        .unwrap(),
+    )
+    .unwrap()
 }
 
 fn tetrahedron() -> CanonicalGeometryV1 {
     CanonicalGeometryV1::from_convex_polyhedra(
-        vec![[0.,0.,0.], [1.,0.,0.], [0.,1.,0.], [0.,0.,1.]],
-        vec![vec![vec![0,2,1], vec![0,1,3], vec![0,3,2], vec![1,2,3]]],
-        vec![NamedEntitySet::new("body", 3, vec![0]), NamedEntitySet::new("outer", 2, vec![0,1,2,3])],
+        vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+        vec![vec![
+            vec![0, 2, 1],
+            vec![0, 1, 3],
+            vec![0, 3, 2],
+            vec![1, 2, 3],
+        ]],
+        vec![
+            NamedEntitySet::new("body", 3, vec![0]),
+            NamedEntitySet::new("outer", 2, vec![0, 1, 2, 3]),
+        ],
         1e-12,
-    ).unwrap()
+    )
+    .unwrap()
 }
 
 fn policy(facets: usize, bytes: usize) -> MshImportPolicyV1 {
@@ -32,18 +48,39 @@ fn policy(facets: usize, bytes: usize) -> MshImportPolicyV1 {
 #[test]
 fn external_msh_retains_two_triangles_or_one_tetrahedron_and_replays_honest_origin() {
     for (geometry, source, dimension, cells) in [
-        (square(1.), SQUARE, 2, 2), (tetrahedron(), TETRAHEDRON, 3, 1),
+        (square(1.), SQUARE, 2, 2),
+        (tetrahedron(), TETRAHEDRON, 3, 1),
     ] {
-        let owner = AuthenticatedCommonMesh::import_msh41(geometry.clone(), policy(4, 4096), source.to_vec()).unwrap();
+        let owner = AuthenticatedCommonMesh::import_msh41(
+            geometry.clone(),
+            policy(4, 4096),
+            source.to_vec(),
+        )
+        .unwrap();
         assert_eq!(owner.geometry(), Some(&geometry));
         let mesh = owner.simplicial_mesh().unwrap();
         assert_eq!(mesh.dimension(), dimension);
         assert_eq!(mesh.mesh().entity_count(0), Some(4));
         assert_eq!(mesh.mesh().entity_count(dimension), Some(cells));
-        let expected_cells = if dimension == 2 { vec![vec![0,1,2], vec![0,2,3]] } else { vec![vec![0,1,2,3]] };
+        let expected_cells = if dimension == 2 {
+            vec![vec![0, 1, 2], vec![0, 2, 3]]
+        } else {
+            vec![vec![0, 1, 2, 3]]
+        };
         assert_eq!(mesh.mesh().cells(), expected_cells);
-        assert_eq!((0..mesh.mesh().entity_count(dimension-1).unwrap()).filter(|&i| mesh.mesh().is_boundary_entity(MeshEntity::new(dimension-1,i)) == Some(true)).count(), 4);
-        assert_eq!(owner.production().unwrap().provider_identity(), "eqiora.external-msh");
+        assert_eq!(
+            (0..mesh.mesh().entity_count(dimension - 1).unwrap())
+                .filter(|&i| mesh
+                    .mesh()
+                    .is_boundary_entity(MeshEntity::new(dimension - 1, i))
+                    == Some(true))
+                .count(),
+            4
+        );
+        assert_eq!(
+            owner.production().unwrap().provider_identity(),
+            "eqiora.external-msh"
+        );
         assert_eq!(owner.production().unwrap().provider_version(), "4.1");
         assert!(owner.production().unwrap().gmsh_mesh_policy().is_none());
         assert!(owner.gmsh_provider_output().is_none());
@@ -59,9 +96,26 @@ fn external_msh_retains_two_triangles_or_one_tetrahedron_and_replays_honest_orig
 
 #[test]
 fn external_msh_rejects_foreign_geometry_and_both_dimension_work_limits() {
-    assert!(AuthenticatedCommonMesh::import_msh41(square(2.), policy(4,4096), SQUARE.to_vec()).is_err());
-    for (geometry, source) in [(square(1.),SQUARE), (tetrahedron(),TETRAHEDRON)] {
-        assert!(AuthenticatedCommonMesh::import_msh41(geometry.clone(), policy(3,4096), source.to_vec()).is_err());
-        assert!(AuthenticatedCommonMesh::import_msh41(geometry, policy(4,source.len()-1), source.to_vec()).is_err());
+    assert!(
+        AuthenticatedCommonMesh::import_msh41(square(2.), policy(4, 4096), SQUARE.to_vec())
+            .is_err()
+    );
+    for (geometry, source) in [(square(1.), SQUARE), (tetrahedron(), TETRAHEDRON)] {
+        assert!(
+            AuthenticatedCommonMesh::import_msh41(
+                geometry.clone(),
+                policy(3, 4096),
+                source.to_vec()
+            )
+            .is_err()
+        );
+        assert!(
+            AuthenticatedCommonMesh::import_msh41(
+                geometry,
+                policy(4, source.len() - 1),
+                source.to_vec()
+            )
+            .is_err()
+        );
     }
 }
