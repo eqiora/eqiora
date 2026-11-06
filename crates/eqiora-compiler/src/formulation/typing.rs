@@ -114,8 +114,7 @@ impl ExpressionContext<'_> {
         name: &str,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         if let Some(value) = self.index.coefficients.get(name) {
-            if (value.value_type.shape().is_scalar()
-                || (self.relation_domain.is_none() && value.value_type.map_bases().is_some()))
+            if self.admits_coefficient_type(&value.value_type)
                 && matches!(
                     value.value_type.scalar_domain(),
                     ScalarDomain::Real | ScalarDomain::Complex
@@ -126,7 +125,7 @@ impl ExpressionContext<'_> {
             return Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar coefficient aliases or global finite maps",
+                "weak forms require admitted real or complex coefficient aliases",
             ));
         }
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
@@ -151,9 +150,7 @@ impl ExpressionContext<'_> {
                 "weak forms require admitted real or complex Field shapes",
             )),
             Some(KernelNode::Parameter(parameter))
-                if (parameter.value_type().shape().is_scalar()
-                    || (self.relation_domain.is_none()
-                        && parameter.value_type().map_bases().is_some()))
+                if self.admits_coefficient_type(parameter.value_type())
                     && matches!(
                         parameter.value_type().scalar_domain(),
                         ScalarDomain::Real | ScalarDomain::Complex
@@ -164,7 +161,7 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Parameter(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar Parameters or global finite maps",
+                "weak forms require admitted real or complex Parameters",
             )),
             _ => Err(error(
                 self.file,
@@ -172,6 +169,20 @@ impl ExpressionContext<'_> {
                 format!("`{name}` is not a scalar Field or Parameter"),
             )),
         }
+    }
+
+    fn admits_coefficient_type(&self, value: &ValueType) -> bool {
+        value.array_rank() == 0
+            && (value.shape().is_scalar()
+                || (self.relation_domain.is_none() && value.map_bases().is_some())
+                || (self.relation_domain.is_some()
+                    && value.frame() == ValueFrame::SpatialCartesian
+                    && (1..=2).contains(&value.shape().rank())
+                    && value
+                        .shape()
+                        .extents()
+                        .iter()
+                        .all(|extent| extent.get() as usize == self.ambient_dimension)))
     }
 
     fn admits_field_type(&self, value: &ValueType) -> bool {

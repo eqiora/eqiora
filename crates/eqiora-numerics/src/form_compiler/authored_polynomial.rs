@@ -394,7 +394,7 @@ impl Context<'_> {
     ) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
-            E::LinearMap { values, .. } => {
+            E::LinearMap { values, .. } | E::SpatialTensor { values, .. } => {
                 let shape = self.shape(value, depth + 1)?;
                 self.closed_component(&shape, values, &[component, axis])
             }
@@ -424,6 +424,10 @@ impl Context<'_> {
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
+            E::SpatialTensor { values, .. } => {
+                let shape = self.shape(value, depth + 1)?;
+                self.closed_component(&shape, values, &[axis])
+            }
             E::NormalTrace { value, on_ulid } => {
                 self.normal_component(value, on_ulid, &[axis], depth + 1)
             }

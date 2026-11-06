@@ -106,6 +106,7 @@ fn classify(
         | E::Parameter { .. }
         | E::Time
         | E::Coordinate { .. }
+        | E::SpatialTensor { .. }
         | E::LinearMap { .. } => constant(),
         // Unknown State may enter nonlinearly or antilinearly. Its affinity,
         // derivative actions and solver suitability belong to numerical admission.
@@ -259,6 +260,9 @@ impl AuthoredFormulationProjection {
                         None
                     }
                     E::LinearMap {
+                        complex: domain, ..
+                    }
+                    | E::SpatialTensor {
                         complex: domain, ..
                     } => {
                         complex |= *domain;
@@ -423,6 +427,7 @@ fn walk<'a>(
             | E::Direction { .. }
             | E::Parameter { .. }
             | E::Time
+            | E::SpatialTensor { .. }
             | E::LinearMap { .. }
             | E::Number { .. }
             | E::Rational { .. }

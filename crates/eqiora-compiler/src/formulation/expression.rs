@@ -45,6 +45,35 @@ fn from_dag(
             .node(id)
             .ok_or_else(|| rejection("missing source expression"))?
         {
+            ExprNode::Constant(value)
+                if value.value_type().array_rank() == 0
+                    && value.value_type().frame() == ValueFrame::SpatialCartesian
+                    && (1..=2).contains(&value.value_type().shape().rank()) =>
+            {
+                let shape = value
+                    .value_type()
+                    .shape()
+                    .extents()
+                    .iter()
+                    .map(|extent| extent.get())
+                    .collect::<Vec<_>>();
+                let count = shape
+                    .iter()
+                    .try_fold(1usize, |n, extent| n.checked_mul(*extent as usize))
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                *remaining = remaining
+                    .checked_sub(count)
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                AuthoredFormExpressionV1::SpatialTensor {
+                    complex: value.value_type().scalar_domain() == ScalarDomain::Complex,
+                    dimension: value.value_type().dimension().exponents(),
+                    shape,
+                    values: (0..count)
+                        .map(|i| value.component(i))
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or(ProjectionFailure::Unsupported)?,
+                }
+            }
             ExprNode::Constant(value) if !value.value_type().shape().is_scalar() => {
                 if value.value_type().array_rank() != 0 || value.value_type().map_bases().is_none()
                 {
