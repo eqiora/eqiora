@@ -1,6 +1,6 @@
 //! Manufactured solution and hand-integrated P1 hat, independent of the estimator.
 use eqiora::api::ModelDocument;
-use eqiora::artifact::{GmshMeshPolicyV1, ModelEnvelope};
+use eqiora::artifact::{ModelEnvelope, MshImportPolicyV1};
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
 use eqiora::meshing::simplex_duffy_gauss_legendre;
@@ -73,9 +73,9 @@ fn solve(boundary: &str, permute: bool) -> (CommonResult, Id<kinds::Field>) {
         msh += &format!("{} {} {} {}\n", index + 1, cell[0], cell[1], cell[2]);
     }
     msh += "$EndElements\n";
-    let mesh = AuthenticatedCommonMesh::gmsh_4152(
+    let mesh = AuthenticatedCommonMesh::import_msh41(
         geometry,
-        GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         msh.into_bytes(),
     )
     .unwrap();

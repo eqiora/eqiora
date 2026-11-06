@@ -67,6 +67,35 @@ impl PyGeometryGraph {
         }
     }
 
+    /// Construct one simple polygon; coordinates and tolerance are metres.
+    #[pyo3(signature = (*, vertices, tolerance))]
+    fn polygon(
+        &self,
+        py: Python<'_>,
+        vertices: Vec<[f64; 2]>,
+        tolerance: f64,
+    ) -> PyResult<PyGeometryOperation> {
+        self.graph
+            .polygon(vertices, tolerance)
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    /// Construct one closed convex shell from outward-oriented faces, in metres.
+    #[pyo3(signature = (*, vertices, faces, tolerance))]
+    fn convex_polyhedron(
+        &self,
+        py: Python<'_>,
+        vertices: Vec<[f64; 3]>,
+        faces: Vec<Vec<usize>>,
+        tolerance: f64,
+    ) -> PyResult<PyGeometryOperation> {
+        self.graph
+            .convex_polyhedron(vertices, faces, tolerance)
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
     #[pyo3(signature = (*, x_bounds, y_bounds))]
     fn rectangle(
         &self,

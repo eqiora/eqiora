@@ -175,7 +175,7 @@ impl WireCommonSpatialStateV7 {
                 RecognizedNativeModel::Transient(model),
             ) => (mesh, model.as_ref()),
             (
-                NativeMeshResources::GmshSimplicial { mesh, .. },
+                NativeMeshResources::MshSimplicial { mesh, .. },
                 RecognizedNativeModel::TransientGeometry(binding),
             ) => (mesh, binding.model()),
             _ => return Err(invalid("MINI/P1 State crossed a non-MINI transient Plan")),

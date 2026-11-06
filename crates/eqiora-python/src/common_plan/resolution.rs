@@ -183,6 +183,11 @@ pub(super) fn resolve_plan(
             CommonMethodRequest::Uniform(CommonSpatialPolicy::Q2),
             SpatialHandle::Uniform(SpatialPolicy::Q2),
         )
+    } else if spatial_value.extract::<PyRef<'_, PyP2>>().is_ok() {
+        (
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::P2),
+            SpatialHandle::Uniform(SpatialPolicy::P2),
+        )
     } else if spatial_value
         .extract::<PyRef<'_, PyTetrahedralEdge>>()
         .is_ok()
@@ -241,6 +246,7 @@ pub(super) fn resolve_plan(
                 })?;
             let policy = match binding.policy {
                 ScopedSpatialKind::Q2 => CommonSpatialPolicy::Q2,
+                ScopedSpatialKind::P2 => CommonSpatialPolicy::P2,
                 ScopedSpatialKind::MiniP1 => CommonSpatialPolicy::MiniP1,
                 ScopedSpatialKind::P1 => CommonSpatialPolicy::P1,
             };

@@ -92,6 +92,27 @@ class P1:
     def __repr__(self) -> str: ...
 
 @final
+class P2:
+    """Continuous quadratic scalar Galerkin policy on affine triangles and tetrahedra.
+
+    The ordinary path supports static linear real or complex scalar Fields in
+    two or three dimensions. Coefficients retain every vertex and edge midpoint;
+    curved, vector, transient and nonlinear requests are unsupported. Unsupported
+    point sampling rejects instead of discarding edge coefficients.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/quadratic.rs::PyP2``.
+    """
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
 class TetrahedralEdge:
     """Lowest-order edge elements on affine tetrahedra.
 
@@ -129,7 +150,7 @@ class TetrahedralFace:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["MiniP1", "P1", "Q1", "Q2", "ScopedSpatialPolicy", "TetrahedralEdge", "TetrahedralFace"]
+__all__ = ["MiniP1", "P1", "P2", "Q1", "Q2", "ScopedSpatialPolicy", "TetrahedralEdge", "TetrahedralFace"]
 
 @final
 class GaussLegendre:

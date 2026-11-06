@@ -244,9 +244,9 @@ pub(super) fn open_resources(
         msh += &format!("{} {} {} {}\n", index + 1, cell[0], cell[1], cell[2]);
     }
     msh += "$EndElements\n";
-    AuthenticatedCommonMesh::gmsh_4152(
+    AuthenticatedCommonMesh::import_msh41(
         geometry.clone(),
-        eqiora_artifact::GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        eqiora_artifact::MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         msh.into_bytes(),
     )
     .unwrap()
@@ -298,7 +298,7 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
         let RecognizedNativeModel::Spatial(equations) = admission.recognized_model() else {
             panic!("linear equations");
         };
-        let NativeMeshResources::GmshSimplicial { mesh, .. } = admission.resources() else {
+        let NativeMeshResources::MshSimplicial { mesh, .. } = admission.resources() else {
             panic!("simplicial mesh");
         };
         let region = &equations.regions[0];

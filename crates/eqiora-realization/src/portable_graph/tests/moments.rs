@@ -1,6 +1,6 @@
 use super::*;
 
-fn graph(
+pub(super) fn graph(
     space: Space,
     dimension: usize,
     points: usize,
@@ -165,7 +165,7 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
 }
 
 #[test]
-fn nodal_duffy_graphs_check_dimension_and_product_quadrature_on_replay() {
+fn nodal_duffy_graphs_check_structural_dimension_and_defer_form_exactness_on_replay() {
     for (space, dimension, minimum) in [
         (Space::continuous_lagrange(NonZeroU16::MIN), 2, 2),
         (Space::continuous_lagrange(NonZeroU16::MIN), 3, 3),
@@ -184,26 +184,45 @@ fn nodal_duffy_graphs_check_dimension_and_product_quadrature_on_replay() {
         let bytes = graph.to_bytes().unwrap();
         assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
         let text = String::from_utf8(bytes).unwrap();
-        for (before, after, expected_gate) in [
-            (
-                format!("\"points_per_axis\":{minimum}"),
-                format!("\"points_per_axis\":{}", minimum - 1),
-                "Space basis products",
-            ),
-            (
-                format!("\"spatial_dimension\":{dimension}"),
-                "\"spatial_dimension\":4".to_owned(),
-                "Space basis products",
-            ),
-        ] {
-            let invalid = text.replace(&before, &after);
-            assert_ne!(invalid, text);
-            let error = PortableRealizationGraph::from_bytes(invalid.as_bytes()).unwrap_err();
-            assert!(
-                error.message().contains(expected_gate),
-                "{}",
-                error.message()
-            );
-        }
+        let lower = text.replace(
+            &format!("\"points_per_axis\":{minimum}"),
+            &format!("\"points_per_axis\":{}", minimum - 1),
+        );
+        assert_ne!(lower, text);
+        PortableRealizationGraph::from_bytes(lower.as_bytes()).unwrap();
+        // Standalone plans still promise basis-product exactness independently
+        // of the raw portable graph's structural closure.
+        let defaults = crate::default_plan_v0().unwrap();
+        let deficient = Discretization::new(
+            DiscretizationMethod::ContinuousGalerkin,
+            graph.domains[0].discretization.mesh(),
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(dimension).unwrap(),
+                points_per_axis: NonZeroUsize::new(minimum - 1).unwrap(),
+            },
+        );
+        assert!(
+            crate::RealizationPlan::new(
+                space,
+                deficient,
+                defaults.solver().clone(),
+                defaults.target(),
+                defaults.schedule()
+            )
+            .unwrap_err()
+            .message()
+            .contains("Space basis products")
+        );
+        let wrong_dimension = text.replace(
+            &format!("\"spatial_dimension\":{dimension}"),
+            "\"spatial_dimension\":4",
+        );
+        assert_ne!(wrong_dimension, text);
+        assert!(
+            PortableRealizationGraph::from_bytes(wrong_dimension.as_bytes())
+                .unwrap_err()
+                .message()
+                .contains("matching dimension")
+        );
     }
 }

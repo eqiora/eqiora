@@ -6,7 +6,7 @@ mod quadratic;
 pub(super) mod quadrature;
 pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
 pub(super) use process::{PyEulerMaruyama, PyPoissonEvents};
-pub(super) use quadratic::PyQ2;
+pub(super) use quadratic::{PyP2, PyQ2};
 
 use eqiora_numerics::CommonTemporalPolicy;
 use std::collections::hash_map::DefaultHasher;
@@ -151,6 +151,7 @@ impl PyP1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum ScopedSpatialKind {
     Q2,
+    P2,
     MiniP1,
     P1,
 }
@@ -181,6 +182,7 @@ impl PyScopedSpatialBinding {
     fn method(&self) -> &'static str {
         match self.policy {
             ScopedSpatialKind::Q2 => "q2",
+            ScopedSpatialKind::P2 => "p2",
             ScopedSpatialKind::MiniP1 => "mini-p1",
             ScopedSpatialKind::P1 => "p1",
         }
@@ -190,6 +192,7 @@ impl PyScopedSpatialBinding {
     fn spaces(&self) -> (&'static str, Option<&'static str>) {
         match self.policy {
             ScopedSpatialKind::Q2 => ("continuous-lagrange-q2", None),
+            ScopedSpatialKind::P2 => ("continuous-lagrange-p2", None),
             ScopedSpatialKind::MiniP1 => ("simplex-p1-bubble", Some("continuous-lagrange-p1")),
             ScopedSpatialKind::P1 => ("continuous-lagrange-p1", None),
         }
@@ -916,6 +919,7 @@ pub(super) fn spatial_handle_from_request(
             let policy = match policy {
                 CommonSpatialPolicy::Q1 => SpatialPolicy::Q1,
                 CommonSpatialPolicy::Q2 => SpatialPolicy::Q2,
+                CommonSpatialPolicy::P2 => SpatialPolicy::P2,
                 CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
                 CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
                 CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
@@ -934,6 +938,7 @@ pub(super) fn spatial_handle_from_request(
             .map(|binding| {
                 let policy = match binding.policy() {
                     CommonSpatialPolicy::Q2 => ScopedSpatialKind::Q2,
+                    CommonSpatialPolicy::P2 => ScopedSpatialKind::P2,
                     CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
                     CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
                     CommonSpatialPolicy::TetrahedralEdge

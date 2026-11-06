@@ -90,7 +90,7 @@ impl CommonSpatialPlan {
         self.reauthenticate_portable_realization()?;
         let (
             NativeSpatialPolicy::FiniteElement(_),
-            NativeMeshResources::GmshSimplicial { mesh, .. },
+            NativeMeshResources::MshSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
         else {
             return Err(invalid(

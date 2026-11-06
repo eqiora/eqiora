@@ -50,7 +50,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             .iter()
             .flat_map(|domain| domain.field_spaces())
             .all(|field| {
-                field.space() == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                matches!(field.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() <= 2)
                     || field.space() == Space::simplex_p1_bubble()
             });
         if !matches!(dimension, 2 | 3) || (!nodal && dimension != 3) {

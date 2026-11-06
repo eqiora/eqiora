@@ -16,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyTuple};
 
 mod coordinates;
+mod external_msh;
 mod topology;
 
 use super::plan::{MeshProviderPolicy, PlannedMesh, PyMeshPlan};
@@ -62,6 +63,7 @@ enum AcceptedMeshSource {
 
 enum SourceOwnedProviderObservation {
     Gmsh4152 { output: Box<[u8]> },
+    ExternalMsh41 { source: Box<[u8]> },
     AffineTriangle,
 }
 
@@ -150,6 +152,17 @@ impl PyMesh {
                     output: provider_output.to_vec().into_boxed_slice(),
                 },
             )
+        } else if let Some(source) = owner.msh_source_bytes() {
+            Self::from_source_parts(
+                py,
+                geometry,
+                mesh,
+                correspondence,
+                production,
+                SourceOwnedProviderObservation::ExternalMsh41 {
+                    source: source.to_vec().into_boxed_slice(),
+                },
+            )
         } else {
             Self::from_source_owned_affine_triangle(py, geometry, mesh, correspondence, production)
         }
@@ -158,6 +171,31 @@ impl PyMesh {
 
 #[pymethods]
 impl PyMesh {
+    /// Import MSH 4.1 triangles/tetrahedra bound to exact Geometry.
+    /// Coordinate units are required; this profile accepts metres without conversion.
+    #[staticmethod]
+    #[pyo3(signature = (geometry, data, *, coordinate_unit, minimum_mean_ratio=0.01, maximum_boundary_facets=65536, maximum_source_bytes=16777216))]
+    #[allow(clippy::too_many_arguments)]
+    fn import_msh(
+        py: Python<'_>,
+        geometry: &crate::geometry::PyGeometry,
+        data: &Bound<'_, PyBytes>,
+        coordinate_unit: &str,
+        minimum_mean_ratio: f64,
+        maximum_boundary_facets: usize,
+        maximum_source_bytes: usize,
+    ) -> PyResult<Self> {
+        external_msh::import(
+            py,
+            geometry,
+            data,
+            coordinate_unit,
+            minimum_mean_ratio,
+            maximum_boundary_facets,
+            maximum_source_bytes,
+        )
+    }
+
     /// Build a grid on exact dimensioned coordinate factors retained by this Model.
     #[staticmethod]
     fn coordinate_factors(
@@ -688,6 +726,21 @@ impl PyMesh {
                     )
                 })?;
                 AuthenticatedCommonMesh::gmsh_4152((**geometry).clone(), policy, output.to_vec())
+                    .map(Some)
+            }
+            AcceptedMeshSource::SourceOwned {
+                geometry,
+                production,
+                provider_observation: SourceOwnedProviderObservation::ExternalMsh41 { source },
+                ..
+            } => {
+                let policy = production.msh_import_policy().ok_or_else(|| {
+                    Diagnostic::error(
+                        codes::INVALID_ARTIFACT,
+                        "external MSH has a non-import policy",
+                    )
+                })?;
+                AuthenticatedCommonMesh::import_msh41((**geometry).clone(), policy, source.to_vec())
                     .map(Some)
             }
             AcceptedMeshSource::SourceOwned {

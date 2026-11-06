@@ -20,7 +20,7 @@ pub(in crate::numerical_admission) fn bind_model_support(
     resources: &NativeMeshResources,
 ) -> Result<BTreeMap<RawId, SimplicialRegionSupport>, Diagnostic> {
     let (geometry, mesh, correspondence) = match resources {
-        NativeMeshResources::GmshSimplicial {
+        NativeMeshResources::MshSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -40,7 +40,7 @@ pub(in crate::numerical_admission) fn bind_model_support(
     };
     let dimension = mesh.dimension();
     let definition = match resources {
-        NativeMeshResources::GmshSimplicial { .. } => Some(
+        NativeMeshResources::MshSimplicial { .. } => Some(
             eqiora_artifact::GeometryDefinitionV1::from_canonical(geometry)?,
         ),
         _ => None,
@@ -192,7 +192,7 @@ pub(in crate::numerical_admission) fn validate_interface_support(
     sides: [(RawId, RawId); 2],
 ) -> Result<(), Diagnostic> {
     let mesh = match resources {
-        NativeMeshResources::GmshSimplicial { mesh, .. }
+        NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mesh.mesh(),
         _ => {
             return Err(invalid(

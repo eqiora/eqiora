@@ -32,7 +32,7 @@ where
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.initial_rate_data(mesh.mesh(), &input, state, &rates, partial)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 mapping.initial_rate_data(mesh.mesh(), &input, state, &rates, partial)?
             }

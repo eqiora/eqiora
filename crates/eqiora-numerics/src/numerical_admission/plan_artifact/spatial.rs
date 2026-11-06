@@ -8,6 +8,7 @@ pub(super) enum WireSpatialPolicy {
     TetrahedralFace,
     Q1,
     Q2,
+    P2,
     P1,
     CellCenteredTpfa,
     MiniP1,
@@ -39,6 +40,7 @@ impl From<CommonSpatialPolicy> for WireSpatialPolicy {
             CommonSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
             CommonSpatialPolicy::Q1 => Self::Q1,
             CommonSpatialPolicy::Q2 => Self::Q2,
+            CommonSpatialPolicy::P2 => Self::P2,
             CommonSpatialPolicy::P1 => Self::P1,
             CommonSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
             CommonSpatialPolicy::MiniP1 => Self::MiniP1,
@@ -54,6 +56,7 @@ impl From<WireSpatialPolicy> for CommonSpatialPolicy {
             WireSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
             WireSpatialPolicy::Q1 => Self::Q1,
             WireSpatialPolicy::Q2 => Self::Q2,
+            WireSpatialPolicy::P2 => Self::P2,
             WireSpatialPolicy::P1 => Self::P1,
             WireSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
             WireSpatialPolicy::MiniP1 => Self::MiniP1,
@@ -86,5 +89,33 @@ pub(super) fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRe
             NativeSpatialPolicy::TransientCellCentered(_) => WireSpatialPolicy::CellCentered,
             _ => unreachable!("transient Plan retains a transient spatial policy"),
         })),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn additive_p2_tag_keeps_existing_v28_policy_spellings_and_closed_vocabulary() {
+        for (policy, bytes) in [
+            (WireSpatialPolicy::Q1, b"\"q1\"".as_slice()),
+            (WireSpatialPolicy::Q2, b"\"q2\"".as_slice()),
+            (WireSpatialPolicy::P1, b"\"p1\"".as_slice()),
+            (WireSpatialPolicy::P2, b"\"p2\"".as_slice()),
+        ] {
+            assert_eq!(serde_json::to_vec(&policy).unwrap(), bytes);
+            assert_eq!(
+                serde_json::from_slice::<WireSpatialPolicy>(bytes).unwrap(),
+                policy
+            );
+            let wire = WireSpatialRequest::Uniform { policy };
+            let encoded = serde_json::to_vec(&wire).unwrap();
+            assert_eq!(
+                serde_json::from_slice::<WireSpatialRequest>(&encoded).unwrap(),
+                wire
+            );
+        }
+        assert!(serde_json::from_slice::<WireSpatialPolicy>(b"\"p3\"").is_err());
     }
 }

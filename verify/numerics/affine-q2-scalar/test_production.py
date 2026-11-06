@@ -4,6 +4,8 @@ from fractions import Fraction
 import itertools
 import json
 import math
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 
@@ -48,6 +50,21 @@ def fixture(dimension=3, n=2):
 
 
 class ProductionProtocol(unittest.TestCase):
+    def test_artifact_retention_preserves_bytes_and_rejects_overwrite(self):
+        from quadratic_output import write_new
+        with TemporaryDirectory(dir=Path.home()) as directory:
+            path = Path(directory)/"result.json"
+            expected = b'{\n  "a": 1,\n  "z": 2\n}\n'
+            self.assertEqual(write_new(path, {"z": 2, "a": 1}), p.sha256(expected))
+            self.assertEqual(path.read_bytes(), expected)
+            with self.assertRaises(FileExistsError):
+                write_new(path, b"replacement")
+            self.assertEqual(path.read_bytes(), expected)
+            raw_path = Path(directory)/"mesh.bin"
+            raw = b"\x00\xffretained artifact"
+            self.assertEqual(write_new(raw_path, raw), p.sha256(raw))
+            self.assertEqual(raw_path.read_bytes(), raw)
+
     def test_complete_quad_and_hex_nodes_preserve_every_coefficient(self):
         for d in (2, 3):
             plan, result, _, lengths, blocks, _, _ = fixture(d)
@@ -91,6 +108,10 @@ class ProductionProtocol(unittest.TestCase):
 
     def test_wrong_bound_stratum_rejected(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: entities.__setitem__(-1, (4, 0)))
+
+    def test_count_preserving_entity_ordinal_substitution_rejected(self):
+        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire:
+                      entities.__setitem__(-1, (entities[-1][0], entities[-1][1]+1)))
 
     def test_effective_rule_cannot_be_self_declared(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: wire['assembly_quadrature'].__setitem__('points_per_axis', 3))

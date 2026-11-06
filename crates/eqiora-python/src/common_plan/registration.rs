@@ -8,6 +8,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<eigen::PyEigenExclusion>()?;
     module.add_class::<PyQ1>()?;
     module.add_class::<PyQ2>()?;
+    module.add_class::<PyP2>()?;
     module.add_class::<policy::quadrature::PyGaussLegendre>()?;
     module.add_class::<policy::quadrature::PySimplexDuffyGaussLegendre>()?;
     module.add_class::<PyTetrahedralEdge>()?;

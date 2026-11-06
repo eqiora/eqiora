@@ -195,9 +195,11 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     | CommonSpatialPolicy::MiniP1 => {
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN)
                     }
-                    CommonSpatialPolicy::Q2 => Space::continuous_lagrange(
-                        std::num::NonZeroU16::new(2).expect("quadratic order"),
-                    ),
+                    CommonSpatialPolicy::Q2 | CommonSpatialPolicy::P2 => {
+                        Space::continuous_lagrange(
+                            std::num::NonZeroU16::new(2).expect("quadratic order"),
+                        )
+                    }
                     CommonSpatialPolicy::TetrahedralEdge => Space::tetrahedral_edge(),
                     CommonSpatialPolicy::TetrahedralFace => Space::tetrahedral_face(),
                     CommonSpatialPolicy::CellCentered | CommonSpatialPolicy::CellCenteredTpfa => {
@@ -289,7 +291,16 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
             && (temporal.is_some()
                 || nonlinear.is_some()
                 || !(2..=3).contains(&dimension)
-                || !matches!(resources, NativeMeshResources::Cartesian { .. })
+                || !matches!(
+                    resources,
+                    NativeMeshResources::Cartesian { .. }
+                        | NativeMeshResources::MshSimplicial { .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { .. }
+                )
+                || self
+                    .regions
+                    .iter()
+                    .any(|region| region.form.motion().is_some())
                 || self.regions.iter().any(|region| {
                     region
                         .form
@@ -299,14 +310,14 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 }))
         {
             return Err(invalid(
-                "quadratic execution currently requires static linear scalar Fields on affine Cartesian quadrilateral/hexahedral cells; storage, nonlinear and vector paths are not admitted",
+                "quadratic execution requires fixed affine quadrilateral/hexahedral or triangle/tetrahedral cells and static linear scalar Fields; storage, nonlinear, moving and vector paths are not admitted",
             ));
         }
         let reference = match resources {
             NativeMeshResources::Cartesian { .. } => {
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             }
-            NativeMeshResources::GmshSimplicial { .. }
+            NativeMeshResources::MshSimplicial { .. }
             | NativeMeshResources::AffineTriangleSimplicial { .. } => {
                 eqiora_meshing::ReferenceCell::simplex(dimension)?
             }

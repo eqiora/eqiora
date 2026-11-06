@@ -81,6 +81,31 @@ class P1:
     def __repr__(self) -> str: ...
 ```
 
+<a id="api-eqiora-fem-P2"></a>
+
+## `P2`
+
+Continuous quadratic scalar Galerkin policy on affine triangles and tetrahedra.
+
+The ordinary path supports static linear real or complex scalar Fields in
+two or three dimensions. Coefficients retain every vertex and edge midpoint;
+curved, vector, transient and nonlinear requests are unsupported. Unsupported
+point sampling rejects instead of discarding edge coefficients.
+
+```python
+@final
+class P2:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    def at(self, domain: DomainRef, /) -> ScopedSpatialPolicy: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-fem-Q1"></a>
 
 ## `Q1`

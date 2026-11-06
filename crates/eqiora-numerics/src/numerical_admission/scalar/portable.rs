@@ -26,7 +26,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                 _ => return Err(invalid("spatial Plan requires one to three Cartesian axes")),
             }
         }
-        NativeMeshResources::GmshSimplicial { mesh, .. }
+        NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
             MeshPolicy::ImportedSimplicial {
                 artifact: mesh.artifact_reference()?,
@@ -44,7 +44,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
             let dimension = admission.resources().geometry()?.ambient_dimension();
             let simplex = matches!(
                 admission.resources(),
-                NativeMeshResources::GmshSimplicial { .. }
+                NativeMeshResources::MshSimplicial { .. }
                     | NativeMeshResources::AffineTriangleSimplicial { .. }
             );
             let reference = if simplex {
@@ -128,7 +128,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
                 .ok_or_else(|| invalid("Region has no selected Field spaces"))?;
             let reference = if matches!(
                 admission.resources(),
-                NativeMeshResources::GmshSimplicial { .. }
+                NativeMeshResources::MshSimplicial { .. }
                     | NativeMeshResources::AffineTriangleSimplicial { .. }
             ) {
                 eqiora_meshing::ReferenceCell::simplex(region.form.dimension())?

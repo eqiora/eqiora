@@ -67,7 +67,7 @@ impl PreparedCommonTransientExecution<'_> {
                     .last()
                     .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
                 let (NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-                | NativeMeshResources::GmshSimplicial { mesh, .. }) =
+                | NativeMeshResources::MshSimplicial { mesh, .. }) =
                     self.plan.admission.resources()
                 else {
                     unreachable!("prepared MINI Run owns simplicial resources")

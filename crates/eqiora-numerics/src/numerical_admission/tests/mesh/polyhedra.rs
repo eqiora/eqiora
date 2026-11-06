@@ -76,8 +76,8 @@ pub(in crate::numerical_admission::tests) fn observation(permuted: bool) -> Vec<
     text.into_bytes()
 }
 
-fn policy(facets: usize) -> eqiora_artifact::GmshMeshPolicyV1 {
-    eqiora_artifact::GmshMeshPolicyV1::explicit(1e-12, 0.01, facets, 5.).unwrap()
+fn policy(facets: usize) -> eqiora_artifact::MshImportPolicyV1 {
+    eqiora_artifact::MshImportPolicyV1::metres(0.01, facets, 16 * 1024 * 1024).unwrap()
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn polyhedral_common_mesh_replays_exact_tetrahedra_and_frontiers() {
     for permuted in [false, true] {
         let output = observation(permuted);
         let owner =
-            AuthenticatedCommonMesh::gmsh_4152(geometry.clone(), policy(12), output.clone())
+            AuthenticatedCommonMesh::import_msh41(geometry.clone(), policy(12), output.clone())
                 .unwrap();
         super::super::super::native::validate_simplicial_resources(&owner.resources).unwrap();
         let mesh = owner.simplicial_mesh().unwrap();
@@ -121,7 +121,7 @@ fn polyhedral_common_mesh_replays_exact_tetrahedra_and_frontiers() {
                 .iter()
                 .all(|&facet| mesh.mesh().is_boundary_entity(facet) == Some(true))
         );
-        assert_eq!(owner.gmsh_provider_output(), Some(output.as_slice()));
+        assert_eq!(owner.msh_source_bytes(), Some(output.as_slice()));
         let bytes = owner.to_bytes().unwrap();
         let replay = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
         assert_eq!(replay, owner);
@@ -182,17 +182,17 @@ fn polyhedral_mesh_rejects_outside_cells_missing_coverage_and_excess_facets() {
     let original = String::from_utf8(observation(false)).unwrap();
     let outside = original.replace("2 3 4\n$EndNodes", "2 3 5\n$EndNodes");
     assert!(
-        AuthenticatedCommonMesh::gmsh_4152(geometry.clone(), policy(12), outside.into_bytes())
+        AuthenticatedCommonMesh::import_msh41(geometry.clone(), policy(12), outside.into_bytes())
             .is_err()
     );
     let missing = original
         .replace("1 6 1 6\n3 1 4 6", "1 5 1 5\n3 1 4 5")
         .replace("6 1 6 2 8\n", "");
     assert!(
-        AuthenticatedCommonMesh::gmsh_4152(geometry.clone(), policy(20), missing.into_bytes())
+        AuthenticatedCommonMesh::import_msh41(geometry.clone(), policy(20), missing.into_bytes())
             .is_err()
     );
     let error =
-        AuthenticatedCommonMesh::gmsh_4152(geometry, policy(8), observation(false)).unwrap_err();
+        AuthenticatedCommonMesh::import_msh41(geometry, policy(8), observation(false)).unwrap_err();
     assert!(error.message().contains("boundary facet budget"));
 }

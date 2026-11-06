@@ -1,3 +1,4 @@
+mod affine_p2;
 mod complex;
 mod differentiation;
 mod harmonic;

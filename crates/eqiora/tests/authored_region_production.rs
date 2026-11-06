@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 
 use eqiora::artifact::{
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, GmshMeshPolicyV1,
-    MeshProductionLineageEnvelopeV1, SimplicialMeshEnvelopeV1,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
+    MshImportPolicyV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::{NamedEntitySet, PlanarFace, PlanarRegion};
 use eqiora::io::gmsh::{Msh41Policy, import_msh41};
@@ -100,8 +100,8 @@ fn import(bytes: &[u8]) -> SimplicialMeshEnvelopeV1 {
     SimplicialMeshEnvelopeV1::from_mesh(&mesh).unwrap()
 }
 
-fn policy() -> GmshMeshPolicyV1 {
-    GmshMeshPolicyV1::explicit(1e-10, 0.1, 1024, 0.5).unwrap()
+fn policy() -> MshImportPolicyV1 {
+    MshImportPolicyV1::metres(0.1, 1024, 16 * 1024 * 1024).unwrap()
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn authored_multiple_faces_bind_imported_support_and_production_without_tag_role
         let mesh = import(&msh(&vertices, &cells, 7));
         assert_eq!(mesh, import(&msh(&vertices, &cells, 991)));
         // The ordinary common Mesh owner rederives these same resources from provider bytes.
-        let common = eqiora_numerics::AuthenticatedCommonMesh::gmsh_4152(
+        let common = eqiora_numerics::AuthenticatedCommonMesh::import_msh41(
             geometry.canonical().clone(),
             policy(),
             msh(&vertices, &cells, 991),
@@ -172,7 +172,7 @@ fn authored_multiple_faces_bind_imported_support_and_production_without_tag_role
             assert_eq!(first, second);
             assert_eq!(first.len(), 2);
         }
-        let lineage = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+        let lineage = MeshProductionLineageEnvelopeV1::from_external_msh41_resources(
             policy(),
             geometry.canonical(),
             &mesh,
@@ -185,17 +185,17 @@ fn authored_multiple_faces_bind_imported_support_and_production_without_tag_role
             .validate_against_region(&geometry, &mesh)
             .unwrap();
         replay
-            .validate_against_gmsh_4152_resources(
+            .validate_against_external_msh41_resources(
                 policy(),
                 geometry.canonical(),
                 &mesh,
                 &correspondence,
             )
             .unwrap();
-        let other_policy = GmshMeshPolicyV1::explicit(1e-10, 0.1, 1024, 0.25).unwrap();
+        let other_policy = MshImportPolicyV1::metres(0.2, 1024, 16 * 1024 * 1024).unwrap();
         assert!(
             replay
-                .validate_against_gmsh_4152_resources(
+                .validate_against_external_msh41_resources(
                     other_policy,
                     geometry.canonical(),
                     &mesh,
@@ -211,7 +211,7 @@ fn authored_multiple_faces_bind_imported_support_and_production_without_tag_role
         );
         assert!(
             replay
-                .validate_against_gmsh_4152_resources(
+                .validate_against_external_msh41_resources(
                     policy(),
                     foreign.canonical(),
                     &mesh,
@@ -260,7 +260,7 @@ fn authored_non_axis_aligned_interface_uses_the_same_correspondence_owner() {
         );
         assert_eq!(expected.len(), 4);
     }
-    let lineage = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+    let lineage = MeshProductionLineageEnvelopeV1::from_external_msh41_resources(
         policy(),
         geometry.canonical(),
         &mesh,
@@ -293,11 +293,16 @@ fn authored_non_axis_aligned_interface_uses_the_same_correspondence_owner() {
     assert!(reversed.validate_against_region(&geometry, &mesh).is_err());
     assert!(
         lineage
-            .validate_against_gmsh_4152_resources(policy(), geometry.canonical(), &mesh, &reversed,)
+            .validate_against_external_msh41_resources(
+                policy(),
+                geometry.canonical(),
+                &mesh,
+                &reversed,
+            )
             .is_err()
     );
     lineage
-        .validate_against_gmsh_4152_resources(
+        .validate_against_external_msh41_resources(
             policy(),
             geometry.canonical(),
             &mesh,
@@ -312,7 +317,7 @@ fn authored_production_rejects_incomplete_partition_and_changed_mesh() {
     // x=1 and x=2 cut these triangles, so no exact whole-cell support exists.
     let (vertices, cells) = grid(2, 2, 3.0);
     assert!(
-        eqiora_numerics::AuthenticatedCommonMesh::gmsh_4152(
+        eqiora_numerics::AuthenticatedCommonMesh::import_msh41(
             geometry.canonical().clone(),
             policy(),
             msh(&vertices, &cells, 1),
@@ -330,7 +335,7 @@ fn authored_production_rejects_incomplete_partition_and_changed_mesh() {
     let mesh = import(&msh(&vertices, &cells, 1));
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh).unwrap();
-    let lineage = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+    let lineage = MeshProductionLineageEnvelopeV1::from_external_msh41_resources(
         policy(),
         geometry.canonical(),
         &mesh,
@@ -346,7 +351,7 @@ fn authored_production_rejects_incomplete_partition_and_changed_mesh() {
     );
     assert!(
         lineage
-            .validate_against_gmsh_4152_resources(
+            .validate_against_external_msh41_resources(
                 policy(),
                 geometry.canonical(),
                 &changed,

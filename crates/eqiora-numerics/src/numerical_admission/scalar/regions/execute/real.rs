@@ -47,7 +47,7 @@ impl ExecutableSpatialEquations<C> {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 coordinates.assemble_static(mesh.mesh(), &input)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 coordinates.assemble_static(mesh.mesh(), &input)?
             }

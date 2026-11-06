@@ -51,8 +51,9 @@ impl PortableRealizationGraph {
     /// Decode and revalidate one exact portable Plan graph.
     ///
     /// Unknown versions, fields, noncanonical JSON, excessive input, malformed
-    /// identities, disconnected nodes, and invalid numerical combinations fail
-    /// closed before a graph is returned.
+    /// identities, disconnected nodes, and structurally incompatible choices fail
+    /// closed before a graph is returned. Decode does not establish equation
+    /// quadrature adequacy; the equation-aware consumer must validate its forms.
     ///
     /// # Errors
     /// Returns `EQ0807` when the bytes are not the exact bounded v5 wire.

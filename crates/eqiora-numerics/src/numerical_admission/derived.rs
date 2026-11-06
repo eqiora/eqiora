@@ -24,7 +24,7 @@ impl CommonTransientFlowPlan {
         };
         let mesh = match state.resources.as_ref() {
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-            | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh.mesh(),
+            | NativeMeshResources::MshSimplicial { mesh, .. } => mesh.mesh(),
             _ => {
                 return Err(invalid(
                     "cell-average curl currently requires an authenticated simplicial Mesh",
@@ -61,7 +61,7 @@ impl CommonTransientFlowPlan {
         };
         let mesh = match state.resources.as_ref() {
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-            | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh.mesh(),
+            | NativeMeshResources::MshSimplicial { mesh, .. } => mesh.mesh(),
             _ => {
                 return Err(invalid(
                     "point sampling currently requires an authenticated simplicial Mesh",

@@ -55,18 +55,18 @@ def main():
                 producer.run(args, directory, state)
                 candidate = json.loads((directory / "candidate.json").read_text())
                 comparison = comparator.compare(candidate)
-                producer.write(directory / "comparison.json", comparison)
+                producer.write_new(directory / "comparison.json", comparison)
                 if not comparison["accepted"]:
                     raise RuntimeError(f"independent comparator rejected {dimension}D N={n}")
                 candidates.append(candidate)
             levels = comparator.compare_levels(candidates)
-            producer.write(output / f"levels-d{dimension}.json", levels)
+            producer.write_new(output / f"levels-d{dimension}.json", levels)
             if not levels["accepted"]:
                 raise RuntimeError(f"independent finite-level gate rejected {dimension}D")
     except Exception as error:
-        producer.write(output / "failure.json", {"type": type(error).__name__, "message": str(error), "states": states})
+        producer.write_new(output / "failure.json", {"type": type(error).__name__, "message": str(error), "states": states})
         raise
-    producer.write(output / "completed.json", {"states": states, "ordinary_solves": sum(s["ordinary_run_completed"] for s in states), "profiles": 0, "warmups": 0, "samples": 0})
+    producer.write_new(output / "completed.json", {"states": states, "ordinary_solves": sum(s["ordinary_run_completed"] for s in states), "profiles": 0, "warmups": 0, "samples": 0})
     print("affine-q2-registered: six complete ordinary fields and both finite-level gates PASS")
     return 0
 

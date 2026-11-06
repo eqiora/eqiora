@@ -5,7 +5,6 @@ Run only after the production protocol/source/artifact review. This is a
 correctness witness; it performs no warmups, samples, or performance comparison.
 """
 import argparse
-from datetime import datetime, timezone
 import importlib.metadata
 import json
 import math
@@ -14,6 +13,7 @@ from pathlib import Path
 import sys
 
 from production import authenticate_plan, extract_candidate, require, sha256
+from quadratic_output import write_new, utc
 
 
 HERE = Path(__file__).resolve().parent
@@ -30,17 +30,6 @@ def source(dimension):
     return "public component AffineQ2Sine(\n  "+",\n  ".join(supports+parameters)+") {\n  variable u: 1 on body in h1;\n  relation balance on body { -div(grad(u))=source_scale*"+forcing+"; }\n"+boundaries+"\n}\n"
 
 
-def write(path, value):
-    raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2, sort_keys=True)+"\n").encode()
-    with path.open("xb") as handle:
-        handle.write(raw)
-    return sha256(raw)
-
-
-def utc():
-    return datetime.now(timezone.utc).isoformat()
-
-
 def run(args, directory, state):
     # Import the installed package only after the launch inputs/controls are checked.
     import eqiora
@@ -54,7 +43,7 @@ def run(args, directory, state):
     geometry = graph.build(primitive, named_topology={"body": primitive.region, **dict(zip(names, primitive.boundaries, strict=True))})
     mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(args.cells,)*args.dimension)))
     authored = source(args.dimension)
-    write(directory/"model.eqi", authored.encode())
+    write_new(directory/"model.eqi", authored.encode())
     values = {f"L{axis}": float(length) for axis, length in zip(axes, lengths)}
     # The independent comparator encloses exact-pi reference residuals, so it also
     # includes any error due to these ordinary binary64 authored parameter values.
@@ -72,9 +61,9 @@ def run(args, directory, state):
     require(plan.mesh_digest == mesh.digest, "resolve did not retain the actual caller Mesh")
     require(plan.execution.workers == 1 and plan.execution.placement == "host-serial", "unexpected actual execution policy")
     original_plan = plan.to_bytes()
-    write(directory/"plan.json", original_plan)
-    write(directory/"model.json", model.to_bytes())
-    write(directory/"mesh.json", mesh.to_bytes())
+    write_new(directory/"plan.json", original_plan)
+    write_new(directory/"model.json", model.to_bytes())
+    write_new(directory/"mesh.json", mesh.to_bytes())
     reopened_plan = eqiora.Plan.from_bytes(original_plan)
     require(reopened_plan.to_bytes() == original_plan and reopened_plan.identity == plan.identity, "Plan replay changed canonical effective settings")
     require(tuple(reopened_plan.field_coefficient_entities(field)) == tuple(plan.field_coefficient_entities(field)), "Plan replay changed the complete coefficient entity order")
@@ -84,22 +73,23 @@ def run(args, directory, state):
     result = eqiora.run(reopened_plan)
     state["ordinary_run_completed"] = 1
     result_bytes = result.to_bytes()
-    write(directory/"result.json", result_bytes)
+    write_new(directory/"result.json", result_bytes)
     reopened_result = eqiora.Result.from_bytes(reopened_plan, result_bytes)
     require(reopened_result.to_bytes() == result_bytes, "Result replay changed canonical bytes")
     candidate, identity = extract_candidate(reopened_plan, result, field, lengths, args.cells)
-    candidate_sha256 = write(directory/"candidate.json", candidate)
+    candidate_sha256 = write_new(directory/"candidate.json", candidate)
     replayed_candidate, replayed_identity = extract_candidate(reopened_plan, reopened_result, field, lengths, args.cells)
     require(replayed_candidate == candidate and replayed_identity == identity, "Result replay changed a vertex/edge/face/cell coefficient")
     identity["candidate_sha256"] = candidate_sha256
-    export_identity_sha256 = write(directory/"export-identity.json", identity)
+    export_identity_sha256 = write_new(directory/"export-identity.json", identity)
     native_path = Path(native.__file__).resolve()
-    write(directory/"execution.json", {**state, "status": "exported-not-yet-compared", "eqiora_version": importlib.metadata.version("eqiora"),
+    write_new(directory/"execution.json", {**state, "status": "exported-not-yet-compared", "eqiora_version": importlib.metadata.version("eqiora"),
                                         "native_module": str(native_path), "native_module_sha256": sha256(native_path.read_bytes()),
                                         "python": sys.executable, "python_version": sys.version, "started_at": args.started_at, "finished_at": utc(),
                                         "cpu_affinity": sorted(os.sched_getaffinity(0)), "authored_parameters": values,
                                         "reference_table_sha256": sha256((HERE/"reference"/"intervals-gauss4-audit.json").read_bytes()),
                                         "source_sha256": sha256(Path(__file__).read_bytes()), "production_export_sha256": sha256((HERE/"production.py").read_bytes()),
+                                        "shared_quadratic_export_sha256": sha256((HERE.parent/"quadratic_output.py").read_bytes()),
                                         "plan_identity": plan.identity, "result_sha256": sha256(result_bytes), "candidate_sha256": candidate_sha256, "export_identity_sha256": export_identity_sha256,
                                         "pde_solves": 1, "profile_calls": 0, "warmups": 0, "timed_samples": 0,
                                         "plan_reopens": 1, "result_reopens": 1})
@@ -124,14 +114,15 @@ def main():
     args.started_at = utc()
     args.output.mkdir(parents=True, exist_ok=False)
     state = {"ordinary_run_attempted": 0, "ordinary_run_completed": 0}
-    write(args.output/"launch.json", {"schema": 1, "command": sys.argv, "started_at": args.started_at, "dimension": args.dimension,
+    write_new(args.output/"launch.json", {"schema": 1, "command": sys.argv, "started_at": args.started_at, "dimension": args.dimension,
                                      "N": args.cells, "cpu": args.cpu, "source_sha256": sha256(Path(__file__).read_bytes()),
                                      "production_export_sha256": sha256((HERE/"production.py").read_bytes()),
+                                        "shared_quadratic_export_sha256": sha256((HERE.parent/"quadratic_output.py").read_bytes()),
                                      "declared_pde_solves": 1, "profile_calls": 0, "warmups": 0, "timed_samples": 0})
     try:
         run(args, args.output, state)
     except Exception as error:
-        write(args.output/"failure.json", {**state, "status": "failed", "type": type(error).__name__, "message": str(error), "finished_at": utc()})
+        write_new(args.output/"failure.json", {**state, "status": "failed", "type": type(error).__name__, "message": str(error), "finished_at": utc()})
         print(f"q2-production: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
     return 0

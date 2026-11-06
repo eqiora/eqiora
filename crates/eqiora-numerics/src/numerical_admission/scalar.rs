@@ -616,14 +616,21 @@ impl CommonSpatialPlan {
                 _ => Err(invalid("Field requires exact spatial equations")),
             };
         }
-        if representation.space() == Space::simplex_p1_bubble() {
+        if representation.space() == Space::simplex_p1_bubble()
+            || (matches!(representation.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+                && matches!(
+                    self.admission.resources(),
+                    NativeMeshResources::MshSimplicial { .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { .. }
+                ))
+        {
             self.reauthenticate_portable_realization()?;
-            let (NativeMeshResources::GmshSimplicial { mesh, .. }
+            let (NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =
                 self.admission.resources()
             else {
                 return Err(invalid(
-                    "bubble coefficients require an authenticated simplicial Mesh",
+                    "simplicial coefficients require an authenticated simplicial Mesh",
                 ));
             };
             return match self.admission.recognized_model() {
@@ -642,7 +649,7 @@ impl CommonSpatialPlan {
                 )
                 .map(|(entities, _)| entities),
                 _ => Err(invalid(
-                    "bubble coefficients require linear Region equations",
+                    "simplicial coefficients require linear Region equations",
                 )),
             };
         }
@@ -711,7 +718,7 @@ impl CommonSpatialPlan {
         }
         if let (
             NativeSpatialPolicy::FiniteElement(_),
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
         {
