@@ -205,7 +205,7 @@ fn altered_authored_tensor_forms_reject_before_any_result() {
         );
         assert!(
             diagnostics.iter().all(|diagnostic| !diagnostic
-                .message
+                .message()
                 .contains("coefficient alias exceeds the authored expression inventory")),
             "{control} reached the old coefficient inventory limitation"
         );
