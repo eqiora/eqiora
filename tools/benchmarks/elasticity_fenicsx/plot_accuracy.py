@@ -19,11 +19,14 @@ def main():
     record = json.loads(args.record.read_text())
     inventory = json.loads(args.record.with_name('raw-sha256.json').read_text())
     for row in record['rows']:
-        path = args.record.parent/record['committed_raw_directory']/row['raw_report']
-        if hashlib.sha256(path.read_bytes()).hexdigest() != inventory[row['raw_report']]['sha256']:
-            raise ValueError('retained raw report does not match its committed digest')
+        relative = row['committed_candidate_field']
+        path = args.record.parent/record['committed_raw_directory']/relative
+        if hashlib.sha256(path.read_bytes()).hexdigest() != inventory[relative]['sha256']:
+            raise ValueError('committed original candidate does not match its original digest')
         raw = json.loads(path.read_text())
-        checked = check_accuracy(raw['coordinates'], raw['values'], row['cells_per_axis'])
+        coordinates = np.array([[float.fromhex(x) for x in point] for point in raw['coordinates_float64_hex']])
+        values = np.array([[float.fromhex(x) for x in vector] for vector in raw['values_float64_hex']])
+        checked = check_accuracy(coordinates, values, row['cells_per_axis'])
         if checked != row['accuracy']:
             raise ValueError('recorded accuracy differs from independent reconstruction')
     references = []

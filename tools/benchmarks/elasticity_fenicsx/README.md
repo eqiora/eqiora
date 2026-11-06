@@ -127,7 +127,7 @@ comparison.
 The [record](results/correctness.json) identifies the actual wheel producer and
 frozen harness separately. The [raw inventory](results/raw-sha256.json) binds
 the retained reports, candidate fields, logs and artifact receipt. Successful
-worker reports and candidate fields are committed byte-for-byte under
+candidate fields are committed byte-for-byte under
 `results/raw`, so a clone can reproduce the figure without the original
 scratch directory. Failed
 adapter attempts remain in the parent scratch directory described by the
@@ -141,5 +141,7 @@ record; they did not change the analytic reference or acceptance tolerances.
 The dotted curve is the Q1 interpolant of the exact analytic displacement,
 computed independently of either PDE solve. It is a visual comparison, not an
 expected candidate solution. Reproduce both images with `plot_accuracy.py`
-using NumPy and Matplotlib; the script first verifies the retained raw reports
-against their hashes and re-evaluates their continuous errors.
+using NumPy and Matplotlib; the script first verifies the committed original candidate fields
+against their original hashes and re-evaluates their continuous errors. Full
+worker reports remain in the recorded scratch directory; the scientific
+record is an explicitly identified projection, not a rewritten raw report.

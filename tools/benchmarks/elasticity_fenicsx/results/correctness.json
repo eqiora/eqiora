@@ -234,7 +234,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n16/eqiora/result.json"
+      "raw_report": "n16/eqiora/result.json",
+      "committed_candidate_field": "n16/eqiora/candidate-field.json"
     },
     {
       "tool": "fenicsx",
@@ -345,7 +346,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n16/fenicsx/result.json"
+      "raw_report": "n16/fenicsx/result.json",
+      "committed_candidate_field": "n16/fenicsx/candidate-field.json"
     },
     {
       "tool": "eqiora",
@@ -502,7 +504,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n32/eqiora/result.json"
+      "raw_report": "n32/eqiora/result.json",
+      "committed_candidate_field": "n32/eqiora/candidate-field.json"
     },
     {
       "tool": "fenicsx",
@@ -613,7 +616,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n32/fenicsx/result.json"
+      "raw_report": "n32/fenicsx/result.json",
+      "committed_candidate_field": "n32/fenicsx/candidate-field.json"
     },
     {
       "tool": "eqiora",
@@ -770,7 +774,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n4/eqiora/result.json"
+      "raw_report": "n4/eqiora/result.json",
+      "committed_candidate_field": "n4/eqiora/candidate-field.json"
     },
     {
       "tool": "fenicsx",
@@ -881,7 +886,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n4/fenicsx/result.json"
+      "raw_report": "n4/fenicsx/result.json",
+      "committed_candidate_field": "n4/fenicsx/candidate-field.json"
     },
     {
       "tool": "eqiora",
@@ -1038,7 +1044,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n8/eqiora/result.json"
+      "raw_report": "n8/eqiora/result.json",
+      "committed_candidate_field": "n8/eqiora/candidate-field.json"
     },
     {
       "tool": "fenicsx",
@@ -1149,7 +1156,8 @@
           "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
         }
       },
-      "raw_report": "n8/fenicsx/result.json"
+      "raw_report": "n8/fenicsx/result.json",
+      "committed_candidate_field": "n8/fenicsx/candidate-field.json"
     }
   ],
   "retained_adapter_failures": [
@@ -1169,5 +1177,5 @@
     }
   ],
   "committed_raw_directory": "raw",
-  "committed_raw_scope": "Original byte-for-byte successful worker reports and candidate fields; raw-sha256.json keys are relative to this directory. Original scratch paths remain provenance only."
+  "committed_raw_scope": "Original byte-for-byte successful candidate fields; raw-sha256.json keys are relative to this directory. Full raw worker reports with environment/build paths remain in the original scratch directory, bound by their original digests; committed scientific summaries are projections, not rewritten original reports."
 }
