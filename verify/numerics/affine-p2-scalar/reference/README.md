@@ -230,8 +230,7 @@ as the eventual effective production control. The mathematical volume minimum is
 two points in 2D and three in 3D for stiffness/constant load; natural-facet minima
 are two for segments and three for triangles. A polynomial of total degree p
 under a d-dimensional Duffy map has first-axis degree at most p+d-1, so
-n>=ceil((p+d)/2) is sufficient. Mass degree four needs three/two-dimensional or
-four/three-dimensional points. The reference remains an exact polynomial integral.
+n>=ceil((p+d)/2) is sufficient. Mass degree four needs three points per axis in 2D and four in 3D. The reference remains an exact polynomial integral.
 
 Underintegration tests compare exact local operator entries with the deficient
 rule, not only a patch solution that might accidentally survive an alias. For
