@@ -26,6 +26,7 @@ fn add_flux(fixture: &mut Fixture, ordinal: usize, value: f64) {
             ),
             &QuadratureRule::point(),
             |_, _| Ok(vec![value]),
+            None,
         )
         .unwrap();
     fixture.boundary_packets.push((0, prepared));

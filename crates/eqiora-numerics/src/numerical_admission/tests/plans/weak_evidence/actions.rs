@@ -66,6 +66,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
             ),
             &QuadratureRule::point(),
             |point, normal| law.evaluate(point, normal),
+            None,
         )
         .unwrap();
     let boundary = (1, local);

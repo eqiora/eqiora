@@ -18,6 +18,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        datum_degree: Option<usize>,
     ) -> Result<LocalContribution<S>, Diagnostic> {
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
@@ -81,10 +82,29 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .ok_or_else(|| invalid("natural flux local matrix size overflow"))?;
         let mut rhs = vec![<S as From<f64>>::from(0.0); count];
         let normal = parent_outward_normal(cell, incidence)?;
+        if dimension > 1
+            && rule.polynomial_exactness().is_none_or(|degree| {
+                degree
+                    < self
+                        .natural_trace_degree(field, datum_degree)
+                        .expect("validated natural Field")
+            })
+        {
+            return Err(invalid(
+                "natural facet quadrature underintegrates its tested space and authored polynomial datum",
+            ));
+        }
+        let trace = space.trace_dofs(incidence.local_ordinal)?;
         for point in rule.points() {
             let mut physical = vec![0.0; dimension];
             facet.map_point(&point.coordinates, &mut physical)?;
-            let test = facet_space.tabulate(&point.coordinates)?;
+            let embedding = facet_space.tabulate(&point.coordinates)?;
+            let reference = crate::affine_fem::facet_reference_point(
+                self.reference,
+                parent_vertices,
+                embedding.values(),
+            )?;
+            let test = space.tabulate(&reference)?;
             let value = datum(&physical, &normal)?;
             if value.len() != layout.components || value.iter().any(|value| !value.is_finite()) {
                 return Err(invalid(
@@ -92,20 +112,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 ));
             }
             let weight = point.weight * facet.measure_scale() * self.row_multipliers[row];
-            // P1/Q1 vertex functions restrict to the intrinsic facet basis.
-            // Off-facet vertex functions and the admitted MINI interior bubble
-            // have identically zero trace. No physical inverse or clipping enters.
-            for (node, dof) in space.local_dofs().iter().enumerate() {
-                if dof.entity_dimension() != 0 {
-                    continue;
-                }
-                let Some(facet_vertex) = parent_vertices
-                    .iter()
-                    .position(|vertex| *vertex == dof.entity_ordinal())
-                else {
-                    continue;
-                };
-                let test = test.values()[facet_vertex];
+            // Restrict the actual parent test basis via the authenticated affine
+            // facet embedding, including every edge/face interpolation node.
+            for &node in &trace {
+                let test = test.values()[node];
                 for (component, value) in value.iter().enumerate() {
                     rhs[layout.range.start + node * layout.components + component] +=
                         <S as From<f64>>::from(weight * test) * *value;

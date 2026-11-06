@@ -101,15 +101,23 @@ model Main() {{domain body=box(0,1,0,1);parameter p:1=1;instance physics:Equatio
                     continue;
                 }
                 let parent = parents[0];
-                let load = prepare_mesh_facet(&mesh, &bound, field, facet, parent, |x, n| {
-                    // phi=1+x+2y, psi=2-x+y. K=(1+p*phi+i)I+pJ.
-                    // grad(u)=p[(1,2)+i(-1,1)], so div(K grad(u))=p²(5+i).
-                    // J grad(u)=3p on both axes, including its zero imaginary sum.
-                    let diagonal = C::new(1. + exact(x).re, 1.);
-                    let x_flux = diagonal * C::new(p, -p) + C::new(3. * p * p, 0.);
-                    let y_flux = diagonal * C::new(2. * p, p) + C::new(3. * p * p, 0.);
-                    Ok(vec![x_flux * n[0] + y_flux * n[1]])
-                })
+                let load = prepare_mesh_facet(
+                    &mesh,
+                    &bound,
+                    field,
+                    facet,
+                    parent,
+                    |x, n| {
+                        // phi=1+x+2y, psi=2-x+y. K=(1+p*phi+i)I+pJ.
+                        // grad(u)=p[(1,2)+i(-1,1)], so div(K grad(u))=p²(5+i).
+                        // J grad(u)=3p on both axes, including its zero imaginary sum.
+                        let diagonal = C::new(1. + exact(x).re, 1.);
+                        let x_flux = diagonal * C::new(p, -p) + C::new(3. * p * p, 0.);
+                        let y_flux = diagonal * C::new(2. * p, p) + C::new(3. * p * p, 0.);
+                        Ok(vec![x_flux * n[0] + y_flux * n[1]])
+                    },
+                    None,
+                )
                 .unwrap();
                 natural.push((parent.entity.index(), load));
             }

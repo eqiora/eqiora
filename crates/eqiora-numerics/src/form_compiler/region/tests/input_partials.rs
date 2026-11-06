@@ -271,6 +271,7 @@ fn parameter_partial_keeps_original_material_domain_on_replaced_natural_flux() {
                     ),
                     &QuadratureRule::point(),
                     |_, _| Ok(vec![0.]),
+                    None,
                 )
                 .unwrap();
             if side == 0 {

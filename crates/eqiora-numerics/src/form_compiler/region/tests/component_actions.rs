@@ -42,6 +42,7 @@ fn natural_facet_retains_material_domain_when_volume_samples_are_valid() {
                     (&facet, incidence, &[side]),
                     &QuadratureRule::point(),
                     |_, _| Ok(vec![flux]),
+                    None,
                 )
                 .unwrap();
             if side == 0 {
@@ -144,6 +145,7 @@ fn constitutive_facet_checks_keep_cell_constant_values() {
             (&facet, incidence, &[0]),
             &QuadratureRule::point(),
             |_, _| Ok(vec![0.]),
+            None,
         )
         .unwrap();
     // A cell-interior constant DOF has trace 2, not zero. The H1 field u=0
@@ -192,6 +194,7 @@ fn facet_material_inputs_retain_bubble_normal_gradients() {
             (&facet, incidence, &[0, 1]),
             &simplex_duffy_gauss_legendre(1, 1).unwrap(),
             |_, _| Ok(vec![0.]),
+            None,
         )
         .unwrap();
     // b=27*x*y*(1-x-y) vanishes on y=0, but db/dy=27/4 at x=1/2.
@@ -247,6 +250,7 @@ fn affine_facet_checks_prescribed_material_domain() {
             (&facet, incidence, &[side]),
             &QuadratureRule::point(),
             |_, _| Ok(vec![0.]),
+            None,
         );
         if side == 0 {
             assert!(prepared.is_ok());

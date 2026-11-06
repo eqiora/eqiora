@@ -50,8 +50,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
     pub(crate) fn natural_facet_quadrature(
         &self,
         field: RawId,
+        datum_degree: Option<usize>,
     ) -> Result<QuadratureRule, Diagnostic> {
-        let degree = self.natural_trace_degree(field)?;
+        let degree = self.natural_trace_degree(field, datum_degree)?;
         let dimension = self.form.dimension - 1;
         if dimension == 0 {
             return Ok(QuadratureRule::point());
@@ -69,20 +70,46 @@ impl<S: Coefficient> BoundRegionForm<S> {
         }
     }
 
-    fn natural_trace_degree(&self, field: RawId) -> Result<usize, Diagnostic> {
+    pub(super) fn natural_trace_degree(
+        &self,
+        field: RawId,
+        datum_degree: Option<usize>,
+    ) -> Result<usize, Diagnostic> {
         let row = self
             .form
             .rows
             .iter()
             .find(|row| row.tested == field)
             .ok_or_else(|| invalid("natural flux has a foreign tested Field"))?;
-        Ok(if row.dyadics.is_empty() {
+        let trace_basis = |field| {
+            let layout = self
+                .fields
+                .iter()
+                .find(|layout| layout.field == field)
+                .expect("bound trace Field");
+            if layout.space.family() == eqiora_realization::SpaceFamily::SimplexP1Bubble {
+                1
+            } else {
+                self.field_basis_degree(field)
+            }
+        };
+        let basis = trace_basis(field);
+        let data = datum_degree.unwrap_or(0).saturating_add(basis);
+        let nonlinear = row
+            .dyadics
+            .iter()
+            .map(|term| basis + 2 * trace_basis(term.field))
+            .max()
+            .unwrap_or(0);
+        // Retain the established conservative nonlinear first-order floor.
+        let floor = if row.dyadics.is_empty() {
             0
         } else if self.reference.family() == ReferenceCellFamily::Hypercube {
             3 * (self.form.dimension - 1)
         } else {
             3
-        })
+        };
+        Ok(data.max(nonlinear).max(floor))
     }
 
     pub(crate) fn prepare_natural_facet(
@@ -92,8 +119,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        datum_degree: Option<usize>,
     ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
-        let affine = self.evaluate_natural_facet(field, cell, facet, rule, datum)?;
+        let affine = self.evaluate_natural_facet(field, cell, facet, rule, datum, datum_degree)?;
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
         let row = self
@@ -157,7 +185,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
         }
         if dimension > 1
             && rule.polynomial_exactness().is_none_or(|order| {
-                order < self.natural_trace_degree(field).expect("validated Field")
+                order
+                    < self
+                        .natural_trace_degree(field, datum_degree)
+                        .expect("validated Field")
             })
         {
             return Err(invalid(
@@ -183,13 +214,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         prepared.transport_nodes = spaces
             .iter()
             .map(|space| {
-                space
-                    .local_dofs()
-                    .iter()
-                    .map(|dof| dof.entity_dimension() != dimension)
-                    .collect()
+                let trace = space.trace_dofs(incidence.local_ordinal)?;
+                Ok((0..space.local_dofs().len())
+                    .map(|node| trace.contains(&node))
+                    .collect())
             })
-            .collect();
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let inverse = cell.inverse_jacobian()?;
         for sample in rule.points() {
             let facet_table = facet_space.tabulate(&sample.coordinates)?;

@@ -130,18 +130,37 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                             continue;
                         };
                         for &facet in facets {
-                            let vertices = mesh.entity_vertices(facet).expect("facet vertices");
+                            let parents = mesh.incidence(facet, dimension).expect("facet parents");
+                            let [parent] = parents.as_slice() else {
+                                return Err(invalid(
+                                    "simplicial boundary requires exactly one owned parent",
+                                ));
+                            };
+                            if domains[parent.entity.index()] != region.form.domain() {
+                                return Err(invalid(
+                                    "simplicial boundary parent differs from its Region",
+                                ));
+                            }
                             if law.quantity == PhysicalBoundaryQuantity::Trace {
-                                for vertex in vertices {
-                                    for (component, value) in law
-                                        .evaluate(&mesh.vertices()[vertex.index()], &[])?
-                                        .into_iter()
-                                        .enumerate()
+                                let layout = form
+                                    .fields()
+                                    .iter()
+                                    .find(|layout| layout.field == *field)
+                                    .ok_or_else(|| invalid("essential Field has no bound space"))?;
+                                let space = crate::discrete_space::DiscreteSpace::new(
+                                    layout.space,
+                                    reference,
+                                )?;
+                                for (entity, slot, point) in
+                                    space.facet_interpolation_points(mesh, *parent)?
+                                {
+                                    for (component, value) in
+                                        law.evaluate(&point, &[])?.into_iter().enumerate()
                                     {
                                         let key = FieldDof {
                                             field: *field,
-                                            entity: vertex,
-                                            slot: 0,
+                                            entity,
+                                            slot,
                                             component,
                                         };
                                         let Some(value) = boundary_value(key, law, value)? else {
@@ -154,18 +173,6 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                     }
                                 }
                             } else {
-                                let parents =
-                                    mesh.incidence(facet, dimension).expect("facet parents");
-                                let [parent] = parents.as_slice() else {
-                                    return Err(invalid(
-                                        "simplicial boundary requires exactly one owned parent",
-                                    ));
-                                };
-                                if domains[parent.entity.index()] != region.form.domain() {
-                                    return Err(invalid(
-                                        "simplicial boundary parent differs from its Region",
-                                    ));
-                                }
                                 natural.push((
                                     parent.entity.index(),
                                     crate::region_assembly::mapping::prepare_mesh_facet(
@@ -175,6 +182,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                         facet,
                                         *parent,
                                         |point, normal| law.evaluate(point, normal),
+                                        law.polynomial_degree(),
                                     )?,
                                 ));
                             }

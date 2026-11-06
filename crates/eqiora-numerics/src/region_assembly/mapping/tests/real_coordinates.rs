@@ -74,9 +74,15 @@ fn real_coordinates_assemble_conjugated_trials_and_recover_physical_fields() {
             let parent = mesh.incidence(facet, 1).unwrap()[0];
             facets.push((
                 parent.entity.index(),
-                prepare_mesh_facet(&mesh, &bound, field, facet, parent, |_, _| {
-                    Ok(vec![C::new(0., 4.)])
-                })
+                prepare_mesh_facet(
+                    &mesh,
+                    &bound,
+                    field,
+                    facet,
+                    parent,
+                    |_, _| Ok(vec![C::new(0., 4.)]),
+                    None,
+                )
                 .unwrap(),
             ));
         }

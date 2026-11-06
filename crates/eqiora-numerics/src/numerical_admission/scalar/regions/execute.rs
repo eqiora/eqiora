@@ -289,19 +289,23 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                             ));
                         };
                         if law.quantity == PhysicalBoundaryQuantity::Trace {
-                            for vertex in vertices {
-                                for (component, value) in law
-                                    .evaluate(
-                                        &mesh.vertex_coordinates(vertex).expect("vertex"),
-                                        &[],
-                                    )?
-                                    .into_iter()
-                                    .enumerate()
+                            let layout = form
+                                .fields()
+                                .iter()
+                                .find(|layout| layout.field == *field)
+                                .ok_or_else(|| invalid("essential Field has no bound space"))?;
+                            let space =
+                                crate::discrete_space::DiscreteSpace::new(layout.space, reference)?;
+                            for (entity, slot, point) in
+                                space.facet_interpolation_points(mesh, *parent)?
+                            {
+                                for (component, value) in
+                                    law.evaluate(&point, &[])?.into_iter().enumerate()
                                 {
                                     let key = FieldDof {
                                         field: *field,
-                                        entity: vertex,
-                                        slot: 0,
+                                        entity,
+                                        slot,
                                         component,
                                     };
                                     let Some(value) = boundary_value(key, law, value)? else {
@@ -324,6 +328,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                 facet,
                                 *parent,
                                 |point, normal| law.evaluate(point, normal),
+                                law.polynomial_degree(),
                             )?;
                             natural.push((parent.entity.index(), local));
                         }
