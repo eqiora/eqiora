@@ -90,3 +90,18 @@ public component OutwardHeatFlux2d(
     normal(conductivity * grad(temperature)) + flux = 0;
   }
 }
+
+public component TransientAdvectionDiffusion2d(
+  support body: volume(ambient_dimension = 2),
+  state scalar: 1 on body in h1,
+  parameter diffusivity: m ^ 2 / s,
+  expression velocity_x: m / s on body,
+  expression velocity_y: m / s on body,
+  expression source: 1 / s on body
+) {
+  law scalar_balance on body {
+    storage scalar;
+    flux scalar * (velocity_x * grad(coordinate(0)) + velocity_y * grad(coordinate(1))) - diffusivity * grad(scalar);
+    source source;
+  }
+}

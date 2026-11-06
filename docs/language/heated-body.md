@@ -2,7 +2,7 @@
 
 The [heated-body package](../../examples/heated-body/README.md) runs from the installed Python
 development build. Its [source](../../examples/heated-body/src/main.eqi) imports
-`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.3.0` for a
+`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.4.0` for a
 unit-square cross-section held at 300 K. The [hand-written alternative](../../examples/heated-body/handwritten.eqi)
 retains the same physical law and an explicit weak form whose tests vanish on the boundary.
 The [Python runner](../../examples/heated-body/run.py)

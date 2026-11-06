@@ -1,0 +1,20 @@
+import Eqiora.Scalar.scalar as scalar;
+
+public component Main(
+  support body: volume(ambient_dimension = 2),
+  support left: boundary(parent = body),
+  support right: boundary(parent = body),
+  support bottom: boundary(parent = body),
+  support top: boundary(parent = body)
+) {
+  state concentration: 1 on body in h1;
+  initial { concentration = 0; }
+  instance transport: scalar.TransientAdvectionDiffusion2d(
+    body=body, scalar=concentration, diffusivity=1[m^2/s],
+    velocity_x=1[m/s], velocity_y=2[m/s], source=1[1/s]
+  );
+  instance west: scalar.FixedValue2d(body=body, face=left, potential=concentration, value=0);
+  instance east: scalar.FixedValue2d(body=body, face=right, potential=concentration, value=0);
+  instance south: scalar.FixedValue2d(body=body, face=bottom, potential=concentration, value=0);
+  instance north: scalar.FixedValue2d(body=body, face=top, potential=concentration, value=0);
+}
