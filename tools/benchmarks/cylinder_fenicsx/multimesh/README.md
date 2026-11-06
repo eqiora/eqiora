@@ -41,6 +41,31 @@ and FEniCSx JIT preparation are also outside. Internal phase scopes are not
 asserted to be identical. All required native phases were present; no phase
 was inferred by subtraction.
 
+The separate mesh-setup and profile measurements are shown below. Each is one
+observation per worker, not a median of the ordinary samples. Mesh setup means
+reopening the fixed mesh and checking its export in Eqiora, and `create_mesh`,
+MINI space/boundary construction and basis mapping in FEniCSx; it excludes Gmsh
+generation. Preparation means model compilation/resolution in Eqiora and fresh
+form/JIT compilation in FEniCSx.
+
+| Mesh / tool | Mesh setup, s | Preparation, s | Profile assembly, s | Profile linear, s |
+| --- | ---: | ---: | ---: | ---: |
+| coarse Eqiora | 0.02061 | 0.07370 | 0.05216 | 0.04130 |
+| coarse FEniCSx | 0.07637 | 1.15635 | 0.01342 | 0.02261 |
+| standard Eqiora | 0.27105 | 0.68757 | 0.37968 | 0.12632 |
+| standard FEniCSx | 0.26547 | 1.28916 | 0.05189 | 0.13672 |
+| fine Eqiora | 2.56660 | 4.52252 | 5.29280 | 0.91605 |
+| fine FEniCSx | 1.23825 | 1.87598 | 0.14507 | 0.46295 |
+
+Eqiora assembly is its native `mini_stokes_finalization` span; linear includes
+native faer symbolic/numeric factorization and two backsolves, including its
+acceptance correction. FEniCSx assembly includes allocation, basis congruence
+and lifting; its linear phase includes KSP/MUMPS setup, solve, true-residual
+summaries and solver/vector cleanup. FEniCSx recovery and matrix cleanup remain
+separate recorded phases. These boundaries differ. The profile comes from a
+separate instrumented call, so its spans must not be added to or subtracted from
+the ordinary median, or interpreted as equal internal work across tools.
+
 The memory figure shows the process high-water mark immediately after the cold
 field return, before inspection/accuracy/profiling, and the final whole-child
 high-water mark. Both include imports, preparation and reference data already
@@ -76,12 +101,14 @@ and boundary fluxes against their unchanged bounds. The latter are stored
 assembly-only observations from imported Eqiora fields, not a native Eqiora
 union-reaction export or a new PDE solve.
 
-| Mesh | Designated-A cylinder x force, N | Designated-A cylinder y force, N |
+| Mesh | Designated-A cylinder x force, N/m | Designated-A cylinder y force, N/m |
 | --- | ---: | ---: |
 | coarse | 0.00652703755 | 0.0000723958468 |
 | standard | 0.00635130522 | 0.0000622655347 |
 | fine | 0.00630127200 | 0.0000606714754 |
 
+The intrinsic two-dimensional forces are per unit out-of-plane depth, matching
+the public typed getter dimension (mass/time²), not three-dimensional forces.
 These changes describe mesh sensitivity on the actual finite-channel problem.
 They establish neither an extrapolated continuum value nor a convergence order.
 The cylinder is offset from the channel midline, so zero lift is not an oracle.
@@ -112,7 +139,13 @@ paths. Reference supervisor projections omit only inherited executable-search
 paths. Original and public SHA256 values and every omitted field are recorded.
 Genuine worker receipts remain unchanged and retain the original result hashes;
 no receipt is rewritten to pretend a projection was its original result.
-JIT binaries/caches are excluded. Other original artifacts remain external with
+The strict reference loader still verifies each original manifest and its
+`reference-launch.json` against `manifest.launch_sha256`: these files contain
+no inherited search path and remain original bytes. The separate outer
+`reference-controls/launch-plan.json` and supervisor receipts are the PATH
+projections; they are not substituted for the manifest-bound launch record.
+The archive contains 127 original files and ten explicitly labelled metadata
+projections. JIT binaries/caches are excluded. Other original artifacts remain external with
 their recorded digests.
 
 Accordingly, clone replay checks scientific observations and the labelled

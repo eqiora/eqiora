@@ -1,0 +1,140 @@
+---
+title: Steady Stokes cylinder comparison with FEniCSx
+description: Three shared MINI meshes, independent agreement checks, and ordinary runtime and memory observations.
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import runtimeWide from '../../../../../../tools/benchmarks/cylinder_fenicsx/multimesh/runtime-1440.png';
+import runtimeMobile from '../../../../../../tools/benchmarks/cylinder_fenicsx/multimesh/runtime-320.png';
+import agreementWide from '../../../../../../tools/benchmarks/cylinder_fenicsx/multimesh/agreement-1440.png';
+import agreementMobile from '../../../../../../tools/benchmarks/cylinder_fenicsx/multimesh/agreement-320.png';
+
+Eqiora and FEniCSx passed the independently frozen agreement gates on all three
+shared cylinder meshes. **Eqiora was slower in ordinary execution at every level.**
+On the finest mesh, the observed medians were **8.721 s for Eqiora and 0.6201 s
+for FEniCSx**. These are one shared-host campaign's measurements, not a stable
+baseline, a general ranking, or a continuum drag-accuracy result.
+
+The optimized Eqiora development wheel used here is distinct from the published
+release. The actual wheel producer, campaign harness and external-reference
+harness have separate identities in the linked record. No GPU was used.
+
+## Problem and accuracy
+
+The finite channel is 2.2 m long and 0.41 m high, with a radius-0.05 m hole
+centered at (0.2 m, 0.2 m). Dynamic viscosity is 0.001 Pa·s. The inlet is
+parabolic with maximum speed 0.3 m/s; walls and cylinder are no-slip. The outlet
+has zero full-stress traction. This is linear steady Stokes flow with MINI
+P1-plus-bubble velocity and P1 pressure, with no added pressure gauge.
+
+Every tool uses the same original affine mesh, vertex/cell identities and
+boundary partition. The reference is FEniCSx on that discrete problem:
+A=MUMPS/Duffy quadrature, B=SuperLU/the same quadrature, and C=MUMPS/independent
+degree-six quadrature. Each mesh's empirical budgets and material falsifiers
+were frozen before Eqiora ran. No Navier–Stokes/DFG number is used as a Stokes
+expectation.
+
+The complete gate checks vertex velocity, cell bubbles, vertex pressure,
+independently assembled equilibrium, cylinder force pair, essential trace and
+discrete inlet/continuity fluxes. Three separate zero-solve reconstructions also
+passed cylinder-force, global essential-reaction and flux checks on imported
+Eqiora cold fields. The cylinder force uses volume virtual work, not raw surface
+stress integration. No zero-lift assumption is made: the cylinder is offset
+from the channel midline.
+
+<figure>
+  <picture>
+    <source media="(max-width: 600px)" srcSet={agreementMobile.src} />
+    <img src={agreementWide.src} alt="Cold Eqiora velocity, pressure and force differences divided by the independently frozen allowance, below the gate on all three meshes." style="max-width:100%;height:auto" />
+  </picture>
+  <figcaption>Every benchmark cold field passed the unchanged gate. Ratios are dimensionless; this is discrete agreement, not a continuum error estimate.</figcaption>
+</figure>
+
+| Mesh | Vertices / cells | Free unknowns | Cylinder x force, N/m | Cylinder y force, N/m |
+| --- | ---: | ---: | ---: | ---: |
+| coarse | 657 / 1,183 | 4,091 | 0.00652703755 | 0.0000723958468 |
+| standard | 2,386 / 4,512 | 15,694 | 0.00635130522 | 0.0000622655347 |
+| fine | 8,967 / 17,416 | 60,761 | 0.00630127200 | 0.0000606714754 |
+
+Forces above are designated-A forces on the cylinder per unit out-of-plane
+depth. Their change across meshes is a sensitivity observation, not an
+extrapolated value or a measured convergence order.
+
+## Ordinary execution and memory
+
+| Mesh | Eqiora median [range], s | FEniCSx median [range], s |
+| --- | ---: | ---: |
+| coarse | 0.1202 [0.1192–0.1987] | 0.03442 [0.03403–0.03603] |
+| standard | 1.1936 [0.9863–1.3388] | 0.18721 [0.13184–0.19410] |
+| fine | 8.7206 [7.7323–11.8410] | 0.62006 [0.60208–0.62806] |
+
+<figure>
+  <picture>
+    <source media="(max-width: 600px)" srcSet={runtimeMobile.src} />
+    <img src={runtimeWide.src} alt="All seven wall-time samples per tool and mesh, with median and range, and cold-return and final process peak memory." style="max-width:100%;height:auto" />
+  </picture>
+  <figcaption>Wall time is in seconds and process peak RSS is in MiB. Final peaks include untimed diagnostics; neither memory series is aggregate process-tree memory.</figcaption>
+</figure>
+
+Six fresh workers each made one cold call, one separate profile call, two
+warmups and seven ordinary samples: 60 ordinary calls and six profile calls,
+with 42 retained samples. Every ordinary call assembled a new system and used
+new direct factors. Eqiora used its ordinary `run(plan)` and faer sparse LU;
+FEniCSx used designated policy A with PETSc/MUMPS. Solver implementations and
+internal phase boundaries differ.
+
+The ordinary boundaries include assembly, accepted solve and field return.
+FEniCSx also explicitly recovers its mixed field, computes physical/scaled true
+residual summaries and destroys its fresh system before returning. Mesh/model
+preparation, JIT work, public force/flux inspection, field export and independent
+accuracy checks are outside both clocks. No solved matrix, factor or solution
+is reused.
+
+## Mesh setup and separate phases
+
+These are single measurements from each fresh worker and its separate profile
+call. They are not ordinary-sample medians and must not be added to the ordinary
+median. Mesh setup reopens/checks the fixed mesh in Eqiora and constructs the
+DOLFINx mesh, MINI space, boundaries and basis maps in FEniCSx; it does not time
+Gmsh generation.
+
+| Mesh / tool | Mesh setup, s | Preparation, s | Profile assembly, s | Profile linear, s |
+| --- | ---: | ---: | ---: | ---: |
+| coarse Eqiora | 0.02061 | 0.07370 | 0.05216 | 0.04130 |
+| coarse FEniCSx | 0.07637 | 1.15635 | 0.01342 | 0.02261 |
+| standard Eqiora | 0.27105 | 0.68757 | 0.37968 | 0.12632 |
+| standard FEniCSx | 0.26547 | 1.28916 | 0.05189 | 0.13672 |
+| fine Eqiora | 2.56660 | 4.52252 | 5.29280 | 0.91605 |
+| fine FEniCSx | 1.23825 | 1.87598 | 0.14507 | 0.46295 |
+
+Preparation means model compilation/resolution in Eqiora and form/JIT compilation
+in FEniCSx. Eqiora assembly is native MINI system finalization; linear includes
+symbolic/numeric factorization and its two backsolves. FEniCSx assembly includes
+basis congruence and lifting; linear includes new KSP/MUMPS setup, solve, residual
+summaries and solver/vector cleanup. Its field recovery and matrix cleanup are
+recorded separately. No cross-tool internal-phase equivalence is claimed.
+
+## Environment and reproduction
+
+This run used one thread/rank on an Intel Xeon Gold 6346 shared host, with worker
+CPU 20 and supervisor CPU 21; their SMT siblings are 52 and 53. GPUs were hidden.
+Initial load average was about 30, siblings were not reserved, and frequency
+was not fixed. CPU/governor/frequency/process snapshots and sampled descendants
+and load are retained. These conditions do not establish a stable reference
+machine.
+
+FEniCSx used DOLFINx/Basix/FFCx 0.11.0 and PETSc 3.25.6 from the locked environment.
+Read the
+<ExactSourceLink path="tools/benchmarks/cylinder_fenicsx/multimesh/README.md" kind="blob">complete result, scopes and clone replay commands</ExactSourceLink>,
+<ExactSourceLink path="tools/benchmarks/cylinder_fenicsx/MULTIMESH.md" kind="blob">input-declared protocol</ExactSourceLink>, and
+<ExactSourceLink path="tools/benchmarks/cylinder_fenicsx/multimesh/record.json" kind="blob">source and artifact record</ExactSourceLink>.
+The clone-only reader reruns the complete scientific and stored-audit gates with
+NumPy and reproduces the medians/ranges from committed observations; no native
+PDE solve is required.
+
+The evidence archive labels original bytes and metadata projections explicitly.
+Only vendor MPI configuration and outer supervisor executable-search paths are
+omitted; original digests remain recorded, and genuine worker receipts retain
+the original result digests. Manifest-bound reference launches are original and
+strictly verified. No original-source qualification is claimed for a later
+changed reader.

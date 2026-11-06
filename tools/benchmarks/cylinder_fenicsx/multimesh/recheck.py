@@ -15,6 +15,24 @@ from shared_measurement import ComparisonError, digest
 HERE = Path(__file__).resolve().parent
 
 
+def check_inventory_entry(name, entry, actual_sha256):
+    """Only explicitly listed metadata may be projected; all bytes stay bound."""
+    allowed = []
+    if name in {f'{folder}/{level}/fenicsx/result.json' for folder in ('correctness', 'benchmark')
+                for level in ('coarse', 'standard', 'fine')}:
+        allowed = ['environment.mpi_library']
+    elif name in {f'reference-controls/{level}-process-receipt.json' for level in ('coarse', 'standard', 'fine')}:
+        allowed = ['environment_controls.PATH']
+    elif name == 'reference-controls/launch-plan.json':
+        allowed = [f'entries.{index}.environment_controls.PATH' for index in range(3)]
+    if entry['omitted_fields'] != allowed or entry['public_sha256'] != actual_sha256:
+        raise ComparisonError('public projection fields or artifact bytes differ from the enumerated inventory')
+    if (not allowed and (entry['scope'] != 'original bytes' or entry['original_sha256'] != actual_sha256)
+            or allowed and (entry['scope'] != 'explicit public metadata projection'
+                            or entry['original_sha256'] == actual_sha256)):
+        raise ComparisonError('public original/projection identity is inconsistent')
+
+
 @contextmanager
 def replay():
     record = json.loads((HERE/'record.json').read_text())
@@ -35,8 +53,7 @@ def replay():
                     raise ComparisonError('public archive contains a non-file or escaping path')
                 target = root/relative; target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(archive.extractfile(member).read())
-                if digest(target) != inventory[member.name]['public_sha256']:
-                    raise ComparisonError('public original/projection artifact digest mismatch')
+                check_inventory_entry(member.name, inventory[member.name], digest(target))
         descriptor = root/'local-references.json'
         descriptor.write_text(json.dumps({'cases': {level: {
             'reference_manifest': str(root/'references'/level/'reference-manifest.json'),
