@@ -2,7 +2,7 @@
 
 The [heated-body package](../../examples/heated-body/README.md) runs from the installed Python
 development build. Its [source](../../examples/heated-body/src/main.eqi) imports
-`SteadyHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.2.0` for a
+`SteadyHeat2d`, `TransientHeat2d` and `FixedTemperature2d` from bundled `Eqiora.Scalar@0.3.0` for a
 unit-square cross-section held at 300 K. The [hand-written alternative](../../examples/heated-body/handwritten.eqi)
 retains the same physical law and an explicit weak form whose tests vanish on the boundary.
 The [Python runner](../../examples/heated-body/run.py)
@@ -16,7 +16,8 @@ unchanged after moving the vendored project offline.
 Temperature is an absolute field in kelvin, not an offset from the boundary value. This is a
 steady discrete test problem; it does not give the exact continuous temperature profile.
 
-The same source also defines `TransientHeatedBody`, with a constant positive volumetric heat
+The same source also defines `TransientHeatedBody`, importing the standard storage Law
+while retaining its caller-owned State and initial data, with a constant positive volumetric heat
 capacity and an initial temperature of 300 K. It keeps the same boundary condition and is
 advanced with Q1 elements and backward Euler through the usual Plan, State, Run, and Result
 APIs. On the same four-cell mesh, the interior mass is 1/9, the stiffness 8/3, and the heating
@@ -26,4 +27,5 @@ every step, restarting, replay, and running the moved project offline.
 
 The transient model is assembled from the compiled region equations; there is no separately
 written transient weak form to compare against. Variable capacities, material interfaces,
-three-dimensional heat conduction, and bundled transient thermal components are not covered here.
+three-dimensional heat conduction, and threaded/MPI/GPU thermal-package execution are not covered here.
+The direct transient Law remains in the hand-written alternative for comparison.

@@ -1,4 +1,6 @@
 //! Imported fixed-SI thermal equations through the common Cartesian Q1 lifecycle.
+#[path = "standard_thermal_package/transient.rs"]
+mod transient;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -121,7 +123,11 @@ fn fixture(
 }
 
 fn resolve(source: &str) -> Result<ResolvedCommonPlan, String> {
-    let (document, owner) = fixture(source).map_err(|error| error.to_string())?;
+    resolve_temporal(source, None)
+}
+
+fn resolve_temporal(source: &str, step: Option<f64>) -> Result<ResolvedCommonPlan, String> {
+    let (document, owner) = fixture(source).map_err(|error| format!("{error:?}"))?;
     assert!(matches!(document, SourceCompilation::Packaged(_)));
     let model = ModelEnvelope::from_program(document.model().program()).unwrap();
     let linear = CommonLinearRequest::exact(
@@ -142,7 +148,9 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, String> {
         CommonSpatialPolicy::Q1,
         CommonSolvePolicy::Linear(linear),
         None,
-        None,
+        step.map(eqiora_numerics::CommonTemporalPolicy::backward_euler)
+            .transpose()
+            .map_err(|error| error.to_string())?,
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,

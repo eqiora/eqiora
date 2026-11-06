@@ -12,7 +12,7 @@ capabilities = [
 ]
 
 [problem]
-package = "Eqiora.Scalar@0.2.0"
+package = "Eqiora.Scalar@0.3.0"
 field = "dimensionless scalar potential"
 coordinates = "physical metres on the unit square"
 poisson = "-c laplacian(u) = 2 c pi^2 sin(pi*x) sin(pi*y), zero boundary"
