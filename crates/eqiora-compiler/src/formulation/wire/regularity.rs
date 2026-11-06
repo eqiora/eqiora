@@ -196,6 +196,7 @@ fn visit(
         | E::Parameter { .. }
         | E::Time
         | E::Coordinate { .. }
+        | E::SpatialTensor { .. }
         | E::LinearMap { .. } => {}
     }
     Ok(())

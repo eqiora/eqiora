@@ -115,6 +115,34 @@ impl Context<'_> {
                     Some(vec![rule.spatial_extent()? as usize; rule.rank()])
                 }
             }
+            E::SpatialTensor {
+                complex,
+                dimension,
+                shape,
+                values,
+            } => {
+                if !(1..=2).contains(&shape.len())
+                    || shape
+                        .iter()
+                        .any(|extent| *extent as usize != self.dimensions)
+                {
+                    return None;
+                }
+                self.remaining = self.remaining.checked_sub(values.len())?;
+                let ty = ValueType::shaped(
+                    if *complex {
+                        ScalarDomain::Complex
+                    } else {
+                        ScalarDomain::Real
+                    },
+                    eqiora_core::DimExponents::from_rationals(*dimension)?,
+                    eqiora_core::ValueShape::new(shape.iter().copied()).ok()?,
+                    eqiora_core::ValueFrame::SpatialCartesian,
+                )
+                .ok()?;
+                eqiora_core::ValueLiteral::new(ty, values.iter().copied()).ok()?;
+                Some(shape.iter().map(|extent| *extent as usize).collect())
+            }
             E::LinearMap {
                 source_basis,
                 target_basis,

@@ -55,6 +55,21 @@ impl Context<'_, '_> {
                 self.native
                     .operation(ExprNode::Constant(literal), Ty::new(ty, None))
             }
+            E::SpatialTensor {
+                complex,
+                dimension,
+                shape,
+                values,
+            } => {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(values.len())
+                    .ok_or_else(|| rejection("spatial coefficient exceeds the structural bound"))?;
+                let literal = super::spatial_tensor::literal(*complex, dimension, shape, values)?;
+                let ty = literal.value_type().clone();
+                self.native
+                    .operation(ExprNode::Constant(literal), Ty::new(ty, None))
+            }
             E::Field { ulid } => {
                 let id = Id::<kinds::Field>::from_ulid(identity(ulid)?);
                 let (ty, assertion) = (self.resolve)(id.erase())?;
@@ -344,7 +359,7 @@ impl Context<'_, '_> {
     }
 }
 
-fn children(value: &E) -> Vec<&E> {
+pub(super) fn children(value: &E) -> Vec<&E> {
     match value {
         E::Complex {
             real: left,
@@ -392,6 +407,7 @@ fn children(value: &E) -> Vec<&E> {
         | E::Number { .. }
         | E::Rational { .. }
         | E::Coordinate { .. }
+        | E::SpatialTensor { .. }
         | E::LinearMap { .. } => vec![],
     }
 }
