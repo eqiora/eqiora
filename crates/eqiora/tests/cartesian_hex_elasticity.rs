@@ -85,13 +85,6 @@ fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(&geometry, cells.cells())
             .unwrap();
-    MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
-        &cells,
-        &geometry,
-        &mesh,
-        &correspondence,
-    )
-    .unwrap();
     let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
         &cells,
         &geometry,
