@@ -4,7 +4,7 @@ use eqiora::artifact::{
     MeshProductionLineageEnvelopeV1, ModelEnvelope,
 };
 use eqiora::compiler::StaticBindingValue;
-use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora::geometry::{GeometryGraph, GeometryTopologyHandle};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageDependencyV1, PackageManifestV1, PackageSourcesV1, PackagedModelDocument, QualifiedName,
@@ -94,7 +94,7 @@ fn admit_case(
         .into_iter()
         .zip(edges)
     {
-        sets.insert(name.to_owned(), vec![PlanarTopologyHandle::from(edge)]);
+        sets.insert(name.to_owned(), vec![GeometryTopologyHandle::from(edge)]);
     }
     let geometry = graph.build(&rectangle, &sets).unwrap();
     let bindings = ["body", "x_lower", "x_upper", "y_lower", "y_upper"].map(|name| {
