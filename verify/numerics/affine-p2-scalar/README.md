@@ -66,3 +66,37 @@ Structural compatibility also preserves existing abstract higher-order field-wis
 graphs. It rejects unsupported simplex dimensions but does not promise an ordinary
 kernel for every abstract order. The ordinary DiscreteSpace binding independently
 rejects orders without implemented kernels; this workflow exposes only P2.
+
+## Initial installed-Python launcher
+
+`check.py` is deliberately limited to the reviewed 2D N=2 quadratic patch. It
+accepts either a zero-run preflight or one ordinary run; there are no level,
+profile, repetition, warmup or timing switches. The CPU affinity is a resource
+envelope of at most four CPUs. The actual Plan remains host-serial with one
+worker, and threaded libraries are fixed to one thread. GPUs and multiple ranks
+are excluded from this witness.
+
+The launcher requires the reviewed harness revision, native producer revision,
+native module digest/build receipt and frozen reference manifest digest. It
+persists original source, MSH input, Model, mesh and reopened Plan before running.
+After its single ordinary call, it persists the original Result before replay or
+field export. Failure keeps those files and the attempted/completed call counters;
+it never retries. The complete field then goes through the shared output owner
+and the unchanged independent patch gate. No native constrained-action witness
+is claimed by this Python launcher.
+
+Use a fresh home-backed output directory and reviewed values for the placeholders:
+
+```
+python -I -B check.py --mode preflight --output <fresh-directory> \
+  --expected-harness-revision <reviewed-harness-commit> \
+  --native-receipt <reviewed-build-receipt> \
+  --expected-native-source <actual-native-producer-commit> \
+  --expected-native-sha256 <actual-native-module-digest> \
+  --expected-reference-sha256 <frozen-reference-manifest-digest>
+```
+
+Changing `preflight` to `solve` is a separate scientific execution step. The
+source, artifact and launch controls require review before that step. Successful
+preflight, pure protocol tests and raw portable graph decode do not establish a
+PDE accuracy result.
