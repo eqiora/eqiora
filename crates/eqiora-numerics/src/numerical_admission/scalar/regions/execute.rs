@@ -14,6 +14,11 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
+        let _finalization = eqiora_execution::telemetry_span!(backend(
+            "scalar_system_finalization",
+            "scalar_static"
+        ))
+        .entered();
         #[cfg(test)]
         super::super::STATIC_FINALIZATIONS.with(|count| count.set(count.get() + 1));
         let q1_spd = operator_properties == LinearOperatorProperties::SymmetricPositiveDefinite

@@ -32,6 +32,37 @@ pub(in crate::numerical_admission) fn check_replay_count(plan: &CommonSpatialPla
     );
 }
 
+const ATTRIBUTION_COMPLETE: &str = "eqiora scalar attribution assertions completed";
+
+// Tracing callsite interests are process-global, so parallel unprofiled tests can
+// interfere with a thread-local capture. Run this fixture alone in a child while
+// the ordinary parallel suite waits for its complete assertions.
+pub(in crate::numerical_admission) fn attribution_child() -> bool {
+    const FIXTURE: &str = "numerical_admission::tests::plans::result_replay::live_static_acceptance_retains_original_equations_and_independent_replay";
+    const MARKER: &str = "EQIORA_TEST_SCALAR_ATTRIBUTION_CHILD";
+    if std::env::var(MARKER).as_deref() == Ok(FIXTURE) {
+        return true;
+    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", FIXTURE, "--nocapture"])
+        .env(MARKER, FIXTURE)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success()
+            && String::from_utf8_lossy(&output.stdout).contains(ATTRIBUTION_COMPLETE),
+        "isolated attribution fixture failed: {}\n{}\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    false
+}
+
+pub(in crate::numerical_admission) fn attribution_complete() {
+    println!("{ATTRIBUTION_COMPLETE}");
+}
+
 // Called with independently specified Poisson fixtures; no production mutation hooks.
 pub(in crate::numerical_admission) fn check(plan: &CommonSpatialPlan) {
     let count = || STATIC_FINALIZATIONS.with(std::cell::Cell::get);
@@ -221,6 +252,7 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
     for phase in [
         "scalar_plan_reauthentication",
         "scalar_structure_preflight",
+        "scalar_system_finalization",
         "scalar_problem_preparation",
         "scalar_linear_request",
         "scalar_solution_validation",
@@ -232,6 +264,8 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
             "{phase} precedes acceptance"
         );
     }
+    let (finalization, _) = find("scalar_system_finalization");
+    assert_eq!(find("assembly").1.1, Some(finalization as u64 + 1));
     let (request, _) = find("scalar_linear_request");
     assert_eq!(find("linear_solve").1.1, Some(request as u64 + 1));
     assert!(capture.stack.is_empty(), "all scopes close after execution");
