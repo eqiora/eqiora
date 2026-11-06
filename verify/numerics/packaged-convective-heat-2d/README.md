@@ -87,3 +87,9 @@ This reruns the public lifecycle and canonical reference in fresh home-backed
 scratch and includes the existing thermal source controls and product checks.
 It does not use archived Eqiora coefficients as expected values. The installed
 Python owner remains a focused product check over the same frozen reference.
+
+The [registered regression report](evidence/2026-11-06/regression/8b3770963/report.json)
+passed all 14 tests in this owner, including the four imported convective cases.
+Its four additional public Runs are recorded separately from the eight initial
+scientific witnesses. The canonical reference's mathematical metadata, including
+its `preparation_only` marker, remains unchanged in actual accepted reports.
