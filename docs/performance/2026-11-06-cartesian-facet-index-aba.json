@@ -1,0 +1,821 @@
+{
+  "scope": "One retained shared-host 3D Poisson N16 baseline/candidate/baseline triplet; efficacy unproven, awaiting controlled-host follow-up.",
+  "interpretation": {
+    "candidate_slower_than_both_baselines_in_this_triplet": true,
+    "optimization_accepted": false,
+    "stable_timing_claim": false,
+    "causal_regression_claim": false,
+    "general_speedup_claim": false
+  },
+  "provenance": {
+    "implementation_test_source": "4fbdc3285b14c0ea105092c46f081170f2f664d1",
+    "harness_source": "2f161e79425223f1325ebe5547e9b02ba91ea141",
+    "installations": {
+      "baseline": {
+        "source": "2f161e79425223f1325ebe5547e9b02ba91ea141",
+        "tree": "d0b2c8e6bc6495bb3c5083fca7875193a2713268",
+        "wheel_sha256": "5691ea07506a4c3939989606d2faba0feaa6d3b87f7499df429be978b77ca5c3"
+      },
+      "candidate": {
+        "source": "af6ddca08d4c71094639ff922f65dc3bcd426640",
+        "tree": "663f5a8f3b0a89928d8448eef4f528c3134307c5",
+        "wheel_sha256": "c3245461118ac3d0e1125c5d3c44861846b8ef5af14e7999a68c33b368cc0764"
+      }
+    },
+    "shared_build_profile": "Rust 1.89.0; Cargo release fat LTO and declared package size overrides; maturin 1.15.0 strip=true; Zig 0.17.1 manylinux_2_17; rebuilt from retained sdist",
+    "identity_note": "The implementation-test source and measured candidate producer are distinct; this data-record commit does not relabel either artifact."
+  },
+  "sealed_evidence": {
+    "artifact": "facet-index-matched-aba",
+    "seal_sha256": "ee9b98e59b696f0bea95759393260ca8036510b2d3984fafab8389e724463176",
+    "plan_sha256": "f6bbafe861e624d694dab03da8e951d6688f4ff2ebf5d586fb8a6154b7803257",
+    "audit_sha256": "8855b6b6b738632e7104c4405e7b0aaa611b1c3136dcdba75083f8e32c2db53f",
+    "report_sha256": "6ba519953ca96c3bab06665fb69c73470be16cfe916d7fe998d6b2d3e46c016d",
+    "scientific_comparison_sha256": "33597e3de6a351157d1fe6375c862a2bd3d39c7b24bc3387fe6f389a3d13bf90",
+    "context_audit_sha256": "26c677516ab4a4fff23c9a58e84a0704ca4c04f12f5a8999aff9e16409f5cd88"
+  },
+  "protocol": {
+    "dimension": 3,
+    "cells_per_axis": 16,
+    "process_order": [
+      "01-baseline-before",
+      "02-candidate",
+      "03-baseline-after"
+    ],
+    "processes": 3,
+    "calls_per_process": {
+      "ordinary_cold": 1,
+      "separate_profile": 1,
+      "ordinary_warmups": 2,
+      "ordinary_samples": 7
+    },
+    "total_ordinary_calls": 30,
+    "total_profile_calls": 3,
+    "total_calls": 33,
+    "raw_sample_count": 21,
+    "fenics_calls": 0,
+    "retries": 0,
+    "timing_scope": "Complete ordinary eqiora.run call, including unchanged count guard; extraction/hash comparison outside clocks. Profiles are separate instrumented calls, not partitions of ordinary medians."
+  },
+  "physical_checks": {
+    "model_sha256": "8b90386f57e0563b892c982ed3c7cf94d21ebb4dfe3f79efe7cf9d98e3b62012",
+    "dofs": {
+      "total": 4913,
+      "free": 3375,
+      "stored_algebraic": 3375
+    },
+    "execution": {
+      "scalar_type": "f64",
+      "provider": "eqiora.host.serial",
+      "provider_version": "0.1.5",
+      "placement": "host-serial",
+      "workers": 1
+    },
+    "solve": {
+      "algorithm": "bicgstab",
+      "completed_iterations": 1,
+      "initial_residual_norm": 0.1619981967551136,
+      "reported_residual_norm": 7.458354808370067e-16,
+      "true_residual_norm": 7.26936107736496e-16,
+      "residual_target": 1.619981967551136e-13,
+      "preconditioner": "identity",
+      "backend": "eqiora.reference",
+      "adapter": "eqiora.host.serial",
+      "verification_adapter": "eqiora.host.serial",
+      "reduction": "reproducible",
+      "relative_tolerance": 1e-12,
+      "absolute_tolerance": 1e-14,
+      "maximum_iterations": 10000,
+      "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+    },
+    "accuracy": {
+      "continuous_l2": 0.0014366736862281306,
+      "analytic_discrete_l2": 0.0014366736862284964,
+      "comparison_allowance": 1.7220678425618651e-09,
+      "reference": "verify/numerics/cartesian-poisson-3d-fem-fvm/expected/convergence.csv",
+      "reference_sha256": "2b2d4593514a09310de09fad2772f0d5351a9ebab6d06e739d893271590dae15"
+    },
+    "accepted_ordinary_solve_records_per_process": 10,
+    "all_ordinary_records_pass_same_residual_policy": true,
+    "cold_candidate_json_equal_without_exclusions": true,
+    "scientific_comparison_rules": {
+      "cold_candidate_json": "compare full coordinates_float64_hex, values_float64_hex, solve, associated_fields, dimension; no exclusions",
+      "result_paths_compared_without_pruning": [
+        "dimension",
+        "cells_per_axis",
+        "tool",
+        "mode",
+        "stable_timing_claim",
+        "measurement_status",
+        "dofs",
+        "coordinates",
+        "values",
+        "associated_fields",
+        "solve",
+        "accuracy",
+        "model_sha256",
+        "diagnostic_execution",
+        "environment.resolved_execution",
+        "environment.linear_provider"
+      ],
+      "enumerated_derived_identity_exclusions": [
+        "plan_sha256",
+        "package_compilation_digest"
+      ],
+      "elapsed_field_exclusions_within_scientific_paths": [],
+      "excluded_derived_identity_values_and_differences_reported": true,
+      "complete_report_structural_differences_retained": true,
+      "accuracy_oracle": "unchanged independent analytic reference and inherited allowance; Eqiora cold/revision parity is not the accuracy oracle"
+    },
+    "comparisons": [
+      {
+        "left": "01-baseline-before",
+        "right": "02-candidate",
+        "cold_candidate_differences": [],
+        "scientific_subtree_differences": [],
+        "enumerated_derived_identity_differences": [],
+        "complete_report_difference_count": 79
+      },
+      {
+        "left": "01-baseline-before",
+        "right": "03-baseline-after",
+        "cold_candidate_differences": [],
+        "scientific_subtree_differences": [],
+        "enumerated_derived_identity_differences": [],
+        "complete_report_difference_count": 75
+      }
+    ],
+    "parity_note": "Exact cross-revision parity supplements the unchanged independent analytic oracle; it does not replace it."
+  },
+  "controls": {
+    "worker_cpu": 16,
+    "supervisor_cpu": 17,
+    "monitored_cpus": [
+      16,
+      17,
+      48,
+      49
+    ],
+    "threads_per_worker": 1,
+    "gpu_hidden": true,
+    "source_runtime_and_before_after_controls_match": true,
+    "settings": {
+      "16": {
+        "siblings": "16,48",
+        "boost": null,
+        "intel_no_turbo": "0",
+        "cpu16_governor": "powersave",
+        "cpu48_governor": "powersave"
+      },
+      "17": {
+        "siblings": "17,49",
+        "boost": null,
+        "intel_no_turbo": "0",
+        "cpu17_governor": "powersave",
+        "cpu49_governor": "powersave"
+      }
+    },
+    "fresh_prelaunch": {
+      "fresh_prelaunch_load_interval_seconds": 10.005356819368899,
+      "fresh_prelaunch_busy_percent_excluding_idle_iowait": {
+        "cpu16": 22.84569138276553,
+        "cpu17": 54.00801603206413,
+        "cpu48": 64.82965931863727,
+        "cpu49": 21.12676056338028
+      },
+      "fresh_prelaunch_load_start": [
+        29.37255859375,
+        29.7578125,
+        31.2880859375
+      ],
+      "fresh_prelaunch_load_end": [
+        29.314453125,
+        29.732421875,
+        31.2626953125
+      ]
+    },
+    "actual_per_stage_frequency_recorded": false,
+    "post_campaign_frequency_context_sha256": "021df31e0d842f4bcbf16342d961a43e2d818aa3d3e5eaf6e2ef95955c833abd",
+    "frequency_limitation": "Post-campaign values/policy limits cannot reconstruct stage frequencies or establish cause. Stable powersave/turbo settings do not imply a fixed clock."
+  },
+  "sample_columns": [
+    "wall_seconds",
+    "process_cpu_seconds"
+  ],
+  "native_phase_order": [
+    {
+      "path": [
+        "run"
+      ],
+      "fields": {
+        "family": "spatial"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "setup"
+      ],
+      "fields": {
+        "role": "backend_resolution"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve"
+      ],
+      "fields": {},
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_plan_reauthentication"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_structure_preflight"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_system_finalization"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_system_finalization",
+        "assembly"
+      ],
+      "fields": {
+        "role": "scalar_region_finalization"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_problem_preparation"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_linear_request"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_linear_request",
+        "linear_solve"
+      ],
+      "fields": {
+        "linear_solver": "BiConjugateGradientStabilized",
+        "solver_provider": "eqiora.reference"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_solution_validation"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_coordinate_recovery"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_live_acceptance"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_live_acceptance",
+        "scalar_result_packing"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_live_acceptance",
+        "scalar_live_validation"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    },
+    {
+      "path": [
+        "run",
+        "solve",
+        "scalar_live_acceptance",
+        "scalar_result_publication"
+      ],
+      "fields": {
+        "backend": "scalar_static"
+      },
+      "calls": 1
+    }
+  ],
+  "native_phase_value_columns": [
+    "inclusive_seconds",
+    "native_self_seconds"
+  ],
+  "stages": [
+    {
+      "name": "01-baseline-before",
+      "installation": "baseline",
+      "actual_exit": 0,
+      "report_sha256": "fa06873ef73955e1984caf508b6a80fb8f08b7ed14ef64b77e55266106658a4d",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "ordinary_cold": {
+        "wall_seconds": 0.609051832,
+        "process_cpu_seconds": 0.608999564
+      },
+      "samples": [
+        [
+          0.566175476,
+          0.565982802
+        ],
+        [
+          0.487689763,
+          0.487590404
+        ],
+        [
+          0.496737598,
+          0.496479552
+        ],
+        [
+          0.490570543,
+          0.490405169
+        ],
+        [
+          0.491844194,
+          0.491701086
+        ],
+        [
+          0.492755588,
+          0.492657913
+        ],
+        [
+          0.488910028,
+          0.488736594
+        ]
+      ],
+      "wall_seconds": {
+        "median": 0.491844194,
+        "min": 0.487689763,
+        "max": 0.566175476,
+        "mad": 0.002934166000000016
+      },
+      "process_cpu_seconds": {
+        "median": 0.491701086,
+        "min": 0.487590404,
+        "max": 0.565982802,
+        "mad": 0.0029644919999999853
+      },
+      "native_phase_values": [
+        [
+          0.60345707,
+          0.002193054
+        ],
+        [
+          6.68e-07,
+          6.68e-07
+        ],
+        [
+          0.601263348,
+          0.001193244
+        ],
+        [
+          0.048221199,
+          0.048221199
+        ],
+        [
+          1.0045e-05,
+          1.0045e-05
+        ],
+        [
+          0.472779642,
+          0.138417675
+        ],
+        [
+          0.334361967,
+          0.334361967
+        ],
+        [
+          4.2936e-05,
+          4.2936e-05
+        ],
+        [
+          0.000764126,
+          6.9612e-05
+        ],
+        [
+          0.000694514,
+          0.000694514
+        ],
+        [
+          0.000250417,
+          0.000250417
+        ],
+        [
+          0.001020659,
+          0.001020659
+        ],
+        [
+          0.07698108,
+          0.003719918
+        ],
+        [
+          0.062439065,
+          0.062439065
+        ],
+        [
+          0.010563441,
+          0.010563441
+        ],
+        [
+          0.000258656,
+          0.000258656
+        ]
+      ],
+      "cpu_monitor": {
+        "samples": 8,
+        "seconds": 6.920946570113301,
+        "busy_percent_excluding_idle_iowait": {
+          "cpu16": 99.71139971139971,
+          "cpu17": 20.869565217391305,
+          "cpu48": 7.658959537572255,
+          "cpu49": 72.54335260115607
+        },
+        "load_start": [
+          29.11572265625,
+          29.55712890625,
+          31.1181640625
+        ],
+        "load_end": [
+          28.86376953125,
+          29.48876953125,
+          31.07861328125
+        ]
+      }
+    },
+    {
+      "name": "02-candidate",
+      "installation": "candidate",
+      "actual_exit": 0,
+      "report_sha256": "7a384119eb85c9c44db8f6e621334bd7c0c6b94465232861ce31a9a790889dba",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "ordinary_cold": {
+        "wall_seconds": 0.611988062,
+        "process_cpu_seconds": 0.611950968
+      },
+      "samples": [
+        [
+          0.850706206,
+          0.850425579
+        ],
+        [
+          0.848664676,
+          0.848596115
+        ],
+        [
+          0.813474479,
+          0.813403723
+        ],
+        [
+          0.794417785,
+          0.794314008
+        ],
+        [
+          0.816030343,
+          0.815791689
+        ],
+        [
+          0.723633725,
+          0.723460486
+        ],
+        [
+          0.645007468,
+          0.644861454
+        ]
+      ],
+      "wall_seconds": {
+        "median": 0.813474479,
+        "min": 0.645007468,
+        "max": 0.850706206,
+        "mad": 0.03519019699999992
+      },
+      "process_cpu_seconds": {
+        "median": 0.813403723,
+        "min": 0.644861454,
+        "max": 0.850425579,
+        "mad": 0.03519239200000002
+      },
+      "native_phase_values": [
+        [
+          0.844646052,
+          0.003418078
+        ],
+        [
+          1.042e-06,
+          1.042e-06
+        ],
+        [
+          0.841226932,
+          0.001606424
+        ],
+        [
+          0.077930818,
+          0.077930818
+        ],
+        [
+          1.0168e-05,
+          1.0168e-05
+        ],
+        [
+          0.640762441,
+          0.188303923
+        ],
+        [
+          0.452458518,
+          0.452458518
+        ],
+        [
+          3.8767e-05,
+          3.8767e-05
+        ],
+        [
+          0.000653256,
+          6.5349e-05
+        ],
+        [
+          0.000587907,
+          0.000587907
+        ],
+        [
+          0.000217524,
+          0.000217524
+        ],
+        [
+          0.001222366,
+          0.001222366
+        ],
+        [
+          0.118785168,
+          0.006629067
+        ],
+        [
+          0.096863686,
+          0.096863686
+        ],
+        [
+          0.014941986,
+          0.014941986
+        ],
+        [
+          0.000350429,
+          0.000350429
+        ]
+      ],
+      "cpu_monitor": {
+        "samples": 11,
+        "seconds": 9.722417141776532,
+        "busy_percent_excluding_idle_iowait": {
+          "cpu16": 99.58847736625515,
+          "cpu17": 34.465020576131685,
+          "cpu48": 78.70370370370371,
+          "cpu49": 67.62589928057554
+        },
+        "load_start": [
+          28.86376953125,
+          29.48876953125,
+          31.07861328125
+        ],
+        "load_end": [
+          29.12548828125,
+          29.5224609375,
+          31.07275390625
+        ]
+      }
+    },
+    {
+      "name": "03-baseline-after",
+      "installation": "baseline",
+      "actual_exit": 0,
+      "report_sha256": "508c4d5e3783c19d135967fb27031b92dd4d3b4e9b7bf0d3368227778a076d67",
+      "cold_candidate_sha256": "dc5064b849cf26279c1a0d68166c5c8a1fc77222e06e0a5d9da032fdda73f2b4",
+      "ordinary_cold": {
+        "wall_seconds": 0.86922703,
+        "process_cpu_seconds": 0.869088695
+      },
+      "samples": [
+        [
+          0.504555143,
+          0.504419772
+        ],
+        [
+          0.759326687,
+          0.759237854
+        ],
+        [
+          0.586073854,
+          0.585905349
+        ],
+        [
+          0.495845745,
+          0.495702054
+        ],
+        [
+          0.495006279,
+          0.494914144
+        ],
+        [
+          0.549001535,
+          0.548819699
+        ],
+        [
+          0.821940636,
+          0.821913604
+        ]
+      ],
+      "wall_seconds": {
+        "median": 0.549001535,
+        "min": 0.495006279,
+        "max": 0.821940636,
+        "mad": 0.053155790000000036
+      },
+      "process_cpu_seconds": {
+        "median": 0.548819699,
+        "min": 0.494914144,
+        "max": 0.821913604,
+        "mad": 0.05311764500000005
+      },
+      "native_phase_values": [
+        [
+          0.544592905,
+          0.00194502
+        ],
+        [
+          9.54e-07,
+          9.54e-07
+        ],
+        [
+          0.542646931,
+          0.001034455
+        ],
+        [
+          0.040483529,
+          0.040483529
+        ],
+        [
+          9.372e-06,
+          9.372e-06
+        ],
+        [
+          0.430994261,
+          0.116259082
+        ],
+        [
+          0.314735179,
+          0.314735179
+        ],
+        [
+          4.4833e-05,
+          4.4833e-05
+        ],
+        [
+          0.000682505,
+          7.3787e-05
+        ],
+        [
+          0.000608718,
+          0.000608718
+        ],
+        [
+          0.000230577,
+          0.000230577
+        ],
+        [
+          0.000735792,
+          0.000735792
+        ],
+        [
+          0.068431607,
+          0.003347743
+        ],
+        [
+          0.05554265,
+          0.05554265
+        ],
+        [
+          0.009314214,
+          0.009314214
+        ],
+        [
+          0.000227,
+          0.000227
+        ]
+      ],
+      "cpu_monitor": {
+        "samples": 9,
+        "seconds": 7.872476309072226,
+        "busy_percent_excluding_idle_iowait": {
+          "cpu16": 99.36628643852978,
+          "cpu17": 38.88182973316391,
+          "cpu48": 46.94656488549618,
+          "cpu49": 85.1145038167939
+        },
+        "load_start": [
+          29.12548828125,
+          29.5224609375,
+          31.07275390625
+        ],
+        "load_end": [
+          29.40771484375,
+          29.5712890625,
+          31.072265625
+        ]
+      }
+    }
+  ],
+  "ratios_of_process_medians": {
+    "candidate_over_baseline_before_wall": 1.6539271763773224,
+    "candidate_over_baseline_after_wall": 1.481734434494796,
+    "baseline_after_over_before_wall": 1.1162102586495106,
+    "candidate_over_baseline_before_cpu": 1.654264646061815,
+    "candidate_over_baseline_after_cpu": 1.4820964416585198,
+    "baseline_after_over_before_cpu": 1.1161653179671847
+  },
+  "limitations": [
+    "One candidate process bracketed by two baseline processes; seven within-process samples are not independent process repetitions.",
+    "Busy shared host, chronological drift and unequal whole-stage SMT-sibling activity limit causal attribution; CPU near wall does not rule out interference.",
+    "SMT monitor summaries include setup, accuracy and diagnostics, not isolated per-sample activity. No utilization cutoff or quiet-host claim was used.",
+    "Actual historical per-stage frequency was not captured. Later policy/instantaneous readings cannot reconstruct stage frequencies; unchanged powersave/turbo settings do not imply fixed clocks.",
+    "Native parent/self accounting passed; finalization self and unassigned solve self are not assigned to an uninstrumented function. No stable baseline, causal regression, general ranking, 2x or project performance target is established."
+  ]
+}
