@@ -15,14 +15,14 @@ export const katexMathPlugin: MdastPluginDefinition = {
   math(node) {
     const rendered = renderMath(node.value, node.type === 'math');
     return {
-      mdxExpressions: false,
-      raw:
+      type: 'html',
+      value:
         '<div class="eqiora-math-region" role="region" aria-label="Displayed equation" tabindex="0">' +
         rendered +
         '</div>',
     };
   },
   inlineMath(node) {
-    return { raw: renderMath(node.value, node.type === 'math'), mdxExpressions: false };
+    return { type: 'html', value: renderMath(node.value, node.type === 'math') };
   },
 };
