@@ -301,7 +301,17 @@ def test_steady_mini_profile_reports_one_assembly_and_preserves_artifact() -> No
     _, _, plan, profiled = accepted(profile=True)
     ordinary = eqiora.run(plan)
     assert ordinary.profile is None
-    assert profiled.to_bytes() == ordinary.to_bytes()
+    # Result envelopes include elapsed time in their identity. Compare all
+    # numerical content and retain exact artifact replay for each execution.
+    ordinary_content = json.loads(ordinary.to_bytes())["content"]
+    profiled_content = json.loads(profiled.to_bytes())["content"]
+    for content in (ordinary_content, profiled_content):
+        content.pop("elapsed_seconds")
+    assert profiled_content == ordinary_content
+    for result in (ordinary, profiled):
+        replayed = eqiora.Result.from_bytes(plan, result.to_bytes())
+        assert replayed.to_bytes() == result.to_bytes()
+        assert replayed.profile is None
     assert profiled.profile is not None
     phases = profiled.profile.phases
     assembly = [phase for phase in phases if phase.name == "assembly"]
