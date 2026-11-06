@@ -11,6 +11,7 @@ use crate::discrete_space::DiscreteSpace;
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Integrate physical parent-outward flux into the complete parent-cell map.
     /// The caller owns the authenticated facet-to-cell incidence and Domain binding.
+    #[cfg(test)]
     pub(crate) fn evaluate_natural_facet(
         &self,
         field: RawId,
@@ -19,6 +20,18 @@ impl<S: Coefficient> BoundRegionForm<S> {
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
         datum_degree: Option<usize>,
+    ) -> Result<LocalContribution<S>, Diagnostic> {
+        self.evaluate_affine_facet(field, cell, facet, rule, datum, (datum_degree, None))
+    }
+
+    pub(super) fn evaluate_affine_facet(
+        &self,
+        field: RawId,
+        cell: &AffineGeometryMap,
+        facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
+        rule: &QuadratureRule,
+        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        (datum_degree, robin): (Option<usize>, Option<&Data<S>>),
     ) -> Result<LocalContribution<S>, Diagnostic> {
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
@@ -80,8 +93,18 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let entries = count
             .checked_mul(count)
             .ok_or_else(|| invalid("natural flux local matrix size overflow"))?;
+        let mut matrix = vec![<S as From<f64>>::from(0.0); entries];
         let mut rhs = vec![<S as From<f64>>::from(0.0); count];
         let normal = parent_outward_normal(cell, incidence)?;
+        let datum_degree = if robin.is_some() {
+            Some(
+                datum_degree
+                    .unwrap_or(0)
+                    .max(self.field_basis_degree(field)),
+            )
+        } else {
+            datum_degree
+        };
         if dimension > 1
             && rule.polynomial_exactness().is_none_or(|degree| {
                 degree
@@ -93,6 +116,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
             return Err(invalid(
                 "natural facet quadrature underintegrates its tested space and authored polynomial datum",
             ));
+        }
+        if robin.is_some()
+            && (layout.components != 1 || layout.value_type.scalar_domain() != ScalarDomain::Real)
+        {
+            return Err(invalid("Robin facet requires a real scalar Field"));
         }
         let trace = space.trace_dofs(incidence.local_ordinal)?;
         for point in rule.points() {
@@ -112,6 +140,17 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 ));
             }
             let weight = point.weight * facet.measure_scale() * self.row_multipliers[row];
+            if let Some(alpha) = robin {
+                let alpha = alpha.evaluate(&physical)?;
+                for &a in &trace {
+                    for &b in &trace {
+                        matrix[(layout.range.start + a) * count + layout.range.start + b] += alpha
+                            * <S as From<f64>>::from(
+                                weight * layout.scale * test.values()[a] * test.values()[b],
+                            );
+                    }
+                }
+            }
             // Restrict the actual parent test basis via the authenticated affine
             // facet embedding, including every edge/face interpolation node.
             for &node in &trace {
@@ -122,11 +161,6 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 }
             }
         }
-        LocalContribution::new(
-            count,
-            count,
-            vec![<S as From<f64>>::from(0.0); entries],
-            rhs,
-        )
+        LocalContribution::new(count, count, matrix, rhs)
     }
 }

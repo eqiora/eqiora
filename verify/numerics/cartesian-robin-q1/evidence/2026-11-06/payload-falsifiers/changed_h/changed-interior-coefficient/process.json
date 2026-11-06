@@ -1,0 +1,24 @@
+{
+  "case": "changed_h",
+  "defect": "changed-interior-coefficient",
+  "pid": 515595,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/changed-interior-coefficient/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "every_coefficient",
+  "required_true": null,
+  "input_sha256": "4c0550d43d6b49955efec53102d14ff2bef55583780b87d483ed607dbb42fd68",
+  "report_sha256": "0b7fd0f8e6ed2b78e3efd1e8d7132d9005a6e151ae367a41d01d83ece5cd3b11",
+  "base_native_input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "accepted": false,
+  "status": "expected-rejection"
+}

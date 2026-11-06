@@ -54,6 +54,17 @@ struct BoundaryRole {
     flux_data: Option<(ExprId, bool)>,
 }
 
+impl BoundaryRole {
+    fn robin(&self) -> Option<(ExprId, ExprId)> {
+        match self.discharge {
+            BoundaryDischarge::AffineRobin {
+                coefficient, trace, ..
+            } => Some((coefficient, trace)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DerivedScalarGalerkinForm {
     dimension: usize,
@@ -120,7 +131,11 @@ impl DerivedScalarGalerkinForm {
         &self,
         quadrature: &QuadratureRule,
     ) -> Result<AdmittedScalarGalerkinForm<'_>, Diagnostic> {
-        if self.conjugate_test
+        if self
+            .boundary_roles
+            .iter()
+            .any(|boundary| boundary.robin().is_some())
+            || self.conjugate_test
             || !self.volume_nodes.gradient_only_trial
             || self
                 .volume_nodes
@@ -502,10 +517,18 @@ fn boundary_inventory(
                 parent,
                 volume,
                 volume_nodes,
+                field,
             )? {
                 (
                     flux.normal,
-                    if flux.datum.is_some() {
+                    if let Some((coefficient, trace)) = flux.robin {
+                        BoundaryDischarge::AffineRobin {
+                            coefficient,
+                            trace,
+                            datum: flux.datum,
+                            normal_negative: flux.normal_negative,
+                        }
+                    } else if flux.datum.is_some() {
                         BoundaryDischarge::PrescribedFlux
                     } else {
                         BoundaryDischarge::ZeroFlux

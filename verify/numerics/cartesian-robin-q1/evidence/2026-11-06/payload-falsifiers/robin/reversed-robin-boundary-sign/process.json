@@ -1,0 +1,24 @@
+{
+  "case": "robin",
+  "defect": "reversed-robin-boundary-sign",
+  "pid": 515563,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/reversed-robin-boundary-sign/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "65239543e9614b993692e0fc11f1b325288846c204e098dc067d4d6c5b4b5ee0",
+  "report_sha256": "995e3041e8d25e39cb2556635df637d97d320fdca41cfa532006cce4f2800c70",
+  "base_native_input_sha256": "42d2a0a523d9808a9d3254d8009978dc66b47da90b769fbb6d696a87caeb9a49",
+  "accepted": false,
+  "status": "expected-rejection"
+}

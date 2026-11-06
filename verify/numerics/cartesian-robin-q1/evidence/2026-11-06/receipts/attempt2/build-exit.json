@@ -1,0 +1,16 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "48-51",
+    "cargo",
+    "test",
+    "-p",
+    "eqiora-numerics",
+    "--lib",
+    "--no-run",
+    "--locked",
+    "--message-format=json"
+  ],
+  "exit_code": 0
+}

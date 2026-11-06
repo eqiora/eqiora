@@ -6,6 +6,7 @@ use crate::additive_residual::AdditiveResidualView;
 use crate::canonical_boundary::{BoundaryRelationBinding, PhysicalBoundaryQuantity};
 
 use super::*;
+mod robin;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
@@ -18,6 +19,12 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
     pub(crate) datum_expression: Option<ExprId>,
     pub(crate) datum_negative: bool,
     datum: PrescribedDatum<S>,
+    pub(crate) robin_coefficient_expression: Option<ExprId>,
+    pub(crate) robin_trace_expression: Option<ExprId>,
+    robin_coefficient: Option<Data<S>>,
+    robin_primal_coefficient: Option<Data<S>>,
+    robin_diffusion: Option<Data<S>>,
+    dimension: usize,
 }
 
 impl<S: Coefficient> RegionBoundaryLaw<S> {
@@ -67,7 +74,12 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
         dimension: usize,
     ) -> Result<(), Diagnostic> {
-        self.datum.input_partial(coordinate, dimension)
+        self.datum.input_partial(coordinate, dimension)?;
+        if let Some(coefficient) = &mut self.robin_coefficient {
+            *coefficient =
+                coefficient.derivative(&|input| f64::from(input == coordinate), dimension)?;
+        }
+        Ok(())
     }
 
     pub(crate) fn bind_inputs<'a>(
@@ -75,7 +87,19 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         point: impl Into<crate::form_compiler::spatial::InputPoint<'a>>,
     ) -> Result<(), Diagnostic> {
         let point = point.into();
-        self.datum.bind_inputs(point)
+        self.datum.bind_inputs(point)?;
+        if let Some(coefficient) = &mut self.robin_coefficient {
+            *coefficient = coefficient.bind_inputs(point)?;
+            if let Some(primal) = &mut self.robin_primal_coefficient {
+                *primal = primal.bind_inputs(point)?;
+                robin::validate_coefficient(primal, self.dimension)?;
+            }
+            if let Some(diffusion) = &mut self.robin_diffusion {
+                *diffusion = diffusion.bind_inputs(point)?;
+                robin::validate_diffusion(diffusion, self.dimension)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -127,6 +151,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         .is_ok()
                 })
             })?;
+            if let Some(law) =
+                self.robin_boundary_law(&context, &typed, &view, boundary, relation, &dependencies)?
+            {
+                laws.push(law);
+                continue;
+            }
             let mut operators = Vec::new();
             for leaf in view.leaves() {
                 match dag.node(leaf.value()) {
@@ -242,6 +272,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 datum_expression,
                 datum_negative,
                 datum,
+                robin_coefficient_expression: None,
+                robin_trace_expression: None,
+                robin_coefficient: None,
+                robin_primal_coefficient: None,
+                robin_diffusion: None,
+                dimension: self.dimension,
             });
         }
         Ok(laws)

@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "preparation_only": true,
+  "case": "changed_geometry_material_cooling",
+  "units": {
+    "coordinates": "m",
+    "A": "W/(m*K)",
+    "b": "W/m",
+    "coefficients": "K",
+    "left_reactions": "W/m",
+    "integrated_heat": "W/m",
+    "pointwise_heat_flux": "W/m^2"
+  },
+  "counts": {
+    "operator_rows": 9,
+    "load": 9,
+    "coefficients": 9,
+    "left_reactions": 3,
+    "free": 6
+  },
+  "ceiling_status": "eta=8192 binary64 unit roundoffs is declared, not an operation-count theorem",
+  "bounds": {
+    "eta": {
+      "numerator": "1",
+      "denominator": "1099511627776"
+    },
+    "sigma": {
+      "numerator": "1",
+      "denominator": "70368744177664"
+    },
+    "C": {
+      "numerator": "46989",
+      "denominator": "55496"
+    },
+    "U": {
+      "numerator": "310",
+      "denominator": "1"
+    },
+    "SA": {
+      "numerator": "12",
+      "denominator": "1"
+    },
+    "b_norm": {
+      "numerator": "1120",
+      "denominator": "1"
+    },
+    "Sb": {
+      "numerator": "4840",
+      "denominator": "1"
+    },
+    "deltaA": {
+      "numerator": "3",
+      "denominator": "274877906944"
+    },
+    "deltab": {
+      "numerator": "605",
+      "denominator": "137438953472"
+    },
+    "tau": {
+      "numerator": "605",
+      "denominator": "8796093022208"
+    },
+    "E": {
+      "numerator": "3246235065",
+      "denominator": "488147978355944224"
+    },
+    "R": {
+      "numerator": "649436497727778954842479747487915",
+      "denominator": "147533673706796033397230429787669561081856"
+    },
+    "rho": {
+      "numerator": "1798026667252781573563073839847595",
+      "denominator": "147533673706796033397230429787669561081856"
+    },
+    "reference_residual": {
+      "numerator": "479242645",
+      "denominator": "61018497294493028"
+    },
+    "individual_reaction": {
+      "numerator": "13571398827103403615272672649631915",
+      "denominator": "147533673706796033397230429787669561081856"
+    },
+    "total_reaction": {
+      "numerator": "40714196481310210845818017948895745",
+      "denominator": "147533673706796033397230429787669561081856"
+    }
+  },
+  "observations": {
+    "operator_inf_error": {
+      "numerator": "59",
+      "denominator": "20266198323167232"
+    },
+    "load_inf_error": {
+      "numerator": "1",
+      "denominator": "8796093022208"
+    },
+    "physical_free_residual_inf": {
+      "numerator": "3517180624165743",
+      "denominator": "19807040628566084398385987584"
+    },
+    "reference_free_residual_inf": {
+      "numerator": "31",
+      "denominator": "79164837199872"
+    },
+    "coefficient_inf_error": {
+      "numerator": "17",
+      "denominator": "123145302310912"
+    },
+    "native_vs_exported_recovery_inf_error": {
+      "numerator": "77371252449028770381651321",
+      "denominator": "79228162514264337593543950336"
+    },
+    "native_vs_reference_recovery_inf_error": {
+      "numerator": "618475290533",
+      "denominator": "633318697598976"
+    },
+    "reaction_target_inf_error": {
+      "numerator": "481036337031",
+      "denominator": "492581209243648"
+    },
+    "reaction_total_target_error": {
+      "numerator": "1924145347521",
+      "denominator": "1970324836974592"
+    }
+  },
+  "heat_convention": "physical_outward_heat=-weak_reaction",
+  "physical_outward_heat": {
+    "left": {
+      "numerator": "-9650845507986423",
+      "denominator": "281474976710656"
+    },
+    "right": {
+      "numerator": "37697541523749",
+      "denominator": "1099511627776"
+    }
+  },
+  "exact_physical_outward_heat": {
+    "left": {
+      "numerator": "-240",
+      "denominator": "7"
+    },
+    "right": {
+      "numerator": "240",
+      "denominator": "7"
+    }
+  },
+  "checks": {
+    "full_operator": true,
+    "full_load": true,
+    "physical_free_residual": true,
+    "every_coefficient": true,
+    "reference_free_residual": true,
+    "every_reaction_vs_exported_physical_operator": false,
+    "every_reaction_vs_reference_full_vector": false,
+    "every_reaction_vs_exact_target": false,
+    "reaction_total": false
+  },
+  "accepted": false,
+  "input_sha256": "edf95d76f7258e9e65d09d9087594d773387bab31665b68b017ec99ca757a4bb"
+}

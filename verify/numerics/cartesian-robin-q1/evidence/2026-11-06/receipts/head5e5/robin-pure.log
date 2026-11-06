@@ -1,0 +1,18 @@
+   Compiling eqiora-numerics v0.1.5 (/data/nk523/.cache/eqiora/worktrees/scalar-robin-boundary/crates/eqiora-numerics)
+    Finished `test` profile [optimized] target(s) in 1m 59s
+     Running unittests src/lib.rs (/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d)
+
+running 10 tests
+test form_compiler::region::tests::robin::robin_input_partial_and_rebinding_keep_alpha_and_beta ... ok
+test form_compiler::vocabulary::replay::tests::scalar_robin_replay_retains_all_affine_lineage_and_mixed_flux_obligations ... ok
+test form_compiler::region::tests::robin::robin_facet_matrix_survives_projection_residual_jacobian_and_pullback ... ok
+test numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions ... ignored, explicit four-case scientific producer; source and protocol review required
+test form_compiler::region::tests::robin::robin_compiler_keeps_known_matrix_and_load_and_rejects_invalid_coefficients ... ok
+test scalar_conservation::tests::projects_transient_storage_source_and_robin_without_physics_names ... ok
+test numerical_admission::tests::plans::robin::robin_remains_unsupported_by_conservative_tpfa ... ok
+test form_compiler::region::tests::robin::robin_authored_proofs_keep_trial_trace_and_only_essential_zero_test_trace ... ok
+test scalar_conservation::tests::robin_admission_is_closed_to_positive_finite_constants ... ok
+test numerical_admission::tests::plans::robin::four_robin_sources_resolve_and_replay_without_solves ... ok
+
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 1014 filtered out; finished in 0.07s
+

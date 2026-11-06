@@ -1,0 +1,11 @@
+{
+  "review": "approved fixed four-case native launch",
+  "source": "5e5ab85a33b8453ac98ac17676fde971495fb35c",
+  "tree": "ad01689de750f40a5a631c91abbf5eb766d1a4fb",
+  "binary_sha256": "e0672eeef171c5ea4e16b49112d809747c0343058f0cfe242cbf8342ca211049",
+  "build_artifact_fresh": true,
+  "focused_checks": 7,
+  "launch_plan_sha256": "78b914cee2d70191cff14b97630cba8155032642f919c62bbf70f3ef8b99744d",
+  "candidate_solves_before_review": 0,
+  "reference_sha256": "4855a307d70a52c76086c1d8bc877697c6c297ad739e5db8b32c14d9ea2b3d3c"
+}

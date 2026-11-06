@@ -50,6 +50,11 @@ impl<S: Coefficient> ConservativeFacets<S> {
         let law = boundaries
             .get(&(field, axis, side))
             .ok_or_else(|| invalid("conservative facet lacks its exact boundary law"))?;
+        if law.robin_coefficient().is_some() {
+            return Err(invalid(
+                "conservative TPFA facets do not admit Robin boundary laws",
+            ));
+        }
         let mut normal = vec![0.; self.mesh.topological_dimension()];
         normal[axis] = match side {
             BoundarySide::Lower => -1.,

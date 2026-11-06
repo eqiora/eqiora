@@ -1,0 +1,24 @@
+{
+  "case": "changed_geometry_material_cooling",
+  "defect": "reversed-robin-boundary-sign",
+  "pid": 515601,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/reversed-robin-boundary-sign/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "c2a892af6e983b556c726dd86b51a07704de1c4dcfb0a9db22b4b9966c3efd27",
+  "report_sha256": "796c3de08c437502dae8036dd698cbd915690bcae11c5ec0bdf3a447e386c5d4",
+  "base_native_input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "accepted": false,
+  "status": "expected-rejection"
+}

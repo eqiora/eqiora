@@ -1,0 +1,24 @@
+{
+  "case": "changed_geometry_material_cooling",
+  "defect": "incorrectly-eliminated-right-test-trace",
+  "pid": 515603,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_geometry_material_cooling/incorrectly-eliminated-right-test-trace/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "73868953185bb8d0855d97402260cf9e9e9ec8252998f1e44e56591b99811b51",
+  "report_sha256": "51a72d639b9e628e48a8758320d97386b8681e6db564f48eee5ccc8c95840ca5",
+  "base_native_input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "accepted": false,
+  "status": "expected-rejection"
+}

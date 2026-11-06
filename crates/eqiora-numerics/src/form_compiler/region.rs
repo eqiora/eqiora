@@ -10,7 +10,8 @@ use eqiora_sem::KernelProgram;
 use super::bilinear::Pairing;
 use super::equation_roles::{EquationRoles, Role};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
-use super::spatial::data::{Context, Data};
+use super::spatial::data::Context;
+pub(crate) use super::spatial::data::Data;
 
 pub(crate) mod balance;
 mod binding;

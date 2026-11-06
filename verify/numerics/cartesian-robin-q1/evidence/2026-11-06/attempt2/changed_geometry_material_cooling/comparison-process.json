@@ -1,0 +1,25 @@
+{
+  "case": "changed_geometry_material_cooling",
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/changed_geometry_material_cooling/robin-input.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_geometry_material_cooling.json"
+  ],
+  "pid": 478893,
+  "start_utc": "2026-11-06T10:35:34.518186+00:00",
+  "finish_utc": "2026-11-06T10:35:34.566254+00:00",
+  "exit_code": 0,
+  "elapsed_seconds": 0.04807305708527565,
+  "accepted": true,
+  "input_sha256": "7c1944d1ecf33656466f0731b4462c4f2be7e8015b3ea8cbbc2d3b5b774c05c2",
+  "captured_operator_sha256": "63f6a368c8068181f3899d119872a09cb7c71f572a1e19b1d570f0fadefd205f",
+  "result_sha256": "6beaf3154b0e2bdd99ff9fd0604ee4023be57ba7b241e7e895292687635db288",
+  "report": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/changed_geometry_material_cooling.json",
+  "report_sha256": "98fe2da37929f43824108b602e4d9936e0c2a54daae11592a84feef9b79b7af2"
+}

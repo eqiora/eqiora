@@ -340,15 +340,10 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                                 }
                             }
                         } else {
-                            let local = crate::region_assembly::mapping::prepare_mesh_facet(
-                                mesh,
-                                form,
-                                *field,
-                                facet,
-                                *parent,
-                                |point, normal| law.evaluate(point, normal),
-                                law.polynomial_degree(),
-                            )?;
+                            let local =
+                                crate::region_assembly::mapping::prepare_mesh_boundary_facet(
+                                    mesh, form, *field, facet, *parent, law,
+                                )?;
                             natural.push((parent.entity.index(), local));
                         }
                     }

@@ -1,0 +1,24 @@
+{
+  "case": "changed_h",
+  "defect": "direct-recovery-defect-inside-looser-rho",
+  "pid": 515593,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/direct-recovery-defect-inside-looser-rho/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "every_reaction_vs_exported_physical_operator",
+  "required_true": "every_reaction_vs_reference_full_vector",
+  "input_sha256": "51fe19083dec62fa7a119023f376a56b3d5d454a4f1299f9ca338775311edb67",
+  "report_sha256": "4127b10ada4674571fa8a157b0c5d659f44f7d77409085088346834f53193247",
+  "base_native_input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "accepted": false,
+  "status": "expected-rejection"
+}

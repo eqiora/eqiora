@@ -1,0 +1,8 @@
+    Finished `test` profile [optimized] target(s) in 0.09s
+     Running unittests src/lib.rs (/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d)
+
+running 1 test
+test scalar_conservation::retained::tests::physical_outward_boundary_values_convert_to_diffusion_conormal_once ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1023 filtered out; finished in 0.02s
+

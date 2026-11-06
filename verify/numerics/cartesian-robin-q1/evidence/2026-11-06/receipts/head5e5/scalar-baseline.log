@@ -1,0 +1,22 @@
+    Finished `test` profile [optimized] target(s) in 0.08s
+     Running unittests src/lib.rs (/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d)
+
+running 15 tests
+test form_compiler::scalar::authored::complex_tests::authored_equivalence_retains_inner_order_and_complex_phase ... ok
+test form_compiler::scalar::recognition::division_tests::independent_division_preserves_degree_and_complex_antilinearity_rejects ... ok
+test form_compiler::scalar::tests::complete_essential_boundary_accepts_nonzero_parameter_data ... ok
+test form_compiler::scalar::tests::complex::real_reaction_uses_the_same_inventory_and_conjugation_is_identity ... ok
+test form_compiler::scalar::tests::e1_element_fixture_matches_frozen_matrix_loads_and_certificate ... ok
+test form_compiler::scalar::tests::e1_independent_actions_reject_corrupted_jvp_and_primal_as_vjp ... ok
+test form_compiler::scalar::tests::e1_rejects_certificate_sign_slot_quadrature_aspect_and_coefficient_mutants ... ok
+test form_compiler::scalar::tests::non_numeric_or_nonzero_unused_storage_remains_unconsumed ... ok
+test form_compiler::scalar::tests::projected_zero_storage_does_not_hide_unconsumed_operations ... ok
+test form_compiler::scalar::tests::complex::correspondence_rejects_unit_only_scaling_of_the_whole_spatial_form ... ok
+test form_compiler::scalar::tests::reachable_extra_strong_form_term_is_not_dropped ... ok
+test form_compiler::scalar::tests::runtime_dimensional_1d_and_3d_elements_match_the_frozen_oracles ... ok
+test form_compiler::scalar::tests::complex::real_nonpolynomial_forcing_retains_its_source_grouping ... ok
+test form_compiler::scalar::tests::zero_natural_boundary_has_its_own_discharge_without_zero_test_trace ... ok
+test form_compiler::scalar::tests::complex::complex_helmholtz_correspondence_binds_reaction_conjugation_phase_and_boundary ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 1009 filtered out; finished in 0.07s
+
