@@ -75,6 +75,6 @@ fn preparation_rejects_foreign_boundary_parent_and_geometry() {
             .prepare()
             .unwrap_err()
             .message()
-            .contains("exact parent geometry or Field binding")
+            .contains("exact parent geometry, Field binding or assembly quadrature")
     );
 }
