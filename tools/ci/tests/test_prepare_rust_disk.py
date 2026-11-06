@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import prepare_rust_disk as disk
 
 HOSTED = {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted", "RUNNER_OS": "Linux"}
+FLOOR = 32 * 1024**3
 
 
 class PrepareRustDiskTests(unittest.TestCase):
@@ -25,7 +27,7 @@ class PrepareRustDiskTests(unittest.TestCase):
         self.size = self.stack.enter_context(mock.patch.object(disk, "sdk_allocated_bytes", side_effect=[1024, 2048]))
         self.remove = self.stack.enter_context(mock.patch.object(disk.subprocess, "run"))
         self.output = self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.usage.side_effect = [SimpleNamespace(free=disk.MIN_FREE_BYTES)] * 2
+        self.usage.side_effect = [SimpleNamespace(free=FLOOR)] * 2
 
     def test_every_guard_rejects_before_measurement_or_deletion(self):
         for name, wrong in (("GITHUB_ACTIONS", "false"), ("RUNNER_ENVIRONMENT", "self-hosted"), ("RUNNER_OS", "Windows")):
@@ -55,6 +57,11 @@ class PrepareRustDiskTests(unittest.TestCase):
             mock.call(["sudo", "-n", "rm", "-rf", "--", "/usr/local/lib/android"], check=True),
             mock.call(["sudo", "-n", "rm", "-rf", "--", "/usr/share/dotnet"], check=True),
         ])
+
+    def test_one_byte_below_32_gib_triggers_conditional_cleanup(self):
+        self.usage.side_effect = [SimpleNamespace(free=FLOOR - 1), SimpleNamespace(free=FLOOR)]
+        disk.prepare()
+        self.assertEqual(self.remove.call_count, 2)
 
     def test_absent_sdks_are_safe_and_insufficient_postcheck_is_explicit(self):
         self.size.side_effect = [None, None]
@@ -92,6 +99,37 @@ class PrepareRustDiskTests(unittest.TestCase):
         self.assertIn("if: needs.changes.outputs.rust == 'true'", step)
         self.assertLess(quality.index("- name: Restore Stable dependencies"), quality.index(marker))
         self.assertLess(quality.index(marker), quality.index("- name: Clippy\n"))
+
+
+class SdkMeasurementTests(unittest.TestCase):
+    def setUp(self):
+        cache = Path.home() / ".cache" / "eqiora" / "rust-disk-test-tmp"
+        cache.mkdir(parents=True, exist_ok=True)
+        self.temporary = tempfile.TemporaryDirectory(prefix="sdk-", dir=cache)
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+
+    def test_absent_sdk_has_no_size(self):
+        self.assertIsNone(disk.sdk_allocated_bytes(self.root / "absent"))
+
+    def test_links_do_not_expand_measurement_or_double_count_data(self):
+        sdk = self.root / "sdk"
+        sdk.mkdir()
+        data = sdk / "data"
+        data.write_bytes(b"a" * 8192)
+        os.link(data, sdk / "hardlink")
+        external = self.root / "external"
+        external.mkdir()
+        (external / "outside-data").write_bytes(b"b" * 16384)
+        outside_link = sdk / "outside-link"
+        outside_link.symlink_to(external, target_is_directory=True)
+        dangling = sdk / "dangling-link"
+        dangling.symlink_to(self.root / "missing", target_is_directory=True)
+        expected = sum(path.lstat().st_blocks * 512 for path in (sdk, data, outside_link, dangling))
+        self.assertEqual(disk.sdk_allocated_bytes(sdk), expected)
+        self.assertEqual(disk.sdk_allocated_bytes(outside_link), outside_link.lstat().st_blocks * 512)
+        self.assertEqual(disk.sdk_allocated_bytes(dangling), dangling.lstat().st_blocks * 512)
+        self.assertEqual((external / "outside-data").read_bytes(), b"b" * 16384)
 
 
 if __name__ == "__main__":
