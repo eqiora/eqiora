@@ -9,6 +9,7 @@ import { defineConfig } from 'astro/config';
 
 import { katexMathPlugin } from './src/plugins/katex.ts';
 import { canonicalGuideLinks } from './src/plugins/canonical-guide-links.ts';
+import { preserveCodeFenceMetadata, restoreCodeFenceMetadata } from './src/plugins/code-fence-metadata.ts';
 
 const SOURCE_SHA = /^[0-9a-f]{40}$/;
 
@@ -106,7 +107,8 @@ export default defineConfig({
   markdown: {
     processor: satteri({
       features: { math: true, rawHtml: true },
-      mdastPlugins: [katexMathPlugin, canonicalGuideLinks],
+      mdastPlugins: [preserveCodeFenceMetadata, katexMathPlugin, canonicalGuideLinks],
+      hastPlugins: [restoreCodeFenceMetadata],
     }),
   },
   integrations: [
