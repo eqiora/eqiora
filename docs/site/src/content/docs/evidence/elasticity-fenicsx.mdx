@@ -1,0 +1,192 @@
+---
+title: Elasticity comparison with FEniCSx
+description: Accuracy, runtime and memory for one ordinary two-dimensional Q1 elasticity campaign.
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import { Image } from 'astro:assets';
+import chart320 from '../../../../../performance/2026-11-06-elasticity-fenicsx-320.png';
+import chart1440 from '../../../../../performance/2026-11-06-elasticity-fenicsx-1440.png';
+
+Both tools passed independent analytic accuracy checks at all four mesh levels.
+**Eqiora was slower in ordinary repeated execution at every level.** At 32 cells
+per axis, its median was 183.800 ms; FEniCSx's was 3.658 ms.
+These are observations from one campaign on a busy shared host, not a stable
+baseline or a general ranking. The optimized development wheel reports version
+`0.1.5`; this does not qualify the published release or every distribution profile.
+
+<picture>
+  <source media="(max-width: 600px)" srcset={chart320.src} />
+  <Image src={chart1440} alt="Eqiora has longer ordinary execution at every mesh level; both tools have overlapping second-order displacement error curves." />
+</picture>
+
+## Problem and accuracy
+
+The workload uses the shipped
+`Eqiora.Solid.LinearElasticity.IsotropicBalanceWithPotential2d` component through
+ordinary compile → resolve → run. It is intrinsic two-dimensional isotropic
+small-strain elasticity on the unit square in metres, with homogeneous displacement,
+mu = 3 Pa, lambda = 2 Pa and the nonaffine potential declared in the
+<ExactSourceLink path="tools/benchmarks/elasticity_fenicsx/README.md" kind="blob">frozen protocol</ExactSourceLink>.
+This covers neither plane stress/strain nor dynamics, three dimensions or general materials.
+
+Both tools use vector quadrilateral Q1, float64, two-point tensor Gauss assembly,
+CG with identity preconditioning, zero initial guess, relative tolerance `1e-12`,
+absolute tolerance `1e-14` and at most 10,000 iterations. The true algebraic
+residual excludes essential rows in both tools. Eqiora stores the free system;
+FEniCSx retains identity boundary rows. At N=32 there are 2,178 total and 1,922
+free coefficients; the stored systems therefore differ in size.
+
+Continuous displacement L2 and gradient H1 seminorm errors are integrated from
+the exported Q1 fields against the independent manufactured analytic solution.
+Ten-point quadrature is audited with twelve points. Boundary, finite-value,
+true-residual and nonzero-load equilibrium checks passed. Cross-tool agreement
+is not the oracle. L2 refinement orders were 1.9953, 1.9946, 1.9984; H1 orders
+were 1.0004, 1.0003, 1.0000 in both tools.
+
+L2 errors have units m²; gradient seminorm errors have units m.
+
+| N / tool | L2 error | H1 error |
+|---|---:|---:|
+| 4 / eqiora | 0.00243258 | 0.0401007 |
+| 4 / fenicsx | 0.00243258 | 0.0401007 |
+| 8 / eqiora | 0.000610111 | 0.0200448 |
+| 8 / fenicsx | 0.000610111 | 0.0200448 |
+| 16 / eqiora | 0.000153097 | 0.0100203 |
+| 16 / fenicsx | 0.000153097 | 0.0100203 |
+| 32 / eqiora | 3.83175e-05 | 0.00501 |
+| 32 / fenicsx | 3.83175e-05 | 0.00501 |
+
+## Ordinary execution
+
+Each fresh child retains mesh/model/forms, but assembles and solves afresh for
+each ordinary call. Field return is inside the clock; output inspection,
+accuracy, protocol diagnostics, Result destruction and file writes are outside.
+One cold call precedes separate profile and equilibrium probes, then two warmups
+and seven samples. The probes may warm caches. These seven calls describe
+within-process spread, not seven independent process repetitions.
+
+All times below are milliseconds. MAD is median absolute deviation; the range
+is observed, not a confidence interval. Full wall and process-CPU samples are
+retained in the record.
+
+| N / tool | Median | MAD | Range | Cold |
+|---|---:|---:|---:|---:|
+| 4 / eqiora | 6.8901 | 0.2106 | 6.6323–7.7178 | 7.4042 |
+| 4 / fenicsx | 0.3477 | 0.0149 | 0.3316–0.3654 | 3.1303 |
+| 8 / eqiora | 15.5427 | 0.1026 | 15.3772–15.6723 | 16.4335 |
+| 8 / fenicsx | 0.4679 | 0.0133 | 0.4519–0.4934 | 1.8637 |
+| 16 / eqiora | 46.0198 | 0.3600 | 45.5425–46.5521 | 53.9393 |
+| 16 / fenicsx | 0.9759 | 0.0166 | 0.9382–1.0505 | 2.4632 |
+| 32 / eqiora | 183.8000 | 1.9403 | 179.8392–186.6547 | 189.9259 |
+| 32 / fenicsx | 3.6576 | 0.1094 | 3.5345–4.0848 | 6.9566 |
+
+## Mesh, preparation and memory
+
+Mesh and preparation are single cold observations in milliseconds. Eqiora's
+mesh clock includes GeometryGraph construction and mesh resolution/generation;
+preparation covers compile and resolve. FEniCSx creates the mesh, then prepares
+function space, boundary data and forms, including a fresh JIT cache per child.
+Imports are separately recorded. Preparation wall time includes compiler-child
+work; process CPU time excludes child CPU. Fresh processes and JIT directories
+do not make filesystem or operating-system caches cold. These observations do
+not establish preparation scaling or an end-to-end speed ranking.
+
+Peak RSS is the Linux process high-water mark immediately after the cold field
+return, before accuracy and profiling. It includes imports, mesh and preparation,
+not just the operator. Child peak is the largest completed-child high-water
+mark, not simultaneous aggregate process-tree memory. Do not add it to or
+subtract it from the parent peak. Stage snapshots and final peaks are retained.
+
+| N / tool | Mesh ms | Prep ms | Peak RSS KiB | Child peak KiB |
+|---|---:|---:|---:|---:|
+| 4 / eqiora | 1.116 | 22.722 | 53100 | 35180 |
+| 4 / fenicsx | 1.927 | 530.516 | 99924 | 97356 |
+| 8 / eqiora | 1.164 | 22.096 | 52900 | 34980 |
+| 8 / fenicsx | 1.881 | 511.146 | 100280 | 97208 |
+| 16 / eqiora | 2.919 | 23.468 | 52880 | 34960 |
+| 16 / fenicsx | 1.929 | 457.049 | 100300 | 97216 |
+| 32 / eqiora | 8.551 | 25.588 | 65620 | 34948 |
+| 32 / fenicsx | 2.586 | 462.577 | 101920 | 97312 |
+
+## Separate diagnostic phases
+
+These are additional executions, not partitions of the ordinary medians.
+Their native boundaries differ; no cross-tool phase speed ratio or subtraction
+from ordinary timing is justified. All values below are milliseconds.
+
+Eqiora assembly is its native scalar-region-finalization span; linear solve is
+the reference-provider span. Solve self is exclusive time reported by the
+profiler outside its child spans. FEniCSx assembly includes matrix/vector
+allocation, assembly, lifting, ghost accumulation and essential boundary
+application. Its linear bracket includes KSP allocation/configuration, zero
+start, solve, independently recomputed residual, summary getters and KSP/residual
+cleanup. Field recovery follows inside ordinary execution. Retained matrix/RHS
+destruction and output inspection are outside it.
+
+| N / tool | Assembly | Linear solve | Solve self |
+|---|---:|---:|---:|
+| 4 / eqiora | 2.5283 | 0.0179 | 4.2776 |
+| 4 / fenicsx | 0.5459 | 0.0954 | — |
+| 8 / eqiora | 9.7391 | 0.0772 | 6.0143 |
+| 8 / fenicsx | 0.5992 | 0.1367 | — |
+| 16 / eqiora | 40.1713 | 0.7059 | 11.7587 |
+| 16 / fenicsx | 1.1230 | 0.3615 | — |
+| 32 / eqiora | 148.9043 | 5.5089 | 31.4197 |
+| 32 / fenicsx | 2.5004 | 1.6777 | — |
+
+At N=32 the Eqiora diagnostic reports 148.904 ms in assembly, 5.509 ms in
+linear solve and 31.420 ms in solve self. This attributes those measured spans;
+it does not identify the cause of the complete runtime difference or explain
+unmeasured internal costs.
+
+## Environment, provenance and reproduction
+
+The campaign ran on an Intel Xeon Gold 6346 host with two sockets, 32 physical
+cores and 64 logical CPUs. Worker CPU55 and sibling CPU23 were monitored;
+supervisor CPU48 used a separate physical core. The bounded selection sample
+observed 34.27% and 44.80% busy time on the worker and sibling, with host load
+33.57/34.55/35.62. This was a busy shared host, with no reserved or isolated core.
+Governors remained `powersave`; turbo remained enabled. Controls passed before
+and after the campaign. OpenMP, OpenBLAS, MKL, BLIS and Rayon threads were one;
+one rank and no GPU were used. Scratch and caches were home-backed.
+
+Both interpreters were Python 3.13.18 with NumPy 2.5.4. FEniCSx used DOLFINx,
+Basix and FFCx 0.11.0, UFL 2026.1.0, PETSc 3.25.6 and mpi4py 4.1.2 in the
+locked isolated environment. Eqiora used the reference host-serial provider.
+The wheel used Rust 1.89 release settings, fat LTO, stripping and existing
+per-package size optimizations. Its installed package payload was verified
+against the retained wheel before launch.
+
+The
+<ExactSourceLink path="docs/performance/2026-11-06-elasticity-fenicsx-runtime.json" kind="blob">source and artifact record</ExactSourceLink>
+retains the actual wheel producer, wheel digest, separately frozen clean harness
+and environment lock identity. These source identities are distinct from the
+later publication commit.
+
+The first launch was rejected before any worker because inherited supervisor
+affinity excluded the selected worker. Correcting the outer launch affinity
+produced the sole full campaign: eight workers and 56 samples. After its
+successful terminal result, the outer audit encountered a Python module-name
+collision. A fresh-process audit revalidated the original reports without
+numerical work. Both failures remain recorded; no completed campaign or sample
+was replaced to improve a ranking.
+
+The
+<ExactSourceLink path="docs/performance/2026-11-06-elasticity-fenicsx-runtime.json" kind="blob">measurement record</ExactSourceLink>
+is an explicit public projection of original local evidence, not the original
+report bytes. It normalizes filesystem prefixes, retains the original digests,
+and leaves numerical observations unchanged. It includes every sample, candidate
+field, phase inventory, memory snapshot, monitor observation, source/artifact
+receipt, launch command and audit history. Original raw files remain retained
+locally and bound by the inventory.
+
+Reproduce the images from a clone with
+<ExactSourceLink path="tools/benchmarks/elasticity_fenicsx/plot_runtime.py" kind="blob">plot_runtime.py</ExactSourceLink>
+using NumPy and Matplotlib. It revalidates the committed fields before plotting.
+To collect new observations, use the frozen protocol's installed-wheel driver
+with `--mode benchmark`, the declared four levels, a new output directory and
+an outer CPU/control monitor. No timing was rerun to write this page.
+
+This result covers this manufactured Q1 workload only. It establishes no MPI,
+GPU, three-dimensional elasticity or release-wide performance guarantee.
